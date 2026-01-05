@@ -10,7 +10,7 @@ export default function FestTable() {
   const [showCompetition, setShowCompetition] = useState(false);
 
   const fetchFests = () => {
-    fetch(`${API_CONFIG.BASE_URL}/admin/fests` {
+    fetch(`${API_CONFIG.BASE_URL}/admin/fests`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('admin_token')}`
       }
