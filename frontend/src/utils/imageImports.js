@@ -158,11 +158,10 @@ export const imageMap = {
 
 // Utility function to get the proper image URL for production
 export const getImageUrl = (imagePath) => {
-    console.log('getImageUrl called with:', imagePath);
+    
 
     // If no imagePath provided, return null
     if (!imagePath) {
-        console.log('No imagePath provided, returning null');
         return null;
     }
 
@@ -172,13 +171,11 @@ export const getImageUrl = (imagePath) => {
         imagePath.startsWith('data:') ||
         imagePath.startsWith('http')
     ) {
-        console.log('Returning as-is (blob/data/http):', imagePath);
         return imagePath;
     }
 
     // If it's a hardcoded/imported image
     if (imageMap?.[imagePath]) {
-        console.log('Found in imageMap:', imagePath);
         return imageMap[imagePath];
     }
 
@@ -188,19 +185,10 @@ export const getImageUrl = (imagePath) => {
         : '/' + imagePath;
 
     if (imageMap?.[normalizedPath]) {
-        console.log('Found normalized path in imageMap:', normalizedPath);
         return imageMap[normalizedPath];
     }
-
-    // ✅ FIX: prepend backend base URL for uploaded images
-    const BACKEND_BASE_URL =
-        import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ||
-        'http://localhost:8080';
-
-    const finalUrl = `${BACKEND_BASE_URL}${normalizedPath}`;
-
-    console.log('Constructed backend image URL:', finalUrl);
-    return finalUrl;
+       return null;
+       
 };
 
 
