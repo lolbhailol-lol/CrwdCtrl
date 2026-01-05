@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
+import { API_CONFIG } from '../../config/env';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -14,7 +15,12 @@ export default function CompetitionModal({ fest, onClose }) {
   const fetchCompetitions = async () => {
     try {
       console.log('Frontend - Fetching competitions for fest:', fest._id);
+<<<<<<< HEAD
       const response = await fetch(`${API_BASE_URL}/admin/fests/${fest._id}/competitions`, {
+=======
+      const response = await fetch (`${API_CONFIG.BASE_URL}/admin/fests/${fest._id}/competitions`, {
+
+>>>>>>> 76bde7798ae97b14cc833cbae29598d602887951
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },

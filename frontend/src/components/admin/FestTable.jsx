@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import FestFormModal from './FestFormModal';
 import CompetitionModal from './Competition_Modal';
+import { API_CONFIG } from '../../config/env';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -12,7 +13,11 @@ export default function FestTable() {
   const [showCompetition, setShowCompetition] = useState(false);
 
   const fetchFests = () => {
+<<<<<<< HEAD
     fetch(`${API_BASE_URL}/admin/fests`, {
+=======
+    fetch(`${API_CONFIG.BASE_URL}/admin/fests`, {
+>>>>>>> 76bde7798ae97b14cc833cbae29598d602887951
       headers: {
         Authorization: `Bearer ${localStorage.getItem('admin_token')}`
       }
