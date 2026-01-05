@@ -3,6 +3,9 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export default function FestRegistration() {
   const { festId } = useParams();
   const navigate = useNavigate();
@@ -86,7 +89,7 @@ export default function FestRegistration() {
 
   const fetchFestDetails = async () => {
     try {
-      const response = await fetch(`/api/fests/${festId}/public`);
+      const response = await fetch(`${API_BASE_URL}/fests/${festId}/public`);
       if (!response.ok) {
         throw new Error('Failed to fetch fest details');
       }
@@ -117,7 +120,7 @@ export default function FestRegistration() {
   const fetchCompetitionAndFestDetails = async () => {
     try {
       // Fetch competition details first
-      const competitionResponse = await fetch(`/api/fests/competitions/${competitionId}/public`);
+      const competitionResponse = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`);
       if (!competitionResponse.ok) {
         throw new Error('Failed to fetch competition details');
       }
@@ -125,7 +128,7 @@ export default function FestRegistration() {
       setCompetition(competitionData);
 
       // Fetch fest details
-      const festResponse = await fetch(`/api/fests/${festId}/public`);
+      const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public`);
       if (!festResponse.ok) {
         throw new Error('Failed to fetch fest details');
       }

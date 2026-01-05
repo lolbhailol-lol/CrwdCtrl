@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export default function CompetitionRegistration() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
@@ -72,7 +75,7 @@ export default function CompetitionRegistration() {
 
     const fetchCompetitionDetails = async () => {
         try {
-            const response = await fetch(`/api/fests/competitions/${competitionId}/public`);
+            const response = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`);
             if (!response.ok) {
                 throw new Error('Failed to fetch competition details');
             }
