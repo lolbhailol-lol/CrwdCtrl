@@ -5,7 +5,7 @@ import Footer from '../../Footer';
 import ProfileSidebar from '../../ProfileSidebar';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { ArrowLeft, CheckCircle, Upload, X, Calendar, MapPin, Trophy, Users } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 import { getRealCompetitions } from '../../../data/real-data/competitionDataService.js';
@@ -14,6 +14,7 @@ import paymentQRImage from '../../../assets/payment-qr/image.png';
 function CompetitionRegisterPage() {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
+    const location = useLocation();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
