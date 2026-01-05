@@ -1075,16 +1075,19 @@ function EventDetailsPage() {
           <div className={`fixed bottom-0 left-0 right-0 ${isDark ? 'bg-[#0E0E0F]' : ''}  ${isDark ? 'border-gray-700' : 'border-gray-200'} p-2`}>
             <button
               onClick={handleRegister}
+              disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
               className={`w-full font-semibold py-3 rounded-xl transition ${
-                !eventData?.registrationLink || eventData.registrationLink.trim() === ''
+                eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
                   ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
                   : isRegistered(eventData.id)
                   ? 'bg-green-600 hover:bg-green-700 text-white'
                   : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
               }`}
             >
-              {!eventData?.registrationLink || eventData.registrationLink.trim() === ''
+              {eventData?.registration?.mode === 'NOT_STARTED'
                 ? 'Registrations Not Started'
+                : eventData?.registration?.mode === 'CLOSED'
+                ? 'Registration Closed'
                 : isRegistered(eventData.id) 
                 ? '✓ Registered' 
                 : 'Register Now'}

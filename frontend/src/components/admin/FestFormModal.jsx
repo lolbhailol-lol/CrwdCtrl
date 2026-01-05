@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, Loader } from 'lucide-react';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
   const handleInputChange = (fieldName, value) => {
@@ -429,7 +432,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       formData.append('image', file);
       formData.append('folder', 'crwdctrl/fests');
 
-      const response = await fetch('/api/admin/upload/image', {
+      const response = await fetch(`${API_BASE_URL}/admin/upload/image`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
@@ -476,7 +479,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       });
       formData.append('folder', 'crwdctrl/fests');
 
-      const response = await fetch('/api/admin/upload/images', {
+      const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
@@ -628,8 +631,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
     const method = fest ? 'PUT' : 'POST';
     const url = fest
-      ? `/api/admin/fests/${fest._id}`
-      : `/api/admin/fests`;
+      ? `${API_BASE_URL}/admin/fests/${fest._id}`
+      : `${API_BASE_URL}/admin/fests`;
 
     console.log('🌐 Making API call to:', url);
     console.log('📤 Method:', method);
@@ -1242,7 +1245,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                           
                           setUploadingImage(true);
                           try {
-                            const response = await fetch('/api/registrations/admin/test-google-sheets', {
+                            const response = await fetch(`${API_BASE_URL}/registrations/admin/test-google-sheets`, {
                               method: 'POST',
                               headers: {
                                 'Content-Type': 'application/json',
@@ -1339,7 +1342,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                                 formData.append('image', file);
                                 formData.append('folder', 'crwdctrl/payment-qr');
 
-                                const response = await fetch('/api/admin/upload/image', {
+                                const response = await fetch(`${API_BASE_URL}/admin/upload/image`, {
                                   method: 'POST',
                                   headers: {
                                     Authorization: `Bearer ${localStorage.getItem('admin_token')}`,

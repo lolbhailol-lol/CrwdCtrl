@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import AdminStats from './AdminStatsCard';
 import FestTable from './FestTable';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -16,7 +19,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/admin/stats', {
+        const response = await fetch(`${API_BASE_URL}/admin/stats`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
           },

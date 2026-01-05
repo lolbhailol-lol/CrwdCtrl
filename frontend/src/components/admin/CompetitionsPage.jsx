@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import CompetitionModal from './Competition_Modal';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export default function CompetitionsPage() {
   const [fests, setFests] = useState([]);
   const [selectedFest, setSelectedFest] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    fetch('/api/admin/fests', {
+    fetch(`${API_BASE_URL}/admin/fests`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('admin_token')}`
       }

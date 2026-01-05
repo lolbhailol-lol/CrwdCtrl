@@ -50,6 +50,8 @@ const corsOrigins = [
       "https://www.crwdctrl.in",
       "https://crwdctrl.in",
       "https://crwdctrl-mvp.vercel.app",
+      "https://crwdctrl-jz7pke4i6-lols-projects-43916194.vercel.app",  // Add this line
+      "https://crwdctrl.vercel.app"  // Add this line too
     ];
 
 console.log("✅ CORS Allowed Origins:", corsOrigins);
