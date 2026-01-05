@@ -1,0 +1,505 @@
+{
+    "fest": "Aarohan",
+    "year": 2026,
+    "common_rules": [
+        "The age limit for the participants is 16-35 years.",
+        "Performance slots will be allocated by the organizers.",
+        "If a performance is interrupted by external disturbances, audio, or lighting issues, the team may be allowed to restart or continue, as determined by the judges.",
+        "In case of interruptions or mishaps caused by the performers themselves, the decision to allow a restart or continuation will be at the judge's discretion.",
+        "If an unforeseeable event requires the participating team to stop their performance, any team member may signal a member of the organizing team.",
+        "The decision to restart, continue, or terminate the performance will be made by the judges.",
+        "Failure to be present at the allocated time will result in disqualification. In case of unavoidable circumstances, participants must contact the organizers.",
+        "Participation fees are non-refundable under any circumstances.",
+        "Decisions made by the organizers and judges are final and binding.",
+        "Teams must adhere to the allotted performance time. Exceeding the time limit may result in penalties or disqualification, as determined by the judges.",
+        "Any form of misconduct, inappropriate behavior, or violation of the event's code of conduct may lead to immediate disqualification at the discretion of the organizers."
+    ],
+    "competitions": [
+        {
+            "competition_id": 1,
+            "name": "InSync",
+            "category": "Cultural",
+            "type": "Group Dance",
+            "entry_fee": 2500,
+            "prize": {
+                "winner": 35000,
+                "runner_up": 20000
+            },
+            "process": {
+                "rounds": [
+                    "Offline/Online Elimination Round",
+                    "Final Round"
+                ],
+                "offline_elimination": [
+                    "Same rules as Final Round.",
+                    "Registration fee refunded only if eliminated."
+                ],
+                "online_elimination": [
+                    "Video of previous or recent performance without editing. ",
+                    "Maximum duration: 4 minutes.",
+                    "Registration fee will only be refunded if the team is eliminated.",
+                    "Send videos to aarohan.competitions2026@gmail.com."
+                ],
+                "final_round": [
+                          "Time limit from empty stage to empty stage: 8 minutes.",
+            "Group size: 6 to 16 members.",
+            "No open flames or live animals allowed on stage.",
+            "Costumes must maintain proper decency.",
+            "Costumes must be approved before the event.",
+            "Bring your audio track on a pen drive.",
+            "Keep a backup of your track on phone and email.",
+            "Teams must manage their own props/materials. Organizers will not provide any.",
+            "Powder/liquid props are not allowed.",
+            "Teams exceeding 8 minutes will lose all time-based points."
+                ]
+            },
+            "rules": []
+        },
+        {
+            "competition_id": 2,
+            "name": "Head Bang",
+            "category": "Cultural",
+            "type": "Band Wars",
+            "entry_fee": 2500,
+            "prize": {
+                "winner": 35000,
+                "runner_up": 20000
+            },
+            "process": {
+                "rounds": [
+                    "Offline/Online Elimination Round",
+                    "Final Round"
+                ],
+                "offline_elimination": [
+                    "Same rules as Final Round.",
+                    "Registration fee refunded only if eliminated."
+                ],
+                "online_elimination": [
+                    "Submit performance video (max 8 mins).",
+                    "No editing allowed.",
+                    "Fee refunded only if eliminated.",
+                    "Send to aarohan.competitions2026@gmail.com"
+                ],
+                "final_round": [
+                    "15-minute performance limit.",
+                    "Group size 4–16.",
+                    "Metal music prohibited.",
+                    "Organizers provide drum set + sound.",
+                    "Participants must arrange other instruments.",
+                    "Exceeding 15 minutes = loss of time points."
+                ]
+            },
+            "rules": []
+        },
+        {
+            "competition_id": 3,
+            "name": "Dastak",
+            "category": "Cultural",
+            "type": "Street Play",
+            "entry_fee": 2500,
+            "prize": {
+                "winner": 35000,
+                "runner_up": 20000
+            },
+            "process": {
+                "rounds": [
+                    "Offline/Online Elimination Round",
+                    "Final Round"
+                ],
+                "offline_elimination": [
+                    "Same rules as Final Round.",
+                    "Fee refunded only if eliminated."
+                ],
+                "online_elimination": [
+                    "Submit unedited video (max 8 mins).",
+                    "Fee refunded only if eliminated.",
+                    "Send to aarohan.competitions2026@gmail.com"
+                ],
+                "final_round": [
+                    "20-minute performance limit.",
+                    "Group size 4–20.",
+                    "No open flames or live animals.",
+                    "Props must be arranged by participants.",
+                    "Electric output provided for music.",
+                    "Exceeding time = loss of points."
+                ]
+            },
+            "rules": []
+        },
+        {
+            "competition_id": 4,
+            "name": "Inner Flame",
+            "category": "Cultural",
+            "type": "Solo Dance",
+            "entry_fee": 500,
+            "prize": {
+                "winner": 14000,
+                "runner_up": 10000
+            },
+            "process": {
+                "online_elimination": [
+                    "Submit unedited video (max 90 seconds).",
+                    "Send to aarohan.competitions2026@gmail.com"
+                ],
+                "final_round": [
+                    "4-minute performance limit.",
+                    "Maintain costume decency.",
+                    "Bring track on pen drive + backup.",
+                    "Props must be managed by participants.",
+                    "Powder/liquid props not allowed.",
+                    "Exceeding time = point loss."
+                ]
+            },
+            "rules": []
+        },
+        {
+            "competition_id": 5,
+            "name": "Humming",
+            "category": "Cultural",
+            "type": "Solo Singing",
+            "entry_fee": 500,
+            "prize": {
+                "winner": 14000,
+                "runner_up": 10000
+            },
+            "process": {
+                "online_elimination": [
+                    "Submit unedited video (max 90 seconds).",
+                    "Send to aarohan.competitions2026@gmail.com"
+                ],
+                "final_round": [
+                    "3-minute performance limit.",
+                    "Maintain outfit decency.",
+                    "Karaoke on pen drive + backup.",
+                    "Props managed by participants.",
+                    "Exceeding time = point loss."
+                ]
+            },
+            "rules": []
+        },
+        {
+            "competition_id": 6,
+            "name": "Platform",
+            "category": "Cultural",
+            "type": "Open Mic",
+            "entry_fee": 500,
+            "prize": {
+                "winner": 14000,
+                "runner_up": 10000
+            },
+            "process": {
+                "rounds": [
+                    "Final Round"
+                ],
+                "final_round": [
+                    "5-minute time limit.",
+                    "Maintain outfit decency.",
+                    "Allowed acts: Stand-up, Slam Poetry, Storytelling, Shayari, Beatboxing, Rapping, Mono-acting.",
+                    "Script must be emailed 10 days prior.",
+                    "Languages: English, Hindi, Marathi.",
+                    "Exceeding time = point loss."
+                ]
+            },
+            "rules": [
+                "5-minute time limit.",
+                "Maintain outfit decency.",
+                "Allowed acts: Stand-up, Slam Poetry, Storytelling, Shayari, Beatboxing, Rapping, Mono-acting.",
+                "Script must be emailed 10 days prior.",
+                "Languages: English, Hindi, Marathi.",
+                "Exceeding time = point loss."
+            ]
+        },
+        {
+            "competition_id": 7,
+            "name": "Art Maestro",
+            "category": "Cultural",
+            "type": "Fine Arts",
+            "entry_fee": 500,
+            "prize": {
+                "winner": 14000,
+                "runner_up": 10000
+            },
+            "process": {
+                "rounds": [
+                    "Final Round"
+                ],
+                "final_round": [
+                   "The time limit for completing the artwork is 90 minutes.",
+    "All mediums are allowed except those that are disruptive, toxic, or cause a mess, such as spray paint, solvents, ink, glitter, etc., to ensure safety and cleanliness.",
+    "Organizers will provide the drawing sheet (140gsm A3 cartridge), poster colors, shading pencils (HB, 2B, 4B), eraser, sharpener, and water.",
+    "Participants must bring any additional tools or materials they wish to use that are not mentioned in the provided list.",
+    "The themes will be announced soon by the organizing team.",
+    "Performers exceeding 90 minutes will lose all points allocated for the time criteria, and any additional point deductions will be at the discretion of the judges."
+                ]
+            },
+            "rules": [
+                "90 minutes allowed.",
+                "No toxic/unsafe mediums (spray paint, solvents, ink, glitter).",
+                "Organizers provide sheet & basic materials.",
+                "Participants bring extra tools.",
+                "Theme assigned by organizers.",
+                "Exceeding time = point loss."
+            ]
+        },
+        {
+            "competition_id": 8,
+            "name": "Glamour Nova",
+            "category": "Cultural",
+            "type": "Fashion Show",
+            "entry_fee": 600,
+            "prize": {
+                "winner_male": 14000,
+                "runner_up_male": 10000,
+                "winner_female": 14000,
+                "runner_up_female": 10000
+            },
+            "process": {
+                "rounds": [
+                    "Qualifying Round",
+                    "Final Round"
+                ],
+                "qualifying_round": [
+                    "Initial screening and introduction.",
+                    "Basic walk and presentation.",
+                    "Casual wear round."
+                ],
+                "final_round": [
+                  "There will be two rounds for all the participants.",
+      "The time limit for performances including introduction is 5 minutes.",
+      "Kindly provide your body measurements for the outfit.",
+      "Participants must bring their own make-up for their concerned safety.",
+      "Participants must come to the MIT-WU campus on the given date and time for fitting purposes.",
+      "The organizers will not be responsible for any delays of the pageant.",
+      "Please maintain decency in every aspect."
+                ]
+            },
+            "rules": [
+                "2 rounds.",
+                "5-minute time limit including intro.",
+                "Participants arrange their own makeup.",
+                "Fitting day attendance required.",
+                "Organizers not responsible for delays.",
+                "Maintain decency."
+            ]
+        },
+        {
+            "competition_id": 9,
+            "name": "Box Football",
+            "category": "Sports",
+            "type": "Football",
+            "entry_fee": 800,
+            "prize": {
+                "winner": 10000,
+                "runner_up": 5000
+            },
+            "process": {
+                "rounds": [
+                    "Group Stage",
+                    "Knockout Stage",
+                    "Final"
+                ],
+                "group_stage": [
+                    "Teams divided into groups.",
+                    "Round-robin matches within groups.",
+                    "Top teams from each group qualify."
+                ],
+                "knockout_stage": [
+                     "Each team will consist of 8 players; only 6 players are allowed on the pitch at a time, with 2 rolling substitutes permitted.",
+            "The game will be played in two halves of 10 minutes each, with no extra time.",
+            "There will be a 5-minute break between the two halves.",
+            "To kick off, all players must be in their own half of the playing area. The ball is kicked from the center mark by the team that wins the toss.",
+            "There is no offside rule. Kick-offs will be taken from the halfway line. Kick-ins and corners are allowed.",
+            "During substitutions, the exiting player must leave the playing area before the substitute enters.",
+            "Unlimited rolling substitutions.",
+            "In the event of a penalty, the penalty taker must take a no-step penalty.",
+            "Slide tackles are not allowed. Sliding to control or stop the ball is only permitted if no opponent is nearby.",
+            "Players are dismissed for two yellow cards or a direct red and take no further part in the game.",
+            "Goalkeepers may not pick up the ball if it has been passed to them by a teammate.",
+            "If a game is drawn, the match will be decided by a penalty shoot-out. Shin pads are advisable. Organizers are not responsible for injuries.",
+            "Free kicks can be direct.",
+            "A drop ball will be used to restart the game after temporary stoppages such as injury, ball burst, or ball hitting a foreign object.",
+            "If teams remain tied after the first three penalties, the game goes to sudden-death penalties.",
+            "Players taking sudden-death penalties must be different from those who took the first three.",
+            "A player who has received a red card may not take a penalty."
+                ],
+                "final": [
+                    "Championship match.",
+                    "Two 10-minute halves.",
+                    "Penalty shootout if needed."
+                ]
+            },
+            "rules": [
+                "8 players per team; 6 on field.",
+                "2 rolling substitutes.",
+                "Two 10-minute halves.",
+                "5-minute break.",
+                "No-step penalty rule.",
+                "No slide tackles.",
+                "Yellow+yellow = red.",
+                "Penalty shootout for draw.",
+                "Shin pads recommended.",
+                "Free kicks direct.",
+                "Drop ball restarts.",
+                "Sudden death penalties after 3 each.",
+                "Red card = no penalties."
+            ]
+        },
+        {
+            "competition_id": 10,
+            "name": "Box Cricket",
+            "category": "Sports",
+            "type": "Cricket",
+            "entry_fee": 800,
+            "prize": {
+                "winner": 10000,
+                "runner_up": 5000
+            },
+            "process": {
+                "rounds": [
+                    "Group Stage",
+                    "Knockout Stage",
+                    "Final"
+                ],
+                "group_stage": [
+                    "Teams divided into groups.",
+                    "Round-robin matches within groups.",
+                    "6 overs per innings per match.",
+                    "Top teams from each group qualify."
+                ],
+                "knockout_stage": [
+                     "7 players in a team.",
+      "6 overs will be there in an inning.",
+      "One player can bowl a maximum of 1 over.",
+      "No leg byes or byes.",
+      "No last man standing.",
+      "Full arm bowling.",
+      "No run-up allowed (maximum 2 steps).",
+      "Intensive sledging is not allowed.",
+      "The top net touch boundary is 4. Net touch catch is not out.",
+      "A team can run as many runs as possible when the ball is hit with the bat and stays inside the playing area.",
+      "Overthrows are allowed.",
+      "No LBW.",
+      "One run will be awarded to the batting team for a wide.",
+      "Four runs if the ball hits the net on the opposite side of the batsman (facing bowler’s back) after touching the ground once inside the box.",
+      "Six runs if the ball hits the net directly on the opposite side of the batsman (facing bowler’s back).",
+      "Free-hit will be provided for a no-ball."
+                ],
+                "final": [
+                    "Championship match.",
+                    "6 overs per innings.",
+                    "Super over if tied."
+                ]
+            },
+            "rules": [
+                "7 players per team.",
+                "6 overs per innings.",
+                "Max 1 over per bowler.",
+                "No byes/leg byes.",
+                "No last man standing.",
+                "Full-arm bowling only.",
+                "Run-up max 2 steps.",
+                "No sledging.",
+                "Top net = 4 runs.",
+                "Overthrows allowed.",
+                "No LBW.",
+                "Wide = 1 run.",
+                "Certain sides = 4 or 6 runs.",
+                "Free-hit for no-ball."
+            ]
+        },
+        {
+            "competition_id": 11,
+            "name": "Badminton (Solo)",
+            "category": "Sports",
+            "type": "Singles",
+            "entry_fee": 300,
+            "prize": {
+                "winner": 5000,
+                "runner_up": 3000
+            },
+            "process": {
+                "rounds": [
+                    "Preliminary Round",
+                    "Knockout Rounds",
+                    "Final"
+                ],
+                "preliminary_round": [
+                    "Single elimination format.",
+                    "Matches up to 11 points.",
+                    "1 minute knocking time."
+                ],
+                "knockout_rounds": [
+                   "Bring your own rackets and shuttlecocks.",
+      "Non-marking shoes are compulsory.",
+      "No hooting or shouting allowed.",
+      "You must be in proper attire; pajamas and shorts are allowed.",
+      "First round will be 11 points; all other rounds will be 15 points.",
+      "Before the match, only 1 minute will be allowed for knocking.",
+      "All rounds will be elimination rounds."
+                ],
+                "final": [
+                    "Championship match.",
+                    "Best of 3 games to 15 points.",
+                    "1 minute knocking time."
+                ]
+            },
+            "rules": [
+                "Bring own racket and shuttle.",
+                "Non-marking shoes compulsory.",
+                "No shouting.",
+                "Proper attire required.",
+                "Round 1 = 11 points.",
+                "Others = 15 points.",
+                "1 min knocking.",
+                "Elimination rounds."
+            ]
+        },
+        {
+            "competition_id": 12,
+            "name": "Badminton (Duo)",
+            "category": "Sports",
+            "type": "Doubles",
+            "entry_fee": 500,
+            "prize": {
+                "winner": 8000,
+                "runner_up": 5000
+            },
+            "process": {
+                "rounds": [
+                    "Preliminary Round",
+                    "Knockout Rounds",
+                    "Final"
+                ],
+                "preliminary_round": [
+                    "Single elimination format.",
+                    "Matches up to 11 points.",
+                    "1 minute knocking time per pair."
+                ],
+                "knockout_rounds": [
+                    "Bring your own rackets and shuttlecocks.",
+      "Non-marking shoes are compulsory.",
+      "No hooting or shouting allowed.",
+      "You must be in proper attire; pajamas and shorts are allowed.",
+      "First round will be 11 points; all other rounds will be 15 points.",
+      "Before the match, only 1 minute will be allowed for knocking.",
+      "All rounds will be elimination rounds."
+                ],
+                "final": [
+                    "Championship match.",
+                    "Best of 3 games to 15 points.",
+                    "1 minute knocking time per pair."
+                ]
+            },
+            "rules": [
+                "Bring own racket and shuttle.",
+                "Non-marking shoes compulsory.",
+                "No shouting.",
+                "Proper attire required.",
+                "Round 1 = 11 points.",
+                "Others = 15 points.",
+                "1 min knocking.",
+                "Elimination rounds."
+            ]
+        }
+    ]
+}

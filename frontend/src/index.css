@@ -1,0 +1,239 @@
+@import "tailwindcss";
+
+/* Sticky footer support */
+html,
+body,
+#root {
+    height: 100%;
+}
+
+/* Global dark mode styles */
+html {
+    scroll-behavior: smooth;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Ensure smooth transitions for all color changes */
+*,
+*::before,
+*::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dark mode global styles */
+.dark {
+    color-scheme: dark;
+}
+
+/* Custom scrollbar for dark mode */
+.dark::-webkit-scrollbar {
+    width: 8px;
+}
+
+.dark::-webkit-scrollbar-track {
+    background: #0E0E0F;
+}
+
+.dark::-webkit-scrollbar-thumb {
+    background: #64748b;
+    border-radius: 4px;
+}
+
+.dark::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Light mode scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Focus styles that work in both modes */
+.focus-visible\:ring-2:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+.dark .focus-visible\:ring-2:focus-visible {
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.5);
+}
+
+/* Animation for theme transitions */
+.theme-transition {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+/* Gradient backgrounds for dark mode */
+.dark .bg-gradient-dark {
+    background: linear-gradient(135deg, #0E0E0F 0%, #1a1a1a 100%);
+}
+
+.bg-gradient-light {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+/* Hide scrollbar utility class */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Mobile responsive utilities */
+.mobile-card-shadow {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dark .mobile-card-shadow {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Smooth category scroll */
+.category-scroll {
+    scroll-snap-type: x mandatory;
+}
+
+.category-scroll>* {
+    scroll-snap-align: start;
+}
+
+/* Enhanced mobile touch targets */
+.touch-target {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+/* Loading animation styles */
+@keyframes loading-bar {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    50% {
+        transform: translateX(0%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.animate-loading-bar {
+    animation: loading-bar 2s ease-in-out infinite;
+}
+
+/* Gradient text utility */
+.text-gradient {
+    background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Mobile-first breakpoint utilities */
+@media (max-width: 640px) {
+    .mobile-header-blur {
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
+}
+
+/* iOS Safari specific fixes for Featured Lineup */
+@supports (-webkit-touch-callout: none) {
+    /* Target iOS Safari specifically */
+
+    /* Fix for Featured Lineup scrolling performance */
+    .scrollbar-hide {
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+    }
+
+    /* Fix image rendering issues in Featured Lineup cards */
+    img {
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+
+    /* Prevent zoom/scaling issues on iOS */
+    .min-w-\[200px\],
+    .sm\:min-w-\[240px\] {
+        max-width: none;
+        flex-shrink: 0;
+        width: 200px;
+    }
+
+    @media (min-width: 640px) {
+
+        .min-w-\[200px\],
+        .sm\:min-w-\[240px\] {
+            width: 240px;
+        }
+    }
+
+    /* Fix viewport scaling on iOS Safari */
+    body {
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
+    /* Fix iOS Safari viewport units */
+    .h-\[150px\],
+    .sm\:h-\[170px\] {
+        height: 150px;
+        min-height: 150px;
+        max-height: 150px;
+    }
+
+    @media (min-width: 640px) {
+
+        .h-\[150px\],
+        .sm\:h-\[170px\] {
+            height: 170px;
+            min-height: 170px;
+            max-height: 170px;
+        }
+    }
+}

@@ -1,0 +1,516 @@
+{
+    "fest": "Symbi Utsav",
+    "year": 2025,
+    "college": "Symbiosis Junior College",
+    "venue": "Symbiosis Junior College, Kiwale",
+    "date": "2025-12-10 to 2025-12-12",
+    "time": "09:00 AM to 03:00 PM",
+    "image": "/src/data/real-data/symbi-images/symbi utsav photo 1 (card photo).png",
+    "artists_you_will_love": [
+        {
+            "name": "Atharva Sudame",
+            "genre": "Content Creator and Influencer",
+            "performance_date": "2025-12-11",
+            "image": "/src/data/real-data/symbi-images/symbi utsav Atharva-Sudame artist.webp"
+        }
+    ],
+    "events": [
+        {
+            "event_id": 2,
+            "title": "SYMBI UTSAV 2025 Model United Nations (MUN)",
+            "category": "Academic",
+            "description": "Model United Nations focusing on Global Maritime Security – Anti-Piracy & Anti-Proliferation.",
+            "topic": "Global Maritime Security – Architecture for Anti-Piracy & Anti-Proliferation Efforts",
+            "date": "2025-12-10",
+            "time": "11:00 AM",
+            "venue": "Symbiosis Junior College, Kiwale Campus",
+            "registration_required": true,
+            "rules_and_regulations": [
+                "Each participant should carry ID proof.",
+                "On-spot entry is not obliged.",
+                "Students should refrain from abusive language; violation will result in disqualification.",
+                "Points will be awarded based on presentation, knowledge of the topic, and communication."
+            ],
+            "registration_link": null,
+            "image": "/src/data/real-data/symbi-images/symbi utsav mun.png",
+            "contact": null,
+            "notes": "Participants can register using the QR code on poster."
+        },
+        {
+            "event_id": 3,
+            "title": "Curriculum Expo 2026",
+            "category": "Exhibition",
+            "description": "Students showcase innovative models, projects, and creative ideas.",
+            "date": "2025-12-10",
+            "reporting_time": "09:00 AM",
+            "registration_fee": "₹500 (Individual / Team up to 5 members)",
+            "rules_and_regulations": [
+                "Students or teachers may visit the campus on 9th December to check arrangements if required.",
+                "Students must carry their project materials, models/devices, and all required items with them.",
+                "Required space and arrangements for the exhibition will be provided by the college.",
+                "To enroll in the exhibition, students must register on the given link.",
+                "Students must provide prior notification if their working model requires electricity supply.",
+                "Decision of the judges is final."
+            ],
+            "image": "/src/data/real-data/symbi-images/symbi utsav expo.jpg",
+            "team_size": {
+                "min": 1,
+                "max": 5
+            },
+            "campus_visit_allowed": true,
+            "campus_visit_date": "2025-12-09",
+            "important_guidelines": [
+                "Participants must bring their own project/model/materials.",
+                "Required exhibition space will be provided.",
+                "Students must register using the official link."
+            ],
+            "registration_link": "https://forms.gle/pP9zw9WBg46cZh8bA",
+            "coordinators": [
+                {
+                    "name": "Kashmira S.",
+                    "phone": "9637214982"
+                },
+                {
+                    "name": "Kaustubh S.",
+                    "phone": "9975081555"
+                }
+            ]
+        },
+        {
+            "event_id": 4,
+            "title": "3x3 Basketball Tournament",
+            "category": "Sports",
+            "description": "Fast-paced 3x3 basketball tournament for school & college teams.",
+            "date": "2025-12-10",
+            "time": "08:00 AM",
+            "registration_fee": 1500,
+            "image": "/src/data/real-data/symbi-images/symbi utsav basketball.jpg",
+            "prizes": {
+                "total": "₹10,000",
+                "first_place": "₹6,000",
+                "second_place": "₹4,000",
+                "extras": "Gift hampers for Winners & Runners-up"
+            },
+            "registration_link": null,
+            "venue": "Symbiosis Junior College Basketball Court",
+            "notes": "Participants must scan the QR on the poster to register."
+        },
+        {
+            "event_id": 5,
+            "title": "Box Cricket Tournament",
+            "category": "Sports",
+            "description": "5 overs box cricket matches for school & college teams.",
+            "date": "2025-12-10",
+            "time": "08:00 AM",
+            "registration_fee": 1500,
+            "image": "/src/data/real-data/symbi-images/symbi utsav cricket.jpg",
+            "prizes": {
+                "total": "₹10,000",
+                "first_place": "₹6,000",
+                "second_place": "₹4,000",
+                "extras": "Gift hampers for Winners & Runners-up"
+            },
+            "registration_link": null,
+            "venue": "Symbiosis Junior College Cricket Ground",
+            "notes": "Participants must scan the QR on the poster to register."
+        },
+        {
+            "event_id": 6,
+            "title": "Futsal Tournament",
+            "category": "Sports",
+            "description": "Indoor football (futsal) competition for school & college teams.",
+            "date": "2025-12-12",
+            "time": "08:00 AM",
+            "registration_fee": 1500,
+            "image": "/src/data/real-data/symbi-images/symbi utsav football (futsal).jpg",
+            "prizes": {
+                "total": "₹10,000",
+                "first_place": "₹6,000",
+                "second_place": "₹4,000",
+                "extras": "Gift hampers for Winners & Runners-up"
+            },
+            "registration_link": null,
+            "venue": "Symbiosis Junior College Football Ground",
+            "notes": "Participants must scan the QR on the poster to register."
+        },
+        {
+            "event_id": 7,
+            "title": "Gaming Tournament – BGMI",
+            "category": "Gaming",
+            "game": "Battlegrounds Mobile India",
+            "description": "Squad-based BGMI tournament across all three days.",
+            "date": "2025-12-10 to 2025-12-12",
+            "time": "TBD",
+            "duration": "3 days (Dec 10-12)",
+            "venue": "Symbiosis Junior College Computer Lab, Kiwale",
+            "registration_required": true,
+            "registration_fee": 500,
+            "individual_participation": "₹500 per Team",
+            "registration_link": null,
+            "image": "/src/data/real-data/symbi-images/symbi utsav photo 3.jpg",
+            "prize_pool": {
+                "total": 7000,
+                "first": 4000,
+                "second": 2000,
+                "third": 1000
+            },
+            "social_media": {
+                "instagram": "@symbiosisjrcollege",
+                "facebook": "Symbiosis Junior College",
+                "youtube": "Symbiosis Jr College"
+            },
+            "team_format": "Squad-based",
+            "rules_and_regulations": [
+                "Each team must have 4 players (squad format).",
+                "All participants must carry valid ID proof.",
+                "Use of hacks, cheats or third-party software will result in immediate disqualification.",
+                "Teams must report 30 minutes before their scheduled match.",
+                "Decision of judges and tournament organizers is final.",
+                "No abusive language or unsportsmanlike conduct will be tolerated."
+            ]
+        },
+        {
+            "event_id": 12,
+            "title": "Quiz Carnival",
+            "category": "Quiz",
+            "quiz": "Quiz",
+            "description": "Inter-school quiz competition for Classes 8 to 12.",
+            "date": "2025-12-10",
+            "time": "10:30 AM",
+            "duration": "1 Day (10th December 2025)",
+            "venue": "Symbiosis Junior College, Kiwale",
+            "registration_required": true,
+            "registration_fee": "TBA",
+            "individual_participation": "Team of 4 or 5 members",
+            "registration_link": null,
+            "image": "/src/data/real-data/symbi-images/Quiz.jpg",
+            "prize_pool": null,
+            "social_media": {
+                "instagram": "@symbiosisjrcollege",
+                "facebook": "Symbiosis Junior College",
+                "youtube": "Symbiosis Jr College"
+            },
+            "team_format": "Team of 4–5 Participants",
+            "rules_and_regulations": [
+                "Open for Classes 8 to 12.",
+                "Team of 4 or 5 members.",
+                "Buzzer round – one question at a time.",
+                "Fastest team to press buzzer answers.",
+                "Teams get 5–7 seconds to answer.",
+                "Answer cannot be changed once spoken.",
+                "Correct Answer: +10 points.",
+                "Wrong Answer: -5 points.",
+                "No Attempt: 0 points.",
+                "Tie-breaker: first team to answer correctly wins.",
+                "Whispering, misconduct, or cheating leads to disqualification.",
+                "Phones & smartwatches are not allowed."
+            ]
+        },
+        {
+            "event_id": 13,
+            "title": "Live Band",
+            "category": "Cultural Event",
+            "description": "Live band performance competition showcasing musical talents and creativity.",
+            "date": "2025-12-10",
+            "time": "02:00 PM",
+            "duration": "1 Day (10th December 2025)",
+            "venue": "Symbiosis Junior College, Kiwale",
+            "registration_required": true,
+            "registration_fee": 1500,
+            "individual_participation": "Solo singing with accompanist allowed",
+            "registration_link": null,
+            "image": "/src/data/real-data/symbi-images/band wars.jpg",
+            "prize_pool": null,
+            "social_media": {
+                "instagram": "@symbiosisjrcollege",
+                "facebook": "Symbiosis Junior College",
+                "youtube": "Symbiosis Jr College"
+            },
+            "team_format": "Solo or Band Performance",
+            "rules_and_regulations": [
+                "Solo singing: One vocalist + one accompanist only.",
+                "Participants must bring their own instruments.",
+                "Multiple entries allowed from same institution.",
+                "Time limit: 3 minutes + 1 minute grace."
+            ]
+        },
+        {
+            "event_id": 14,
+            "title": "Flash Mob",
+            "category": "Cultural Event",
+            "description": "Dynamic flash mob performance with Global Mix theme.",
+            "date": "2025-12-12",
+            "time": "12:30 PM",
+            "duration": "1 Day (12th December 2025)",
+            "venue": "Symbiosis Junior College, Kiwale",
+            "registration_required": true,
+            "registration_fee":"100/ per Individual" ,
+            "individual_participation": "Team of 15 members",
+            "registration_link": null,
+            "image": "/src/data/real-data/symbi-images/flash mob.jpg",
+            "prize_pool": null,
+            "social_media": {
+                "instagram": "@symbiosisjrcollege",
+                "facebook": "Symbiosis Junior College",
+                "youtube": "Symbiosis Jr College"
+            },
+            "team_format": "Team of 15 members",
+            "guidelines": {
+                "theme": "Global Mix",
+                "team_size": 15
+            },
+            "rules_and_regulations": [
+                "Theme: Global Mix",
+                "Team must have exactly 15 members.",
+                "Performance should reflect the global theme.",
+                "Creative choreography and coordination required."
+            ]
+        },
+        {
+            "event_id": 15,
+            "title": "Party Prism - Singing",
+            "category": "Cultural Event",
+            "description": "Solo and group singing competition with audition process.",
+            "date": "2025-12-10",
+            "time": "10:00 AM",
+            "duration": "1 Day (10th December 2025)",
+            "venue": "Symbiosis Junior College, Kiwale",
+            "registration_required": true,
+            "registration_fee": "Solo: ₹500, Group: ₹100 per member (min 5)",
+            "individual_participation": "Solo or Group (minimum 5 members)",
+            "registration_link": null,
+            "image": "/src/data/real-data/symbi-images/singing (party prism).jpg",
+            "prize_pool": null,
+            "social_media": {
+                "instagram": "@symbiosisjrcollege",
+                "facebook": "Symbiosis Junior College",
+                "youtube": "Symbiosis Jr College"
+            },
+            "team_format": "Solo or Group (minimum 5)",
+            "fees": {
+                "solo": 500,
+                "group": 100,
+                "group_minimum": 5,
+                "less_than_minimum_treated_as_solo": true
+            },
+            "auditions": {
+                "required": true,
+                "video_duration": "1 minute",
+                "deadline": "2025-12-07",
+                "timing": "10:00 AM – 3:00 PM",
+                "email": "menaka.tharkude@symbiosisjrcollege.ac.in",
+                "note": "Email strictly for audition submissions only.",
+                "selection": "Final selection decided by organizers."
+            },
+            "general_rules": [
+               "Each participant should carry ID proof.",
+    "On-spot entry is not obliged.",
+    "Students should refrain from abusive language; violation will result in disqualification.",
+    "Points will be awarded based on presentation, knowledge of the topic, and communication."
+            ],
+            "rules_and_regulations": [
+                "Solo singing: One vocalist + one accompanist only.",
+                "Participants must bring their own instruments.",
+                "Multiple entries allowed.",
+                "Time limit: 3 minutes + 1 minute grace.",
+                "Audition video must be 1 minute duration.",
+                "Submit audition by 07-12-2025 to menaka.tharkude@symbiosisjrcollege.ac.in"
+            ]
+        },
+        {
+            "event_id": 16,
+            "title": "Fashion Show",
+            "category": "Cultural Event",
+            "description": "Fashion show competition showcasing creativity and style.",
+            "date": "2025-12-11",
+            "time": "6:00 PM",
+            "duration": "1 Day (11th December 2025)",
+            "venue": "Symbiosis Junior College, Kiwale",
+            "registration_required": true,
+            "registration_fee": "TBD",
+            "individual_participation": "Individual or Team",
+            "registration_link": null,
+            "image": "/src/data/real-data/symbi-images/symbi utsav fashion show.jpg",
+            "prize_pool": null,
+            "social_media": {
+                "instagram": "@symbiosisjrcollege",
+                "facebook": "Symbiosis Junior College",
+                "youtube": "Symbiosis Jr College"
+            },
+            "team_format": "Individual or Team",
+            "contact": [
+                {
+                    "name": "Leanne Gabriel",
+                    "phone": "8796145459"
+                }
+            ],
+            "rules_and_regulations": [
+                "Creative and innovative themes encouraged.",
+                "Appropriate costumes and conduct required.",
+                "Contact Leanne Gabriel (8796145459) for details.",
+                "Registration details will be announced soon."
+            ]
+        },
+        {
+            "event_id": 17,
+            "title": "Party Prism - Dance",
+            "category": "Cultural Event",
+            "description": "Solo and group dance competition with audition process.",
+            "date": "2025-12-10",
+            "time": "11:00 AM",
+            "duration": "1 Day (10th December 2025)",
+            "venue": "Symbiosis Junior College, Kiwale",
+            "registration_required": true,
+            "registration_fee": "Solo: ₹500, Group: ₹100 per member (min 5)",
+            "individual_participation": "Solo or Group (minimum 5 members)",
+            "registration_link": null,
+            "image": "/src/data/real-data/symbi-images/dance (party prism).jpg",
+            "prize_pool": null,
+            "social_media": {
+                "instagram": "@symbiosisjrcollege",
+                "facebook": "Symbiosis Junior College",
+                "youtube": "Symbiosis Jr College"
+            },
+            "team_format": "Solo or Group (minimum 5)",
+            "fees": {
+                "solo": 500,
+                "group": 100,
+                "group_minimum": 5,
+                "less_than_minimum_treated_as_solo": true
+            },
+            "auditions": {
+                "required": true,
+                "video_duration": "1 minute",
+                "deadline": "2025-12-07",
+                "timing": "10:00 AM – 3:00 PM",
+                "email": "menaka.tharkude@symbiosisjrcollege.ac.in",
+                "note": "Email is strictly for audition submissions.",
+                "selection": "Final selection decided by organizers."
+            },
+            "general_rules": [
+               "Each participant should carry ID proof.",
+    "On-spot entry is not obliged.",
+    "Students should refrain from abusive language; violation will result in disqualification.",
+    "Points will be awarded based on presentation, knowledge of the topic, and communication."
+            ],
+            "rules_and_regulations": [
+                "Solo dance: One performer + one accompanist only.",
+                "Participants must bring their own props.",
+                "Multiple entries from the same institution allowed.",
+                "Time limit: 3 minutes + 1 minute grace.",
+                "Songs must be decent and non-offensive.",
+                "Item songs are not allowed.",
+                "Vulgarity leads to disqualification.",
+                "Audition video must be 1 minute duration.",
+                "Submit audition by 07-12-2025 to menaka.tharkude@symbiosisjrcollege.ac.in"
+            ]
+        }
+    ],
+    "sports_details": [
+        {
+            "day": "DAY 1",
+            "sport": "CRICKET",
+            "format": "5 Overs Match",
+            "image": "/src/data/real-data/symbi-images/symbi utsav cricket.jpg",
+            "team_size": {
+                "players_to_play": 7,
+                "minimum": 7,
+                "maximum": 9,
+                "substitutes_included": 2
+            },
+            "teams_limit": "First 16 Teams Only",
+            "timing": {
+                "inning_max_time_minutes": 10,
+                "match_max_time_minutes": 20,
+                "start_time": "08:00 AM onwards"
+            },
+            "registration_fees": "₹1500",
+            "winning_prizes": {
+                "total": "₹10,000",
+                "first_place": "₹6,000",
+                "second_place": "₹4,000",
+                "extras": "Gift hampers for Winners & Runners-up"
+            },
+            "rules_and_facilities": [
+                "You may bring friends from other colleges to create a team",
+                "ID Card, Bonafide Certificate & Birth Certificate compulsory for each player",
+                "Food stalls and refreshments available",
+                "Medi-kit available on ground",
+                "No abusive language – violation leads to disqualification",
+                "No arguments with umpires",
+                "Knockout format for all matches"
+            ]
+        },
+        {
+            "day": "DAY 1",
+            "sport": "BASKETBALL",
+            "image": "/src/data/real-data/symbi-images/symbi utsav basketball.jpg",
+            "team_size": {
+                "players_on_court": 3,
+                "minimum": 3,
+                "maximum": 6,
+                "substitutes_included": 3
+            },
+            "match_format": {
+                "teams_limit": 16,
+                "half_duration_minutes": 7,
+                "match_duration_minutes": 14
+            },
+            "timing": {
+                "start_time": "08:00 AM onwards"
+            },
+            "registration_fees": "₹1500",
+            "winning_prizes": {
+                "total": "₹10,000",
+                "first_place": "₹6,000",
+                "second_place": "₹4,000",
+                "extras": "Gift hampers for Winners & Runners-up"
+            },
+            "rules_and_facilities": [
+                "You may bring friends from other colleges to create a team",
+                "ID Card, Bonafide Certificate & Birth Certificate compulsory for each player",
+                "Food stalls and refreshments available",
+                "Medi-kit available",
+                "No abusive language – violation leads to disqualification",
+                "No arguing with the umpires",
+                "Knockout format for all sports"
+            ]
+        },
+        {
+            "day": "DAY 3",
+            "sport": "FUTSAL",
+            "image": "/src/data/real-data/symbi-images/symbi utsav football (futsal).jpg",
+            "team_size": {
+                "players_to_play": 5,
+                "minimum": 5,
+                "maximum": 7,
+                "substitutes_included": 2
+            },
+            "match_format": {
+                "teams_limit": 16,
+                "half_duration_minutes": 7,
+                "match_duration_minutes": 14,
+                "max_time_with_halftime_minutes": 15
+            },
+            "timing": {
+                "start_time": "08:00 AM onwards"
+            },
+            "registration_fees": "₹1500",
+            "winning_prizes": {
+                "total": "₹10,000",
+                "first_place": "₹6,000",
+                "second_place": "₹4,000",
+                "extras": "Gift hampers for Winners & Runners-up"
+            },
+            "rules_and_facilities": [
+                "You may bring friends from other colleges to create a team",
+                "ID Card, Bonafide Certificate & Birth Certificate compulsory for each player",
+                "Food stalls and refreshments available",
+                "Medi-kit available",
+                "No abusive language – violation leads to disqualification",
+                "No arguing with umpires",
+                "Knockout matches for all sports"
+            ]
+        }
+    ]
+}

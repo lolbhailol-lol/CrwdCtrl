@@ -1,0 +1,538 @@
+{
+  "fest": "Aarohan",
+  "year": 2026,
+  "common_rules": [
+    "The age limit for the participants is 16-35 years.",
+    "Performance slots will be allocated by the organizers.",
+    "If a performance is interrupted by external disturbances, audio, or lighting issues, the team may be allowed to restart or continue, as determined by the judges.",
+    "In case of interruptions or mishaps caused by the performers themselves, the decision to allow a restart or continuation will be at the judge's discretion.",
+    "If an unforeseeable event requires the participating team to stop their performance, any team member may signal a member of the organizing team.",
+    "The decision to restart, continue, or terminate the performance will be made by the judges.",
+    "Failure to be present at the allocated time will result in disqualification. In case of unavoidable circumstances, participants must contact the organizers.",
+    "Participation fees are non-refundable under any circumstances.",
+    "Decisions made by the organizers and judges are final and binding.",
+    "Teams must adhere to the allotted performance time. Exceeding the time limit may result in penalties or disqualification, as determined by the judges.",
+    "Any form of misconduct, inappropriate behavior, or violation of the event's code of conduct may lead to immediate disqualification at the discretion of the organizers."
+  ],
+  "competitions": [
+    {
+      "competition_id": 1,
+      "name": "InSync",
+      "category": "Cultural",
+      "type": "Group Dance",
+      "entry_fee": 2500,
+      "prize": {
+        "winner": 35000,
+        "runner_up": 20000
+      },
+      "rules": [],
+      "process": [],
+      "notes": "Detailed rules not visible in screenshots, only main data extracted."
+    },
+    {
+      "competition_id": 2,
+      "name": "Head Bang",
+      "category": "Cultural",
+      "type": "Band Wars",
+      "entry_fee": 2500,
+      "prize": {
+        "winner": 35000,
+        "runner_up": 20000
+      },
+      "process": {
+        "rounds": [
+          "Offline/Online Elimination Round",
+          "Final Round"
+        ],
+        "offline_elimination": [
+          "Same rules as Final Round.",
+          "Registration fee refunded only if eliminated."
+        ],
+        "online_elimination": [
+          "Submit performance video (max 8 mins).",
+          "No editing allowed.",
+          "Fee refunded only if eliminated.",
+          "Send to aarohan@mitwpu.edu.in"
+        ],
+        "final_round": [
+          "15-minute performance limit.",
+          "Group size 4–16.",
+          "Metal music prohibited.",
+          "Organizers provide drum set + sound.",
+          "Participants must arrange other instruments.",
+          "Exceeding 15 minutes = loss of time points."
+        ]
+      },
+      "rules": []
+    },
+    {
+      "competition_id": 3,
+      "name": "Dastak",
+      "category": "Cultural",
+      "type": "Street Play",
+      "entry_fee": 2500,
+      "prize": {
+        "winner": 35000,
+        "runner_up": 20000
+      },
+      "process": {
+        "rounds": [
+          "Offline/Online Elimination Round",
+          "Final Round"
+        ],
+        "offline_elimination": [
+          "Same rules as Final Round.",
+          "Fee refunded only if eliminated."
+        ],
+        "online_elimination": [
+          "Submit unedited video (max 8 mins).",
+          "Fee refunded only if eliminated.",
+          "Send to aarohan@mitwpu.edu.in"
+        ],
+        "final_round": [
+          "20-minute performance limit.",
+          "Group size 4–20.",
+          "No open flames or live animals.",
+          "Props must be arranged by participants.",
+          "Electric output provided for music.",
+          "Exceeding time = loss of points."
+        ]
+      },
+      "rules": []
+    },
+    {
+      "competition_id": 4,
+      "name": "Beat Your Feet",
+      "category": "Cultural",
+      "type": "Solo Dance",
+      "entry_fee": 500,
+      "prize": {
+        "winner": 14000,
+        "runner_up": 10000
+      },
+      "process": {
+        "online_elimination": [
+          "Submit unedited video (max 90 seconds).",
+          "Send to aarohan@mitwpu.edu.in"
+        ],
+        "final_round": [
+          "4-minute performance limit.",
+          "Maintain costume decency.",
+          "Bring track on pen drive + backup.",
+          "Props must be managed by participants.",
+          "Powder/liquid props not allowed.",
+          "Exceeding time = point loss."
+        ]
+      },
+      "rules": []
+    },
+    {
+      "competition_id": 5,
+      "name": "Humming",
+      "category": "Cultural",
+      "type": "Solo Singing",
+      "entry_fee": 500,
+      "prize": {
+        "winner": 14000,
+        "runner_up": 10000
+      },
+      "process": {
+        "online_elimination": [
+          "Submit unedited video (max 90 seconds).",
+          "Send to aarohan@mitwpu.edu.in"
+        ],
+        "final_round": [
+          "3-minute performance limit.",
+          "Maintain outfit decency.",
+          "Karaoke on pen drive + backup.",
+          "Props managed by participants.",
+          "Exceeding time = point loss."
+        ]
+      },
+      "rules": []
+    },
+    {
+      "competition_id": 6,
+      "name": "Platform",
+      "category": "Cultural",
+      "type": "Open Mic",
+      "entry_fee": 500,
+      "prize": {
+        "winner": 14000,
+        "runner_up": 10000
+      },
+      "rules": [
+        "5-minute time limit.",
+        "Maintain outfit decency.",
+        "Allowed acts: Stand-up, Slam Poetry, Storytelling, Shayari, Beatboxing, Rapping, Mono-acting.",
+        "Script must be emailed 10 days prior.",
+        "Languages: English, Hindi, Marathi.",
+        "Exceeding time = point loss."
+      ]
+    },
+    {
+      "competition_id": 7,
+      "name": "Art Maestro",
+      "category": "Cultural",
+      "type": "Fine Arts",
+      "entry_fee": 500,
+      "prize": {
+        "winner": 14000,
+        "runner_up": 10000
+      },
+      "rules": [
+        "90 minutes allowed.",
+        "No toxic/unsafe mediums (spray paint, solvents, ink, glitter).",
+        "Organizers provide sheet & basic materials.",
+        "Participants bring extra tools.",
+        "Theme assigned by organizers.",
+        "Exceeding time = point loss."
+      ]
+    },
+    {
+      "competition_id": 8,
+      "name": "Glamour Nova",
+      "category": "Cultural",
+      "type": "Fashion Show",
+      "entry_fee": 600,
+      "prize": {
+        "winner_male": 14000,
+        "runner_up_male": 10000,
+        "winner_female": 14000,
+        "runner_up_female": 10000
+      },
+      "rules": [
+        "2 rounds.",
+        "5-minute time limit including intro.",
+        "Participants arrange their own makeup.",
+        "Fitting day attendance required.",
+        "Organizers not responsible for delays.",
+        "Maintain decency."
+      ]
+    },
+    {
+      "competition_id": 9,
+      "name": "Box Football",
+      "category": "Sports",
+      "type": "Football",
+      "entry_fee": 800,
+      "prize": {
+        "winner": 10000,
+        "runner_up": 5000
+      },
+      "rules": [
+        "8 players per team; 6 on field.",
+        "2 rolling substitutes.",
+        "Two 10-minute halves.",
+        "5-minute break.",
+        "No-step penalty rule.",
+        "No slide tackles.",
+        "Yellow+yellow = red.",
+        "Penalty shootout for draw.",
+        "Shin pads recommended.",
+        "Free kicks direct.",
+        "Drop ball restarts.",
+        "Sudden death penalties after 3 each.",
+        "Red card = no penalties."
+      ]
+    },
+    {
+      "competition_id": 10,
+      "name": "Box Cricket",
+      "category": "Sports",
+      "type": "Cricket",
+      "entry_fee": 800,
+      "prize": {
+        "winner": 10000,
+        "runner_up": 5000
+      },
+      "rules": [
+        "7 players per team.",
+        "6 overs per innings.",
+        "Max 1 over per bowler.",
+        "No byes/leg byes.",
+        "No last man standing.",
+        "Full-arm bowling only.",
+        "Run-up max 2 steps.",
+        "No sledging.",
+        "Top net = 4 runs.",
+        "Overthrows allowed.",
+        "No LBW.",
+        "Wide = 1 run.",
+        "Certain sides = 4 or 6 runs.",
+        "Free-hit for no-ball."
+      ]
+    },
+    {
+      "competition_id": 11,
+      "name": "Badminton (Solo)",
+      "category": "Sports",
+      "type": "Singles",
+      "entry_fee": 300,
+      "prize": {
+        "winner": 5000,
+        "runner_up": 3000
+      },
+      "rules": [
+        "Bring own racket and shuttle.",
+        "Non-marking shoes compulsory.",
+        "No shouting.",
+        "Proper attire required.",
+        "Round 1 = 11 points.",
+        "Others = 15 points.",
+        "1 min knocking.",
+        "Elimination rounds."
+      ]
+    },
+    {
+      "competition_id": 12,
+      "name": "Badminton (Duo)",
+      "category": "Sports",
+      "type": "Doubles",
+      "entry_fee": 500,
+      "prize": {
+        "winner": 8000,
+        "runner_up": 5000
+      },
+      "rules": [
+        "Bring own racket and shuttle.",
+        "Non-marking shoes compulsory.",
+        "No shouting.",
+        "Proper attire required.",
+        "Round 1 = 11 points.",
+        "Others = 15 points.",
+        "1 min knocking.",
+        "Elimination rounds."
+      ]
+    }
+  ],
+  "added_fests": [
+    {
+      "fest": "Symbi Utsav",
+      "year": 2025,
+      "image": "/src/data/real-data/symbi-images/symbi utsav photo 1 (card photo).png",
+      "events": [
+       
+        {
+          "event_id": 2,
+          "title": "SYMBI UTSAV 2025 Model United Nations (MUN)",
+          "category": "Academic",
+          "description": "Model United Nations focusing on Global Maritime Security – Anti-Piracy & Anti-Proliferation.",
+          "topic": "Global Maritime Security – Architecture for Anti-Piracy & Anti-Proliferation Efforts",
+          "date": "2025-12-10",
+          "venue": "Symbiosis Junior College, Kiwale Campus",
+          "registration_required": true,
+          "registration_link": null,
+          "image": "/src/data/real-data/symbi-images/symbi utsav mun.png",
+          "contact": null,
+          "notes": "Participants can register using the QR code on poster."
+        },
+        {
+          "event_id": 3,
+          "title": "Curriculum Expo 2025",
+          "category": "Exhibition",
+          "description": "Students showcase innovative models, projects, and creative ideas.",
+          "date": "2025-12-10",
+          "reporting_time": "09:00 AM",
+          "registration_fee": 500,
+          "image": "/src/data/real-data/symbi-images/symbi utsav expo.jpg",
+          "team_size": {
+            "min": 1,
+            "max": 5
+          },
+          "campus_visit_allowed": true,
+          "campus_visit_date": "2025-12-09",
+          "important_guidelines": [
+            "Participants must bring their own project/model/materials.",
+            "Required exhibition space will be provided.",
+            "Students must register using the official link."
+          ],
+          "registration_link": "https://forms.gle/pP9zw9WBg46cZh8bA",
+          "coordinators": [
+            {
+              "name": "Kashmira S.",
+              "phone": "9637214982"
+            },
+            {
+              "name": "Kaustubh S.",
+              "phone": "9975081555"
+            }
+          ]
+        },
+        {
+          "event_id": 4,
+          "title": "Inter School & College Sports Competitions",
+          "category": "Sports",
+          "sports_list": [
+            "3x3 Basketball",
+            "Box Cricket",
+            "Futsal"
+          ],
+          "description": "Competitive sports tournament for school & college teams.",
+          "dates": [
+            "2025-12-10",
+            "2025-12-11",
+            "2025-12-12"
+          ],
+          "registration_fee": 1500,
+          "image": "/src/data/real-data/symbi-images/symbi utsav photo 2.jpg",
+          "prizes": {
+            "first_place": 6000,
+            "second_place": 4000,
+            "extras": "Gift hampers & goodies"
+          },
+          "registration_link": null,
+          "venue": "Symbiosis Junior College",
+          "notes": "Participants must scan the QR on the poster to register."
+        },
+        {
+          "event_id": 5,
+          "title": "Gaming Tournament – BGMI",
+          "category": "Gaming",
+          "game": "Battlegrounds Mobile India",
+          "description": "Squad-based BGMI tournament.",
+          "dates": [
+            "2025-12-10",
+            "2025-12-11",
+            "2025-12-12"
+          ],
+          "venue": "Symbiosis Junior College, Kiwale",
+          "registration_required": true,
+          "registration_link": null,
+          "image": "/src/data/real-data/symbi-images/symbi utsav photo 3.jpg",
+          "prize_pool": {
+            "first": 4000,
+            "second": 2000,
+            "third": 1000
+          },
+          "social_media": {
+            "instagram": "@symbiosisjrcollege",
+            "facebook": "Symbiosis Junior College",
+            "youtube": "Symbiosis Jr College"
+          }
+        }
+      ]
+    },
+    {
+      "event_details": [
+        {
+          "day": "DAY 1",
+          "sport": "CRICKET",
+          "format": "5 Overs Match",
+          "image": "/src/data/real-data/symbi-images/symbi utsav cricket.jpg",
+          "team_size": {
+            "players_to_play": 7,
+            "minimum": 7,
+            "maximum": 9,
+            "substitutes_included": 2
+          },
+          "teams_limit": "First 16 Teams Only",
+          "timing": {
+            "inning_max_time_minutes": 10,
+            "match_max_time_minutes": 20,
+            "start_time": "08:00 AM onwards"
+          },
+          "registration_fees": "\u20b91500",
+          "winning_prizes": {
+            "first_place": "\u20b96000",
+            "second_place": "\u20b94000",
+            "extras": "Gift hampers for Winners & Runners-up"
+          },
+          "rules_and_facilities": [
+            "You may bring friends from other colleges to create a team",
+            "ID Card, Bonafide Certificate & Birth Certificate compulsory for each player",
+            "Food stalls and refreshments available",
+            "Medi-kit available on ground",
+            "No abusive language \u2013 violation leads to disqualification",
+            "No arguments with umpires",
+            "Knockout format for all matches"
+          ]
+        },
+        {
+          "day": "DAY 1",
+          "sport": "BASKETBALL",
+          "image": "/src/data/real-data/symbi-images/symbi utsav basketball.jpg",
+          "team_size": {
+            "players_on_court": 3,
+            "minimum": 3,
+            "maximum": 6,
+            "substitutes_included": 3
+          },
+          "match_format": {
+            "teams_limit": 16,
+            "half_duration_minutes": 7,
+            "match_duration_minutes": 14
+          },
+          "timing": {
+            "start_time": "08:00 AM onwards"
+          },
+          "registration_fees": "\u20b91500",
+          "winning_prizes": {
+            "first_place": "\u20b96000",
+            "second_place": "\u20b94000",
+            "extras": "Gift hampers for Winners & Runners-up"
+          },
+          "rules_and_facilities": [
+            "You may bring friends from other colleges to create a team",
+            "ID Card, Bonafide Certificate & Birth Certificate compulsory for each player",
+            "Food stalls and refreshments available",
+            "Medi-kit available",
+            "No abusive language \u2013 violation leads to disqualification",
+            "No arguing with the umpires",
+            "Knockout format for all sports"
+          ]
+        },
+        {
+          "day": "DAY 3",
+          "sport": "FUTSAL",
+          "image": "/src/data/real-data/symbi-images/symbi utsav football (futsal).jpg",
+          "team_size": {
+            "players_to_play": 5,
+            "minimum": 5,
+            "maximum": 7,
+            "substitutes_included": 2
+          },
+          "match_format": {
+            "teams_limit": 16,
+            "half_duration_minutes": 7,
+            "match_duration_minutes": 14,
+            "max_time_with_halftime_minutes": 15
+          },
+          "timing": {
+            "start_time": "08:00 AM onwards"
+          },
+          "registration_fees": "\u20b91500",
+          "winning_prizes": {
+            "first_place": "\u20b96000",
+            "second_place": "\u20b94000",
+            "extras": "Gift hampers for Winners & Runners-up"
+          },
+          "rules_and_facilities": [
+            "You may bring friends from other colleges to create a team",
+            "ID Card, Bonafide Certificate & Birth Certificate compulsory for each player",
+            "Food stalls and refreshments available",
+            "Medi-kit available",
+            "No abusive language \u2013 violation leads to disqualification",
+            "No arguing with umpires",
+            "Knockout matches for all sports"
+          ]
+        }
+      ]
+    },
+    {
+      "fest_name": "Symbi Utsav 2025",
+      "college": "Symbiosis Junior College",
+      "date": "2025-12-10 to 2025-12-12",
+      "time": "09:00 AM to 03:00 PM",
+      "venue": "Symbiosis Junior College, Kiwale",
+      "artists_you_will_love": [
+        {
+          "name": "Atharva Sudame",
+          "genre": "Content Creator and Influencer",
+          "performance_date": "2025-12-11",
+          "image": "/src/data/real-data/symbi-images/symbi utsav Atharva-Sudame artist.webp"
+        }
+      ]
+    }
+  ]
+}

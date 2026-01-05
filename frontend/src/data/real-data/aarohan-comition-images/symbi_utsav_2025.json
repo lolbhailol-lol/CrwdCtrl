@@ -1,0 +1,97 @@
+{
+  "fest": "Symbi Utsav",
+  "year": 2025,
+  "events": [
+    {
+      "event_id": 1,
+      "title": "Fashion Show Rehearsals & Grooming Session",
+      "category": "Cultural",
+      "description": "Fashion show rehearsals and grooming session starting on 25th November.",
+      "date": "2025-11-25",
+      "time": "12:00 PM",
+      "registration_required": true,
+      "registration_link": null,
+      "contact": {
+        "name": "Leanne Gabriel",
+        "phone": "8796145459"
+      },
+      "notes": "Participants interested in showcasing fashion talent should register."
+    },
+    {
+      "event_id": 2,
+      "title": "SYMBI UTSAV 2025 Model United Nations (MUN)",
+      "category": "Academic",
+      "description": "Model United Nations focusing on Global Maritime Security – Anti-Piracy & Anti-Proliferation.",
+      "topic": "Global Maritime Security – Architecture for Anti-Piracy & Anti-Proliferation Efforts",
+      "date": "2025-12-10",
+      "venue": "Symbiosis Junior College, Kiwale Campus",
+      "registration_required": true,
+      "registration_link": null,
+      "contact": null,
+      "notes": "Participants can register using the QR code on poster."
+    },
+    {
+      "event_id": 3,
+      "title": "Curriculum Expo 2025",
+      "category": "Exhibition",
+      "description": "Students showcase innovative models, projects, and creative ideas.",
+      "date": "2025-12-10",
+      "reporting_time": "09:00 AM",
+      "registration_fee": 500,
+      "team_size": {
+        "min": 1,
+        "max": 5
+      },
+      "campus_visit_allowed": true,
+      "campus_visit_date": "2025-12-09",
+      "important_guidelines": [
+        "Participants must bring their own project/model/materials.",
+        "Required exhibition space will be provided.",
+        "Students must register using the official link."
+      ],
+      "registration_link": "https://forms.gle/pP9zw9WBg46cZh8bA",
+      "coordinators": [
+        {"name": "Kashmira S.", "phone": "9637214982"},
+        {"name": "Kaustubh S.", "phone": "9975081555"}
+      ]
+    },
+    {
+      "event_id": 4,
+      "title": "Inter School & College Sports Competitions",
+      "category": "Sports",
+      "sports_list": ["3x3 Basketball", "Box Cricket", "Futsal"],
+      "description": "Competitive sports tournament for school & college teams.",
+      "dates": ["2025-12-10", "2025-12-11", "2025-12-12"],
+      "registration_fee": 1500,
+      "prizes": {
+        "first_place": 6000,
+        "second_place": 4000,
+        "extras": "Gift hampers & goodies"
+      },
+      "registration_link": null,
+      "venue": "Symbiosis Junior College",
+      "notes": "Participants must scan the QR on the poster to register."
+    },
+    {
+      "event_id": 5,
+      "title": "Gaming Tournament – BGMI",
+      "category": "Gaming",
+      "game": "Battlegrounds Mobile India",
+      "description": "Squad-based BGMI tournament.",
+      "dates": ["2025-12-10", "2025-12-11", "2025-12-12"],
+      "venue": "Symbiosis Junior College, Kiwale",
+      "registration_required": true,
+      "registration_link": null,
+      "prize_pool": {
+        "first": 4000,
+        "second": 2000,
+        "third": 1000
+      },
+      "social_media": {
+        "instagram": "@symbiosisjrcollege",
+        "facebook": "Symbiosis Junior College",
+        "youtube": "Symbiosis Jr College"
+      }
+    }
+  ]
+}

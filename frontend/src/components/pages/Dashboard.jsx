@@ -1,0 +1,1221 @@
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram } from 'lucide-react';
+import ShareIcon from '../../assets/share.svg';
+import Logo from '../../assets/logo01_.svg';
+import CulturalFestImage from '../../assets/mobile-icons/cultural-events-icon-02.svg';
+import TechFestImage from '../../assets/mobile-icons/tech-icon.svg';
+import SportsFestImage from '../../assets/mobile-icons/sports-icon.svg';
+import Sidebar from '../Sidebar';
+import Navbar from '../Navbar';
+import Footer from '../Footer';
+import { useDarkMode } from '../../context/DarkModeContext';
+import { useFavorites } from '../../context/FavoritesContext';
+import { useNotifications } from '../../context/NotificationsContext';
+import { handleImageError, generateFallbackImage } from '../../utils/imageUtils';
+import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { getImageUrl } from '../../utils/imageImports';
+import { searchFests } from '../../services/searchService';
+import CrwdCtrlLogin from './login';
+import CrwdCtrlRegister from './register';
+import axios from 'axios';
+
+// Configure axios base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+axios.defaults.baseURL = API_BASE_URL;
+const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName, venue, dateTime, ticketPrice, isDark, onRegister, onToggleFavorite, isFavorite }) => {
+    const navigate = useNavigate();
+    const [imageError, setImageError] = useState(false);
+    const [imageLoading, setImageLoading] = useState(true);
+
+    const handleImageError = (e) => {
+        handleImageErrorWithFallback(e, 240, 170, '#6366f1', artistName || 'Event');
+        setImageError(true);
+        setImageLoading(false);
+    };
+
+    const handleImageLoad = () => {
+        setImageLoading(false);
+    };
+
+    const handleCardClick = () => {
+        navigate(`/view-details/${eventId}`);
+    };
+
+    return (
+        <div
+            onClick={handleCardClick}
+            className={`min-w-[280px] sm:min-w-[300px] w-[280px] sm:w-[300px] flex-shrink-0 rounded-xl overflow-hidden duration-300 shadow-sm hover:shadow-md transition-shadow cursor-pointer
+    ${isDark
+                    ? 'bg-[#1B1C1E]'
+                    : 'bg-[#F5F6FA]'
+                }`}
+            style={{
+                // iOS Safari specific fixes
+                WebkitTransform: 'translateZ(0)',
+                transform: 'translateZ(0)',
+                WebkitBackfaceVisibility: 'hidden',
+                backfaceVisibility: 'hidden',
+                WebkitPerspective: '1000px',
+                perspective: '1000px'
+            }}
+        >
+
+            <div
+                className="relative h-[180px] sm:h-[200px] overflow-hidden rounded-t-xl"
+                style={{
+                    // iOS Safari image container fixes
+                    WebkitTransform: 'translateZ(0)',
+                    transform: 'translateZ(0)',
+                    WebkitBackfaceVisibility: 'hidden',
+                    backfaceVisibility: 'hidden',
+                    aspectRatio: '16/9',
+                    WebkitAspectRatio: '16/9'
+                }}
+            >
+                {/* Loading placeholder */}
+                {imageLoading && (
+                    <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
+                        <div className="animate-pulse text-center">
+                            <div className={`w-8 h-8 rounded-full mx-auto mb-2 ${isDark ? 'bg-gray-800' : 'bg-gray-300'}`}></div>
+                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Error fallback */}
+                {imageError ? (
+                    <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
+                        <div className="text-center">
+                            <div className={`text-4xl mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>🎭</div>
+                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Image unavailable</p>
+                        </div>
+                    </div>
+                ) : (
+                    <img
+                        src={getImageUrl(image)}
+                        alt={artistName || 'Event image'}
+                        className="w-full h-full object-cover transition-transform duration-300"
+                        onError={handleImageError}
+                        onLoad={handleImageLoad}
+                        style={{
+                            display: imageLoading ? 'none' : 'block',
+                            // iOS Safari image fixes
+                            WebkitTransform: 'translateZ(0)',
+                            transform: 'translateZ(0)',
+                            WebkitBackfaceVisibility: 'hidden',
+                            backfaceVisibility: 'hidden',
+                            WebkitUserSelect: 'none',
+                            userSelect: 'none',
+                            WebkitTouchCallout: 'none',
+                            touchAction: 'manipulation',
+                            objectPosition: 'center center',
+                            maxWidth: '100%',
+                            height: '100%'
+                        }}
+                    />
+                )}
+
+                {/* Favorite Button */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFavorite();
+                    }}
+                    className="absolute top-2 sm:top-3 right-2 sm:right-3 w-7 sm:w-9 h-7 sm:h-9 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center hover:bg-white/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                    aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                    <Heart className={`w-3.5 sm:w-4 h-3.5 sm:h-4 transition-colors ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+                </button>
+
+            </div>
+
+            <div className={`p-3 sm:p-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+                {/* Artist Name */}
+                <div className="mb-2">
+                    <h3 className={`text-base sm:text-lg font-bold mb-1 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {artistName}
+                    </h3>
+                    <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {genre}
+                    </p>
+                </div>
+
+                {/* Event Details */}
+                <div className="space-y-1.5 mb-3">
+                    <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                            <p className={`text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {collegeName}
+                            </p>
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-900'}`}>
+                                {dateTime}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    );
+});
+
+const Dashboard = () => {
+    const { isDark } = useDarkMode();
+    const navigate = useNavigate();
+    const { toggleFavorite, isFavorite } = useFavorites();
+    const { unreadCount } = useNotifications();
+    const [isProfileOpen, _setIsProfileOpen] = useState(false);
+    const [showLogin, setShowLogin] = useState(false);
+    const [showRegister, setShowRegister] = useState(false);
+    const [error, setError] = useState(null);
+    const [fests, setFests] = useState([]);
+    const [isFestsLoading, setIsFestsLoading] = useState(true);
+    const [festError, setFestError] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+    const scrollContainerRef = useRef(null);
+    const searchRef = useRef(null);
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    // Check for login modal parameter
+    useEffect(() => {
+        if (searchParams.get('showLogin') === 'true') {
+            setShowLogin(true);
+        }
+    }, [searchParams]);
+
+    // Handle login modal close
+    const handleCloseLogin = () => {
+        setShowLogin(false);
+        setSearchParams({}); // Clear URL parameters
+    };
+
+    // Handle register modal close
+    const handleCloseRegister = () => {
+        setShowRegister(false);
+    };
+
+    // Fetch fests from backend API
+    useEffect(() => {
+        const fetchFests = async () => {
+            try {
+                setIsFestsLoading(true);
+                console.log('Dashboard - Fetching fests from /fests/all');
+                console.log('Dashboard - API Base URL:', API_BASE_URL);
+                const response = await axios.get('/fests/all');
+                console.log('Dashboard - API Response:', response.data);
+                const data = response.data;
+                const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+                console.log('Dashboard - Processed fests list:', festsList);
+                setFests(festsList);
+                setFestError(null);
+            } catch (err) {
+                console.error('Dashboard - Error fetching fests:', err);
+                console.error('Dashboard - Error response:', err.response?.data);
+                console.error('Dashboard - Error status:', err.response?.status);
+                setFestError('Failed to load events');
+                setFests([]);
+            } finally {
+                setIsFestsLoading(false);
+            }
+        };
+
+        fetchFests();
+    }, []);
+
+    // Switch from login to register
+    const handleSwitchToRegister = () => {
+        setShowLogin(false);
+        setShowRegister(true);
+    };
+
+    // Switch from register to login
+    const handleSwitchToLogin = () => {
+        setShowRegister(false);
+        setShowLogin(true);
+    };
+
+    const handleLike = useCallback((eventId, eventData) => {
+        toggleFavorite(eventId, eventData);
+    }, [toggleFavorite]);
+
+    const scrollLeft = useCallback(() => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollBy({
+                left: -320, // Slightly more than card width for better UX
+                behavior: 'smooth'
+            });
+        }
+    }, []);
+
+    const scrollRight = useCallback(() => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollBy({
+                left: 320, // Slightly more than card width for better UX
+                behavior: 'smooth'
+            });
+        }
+    }, []);
+
+    // Handle keyboard navigation for scroll buttons
+    const handleScrollKeyDown = (event, direction) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            direction === 'left' ? scrollLeft() : scrollRight();
+        }
+    };
+
+    // Get status badge color based on status
+    const getStatusBadgeColor = (status) => {
+        switch (status) {
+            case 'ongoing':
+                return 'bg-green-500';
+            case 'upcoming':
+                return 'bg-orange-500';
+            case 'completed':
+                return 'bg-gray-500';
+            case 'lastyearhit':
+                return 'bg-purple-500';
+            default:
+                return 'bg-orange-500';
+        }
+    };
+
+    // Transform backend fests for display
+    const transformedFests = useMemo(() => {
+        if (!Array.isArray(fests)) return [];
+        return fests.map(fest => {
+            const type = fest?.festType || 'cultural';
+            const categoryColor =
+                type === 'cultural' ? 'bg-pink-500/80' :
+                type === 'technical' ? 'bg-indigo-500/80' :
+                type === 'sports' ? 'bg-emerald-500/80' :
+                'bg-cyan-500/80';
+
+            return {
+                id: fest?._id || fest?.id,
+                title: fest?.festName || 'Fest',
+                type,
+                image: fest?.coverImage || '/placeholder-image.jpg',
+                subtitle: fest?.collegeName || '',
+                description: fest?.description || '',
+                status: fest?.status || 'upcoming',
+                date: fest?.festDate || 'Date TBA',
+                location: fest?.venue || 'Venue TBA',
+                category: type === 'cultural' ? 'Cultural Fest' :
+                          type === 'technical' ? 'Tech Fest' :
+                          type === 'sports' ? 'Sports Fest' :
+                          'Fest',
+                categoryColor,
+                participants: fest?.estimatedParticipants || '',
+                duration: fest?.duration || '',
+                venue: fest?.venue || 'Venue TBA',
+                dateTime: fest?.festDate || 'Date TBA',
+                ticketPrice: fest?.ticketPrice || 'Free'
+            };
+        }).filter(f => f.id);
+    }, [fests]);
+
+    // Filter events by status
+    const ongoingEvents = useMemo(() => 
+        transformedFests.filter(f => f.status === 'ongoing'), 
+        [transformedFests]
+    );
+    
+    const upcomingEvents = useMemo(() => 
+        transformedFests.filter(f => f.status === 'upcoming'), 
+        [transformedFests]
+    );
+    
+    const lastYearEvents = useMemo(() => 
+        transformedFests.filter(f => f.status === 'lastyearhit'), 
+        [transformedFests]
+    );
+
+    const handleRegister = useCallback((eventId) => {
+        navigate(`/view-details/${eventId}`);
+    }, [navigate]);
+
+    // Handle search functionality
+    const handleSearch = () => {
+        if (searchQuery.trim()) {
+            // Navigate to search results or filter current results
+            navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        }
+    };
+
+    // Search functionality (same as desktop Navbar)
+    useEffect(() => {
+        const performSearch = async () => {
+            if (searchQuery.trim().length >= 2) {
+                setIsSearching(true);
+                try {
+                    const results = await searchFests(searchQuery);
+                    setSearchResults(results.slice(0, 6)); // Limit to 6 results for better UX
+                    setIsSearchDropdownOpen(true);
+                } catch (error) {
+                    console.error('Search error:', error);
+                    setSearchResults([]);
+                    setIsSearchDropdownOpen(false);
+                } finally {
+                    setIsSearching(false);
+                }
+            } else {
+                setSearchResults([]);
+                setIsSearchDropdownOpen(false);
+                setIsSearching(false);
+            }
+        };
+
+        // Debounce search to avoid too many API calls
+        const timeoutId = setTimeout(performSearch, 300);
+        return () => clearTimeout(timeoutId);
+    }, [searchQuery]);
+
+    // Close search dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (searchRef.current && !searchRef.current.contains(event.target)) {
+                setIsSearchDropdownOpen(false);
+            }
+        };
+
+        if (isSearchDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [isSearchDropdownOpen]);
+
+    // Handle search result click
+    const handleSearchResultClick = (event) => {
+        setSearchQuery('');
+        setIsSearchDropdownOpen(false);
+        navigate(`/view-details/${event.id}`);
+    };
+
+    // Error state
+    if (error) {
+        return (
+            <div className={`min-h-screen transition-colors flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
+                <div className="text-center max-w-md mx-auto p-6">
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-800'}`}>Something went wrong</h2>
+                    <p className={`text-lg mb-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="bg-cyan-400 hover:bg-cyan-500 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                    >
+                        Reload Page
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
+            <div className={`transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''} flex flex-col flex-1`}>
+
+                {/* Mobile Header */}
+                <div className={`lg:hidden sticky top-0 z-40 backdrop-blur-md border-b transition-all duration-300 rounded-b-2xl ${isDark
+                    ? 'bg-[#0a0a0a] border-[#1B1C1E]'
+                    : 'bg-[#F5F6FA] border-[#F5F6FA]'
+                    }`}>
+                    {/* Top Header Row */}
+                    <div className="flex items-center justify-between px-4 py-3 ">
+                        {/* App Logo */}
+                        <div className="flex items-center">
+                            <img src={Logo} alt="CrwdCtrl" className="h-18 w-auto" />
+                        </div>
+
+                        {/* Right Icons */}
+                        <div className="flex items-center space-x-3">
+
+                            {/* Location Icon */}
+                            <button
+                                onClick={() => {
+                                    if (navigator.geolocation) {
+                                        navigator.geolocation.getCurrentPosition(
+                                            (position) => {
+                                                const { latitude, longitude } = position.coords;
+                                                // Open Google Maps with user's location
+                                                window.open(`https://www.google.com/maps/@${latitude},${longitude},15z`, '_blank');
+                                            },
+                                            (error) => {
+                                                console.log('Location access denied:', error);
+                                                // Fallback: Open generic map
+                                                window.open('https://www.google.com/maps', '_blank');
+                                            }
+                                        );
+                                    } else {
+                                        // Fallback for browsers without geolocation
+                                        window.open('https://www.google.com/maps', '_blank');
+                                    }
+                                }}
+                                className={`p-2 rounded-xl transition-colors ${isDark
+                                    ? 'text-gray-300 hover:bg-gray-800 hover:text-cyan-400'
+                                    : 'text-gray-600 hover:bg-gray-100 hover:text-cyan-600'
+                                    }`}
+                                aria-label="Open location in maps"
+                            >
+                                <MapPin className="w-5 h-5" />
+                            </button>
+
+                            {/* Notification Bell */}
+                            <button
+                                onClick={() => navigate('/notifications')}
+                                className={`relative p-2 rounded-xl transition-colors ${isDark
+                                    ? 'text-gray-300 hover:bg-gray-800 hover:text-cyan-400'
+                                    : 'text-gray-600 hover:bg-gray-100 hover:text-cyan-600'
+                                    }`}
+                                aria-label="View notifications"
+                            >
+                                <Bell className="w-5 h-5" />
+                                {unreadCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </button>
+
+                        </div>
+                    </div>
+
+                    {/* Search Bar Row */}
+                    <div className="px-4 pb-3  mb-1">
+                        <div className="flex items-center">
+                            {/* Search Bar */}
+                            <div className="flex-1 relative" ref={searchRef}>
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search events, colleges..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/30 ${isDark
+                                        ? 'bg-[#0E0E0F] text-white placeholder-gray-400 focus:border-cyan-400'
+                                        : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500 focus:border-cyan-400'
+                                        }`}
+                                />
+                                
+                                {/* Search Results Dropdown */}
+                                {isSearchDropdownOpen && (
+                                    <div className={`absolute top-full left-0 right-0 mt-2 rounded-xl shadow-lg border z-50 max-h-80 overflow-y-auto ${isDark ? 'bg-[#1B1C1E] border-gray-700' : 'bg-white border-gray-200'}`}>
+                                        {isSearching ? (
+                                            <div className="p-4 text-center">
+                                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-500 mx-auto"></div>
+                                                <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Searching...</p>
+                                            </div>
+                                        ) : searchResults.length > 0 ? (
+                                            <div className="py-2">
+                                                {searchResults.map((event, index) => (
+                                                    <button
+                                                        key={event.id}
+                                                        onClick={() => handleSearchResultClick(event)}
+                                                        className={`w-full px-4 py-3 text-left hover:bg-opacity-50 transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}
+                                                    >
+                                                        <div className="flex items-center space-x-3">
+                                                            <img
+                                                                src={getImageUrl(event.image)}
+                                                                alt={event.title}
+                                                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                                                                onError={(e) => {
+                                                                    handleImageErrorWithFallback(e, 40, 40, '#6366f1', event.title);
+                                                                }}
+                                                            />
+                                                            <div className="flex-1 min-w-0">
+                                                                <h4 className={`font-medium text-sm truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                    {event.title}
+                                                                </h4>
+                                                                <p className={`text-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                                    {event.organizing_body}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="p-4 text-center">
+                                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>No events found</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <main className="flex-1 overflow-y-auto">
+                    <div className="px-4 py-5 sm:p-6 md:p-8 lg:px-12 lg:py-12 max-w-[1440px] mx-auto">
+                        {/* Categories Section - Hidden on laptop/desktop, visible on mobile */}
+                        <section className="mb-6 sm:mb-8 lg:hidden">
+                            <h2 className={`text-2xl sm:text-3xl lg:text-2xl font-bold mb-4 sm:mb-6 tracking-tight ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                                Categories
+                            </h2>
+
+                            <div className="flex gap-1 sm:gap-3 overflow-x-auto scrollbar-hide pb-3">
+                                {[
+                                    { name: 'CULTURAL', icon: CulturalFestImage, path: '/cultural-fest' },
+                                    { name: 'TECH', icon: TechFestImage, path: '/tech-fest' },
+                                    { name: 'SPORTS', icon: '🏈', path: '/sports-fest' }
+                                ].map((category, index) => (
+                                    <div
+                                        key={index}
+                                        onClick={() => navigate(category.path)}
+                                        className="flex flex-col items-center cursor-pointer transition-all duration-200 hover:scale-105 min-w-[80px] flex-shrink-0"
+                                    >
+                                        {/* Icon Block */}
+                                        <div className={`w-16 h-16 rounded-xl mb-2 flex items-center justify-center ${isDark ? 'bg-[#0A0A0A]' : 'bg-gray-100'}`}>
+                                            {typeof category.icon === 'string' && category.icon.length <= 2 ? (
+                                                <span className={`text-2xl ${category.name === 'SPORTS' ? 'filter grayscale' : ''}`}>{category.icon}</span>
+                                            ) : (
+                                                <img src={category.icon} alt={category.name} className={`w-8 h-8 ${isDark ? 'filter brightness-0 invert' : ''}`} />
+                                            )}
+                                        </div>
+
+                                        {/* Label */}
+                                        <span
+                                            className={`text-xs font-medium text-center ${isDark ? 'text-gray-300' : 'text-gray-700'
+                                                }`}
+                                        >
+                                            {category.name}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+
+                        </section>
+
+                        {/* Ongoing section now prefers live fests with status=ongoing, falls back to legacy events */}
+                        <section className="mb-6 sm:mb-12 md:mb-17 md:pt-6">
+                            <h2 className={`text-xl sm:text-2xl lg:text-2xl font-bold mb-4 sm:mb-6 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                Ongoing Events
+                            </h2>
+
+                            {/* Unified Mobile and Desktop: Horizontal scrollable cards */}
+                            <div>
+                                {isFestsLoading ? (
+                                    <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                                ) : festError ? (
+                                    <div className="text-center py-12 text-red-500">{festError}</div>
+                                ) : ongoingEvents.length > 0 ? (
+                                    <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide px-1 snap-x snap-mandatory overscroll-x-contain">
+                                        {ongoingEvents.slice(0, 6).map((event) => (
+                                            <div
+                                                key={event.id}
+                                                onClick={() => navigate(`/view-details/${event.id}`)}
+                                                className={`min-w-[260px] w-[260px]
+                                                            sm:min-w-[300px] sm:w-[300px]
+                                                            lg:min-w-[340px] lg:w-[340px]
+                                                            rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
+                                                             overflow-hidden cursor-pointer group flex-shrink-0 snap-start
+                                                            ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}
+                                            >
+                                                {/* Image */}
+                                                <div className="relative h-[160px] overflow-hidden">
+                                                    <img
+                                                        src={getImageUrl(event.image)}
+                                                        alt={event.title}
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                        onError={(e) =>
+                                                            handleImageErrorWithFallback(
+                                                                e,
+                                                                300,
+                                                                160,
+                                                                '#6366f1',
+                                                                event.title || 'Event'
+                                                            )
+                                                        }
+                                                    />
+
+                                                    {/* Status Badge */}
+                                                    <div className="absolute top-2 left-2">
+                                                        <span className={`${getStatusBadgeColor(event.status)} text-white text-xs px-2 py-1 rounded-full font-medium capitalize`}>
+                                                            {event.status}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Like */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleLike(event.id, event);
+                                                        }}
+                                                        className={`absolute top-2 right-2 w-9 h-9 rounded-full
+                                                        ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
+                                                        shadow-lg flex items-center justify-center transition-all duration-200
+                                                        border-2 ${isFavorite(event.id) ? 'border-red-500' : 'border-white/20'}
+                                                        backdrop-blur-sm`}
+                                                        title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                                    >
+                                                        <Heart
+                                                            className={`w-5 h-5 transition-all duration-200 ${
+                                                                isFavorite(event.id)
+                                                                    ? 'text-red-500 fill-red-500 scale-110'
+                                                                    : isDark
+                                                                        ? 'text-white hover:text-red-400'
+                                                                        : 'text-gray-600 hover:text-red-500'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                </div>
+
+                                                {/* Content */}
+                                                <div className="p-3 sm:p-4 line-clamp-5">
+                                                    <div className="flex justify-between mb-2">
+                                                        <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {event.title}
+                                                        </h3>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigator.share?.({
+                                                                    title: event.title,
+                                                                    text: `Check out this event: ${event.title}`,
+                                                                    url: `${window.location.origin}/view-details/${event.id}`,
+                                                                });
+                                                            }}
+                                                            className={`w-9 h-9 rounded-full flex items-center justify-center
+                                                            ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'}`}
+                                                        >
+                                                            <img
+                                                                src={ShareIcon}
+                                                                alt="Share"
+                                                                className={`w-5 h-5 ${isDark ? 'brightness-0 invert' : ''}`}
+                                                            />
+                                                        </button>
+                                                    </div>
+
+                                                    <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                        {event.subtitle}
+                                                    </p>
+
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/view-details/${event.id}`);
+                                                        }}
+                                                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white text-sm py-2 rounded-lg"
+                                                    >
+                                                        View details
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        <div className="text-4xl mb-4">📅</div>
+                                        <p className="text-lg">No Ongoing events available</p>
+                                    </div>
+                                )}
+                            </div>
+
+
+                            {/* Desktop: Grid layout */}
+                            {/*<div className="hidden lg:grid grid-cols-3 gap-4 lg:gap-6 pt-4 lg:pt-6">*/}
+                            {/*    {events.length > 0 ? (*/}
+                            {/*        events.slice(0, 3).map((event) => (*/}
+                            {/*            <div*/}
+                            {/*                key={event.id}*/}
+                            {/*                className={`rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer group ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}*/}
+                            {/*            >*/}
+                            {/*                /!* Image Section *!/*/}
+                            {/*                <div className="relative h-[160px] overflow-hidden">*/}
+                            {/*                    <img*/}
+                            {/*                        src={getImageUrl(event.image)}*/}
+                            {/*                        alt={event.title}*/}
+                            {/*                        className="w-full h-full object-cover rounded-t-xl group-hover:scale-105 transition-transform duration-500"*/}
+                            {/*                        onError={(e) => handleImageErrorWithFallback(e, 300, 160, '#0ea5e9', event.title || 'Event')}*/}
+                            {/*                    />*/}
+
+                            {/*                    /!* Heart Icon *!/*/}
+                            {/*                    <button*/}
+                            {/*                        onClick={(e) => {*/}
+                            {/*                            e.stopPropagation();*/}
+                            {/*                            handleLike(event.id, event);*/}
+                            {/*                        }}*/}
+                            {/*                        className={`absolute top-2 right-2 w-8 h-8 rounded-full ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'} shadow-md flex items-center justify-center transition`}*/}
+                            {/*                        aria-label={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}*/}
+                            {/*                    >*/}
+                            {/*                        <Heart*/}
+                            {/*                            className={`w-4 h-4 ${isFavorite(event.id)*/}
+                            {/*                                ? 'text-red-500 fill-red-500'*/}
+                            {/*                                : (isDark ? 'text-white' : 'text-gray-500')*/}
+                            {/*                                }`}*/}
+                            {/*                        />*/}
+                            {/*                    </button>*/}
+                            {/*                </div>*/}
+
+                            {/*                /!* Content Section *!/*/}
+                            {/*                <div className="p-4">*/}
+                            {/*                    <div className='flex items-start justify-between mb-2'>*/}
+                            {/*                        <h3 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>*/}
+                            {/*                            {event.title}*/}
+                            {/*                        </h3>*/}
+
+                            {/*                        /!* Share icon *!/*/}
+                            {/*                        <button*/}
+                            {/*                            className={`w-9 h-9 flex items-center justify-center rounded-full ml-2 transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'}`}*/}
+                            {/*                            onClick={(e) => {*/}
+                            {/*                                e.stopPropagation();*/}
+                            {/*                                if (navigator.share) {*/}
+                            {/*                                    navigator.share({*/}
+                            {/*                                        title: event.title,*/}
+                            {/*                                        text: `Check out this event: ${event.title}`,*/}
+                            {/*                                        url: `${window.location.origin}/view-details/${event.id}`,*/}
+                            {/*                                    }).catch(() => { });*/}
+                            {/*                                }*/}
+                            {/*                            }}*/}
+                            {/*                            aria-label={`Share ${event.title}`}*/}
+                            {/*                        >*/}
+                            {/*                            <img*/}
+                            {/*                                src={ShareIcon}*/}
+                            {/*                                alt="Share"*/}
+                            {/*                                className={`w-5 h-5 opacity-70 ${isDark ? 'filter brightness-0 invert' : ''}`}*/}
+                            {/*                            />*/}
+                            {/*                        </button>*/}
+                            {/*                    </div>*/}
+
+                            {/*                    /!* Subtitle with better spacing *!/*/}
+                            {/*                    <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-xs mb-3 font-medium`}>{event.subtitle}</p>*/}
+
+                            {/*                    <div className="flex flex-col">*/}
+                            {/*                        <button*/}
+                            {/*                            onClick={(e) => {*/}
+                            {/*                                e.stopPropagation();*/}
+                            {/*                                navigate(`/view-details/${event.id}`);*/}
+                            {/*                            }}*/}
+                            {/*                            className="bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-all hover:shadow-lg"*/}
+                            {/*                        >*/}
+                            {/*                            View details*/}
+                            {/*                        </button>*/}
+                            {/*                    </div>*/}
+                            {/*                </div>*/}
+
+                            {/*            </div>*/}
+                            {/*        ))*/}
+                            {/*    ) : (*/}
+                            {/*        <div className={`col-span-full text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>*/}
+                            {/*            <div className="text-4xl mb-2">📅</div>*/}
+                            {/*            <p className="text-lg">No upcoming events available</p>*/}
+                            {/*        </div>*/}
+                            {/*    )}*/}
+                            {/*</div>*/}
+
+                        </section>
+
+                        {/* Featured Lineup Section - Always Visible */}
+                        {/*<section className="mb-4 sm:mb-12 md:mb-15 md:pt-6">*/}
+                        {/*    <div className="flex items-center justify-between mb-4 sm:mb-6 md:mb-8">*/}
+                        {/*        <h2 className={`text-xl sm:text-2xl lg:text-2xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>*/}
+                        {/*            Featured Lineup*/}
+                        {/*        </h2>*/}
+                        {/*    </div>*/}
+
+                        {/*    <div className="relative -mx-4 sm:mx-0">*/}
+                        {/*        /!* Horizontal scrollable container for all screen sizes *!/*/}
+                        {/*        <div*/}
+                        {/*            ref={scrollContainerRef}*/}
+                        {/*            className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 sm:pb-8 scrollbar-hide pt-2 sm:pt-4 px-4 sm:px-1"*/}
+                        {/*            style={{*/}
+                        {/*                // iOS Safari scrolling container fixes*/}
+                        {/*                WebkitOverflowScrolling: 'touch',*/}
+                        {/*                scrollBehavior: 'smooth',*/}
+                        {/*                WebkitTransform: 'translateZ(0)',*/}
+                        {/*                transform: 'translateZ(0)',*/}
+                        {/*                WebkitBackfaceVisibility: 'hidden',*/}
+                        {/*                backfaceVisibility: 'hidden',*/}
+                        {/*                touchAction: 'pan-x',*/}
+                        {/*                willChange: 'scroll-position'*/}
+                        {/*            }}*/}
+                        {/*        >*/}
+                        {/*            {featuredArtists.length > 0 ? (*/}
+                        {/*                featuredArtists.map((artist) => (*/}
+                        {/*                    <ArtistCard*/}
+                        {/*                        key={`featured-${artist.eventId}`}*/}
+                        {/*                        {...artist}*/}
+                        {/*                        isDark={isDark}*/}
+                        {/*                        onRegister={handleRegister}*/}
+                        {/*                        onToggleFavorite={() => handleLike(artist.eventId, artist.eventData)}*/}
+                        {/*                        isFavorite={isFavorite(artist.eventId)}*/}
+                        {/*                    />*/}
+                        {/*                ))*/}
+                        {/*            ) : (*/}
+                        {/*                <div className={`flex-1 text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>*/}
+                        {/*                    <div className="text-4xl mb-4">🎭</div>*/}
+                        {/*                    <p className="text-lg font-medium">No featured events available</p>*/}
+                        {/*                </div>*/}
+                        {/*            )}*/}
+                        {/*        </div>*/}
+                        {/*    </div>*/}
+                        {/*</section>*/}
+
+                        {/* Coming Soon Section */}
+                        {/* Upcoming section uses status=upcoming fests, falls back to static comingSoonEvents */}
+                        <section className="mb-6 sm:mb-6 md:mb-9 ">
+                            <h2 className={`text-xl sm:text-2xl lg:text-2xl font-bold mb-6 sm:mb-6 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                Upcoming Events
+                            </h2>
+
+                            {/* Coming Soon Events – Horizontal scroll (same format) */}
+                            <div>
+                                {isFestsLoading ? (
+                                    <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                                ) : festError ? (
+                                    <div className="text-center py-12 text-red-500">{festError}</div>
+                                ) : upcomingEvents.length > 0 ? (
+                                    <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide px-1 snap-x snap-mandatory overscroll-x-contain">
+                                        {upcomingEvents.slice(0, 6).map((event) => (
+                                            <div
+                                                key={event.id}
+                                                onClick={() => navigate(`/view-details/${event.id}`)}
+                                                className={`min-w-[260px] w-[260px]
+                                                            sm:min-w-[300px] sm:w-[300px]
+                                                            lg:min-w-[340px] lg:w-[340px]
+                                                            rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
+                                                            overflow-hidden cursor-pointer group flex-shrink-0 snap-start
+                                                            ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}
+                                            >
+                                                {/* Image */}
+                                                <div className="relative h-[200px] overflow-hidden">
+                                                    <img
+                                                        src={getImageUrl(event.image)}
+                                                        alt={event.title}
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                        onError={(e) => {
+                                                            handleImageErrorWithFallback(
+                                                                e,
+                                                                300,
+                                                                200,
+                                                                '#8b5cf6',
+                                                                event.title || 'Event'
+                                                            );
+                                                        }}
+                                                    />
+
+                                                    {/* Dark overlay */}
+                                                    <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-all duration-300" />
+
+                                                    {/* Status */}
+                                                    <div className="absolute top-3 right-3">
+                                                        <span className={`${getStatusBadgeColor(event.status)} text-white text-xs px-3 py-1 rounded-full font-medium capitalize`}>
+                                                            {event.status}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Like Button */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleLike(event.id, event);
+                                                        }}
+                                                        className={`absolute top-3 left-3 w-9 h-9 rounded-full
+                                                        ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
+                                                        shadow-lg flex items-center justify-center transition-all duration-200
+                                                        border-2 ${isFavorite(event.id) ? 'border-red-500' : 'border-white/20'}
+                                                        backdrop-blur-sm`}
+                                                        title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                                    >
+                                                        <Heart
+                                                            className={`w-5 h-5 transition-all duration-200 ${
+                                                                isFavorite(event.id)
+                                                                    ? 'text-red-500 fill-red-500 scale-110'
+                                                                    : 'text-white hover:text-red-400'
+                                                            }`}
+                                                        />
+                                                    </button>
+
+                                                    {/* Bottom gradient */}
+                                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                                                        <h3 className="text-white font-bold text-lg mb-1">
+                                                            {event.title}
+                                                        </h3>
+                                                        <p className="text-white/90 text-sm">{event.date}</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Content */}
+                                                <div className="p-3 sm:p-4">
+                                                    <p
+                                                        className={`text-sm mb-3 line-clamp-5 ${
+                                                            isDark ? 'text-gray-400' : 'text-gray-600'
+                                                        }`}
+                                                    >
+                                                        {event.description}
+                                                    </p>
+
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/view-details/${event.id}`);
+                                                        }}
+                                                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                                                    >
+                                                        View Details
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        <div className="text-4xl mb-4">⏳</div>
+                                        <p className="text-lg">No coming soon events</p>
+                                    </div>
+                                )}
+                            </div>
+
+                        </section>
+
+                        {/* Last Year's Hits Section */}
+                        {/* Last Year's Hits section uses status=lastyearhit fests, falls back to static lastYearHitsEvents */}
+                        <section className="mb-4 sm:mb-6 md:mb-8 pt-2 sm:pt-6 md:pt-12">
+                            <h2
+                                className={`text-xl sm:text-2xl lg:text-2xl font-bold mb-4 sm:mb-6 tracking-tight ${
+                                    isDark ? 'text-white' : 'text-gray-900'
+                                }`}
+                            >
+                                Last Year's Hits
+                            </h2>
+
+                            {isFestsLoading ? (
+                                <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                            ) : festError ? (
+                                <div className="text-center py-12 text-red-500">{festError}</div>
+                            ) : lastYearEvents.length > 0 ? (
+                                <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide px-1 snap-x snap-mandatory overscroll-x-contain">
+                                    {lastYearEvents.slice(0, 6).map((event) => (
+                                        <div
+                                            key={event.id}
+                                            onClick={() => navigate(`/view-details/${event.id}`)}
+                                            className={`min-w-[260px] w-[260px]
+                                                        sm:min-w-[300px] sm:w-[300px]
+                                                        lg:min-w-[340px] lg:w-[340px]
+                                                        rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
+                                                        overflow-hidden cursor-pointer group flex-shrink-0 snap-start
+                                                        ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}
+                                        >
+                                            {/* Image */}
+                                            <div className="relative h-[200px] overflow-hidden">
+                                                <img
+                                                    src={getImageUrl(event.image)}
+                                                    alt={event.title}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    onError={(e) => {
+                                                        handleImageErrorWithFallback(
+                                                            e,
+                                                            300,
+                                                            200,
+                                                            '#6366f1',
+                                                            event.title || 'Event'
+                                                        );
+                                                    }}
+                                                />
+
+                                                {/* Overlay */}
+                                                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-all duration-300" />
+
+                                                {/* Status Badge */}
+                                                <div className="absolute top-3 left-3">
+                                                    <span className={`${getStatusBadgeColor(event.status)} text-white text-xs px-3 py-1 rounded-full font-medium capitalize`}>
+                                                        {event.status}
+                                                    </span>
+                                                </div>
+
+                                                {/* Like Button */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleLike(event.id, event);
+                                                    }}
+                                                    className={`absolute top-3 right-3 w-9 h-9 rounded-full
+                                                    ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
+                                                    shadow-lg flex items-center justify-center transition-all duration-200
+                                                    border-2 ${isFavorite(event.id) ? 'border-red-500' : 'border-white/20'}
+                                                    backdrop-blur-sm`}
+                                                    title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                                >
+                                                    <Heart
+                                                        className={`w-5 h-5 transition-all duration-200 ${
+                                                            isFavorite(event.id)
+                                                                ? 'text-red-500 fill-red-500 scale-110'
+                                                                : 'text-white hover:text-red-400'
+                                                        }`}
+                                                    />
+                                                </button>
+
+                                                {/* Bottom gradient */}
+                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                                                    <h3 className="text-white font-bold text-lg mb-1">
+                                                        {event.title}
+                                                    </h3>
+                                                    <p className="text-white/90 text-sm">
+                                                        {event.subtitle}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Content */}
+                                            <div className="p-3 sm:p-4 line-clamp-5">
+                                                <p
+                                                    className={`text-sm mb-3 ${
+                                                        isDark ? 'text-gray-400' : 'text-gray-600'
+                                                    }`}
+                                                >
+                                                    {event.description}
+                                                </p>
+
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                                                        {event.participants}
+                                                    </span>
+                                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                                                        {event.duration}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    <div className="text-4xl mb-4">📆</div>
+                                    <p className="text-lg">No past events available</p>
+                                </div>
+                            )}
+                        </section>
+
+                    </div>
+                </main>
+
+                <footer className={`w-full py-6 sm:py-8 md:py-12 mt-8 sm:mt-12 md:mt-24 lg:mt-28 ${isDark
+                    ? 'bg-[#0a0a0a] border-gray-700'
+                    : 'bg-[#F5F6FA] border-gray-200'
+                    }`}>
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6">
+                        {/* Mobile Layout */}
+                        <div className="md:hidden">
+                            {/* Brand Section - Mobile */}
+                            <div className="text-center mb-6">
+                                <h2 className="text-xl font-bold text-blue-600 mb-4">CrwdCtrl
+                                </h2>
+
+                                <div className="mb-6">
+                                    <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} font-medium mb-3 text-sm`}>Follow us on</p>
+                                    <a
+                                        href="https://www.instagram.com/crwdctrl.in?igsh=MTBpNm9ta2ptMmc2dA=="
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`inline-flex items-center gap-2 ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-700 hover:text-blue-600'} transition-colors`}
+                                    >
+                                        <Instagram className="w-4 h-4 text-pink-600" />
+                                        <span className="text-sm">@crwdctrl.in</span>
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* Footer Links - Mobile (Stacked) */}
+                            <div className="flex flex-col items-center gap-4 mb-6">
+                                <Link
+                                    to="/terms-and-conditions"
+                                    className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors text-sm`}
+                                >
+                                    Terms and conditions
+                                </Link>
+                                <Link
+                                    to="/privacy-policy"
+                                    className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors text-sm`}
+                                >
+                                    Privacy policy
+                                </Link>
+                                <Link
+                                    to="/contact-us"
+                                    className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors text-sm`}
+                                >
+                                    Contact us
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Desktop/Laptop Layout */}
+                        <div className="hidden md:flex flex-wrap items-start justify-between gap-8 mb-8">
+                            {/* Brand Section */}
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-4 mb-6">
+                                    <h2 className="text-2xl font-bold text-blue-600">CrwdCtrl
+                                    </h2>
+                                </div>
+
+                                <div>
+                                    <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} font-medium mb-2`}>Follow us on</p>
+                                    <a
+                                        href="https://www.instagram.com/crwdctrl.in?igsh=MTBpNm9ta2ptMmc2dA=="
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`flex items-center gap-2 ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-700 hover:text-blue-600'} transition-colors`}
+                                    >
+                                        <Instagram className="w-5 h-5 text-pink-600" />
+                                        <span>@crwdctrl</span>
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* Footer Links */}
+                            <div className="flex flex-wrap gap-8 md:gap-16">
+                                <Link
+                                    to="/terms-and-conditions"
+                                    className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors`}
+                                >
+                                    Terms and conditions
+                                </Link>
+                                <Link
+                                    to="/privacy-policy"
+                                    className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors`}
+                                >
+                                    Privacy policy
+                                </Link>
+                                <Link
+                                    to="/contact-us"
+                                    className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors`}
+                                >
+                                    Contact us
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Bottom Text */}
+                        <div className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} pt-6`}>
+                            <p className={`text-xs md:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} leading-relaxed text-center md:text-left`}>
+                                By accessing this page, you confirm that you have read, understood, and agreed to CrwdCtrl's Terms of Service, Privacy Policy, Cookie Policy, and Content Guidelines. © 2024 CrwdCtrl. All rights reserved.
+                            </p>
+                        </div>
+                    </div>
+                </footer>
+            </div>
+
+            {/* Login Modal */}
+            {showLogin && (
+                <div className="fixed inset-0 z-50">
+                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                </div>
+            )}
+
+            {/* Register Modal */}
+            {showRegister && (
+                <div className="fixed inset-0 z-50">
+                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                </div>
+            )}
+
+        </div>
+    );
+};
+
+export default Dashboard;

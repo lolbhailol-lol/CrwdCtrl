@@ -1,0 +1,123 @@
+{
+    "fest_name": "Saksham 3.0",
+    "host": "Symbiosis Skills & Professional University",
+    "category": "Arts & Culture",
+    "venue": "SSPU, Kiwale",
+    "dates": "12th - 14th November 2024",
+    "timing": "10 AM onwards",
+    "registration_contacts": [
+        {
+            "name": "Anand Shah",
+            "phone": "+91 7378378021"
+        },
+        {
+            "name": "Suhani Karamchandani",
+            "phone": "+91 9923756181",
+            "role": "Arts & Cultural University Head"
+        }
+    ],
+    "competitions": [
+        {
+            "id": "dance",
+            "name": "Dance",
+            "registration_fee": {
+                "solo": 300,
+                "group": 1000
+            },
+            "rules": [
+                "Dance performances should be 3 minutes each.",
+                "Appropriate dressing is mandatory. (No transparent or short dresses)",
+                "All audio files of the dance track should be sent as per given date.",
+                "All participants must adhere to University rules.",
+                "University Council & College Faculty may disqualify any participant/team for disciplinary violations or commotion.",
+                "Final decision authority rests with the judges; decisions are final and not open for debate.",
+                "For queries, contact the Committee Head."
+            ],
+            "coordinator": {
+                "faculty_name": "Prof. Shraddha Galande",
+                "role": "Faculty Coordinator"
+            }
+        },
+        {
+            "id": "singing",
+            "name": "Singing",
+            "registration_fee": {
+                "solo": 300,
+                "duet": 400
+            },
+            "rules": [
+                "Performance should be 3 minutes each.",
+                "Appropriate dressing is mandatory.",
+                "All soundtrack audio files must be submitted as per the given date.",
+                "All participants must adhere to University rules.",
+                "University Council & College Faculty may disqualify any participant/team for disciplinary violations or commotion.",
+                "Final decision authority rests with the judges; decisions are final and not open for debate.",
+                "For queries, contact the Committee Head."
+            ],
+            "coordinator": {
+                "faculty_name": "Prof. Shraddha Galande",
+                "role": "Faculty Coordinator"
+            }
+        },
+        {
+            "id": "band_war",
+            "name": "Band War",
+            "registration_fee": 1000,
+            "rules": [
+                "Time allotted is 15 minutes (5 minutes setup + 10 minutes performance).",
+                "Appropriate dressing is mandatory.",
+                "Equipment list available in college will be sent to the team.",
+                "College is not responsible for damage/loss of instruments or belongings.",
+                "All participants must adhere to University rules.",
+                "University Council & College Faculty may disqualify any participant/team for disciplinary violations or commotion.",
+                "Final decision authority rests with the judges; decisions are final and not open for debate.",
+                "For queries, contact the Committee Head."
+            ],
+            "coordinator": {
+                "faculty_name": "Prof. Shraddha Galande",
+                "role": "Faculty Coordinator"
+            }
+        },
+        {
+            "id": "beauty_pageant",
+            "name": "Beauty Pageant",
+            "registration_fee": 250,
+            "rules": [
+                "Participants must dress as per the given theme only.",
+                "Appropriate dressing is mandatory.",
+                "Clothes should be below knee length; no deep neck; no revealing clothes.",
+                "Outfits must be approved by coordinator or participant will be disqualified.",
+                "Without outfit approval, participant will be disqualified.",
+                "Beauty lab facility available (Makeup \u20b9800, Hair \u20b9400).",
+                "Participants must adhere to University rules.",
+                "University Council & College Faculty may disqualify participants for disciplinary violations or commotion.",
+                "Final decision authority rests with the judges; decisions are final and not open for debate.",
+                "For queries, contact the Committee Head."
+            ],
+            "coordinator": {
+                "faculty_name": "Prof. Shraddha Galande",
+                "role": "Faculty Coordinator"
+            }
+        },
+        {
+            "id": "theatre",
+            "name": "Theatre",
+            "registration_fee": 1000,
+            "rules": [
+                "Total time allotted is 12 minutes (7 minutes performance + 5 minutes stage setup).",
+                "Appropriate dressing is mandatory.",
+                "Requirements list (mic, props, etc.) will be provided by college.",
+                "College is not responsible for damage/loss of belongings.",
+                "All participants must adhere to University rules.",
+                "Audio track & background images must be submitted by the given date.",
+                "University Council & College Faculty may disqualify participants for disciplinary violations or commotion.",
+                "Final decision authority rests with the judges; decisions are final and not open for debate.",
+                "For queries, contact the Committee Head."
+            ],
+            "coordinator": {
+                "faculty_name": "Prof. Shraddha Galande",
+                "role": "Faculty Coordinator"
+            }
+        }
+    ]
+}

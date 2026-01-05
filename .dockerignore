@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Logs
+logs
+*.log
+
+# Environment variables
+.env*
+backend/.env*
+frontend/.env*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+frontend/dist/
+
+# Uploads (may contain sensitive data)
+uploads/
+backend/uploads/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Development files
+.prettierrc
+.eslintrc*
+nodemon.json
+frontend/
+
+# Render config (not needed for Cloud Run)
+render.yaml
