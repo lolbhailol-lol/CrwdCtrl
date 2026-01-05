@@ -19,11 +19,7 @@ export default function RegistrationsPage() {
 
   const fetchFests = async () => {
     try {
-<<<<<<< HEAD
       const response = await fetch(`${API_BASE_URL}/admin/fests`, {
-=======
-      const response = await fetch(`${API_CONFIG.BASE_URL}/admin/fests`, {
->>>>>>> 76bde7798ae97b14cc833cbae29598d602887951
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },

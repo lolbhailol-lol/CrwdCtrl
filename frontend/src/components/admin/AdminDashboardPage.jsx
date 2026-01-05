@@ -21,22 +21,11 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-<<<<<<< HEAD
         const response = await fetch(`${API_BASE_URL}/admin/stats`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
           },
         });
-=======
-        const response = await fetch(
-          `${API_CONFIG.BASE_URL}/admin/stats`, // ✅ FIXED HERE
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-            },
-          }
-        );
->>>>>>> 76bde7798ae97b14cc833cbae29598d602887951
 
         if (!response.ok) {
           throw new Error(`Failed to fetch stats (${response.status})`);
