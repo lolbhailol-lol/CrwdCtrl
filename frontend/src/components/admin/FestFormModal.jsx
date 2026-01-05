@@ -650,14 +650,31 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
     console.log('📡 Response status:', response.status);
     console.log('📡 Response ok:', response.ok);
+    console.log('📡 Response headers:', response.headers);
+
+    // Debug: Check what we actually received
+    const responseText = await response.text();
+    console.log('📡 Raw response:', responseText);
 
     if (!response.ok) {
-      const err = await response.json();
+      let err;
+      try {
+        err = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ Failed to parse error response as JSON:', parseError);
+        throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 200)}`);
+      }
       console.error('❌ API Error:', err);
       throw new Error(err.message || 'Failed to save fest');
     }
 
-    const result = await response.json();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse success response as JSON:', parseError);
+      throw new Error('Invalid JSON response from server');
+    }
     console.log('✅ Success result:', result);
 
     onSaved();
