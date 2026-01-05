@@ -415,7 +415,7 @@ export default function CompetitionRegistration() {
                 }
             };
 
-            const response = await fetch(`/api/registrations/competitions/${competitionId}/custom`, {
+            const response = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/custom`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

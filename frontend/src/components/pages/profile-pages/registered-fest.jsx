@@ -41,7 +41,7 @@ function RegisteredFest() {
                 const token = localStorage.getItem('crwdctrl_token');
                 
                 // Fetch internal form registrations with cache-busting
-                const registrationsResponse = await fetch(`/api/registrations/my-registrations?t=${Date.now()}`, {
+                const registrationsResponse = await fetch(`${API_BASE_URL}/registrations/my-registrations?t=${Date.now()}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
