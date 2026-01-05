@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import FestFormModal from './FestFormModal';
 import CompetitionModal from './Competition_Modal';
+import { API_CONFIG } from '../../config/env';
 
 export default function FestTable() {
   const [fests, setFests] = useState([]);
@@ -9,7 +10,7 @@ export default function FestTable() {
   const [showCompetition, setShowCompetition] = useState(false);
 
   const fetchFests = () => {
-    fetch('/api/admin/fests', {
+    fetch(`${API_CONFIG.BASE_URL}/admin/fests` {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('admin_token')}`
       }

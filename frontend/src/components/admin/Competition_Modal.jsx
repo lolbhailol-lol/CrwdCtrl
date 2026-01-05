@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
+import { API_CONFIG } from '../../config/env';
 
 export default function CompetitionModal({ fest, onClose }) {
   const [competitions, setCompetitions] = useState([]);
@@ -11,7 +12,7 @@ export default function CompetitionModal({ fest, onClose }) {
   const fetchCompetitions = async () => {
     try {
       console.log('Frontend - Fetching competitions for fest:', fest._id);
-      const response = await fetch(`/api/admin/fests/${fest._id}/competitions`, {
+      const response = await fetch (`${API_CONFIG.BASE_URL}/admin/fests`,${fest._id}/competitions`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },
