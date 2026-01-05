@@ -20,7 +20,8 @@ export default function AdminDashboardPage() {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
           },
-        });
+        }
+      );
 
         if (!response.ok) {
           throw new Error('Failed to fetch stats');
