@@ -13,7 +13,6 @@ export default function FestTable() {
   const [showCompetition, setShowCompetition] = useState(false);
 
   const fetchFests = () => {
-<<<<<<< HEAD
     fetch(`${API_BASE_URL}/admin/fests`, {
 =======
     fetch(`${API_CONFIG.BASE_URL}/admin/fests`, {
