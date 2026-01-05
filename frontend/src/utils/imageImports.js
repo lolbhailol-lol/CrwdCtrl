@@ -160,35 +160,49 @@ export const imageMap = {
 export const getImageUrl = (imagePath) => {
     console.log('getImageUrl called with:', imagePath);
 
-    // If no imagePath provided, return a fallback
+    // If no imagePath provided, return null
     if (!imagePath) {
         console.log('No imagePath provided, returning null');
         return null;
     }
 
-    // If it's already a proper import (starts with blob: or data:), return as is
-    if (imagePath.startsWith('blob:') || imagePath.startsWith('data:') || imagePath.startsWith('http')) {
+    // If already a full URL or browser-generated URL
+    if (
+        imagePath.startsWith('blob:') ||
+        imagePath.startsWith('data:') ||
+        imagePath.startsWith('http')
+    ) {
         console.log('Returning as-is (blob/data/http):', imagePath);
         return imagePath;
     }
 
-    // If it's a hardcoded path, try to get from imageMap
-    if (imageMap[imagePath]) {
-        console.log('Found in imageMap:', imagePath, '->', imageMap[imagePath]);
+    // If it's a hardcoded/imported image
+    if (imageMap?.[imagePath]) {
+        console.log('Found in imageMap:', imagePath);
         return imageMap[imagePath];
     }
 
-    // Check for slight variations in path format
-    const normalizedPath = imagePath.startsWith('/') ? imagePath : '/' + imagePath;
-    if (imageMap[normalizedPath]) {
-        console.log('Found normalized path in imageMap:', normalizedPath, '->', imageMap[normalizedPath]);
+    // Normalize path (with leading slash)
+    const normalizedPath = imagePath.startsWith('/')
+        ? imagePath
+        : '/' + imagePath;
+
+    if (imageMap?.[normalizedPath]) {
+        console.log('Found normalized path in imageMap:', normalizedPath);
         return imageMap[normalizedPath];
     }
 
-    // If still not found, log warning and return original path
-    console.warn('Image not found in imageMap:', imagePath);
-    return imagePath;
+    // ✅ FIX: prepend backend base URL for uploaded images
+    const BACKEND_BASE_URL =
+        import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ||
+        'http://localhost:8080';
+
+    const finalUrl = `${BACKEND_BASE_URL}${normalizedPath}`;
+
+    console.log('Constructed backend image URL:', finalUrl);
+    return finalUrl;
 };
+
 
 // Export individual images for direct use
 export {
