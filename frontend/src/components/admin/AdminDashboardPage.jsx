@@ -16,7 +16,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/admin/stats', {
+        const response = await fetch('${API_CONFIG.BASE_URL}/api/admin/stats', {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
           },
