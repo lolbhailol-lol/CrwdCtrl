@@ -252,6 +252,26 @@ router.put(
       existingCompetition.markModified('commonRulesMessage');
       existingCompetition.markModified('rounds');
       
+      // Add validation debugging
+      console.log('Backend - About to save competition with registration:', {
+        registrationType: existingCompetition.registrationType,
+        registrationStatus: existingCompetition.registration?.status,
+        hasExternalUrl: !!existingCompetition.registration?.externalUrl,
+        hasGoogleSheetsUrl: !!existingCompetition.registration?.googleSheetsUrl,
+        formSchemaLength: existingCompetition.registration?.formSchema?.length || 0
+      });
+      
+      // Validate before saving
+      const validationError = existingCompetition.validateSync();
+      if (validationError) {
+        console.error('Backend - Validation error:', validationError);
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: validationError.message,
+          validationErrors: validationError.errors 
+        });
+      }
+      
       // Save the competition
       const savedCompetition = await existingCompetition.save();
       
@@ -299,6 +319,21 @@ router.put(
       
     } catch (error) {
       console.error('Admin - Error updating competition:', error);
+      
+      // Check if it's a validation error
+      if (error.name === 'ValidationError') {
+        console.error('Backend - Mongoose validation error details:', error.errors);
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: error.message,
+          validationErrors: Object.keys(error.errors).map(key => ({
+            field: key,
+            message: error.errors[key].message,
+            value: error.errors[key].value
+          }))
+        });
+      }
+      
       res.status(500).json({ error: 'Failed to update competition', details: error.message });
     }
   }
