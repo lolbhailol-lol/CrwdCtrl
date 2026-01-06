@@ -3,6 +3,9 @@ import FestFormModal from './FestFormModal';
 import CompetitionModal from './Competition_Modal';
 import { API_CONFIG } from '../../config/env';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export default function FestTable() {
   const [fests, setFests] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -10,7 +13,7 @@ export default function FestTable() {
   const [showCompetition, setShowCompetition] = useState(false);
 
   const fetchFests = () => {
-    fetch(`${API_CONFIG.BASE_URL}/admin/fests`, {
+    fetch(`${API_BASE_URL}/admin/fests`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('admin_token')}`
       }
@@ -22,7 +25,7 @@ export default function FestTable() {
   useEffect(fetchFests, []);
 
   const deleteFest = async (id) => {
-    await fetch(`/api/admin/fests/${id}`, {
+    await fetch(`${API_BASE_URL}/admin/fests/${id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${localStorage.getItem('admin_token')}`

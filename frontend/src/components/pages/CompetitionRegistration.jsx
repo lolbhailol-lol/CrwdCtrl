@@ -174,7 +174,7 @@ export default function CompetitionRegistration() {
             formDataUpload.append('files', file);
             formDataUpload.append('folder', `crwdctrl/competitions/${competitionId}/registrations`);
 
-            const response = await fetch('/api/registrations/upload', {
+            const response = await fetch(`${API_BASE_URL}/registrations/upload`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('crwdctrl_token')}`,
@@ -415,7 +415,7 @@ export default function CompetitionRegistration() {
                 }
             };
 
-            const response = await fetch(`/api/registrations/competitions/${competitionId}/custom`, {
+            const response = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/custom`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

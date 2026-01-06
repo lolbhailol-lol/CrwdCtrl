@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Eye, Download, Filter, Search, Calendar, User, Mail, Phone } from 'lucide-react';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export default function RegistrationsPage() {
   const [fests, setFests] = useState([]);
   const [selectedFest, setSelectedFest] = useState(null);
@@ -16,7 +19,7 @@ export default function RegistrationsPage() {
 
   const fetchFests = async () => {
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/admin/fests`, {
+      const response = await fetch(`${API_BASE_URL}/admin/fests`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },
@@ -35,7 +38,7 @@ export default function RegistrationsPage() {
   const fetchRegistrations = async (festId) => {
     setRegistrationsLoading(true);
     try {
-      const response = await fetch(`/api/registrations/admin/fests/${festId}/registrations`, {
+      const response = await fetch(`${API_BASE_URL}/registrations/admin/fests/${festId}/registrations`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },
@@ -62,7 +65,7 @@ export default function RegistrationsPage() {
 
   const updateRegistrationStatus = async (registrationId, status) => {
     try {
-      const response = await fetch(`/api/registrations/admin/registrations/${registrationId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/registrations/admin/registrations/${registrationId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

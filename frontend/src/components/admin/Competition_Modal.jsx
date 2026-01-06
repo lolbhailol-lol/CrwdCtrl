@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
 import { API_CONFIG } from '../../config/env';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export default function CompetitionModal({ fest, onClose }) {
   const [competitions, setCompetitions] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -12,8 +15,7 @@ export default function CompetitionModal({ fest, onClose }) {
   const fetchCompetitions = async () => {
     try {
       console.log('Frontend - Fetching competitions for fest:', fest._id);
-      const response = await fetch (`${API_CONFIG.BASE_URL}/admin/fests/${fest._id}/competitions`, {
-
+      const response = await fetch(`${API_BASE_URL}/admin/fests/${fest._id}/competitions`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },
@@ -42,7 +44,7 @@ export default function CompetitionModal({ fest, onClose }) {
     if (!window.confirm('Are you sure you want to delete this competition?')) return;
 
     try {
-      const response = await fetch(`/api/admin/competitions/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/admin/competitions/${id}`, {
         method: 'DELETE',
       headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
@@ -357,7 +359,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       });
       formData.append('folder', 'crwdctrl/competitions');
 
-      const response = await fetch('/api/admin/upload/images', {
+      const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
       method: 'POST',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
@@ -612,8 +614,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
 
       const method = competition ? 'PUT' : 'POST';
       const url = competition
-        ? `/api/admin/competitions/${competition._id}`
-        : `/api/admin/fests/${fest._id}/competitions`;
+        ? `${API_BASE_URL}/admin/competitions/${competition._id}`
+        : `${API_BASE_URL}/admin/fests/${fest._id}/competitions`;
 
       console.log('Frontend - Request URL:', url);
       console.log('Frontend - Request method:', method);
@@ -1229,7 +1231,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                     formData.append('images', file);
                                     formData.append('folder', 'crwdctrl/competitions/qr-codes');
 
-                                    const response = await fetch('/api/admin/upload/images', {
+                                    const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
                                       method: 'POST',
                                       headers: {
                                         Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
@@ -1303,7 +1305,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                         
                                         console.log('Testing QR code save with payload:', testPayload);
                                         
-                                        const response = await fetch(`/api/admin/competitions/${competition._id}`, {
+                                        const response = await fetch(`${API_BASE_URL}/admin/competitions/${competition._id}`, {
                                           method: 'PUT',
                                           headers: {
                                             'Content-Type': 'application/json',

@@ -307,8 +307,8 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
 
       // Determine the registration endpoint based on whether it's competition or fest registration
       const endpoint = isCompetitionRegistration 
-        ? `/api/registrations/competitions/${competitionId}/register`
-        : `/api/registrations/fests/${festId}/register`;
+        ? `${API_BASE_URL}/registrations/competitions/${competitionId}/register`
+        : `${API_BASE_URL}/registrations/fests/${festId}/register`;
 
       console.log('Making registration request to:', endpoint);
       console.log('Text responses:', textResponses);

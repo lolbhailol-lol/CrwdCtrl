@@ -11,6 +11,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 function RegisteredFest() {
     const { isDark } = useDarkMode();
     const { isAuthenticated, user } = useAuth();
@@ -38,7 +41,7 @@ function RegisteredFest() {
                 const token = localStorage.getItem('crwdctrl_token');
                 
                 // Fetch internal form registrations with cache-busting
-                const registrationsResponse = await fetch(`/api/registrations/my-registrations?t=${Date.now()}`, {
+                const registrationsResponse = await fetch(`${API_BASE_URL}/registrations/my-registrations?t=${Date.now()}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -142,7 +145,7 @@ function RegisteredFest() {
                 // Refetch data when page becomes visible
                 const fetchData = async () => {
                     try {
-                        const registrationsResponse = await fetch('/api/registrations/my-registrations', {
+                        const registrationsResponse = await fetch(`${API_BASE_URL}/registrations/my-registrations`, {
                             headers: {
                                 'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`,
                                 'Content-Type': 'application/json'

@@ -4,6 +4,9 @@ import { ArrowLeft, CheckCircle, Calendar, MapPin, User, Mail, Phone } from 'luc
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export default function RegistrationDetails() {
   const { registrationId } = useParams();
   const navigate = useNavigate();
@@ -27,7 +30,7 @@ export default function RegistrationDetails() {
       setLoading(true);
       const token = localStorage.getItem('crwdctrl_token');
       
-      const response = await fetch(`/api/registrations/details/${registrationId}`, {
+      const response = await fetch(`${API_BASE_URL}/registrations/details/${registrationId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
