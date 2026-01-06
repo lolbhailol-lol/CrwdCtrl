@@ -708,7 +708,7 @@ function EventPage() {
                             {/* Mobile Common Rules */}
                             <div className="px-4 py-4">
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Common Rules</h2>
+                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
                                     <RulesList
                                         rules={commonRules}
                                         ruleKey={`mobile-common-rules-${eventData?.id}`}
@@ -857,7 +857,7 @@ function EventPage() {
 
                                     {/* Common Rules */}
                                     <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
-                                        <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Common Rules</h2>
+                                        <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
                                         <RulesList
                                             rules={commonRules}
                                             ruleKey={`desktop-common-rules-${eventData?.id}`}
