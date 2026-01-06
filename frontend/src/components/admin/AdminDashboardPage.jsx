@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminStats from './AdminStatsCard';
 import FestTable from './FestTable';
-import { API_CONFIG } from '../../config/env'; // 👈 make sure this import exists
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';

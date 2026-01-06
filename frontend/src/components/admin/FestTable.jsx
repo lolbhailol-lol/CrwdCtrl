@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import FestFormModal from './FestFormModal';
 import CompetitionModal from './Competition_Modal';
-import { API_CONFIG } from '../../config/env';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';

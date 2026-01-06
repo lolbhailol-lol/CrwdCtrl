@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
-import { API_CONFIG } from '../../config/env';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
