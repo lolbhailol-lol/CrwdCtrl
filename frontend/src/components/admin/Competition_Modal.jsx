@@ -629,14 +629,31 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       });
 
       console.log('Frontend - Response status:', response.status);
+      console.log('Frontend - Response headers:', [...response.headers.entries()]);
+
+      // Get response text first to debug
+      const responseText = await response.text();
+      console.log('Frontend - Raw response:', responseText.substring(0, 500));
 
       if (!response.ok) {
-        const err = await response.json();
+        let err;
+        try {
+          err = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Frontend - Failed to parse error response:', parseError);
+          throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 200)}`);
+        }
         console.log('Frontend - Error response:', err);
-        throw new Error(err.message || 'Failed to save competition');
+        throw new Error(err.message || `Failed to save competition (${response.status})`);
       }
 
-      const result = await response.json();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Frontend - Failed to parse success response:', parseError);
+        throw new Error('Invalid response from server');
+      }
       console.log('Frontend - Success response:', result);
 
       onSaved();
