@@ -172,10 +172,25 @@ router.put(
         // Get existing registration or create new one
         const existingRegistration = existingCompetition.registration || {};
         
-        // Deep merge the registration data
+        // Handle legacy status migration
+        let registrationStatus = req.body.registration.status || existingRegistration.status;
+        
+        // Migrate old status values to new enum values
+        if (registrationStatus === 'STARTED') {
+          registrationStatus = 'internal_form'; // or 'external_link' based on your preference
+        } else if (registrationStatus === 'CLOSED') {
+          registrationStatus = 'registration_closed';
+        } else if (registrationStatus === 'NOT_STARTED') {
+          registrationStatus = 'not_started';
+        }
+        
+        console.log('Backend - Migrated registration status from', req.body.registration.status, 'to', registrationStatus);
+        
+        // Deep merge the registration data with migrated status
         const updatedRegistration = {
           ...existingRegistration,
-          ...req.body.registration
+          ...req.body.registration,
+          status: registrationStatus
         };
         
         console.log('Backend - Merged registration data:', updatedRegistration);
