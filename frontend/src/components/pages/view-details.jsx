@@ -252,16 +252,6 @@ function EventDetailsPage() {
   const isSaksham = eventData.title.toLowerCase() === 'saksham 4.0';
 
   const handleRegister = () => {
-    // Special case for Aarohan, Pune Startup Fest, Flame Fest, and Flame Kurukshetra Fest: redirect to competitions list
-    if (eventData?.id === 'fest_001' ||
-        eventData?.title?.toLowerCase().includes('aarohan') ||
-        eventData?.title?.toLowerCase().includes('pune startup') ||
-        eventData?.title?.toLowerCase().includes('flame') ||
-        eventData?.title?.toLowerCase().includes('kurukshetra')) {
-      navigate(`/competition-list/${eventData.id}`);
-      return;
-    }
-
     // Check authentication first
     if (!isAuthenticated) {
       setShowLogin(true);
