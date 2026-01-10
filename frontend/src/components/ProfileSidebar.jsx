@@ -318,7 +318,12 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                         </div>
 
                         {/* Log Out Button */}
-                        <div className="px-6 py-6" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
+                        <div 
+                            className="px-6 py-6" 
+                            style={{ 
+                                paddingBottom: `calc(7rem + max(env(safe-area-inset-bottom), 8px))` 
+                            }}
+                        >
                             {isAuthenticated ? (
                                 <button
                                     onClick={handleLogout}

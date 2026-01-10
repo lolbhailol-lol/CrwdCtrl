@@ -40,7 +40,9 @@ exports.createFest = async (req, res) => {
       festType,
       venue,
       description,
-      registrationMode: registration?.mode
+      registrationMode: registration?.mode,
+      coverImage,
+      galleryImagesCount: galleryImages?.length || 0
     });
 
     if (
@@ -56,6 +58,13 @@ exports.createFest = async (req, res) => {
       });
     }
 
+    // Auto-set coverImage to first gallery image if not provided
+    let finalCoverImage = coverImage;
+    if (!finalCoverImage && galleryImages && galleryImages.length > 0) {
+      finalCoverImage = galleryImages[0];
+      console.log('🖼️ Auto-setting coverImage to first gallery image:', finalCoverImage);
+    }
+
     console.log('✅ Creating new fest...');
 
     const fest = new FestOrganizer({
@@ -68,7 +77,7 @@ exports.createFest = async (req, res) => {
       venue,
       ticketPrice,
       description,
-      coverImage,
+      coverImage: finalCoverImage,
       galleryImages,
       registrationLink,
       status: status || 'upcoming',
@@ -138,17 +147,41 @@ exports.updateFest = async (req, res) => {
       return res.status(400).json({ message: 'Invalid fest ID' });
     }
 
-    console.log('💾 Updating fest in database...');
-    const fest = await FestOrganizer.findByIdAndUpdate(
-      id,
-      req.body,
-      { new: true }
-    );
-
-    if (!fest) {
+    // Get the current fest to check existing data
+    const existingFest = await FestOrganizer.findById(id);
+    if (!existingFest) {
       console.error('❌ Fest not found:', id);
       return res.status(404).json({ message: 'Fest not found' });
     }
+
+    // Prepare update data
+    const updateData = { ...req.body };
+
+    // Auto-set coverImage logic
+    const { coverImage, galleryImages } = req.body;
+    
+    // If no coverImage is provided but galleryImages exist, use first gallery image
+    if (!coverImage && galleryImages && galleryImages.length > 0) {
+      updateData.coverImage = galleryImages[0];
+      console.log('🖼️ Auto-setting coverImage to first gallery image:', galleryImages[0]);
+    }
+    // If coverImage is empty string but galleryImages exist, use first gallery image
+    else if (coverImage === '' && galleryImages && galleryImages.length > 0) {
+      updateData.coverImage = galleryImages[0];
+      console.log('🖼️ Replacing empty coverImage with first gallery image:', galleryImages[0]);
+    }
+    // If galleryImages are updated and current coverImage is not in the new gallery, update it
+    else if (galleryImages && galleryImages.length > 0 && existingFest.coverImage && !galleryImages.includes(existingFest.coverImage)) {
+      updateData.coverImage = galleryImages[0];
+      console.log('🖼️ Current coverImage not in new gallery, updating to first gallery image:', galleryImages[0]);
+    }
+
+    console.log('💾 Updating fest in database...');
+    const fest = await FestOrganizer.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    );
 
     console.log('✅ Fest updated successfully:', fest._id);
 

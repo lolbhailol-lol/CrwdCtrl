@@ -134,6 +134,20 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
         }
     }, [isNotificationOpen, isLocationDropdownOpen, isSearchDropdownOpen]);
 
+    // Listen for location detection trigger from Dashboard
+    useEffect(() => {
+        const handleLocationDetectionTrigger = () => {
+            console.log('📍 Dashboard triggered location detection');
+            detectUserLocation();
+        };
+
+        window.addEventListener('triggerLocationDetection', handleLocationDetectionTrigger);
+        
+        return () => {
+            window.removeEventListener('triggerLocationDetection', handleLocationDetectionTrigger);
+        };
+    }, []);
+
     const handleNavigation = (path) => {
         navigate(path);
     };
@@ -353,7 +367,10 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
     };
 
     // Handle location click - show options dropdown
-    const handleLocationClick = () => {
+    const handleLocationClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🔍 Location button clicked, current dropdown state:', isLocationDropdownOpen);
         setIsLocationDropdownOpen(!isLocationDropdownOpen);
     };
 
@@ -409,7 +426,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                     <div className="relative" ref={locationRef}>
                         <button
                             onClick={handleLocationClick}
-                            className={`flex items-center space-x-2 px-3 lg:px-4 py-2 rounded-full border border-[#119999] transition-all duration-200 hover:shadow-md ${isDark
+                            className={`flex items-center space-x-2 px-3 lg:px-4 py-2 rounded-full border border-[#119999] transition-all duration-200 hover:shadow-md touch-manipulation ${isDark
                                 ? 'bg-gray-800/60 text-gray-300 hover:bg-gray-700/80'
                                 : 'bg-gray-50/80 text-gray-700 hover:bg-gray-100/80'
                                 } ${isLocationDropdownOpen ? 'ring-2 ring-[#119999]/30' : ''}`}
@@ -428,7 +445,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
 
                         {/* Location Dropdown */}
                         {isLocationDropdownOpen && (
-                            <div className={`absolute left-0 mt-2 w-72 rounded-2xl shadow-2xl border backdrop-blur-md z-50 ${isDark
+                            <div className={`absolute left-0 sm:left-0 mt-2 w-80 sm:w-72 max-w-[95vw] rounded-2xl shadow-2xl border backdrop-blur-md z-[60] ${isDark
                                 ? 'bg-black/95 border-gray-700/50'
                                 : 'bg-white/95 border-gray-200/50'
                                 }`}>

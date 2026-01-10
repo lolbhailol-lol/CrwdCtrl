@@ -234,11 +234,7 @@ const CompetitionListPage = () => {
                                         <h3 className={`text-base font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                             {typeof comp.name === 'string' ? comp.name : 'Competition'}
                                         </h3>
-                                        {comp.subtitle && typeof comp.subtitle === 'string' && (
-                                            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                                                {comp.subtitle.length > 50 ? `${comp.subtitle.substring(0, 50)}...` : comp.subtitle}
-                                            </p>
-                                        )}
+
                                         <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>
                                             Fee - ₹{typeof comp.fee === 'object' ? JSON.stringify(comp.fee) : comp.fee || 'TBA'}
                                         </p>

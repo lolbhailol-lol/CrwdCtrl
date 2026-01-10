@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Instagram, Check, Moon, Sun, Mail, User } from 'lucide-react';
+import { Phone, Instagram, Check, Moon, Sun, Mail, User, ArrowLeft } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
@@ -492,14 +492,12 @@ function EventPage() {
                 </div>
 
                 {/* Mobile Header */}
-                <div className={`block md:hidden px-4 py-3 flex items-center justify-between shadow-sm ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}>
+                <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/20 to-transparent">
                     <button
-                        onClick={() => window.history.back()}
-                        className={`p-2 rounded-full transition ${isDark ? 'hover:bg-dark-700' : 'hover:bg-gray-100'}`}
+                        onClick={() => navigate(-1)}
+                        className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
                     >
-                        <svg className={`w-6 h-6 transition ${isDark ? 'text-gray-300' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
+                        <ArrowLeft size={20} />
                     </button>
                 </div>
 
@@ -549,7 +547,26 @@ function EventPage() {
                                     </div>
                                 </div>
                             </div>
-
+                            
+                            {/* Mobile Prize Pool Highlight Card */}
+                            {eventData?.prize && (
+                                <div className="px-4 py-4">
+                                    <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className={`text-xl ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>🏆</span>
+                                            <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>PRIZE POOL</h2>
+                                        </div>
+                                        <div 
+                                            className={`font-medium whitespace-pre-wrap leading-relaxed text-sm ${
+                                                isDark ? 'text-gray-300' : 'text-gray-900'
+                                            }`}
+                                            style={{ whiteSpace: 'pre-wrap' }}
+                                        >
+                                            {eventData.prize}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {/* Mobile Competition Rounds */}
                             <div className="px-4 py-4">
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
@@ -684,26 +701,6 @@ function EventPage() {
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Mobile Prize Pool Highlight Card */}
-                            {eventData?.prize && (
-                                <div className="px-4 py-4">
-                                    <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <span className={`text-xl ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>🏆</span>
-                                            <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>PRIZE POOL</h2>
-                                        </div>
-                                        <div 
-                                            className={`font-medium whitespace-pre-wrap leading-relaxed text-sm ${
-                                                isDark ? 'text-gray-300' : 'text-gray-900'
-                                            }`}
-                                            style={{ whiteSpace: 'pre-wrap' }}
-                                        >
-                                            {eventData.prize}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Mobile Common Rules */}
                             <div className="px-4 py-4">

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram } from 'lucide-react';
+import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2 } from 'lucide-react';
 import ShareIcon from '../../assets/share.svg';
 import Logo from '../../assets/logo01_.svg';
 import CulturalFestImage from '../../assets/mobile-icons/cultural-events-icon-02.svg';
@@ -176,6 +176,15 @@ const Dashboard = () => {
     const [searchResults, setSearchResults] = useState([]);
     const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
+    const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+    const [currentLocation, setCurrentLocation] = useState({
+        city: 'Pune', // Default fallback
+        state: 'Maharashtra',
+        country: 'India',
+        isDetecting: false,
+        hasPermission: false,
+        coordinates: null
+    });
     const scrollContainerRef = useRef(null);
     const searchRef = useRef(null);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -186,6 +195,71 @@ const Dashboard = () => {
             setShowLogin(true);
         }
     }, [searchParams]);
+
+    // Get user's location on component mount (same as Navbar)
+    useEffect(() => {
+        console.log('🚀 Dashboard component mounted, checking for stored location...');
+        
+        const getStoredLocation = () => {
+            try {
+                const stored = localStorage.getItem('crwdctrl_user_location');
+                console.log('💾 Dashboard - Stored location data:', stored);
+                
+                if (stored) {
+                    const parsedLocation = JSON.parse(stored);
+                    console.log('📍 Dashboard - Parsed stored location:', parsedLocation);
+                    
+                    setCurrentLocation(prev => ({
+                        ...prev,
+                        ...parsedLocation,
+                        hasPermission: true
+                    }));
+                    return true;
+                }
+            } catch (error) {
+                console.error('❌ Dashboard - Error reading stored location:', error);
+            }
+            return false;
+        };
+
+        // Only try to get stored location, don't auto-detect
+        if (!getStoredLocation()) {
+            console.log('🌍 Dashboard - No stored location found, using default location (Pune)');
+            // Use default location instead of auto-detecting
+            setCurrentLocation(prev => ({
+                ...prev,
+                city: 'Pune',
+                state: 'Maharashtra',
+                country: 'India',
+                hasPermission: false,
+                isDetecting: false
+            }));
+        } else {
+            console.log('✅ Dashboard - Using stored location');
+        }
+    }, []);
+
+    // Listen for location updates from localStorage (when Navbar updates location)
+    useEffect(() => {
+        const handleStorageChange = (e) => {
+            if (e.key === 'crwdctrl_user_location' && e.newValue) {
+                try {
+                    const newLocation = JSON.parse(e.newValue);
+                    console.log('📍 Dashboard - Location updated from storage:', newLocation);
+                    setCurrentLocation(prev => ({
+                        ...prev,
+                        ...newLocation,
+                        hasPermission: true
+                    }));
+                } catch (error) {
+                    console.error('❌ Dashboard - Error parsing updated location:', error);
+                }
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, []);
 
     // Handle login modal close
     const handleCloseLogin = () => {
@@ -299,7 +373,7 @@ const Dashboard = () => {
                 id: fest?._id || fest?.id,
                 title: fest?.festName || 'Fest',
                 type,
-                image: fest?.coverImage || '/placeholder-image.jpg',
+                image: fest?.coverImage || fest?.images?.[0] || fest?.festImages?.[0] || '/placeholder-image.jpg',
                 subtitle: fest?.collegeName || '',
                 description: fest?.description || '',
                 status: fest?.status || 'upcoming',
@@ -396,6 +470,220 @@ const Dashboard = () => {
         navigate(`/view-details/${event.id}`);
     };
 
+    // Helper function to get city name from coordinates (for major Indian cities)
+    const getCityFromCoordinates = (lat, lon) => {
+        const cities = [
+            { name: 'Bangalore', state: 'Karnataka', lat: 12.9716, lon: 77.5946, tolerance: 0.5 },
+            { name: 'Mumbai', state: 'Maharashtra', lat: 19.0760, lon: 72.8777, tolerance: 0.5 },
+            { name: 'Delhi', state: 'Delhi', lat: 28.7041, lon: 77.1025, tolerance: 0.5 },
+            { name: 'Hyderabad', state: 'Telangana', lat: 17.3850, lon: 78.4867, tolerance: 0.5 },
+            { name: 'Chennai', state: 'Tamil Nadu', lat: 13.0827, lon: 80.2707, tolerance: 0.5 },
+            { name: 'Kolkata', state: 'West Bengal', lat: 22.5726, lon: 88.3639, tolerance: 0.5 },
+            { name: 'Pune', state: 'Maharashtra', lat: 18.5204, lon: 73.8567, tolerance: 0.5 },
+            { name: 'Ahmedabad', state: 'Gujarat', lat: 23.0225, lon: 72.5714, tolerance: 0.5 },
+            { name: 'Jaipur', state: 'Rajasthan', lat: 26.9124, lon: 75.7873, tolerance: 0.5 },
+            { name: 'Surat', state: 'Gujarat', lat: 21.1702, lon: 72.8311, tolerance: 0.5 }
+        ];
+
+        for (const city of cities) {
+            const latDiff = Math.abs(lat - city.lat);
+            const lonDiff = Math.abs(lon - city.lon);
+            if (latDiff <= city.tolerance && lonDiff <= city.tolerance) {
+                return { city: city.name, state: city.state, country: 'India' };
+            }
+        }
+        return null;
+    };
+
+    // Function to detect user's location (same as Navbar)
+    const detectUserLocation = async () => {
+        console.log('🌍 Dashboard - Starting location detection...');
+        
+        if (!navigator.geolocation) {
+            console.log('❌ Dashboard - Geolocation is not supported by this browser');
+            return;
+        }
+
+        console.log('🌍 Dashboard - Geolocation API is available');
+        setCurrentLocation(prev => ({ ...prev, isDetecting: true }));
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 15000, // 15 seconds timeout
+            maximumAge: 300000 // 5 minutes cache
+        };
+
+        console.log('🌍 Dashboard - Requesting location permission...');
+
+        try {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    console.log('✅ Dashboard - SUCCESS: Location obtained!', position.coords);
+                    const { latitude, longitude } = position.coords;
+
+                    // First try to match with known cities
+                    const knownCity = getCityFromCoordinates(latitude, longitude);
+                    if (knownCity) {
+                        console.log('🏙️ Dashboard - Found known city:', knownCity);
+                        const locationData = {
+                            ...knownCity,
+                            coordinates: { latitude, longitude },
+                            hasPermission: true,
+                            isDetecting: false
+                        };
+                        setCurrentLocation(locationData);
+
+                        try {
+                            localStorage.setItem('crwdctrl_user_location', JSON.stringify(locationData));
+                            console.log('💾 Dashboard - Stored known city location');
+                        } catch (error) {
+                            console.error('❌ Dashboard - Error storing location:', error);
+                        }
+                        return;
+                    }
+
+                    console.log('🗺️ Dashboard - Trying reverse geocoding...');
+
+                    try {
+                        let locationData = null;
+
+                        // Try Nominatim (OpenStreetMap)
+                        try {
+                            const nominatimResponse = await fetch(
+                                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+                                {
+                                    headers: {
+                                        'User-Agent': 'CrwdCtrl/1.0 (contact@crwdctrl.com)'
+                                    }
+                                }
+                            );
+
+                            if (nominatimResponse.ok) {
+                                const nominatimData = await nominatimResponse.json();
+                                if (nominatimData.address) {
+                                    const addr = nominatimData.address;
+                                    const cityName = addr.city || addr.town || addr.village || addr.suburb || addr.hamlet || addr.municipality || addr.county;
+                                    const stateName = addr.state || addr.region || addr.province || addr['ISO3166-2-lvl4'];
+                                    const countryName = addr.country || addr.country_code?.toUpperCase();
+
+                                    if (cityName && !cityName.match(/^\d+\.?\d*[°,]\s*\d+\.?\d*$/)) {
+                                        locationData = {
+                                            city: cityName,
+                                            state: stateName || 'Unknown State',
+                                            country: countryName || 'Unknown Country',
+                                            coordinates: { latitude, longitude },
+                                            hasPermission: true,
+                                            isDetecting: false
+                                        };
+                                        console.log('✅ Dashboard - Location found via Nominatim:', locationData.city);
+                                    }
+                                }
+                            }
+                        } catch (nominatimError) {
+                            console.log('❌ Dashboard - Nominatim failed, trying BigDataCloud');
+                        }
+
+                        // Try BigDataCloud if Nominatim failed
+                        if (!locationData) {
+                            try {
+                                const bigDataResponse = await fetch(
+                                    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+                                );
+
+                                if (bigDataResponse.ok) {
+                                    const bigDataResult = await bigDataResponse.json();
+                                    const cityName = bigDataResult.city || bigDataResult.locality || bigDataResult.localityInfo?.administrative?.[3]?.name;
+                                    const stateName = bigDataResult.principalSubdivision || bigDataResult.localityInfo?.administrative?.[1]?.name;
+                                    const countryName = bigDataResult.countryName;
+
+                                    if (cityName && !cityName.match(/^\d+\.?\d*[°,]\s*\d+\.?\d*$/)) {
+                                        locationData = {
+                                            city: cityName,
+                                            state: stateName || 'Unknown State',
+                                            country: countryName || 'Unknown Country',
+                                            coordinates: { latitude, longitude },
+                                            hasPermission: true,
+                                            isDetecting: false
+                                        };
+                                        console.log('✅ Dashboard - Location found via BigDataCloud:', locationData.city);
+                                    }
+                                }
+                            } catch (bigDataError) {
+                                console.log('❌ Dashboard - BigDataCloud failed');
+                            }
+                        }
+
+                        if (locationData) {
+                            setCurrentLocation(locationData);
+                            try {
+                                localStorage.setItem('crwdctrl_user_location', JSON.stringify(locationData));
+                                console.log('💾 Dashboard - Location saved successfully');
+                            } catch (error) {
+                                console.error('❌ Dashboard - Error storing location:', error);
+                            }
+                        } else {
+                            // Fallback to coordinates-based location
+                            const fallbackData = {
+                                city: 'Your Location',
+                                state: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+                                country: 'Coordinates',
+                                coordinates: { latitude, longitude },
+                                hasPermission: true,
+                                isDetecting: false
+                            };
+                            setCurrentLocation(fallbackData);
+                            console.log('🌍 Dashboard - Using coordinate-based location');
+                        }
+                    } catch (error) {
+                        console.error('❌ Dashboard - Reverse geocoding failed:', error);
+                        const errorFallbackData = {
+                            city: 'Location Found',
+                            state: 'Unknown Area',
+                            country: 'Unknown',
+                            coordinates: { latitude, longitude },
+                            hasPermission: true,
+                            isDetecting: false
+                        };
+                        setCurrentLocation(errorFallbackData);
+                    }
+                },
+                (error) => {
+                    console.error('❌ Dashboard - GEOLOCATION ERROR:', error);
+                    console.error('❌ Dashboard - Error code:', error.code);
+                    console.error('❌ Dashboard - Error message:', error.message);
+                    
+                    setCurrentLocation(prev => {
+                        const newState = {
+                            ...prev,
+                            isDetecting: false,
+                            hasPermission: false
+                        };
+                        console.log('❌ Dashboard - Setting error state:', newState);
+                        return newState;
+                    });
+
+                    // Log appropriate error message based on error type
+                    switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                            console.log('🚫 Dashboard - User denied location permission');
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            console.log('📍 Dashboard - Location information unavailable');
+                            break;
+                        case error.TIMEOUT:
+                            console.log('⏰ Dashboard - Location request timed out');
+                            break;
+                        default:
+                            console.log('❓ Dashboard - Unknown location error');
+                    }
+                },
+                options
+            );
+        } catch (error) {
+            console.error('❌ Dashboard - CRITICAL ERROR in detectUserLocation:', error);
+        }
+    };
+
     // Error state
     if (error) {
         return (
@@ -435,34 +723,132 @@ const Dashboard = () => {
                         <div className="flex items-center space-x-3">
 
                             {/* Location Icon */}
-                            <button
-                                onClick={() => {
-                                    if (navigator.geolocation) {
-                                        navigator.geolocation.getCurrentPosition(
-                                            (position) => {
-                                                const { latitude, longitude } = position.coords;
-                                                // Open Google Maps with user's location
-                                                window.open(`https://www.google.com/maps/@${latitude},${longitude},15z`, '_blank');
-                                            },
-                                            (error) => {
-                                                console.log('Location access denied:', error);
-                                                // Fallback: Open generic map
-                                                window.open('https://www.google.com/maps', '_blank');
-                                            }
-                                        );
-                                    } else {
-                                        // Fallback for browsers without geolocation
-                                        window.open('https://www.google.com/maps', '_blank');
-                                    }
-                                }}
-                                className={`p-2 rounded-xl transition-colors ${isDark
-                                    ? 'text-gray-300 hover:bg-gray-800 hover:text-cyan-400'
-                                    : 'text-gray-600 hover:bg-gray-100 hover:text-cyan-600'
-                                    }`}
-                                aria-label="Open location in maps"
-                            >
-                                <MapPin className="w-5 h-5" />
-                            </button>
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
+                                    className={`flex items-center space-x-2 p-2 rounded-xl transition-colors ${isDark
+                                        ? 'text-gray-300 hover:bg-gray-800 hover:text-cyan-400'
+                                        : 'text-gray-600 hover:bg-gray-100 hover:text-cyan-600'
+                                        }`}
+                                    aria-label="Location options"
+                                >
+                                    {currentLocation.isDetecting ? (
+                                        <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <MapPin className={`w-5 h-5 ${currentLocation.hasPermission ? 'text-cyan-500' : ''}`} />
+                                    )}
+                                    {/* Show location text on mobile when detected */}
+                                    {currentLocation.hasPermission && !currentLocation.isDetecting && (
+                                        <span className="text-xs font-medium text-cyan-500 max-w-[80px] truncate">
+                                            {currentLocation.city}
+                                        </span>
+                                    )}
+                                </button>
+
+                                {/* Location Dropdown for Dashboard */}
+                                {isLocationDropdownOpen && (
+                                    <div className={`absolute right-0 mt-2 w-80 rounded-2xl shadow-2xl border backdrop-blur-md z-50 ${isDark
+                                        ? 'bg-black/95 border-gray-700/50'
+                                        : 'bg-white/95 border-gray-200/50'
+                                        }`}>
+                                        {/* Header */}
+                                        <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                                            <div className="flex items-center justify-between">
+                                                <h3 className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    Current Location
+                                                </h3>
+                                                <button
+                                                    onClick={() => setIsLocationDropdownOpen(false)}
+                                                    className={`p-1 rounded-lg transition-colors ${isDark
+                                                        ? 'hover:bg-gray-700 text-gray-400'
+                                                        : 'hover:bg-gray-100 text-gray-500'
+                                                        }`}
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Location Info */}
+                                        <div className="p-4">
+                                            <div className="flex items-start space-x-3 mb-4">
+                                                <div className={`p-2 rounded-lg ${currentLocation.hasPermission
+                                                    ? 'bg-green-100 text-green-600'
+                                                    : 'bg-orange-100 text-orange-600'
+                                                    }`}>
+                                                    <MapPin className="w-4 h-4" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        {currentLocation.city}
+                                                    </p>
+                                                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                        {currentLocation.state}, {currentLocation.country}
+                                                    </p>
+                                                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                        {currentLocation.hasPermission ? 'Location detected automatically' : 'Using default location'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="flex flex-col space-y-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setIsLocationDropdownOpen(false);
+                                                        detectUserLocation();
+                                                    }}
+                                                    disabled={currentLocation.isDetecting}
+                                                    className={`flex items-center justify-center space-x-2 w-full py-2 px-3 rounded-lg text-sm font-medium transition-all ${isDark
+                                                        ? 'bg-cyan-600 hover:bg-cyan-700 text-white disabled:bg-gray-700 disabled:text-gray-400'
+                                                        : 'bg-cyan-600 hover:bg-cyan-700 text-white disabled:bg-gray-200 disabled:text-gray-500'
+                                                        } ${currentLocation.isDetecting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                                >
+                                                    {currentLocation.isDetecting ? (
+                                                        <>
+                                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                            <span>Detecting Location...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Navigation className="w-4 h-4" />
+                                                            <span>Detect My Location</span>
+                                                        </>
+                                                    )}
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        setIsLocationDropdownOpen(false);
+                                                        if (currentLocation.coordinates) {
+                                                            const { latitude, longitude } = currentLocation.coordinates;
+                                                            window.open(`https://www.google.com/maps/@${latitude},${longitude},15z`, '_blank');
+                                                        } else {
+                                                            // Fallback to search by city name
+                                                            const searchQuery = encodeURIComponent(`${currentLocation.city}, ${currentLocation.state}, ${currentLocation.country}`);
+                                                            window.open(`https://www.google.com/maps/search/${searchQuery}`, '_blank');
+                                                        }
+                                                    }}
+                                                    className={`flex items-center justify-center space-x-2 w-full py-2 px-3 rounded-lg text-sm font-medium border transition-all ${isDark
+                                                        ? 'border-gray-600 text-gray-300 hover:bg-gray-800/60'
+                                                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                                        }`}
+                                                >
+                                                    <MapPin className="w-4 h-4" />
+                                                    <span>Open in Maps</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Footer Note */}
+                                        <div className={`px-4 py-3 border-t text-center ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                                            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                Location is used to show nearby events
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Notification Bell */}
                             <button
