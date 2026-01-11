@@ -259,6 +259,24 @@ html {
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
+        /* Prevent duplicates */
+        pointer-events: auto !important;
+    }
+
+    /* Ensure only one mobile bottom nav exists */
+    .mobile-bottom-nav:not(:first-of-type) {
+        display: none !important;
+    }
+
+    /* Ensure the main mobile bottom nav is always visible on mobile */
+    #mobile-bottom-nav-main {
+        display: block !important;
+    }
+
+    @media (min-width: 768px) {
+        #mobile-bottom-nav-main {
+            display: none !important;
+        }
     }
 
     /* Fix iOS Safari bottom safe area handling */
@@ -312,6 +330,20 @@ html {
     @media (max-width: 767px) {
         .mobile-bottom-nav-spacer {
             display: block !important;
+        }
+    }
+
+    /* iOS-specific safe area fix for ProfileSidebar bottom navigation */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+        .profile-sidebar-mobile .mobile-bottom-nav {
+            padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
+        }
+    }
+
+    /* Additional iOS Safari specific targeting */
+    @supports (-webkit-touch-callout: none) {
+        .profile-sidebar-mobile .mobile-bottom-nav {
+            padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
         }
     }
 }

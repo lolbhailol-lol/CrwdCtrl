@@ -8,7 +8,6 @@ import locationIcon from '../../assets/location-.svg';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
 import Footer from '../Footer';
-import ProfileSidebar from '../ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
@@ -30,7 +29,6 @@ function EventDetailsPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('GROUP');
   const [currentArtist, setCurrentArtist] = useState(0);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [currentHeroImage, setCurrentHeroImage] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
@@ -395,7 +393,7 @@ function EventDetailsPage() {
     <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} transition-colors duration-300`}>
       {/* Desktop Version */}
       <div className="hidden lg:block">
-        <div className={`transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
+        <div className={`transition-all duration-300`}>
           {/* Content */}
           <div className="max-w-9xl mx-auto px-2  py-4 ml-3">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
@@ -771,7 +769,7 @@ function EventDetailsPage() {
             </div>
           </div>
         </div>
-        <div className={`transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
+        <div className={`transition-all duration-300`}>
           <Footer />
         </div>
       </div>
@@ -1093,14 +1091,6 @@ function EventDetailsPage() {
           </div>
         </div>
       </div>
-
-      {/* Profile Sidebar */}
-      <ProfileSidebar
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-        onShowLogin={() => setShowLogin(true)}
-        onShowRegister={() => setShowRegister(true)}
-      />
 
       {/* Login Modal */}
       {showLogin && (

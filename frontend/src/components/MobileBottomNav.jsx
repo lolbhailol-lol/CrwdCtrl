@@ -4,7 +4,7 @@ import { Home, Heart, Calendar, User } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 
-const MobileBottomNav = ({ onProfileClick, onShowLogin }) => {
+const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { isDark } = useDarkMode();
@@ -88,7 +88,12 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin }) => {
                 navigate(path);
             }
         } else {
-            navigate(path);
+            // For non-profile items, check if there's a custom navigation handler
+            if (onNavigate) {
+                onNavigate(path);
+            } else {
+                navigate(path);
+            }
         }
     };
 
@@ -96,6 +101,7 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin }) => {
         <>
             {/* Mobile Bottom Navigation - Only visible on small screens */}
             <div 
+                id="mobile-bottom-nav-main"
                 className="fixed bottom-0 left-0 right-0 z-[9999] md:hidden mobile-bottom-nav"
                 style={{
                     paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',

@@ -4,8 +4,6 @@ import { X, Heart, Calendar, MapPin, Clock, Sparkles, Filter, Trash2, ArrowLeft 
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
 import Footer from '../Footer';
-import ProfileSidebar from '../ProfileSidebar';
-import MobileBottomNav from '../MobileBottomNav';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
@@ -251,7 +249,6 @@ function FestFavoritesPage() {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
     const { getFavoriteEvents, removeFavorite, clearAllFavorites, getFavoriteCount } = useFavorites();
-    const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [favoriteEvents, setFavoriteEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [activeFilter, setActiveFilter] = useState('all');
@@ -385,7 +382,7 @@ function FestFavoritesPage() {
     return (
         <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
             {/* Desktop Layout */}
-            <div className={`hidden lg:flex lg:flex-1 lg:flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
+            <div className={`hidden lg:flex lg:flex-1 lg:flex-col transition-all duration-300`}>
 
                 {/* Desktop Page Header */}
                 <main className="flex-1 p-4 sm:p-6">
@@ -492,7 +489,7 @@ function FestFavoritesPage() {
                     )}
                 </div>
 
-                <div className={`mt-16 transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
+                <div className={`mt-16 transition-all duration-300`}>
                     <Footer />
                 </div>
             </div>
@@ -563,19 +560,7 @@ function FestFavoritesPage() {
                     )}
                 </main>
 
-
-
-                {/* Mobile Bottom Navigation */}
-                <MobileBottomNav onShowLogin={() => setShowLogin(true)} />
             </div>
-
-            {/* Profile Sidebar */}
-            <ProfileSidebar
-                isOpen={isProfileOpen}
-                onClose={() => setIsProfileOpen(false)}
-                onShowLogin={() => setShowLogin(true)}
-                onShowRegister={() => setShowRegister(true)}
-            />
 
             {/* Login Modal */}
             {showLogin && (

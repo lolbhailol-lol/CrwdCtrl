@@ -52,22 +52,23 @@ const CompetitionsPage = React.lazy(() => import('./components/admin/Competition
 const RegistrationsPage = React.lazy(() => import('./components/admin/RegistrationsPage'))
 
 // Component to conditionally render MobileBottomNav
-function ConditionalMobileBottomNav({ onShowLogin }) {
+function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick }) {
   const location = useLocation();
 
-  // Hide MobileBottomNav on specific pages where it shouldn't appear
+  // Hide MobileBottomNav on specific pages where it shouldn't appear OR when profile sidebar is open
   const shouldHideMobileBottomNav = location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
     location.pathname.startsWith('/view-details') ||
     location.pathname.startsWith('/competitions-view-details') ||
-    location.pathname.startsWith('/admin'); 
+    location.pathname.startsWith('/admin') ||
+    isProfileOpen; // Hide when profile sidebar is open (ProfileSidebar has its own bottom nav)
 
   if (shouldHideMobileBottomNav) {
     return null;
   }
 
-  return <MobileBottomNav onShowLogin={onShowLogin} />;
+  return <MobileBottomNav onShowLogin={onShowLogin} onProfileClick={onProfileClick} />;
 }
 
 // Component to conditionally render Navbar and Sidebar
@@ -237,7 +238,7 @@ function App() {
           </div>
         </div>
 
-        {!isAdminRoute && <ConditionalMobileBottomNav onShowLogin={() => setShowLogin(true)} />}
+        {!isAdminRoute && <ConditionalMobileBottomNav onShowLogin={() => setShowLogin(true)} isProfileOpen={isProfileOpen} onProfileClick={() => setIsProfileOpen(true)} />}
 
         {!isAdminRoute && (
           <ProfileSidebar

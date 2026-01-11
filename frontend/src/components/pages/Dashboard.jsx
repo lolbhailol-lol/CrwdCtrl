@@ -167,7 +167,6 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
-    const [isProfileOpen, _setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [error, setError] = useState(null);
@@ -707,7 +706,7 @@ const Dashboard = () => {
 
     return (
         <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
-            <div className={`transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''} flex flex-col flex-1`}>
+            <div className={`transition-all duration-300 flex flex-col flex-1`}>
 
                 {/* Mobile Header */}
                 <div className={`lg:hidden sticky top-0 z-40 backdrop-blur-md border-b transition-all duration-300 rounded-b-2xl ${isDark
