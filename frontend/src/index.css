@@ -254,8 +254,11 @@ html {
         /* Prevent bounce scrolling interference */
         -webkit-overflow-scrolling: auto;
         /* Ensure proper stacking */
-        position: fixed;
-        z-index: 9999;
+        position: fixed !important;
+        z-index: 9999 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
     }
 
     /* Fix iOS Safari bottom safe area handling */
@@ -275,8 +278,40 @@ html {
     /* Fix for iOS Safari address bar hiding/showing */
     .fixed.bottom-0.z-50 {
         /* Use viewport height units that account for dynamic viewport */
-        bottom: max(env(safe-area-inset-bottom), 0px);
+        bottom: max(env(safe-area-inset-bottom), 0px) !important;
         /* Ensure it stays above iOS Safari's bottom UI */
-        z-index: 999999;
+        z-index: 999999 !important;
+        position: fixed !important;
+    }
+
+    /* Additional mobile bottom nav visibility fixes */
+    .mobile-bottom-nav {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    /* Ensure mobile bottom nav shows on all mobile devices */
+    @media (max-width: 767px) {
+        .mobile-bottom-nav {
+            display: block !important;
+        }
+    }
+
+    /* Hide mobile bottom nav on desktop */
+    @media (min-width: 768px) {
+        .mobile-bottom-nav {
+            display: none !important;
+        }
+        .mobile-bottom-nav-spacer {
+            display: none !important;
+        }
+    }
+
+    /* Show mobile bottom nav spacer on mobile */
+    @media (max-width: 767px) {
+        .mobile-bottom-nav-spacer {
+            display: block !important;
+        }
     }
 }

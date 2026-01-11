@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, B
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import MobileBottomNav from './MobileBottomNav';
 
 export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowRegister }) {
     const { isDark, toggleDarkMode } = useDarkMode();
@@ -361,8 +360,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                             )}
                         </div>
 
-                        {/* Mobile Bottom Navigation - Use shared component */}
-                        <MobileBottomNav onProfileClick={() => {/* Profile is already open, do nothing */ }} />
+                        {/* Note: MobileBottomNav is handled by the main app, not needed here since profile is already open */}
                     </div>
                 </div>
             </div>

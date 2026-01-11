@@ -55,17 +55,12 @@ const RegistrationsPage = React.lazy(() => import('./components/admin/Registrati
 function ConditionalMobileBottomNav({ onShowLogin }) {
   const location = useLocation();
 
-  // Hide MobileBottomNav on view-details pages and fest pages
-  const shouldHideMobileBottomNav = location.pathname.startsWith('/view-details') ||
+  // Hide MobileBottomNav on specific pages where it shouldn't appear
+  const shouldHideMobileBottomNav = location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname === '/verify-email' ||
+    location.pathname.startsWith('/view-details') ||
     location.pathname.startsWith('/competitions-view-details') ||
-    location.pathname === '/competition-list' ||
-    location.pathname === '/competition-register' ||
-    location.pathname.startsWith('/fest/') ||
-    location.pathname === '/cultural-fest' ||
-    location.pathname === '/tech-fest' ||
-    location.pathname === '/sports-fest' ||
-    location.pathname === '/terms-and-conditions' ||
-    location.pathname === '/contact-us'||
     location.pathname.startsWith('/admin'); 
 
   if (shouldHideMobileBottomNav) {

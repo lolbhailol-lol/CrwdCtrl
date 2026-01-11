@@ -19,6 +19,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { searchFests } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
+import LoadingSkeleton from '../LoadingSkeleton';
 import axios from 'axios';
 
 // Configure axios base URL
@@ -983,7 +984,7 @@ const Dashboard = () => {
                             {/* Unified Mobile and Desktop: Horizontal scrollable cards */}
                             <div>
                                 {isFestsLoading ? (
-                                    <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                                    <LoadingSkeleton count={3} />
                                 ) : festError ? (
                                     <div className="text-center py-12 text-red-500">{festError}</div>
                                 ) : ongoingEvents.length > 0 ? (
@@ -1005,6 +1006,7 @@ const Dashboard = () => {
                                                         src={getImageUrl(event.image)}
                                                         alt={event.title}
                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                        loading="lazy"
                                                         onError={(e) =>
                                                             handleImageErrorWithFallback(
                                                                 e,
@@ -1250,7 +1252,7 @@ const Dashboard = () => {
                             {/* Coming Soon Events – Horizontal scroll (same format) */}
                             <div>
                                 {isFestsLoading ? (
-                                    <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                                    <LoadingSkeleton count={4} />
                                 ) : festError ? (
                                     <div className="text-center py-12 text-red-500">{festError}</div>
                                 ) : upcomingEvents.length > 0 ? (
@@ -1272,6 +1274,7 @@ const Dashboard = () => {
                                                         src={getImageUrl(event.image)}
                                                         alt={event.title}
                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                        loading="lazy"
                                                         onError={(e) => {
                                                             handleImageErrorWithFallback(
                                                                 e,
@@ -1369,7 +1372,7 @@ const Dashboard = () => {
                             </h2>
 
                             {isFestsLoading ? (
-                                <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                                <LoadingSkeleton count={3} />
                             ) : festError ? (
                                 <div className="text-center py-12 text-red-500">{festError}</div>
                             ) : lastYearEvents.length > 0 ? (
@@ -1391,6 +1394,7 @@ const Dashboard = () => {
                                                     src={getImageUrl(event.image)}
                                                     alt={event.title}
                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    loading="lazy"
                                                     onError={(e) => {
                                                         handleImageErrorWithFallback(
                                                             e,

@@ -121,11 +121,39 @@ exports.createFest = async (req, res) => {
 ========================= */
 exports.getAllFests = async (req, res) => {
   try {
-    const fests = await FestOrganizer.find()
-      .sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20; // Default 20 fests per page
+    const skip = (page - 1) * limit;
 
-    res.status(200).json({ fests });
+    // Get total count for pagination info
+    const totalFests = await FestOrganizer.countDocuments();
+    
+    // Get fests with pagination, sorted by most recent first
+    const fests = await FestOrganizer.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt') // Only select needed fields
+      .lean(); // Use lean() for better performance
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalFests / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    res.status(200).json({ 
+      fests,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalFests,
+        hasNextPage,
+        hasPrevPage,
+        limit
+      }
+    });
   } catch (error) {
+    console.error('Error fetching fests:', error);
     res.status(500).json({ message: 'Failed to fetch fests' });
   }
 };
