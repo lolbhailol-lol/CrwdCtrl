@@ -509,9 +509,7 @@ function EventDetailsPage() {
                                     <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'} mb-1`}>
                                       {typeof comp.name === 'string' ? comp.name : 'Competition'}
                                     </h3>
-                                    <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-2 line-clamp-2`}>
-                                      {typeof comp.subtitle === 'string' ? comp.subtitle : comp.description || ''}
-                                    </p>
+
                                   </div>
                                   <div className="space-y-1">
                                     <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>

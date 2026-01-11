@@ -95,11 +95,28 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin }) => {
     return (
         <>
             {/* Mobile Bottom Navigation - Only visible on small screens */}
-            <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-                <div className={`rounded-3xl mx-4 my-2 transition-all duration-300 mb-2 border border-gray-600/50 ${isDark
-                    ? 'bg-[#0a0a0a]'
-                    : 'bg-[#F5F6FA] border-gray-200'
-                    }`}>
+            <div 
+                className="fixed bottom-0 left-0 right-0 z-50 md:hidden mobile-bottom-nav"
+                style={{
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
+                    paddingLeft: 'env(safe-area-inset-left)',
+                    paddingRight: 'env(safe-area-inset-right)'
+                }}
+            >
+                <div className={`rounded-3xl mx-4 my-2 transition-all duration-300 mb-2 border border-gray-600/50 backdrop-blur-md ${isDark
+                    ? 'bg-[#0a0a0a]/95'
+                    : 'bg-[#F5F6FA]/95 border-gray-200'
+                    }`}
+                    style={{
+                        // iOS Safari specific fixes
+                        WebkitBackdropFilter: 'blur(12px)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitTransform: 'translateZ(0)',
+                        transform: 'translateZ(0)',
+                        WebkitBackfaceVisibility: 'hidden',
+                        backfaceVisibility: 'hidden'
+                    }}
+                >
                     <div className="flex items-center justify-around px-4 py-4">
                         {navItems.map((item) => {
                             const IconComponent = item.icon;
@@ -116,6 +133,13 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin }) => {
                                             : 'text-gray-500 hover:text-blue-600'
                                         }`}
                                     aria-label={item.label}
+                                    style={{
+                                        // iOS Safari touch optimization
+                                        WebkitTapHighlightColor: 'transparent',
+                                        WebkitTouchCallout: 'none',
+                                        WebkitUserSelect: 'none',
+                                        userSelect: 'none'
+                                    }}
                                 >
                                     <IconComponent
                                         size={24}
@@ -133,8 +157,13 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin }) => {
                 </div>
             </div>
 
-            {/* Spacer to prevent content from being hidden behind the nav */}
-            <div className="h-24 md:hidden"></div>
+            {/* Spacer to prevent content from being hidden behind the nav - iOS safe area aware */}
+            <div 
+                className="md:hidden"
+                style={{
+                    height: `calc(6rem + max(env(safe-area-inset-bottom), 8px))`
+                }}
+            ></div>
         </>
     );
 };

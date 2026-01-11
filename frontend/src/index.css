@@ -236,4 +236,47 @@ html {
             max-height: 170px;
         }
     }
+
+    /* iOS Safe Area Support for Bottom Navigation */
+    .fixed.bottom-0 {
+        /* Ensure bottom navigation respects safe area */
+        bottom: max(env(safe-area-inset-bottom), 0px);
+        padding-bottom: 0;
+    }
+
+    /* iOS-specific bottom navigation fixes */
+    .mobile-bottom-nav {
+        /* Force hardware acceleration */
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        /* Prevent bounce scrolling interference */
+        -webkit-overflow-scrolling: auto;
+        /* Ensure proper stacking */
+        position: fixed;
+        z-index: 9999;
+    }
+
+    /* Fix iOS Safari bottom safe area handling */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+        .mobile-bottom-nav {
+            padding-bottom: max(env(safe-area-inset-bottom), 8px);
+        }
+    }
+
+    /* Prevent iOS Safari from hiding bottom nav on scroll */
+    body {
+        /* Prevent elastic scrolling that can hide fixed elements */
+        overscroll-behavior-y: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Fix for iOS Safari address bar hiding/showing */
+    .fixed.bottom-0.z-50 {
+        /* Use viewport height units that account for dynamic viewport */
+        bottom: max(env(safe-area-inset-bottom), 0px);
+        /* Ensure it stays above iOS Safari's bottom UI */
+        z-index: 999999;
+    }
 }
