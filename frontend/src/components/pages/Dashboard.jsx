@@ -6,6 +6,7 @@ import Logo from '../../assets/logo01_.svg';
 import CulturalFestImage from '../../assets/mobile-icons/cultural-events-icon-02.svg';
 import TechFestImage from '../../assets/mobile-icons/tech-icon.svg';
 import SportsFestImage from '../../assets/mobile-icons/sports-icon.svg';
+import SportsIconNew from '../../assets/mobile-icons/sports-icon-new.svg';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
 import Footer from '../Footer';
@@ -948,7 +949,7 @@ const Dashboard = () => {
                                 {[
                                     { name: 'CULTURAL', icon: CulturalFestImage, path: '/cultural-fest' },
                                     { name: 'TECH', icon: TechFestImage, path: '/tech-fest' },
-                                    { name: 'SPORTS', icon: '🏈', path: '/sports-fest' }
+                                    { name: 'SPORTS', icon: SportsIconNew, path: '/sports-fest' }
                                 ].map((category, index) => (
                                     <div
                                         key={index}
@@ -957,11 +958,7 @@ const Dashboard = () => {
                                     >
                                         {/* Icon Block */}
                                         <div className={`w-16 h-16 rounded-xl mb-2 flex items-center justify-center ${isDark ? 'bg-[#0A0A0A]' : 'bg-gray-100'}`}>
-                                            {typeof category.icon === 'string' && category.icon.length <= 2 ? (
-                                                <span className={`text-2xl ${category.name === 'SPORTS' ? 'filter grayscale' : ''}`}>{category.icon}</span>
-                                            ) : (
-                                                <img src={category.icon} alt={category.name} className={`w-8 h-8 ${isDark ? 'filter brightness-0 invert' : ''}`} />
-                                            )}
+                                            <img src={category.icon} alt={category.name} className={`w-8 h-8 ${isDark ? 'filter brightness-0 invert' : ''}`} />
                                         </div>
 
                                         {/* Label */}
