@@ -236,7 +236,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                 />
 
                 {/* Mobile Profile Screen */}
-                <div className={`fixed inset-0 z-[70] ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} overflow-y-auto scrollbar-hide`}>
+                <div className={`fixed inset-0 z-[70] profile-sidebar-mobile ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} overflow-y-auto scrollbar-hide`}>
                     <div className="min-h-full pb-32">
                         {/* Header */}
                         <div className={`px-6 py-6 pt-12 ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
@@ -361,8 +361,23 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                             )}
                         </div>
 
-                        {/* Mobile Bottom Navigation - Use shared component */}
-                        <MobileBottomNav onProfileClick={() => {/* Profile is already open, do nothing */ }} />
+                        {/* Mobile Bottom Navigation inside Profile Sidebar */}
+                        <div className="fixed bottom-0 left-0 right-0">
+                            <MobileBottomNav 
+                                onShowLogin={onShowLogin} 
+                                onProfileClick={() => {
+                                    // When profile is clicked in ProfileSidebar, close it
+                                    onClose();
+                                }}
+                                onNavigate={(path) => {
+                                    // When other nav items are clicked, navigate and close sidebar
+                                    if (path !== '/profile') {
+                                        navigate(path);
+                                        onClose();
+                                    }
+                                }}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>

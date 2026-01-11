@@ -19,6 +19,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { searchFests } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
+import LoadingSkeleton from '../LoadingSkeleton';
 import axios from 'axios';
 
 // Configure axios base URL
@@ -166,7 +167,6 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
-    const [isProfileOpen, _setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [error, setError] = useState(null);
@@ -706,7 +706,7 @@ const Dashboard = () => {
 
     return (
         <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
-            <div className={`transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''} flex flex-col flex-1`}>
+            <div className={`transition-all duration-300 flex flex-col flex-1`}>
 
                 {/* Mobile Header */}
                 <div className={`lg:hidden sticky top-0 z-40 backdrop-blur-md border-b transition-all duration-300 rounded-b-2xl ${isDark
@@ -983,7 +983,7 @@ const Dashboard = () => {
                             {/* Unified Mobile and Desktop: Horizontal scrollable cards */}
                             <div>
                                 {isFestsLoading ? (
-                                    <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                                    <LoadingSkeleton count={3} />
                                 ) : festError ? (
                                     <div className="text-center py-12 text-red-500">{festError}</div>
                                 ) : ongoingEvents.length > 0 ? (
@@ -1005,6 +1005,7 @@ const Dashboard = () => {
                                                         src={getImageUrl(event.image)}
                                                         alt={event.title}
                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                        loading="lazy"
                                                         onError={(e) =>
                                                             handleImageErrorWithFallback(
                                                                 e,
@@ -1250,7 +1251,7 @@ const Dashboard = () => {
                             {/* Coming Soon Events – Horizontal scroll (same format) */}
                             <div>
                                 {isFestsLoading ? (
-                                    <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                                    <LoadingSkeleton count={4} />
                                 ) : festError ? (
                                     <div className="text-center py-12 text-red-500">{festError}</div>
                                 ) : upcomingEvents.length > 0 ? (
@@ -1272,6 +1273,7 @@ const Dashboard = () => {
                                                         src={getImageUrl(event.image)}
                                                         alt={event.title}
                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                        loading="lazy"
                                                         onError={(e) => {
                                                             handleImageErrorWithFallback(
                                                                 e,
@@ -1369,7 +1371,7 @@ const Dashboard = () => {
                             </h2>
 
                             {isFestsLoading ? (
-                                <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading events...</div>
+                                <LoadingSkeleton count={3} />
                             ) : festError ? (
                                 <div className="text-center py-12 text-red-500">{festError}</div>
                             ) : lastYearEvents.length > 0 ? (
@@ -1391,6 +1393,7 @@ const Dashboard = () => {
                                                     src={getImageUrl(event.image)}
                                                     alt={event.title}
                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    loading="lazy"
                                                     onError={(e) => {
                                                         handleImageErrorWithFallback(
                                                             e,

@@ -3,10 +3,8 @@
  * Handles all search-related API calls
  */
 
-// Use relative URL in development to go through Vite proxy, absolute URL in production
-const API_BASE_URL = import.meta.env.DEV 
-    ? '' // Use relative URL in development (goes through Vite proxy)
-    : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080');
+// Get the API base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 /**
  * Transform backend fest data to match frontend expectations
@@ -57,7 +55,7 @@ export const searchFests = async (query, filters = {}) => {
             searchParams.append('endDate', filters.endDate);
         }
 
-        const url = `${API_BASE_URL}/api/fests/search?${searchParams.toString()}`;
+        const url = `${API_BASE_URL}/fests/search?${searchParams.toString()}`;
         const response = await fetch(url);
         
         if (!response.ok) {
@@ -90,7 +88,7 @@ export const getAllPublicFests = async (options = {}) => {
         if (options.search) searchParams.append('search', options.search);
         if (options.sortBy) searchParams.append('sortBy', options.sortBy);
 
-        const response = await fetch(`${API_BASE_URL}/api/fests/all?${searchParams.toString()}`);
+        const response = await fetch(`${API_BASE_URL}/fests/all?${searchParams.toString()}`);
         
         if (!response.ok) {
             throw new Error(`Failed to fetch fests: ${response.status} ${response.statusText}`);
@@ -118,7 +116,7 @@ export const getAllPublicFests = async (options = {}) => {
  */
 export const getUpcomingFests = async (limit = 5) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/fests/upcoming?limit=${limit}`);
+        const response = await fetch(`${API_BASE_URL}/fests/upcoming?limit=${limit}`);
         
         if (!response.ok) {
             throw new Error(`Failed to fetch upcoming fests: ${response.status} ${response.statusText}`);

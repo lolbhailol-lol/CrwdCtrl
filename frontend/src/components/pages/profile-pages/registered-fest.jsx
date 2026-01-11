@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../../utils/imageImports';
 import Footer from '../../Footer';
-import ProfileSidebar from '../../ProfileSidebar';
-import MobileBottomNav from '../../MobileBottomNav';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { ArrowLeft } from 'lucide-react';
@@ -18,7 +16,6 @@ function RegisteredFest() {
     const { isDark } = useDarkMode();
     const { isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
-    const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -289,7 +286,7 @@ function RegisteredFest() {
     return (
         <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'
             }`}>
-            <div className={`transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
+            <div className={`transition-all duration-300`}>
 
                 <main className="p-6 lg:p-8 pb-32 md:pb-8">
                     {/* Header with Back Button */}
@@ -434,15 +431,7 @@ function RegisteredFest() {
                 <div className="hidden md:block mt-16 transition-all duration-300">
                     <Footer />
                 </div>
-                <MobileBottomNav onShowLogin={() => setShowLogin(true)} />
             </div>
-
-            <ProfileSidebar
-                isOpen={isProfileOpen}
-                onClose={() => setIsProfileOpen(false)}
-                onShowLogin={() => setShowLogin(true)}
-                onShowRegister={() => setShowRegister(true)}
-            />
 
             {/* Login Modal */}
             {showLogin && (
