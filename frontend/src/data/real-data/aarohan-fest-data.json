@@ -287,7 +287,7 @@
             "name": "Box Football",
             "category": "Sports",
             "type": "Football",
-            "entry_fee": 800,
+            "entry_fee": 1000,
             "prize": {
                 "winner": 10000,
                 "runner_up": 5000
@@ -349,7 +349,7 @@
             "name": "Box Cricket",
             "category": "Sports",
             "type": "Cricket",
-            "entry_fee": 800,
+            "entry_fee": 1000,
             "prize": {
                 "winner": 10000,
                 "runner_up": 5000

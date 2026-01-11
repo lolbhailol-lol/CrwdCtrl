@@ -260,7 +260,7 @@ function EventDetailsPage() {
 
     // Handle dynamic registration based on mode
     const registrationMode = eventData?.registration?.mode || 'NOT_STARTED';
-    
+
     if (registrationMode === 'EXTERNAL_LINK') {
       // External registration link
       const externalLink = eventData?.registration?.externalLink || eventData?.registrationLink;
