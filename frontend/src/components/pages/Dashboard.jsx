@@ -996,41 +996,44 @@ const Dashboard = () => {
                                                             sm:min-w-[300px] sm:w-[300px]
                                                             lg:min-w-[340px] lg:w-[340px]
                                                             rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
-                                                             overflow-hidden cursor-pointer group flex-shrink-0 snap-start
+                                                            overflow-hidden cursor-pointer group flex-shrink-0 snap-start
                                                             ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}
                                             >
                                                 {/* Image */}
-                                                <div className="relative h-[160px] overflow-hidden">
+                                                <div className="relative h-[200px] overflow-hidden">
                                                     <img
                                                         src={getImageUrl(event.image)}
                                                         alt={event.title}
                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                                         loading="lazy"
-                                                        onError={(e) =>
+                                                        onError={(e) => {
                                                             handleImageErrorWithFallback(
                                                                 e,
                                                                 300,
-                                                                160,
-                                                                '#6366f1',
+                                                                200,
+                                                                '#8b5cf6',
                                                                 event.title || 'Event'
-                                                            )
-                                                        }
+                                                            );
+                                                        }}
                                                     />
 
-                                                    {/* Status Badge */}
-                                                    <div className="absolute top-2 left-2">
-                                                        <span className={`${getStatusBadgeColor(event.status)} text-white text-xs px-2 py-1 rounded-full font-medium capitalize`}>
+                                                    {/* Dark overlay */}
+                                                    <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-all duration-300" />
+
+                                                    {/* Status */}
+                                                    <div className="absolute top-3 right-3">
+                                                        <span className={`${getStatusBadgeColor(event.status)} text-white text-xs px-3 py-1 rounded-full font-medium capitalize`}>
                                                             {event.status}
                                                         </span>
                                                     </div>
 
-                                                    {/* Like */}
+                                                    {/* Like Button */}
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             handleLike(event.id, event);
                                                         }}
-                                                        className={`absolute top-2 right-2 w-9 h-9 rounded-full
+                                                        className={`absolute top-3 left-3 w-9 h-9 rounded-full
                                                         ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
                                                         shadow-lg flex items-center justify-center transition-all duration-200
                                                         border-2 ${isFavorite(event.id) ? 'border-red-500' : 'border-white/20'}
@@ -1041,43 +1044,28 @@ const Dashboard = () => {
                                                             className={`w-5 h-5 transition-all duration-200 ${
                                                                 isFavorite(event.id)
                                                                     ? 'text-red-500 fill-red-500 scale-110'
-                                                                    : isDark
-                                                                        ? 'text-white hover:text-red-400'
-                                                                        : 'text-gray-600 hover:text-red-500'
+                                                                    : 'text-white hover:text-red-400'
                                                             }`}
                                                         />
                                                     </button>
+
+                                                    {/* Bottom gradient */}
+                                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                                                        <h3 className="text-white font-bold text-lg mb-1">
+                                                            {event.title}
+                                                        </h3>
+                                                        <p className="text-white/90 text-sm">{event.date}</p>
+                                                    </div>
                                                 </div>
 
                                                 {/* Content */}
-                                                <div className="p-3 sm:p-4 line-clamp-5">
-                                                    <div className="flex justify-between mb-2">
-                                                        <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                            {event.title}
-                                                        </h3>
-
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                navigator.share?.({
-                                                                    title: event.title,
-                                                                    text: `Check out this event: ${event.title}`,
-                                                                    url: `${window.location.origin}/view-details/${event.id}`,
-                                                                });
-                                                            }}
-                                                            className={`w-9 h-9 rounded-full flex items-center justify-center
-                                                            ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'}`}
-                                                        >
-                                                            <img
-                                                                src={ShareIcon}
-                                                                alt="Share"
-                                                                className={`w-5 h-5 ${isDark ? 'brightness-0 invert' : ''}`}
-                                                            />
-                                                        </button>
-                                                    </div>
-
-                                                    <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                        {event.subtitle}
+                                                <div className="p-3 sm:p-4">
+                                                    <p
+                                                        className={`text-sm mb-3 line-clamp-5 ${
+                                                            isDark ? 'text-gray-400' : 'text-gray-600'
+                                                        }`}
+                                                    >
+                                                        {event.description}
                                                     </p>
 
                                                     <button
@@ -1085,9 +1073,9 @@ const Dashboard = () => {
                                                             e.stopPropagation();
                                                             navigate(`/view-details/${event.id}`);
                                                         }}
-                                                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white text-sm py-2 rounded-lg"
+                                                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
                                                     >
-                                                        View details
+                                                        View Details
                                                     </button>
                                                 </div>
                                             </div>

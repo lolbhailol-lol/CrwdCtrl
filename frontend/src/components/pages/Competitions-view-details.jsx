@@ -491,16 +491,6 @@ function EventPage() {
                     <Navbar setIsProfileOpen={setIsProfileOpen} />
                 </div>
 
-                {/* Mobile Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/20 to-transparent">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
-                    >
-                        <ArrowLeft size={20} />
-                    </button>
-                </div>
-
                 <main className={`flex-1 pb-20 md:pb-8 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
                     <div className="max-w-7xl mx-auto">
                         {/* Mobile Layout */}
