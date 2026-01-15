@@ -17,6 +17,25 @@ const User = require('../model/usermodel');
 const Event = require('../model/event_model');
 const Competition = require('../model/competition_model');
 
+// ✅ In-memory cache for fests (free, no external service needed)
+const festsCache = {
+    data: null,
+    timestamp: 0,
+    duration: 5 * 60 * 1000 // 5 minutes cache duration
+};
+
+// Helper function to check if cache is valid
+const isCacheValid = () => {
+    return festsCache.data && (Date.now() - festsCache.timestamp) < festsCache.duration;
+};
+
+// Helper function to clear cache (call when fests are modified)
+const clearFestsCache = () => {
+    festsCache.data = null;
+    festsCache.timestamp = 0;
+    console.log('🗑️ Fests cache cleared');
+};
+
 // ✅ Create a new fest
 exports.createFest = async (req, res) => {
     try {
@@ -91,6 +110,9 @@ exports.createFest = async (req, res) => {
         });
 
         await fest.save();
+
+        // Clear cache when new fest is created
+        clearFestsCache();
 
         // Populate organizer info before sending response
         await fest.populate('organizer', 'name email college');
@@ -182,6 +204,9 @@ exports.updateFest = async (req, res) => {
             updateData,
             { new: true, runValidators: true }
         ).populate('organizer', 'name email college');
+
+        // Clear cache when fest is updated
+        clearFestsCache();
 
         res.status(200).json({ message: 'Fest updated successfully', fest: updatedFest });
     } catch (err) {
@@ -277,6 +302,10 @@ exports.deleteFest = async (req, res) => {
         if (!fest) return res.status(404).json({ message: 'Fest not found or unauthorized' });
 
         await FestOrganizer.findByIdAndDelete(festId);
+        
+        // Clear cache when fest is deleted
+        clearFestsCache();
+        
         res.status(200).json({ message: 'Fest deleted successfully' });
     } catch (err) {
         console.error('Error in deleteFest:', err);
@@ -287,7 +316,18 @@ exports.deleteFest = async (req, res) => {
 // ✅ Get all fests (public) - for discovery page
 exports.getAllFests = async (req, res) => {
     try {
-        const { page = 1, limit = 10, festType, college, search, sortBy = 'createdAt' } = req.query;
+        const { page = 1, limit = 20, festType, college, search, sortBy = 'createdAt' } = req.query;
+
+        // Create cache key based on query parameters
+        const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy });
+        
+        // Check if we have valid cached data for this specific query
+        if (isCacheValid() && festsCache.data && festsCache.data[cacheKey]) {
+            console.log('✅ Returning cached fests data');
+            return res.status(200).json(festsCache.data[cacheKey]);
+        }
+
+        console.log('🔄 Fetching fresh fests data from database');
 
         // Build filter object
         const filter = {};
@@ -306,15 +346,17 @@ exports.getAllFests = async (req, res) => {
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
+        // Optimized query: removed .populate(), added .lean(), selected only needed fields
         const fests = await FestOrganizer.find(filter)
-            .populate('organizer', 'name email college')
+            .select('festName collegeName festType festDate venue coverImage images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants')
+            .lean() // Returns plain JS objects, 40-60% faster
             .sort({ [sortBy]: -1 })
             .skip(skip)
             .limit(parseInt(limit));
 
         const total = await FestOrganizer.countDocuments(filter);
 
-        res.status(200).json({
+        const responseData = {
             fests,
             pagination: {
                 currentPage: parseInt(page),
@@ -322,7 +364,17 @@ exports.getAllFests = async (req, res) => {
                 totalFests: total,
                 limit: parseInt(limit)
             }
-        });
+        };
+
+        // Update cache
+        if (!festsCache.data) {
+            festsCache.data = {};
+        }
+        festsCache.data[cacheKey] = responseData;
+        festsCache.timestamp = Date.now();
+        console.log('💾 Cached fests data for 5 minutes');
+
+        res.status(200).json(responseData);
     } catch (err) {
         console.error('Error in getAllFests:', err);
         res.status(500).json({ error: 'Server error' });

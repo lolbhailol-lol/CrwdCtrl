@@ -236,10 +236,12 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                 />
 
                 {/* Mobile Profile Screen */}
-                <div className={`fixed inset-0 z-[70] profile-sidebar-mobile ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} overflow-y-auto scrollbar-hide`}>
-                    <div className="min-h-full pb-32">
-                        {/* Header */}
-                        <div className={`px-6 py-6 pt-12 ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
+                <div className={`fixed inset-0 z-[9999] profile-sidebar-mobile ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
+                    {/* Scrollable content container */}
+                    <div className="h-full overflow-y-auto scrollbar-hide pb-32">
+                        <div className="min-h-full">
+                            {/* Header */}
+                            <div className={`px-6 py-6 pt-12 ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
                             <div className="flex items-center justify-between">
                                 <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     Profile
@@ -318,12 +320,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                         </div>
 
                         {/* Log Out Button */}
-                        <div 
-                            className="px-6 py-6" 
-                            style={{ 
-                                paddingBottom: `calc(7rem + max(env(safe-area-inset-bottom), 8px))` 
-                            }}
-                        >
+                        <div className="px-6 py-6">
                             {isAuthenticated ? (
                                 <button
                                     onClick={handleLogout}
@@ -360,9 +357,17 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                 </button>
                             )}
                         </div>
+                    </div>
 
-                        {/* Mobile Bottom Navigation inside Profile Sidebar */}
-                        <div className="fixed bottom-0 left-0 right-0">
+                    {/* Mobile Bottom Navigation - Fixed at actual bottom with proper z-index and safe-area */}
+                    <div 
+                        className="fixed bottom-0 left-0 right-0 z-[10000]"
+                        style={{
+                            paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
+                            paddingLeft: 'env(safe-area-inset-left)',
+                            paddingRight: 'env(safe-area-inset-right)'
+                        }}
+                    >
                             <MobileBottomNav 
                                 onShowLogin={onShowLogin} 
                                 onProfileClick={() => {

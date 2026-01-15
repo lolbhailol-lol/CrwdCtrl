@@ -186,9 +186,19 @@ const Dashboard = () => {
         hasPermission: false,
         coordinates: null
     });
-    const scrollContainerRef = useRef(null);
+    const ongoingScrollRef = useRef(null);
+    const upcomingScrollRef = useRef(null);
+    const lastYearScrollRef = useRef(null);
     const searchRef = useRef(null);
     const [searchParams, setSearchParams] = useSearchParams();
+    
+    // State for arrow visibility
+    const [ongoingShowLeftArrow, setOngoingShowLeftArrow] = useState(false);
+    const [ongoingShowRightArrow, setOngoingShowRightArrow] = useState(true);
+    const [upcomingShowLeftArrow, setUpcomingShowLeftArrow] = useState(false);
+    const [upcomingShowRightArrow, setUpcomingShowRightArrow] = useState(true);
+    const [lastYearShowLeftArrow, setLastYearShowLeftArrow] = useState(false);
+    const [lastYearShowRightArrow, setLastYearShowRightArrow] = useState(true);
 
     // Check for login modal parameter
     useEffect(() => {
@@ -199,16 +209,12 @@ const Dashboard = () => {
 
     // Get user's location on component mount (same as Navbar)
     useEffect(() => {
-        console.log('🚀 Dashboard component mounted, checking for stored location...');
-        
         const getStoredLocation = () => {
             try {
                 const stored = localStorage.getItem('crwdctrl_user_location');
-                console.log('💾 Dashboard - Stored location data:', stored);
                 
                 if (stored) {
                     const parsedLocation = JSON.parse(stored);
-                    console.log('📍 Dashboard - Parsed stored location:', parsedLocation);
                     
                     setCurrentLocation(prev => ({
                         ...prev,
@@ -225,7 +231,6 @@ const Dashboard = () => {
 
         // Only try to get stored location, don't auto-detect
         if (!getStoredLocation()) {
-            console.log('🌍 Dashboard - No stored location found, using default location (Pune)');
             // Use default location instead of auto-detecting
             setCurrentLocation(prev => ({
                 ...prev,
@@ -235,8 +240,6 @@ const Dashboard = () => {
                 hasPermission: false,
                 isDetecting: false
             }));
-        } else {
-            console.log('✅ Dashboard - Using stored location');
         }
     }, []);
 
@@ -246,7 +249,6 @@ const Dashboard = () => {
             if (e.key === 'crwdctrl_user_location' && e.newValue) {
                 try {
                     const newLocation = JSON.parse(e.newValue);
-                    console.log('📍 Dashboard - Location updated from storage:', newLocation);
                     setCurrentLocation(prev => ({
                         ...prev,
                         ...newLocation,
@@ -273,28 +275,48 @@ const Dashboard = () => {
         setShowRegister(false);
     };
 
-    // Fetch fests from backend API
+    // Fetch fests from backend API with retry logic
     useEffect(() => {
-        const fetchFests = async () => {
+        const fetchFests = async (retryCount = 0) => {
+            const maxRetries = 3;
+            const retryDelay = 2000; // 2 seconds between retries
+            
             try {
                 setIsFestsLoading(true);
-                console.log('Dashboard - Fetching fests from /fests/all');
-                console.log('Dashboard - API Base URL:', API_BASE_URL);
-                const response = await axios.get('/fests/all');
-                console.log('Dashboard - API Response:', response.data);
+                
+                const response = await axios.get('/fests/all', {
+                    timeout: 15000 // 15 second timeout
+                });
+                
                 const data = response.data;
                 const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-                console.log('Dashboard - Processed fests list:', festsList);
                 setFests(festsList);
                 setFestError(null);
             } catch (err) {
                 console.error('Dashboard - Error fetching fests:', err);
-                console.error('Dashboard - Error response:', err.response?.data);
-                console.error('Dashboard - Error status:', err.response?.status);
-                setFestError('Failed to load events');
-                setFests([]);
+                
+                // Retry logic for timeout or server errors
+                const shouldRetry = retryCount < maxRetries && (
+                    err.code === 'ECONNABORTED' || // Timeout
+                    err.code === 'ERR_NETWORK' || // Network error
+                    !err.response || // No response from server
+                    (err.response?.status >= 500 && err.response?.status < 600) // Server errors
+                );
+                
+                if (shouldRetry) {
+                    setTimeout(() => {
+                        fetchFests(retryCount + 1);
+                    }, retryDelay);
+                } else {
+                    setFestError('Failed to load events');
+                    setFests([]);
+                    setIsFestsLoading(false);
+                }
             } finally {
-                setIsFestsLoading(false);
+                if (retryCount === 0 || retryCount >= maxRetries) {
+                    // Only set loading to false on first attempt or final retry
+                    setIsFestsLoading(false);
+                }
             }
         };
 
@@ -317,23 +339,84 @@ const Dashboard = () => {
         toggleFavorite(eventId, eventData);
     }, [toggleFavorite]);
 
-    const scrollLeft = useCallback(() => {
-        if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollBy({
-                left: -320, // Slightly more than card width for better UX
-                behavior: 'smooth'
-            });
+    // Check scroll position and update arrow visibility
+    const checkScrollPosition = useCallback((ref, setShowLeft, setShowRight) => {
+        if (ref && ref.current) {
+            const { scrollLeft, scrollWidth, clientWidth } = ref.current;
+            // Show left arrow if scrolled more than 10px from start
+            setShowLeft(scrollLeft > 10);
+            // Show right arrow if more than 10px of content remains to scroll
+            setShowRight(scrollLeft < scrollWidth - clientWidth - 10);
         }
     }, []);
 
-    const scrollRight = useCallback(() => {
-        if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollBy({
-                left: 320, // Slightly more than card width for better UX
+    const scrollLeft = useCallback((ref) => {
+        if (ref && ref.current) {
+            ref.current.scrollBy({
+                left: -340, // Card width for better UX
                 behavior: 'smooth'
             });
+            // Manually trigger check after scroll animation
+            setTimeout(() => {
+                if (ref === ongoingScrollRef) {
+                    checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
+                } else if (ref === upcomingScrollRef) {
+                    checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
+                } else if (ref === lastYearScrollRef) {
+                    checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
+                }
+            }, 400);
         }
-    }, []);
+    }, [checkScrollPosition]);
+
+    const scrollRight = useCallback((ref) => {
+        if (ref && ref.current) {
+            ref.current.scrollBy({
+                left: 340, // Card width for better UX
+                behavior: 'smooth'
+            });
+            // Manually trigger check after scroll animation
+            setTimeout(() => {
+                if (ref === ongoingScrollRef) {
+                    checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
+                } else if (ref === upcomingScrollRef) {
+                    checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
+                } else if (ref === lastYearScrollRef) {
+                    checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
+                }
+            }, 400);
+        }
+    }, [checkScrollPosition]);
+
+    // Add scroll event listeners
+    useEffect(() => {
+        const ongoingRef = ongoingScrollRef.current;
+        const upcomingRef = upcomingScrollRef.current;
+        const lastYearRef = lastYearScrollRef.current;
+
+        const handleOngoingScroll = () => checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
+        const handleUpcomingScroll = () => checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
+        const handleLastYearScroll = () => checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
+
+        if (ongoingRef) {
+            ongoingRef.addEventListener('scroll', handleOngoingScroll);
+            handleOngoingScroll(); // Initial check
+        }
+        if (upcomingRef) {
+            upcomingRef.addEventListener('scroll', handleUpcomingScroll);
+            handleUpcomingScroll(); // Initial check
+        }
+        if (lastYearRef) {
+            lastYearRef.addEventListener('scroll', handleLastYearScroll);
+            handleLastYearScroll(); // Initial check
+        }
+
+        return () => {
+            if (ongoingRef) ongoingRef.removeEventListener('scroll', handleOngoingScroll);
+            if (upcomingRef) upcomingRef.removeEventListener('scroll', handleUpcomingScroll);
+            if (lastYearRef) lastYearRef.removeEventListener('scroll', handleLastYearScroll);
+        };
+    }, [checkScrollPosition]);
 
     // Handle keyboard navigation for scroll buttons
     const handleScrollKeyDown = (event, direction) => {
@@ -409,6 +492,25 @@ const Dashboard = () => {
         transformedFests.filter(f => f.status === 'lastyearhit'), 
         [transformedFests]
     );
+
+    // Check scroll position after events are loaded
+    useEffect(() => {
+        if (!isFestsLoading && ongoingEvents.length > 0) {
+            setTimeout(() => {
+                checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
+            }, 100);
+        }
+        if (!isFestsLoading && upcomingEvents.length > 0) {
+            setTimeout(() => {
+                checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
+            }, 100);
+        }
+        if (!isFestsLoading && lastYearEvents.length > 0) {
+            setTimeout(() => {
+                checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
+            }, 100);
+        }
+    }, [isFestsLoading, ongoingEvents.length, upcomingEvents.length, lastYearEvents.length, checkScrollPosition]);
 
     const handleRegister = useCallback((eventId) => {
         navigate(`/view-details/${eventId}`);
@@ -498,14 +600,10 @@ const Dashboard = () => {
 
     // Function to detect user's location (same as Navbar)
     const detectUserLocation = async () => {
-        console.log('🌍 Dashboard - Starting location detection...');
-        
         if (!navigator.geolocation) {
-            console.log('❌ Dashboard - Geolocation is not supported by this browser');
             return;
         }
 
-        console.log('🌍 Dashboard - Geolocation API is available');
         setCurrentLocation(prev => ({ ...prev, isDetecting: true }));
 
         const options = {
@@ -514,18 +612,14 @@ const Dashboard = () => {
             maximumAge: 300000 // 5 minutes cache
         };
 
-        console.log('🌍 Dashboard - Requesting location permission...');
-
         try {
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
-                    console.log('✅ Dashboard - SUCCESS: Location obtained!', position.coords);
                     const { latitude, longitude } = position.coords;
 
                     // First try to match with known cities
                     const knownCity = getCityFromCoordinates(latitude, longitude);
                     if (knownCity) {
-                        console.log('🏙️ Dashboard - Found known city:', knownCity);
                         const locationData = {
                             ...knownCity,
                             coordinates: { latitude, longitude },
@@ -536,14 +630,11 @@ const Dashboard = () => {
 
                         try {
                             localStorage.setItem('crwdctrl_user_location', JSON.stringify(locationData));
-                            console.log('💾 Dashboard - Stored known city location');
                         } catch (error) {
                             console.error('❌ Dashboard - Error storing location:', error);
                         }
                         return;
                     }
-
-                    console.log('🗺️ Dashboard - Trying reverse geocoding...');
 
                     try {
                         let locationData = null;
@@ -576,12 +667,11 @@ const Dashboard = () => {
                                             hasPermission: true,
                                             isDetecting: false
                                         };
-                                        console.log('✅ Dashboard - Location found via Nominatim:', locationData.city);
                                     }
                                 }
                             }
                         } catch (nominatimError) {
-                            console.log('❌ Dashboard - Nominatim failed, trying BigDataCloud');
+                            // Silent fail, try BigDataCloud
                         }
 
                         // Try BigDataCloud if Nominatim failed
@@ -606,11 +696,10 @@ const Dashboard = () => {
                                             hasPermission: true,
                                             isDetecting: false
                                         };
-                                        console.log('✅ Dashboard - Location found via BigDataCloud:', locationData.city);
                                     }
                                 }
                             } catch (bigDataError) {
-                                console.log('❌ Dashboard - BigDataCloud failed');
+                                // Silent fail
                             }
                         }
 
@@ -618,7 +707,6 @@ const Dashboard = () => {
                             setCurrentLocation(locationData);
                             try {
                                 localStorage.setItem('crwdctrl_user_location', JSON.stringify(locationData));
-                                console.log('💾 Dashboard - Location saved successfully');
                             } catch (error) {
                                 console.error('❌ Dashboard - Error storing location:', error);
                             }
@@ -633,7 +721,6 @@ const Dashboard = () => {
                                 isDetecting: false
                             };
                             setCurrentLocation(fallbackData);
-                            console.log('🌍 Dashboard - Using coordinate-based location');
                         }
                     } catch (error) {
                         console.error('❌ Dashboard - Reverse geocoding failed:', error);
@@ -659,24 +746,8 @@ const Dashboard = () => {
                             isDetecting: false,
                             hasPermission: false
                         };
-                        console.log('❌ Dashboard - Setting error state:', newState);
                         return newState;
                     });
-
-                    // Log appropriate error message based on error type
-                    switch (error.code) {
-                        case error.PERMISSION_DENIED:
-                            console.log('🚫 Dashboard - User denied location permission');
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            console.log('📍 Dashboard - Location information unavailable');
-                            break;
-                        case error.TIMEOUT:
-                            console.log('⏰ Dashboard - Location request timed out');
-                            break;
-                        default:
-                            console.log('❓ Dashboard - Unknown location error');
-                    }
                 },
                 options
             );
@@ -981,18 +1052,60 @@ const Dashboard = () => {
                             </h2>
 
                             {/* Unified Mobile and Desktop: Horizontal scrollable cards */}
-                            <div>
+                            <div className="relative">
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={3} />
                                 ) : festError ? (
                                     <div className="text-center py-12 text-red-500">{festError}</div>
                                 ) : ongoingEvents.length > 0 ? (
-                                    <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide px-1 snap-x snap-mandatory overscroll-x-contain">
+                                    <>
+                                        {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
+                                        {ongoingEvents.length > 3 && ongoingShowLeftArrow && (
+                                            <button
+                                                onClick={() => scrollLeft(ongoingScrollRef)}
+                                                className={`hidden lg:flex absolute -left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
+                                                    isDark 
+                                                        ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
+                                                        : 'bg-white/40 hover:bg-white/60 text-gray-900'
+                                                }`}
+                                                aria-label="Scroll left"
+                                            >
+                                                <ChevronLeft className="w-6 h-6" />
+                                            </button>
+                                        )}
+
+                                        {/* Right Scroll Button - Only show if not at end and more than 3 items */}
+                                        {ongoingEvents.length > 3 && ongoingShowRightArrow && (
+                                            <button
+                                                onClick={() => scrollRight(ongoingScrollRef)}
+                                                className={`hidden lg:flex absolute -right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
+                                                    isDark 
+                                                        ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
+                                                        : 'bg-white/40 hover:bg-white/60 text-gray-900'
+                                                }`}
+                                                aria-label="Scroll right"
+                                            >
+                                                <ChevronRight className="w-6 h-6" />
+                                            </button>
+                                        )}
+
+                                        <div 
+                                            ref={ongoingScrollRef}
+                                            className="overflow-x-auto overflow-y-visible scrollbar-hide" 
+                                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                                        >
+                                            <div 
+                                                className="flex gap-4 sm:gap-6 pb-4 snap-x snap-mandatory" 
+                                                style={{ 
+                                                    WebkitOverflowScrolling: 'touch',
+                                                    scrollBehavior: 'smooth'
+                                                }}
+                                            >
                                         {ongoingEvents.slice(0, 6).map((event) => (
                                             <div
                                                 key={event.id}
                                                 onClick={() => navigate(`/view-details/${event.id}`)}
-                                                className={`min-w-[260px] w-[260px]
+                                                className={`min-w-[290px] w-[290px]
                                                             sm:min-w-[300px] sm:w-[300px]
                                                             lg:min-w-[340px] lg:w-[340px]
                                                             rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
@@ -1036,7 +1149,7 @@ const Dashboard = () => {
                                                         className={`absolute top-3 left-3 w-9 h-9 rounded-full
                                                         ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
                                                         shadow-lg flex items-center justify-center transition-all duration-200
-                                                        border-2 ${isFavorite(event.id) ? 'border-red-500' : 'border-white/20'}
+                                                        border-2 ${isFavorite(event.id) ? 'border-red-500' : isDark ? 'border-white/20' : 'border-gray-900'}
                                                         backdrop-blur-sm`}
                                                         title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
                                                     >
@@ -1044,7 +1157,7 @@ const Dashboard = () => {
                                                             className={`w-5 h-5 transition-all duration-200 ${
                                                                 isFavorite(event.id)
                                                                     ? 'text-red-500 fill-red-500 scale-110'
-                                                                    : 'text-white hover:text-red-400'
+                                                                    : isDark ? 'text-white hover:text-red-400' : 'text-gray-900 hover:text-red-400'
                                                             }`}
                                                         />
                                                     </button>
@@ -1058,14 +1171,42 @@ const Dashboard = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Content */}
+                                                {/* Content - Simplified for Ongoing Events */}
                                                 <div className="p-3 sm:p-4">
-                                                    <p
-                                                        className={`text-sm mb-3 line-clamp-5 ${
-                                                            isDark ? 'text-gray-400' : 'text-gray-600'
-                                                        }`}
-                                                    >
-                                                        {event.description}
+                                                    {/* Title with Share Button */}
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <h3 className={`text-lg font-bold flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {event.title}
+                                                        </h3>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (navigator.share) {
+                                                                    navigator.share({
+                                                                        title: event.title,
+                                                                        text: `Check out ${event.title}`,
+                                                                        url: `${window.location.origin}/view-details/${event.id}`,
+                                                                    }).catch(() => {});
+                                                                }
+                                                            }}
+                                                            className={`ml-2 p-2 rounded-full transition-colors ${
+                                                                isDark 
+                                                                    ? 'bg-gray-800 hover:bg-gray-700' 
+                                                                    : 'bg-gray-100 hover:bg-gray-200'
+                                                            }`}
+                                                            aria-label="Share event"
+                                                        >
+                                                            <img
+                                                                src={ShareIcon}
+                                                                alt="Share"
+                                                                className={`w-5 h-5 ${isDark ? 'filter brightness-0 invert' : ''}`}
+                                                            />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* College Name with minimal spacing */}
+                                                    <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                        {event.subtitle}
                                                     </p>
 
                                                     <button
@@ -1075,12 +1216,14 @@ const Dashboard = () => {
                                                         }}
                                                         className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
                                                     >
-                                                        View Details
+                                                        View details
                                                     </button>
                                                 </div>
                                             </div>
                                         ))}
-                                    </div>
+                                            </div>
+                                        </div>
+                                    </>
                                 ) : (
                                     <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                         <div className="text-4xl mb-4">📅</div>
@@ -1088,98 +1231,6 @@ const Dashboard = () => {
                                     </div>
                                 )}
                             </div>
-
-
-                            {/* Desktop: Grid layout */}
-                            {/*<div className="hidden lg:grid grid-cols-3 gap-4 lg:gap-6 pt-4 lg:pt-6">*/}
-                            {/*    {events.length > 0 ? (*/}
-                            {/*        events.slice(0, 3).map((event) => (*/}
-                            {/*            <div*/}
-                            {/*                key={event.id}*/}
-                            {/*                className={`rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer group ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}*/}
-                            {/*            >*/}
-                            {/*                /!* Image Section *!/*/}
-                            {/*                <div className="relative h-[160px] overflow-hidden">*/}
-                            {/*                    <img*/}
-                            {/*                        src={getImageUrl(event.image)}*/}
-                            {/*                        alt={event.title}*/}
-                            {/*                        className="w-full h-full object-cover rounded-t-xl group-hover:scale-105 transition-transform duration-500"*/}
-                            {/*                        onError={(e) => handleImageErrorWithFallback(e, 300, 160, '#0ea5e9', event.title || 'Event')}*/}
-                            {/*                    />*/}
-
-                            {/*                    /!* Heart Icon *!/*/}
-                            {/*                    <button*/}
-                            {/*                        onClick={(e) => {*/}
-                            {/*                            e.stopPropagation();*/}
-                            {/*                            handleLike(event.id, event);*/}
-                            {/*                        }}*/}
-                            {/*                        className={`absolute top-2 right-2 w-8 h-8 rounded-full ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'} shadow-md flex items-center justify-center transition`}*/}
-                            {/*                        aria-label={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}*/}
-                            {/*                    >*/}
-                            {/*                        <Heart*/}
-                            {/*                            className={`w-4 h-4 ${isFavorite(event.id)*/}
-                            {/*                                ? 'text-red-500 fill-red-500'*/}
-                            {/*                                : (isDark ? 'text-white' : 'text-gray-500')*/}
-                            {/*                                }`}*/}
-                            {/*                        />*/}
-                            {/*                    </button>*/}
-                            {/*                </div>*/}
-
-                            {/*                /!* Content Section *!/*/}
-                            {/*                <div className="p-4">*/}
-                            {/*                    <div className='flex items-start justify-between mb-2'>*/}
-                            {/*                        <h3 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>*/}
-                            {/*                            {event.title}*/}
-                            {/*                        </h3>*/}
-
-                            {/*                        /!* Share icon *!/*/}
-                            {/*                        <button*/}
-                            {/*                            className={`w-9 h-9 flex items-center justify-center rounded-full ml-2 transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'}`}*/}
-                            {/*                            onClick={(e) => {*/}
-                            {/*                                e.stopPropagation();*/}
-                            {/*                                if (navigator.share) {*/}
-                            {/*                                    navigator.share({*/}
-                            {/*                                        title: event.title,*/}
-                            {/*                                        text: `Check out this event: ${event.title}`,*/}
-                            {/*                                        url: `${window.location.origin}/view-details/${event.id}`,*/}
-                            {/*                                    }).catch(() => { });*/}
-                            {/*                                }*/}
-                            {/*                            }}*/}
-                            {/*                            aria-label={`Share ${event.title}`}*/}
-                            {/*                        >*/}
-                            {/*                            <img*/}
-                            {/*                                src={ShareIcon}*/}
-                            {/*                                alt="Share"*/}
-                            {/*                                className={`w-5 h-5 opacity-70 ${isDark ? 'filter brightness-0 invert' : ''}`}*/}
-                            {/*                            />*/}
-                            {/*                        </button>*/}
-                            {/*                    </div>*/}
-
-                            {/*                    /!* Subtitle with better spacing *!/*/}
-                            {/*                    <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-xs mb-3 font-medium`}>{event.subtitle}</p>*/}
-
-                            {/*                    <div className="flex flex-col">*/}
-                            {/*                        <button*/}
-                            {/*                            onClick={(e) => {*/}
-                            {/*                                e.stopPropagation();*/}
-                            {/*                                navigate(`/view-details/${event.id}`);*/}
-                            {/*                            }}*/}
-                            {/*                            className="bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-all hover:shadow-lg"*/}
-                            {/*                        >*/}
-                            {/*                            View details*/}
-                            {/*                        </button>*/}
-                            {/*                    </div>*/}
-                            {/*                </div>*/}
-
-                            {/*            </div>*/}
-                            {/*        ))*/}
-                            {/*    ) : (*/}
-                            {/*        <div className={`col-span-full text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>*/}
-                            {/*            <div className="text-4xl mb-2">📅</div>*/}
-                            {/*            <p className="text-lg">No upcoming events available</p>*/}
-                            {/*        </div>*/}
-                            {/*    )}*/}
-                            {/*</div>*/}
 
                         </section>
 
@@ -1237,18 +1288,60 @@ const Dashboard = () => {
                             </h2>
 
                             {/* Coming Soon Events – Horizontal scroll (same format) */}
-                            <div>
+                            <div className="relative">
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={4} />
                                 ) : festError ? (
                                     <div className="text-center py-12 text-red-500">{festError}</div>
                                 ) : upcomingEvents.length > 0 ? (
-                                    <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide px-1 snap-x snap-mandatory overscroll-x-contain">
+                                    <>
+                                        {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
+                                        {upcomingEvents.length > 3 && upcomingShowLeftArrow && (
+                                            <button
+                                                onClick={() => scrollLeft(upcomingScrollRef)}
+                                                className={`hidden lg:flex absolute -left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
+                                                    isDark 
+                                                        ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
+                                                        : 'bg-white/40 hover:bg-white/60 text-gray-900'
+                                                }`}
+                                                aria-label="Scroll left"
+                                            >
+                                                <ChevronLeft className="w-6 h-6" />
+                                            </button>
+                                        )}
+
+                                        {/* Right Scroll Button - Only show if not at end and more than 3 items */}
+                                        {upcomingEvents.length > 3 && upcomingShowRightArrow && (
+                                            <button
+                                                onClick={() => scrollRight(upcomingScrollRef)}
+                                                className={`hidden lg:flex absolute -right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
+                                                    isDark 
+                                                        ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
+                                                        : 'bg-white/40 hover:bg-white/60 text-gray-900'
+                                                }`}
+                                                aria-label="Scroll right"
+                                            >
+                                                <ChevronRight className="w-6 h-6" />
+                                            </button>
+                                        )}
+
+                                        <div 
+                                            ref={upcomingScrollRef}
+                                            className="overflow-x-auto overflow-y-visible scrollbar-hide" 
+                                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                                        >
+                                            <div 
+                                                className="flex gap-4 sm:gap-6 pb-4 snap-x snap-mandatory" 
+                                                style={{ 
+                                                    WebkitOverflowScrolling: 'touch',
+                                                    scrollBehavior: 'smooth'
+                                                }}
+                                            >
                                         {upcomingEvents.slice(0, 6).map((event) => (
                                             <div
                                                 key={event.id}
                                                 onClick={() => navigate(`/view-details/${event.id}`)}
-                                                className={`min-w-[260px] w-[260px]
+                                                className={`min-w-[290px] w-[290px]
                                                             sm:min-w-[300px] sm:w-[300px]
                                                             lg:min-w-[340px] lg:w-[340px]
                                                             rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
@@ -1292,7 +1385,7 @@ const Dashboard = () => {
                                                         className={`absolute top-3 left-3 w-9 h-9 rounded-full
                                                         ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
                                                         shadow-lg flex items-center justify-center transition-all duration-200
-                                                        border-2 ${isFavorite(event.id) ? 'border-red-500' : 'border-white/20'}
+                                                        border-2 ${isFavorite(event.id) ? 'border-red-500' : isDark ? 'border-white/20' : 'border-gray-900'}
                                                         backdrop-blur-sm`}
                                                         title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
                                                     >
@@ -1300,7 +1393,7 @@ const Dashboard = () => {
                                                             className={`w-5 h-5 transition-all duration-200 ${
                                                                 isFavorite(event.id)
                                                                     ? 'text-red-500 fill-red-500 scale-110'
-                                                                    : 'text-white hover:text-red-400'
+                                                                    : isDark ? 'text-white hover:text-red-400' : 'text-gray-900 hover:text-red-400'
                                                             }`}
                                                         />
                                                     </button>
@@ -1336,7 +1429,9 @@ const Dashboard = () => {
                                                 </div>
                                             </div>
                                         ))}
-                                    </div>
+                                            </div>
+                                        </div>
+                                    </>
                                 ) : (
                                     <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                         <div className="text-4xl mb-4">⏳</div>
@@ -1358,17 +1453,60 @@ const Dashboard = () => {
                                 Last Year's Hits
                             </h2>
 
+                            <div className="relative">
                             {isFestsLoading ? (
                                 <LoadingSkeleton count={3} />
                             ) : festError ? (
                                 <div className="text-center py-12 text-red-500">{festError}</div>
                             ) : lastYearEvents.length > 0 ? (
-                                <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide px-1 snap-x snap-mandatory overscroll-x-contain">
+                                <>
+                                    {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
+                                    {lastYearEvents.length > 3 && lastYearShowLeftArrow && (
+                                        <button
+                                            onClick={() => scrollLeft(lastYearScrollRef)}
+                                            className={`hidden lg:flex absolute -left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
+                                                isDark 
+                                                    ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
+                                                    : 'bg-white/40 hover:bg-white/60 text-gray-900'
+                                            }`}
+                                            aria-label="Scroll left"
+                                        >
+                                            <ChevronLeft className="w-6 h-6" />
+                                        </button>
+                                    )}
+
+                                    {/* Right Scroll Button - Only show if not at end and more than 3 items */}
+                                    {lastYearEvents.length > 3 && lastYearShowRightArrow && (
+                                        <button
+                                            onClick={() => scrollRight(lastYearScrollRef)}
+                                            className={`hidden lg:flex absolute -right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
+                                                isDark 
+                                                    ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
+                                                    : 'bg-white/40 hover:bg-white/60 text-gray-900'
+                                            }`}
+                                            aria-label="Scroll right"
+                                        >
+                                            <ChevronRight className="w-6 h-6" />
+                                        </button>
+                                    )}
+
+                                    <div 
+                                        ref={lastYearScrollRef}
+                                        className="overflow-x-auto overflow-y-visible scrollbar-hide" 
+                                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                                    >
+                                        <div 
+                                            className="flex gap-4 sm:gap-6 pb-4 snap-x snap-mandatory" 
+                                            style={{ 
+                                                WebkitOverflowScrolling: 'touch',
+                                                scrollBehavior: 'smooth'
+                                            }}
+                                        >
                                     {lastYearEvents.slice(0, 6).map((event) => (
                                         <div
                                             key={event.id}
                                             onClick={() => navigate(`/view-details/${event.id}`)}
-                                            className={`min-w-[260px] w-[260px]
+                                            className={`min-w-[290px] w-[290px]
                                                         sm:min-w-[300px] sm:w-[300px]
                                                         lg:min-w-[340px] lg:w-[340px]
                                                         rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
@@ -1412,7 +1550,7 @@ const Dashboard = () => {
                                                     className={`absolute top-3 right-3 w-9 h-9 rounded-full
                                                     ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
                                                     shadow-lg flex items-center justify-center transition-all duration-200
-                                                    border-2 ${isFavorite(event.id) ? 'border-red-500' : 'border-white/20'}
+                                                    border-2 ${isFavorite(event.id) ? 'border-red-500' : isDark ? 'border-white/20' : 'border-gray-900'}
                                                     backdrop-blur-sm`}
                                                     title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
                                                 >
@@ -1420,7 +1558,7 @@ const Dashboard = () => {
                                                         className={`w-5 h-5 transition-all duration-200 ${
                                                             isFavorite(event.id)
                                                                 ? 'text-red-500 fill-red-500 scale-110'
-                                                                : 'text-white hover:text-red-400'
+                                                                : isDark ? 'text-white hover:text-red-400' : 'text-gray-900 hover:text-red-400'
                                                         }`}
                                                     />
                                                 </button>
@@ -1457,13 +1595,17 @@ const Dashboard = () => {
                                             </div>
                                         </div>
                                     ))}
-                                </div>
+                                        </div>
+                                    </div>
+                                </>
                             ) : (
                                 <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                     <div className="text-4xl mb-4">📆</div>
                                     <p className="text-lg">No past events available</p>
                                 </div>
                             )}
+                            </div>
+
                         </section>
 
                     </div>

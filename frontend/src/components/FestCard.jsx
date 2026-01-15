@@ -74,7 +74,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                     className={`absolute top-2 right-2 w-9 h-9 rounded-full 
                     ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'} 
                     shadow-lg flex items-center justify-center transition-all duration-200 z-10
-                    border-2 ${isFavorite ? 'border-red-500' : 'border-white/20'}
+                    border-2 ${isFavorite ? 'border-red-500' : isDark ? 'border-white/20' : 'border-gray-900'}
                     backdrop-blur-sm`}
                     aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                     title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -84,7 +84,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                             ? 'text-red-500 fill-red-500 scale-110'
                             : isDark 
                                 ? 'text-white hover:text-red-400' 
-                                : 'text-gray-600 hover:text-red-500'
+                                : 'text-gray-900 hover:text-red-400'
                             }`}
                     />
                 </button>
