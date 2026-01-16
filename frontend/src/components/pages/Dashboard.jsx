@@ -279,13 +279,17 @@ const Dashboard = () => {
     useEffect(() => {
         const fetchFests = async (retryCount = 0) => {
             const maxRetries = 3;
-            const retryDelay = 2000; // 2 seconds between retries
+            const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
             
             try {
                 setIsFestsLoading(true);
                 
+                // Use environment-specific timeout
+                const timeout = import.meta.env.VITE_API_TIMEOUT ? 
+                    parseInt(import.meta.env.VITE_API_TIMEOUT) : 25000;
+                
                 const response = await axios.get('/fests/all', {
-                    timeout: 15000 // 15 second timeout
+                    timeout: timeout
                 });
                 
                 const data = response.data;
@@ -295,12 +299,18 @@ const Dashboard = () => {
             } catch (err) {
                 console.error('Dashboard - Error fetching fests:', err);
                 
-                // Retry logic for timeout or server errors
+                // More aggressive retry for Cloud Run cold starts and CORS issues
                 const shouldRetry = retryCount < maxRetries && (
                     err.code === 'ECONNABORTED' || // Timeout
                     err.code === 'ERR_NETWORK' || // Network error
+                    err.code === 'NETWORK_ERROR' || // Network error variant
+                    err.code === 'ERR_FAILED' || // Failed request
                     !err.response || // No response from server
-                    (err.response?.status >= 500 && err.response?.status < 600) // Server errors
+                    (err.response?.status >= 500 && err.response?.status < 600) || // Server errors
+                    err.response?.status === 502 || // Bad Gateway
+                    err.response?.status === 503 || // Service Unavailable
+                    err.response?.status === 504 || // Gateway Timeout
+                    err.message?.includes('CORS') // CORS errors
                 );
                 
                 if (shouldRetry) {
@@ -308,19 +318,29 @@ const Dashboard = () => {
                         fetchFests(retryCount + 1);
                     }, retryDelay);
                 } else {
-                    setFestError('Failed to load events');
+                    const isProduction = import.meta.env.VITE_APP_ENVIRONMENT === 'production';
+                    const errorMessage = err.message?.includes('CORS') 
+                        ? 'Connection issue detected. Please try refreshing the page.'
+                        : isProduction 
+                            ? 'Unable to load events. Please try refreshing the page.'
+                            : 'Unable to load events. Please check your connection and try again.';
+                    setFestError(errorMessage);
                     setFests([]);
                     setIsFestsLoading(false);
                 }
             } finally {
                 if (retryCount === 0 || retryCount >= maxRetries) {
-                    // Only set loading to false on first attempt or final retry
                     setIsFestsLoading(false);
                 }
             }
         };
 
-        fetchFests();
+        // Delay initial request to allow page to settle
+        const timer = setTimeout(() => {
+            fetchFests();
+        }, 300);
+
+        return () => clearTimeout(timer);
     }, []);
 
     // Switch from login to register
@@ -1164,9 +1184,6 @@ const Dashboard = () => {
 
                                                     {/* Bottom gradient */}
                                                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                                                        <h3 className="text-white font-bold text-lg mb-1">
-                                                            {event.title}
-                                                        </h3>
                                                         <p className="text-white/90 text-sm">{event.date}</p>
                                                     </div>
                                                 </div>
