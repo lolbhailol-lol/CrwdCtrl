@@ -19,9 +19,12 @@ export default function RegistrationsPage() {
 
   const fetchFests = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/fests`, {
+      // Add cache busting timestamp to prevent browser caching
+      const timestamp = Date.now();
+      const response = await fetch(`${API_BASE_URL}/admin/fests?_t=${timestamp}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+          'Cache-Control': 'no-cache'
         },
       });
       if (response.ok) {

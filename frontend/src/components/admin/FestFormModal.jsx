@@ -271,6 +271,11 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     return () => clearTimeout(timer);
   }
     if (fest) {
+      console.log('🔄 Loading fest data into form:', fest);
+      console.log('  - fest.artistsHeading:', fest.artistsHeading);
+      console.log('  - fest.competitionsHeading:', fest.competitionsHeading);
+      console.log('  - fest.contacts:', fest.contacts);
+      
       setForm({
         festName: fest.festName || fest.festival_name || '',
         subtitle: fest.subtitle || '',
@@ -314,8 +319,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         })) : [],
         competitionsHeading: fest.competitionsHeading || "Competitions",
       });
+      
+      console.log('✅ Form state set with values:');
+      console.log('  - artistsHeading will be:', fest.artistsHeading || "Artists You'll Love");
+      console.log('  - competitionsHeading will be:', fest.competitionsHeading || "Competitions");
+      console.log('  - contacts will be:', fest.contacts || []);
     }
-  }, [fest], [error]);
+  }, [fest, error]);
 
   const addHighlight = () => {
     if (highlightInput.trim()) {
@@ -604,7 +614,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         collegeName: a.collegeName,
         message: a.message,
       })),
-      artistsHeading: form.artistsHeading && form.artistsHeading.trim() ? form.artistsHeading.trim() : "Artists You'll Love",
+      // ✅ FIXED: Direct assignment without fallback to default
+      artistsHeading: form.artistsHeading,
 
       // 📞 Contacts
       contacts: form.contacts,
@@ -614,7 +625,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         name: s.sponsorName,
         logo: s.sponsorImage, // Keep existing image URL
       })),
-      competitionsHeading: form.competitionsHeading && form.competitionsHeading.trim() ? form.competitionsHeading.trim() : "Competitions",
+      // ✅ FIXED: Direct assignment without fallback to default
+      competitionsHeading: form.competitionsHeading,
 
       // 📝 Registration Configuration
       registration: {
@@ -637,6 +649,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('🌐 Making API call to:', url);
     console.log('📤 Method:', method);
     console.log('📦 Payload:', payload);
+    console.log('🔍 DEBUG - Key fields in payload:');
+    console.log('  - artistsHeading:', payload.artistsHeading, '(type:', typeof payload.artistsHeading, ')');
+    console.log('  - competitionsHeading:', payload.competitionsHeading, '(type:', typeof payload.competitionsHeading, ')');
+    console.log('  - contacts:', payload.contacts, '(type:', typeof payload.contacts, ', length:', payload.contacts?.length, ')');
+    console.log('  - form.artistsHeading:', form.artistsHeading, '(type:', typeof form.artistsHeading, ')');
+    console.log('  - form.competitionsHeading:', form.competitionsHeading, '(type:', typeof form.competitionsHeading, ')');
+    console.log('  - form.contacts:', form.contacts, '(type:', typeof form.contacts, ', length:', form.contacts?.length, ')');
     console.log('🔑 Admin token:', adminToken ? `Present (${adminToken.substring(0, 20)}...)` : 'Missing');
 
     const response = await fetch(url, {
@@ -807,7 +826,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   <option value="ongoing">Ongoing</option>
                   <option value="upcoming">Upcoming</option>
                   <option value="completed">Completed</option>
-                  <option value="lastyearhit">Last Year Hits</option>
+                  <option value="beyondcampus">Beyond Campus</option>
                 </select>
               </div>
 
@@ -910,7 +929,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
               <input
                 type="text"
                 value={form.artistsHeading || ""}
-                onChange={(e) => setForm({ ...form, artistsHeading: e.target.value })}
+                onChange={(e) => {
+                  console.log('🎨 Artists heading changed:', e.target.value);
+                  setForm({ ...form, artistsHeading: e.target.value });
+                }}
                 className="w-full p-3 bg-[#1B1C1E] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-[#0ECCEE] focus:outline-none"
                 placeholder="Artists You'll Love"
               />
@@ -1437,7 +1459,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
               <input
                 type="text"
                 value={form.competitionsHeading || ""}
-                onChange={(e) => setForm({ ...form, competitionsHeading: e.target.value })}
+                onChange={(e) => {
+                  console.log('🏆 Competitions heading changed:', e.target.value);
+                  setForm({ ...form, competitionsHeading: e.target.value });
+                }}
                 className="w-full p-3 bg-[#1B1C1E] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-[#0ECCEE] focus:outline-none"
                 placeholder="Competitions"
               />

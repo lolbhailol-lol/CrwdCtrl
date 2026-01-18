@@ -36,7 +36,13 @@ function TechFestPage() {
                 setLoading(true);
                 setError(null);
                 
-                const response = await axios.get('/fests/all');
+                // Add cache busting timestamp
+                const timestamp = Date.now();
+                const response = await axios.get(`/fests/all?_t=${timestamp}`, {
+                    headers: {
+                        'Cache-Control': 'no-cache'
+                    }
+                });
                 const data = response.data;
                 const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
                 

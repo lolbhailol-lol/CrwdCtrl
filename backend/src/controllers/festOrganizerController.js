@@ -277,6 +277,11 @@ exports.getFestById = async (req, res) => {
             return res.status(404).json({ message: 'Fest not found' });
         }
         
+        // Debug: Log contacts data
+        console.log('🔍 Public fest - contacts data:', fest.contacts);
+        console.log('🔍 Public fest - artistsHeading:', fest.artistsHeading);
+        console.log('🔍 Public fest - competitionsHeading:', fest.competitionsHeading);
+        
         res.status(200).json(fest);
     } catch (err) {
         console.error('Error in getFestById:', err);

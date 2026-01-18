@@ -57,8 +57,13 @@ function EventDetailsPage() {
         console.log('ViewDetails - Fetching event data for ID:', eventId);
         
         // Fetch from public fests API - this already includes populated competitions
-        const response = await axios.get(`/fests/${eventId}/public`);
+        // Add cache busting timestamp to ensure fresh data
+        const timestamp = Date.now();
+        const response = await axios.get(`/fests/${eventId}/public?t=${timestamp}`);
         console.log('ViewDetails - API Response:', response.data);
+        console.log('ViewDetails - Contacts in API Response:', response.data.contacts);
+        console.log('ViewDetails - Artists Heading in API Response:', response.data.artistsHeading);
+        console.log('ViewDetails - Competitions Heading in API Response:', response.data.competitionsHeading);
         const festData = response.data;
 
         // Debug: Check if registrationLink exists in the response
@@ -102,6 +107,10 @@ function EventDetailsPage() {
                    festData.festType === 'technical' ? 'Technical Festival' :
                    festData.festType === 'sports' ? 'Sports Festival' : 'Festival'
           };
+          
+          console.log('ViewDetails - Transformed contacts:', transformedData.contacts);
+          console.log('ViewDetails - Transformed artistsHeading:', transformedData.artistsHeading);
+          console.log('ViewDetails - Transformed competitionsHeading:', transformedData.competitionsHeading);
 
           // Process competitions from the populated fest data
           if (festData.competitions && Array.isArray(festData.competitions) && festData.competitions.length > 0) {

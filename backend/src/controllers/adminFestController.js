@@ -2,6 +2,20 @@ const mongoose = require('mongoose');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Competition = require('../model/competition_model');
 
+// ✅ In-memory cache for fests (same as in festOrganizerController)
+const festsCache = {
+    data: null,
+    timestamp: 0,
+    duration: 5 * 60 * 1000 // 5 minutes cache duration
+};
+
+// Helper function to clear cache (call when fests are modified)
+const clearFestsCache = () => {
+    festsCache.data = null;
+    festsCache.timestamp = 0;
+    console.log('🗑️ Admin: Fests cache cleared');
+};
+
 // Admin-specific fest controllers (no organizer requirement)
 
 /* =========================
@@ -10,6 +24,10 @@ const Competition = require('../model/competition_model');
 exports.createFest = async (req, res) => {
   console.log('🎪 Admin createFest endpoint hit');
   console.log('📦 Request body:', req.body);
+  console.log('🔍 DEBUG - Key fields in request:');
+  console.log('  - artistsHeading:', req.body.artistsHeading, '(type:', typeof req.body.artistsHeading, ')');
+  console.log('  - competitionsHeading:', req.body.competitionsHeading, '(type:', typeof req.body.competitionsHeading, ')');
+  console.log('  - contacts:', req.body.contacts, '(type:', typeof req.body.contacts, ', length:', req.body.contacts?.length, ')');
   console.log('🔑 Admin user:', req.admin);
   
   try {
@@ -82,10 +100,10 @@ exports.createFest = async (req, res) => {
       registrationLink,
       status: status || 'upcoming',
       artists: artists || [],
-      artistsHeading: artistsHeading && artistsHeading.trim() ? artistsHeading.trim() : "Artists You'll Love",
+      artistsHeading: artistsHeading !== undefined ? artistsHeading : "Artists You'll Love",
       contacts: contacts || [],
       sponsors: sponsors || [],
-      competitionsHeading: competitionsHeading && competitionsHeading.trim() ? competitionsHeading.trim() : "Competitions",
+      competitionsHeading: competitionsHeading !== undefined ? competitionsHeading : "Competitions",
       registration: registration || {
         mode: 'NOT_STARTED',
         externalLink: '',
@@ -99,8 +117,19 @@ exports.createFest = async (req, res) => {
     });
 
     console.log('💾 Saving fest to database...');
+    console.log('🔍 DEBUG - Fest object before save:');
+    console.log('  - artistsHeading:', fest.artistsHeading);
+    console.log('  - competitionsHeading:', fest.competitionsHeading);
+    console.log('  - contacts:', fest.contacts);
     await fest.save();
     console.log('✅ Fest saved successfully:', fest._id);
+    console.log('🔍 DEBUG - Fest object after save:');
+    console.log('  - artistsHeading:', fest.artistsHeading);
+    console.log('  - competitionsHeading:', fest.competitionsHeading);
+    console.log('  - contacts:', fest.contacts);
+
+    // Clear cache when new fest is created
+    clearFestsCache();
 
     res.status(201).json({
       message: 'Fest created successfully',
@@ -133,7 +162,7 @@ exports.getAllFests = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt') // Only select needed fields
+      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts') // Only select needed fields
       .lean(); // Use lean() for better performance
 
     // Calculate pagination info
@@ -164,6 +193,10 @@ exports.getAllFests = async (req, res) => {
 exports.updateFest = async (req, res) => {
   console.log('🔄 Admin updateFest endpoint hit');
   console.log('📦 Request body:', req.body);
+  console.log('🔍 DEBUG - Key fields in request:');
+  console.log('  - artistsHeading:', req.body.artistsHeading, '(type:', typeof req.body.artistsHeading, ')');
+  console.log('  - competitionsHeading:', req.body.competitionsHeading, '(type:', typeof req.body.competitionsHeading, ')');
+  console.log('  - contacts:', req.body.contacts, '(type:', typeof req.body.contacts, ', length:', req.body.contacts?.length, ')');
   console.log('🆔 Fest ID:', req.params.id);
   console.log('🔑 Admin user:', req.admin);
   
@@ -205,6 +238,10 @@ exports.updateFest = async (req, res) => {
     }
 
     console.log('💾 Updating fest in database...');
+    console.log('🔍 DEBUG - Update data:');
+    console.log('  - artistsHeading:', updateData.artistsHeading);
+    console.log('  - competitionsHeading:', updateData.competitionsHeading);
+    console.log('  - contacts:', updateData.contacts);
     const fest = await FestOrganizer.findByIdAndUpdate(
       id,
       updateData,
@@ -212,6 +249,13 @@ exports.updateFest = async (req, res) => {
     );
 
     console.log('✅ Fest updated successfully:', fest._id);
+    console.log('🔍 DEBUG - Updated fest object:');
+    console.log('  - artistsHeading:', fest.artistsHeading);
+    console.log('  - competitionsHeading:', fest.competitionsHeading);
+    console.log('  - contacts:', fest.contacts);
+
+    // Clear cache when fest is updated
+    clearFestsCache();
 
     res.json({
       message: 'Fest updated successfully',
@@ -236,6 +280,9 @@ exports.deleteFest = async (req, res) => {
 
     await Competition.deleteMany({ fest: id });
     await FestOrganizer.findByIdAndDelete(id);
+
+    // Clear cache when fest is deleted
+    clearFestsCache();
 
     res.json({ message: 'Fest deleted successfully' });
 

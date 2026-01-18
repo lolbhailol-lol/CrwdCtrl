@@ -120,7 +120,7 @@ const festOrganizerSchema = new mongoose.Schema(
 
   status: {
     type: String,
-    enum: ['ongoing', 'upcoming', 'completed', 'lastyearhit'],
+    enum: ['ongoing', 'upcoming', 'completed', 'beyondcampus'],
     default: 'upcoming',
   },
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2 } from 'lucide-react';
+import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock } from 'lucide-react';
 import ShareIcon from '../../assets/share.svg';
 import Logo from '../../assets/logo01_.svg';
 import CulturalFestImage from '../../assets/mobile-icons/cultural-events-icon-02.svg';
@@ -25,6 +25,48 @@ import axios from 'axios';
 // Configure axios base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 axios.defaults.baseURL = API_BASE_URL;
+
+// Status badge styling function - Same as FestCard
+const getStatusBadgeStyle = (status) => {
+    switch (status) {
+        case 'ongoing':
+            return {
+                gradient: 'bg-gradient-to-r from-green-500 to-emerald-600',
+                glow: 'shadow-green-500/30',
+                icon: Zap
+            };
+        case 'upcoming':
+            return {
+                gradient: 'bg-gradient-to-r from-orange-500 to-amber-600',
+                glow: 'shadow-orange-500/30',
+                icon: Clock
+            };
+        case 'completed':
+            return {
+                gradient: 'bg-gradient-to-r from-gray-500 to-slate-600',
+                glow: 'shadow-gray-500/20',
+                icon: Clock
+            };
+        case 'beyondcampus':
+            return {
+                gradient: 'bg-gradient-to-r from-green-500 to-emerald-600',
+                glow: 'shadow-green-500/30',
+                icon: Zap
+            };
+        case 'lastyearhit':
+            return {
+                gradient: 'bg-gradient-to-r from-purple-500 to-violet-600',
+                glow: 'shadow-purple-500/30',
+                icon: Zap
+            };
+        default:
+            return {
+                gradient: 'bg-gradient-to-r from-orange-500 to-amber-600',
+                glow: 'shadow-orange-500/30',
+                icon: Clock
+            };
+    }
+};
 const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName, venue, dateTime, ticketPrice, isDark, onRegister, onToggleFavorite, isFavorite }) => {
     const navigate = useNavigate();
     const [imageError, setImageError] = useState(false);
@@ -118,16 +160,35 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                     />
                 )}
 
-                {/* Favorite Button */}
+                {/* Heart Button with Premium Glass Effect - Same as FestCard */}
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
                         onToggleFavorite();
                     }}
-                    className="absolute top-2 sm:top-3 right-2 sm:right-3 w-7 sm:w-9 h-7 sm:h-9 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center hover:bg-white/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                    className={`absolute top-2 sm:top-3 right-2 sm:right-3 w-7 sm:w-9 h-7 sm:h-9 rounded-full z-20
+                               transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                               hover:scale-110 active:scale-95
+                               ${isDark 
+                                   ? 'bg-black/30 hover:bg-black/40 backdrop-blur-2xl border-2 border-white/30' 
+                                   : 'bg-white/50 hover:bg-white/70 backdrop-blur-2xl border-2 border-white/60'
+                               }
+                               shadow-xl hover:shadow-2xl
+                               ${isFavorite 
+                                   ? 'shadow-red-500/40 border-red-500/60 bg-red-500/20' 
+                                   : ''
+                               }`}
                     aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 >
-                    <Heart className={`w-3.5 sm:w-4 h-3.5 sm:h-4 transition-colors ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+                    <Heart
+                        className={`w-3.5 sm:w-4 h-3.5 sm:h-4 mx-auto transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                   ${isFavorite
+                                       ? 'text-red-500 fill-red-500 scale-110 animate-pulse' 
+                                       : isDark 
+                                           ? 'text-white hover:text-red-400 hover:scale-110' 
+                                           : 'text-gray-800 hover:text-red-500 hover:scale-110'
+                                   }`}
+                    />
                 </button>
 
             </div>
@@ -187,6 +248,7 @@ const Dashboard = () => {
         coordinates: null
     });
     const ongoingScrollRef = useRef(null);
+    const beyondCampusScrollRef = useRef(null);
     const upcomingScrollRef = useRef(null);
     const lastYearScrollRef = useRef(null);
     const searchRef = useRef(null);
@@ -195,6 +257,8 @@ const Dashboard = () => {
     // State for arrow visibility
     const [ongoingShowLeftArrow, setOngoingShowLeftArrow] = useState(false);
     const [ongoingShowRightArrow, setOngoingShowRightArrow] = useState(true);
+    const [beyondCampusShowLeftArrow, setBeyondCampusShowLeftArrow] = useState(false);
+    const [beyondCampusShowRightArrow, setBeyondCampusShowRightArrow] = useState(true);
     const [upcomingShowLeftArrow, setUpcomingShowLeftArrow] = useState(false);
     const [upcomingShowRightArrow, setUpcomingShowRightArrow] = useState(true);
     const [lastYearShowLeftArrow, setLastYearShowLeftArrow] = useState(false);
@@ -288,8 +352,13 @@ const Dashboard = () => {
                 const timeout = import.meta.env.VITE_API_TIMEOUT ? 
                     parseInt(import.meta.env.VITE_API_TIMEOUT) : 25000;
                 
-                const response = await axios.get('/fests/all', {
-                    timeout: timeout
+                // Add cache busting timestamp
+                const timestamp = Date.now();
+                const response = await axios.get(`/fests/all?_t=${timestamp}`, {
+                    timeout: timeout,
+                    headers: {
+                        'Cache-Control': 'no-cache'
+                    }
                 });
                 
                 const data = response.data;
@@ -380,6 +449,8 @@ const Dashboard = () => {
             setTimeout(() => {
                 if (ref === ongoingScrollRef) {
                     checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
+                } else if (ref === beyondCampusScrollRef) {
+                    checkScrollPosition(beyondCampusScrollRef, setBeyondCampusShowLeftArrow, setBeyondCampusShowRightArrow);
                 } else if (ref === upcomingScrollRef) {
                     checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
                 } else if (ref === lastYearScrollRef) {
@@ -399,6 +470,8 @@ const Dashboard = () => {
             setTimeout(() => {
                 if (ref === ongoingScrollRef) {
                     checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
+                } else if (ref === beyondCampusScrollRef) {
+                    checkScrollPosition(beyondCampusScrollRef, setBeyondCampusShowLeftArrow, setBeyondCampusShowRightArrow);
                 } else if (ref === upcomingScrollRef) {
                     checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
                 } else if (ref === lastYearScrollRef) {
@@ -411,16 +484,22 @@ const Dashboard = () => {
     // Add scroll event listeners
     useEffect(() => {
         const ongoingRef = ongoingScrollRef.current;
+        const beyondCampusRef = beyondCampusScrollRef.current;
         const upcomingRef = upcomingScrollRef.current;
         const lastYearRef = lastYearScrollRef.current;
 
         const handleOngoingScroll = () => checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
+        const handleBeyondCampusScroll = () => checkScrollPosition(beyondCampusScrollRef, setBeyondCampusShowLeftArrow, setBeyondCampusShowRightArrow);
         const handleUpcomingScroll = () => checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
         const handleLastYearScroll = () => checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
 
         if (ongoingRef) {
             ongoingRef.addEventListener('scroll', handleOngoingScroll);
             handleOngoingScroll(); // Initial check
+        }
+        if (beyondCampusRef) {
+            beyondCampusRef.addEventListener('scroll', handleBeyondCampusScroll);
+            handleBeyondCampusScroll(); // Initial check
         }
         if (upcomingRef) {
             upcomingRef.addEventListener('scroll', handleUpcomingScroll);
@@ -433,6 +512,7 @@ const Dashboard = () => {
 
         return () => {
             if (ongoingRef) ongoingRef.removeEventListener('scroll', handleOngoingScroll);
+            if (beyondCampusRef) beyondCampusRef.removeEventListener('scroll', handleBeyondCampusScroll);
             if (upcomingRef) upcomingRef.removeEventListener('scroll', handleUpcomingScroll);
             if (lastYearRef) lastYearRef.removeEventListener('scroll', handleLastYearScroll);
         };
@@ -503,6 +583,11 @@ const Dashboard = () => {
         [transformedFests]
     );
     
+    const beyondCampusEvents = useMemo(() => 
+        transformedFests.filter(f => f.status === 'beyondcampus'), 
+        [transformedFests]
+    );
+    
     const upcomingEvents = useMemo(() => 
         transformedFests.filter(f => f.status === 'upcoming'), 
         [transformedFests]
@@ -520,6 +605,11 @@ const Dashboard = () => {
                 checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
             }, 100);
         }
+        if (!isFestsLoading && beyondCampusEvents.length > 0) {
+            setTimeout(() => {
+                checkScrollPosition(beyondCampusScrollRef, setBeyondCampusShowLeftArrow, setBeyondCampusShowRightArrow);
+            }, 100);
+        }
         if (!isFestsLoading && upcomingEvents.length > 0) {
             setTimeout(() => {
                 checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
@@ -530,7 +620,7 @@ const Dashboard = () => {
                 checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
             }, 100);
         }
-    }, [isFestsLoading, ongoingEvents.length, upcomingEvents.length, lastYearEvents.length, checkScrollPosition]);
+    }, [isFestsLoading, ongoingEvents.length, beyondCampusEvents.length, upcomingEvents.length, lastYearEvents.length, checkScrollPosition]);
 
     const handleRegister = useCallback((eventId) => {
         navigate(`/view-details/${eventId}`);
@@ -1121,16 +1211,22 @@ const Dashboard = () => {
                                                     scrollBehavior: 'smooth'
                                                 }}
                                             >
-                                        {ongoingEvents.slice(0, 6).map((event) => (
+                                        {ongoingEvents.slice(0, 6).map((event) => {
+                                            const statusStyle = getStatusBadgeStyle(event.status);
+                                            const StatusIcon = statusStyle.icon;
+                                            return (
                                             <div
                                                 key={event.id}
                                                 onClick={() => navigate(`/view-details/${event.id}`)}
                                                 className={`min-w-[290px] w-[290px]
                                                             sm:min-w-[300px] sm:w-[300px]
                                                             lg:min-w-[340px] lg:w-[340px]
-                                                            rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
-                                                            overflow-hidden cursor-pointer group flex-shrink-0 snap-start
-                                                            ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}
+                                                            rounded-2xl overflow-hidden cursor-pointer group flex-shrink-0 snap-start
+                                                            transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                            ${isDark 
+                                                                ? 'bg-black/20 backdrop-blur-3xl border border-white/20 shadow-2xl shadow-black/50' 
+                                                                : 'bg-white/40 backdrop-blur-3xl border border-white/50 shadow-xl shadow-black/10'
+                                                            }`}
                                             >
                                                 {/* Image */}
                                                 <div className="relative h-[200px] overflow-hidden">
@@ -1150,46 +1246,58 @@ const Dashboard = () => {
                                                         }}
                                                     />
 
-                                                    {/* Dark overlay */}
-                                                    <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-all duration-300" />
+                                                    {/* Subtle Hover Overlay - Same as FestCard */}
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]" />
 
-                                                    {/* Status */}
-                                                    <div className="absolute top-3 right-3">
-                                                        <span className={`${getStatusBadgeColor(event.status)} text-white text-xs px-3 py-1 rounded-full font-medium capitalize`}>
+                                                    {/* Status Badge with Premium Glass Effect - Same as FestCard (top-left) */}
+                                                    <div className="absolute top-3 left-3 z-20">
+                                                        <div className={`${statusStyle.gradient} ${statusStyle.glow} shadow-xl
+                                                                       text-white text-xs px-3 py-1.5 rounded-full font-semibold capitalize
+                                                                       flex items-center gap-1.5 backdrop-blur-2xl border-2 border-white/40
+                                                                       bg-white/20`}>
+                                                            <StatusIcon className="w-3 h-3" />
                                                             {event.status}
-                                                        </span>
+                                                        </div>
                                                     </div>
 
-                                                    {/* Like Button */}
+                                                    {/* Heart Button with Premium Glass Effect - Same as FestCard (top-right) */}
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             handleLike(event.id, event);
                                                         }}
-                                                        className={`absolute top-3 left-3 w-9 h-9 rounded-full
-                                                        ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
-                                                        shadow-lg flex items-center justify-center transition-all duration-200
-                                                        border-2 ${isFavorite(event.id) ? 'border-red-500' : isDark ? 'border-white/20' : 'border-gray-900'}
-                                                        backdrop-blur-sm`}
+                                                        className={`absolute top-3 right-3 w-10 h-10 rounded-full z-20
+                                                                   transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                                   hover:scale-110 active:scale-95
+                                                                   ${isDark 
+                                                                       ? 'bg-black/30 hover:bg-black/40 backdrop-blur-2xl border-2 border-white/30' 
+                                                                       : 'bg-white/50 hover:bg-white/70 backdrop-blur-2xl border-2 border-white/60'
+                                                                   }
+                                                                   shadow-xl hover:shadow-2xl
+                                                                   ${isFavorite(event.id) 
+                                                                       ? 'shadow-red-500/40 border-red-500/60 bg-red-500/20' 
+                                                                       : ''
+                                                                   }`}
                                                         title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
                                                     >
                                                         <Heart
-                                                            className={`w-5 h-5 transition-all duration-200 ${
-                                                                isFavorite(event.id)
-                                                                    ? 'text-red-500 fill-red-500 scale-110'
-                                                                    : isDark ? 'text-white hover:text-red-400' : 'text-gray-900 hover:text-red-400'
-                                                            }`}
+                                                            className={`w-5 h-5 mx-auto transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                                       ${isFavorite(event.id)
+                                                                           ? 'text-red-500 fill-red-500 scale-110 animate-pulse' 
+                                                                           : isDark 
+                                                                               ? 'text-white hover:text-red-400 hover:scale-110' 
+                                                                               : 'text-gray-800 hover:text-red-500 hover:scale-110'
+                                                                       }`}
                                                         />
                                                     </button>
-
-                                                    {/* Bottom gradient */}
-                                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                                                        <p className="text-white/90 text-sm">{event.date}</p>
-                                                    </div>
                                                 </div>
 
                                                 {/* Content - Simplified for Ongoing Events */}
-                                                <div className="p-3 sm:p-4">
+                                                <div className={`p-4 relative
+                                                               ${isDark 
+                                                                   ? 'bg-black/30 backdrop-blur-2xl' 
+                                                                   : 'bg-white/60 backdrop-blur-2xl'
+                                                               }`}>
                                                     {/* Title with Share Button */}
                                                     <div className="flex items-start justify-between mb-2">
                                                         <h3 className={`text-lg font-bold flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -1206,11 +1314,13 @@ const Dashboard = () => {
                                                                     }).catch(() => {});
                                                                 }
                                                             }}
-                                                            className={`ml-2 p-2 rounded-full transition-colors ${
-                                                                isDark 
-                                                                    ? 'bg-gray-800 hover:bg-gray-700' 
-                                                                    : 'bg-gray-100 hover:bg-gray-200'
-                                                            }`}
+                                                            className={`ml-2 w-8 h-8 flex items-center justify-center rounded-xl flex-shrink-0 z-10
+                                                                       transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                                       hover:scale-110 active:scale-95
+                                                                       ${isDark 
+                                                                           ? 'bg-white/10 hover:bg-white/20 backdrop-blur-xl border-2 border-white/30 shadow-lg' 
+                                                                           : 'bg-white/50 hover:bg-white/70 backdrop-blur-xl border-2 border-white/60 shadow-lg'
+                                                                       }`}
                                                             aria-label="Share event"
                                                         >
                                                             <img
@@ -1226,18 +1336,32 @@ const Dashboard = () => {
                                                         {event.subtitle}
                                                     </p>
 
+                                                    {/* View Details Button with Blue 3D Effect */}
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             navigate(`/view-details/${event.id}`);
                                                         }}
-                                                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                                                        className="w-full px-4 py-3 rounded-lg text-sm font-bold text-white
+                                                                   bg-gradient-to-b from-blue-500 to-blue-600 
+                                                                   hover:from-blue-600 hover:to-blue-700
+                                                                   active:from-blue-700 active:to-blue-800
+                                                                   shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40
+                                                                   border-2 border-blue-400/50 hover:border-blue-300/60
+                                                                   transform hover:scale-[1.02] active:scale-[0.98]
+                                                                   transition-all duration-200 ease-out
+                                                                   relative overflow-hidden
+                                                                   before:absolute before:inset-0 before:bg-gradient-to-r 
+                                                                   before:from-transparent before:via-white/20 before:to-transparent
+                                                                   before:translate-x-[-100%] hover:before:translate-x-[100%]
+                                                                   before:transition-transform before:duration-700"
                                                     >
-                                                        View details
+                                                        <span className="relative z-10">View Details</span>
                                                     </button>
                                                 </div>
                                             </div>
-                                        ))}
+                                        );
+                                        })}
                                             </div>
                                         </div>
                                     </>
@@ -1250,6 +1374,222 @@ const Dashboard = () => {
                             </div>
 
                         </section>
+
+                        {/* Beyond Campus Section - Only show if there are beyond campus events */}
+                        {beyondCampusEvents.length > 0 && (
+                        <section className="mb-6 sm:mb-12 md:mb-17 md:pt-6">
+                            <h2 className={`text-xl sm:text-2xl lg:text-2xl font-bold mb-4 sm:mb-6 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                Beyond Campus
+                            </h2>
+
+                            <div className="relative">
+                                {isFestsLoading ? (
+                                    <LoadingSkeleton count={3} />
+                                ) : festError ? (
+                                    <div className="text-center py-12 text-red-500">{festError}</div>
+                                ) : (
+                                    <>
+                                        {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
+                                        {beyondCampusEvents.length > 3 && beyondCampusShowLeftArrow && (
+                                            <button
+                                                onClick={() => scrollLeft(beyondCampusScrollRef)}
+                                                className={`hidden lg:flex absolute -left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
+                                                    isDark 
+                                                        ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
+                                                        : 'bg-white/40 hover:bg-white/60 text-gray-900'
+                                                }`}
+                                                aria-label="Scroll left"
+                                            >
+                                                <ChevronLeft className="w-6 h-6" />
+                                            </button>
+                                        )}
+
+                                        {/* Right Scroll Button - Only show if not at end and more than 3 items */}
+                                        {beyondCampusEvents.length > 3 && beyondCampusShowRightArrow && (
+                                            <button
+                                                onClick={() => scrollRight(beyondCampusScrollRef)}
+                                                className={`hidden lg:flex absolute -right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
+                                                    isDark 
+                                                        ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
+                                                        : 'bg-white/40 hover:bg-white/60 text-gray-900'
+                                                }`}
+                                                aria-label="Scroll right"
+                                            >
+                                                <ChevronRight className="w-6 h-6" />
+                                            </button>
+                                        )}
+
+                                        <div 
+                                            ref={beyondCampusScrollRef}
+                                            className="overflow-x-auto overflow-y-visible scrollbar-hide" 
+                                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                                        >
+                                            <div 
+                                                className="flex gap-4 sm:gap-6 pb-4 snap-x snap-mandatory" 
+                                                style={{ 
+                                                    WebkitOverflowScrolling: 'touch',
+                                                    scrollBehavior: 'smooth'
+                                                }}
+                                            >
+                                        {beyondCampusEvents.slice(0, 6).map((event) => {
+                                            const statusStyle = getStatusBadgeStyle(event.status);
+                                            const StatusIcon = statusStyle.icon;
+                                            return (
+                                            <div
+                                                key={event.id}
+                                                onClick={() => navigate(`/view-details/${event.id}`)}
+                                                className={`min-w-[290px] w-[290px]
+                                                            sm:min-w-[300px] sm:w-[300px]
+                                                            lg:min-w-[340px] lg:w-[340px]
+                                                            rounded-2xl overflow-hidden cursor-pointer group flex-shrink-0 snap-start
+                                                            transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                            ${isDark 
+                                                                ? 'bg-black/20 backdrop-blur-3xl border border-white/20 shadow-2xl shadow-black/50' 
+                                                                : 'bg-white/40 backdrop-blur-3xl border border-white/50 shadow-xl shadow-black/10'
+                                                            }`}
+                                            >
+                                                {/* Image */}
+                                                <div className="relative h-[200px] overflow-hidden">
+                                                    <img
+                                                        src={getImageUrl(event.image)}
+                                                        alt={event.title}
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                        loading="lazy"
+                                                        onError={(e) => {
+                                                            handleImageErrorWithFallback(
+                                                                e,
+                                                                300,
+                                                                200,
+                                                                '#6366f1',
+                                                                event.title || 'Event'
+                                                            );
+                                                        }}
+                                                    />
+
+                                                    {/* Subtle Hover Overlay - Same as Ongoing */}
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]" />
+
+                                                    {/* Status Badge with Premium Glass Effect - Same as Ongoing */}
+                                                    <div className="absolute top-3 left-3 z-20">
+                                                        <div className={`${statusStyle.gradient} ${statusStyle.glow} shadow-xl
+                                                                       text-white text-xs px-3 py-1.5 rounded-full font-semibold capitalize
+                                                                       flex items-center gap-1.5 backdrop-blur-2xl border-2 border-white/40
+                                                                       bg-white/20`}>
+                                                            <StatusIcon className="w-3 h-3" />
+                                                            Beyond Campus
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Heart Button with Premium Glass Effect - Same as Ongoing */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleLike(event.id, event);
+                                                        }}
+                                                        className={`absolute top-3 right-3 w-10 h-10 rounded-full z-20
+                                                                   transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                                   hover:scale-110 active:scale-95
+                                                                   ${isDark 
+                                                                       ? 'bg-black/30 hover:bg-black/40 backdrop-blur-2xl border-2 border-white/30' 
+                                                                       : 'bg-white/50 hover:bg-white/70 backdrop-blur-2xl border-2 border-white/60'
+                                                                   }
+                                                                   shadow-xl hover:shadow-2xl
+                                                                   ${isFavorite(event.id) 
+                                                                       ? 'shadow-red-500/40 border-red-500/60 bg-red-500/20' 
+                                                                       : ''
+                                                                   }`}
+                                                        title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                                    >
+                                                        <Heart
+                                                            className={`w-5 h-5 mx-auto transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                                       ${isFavorite(event.id)
+                                                                           ? 'text-red-500 fill-red-500 scale-110 animate-pulse' 
+                                                                           : isDark 
+                                                                               ? 'text-white hover:text-red-400 hover:scale-110' 
+                                                                               : 'text-gray-800 hover:text-red-500 hover:scale-110'
+                                                                       }`}
+                                                        />
+                                                    </button>
+                                                </div>
+
+                                                {/* Content - EXACTLY same as Ongoing Events */}
+                                                <div className={`p-4 relative
+                                                               ${isDark 
+                                                                   ? 'bg-black/30 backdrop-blur-2xl' 
+                                                                   : 'bg-white/60 backdrop-blur-2xl'
+                                                               }`}>
+                                                    {/* Title with Share Button */}
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <h3 className={`text-lg font-bold flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {event.title}
+                                                        </h3>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (navigator.share) {
+                                                                    navigator.share({
+                                                                        title: event.title,
+                                                                        text: `Check out ${event.title}`,
+                                                                        url: `${window.location.origin}/view-details/${event.id}`,
+                                                                    }).catch(() => {});
+                                                                }
+                                                            }}
+                                                            className={`ml-2 w-8 h-8 flex items-center justify-center rounded-xl flex-shrink-0 z-10
+                                                                       transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                                       hover:scale-110 active:scale-95
+                                                                       ${isDark 
+                                                                           ? 'bg-white/10 hover:bg-white/20 backdrop-blur-xl border-2 border-white/30 shadow-lg' 
+                                                                           : 'bg-white/50 hover:bg-white/70 backdrop-blur-xl border-2 border-white/60 shadow-lg'
+                                                                       }`}
+                                                            aria-label="Share event"
+                                                        >
+                                                            <img
+                                                                src={ShareIcon}
+                                                                alt="Share"
+                                                                className={`w-5 h-5 ${isDark ? 'filter brightness-0 invert' : ''}`}
+                                                            />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* College Name with minimal spacing */}
+                                                    <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                        {event.subtitle}
+                                                    </p>
+
+                                                    {/* View Details Button with Blue 3D Effect */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/view-details/${event.id}`);
+                                                        }}
+                                                        className="w-full px-4 py-3 rounded-lg text-sm font-bold text-white
+                                                                   bg-gradient-to-b from-blue-500 to-blue-600 
+                                                                   hover:from-blue-600 hover:to-blue-700
+                                                                   active:from-blue-700 active:to-blue-800
+                                                                   shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40
+                                                                   border-2 border-blue-400/50 hover:border-blue-300/60
+                                                                   transform hover:scale-[1.02] active:scale-[0.98]
+                                                                   transition-all duration-200 ease-out
+                                                                   relative overflow-hidden
+                                                                   before:absolute before:inset-0 before:bg-gradient-to-r 
+                                                                   before:from-transparent before:via-white/20 before:to-transparent
+                                                                   before:translate-x-[-100%] hover:before:translate-x-[100%]
+                                                                   before:transition-transform before:duration-700"
+                                                    >
+                                                        <span className="relative z-10">View Details</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            );
+                                            })}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                        </section>
+                        )}
 
                         {/* Featured Lineup Section - Always Visible */}
                         {/*<section className="mb-4 sm:mb-12 md:mb-15 md:pt-6">*/}
@@ -1354,16 +1694,22 @@ const Dashboard = () => {
                                                     scrollBehavior: 'smooth'
                                                 }}
                                             >
-                                        {upcomingEvents.slice(0, 6).map((event) => (
+                                        {upcomingEvents.slice(0, 6).map((event) => {
+                                            const statusStyle = getStatusBadgeStyle(event.status);
+                                            const StatusIcon = statusStyle.icon;
+                                            return (
                                             <div
                                                 key={event.id}
                                                 onClick={() => navigate(`/view-details/${event.id}`)}
                                                 className={`min-w-[290px] w-[290px]
                                                             sm:min-w-[300px] sm:w-[300px]
                                                             lg:min-w-[340px] lg:w-[340px]
-                                                            rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
-                                                            overflow-hidden cursor-pointer group flex-shrink-0 snap-start
-                                                            ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}
+                                                            rounded-2xl overflow-hidden cursor-pointer group flex-shrink-0 snap-start
+                                                            transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                            ${isDark 
+                                                                ? 'bg-black/20 backdrop-blur-3xl border border-white/20 shadow-2xl shadow-black/50' 
+                                                                : 'bg-white/40 backdrop-blur-3xl border border-white/50 shadow-xl shadow-black/10'
+                                                            }`}
                                             >
                                                 {/* Image */}
                                                 <div className="relative h-[200px] overflow-hidden">
@@ -1383,35 +1729,48 @@ const Dashboard = () => {
                                                         }}
                                                     />
 
-                                                    {/* Dark overlay */}
-                                                    <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-all duration-300" />
+                                                    {/* Subtle Hover Overlay - Same as FestCard */}
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]" />
 
-                                                    {/* Status */}
-                                                    <div className="absolute top-3 right-3">
-                                                        <span className={`${getStatusBadgeColor(event.status)} text-white text-xs px-3 py-1 rounded-full font-medium capitalize`}>
+                                                    {/* Status Badge with Premium Glass Effect - Same as FestCard (top-left) */}
+                                                    <div className="absolute top-3 left-3 z-20">
+                                                        <div className={`${statusStyle.gradient} ${statusStyle.glow} shadow-xl
+                                                                       text-white text-xs px-3 py-1.5 rounded-full font-semibold capitalize
+                                                                       flex items-center gap-1.5 backdrop-blur-2xl border-2 border-white/40
+                                                                       bg-white/20`}>
+                                                            <StatusIcon className="w-3 h-3" />
                                                             {event.status}
-                                                        </span>
+                                                        </div>
                                                     </div>
 
-                                                    {/* Like Button */}
+                                                    {/* Heart Button with Premium Glass Effect - Same as FestCard (top-right) */}
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             handleLike(event.id, event);
                                                         }}
-                                                        className={`absolute top-3 left-3 w-9 h-9 rounded-full
-                                                        ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
-                                                        shadow-lg flex items-center justify-center transition-all duration-200
-                                                        border-2 ${isFavorite(event.id) ? 'border-red-500' : isDark ? 'border-white/20' : 'border-gray-900'}
-                                                        backdrop-blur-sm`}
+                                                        className={`absolute top-3 right-3 w-10 h-10 rounded-full z-20
+                                                                   transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                                   hover:scale-110 active:scale-95
+                                                                   ${isDark 
+                                                                       ? 'bg-black/30 hover:bg-black/40 backdrop-blur-2xl border-2 border-white/30' 
+                                                                       : 'bg-white/50 hover:bg-white/70 backdrop-blur-2xl border-2 border-white/60'
+                                                                   }
+                                                                   shadow-xl hover:shadow-2xl
+                                                                   ${isFavorite(event.id) 
+                                                                       ? 'shadow-red-500/40 border-red-500/60 bg-red-500/20' 
+                                                                       : ''
+                                                                   }`}
                                                         title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
                                                     >
                                                         <Heart
-                                                            className={`w-5 h-5 transition-all duration-200 ${
-                                                                isFavorite(event.id)
-                                                                    ? 'text-red-500 fill-red-500 scale-110'
-                                                                    : isDark ? 'text-white hover:text-red-400' : 'text-gray-900 hover:text-red-400'
-                                                            }`}
+                                                            className={`w-5 h-5 mx-auto transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                                                       ${isFavorite(event.id)
+                                                                           ? 'text-red-500 fill-red-500 scale-110 animate-pulse' 
+                                                                           : isDark 
+                                                                               ? 'text-white hover:text-red-400 hover:scale-110' 
+                                                                               : 'text-gray-800 hover:text-red-500 hover:scale-110'
+                                                                       }`}
                                                         />
                                                     </button>
 
@@ -1424,8 +1783,12 @@ const Dashboard = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Content */}
-                                                <div className="p-3 sm:p-4">
+                                                {/* Content with Glass Background */}
+                                                <div className={`p-3 sm:p-4 relative
+                                                               ${isDark 
+                                                                   ? 'bg-black/30 backdrop-blur-2xl' 
+                                                                   : 'bg-white/60 backdrop-blur-2xl'
+                                                               }`}>
                                                     <p
                                                         className={`text-sm mb-3 line-clamp-5 ${
                                                             isDark ? 'text-gray-400' : 'text-gray-600'
@@ -1434,18 +1797,32 @@ const Dashboard = () => {
                                                         {event.description}
                                                     </p>
 
+                                                    {/* View Details Button with Blue 3D Effect */}
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             navigate(`/view-details/${event.id}`);
                                                         }}
-                                                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                                                        className="w-full px-4 py-3 rounded-lg text-sm font-bold text-white
+                                                                   bg-gradient-to-b from-blue-500 to-blue-600 
+                                                                   hover:from-blue-600 hover:to-blue-700
+                                                                   active:from-blue-700 active:to-blue-800
+                                                                   shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40
+                                                                   border-2 border-blue-400/50 hover:border-blue-300/60
+                                                                   transform hover:scale-[1.02] active:scale-[0.98]
+                                                                   transition-all duration-200 ease-out
+                                                                   relative overflow-hidden
+                                                                   before:absolute before:inset-0 before:bg-gradient-to-r 
+                                                                   before:from-transparent before:via-white/20 before:to-transparent
+                                                                   before:translate-x-[-100%] hover:before:translate-x-[100%]
+                                                                   before:transition-transform before:duration-700"
                                                     >
-                                                        View Details
+                                                        <span className="relative z-10">View Details</span>
                                                     </button>
                                                 </div>
                                             </div>
-                                        ))}
+                                        );
+                                        })}
                                             </div>
                                         </div>
                                     </>
@@ -1459,171 +1836,8 @@ const Dashboard = () => {
 
                         </section>
 
-                        {/* Last Year's Hits Section */}
-                        {/* Last Year's Hits section uses status=lastyearhit fests, falls back to static lastYearHitsEvents */}
-                        <section className="mb-4 sm:mb-6 md:mb-8 pt-2 sm:pt-6 md:pt-12">
-                            <h2
-                                className={`text-xl sm:text-2xl lg:text-2xl font-bold mb-4 sm:mb-6 tracking-tight ${
-                                    isDark ? 'text-white' : 'text-gray-900'
-                                }`}
-                            >
-                                Last Year's Hits
-                            </h2>
-
-                            <div className="relative">
-                            {isFestsLoading ? (
-                                <LoadingSkeleton count={3} />
-                            ) : festError ? (
-                                <div className="text-center py-12 text-red-500">{festError}</div>
-                            ) : lastYearEvents.length > 0 ? (
-                                <>
-                                    {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
-                                    {lastYearEvents.length > 3 && lastYearShowLeftArrow && (
-                                        <button
-                                            onClick={() => scrollLeft(lastYearScrollRef)}
-                                            className={`hidden lg:flex absolute -left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
-                                                isDark 
-                                                    ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
-                                                    : 'bg-white/40 hover:bg-white/60 text-gray-900'
-                                            }`}
-                                            aria-label="Scroll left"
-                                        >
-                                            <ChevronLeft className="w-6 h-6" />
-                                        </button>
-                                    )}
-
-                                    {/* Right Scroll Button - Only show if not at end and more than 3 items */}
-                                    {lastYearEvents.length > 3 && lastYearShowRightArrow && (
-                                        <button
-                                            onClick={() => scrollRight(lastYearScrollRef)}
-                                            className={`hidden lg:flex absolute -right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 backdrop-blur-md ${
-                                                isDark 
-                                                    ? 'bg-gray-900/40 hover:bg-gray-900/60 text-white' 
-                                                    : 'bg-white/40 hover:bg-white/60 text-gray-900'
-                                            }`}
-                                            aria-label="Scroll right"
-                                        >
-                                            <ChevronRight className="w-6 h-6" />
-                                        </button>
-                                    )}
-
-                                    <div 
-                                        ref={lastYearScrollRef}
-                                        className="overflow-x-auto overflow-y-visible scrollbar-hide" 
-                                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                                    >
-                                        <div 
-                                            className="flex gap-4 sm:gap-6 pb-4 snap-x snap-mandatory" 
-                                            style={{ 
-                                                WebkitOverflowScrolling: 'touch',
-                                                scrollBehavior: 'smooth'
-                                            }}
-                                        >
-                                    {lastYearEvents.slice(0, 6).map((event) => (
-                                        <div
-                                            key={event.id}
-                                            onClick={() => navigate(`/view-details/${event.id}`)}
-                                            className={`min-w-[290px] w-[290px]
-                                                        sm:min-w-[300px] sm:w-[300px]
-                                                        lg:min-w-[340px] lg:w-[340px]
-                                                        rounded-xl shadow-sm hover:shadow-xl transition-all duration-300
-                                                        overflow-hidden cursor-pointer group flex-shrink-0 snap-start
-                                                        ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'}`}
-                                        >
-                                            {/* Image */}
-                                            <div className="relative h-[200px] overflow-hidden">
-                                                <img
-                                                    src={getImageUrl(event.image)}
-                                                    alt={event.title}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                    loading="lazy"
-                                                    onError={(e) => {
-                                                        handleImageErrorWithFallback(
-                                                            e,
-                                                            300,
-                                                            200,
-                                                            '#6366f1',
-                                                            event.title || 'Event'
-                                                        );
-                                                    }}
-                                                />
-
-                                                {/* Overlay */}
-                                                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-all duration-300" />
-
-                                                {/* Status Badge */}
-                                                <div className="absolute top-3 left-3">
-                                                    <span className={`${getStatusBadgeColor(event.status)} text-white text-xs px-3 py-1 rounded-full font-medium capitalize`}>
-                                                        {event.status}
-                                                    </span>
-                                                </div>
-
-                                                {/* Like Button */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleLike(event.id, event);
-                                                    }}
-                                                    className={`absolute top-3 right-3 w-9 h-9 rounded-full
-                                                    ${isDark ? 'bg-gray-800/80 hover:bg-gray-700/90' : 'bg-white/90 hover:bg-white'}
-                                                    shadow-lg flex items-center justify-center transition-all duration-200
-                                                    border-2 ${isFavorite(event.id) ? 'border-red-500' : isDark ? 'border-white/20' : 'border-gray-900'}
-                                                    backdrop-blur-sm`}
-                                                    title={isFavorite(event.id) ? 'Remove from favorites' : 'Add to favorites'}
-                                                >
-                                                    <Heart
-                                                        className={`w-5 h-5 transition-all duration-200 ${
-                                                            isFavorite(event.id)
-                                                                ? 'text-red-500 fill-red-500 scale-110'
-                                                                : isDark ? 'text-white hover:text-red-400' : 'text-gray-900 hover:text-red-400'
-                                                        }`}
-                                                    />
-                                                </button>
-
-                                                {/* Bottom gradient */}
-                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                                                    <h3 className="text-white font-bold text-lg mb-1">
-                                                        {event.title}
-                                                    </h3>
-                                                    <p className="text-white/90 text-sm">
-                                                        {event.subtitle}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {/* Content */}
-                                            <div className="p-3 sm:p-4 line-clamp-5">
-                                                <p
-                                                    className={`text-sm mb-3 ${
-                                                        isDark ? 'text-gray-400' : 'text-gray-600'
-                                                    }`}
-                                                >
-                                                    {event.description}
-                                                </p>
-
-                                                <div className="flex items-center justify-between text-sm">
-                                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
-                                                        {event.participants}
-                                                    </span>
-                                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
-                                                        {event.duration}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                        </div>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                    <div className="text-4xl mb-4">📆</div>
-                                    <p className="text-lg">No past events available</p>
-                                </div>
-                            )}
-                            </div>
-
-                        </section>
+                        {/* Last Year's Hits Section - REMOVED */}
+                        {/* Replaced with Beyond Campus section that appears between Ongoing and Upcoming */}
 
                     </div>
                 </main>
