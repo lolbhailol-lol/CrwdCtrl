@@ -18,7 +18,8 @@ export default function FestTable() {
       }
     })
       .then(res => res.json())
-      .then(data => setFests(data.fests || data));
+      .then(data => setFests(data.fests || data))
+      .catch(err => console.error('Error fetching fests:', err));
   };
 
   useEffect(fetchFests, []);

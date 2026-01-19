@@ -495,6 +495,21 @@ function EventPage() {
                     <div className="max-w-7xl mx-auto">
                         {/* Mobile Layout */}
                         <div className="block md:hidden">
+                            {/* Mobile Back Button */}
+                            <div className="px-4 pt-4 pb-2">
+                                <button
+                                    onClick={() => navigate(-1)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                                        isDark 
+                                            ? 'bg-[#1B1C1E] text-gray-300 hover:bg-[#2A2B2D] hover:text-white' 
+                                            : 'bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                                    } shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                    <span className="text-sm font-medium"></span>
+                                </button>
+                            </div>
+
                             {/* Mobile Event Image */}
                             <div className="px-4 pt-4">
                                 <div className="bg-[#F5F6FA] dark:bg-[#1B1C1E] rounded-lg overflow-hidden shadow-sm">
