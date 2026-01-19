@@ -156,7 +156,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                         </div>
                     </div>
                 </div>
-            </div>karan
+            </div>
 
         </div>
     );
