@@ -350,15 +350,10 @@ const Dashboard = () => {
                 
                 // Use environment-specific timeout
                 const timeout = import.meta.env.VITE_API_TIMEOUT ? 
-                    parseInt(import.meta.env.VITE_API_TIMEOUT) : 25000;
+                    parseInt(import.meta.env.VITE_API_TIMEOUT) : 10000;
                 
-                // Add cache busting timestamp
-                const timestamp = Date.now();
-                const response = await axios.get(`/fests/all?_t=${timestamp}`, {
-                    timeout: timeout,
-                    headers: {
-                        'Cache-Control': 'no-cache'
-                    }
+                const response = await axios.get('/fests/all', {
+                    timeout: timeout
                 });
                 
                 const data = response.data;

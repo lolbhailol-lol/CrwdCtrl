@@ -37,13 +37,7 @@ function SportsFestPage() {
                 setLoading(true);
                 setError(null);
                 
-                // Add cache busting timestamp
-                const timestamp = Date.now();
-                const response = await axios.get(`/fests/all?_t=${timestamp}`, {
-                    headers: {
-                        'Cache-Control': 'no-cache'
-                    }
-                });
+                const response = await axios.get('/fests/all');
                 const data = response.data;
                 const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
                 

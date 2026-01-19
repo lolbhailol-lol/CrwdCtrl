@@ -10,12 +10,9 @@ export default function CompetitionsPage() {
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    // Add cache busting timestamp to prevent browser caching
-    const timestamp = Date.now();
-    fetch(`${API_BASE_URL}/admin/fests?_t=${timestamp}`, {
+    fetch(`${API_BASE_URL}/admin/fests`, {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-        'Cache-Control': 'no-cache'
+        Authorization: `Bearer ${localStorage.getItem('admin_token')}`
       }
     })
       .then(res => res.json())
