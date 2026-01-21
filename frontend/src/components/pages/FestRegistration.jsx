@@ -226,6 +226,7 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
       }));
     }
   };
+  
   const token = localStorage.getItem("token");
 
 if (!token) {
@@ -233,7 +234,6 @@ if (!token) {
   window.location.href = "/login";
   return;
 }
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
