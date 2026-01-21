@@ -49,6 +49,34 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         // Ensure competition has proper registration configuration
         const competitionData = competition.toObject();
         
+        // ✅ CRITICAL FIX: Ensure fest registration data is always complete
+        if (competitionData.fest && competitionData.fest.registration) {
+            // Make sure fest registration has all required fields with proper defaults
+            competitionData.fest.registration = {
+                mode: competitionData.fest.registration.mode || 'NOT_STARTED',
+                externalLink: competitionData.fest.registration.externalLink || '',
+                paymentQR: competitionData.fest.registration.paymentQR || '',
+                paymentQRMessage: competitionData.fest.registration.paymentQRMessage || '',
+                googleSheetsUrl: competitionData.fest.registration.googleSheetsUrl || '',
+                formInstructions: competitionData.fest.registration.formInstructions || '',
+                organizerEmail: competitionData.fest.registration.organizerEmail || '',
+                formSchema: competitionData.fest.registration.formSchema || []
+            };
+        } else if (competitionData.fest) {
+            // If fest exists but registration is missing, create default registration object
+            console.warn(`⚠️ Fest ${competitionData.fest._id} missing registration data, creating defaults`);
+            competitionData.fest.registration = {
+                mode: 'NOT_STARTED',
+                externalLink: '',
+                paymentQR: '',
+                paymentQRMessage: '',
+                googleSheetsUrl: '',
+                formInstructions: '',
+                organizerEmail: '',
+                formSchema: []
+            };
+        }
+        
         // Handle new registration system vs legacy
         if (!competitionData.registrationType) {
             // Legacy competition - set default values
@@ -78,6 +106,12 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
             };
         }
 
+        console.log('🔍 Competition API Response:', {
+            competitionId: competitionData._id,
+            festId: competitionData.fest?._id,
+            festRegistrationMode: competitionData.fest?.registration?.mode,
+            registrationType: competitionData.registrationType
+        });
 
         res.status(200).json(competitionData);
     } catch (err) {

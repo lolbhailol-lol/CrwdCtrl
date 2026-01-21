@@ -234,16 +234,37 @@ function EventPage() {
         const registrationType = eventData?.registrationType || 'fest';
         const registrationStatus = eventData?.registration?.status || 'not_started';
         
-        console.log('🔍 Registration check:', { registrationType, registrationStatus, eventData: eventData });
+        console.log('🔍 Registration check:', { 
+            registrationType, 
+            registrationStatus, 
+            eventData: eventData,
+            festData: eventData?.fest,
+            festRegistration: eventData?.fest?.registration
+        });
         
         if (registrationType === 'fest') {
-            // Check fest registration mode
-            const festRegistrationMode = eventData?.fest?.registration?.mode || 'NOT_STARTED';
+            // Check fest registration mode with better error handling
+            const festRegistrationMode = eventData?.fest?.registration?.mode;
+            
+            // If fest registration data is missing, show loading state
+            if (!eventData?.fest?.registration) {
+                console.warn('⚠️ Fest registration data is missing, showing loading state');
+                return {
+                    isAvailable: false,
+                    buttonText: 'Loading...',
+                    isDisabled: true
+                };
+            }
+            
+            // Default to NOT_STARTED if mode is undefined
+            const mode = festRegistrationMode || 'NOT_STARTED';
+            console.log('🎯 Fest registration mode:', mode);
+            
             return {
-                isAvailable: festRegistrationMode === 'EXTERNAL_LINK' || festRegistrationMode === 'INTERNAL_FORM',
-                buttonText: festRegistrationMode === 'NOT_STARTED' ? 'Registrations Not Started' : 
-                           festRegistrationMode === 'REGISTRATION_CLOSED' ? 'Registration Closed' : 'Register Now',
-                isDisabled: festRegistrationMode === 'NOT_STARTED' || festRegistrationMode === 'REGISTRATION_CLOSED'
+                isAvailable: mode === 'EXTERNAL_LINK' || mode === 'INTERNAL_FORM',
+                buttonText: mode === 'NOT_STARTED' ? 'Registrations Not Started' : 
+                           mode === 'CLOSED' ? 'Registration Closed' : 'Register Now',
+                isDisabled: mode === 'NOT_STARTED' || mode === 'CLOSED'
             };
         } else if (registrationType === 'custom') {
             return {
@@ -269,7 +290,16 @@ function EventPage() {
     const handleRegister = () => {
         // Check if user is authenticated before allowing registration
         if (!isAuthenticated) {
+            console.log('🔐 User not authenticated, showing login modal');
             // Show login modal instead of redirecting to login page
+            setShowLogin(true);
+            return;
+        }
+
+        // Verify token is still valid
+        const token = localStorage.getItem('crwdctrl_token');
+        if (!token) {
+            console.log('🔐 No token found, showing login modal');
             setShowLogin(true);
             return;
         }
@@ -282,15 +312,26 @@ function EventPage() {
             registrationType, 
             registrationStatus, 
             eventData: eventData,
-            registrationConfig: eventData?.registration 
+            registrationConfig: eventData?.registration,
+            festRegistration: eventData?.fest?.registration
         });
         
         if (registrationType === 'fest') {
             console.log('📋 Using fest registration system');
             // Competition uses fest registration - check fest's registration mode
-            const festRegistrationMode = eventData?.fest?.registration?.mode || 'NOT_STARTED';
+            const festRegistrationMode = eventData?.fest?.registration?.mode;
             
-            if (festRegistrationMode === 'EXTERNAL_LINK') {
+            // Better error handling for missing fest registration data
+            if (!eventData?.fest?.registration) {
+                console.error('❌ Fest registration data is missing');
+                alert('Registration configuration is not available. Please contact the organizers or try refreshing the page.');
+                return;
+            }
+            
+            const mode = festRegistrationMode || 'NOT_STARTED';
+            console.log('🎯 Fest registration mode:', mode);
+            
+            if (mode === 'EXTERNAL_LINK') {
                 // Use fest's external registration link
                 const externalLink = eventData?.fest?.registration?.externalLink;
                 if (externalLink && externalLink.trim() !== '') {
@@ -298,7 +339,7 @@ function EventPage() {
                 } else {
                     alert('Registration link is not available. Please contact the organizers.');
                 }
-            } else if (festRegistrationMode === 'INTERNAL_FORM') {
+            } else if (mode === 'INTERNAL_FORM') {
                 // Use fest's internal registration form
                 const festId = eventData?.fest?._id || eventData?.festId || eventData?.fest?.id;
                 const competitionId = eventData?.id;
@@ -309,9 +350,13 @@ function EventPage() {
                 } else {
                     alert('Registration is not available. Please contact the organizers.');
                 }
+            } else if (mode === 'NOT_STARTED') {
+                alert('Registration has not started yet for this competition.');
+            } else if (mode === 'CLOSED') {
+                alert('Registration for this competition is closed.');
             } else {
-                // Fest registration not configured properly
-                alert('Registration is not available for this competition. Please contact the organizers.');
+                console.log('❓ Unknown fest registration mode:', mode);
+                alert('Registration configuration is not set up properly. Please contact the organizers.');
             }
         } else if (registrationType === 'custom') {
             console.log('🏆 Using custom competition registration system');
@@ -344,7 +389,10 @@ function EventPage() {
             const competitionRegistrationStatus = eventData?.legacyRegistration?.status || eventData?.registration?.status || 'NOT_STARTED';
             if (competitionRegistrationStatus === 'CLOSED') {
                 alert('Registration for this competition is closed.');
+            } else if (competitionRegistrationStatus === 'NOT_STARTED' || competitionRegistrationStatus === 'not_started') {
+                alert('Registration for this competition has not started yet.');
             } else {
+                // Default to showing not started message
                 alert('Registration for this competition has not started yet.');
             }
         }

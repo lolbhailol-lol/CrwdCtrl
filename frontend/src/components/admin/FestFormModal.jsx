@@ -653,9 +653,11 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('  - artistsHeading:', payload.artistsHeading, '(type:', typeof payload.artistsHeading, ')');
     console.log('  - competitionsHeading:', payload.competitionsHeading, '(type:', typeof payload.competitionsHeading, ')');
     console.log('  - contacts:', payload.contacts, '(type:', typeof payload.contacts, ', length:', payload.contacts?.length, ')');
+    console.log('  - registration.mode:', payload.registration.mode, '(type:', typeof payload.registration.mode, ')');
     console.log('  - form.artistsHeading:', form.artistsHeading, '(type:', typeof form.artistsHeading, ')');
     console.log('  - form.competitionsHeading:', form.competitionsHeading, '(type:', typeof form.competitionsHeading, ')');
     console.log('  - form.contacts:', form.contacts, '(type:', typeof form.contacts, ', length:', form.contacts?.length, ')');
+    console.log('  - form.registrationMode:', form.registrationMode, '(type:', typeof form.registrationMode, ')');
     console.log('🔑 Admin token:', adminToken ? `Present (${adminToken.substring(0, 20)}...)` : 'Missing');
 
     const response = await fetch(url, {
@@ -695,6 +697,21 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       throw new Error('Invalid JSON response from server');
     }
     console.log('✅ Success result:', result);
+
+    // ✅ CRITICAL: Add cache busting to ensure changes are visible immediately
+    console.log('🔄 Clearing browser cache and triggering refresh...');
+    
+    // Clear any cached data
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => {
+          caches.delete(name);
+        });
+      });
+    }
+
+    // Force a small delay to ensure backend has processed the changes
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     onSaved();
     onClose();
