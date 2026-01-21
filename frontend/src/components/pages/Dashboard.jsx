@@ -1052,7 +1052,16 @@ const Dashboard = () => {
                         <div className="flex items-center">
                             {/* Search Bar */}
                             <div className="flex-1 relative" ref={searchRef}>
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                {searchQuery ? (
+                                    <X
+                                        onClick={() => setSearchQuery("")}
+                                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 cursor-pointer"
+                                    />
+                                ) : (
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                )}
+
+
                                 <input
                                     type="text"
                                     placeholder="Search events, colleges..."
