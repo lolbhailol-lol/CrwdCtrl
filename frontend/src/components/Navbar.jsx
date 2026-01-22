@@ -579,7 +579,15 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                     {/* Search Bar */}
                     <div className="hidden sm:block" ref={searchRef}>
                         <form onSubmit={handleSearchSubmit} className="relative group">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#007BFF] transition-colors" />
+                            {searchQuery ? (
+                                <X
+                                    onClick={() => setSearchQuery("")}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 cursor-pointer"
+                                />
+                            ) : (
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            )}
+
                             {isSearching && (
                                 <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#007BFF] animate-spin" />
                             )}
