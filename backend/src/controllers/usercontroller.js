@@ -696,6 +696,39 @@ const updateUserProfile = async (req, res) => {
     }
 };
 
+// ✅ NEW: Token validation endpoint
+const validateToken = async (req, res) => {
+    try {
+        // Token validation is already done by authenticateToken middleware
+        // If we reach here, token is valid
+        const user = await User.findById(req.user.userId).select('-password');
+        
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User no longer exists',
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Token is valid',
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        console.error('Token validation error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+        });
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -703,4 +736,5 @@ module.exports = {
     getUserProfile,
     updateUserProfile,
     checkEmailExists,
+    validateToken,
 };

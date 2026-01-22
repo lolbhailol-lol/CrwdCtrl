@@ -287,21 +287,48 @@ function EventPage() {
 
     const registrationInfo = getRegistrationStatus();
 
-    const handleRegister = () => {
-        // Check if user is authenticated before allowing registration
-        if (!isAuthenticated) {
-            console.log('🔐 User not authenticated, showing login modal');
-            // Show login modal instead of redirecting to login page
+    const handleRegister = async () => {
+        console.log('🎯 Register button clicked');
+        
+        // ✅ CRITICAL FIX: Better authentication check
+        const token = localStorage.getItem('crwdctrl_token');
+        const user = localStorage.getItem('crwdctrl_user');
+        
+        console.log('🔍 Auth check:', {
+            hasToken: !!token,
+            hasUser: !!user,
+            isAuthenticated,
+            tokenLength: token?.length
+        });
+        
+        // If no token at all, show login
+        if (!token || !user) {
+            console.log('🔐 No authentication data found, showing login modal');
             setShowLogin(true);
             return;
         }
-
-        // Verify token is still valid
-        const token = localStorage.getItem('crwdctrl_token');
-        if (!token) {
-            console.log('🔐 No token found, showing login modal');
-            setShowLogin(true);
-            return;
+        
+        // ✅ PERFORMANCE: Quick token validation (optional - don't block if it fails)
+        try {
+            console.log('🔍 Validating token before registration...');
+            const response = await fetch(`${API_BASE_URL}/users/validate`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (!response.ok) {
+                console.log('❌ Token validation failed, clearing auth and showing login');
+                localStorage.removeItem('crwdctrl_token');
+                localStorage.removeItem('crwdctrl_user');
+                setShowLogin(true);
+                return;
+            }
+            console.log('✅ Token validation successful');
+        } catch (error) {
+            console.log('⚠️ Token validation request failed, proceeding anyway:', error.message);
+            // Don't block registration if validation fails due to network issues
         }
 
         // Get the competition's registration configuration
@@ -340,12 +367,15 @@ function EventPage() {
                     alert('Registration link is not available. Please contact the organizers.');
                 }
             } else if (mode === 'INTERNAL_FORM') {
-                // Use fest's internal registration form
+                // ✅ CRITICAL: Navigate to internal registration form
                 const festId = eventData?.fest?._id || eventData?.festId || eventData?.fest?.id;
                 const competitionId = eventData?.id;
                 
+                console.log('🚀 Navigating to internal form:', { festId, competitionId });
+                
                 if (festId) {
                     const registrationUrl = `/fest/${festId}/register?competition=${competitionId}`;
+                    console.log('🌐 Registration URL:', registrationUrl);
                     navigate(registrationUrl);
                 } else {
                     alert('Registration is not available. Please contact the organizers.');

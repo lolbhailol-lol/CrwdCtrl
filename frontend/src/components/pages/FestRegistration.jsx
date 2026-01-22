@@ -11,13 +11,14 @@ export default function FestRegistration() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const competitionId = searchParams.get('competition');
-  const { isAuthenticated, apiCall, isLoading: authLoading, user, token } = useAuth(); // Get user and token for debugging
+  const { isAuthenticated, apiCall, isLoading: authLoading, user, token: authToken } = useAuth(); // Get user and token for debugging
   
   const [fest, setFest] = useState(null);
   const [competition, setCompetition] = useState(null);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState({});
@@ -28,34 +29,34 @@ export default function FestRegistration() {
 
   useEffect(() => {
     const initializeRegistration = async () => {
-      // Wait for auth context to fully load
-      if (authLoading) {
-        return;
-      }
+      console.log('🔄 Initializing registration...', { 
+        authLoading, 
+        isAuthenticated, 
+        hasToken: !!authToken,
+        hasLocalToken: !!localStorage.getItem('crwdctrl_token'),
+        hasLocalUser: !!localStorage.getItem('crwdctrl_user')
+      });
 
-      // Check authentication with fallback to localStorage
+      // ✅ CRITICAL FIX: Don't wait for auth context if we have localStorage data
       const localToken = localStorage.getItem('crwdctrl_token');
+      const localUser = localStorage.getItem('crwdctrl_user');
       
-      if (!isAuthenticated && !localToken) {
+      // If no authentication data at all, redirect to login
+      if (!localToken || !localUser) {
+        console.log('❌ No authentication data found, redirecting to login');
         setError('Please log in to register for events');
         setTimeout(() => navigate('/login'), 2000);
         return;
       }
 
-      // If we have a local token but context isn't authenticated yet, give it more time
-      if (!isAuthenticated && localToken) {
-        // Set a timeout for auth context to catch up
-        setTimeout(() => {
-          proceedWithRegistration();
-        }, 1000);
-        return;
-      }
-
-      // User is authenticated, proceed with registration
+      // ✅ PERFORMANCE: Proceed immediately if we have localStorage data
+      // Don't wait for auth context to load
+      console.log('✅ Authentication data found in localStorage, proceeding with registration');
       proceedWithRegistration();
     };
 
     const proceedWithRegistration = () => {
+      console.log('🚀 Proceeding with registration fetch...', { isCompetitionRegistration });
       if (isCompetitionRegistration) {
         fetchCompetitionAndFestDetails();
       } else {
@@ -64,7 +65,7 @@ export default function FestRegistration() {
     };
 
     initializeRegistration();
-  }, [festId, competitionId, isAuthenticated, authLoading, isCompetitionRegistration, navigate, token]);
+  }, [festId, competitionId, isCompetitionRegistration, navigate]);
 
   useEffect(() => {
     if (error) {
@@ -89,11 +90,26 @@ export default function FestRegistration() {
 
   const fetchFestDetails = async () => {
     try {
+      console.log('📡 Fetching fest details for:', festId);
       const response = await fetch(`${API_BASE_URL}/fests/${festId}/public`);
       if (!response.ok) {
         throw new Error('Failed to fetch fest details');
       }
       const data = await response.json();
+      console.log('✅ Fest data received:', {
+        festName: data.festName,
+        registrationMode: data.registration?.mode,
+        formSchemaLength: data.registration?.formSchema?.length || 0
+      });
+      
+      // ✅ CRITICAL: Validate registration mode immediately
+      if (data.registration?.mode !== 'INTERNAL_FORM') {
+        console.error('❌ Invalid registration mode:', data.registration?.mode);
+        setError(`Registration is not available. Mode: ${data.registration?.mode || 'NOT_SET'}`);
+        setLoading(false);
+        return;
+      }
+      
       setFest(data);
 
       // Initialize form data with empty values using stable field IDs
@@ -101,6 +117,7 @@ export default function FestRegistration() {
       if (data.registration?.formSchema) {
         data.registration.formSchema.forEach(field => {
           const fieldId = generateFieldId(field);
+          console.log('🔧 Initializing field:', { fieldId, type: field.type, label: field.label });
           // Initialize file/image fields as null, others as empty string/array
           if (field.type === 'file' || field.type === 'image') {
             initialData[fieldId] = null;
@@ -110,7 +127,9 @@ export default function FestRegistration() {
         });
       }
       setFormData(initialData);
+      console.log('✅ Form initialized with', Object.keys(initialData).length, 'fields');
     } catch (err) {
+      console.error('❌ Error fetching fest details:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -119,12 +138,19 @@ export default function FestRegistration() {
 
   const fetchCompetitionAndFestDetails = async () => {
     try {
+      console.log('📡 Fetching competition and fest details...', { competitionId, festId });
+      
       // Fetch competition details first
       const competitionResponse = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`);
       if (!competitionResponse.ok) {
         throw new Error('Failed to fetch competition details');
       }
       const competitionData = await competitionResponse.json();
+      console.log('✅ Competition data received:', {
+        name: competitionData.name,
+        registrationType: competitionData.registrationType,
+        festId: competitionData.fest?._id
+      });
       setCompetition(competitionData);
 
       // Fetch fest details
@@ -133,6 +159,31 @@ export default function FestRegistration() {
         throw new Error('Failed to fetch fest details');
       }
       const festData = await festResponse.json();
+      console.log('✅ Fest data received:', {
+        festName: festData.festName,
+        registrationMode: festData.registration?.mode,
+        formSchemaLength: festData.registration?.formSchema?.length || 0
+      });
+      
+      // ✅ CRITICAL: Validate registration mode for competition registration
+      if (competitionData.registrationType === 'fest') {
+        // Competition uses fest registration - check fest mode
+        if (festData.registration?.mode !== 'INTERNAL_FORM') {
+          console.error('❌ Fest registration mode invalid for competition:', festData.registration?.mode);
+          setError(`Competition registration is not available. Fest mode: ${festData.registration?.mode || 'NOT_SET'}`);
+          setLoading(false);
+          return;
+        }
+      } else if (competitionData.registrationType === 'custom') {
+        // Competition has its own registration - check competition mode
+        if (competitionData.registration?.status !== 'internal_form') {
+          console.error('❌ Competition registration status invalid:', competitionData.registration?.status);
+          setError(`Competition registration is not available. Status: ${competitionData.registration?.status || 'NOT_SET'}`);
+          setLoading(false);
+          return;
+        }
+      }
+      
       setFest(festData);
 
       // Initialize form data with empty values using stable field IDs
@@ -140,6 +191,7 @@ export default function FestRegistration() {
       if (festData.registration?.formSchema) {
         festData.registration.formSchema.forEach(field => {
           const fieldId = generateFieldId(field);
+          console.log('🔧 Initializing field:', { fieldId, type: field.type, label: field.label });
           // Initialize file/image fields as null, others as empty string/array
           if (field.type === 'file' || field.type === 'image') {
             initialData[fieldId] = null;
@@ -149,7 +201,9 @@ export default function FestRegistration() {
         });
       }
       setFormData(initialData);
+      console.log('✅ Form initialized with', Object.keys(initialData).length, 'fields');
     } catch (err) {
+      console.error('❌ Error fetching competition/fest details:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -180,6 +234,8 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
   const handleFileUpload = async (file, fieldId) => {
     if (!file) return;
 
+    console.log('📁 Starting file upload for field:', fieldId, 'File:', file.name);
+
     setUploadingFiles(prev => ({
       ...prev,
       [fieldId]: true
@@ -201,23 +257,30 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
         }
       }
 
-      console.log('File validated:', {
+      console.log('✅ File validated:', {
         name: file.name,
         size: file.size,
         type: file.type,
         fieldId: fieldId
       });
 
-      // Store file for later upload during form submission
+      // ✅ PERFORMANCE FIX: Store file immediately without uploading
+      // Upload will happen during form submission to avoid blocking UI
       setFormData(prev => ({
         ...prev,
         [`${fieldId}_file`]: file, // Store actual file
-        [fieldId]: { uploaded: true, fileName: file.name } // Store upload status
+        [fieldId]: { 
+          uploaded: true, 
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          ready: true // Mark as ready for submission
+        }
       }));
       
-      console.log('File prepared for upload:', fieldId);
+      console.log('✅ File prepared for upload:', fieldId, '- Will upload during form submission');
     } catch (err) {
-      console.error('File validation error:', err);
+      console.error('❌ File validation error:', err);
       setError(err.message || 'Failed to validate file');
     } finally {
       setUploadingFiles(prev => ({
@@ -226,58 +289,72 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
       }));
     }
   };
-  
-  const token = localStorage.getItem("token");
-
-if (!token) {
-  alert("Session expired. Please login again.");
-  window.location.href = "/login";
-  return;
-}
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('🚀 Starting form submission...');
     setSubmitting(true);
     setError('');
 
     try {
-      // Debug authentication before submission
-      const authToken = token || localStorage.getItem('crwdctrl_token');
-      if (!authToken || !isAuthenticated) {
+      setSubmissionProgress('Validating authentication...');
+      // ✅ CRITICAL: Use localStorage token directly, don't rely on context
+      const token = localStorage.getItem('crwdctrl_token');
+      const user = localStorage.getItem('crwdctrl_user');
+      
+      console.log('🔑 Auth check for submission:', { 
+        hasToken: !!token, 
+        hasUser: !!user,
+        tokenLength: token?.length 
+      });
+      
+      if (!token || !user) {
         throw new Error('Authentication required. Please log in again.');
       }
 
-      // Validate required fields - try multiple field ID strategies
+      setSubmissionProgress('Checking registration availability...');
+      // ✅ CRITICAL: Double-check registration mode before submission
+      console.log('🔍 Final registration mode check:', {
+        festRegistrationMode: fest.registration?.mode,
+        isCompetitionRegistration,
+        competitionRegistrationType: competition?.registrationType
+      });
+
+      if (!isCompetitionRegistration && fest.registration?.mode !== 'INTERNAL_FORM') {
+        throw new Error(`Registration is not available. Current mode: ${fest.registration?.mode}`);
+      }
+
+      if (isCompetitionRegistration) {
+        if (competition?.registrationType === 'fest' && fest.registration?.mode !== 'INTERNAL_FORM') {
+          throw new Error(`Competition registration is not available. Fest mode: ${fest.registration?.mode}`);
+        }
+        if (competition?.registrationType === 'custom' && competition?.registration?.status !== 'internal_form') {
+          throw new Error(`Competition registration is not available. Status: ${competition?.registration?.status}`);
+        }
+      }
+
+      setSubmissionProgress('Validating form fields...');
+      // ✅ PERFORMANCE: Validate required fields with better field matching
       const formSchema = fest.registration?.formSchema || [];
       const requiredFields = formSchema.filter(field => field.required);
       
+      console.log('🔍 Validating', requiredFields.length, 'required fields...');
+      
       for (const field of requiredFields) {
-        // Try multiple field ID generation strategies
-        const possibleFieldIds = [
-          field.id,
-          field.fieldName,
-          `field_${field.id}`, // This should match what we see in form data
-          generateFieldId(field),
-          `field_${field.label?.toLowerCase().replace(/\s+/g, '_')}`,
-          field.label?.toLowerCase().replace(/\s+/g, '_'),
-          field.label
-        ].filter(Boolean); // Remove null/undefined values
+        const fieldId = generateFieldId(field);
+        const value = formData[fieldId];
         
-        let value = null;
-        let matchedFieldId = null;
+        console.log('🔍 Checking field:', { 
+          fieldId, 
+          label: field.label, 
+          type: field.type, 
+          hasValue: !!value,
+          valueType: typeof value
+        });
         
-        // Try to find the value using any of the possible field IDs
-        for (const fieldId of possibleFieldIds) {
-          if (formData.hasOwnProperty(fieldId)) {
-            value = formData[fieldId];
-            matchedFieldId = fieldId;
-            break;
-          }
-        }
-        
-        // For file/image fields, check if file was selected
+        // For file/image fields, check if file was selected and is ready
         if (field.type === 'file' || field.type === 'image') {
-          if (!value || !value.uploaded) {
+          if (!value || !value.ready || !formData[`${fieldId}_file`]) {
             throw new Error(`${field.label} is required - please upload a file`);
           }
         } else {
@@ -288,50 +365,72 @@ if (!token) {
         }
       }
 
-      // Prepare form data for submission with files
+      console.log('✅ All required fields validated');
+
+      setSubmissionProgress('Preparing form data...');
+      // ✅ PERFORMANCE: Prepare form data efficiently
       const submissionFormData = new FormData();
       const textResponses = {};
 
-      // Map form data from stable field IDs to fieldName keys for backend
+      // Process form fields with consistent field naming
       formSchema.forEach(field => {
         const fieldId = generateFieldId(field);
         const value = formData[fieldId];
+        
+        // ✅ CRITICAL: Use field.fieldName for backend consistency
+        const backendFieldName = field.fieldName || field.id || fieldId;
         
         if (field.type === 'file' || field.type === 'image') {
           // Add file to FormData if it exists
           const fileData = formData[`${fieldId}_file`];
           if (fileData) {
-            submissionFormData.append(field.fieldName, fileData);
-            console.log('Added file to form data:', field.fieldName, fileData.name);
+            submissionFormData.append(backendFieldName, fileData);
+            console.log('📁 Added file to form data:', backendFieldName, fileData.name);
           }
         } else {
-          // Add text data to responses object
-          textResponses[field.fieldName] = value;
+          // Add text data to responses object using backend field name
+          textResponses[backendFieldName] = value;
+          console.log('📝 Added text response:', backendFieldName, typeof value === 'string' ? value.substring(0, 50) : value);
         }
       });
 
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
 
-      // Determine the registration endpoint based on whether it's competition or fest registration
+      setSubmissionProgress('Submitting registration...');
+      // ✅ PERFORMANCE: Determine endpoint and make request
       const endpoint = isCompetitionRegistration 
         ? `${API_BASE_URL}/registrations/competitions/${competitionId}/register`
         : `${API_BASE_URL}/registrations/fests/${festId}/register`;
 
-      console.log('Making registration request to:', endpoint);
-      console.log('Text responses:', textResponses);
+      console.log('🌐 Making registration request to:', endpoint);
+      console.log('📊 Submission summary:', {
+        textFields: Object.keys(textResponses).length,
+        fileFields: Array.from(submissionFormData.keys()).filter(key => key !== 'responses').length,
+        totalSize: submissionFormData.get('responses')?.length || 0
+      });
 
-      // Use direct fetch with FormData for file uploads
+      // ✅ PERFORMANCE: Use fetch with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          'Authorization': `Bearer ${token}`,
           // Don't set Content-Type for FormData - browser will set it with boundary
         },
         body: submissionFormData,
+        signal: controller.signal
       });
 
-      console.log('Registration response status:', response.status);
+      clearTimeout(timeoutId);
+
+      console.log('📡 Registration response:', { 
+        status: response.status, 
+        ok: response.ok,
+        statusText: response.statusText
+      });
 
       if (!response.ok) {
         let errorMessage = 'Failed to submit registration';
@@ -339,29 +438,33 @@ if (!token) {
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
-          console.error('Backend error details:', errorData);
-        } catch (parseError) {
-          console.error('Could not parse error response:', parseError);
-          // Try to get text response if JSON parsing fails
-          try {
-            const textError = await response.text();
-            console.error('Raw error response:', textError);
-            if (textError) errorMessage = textError;
-          } catch (textError) {
-            console.error('Could not get text response either:', textError);
+          console.error('❌ Backend error details:', errorData);
+          
+          // Handle specific error cases
+          if (response.status === 401) {
+            errorMessage = 'Authentication failed. Please log in again.';
+          } else if (response.status === 400 && errorData.error?.includes('registration')) {
+            errorMessage = `Registration error: ${errorData.error}`;
           }
-        }
-        
-        if (response.status === 401) {
-          errorMessage = 'Authentication failed. Please log in again.';
+        } catch (parseError) {
+          console.error('❌ Could not parse error response:', parseError);
+          if (response.status === 401) {
+            errorMessage = 'Authentication failed. Please log in again.';
+          } else if (response.status === 400) {
+            errorMessage = 'Invalid registration data. Please check your form and try again.';
+          } else if (response.status >= 500) {
+            errorMessage = 'Server error. Please try again in a few moments.';
+          }
         }
         
         throw new Error(errorMessage);
       }
 
+      setSubmissionProgress('Processing registration...');
       const result = await response.json();
-      console.log('Registration successful:', result);
+      console.log('✅ Registration successful:', result);
 
+      setSubmissionProgress('Registration completed successfully!');
       setSuccess(true);
       // Auto redirect after 3 seconds to registered events page
       setTimeout(() => {
@@ -369,10 +472,29 @@ if (!token) {
       }, 3000);
 
     } catch (err) {
-      console.error('Registration error:', err);
-      setError(err.message);
+      console.error('❌ Registration error:', err);
+      
+      // Handle specific error types with better user feedback
+      if (err.name === 'AbortError') {
+        setError('Registration timed out. Please check your internet connection and try again.');
+      } else if (err.message.includes('Authentication') || err.message.includes('session') || err.message.includes('token')) {
+        setError('Your session has expired. Please log in again.');
+        // Clear invalid tokens
+        localStorage.removeItem('crwdctrl_token');
+        localStorage.removeItem('crwdctrl_user');
+        setTimeout(() => navigate('/login'), 2000);
+      } else if (err.message.includes('registration') && err.message.includes('not available')) {
+        setError('Registration is currently not available for this event. Please contact the organizers.');
+      } else if (err.message.includes('required')) {
+        setError(err.message); // Field validation errors
+      } else if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {
+        setError('Network error. Please check your internet connection and try again.');
+      } else {
+        setError(err.message || 'An unexpected error occurred. Please try again.');
+      }
     } finally {
       setSubmitting(false);
+      setSubmissionProgress('');
     }
   };
 
@@ -551,6 +673,7 @@ if (!token) {
       <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-white mb-4">Fest Not Found</h1>
+          <p className="text-gray-400 mb-6">The requested fest could not be found or may have been removed.</p>
           <button
             onClick={() => navigate('/')}
             className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
@@ -562,12 +685,36 @@ if (!token) {
     );
   }
 
-  if (fest.registration?.mode !== 'INTERNAL_FORM' && !isCompetitionRegistration) {
+  // ✅ CRITICAL: Better registration mode validation with detailed error messages
+  if (!isCompetitionRegistration && fest.registration?.mode !== 'INTERNAL_FORM') {
     return (
       <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto p-6">
           <h1 className="text-2xl font-bold text-white mb-4">Registration Not Available</h1>
-          <p className="text-gray-400 mb-6">This fest does not accept internal form registrations.</p>
+          <p className="text-gray-400 mb-4">
+            This fest does not accept internal form registrations.
+          </p>
+          <div className="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-6">
+            <p className="text-yellow-300 text-sm">
+              Current registration mode: <span className="font-mono">{fest.registration?.mode || 'NOT_SET'}</span>
+            </p>
+            <p className="text-yellow-300 text-sm mt-1">
+              Expected mode: <span className="font-mono">INTERNAL_FORM</span>
+            </p>
+          </div>
+          {fest.registration?.mode === 'EXTERNAL_LINK' && fest.registration?.externalLink && (
+            <div className="mb-6">
+              <p className="text-gray-400 mb-3">Registration is available via external link:</p>
+              <a
+                href={fest.registration.externalLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors inline-block"
+              >
+                Register Externally
+              </a>
+            </div>
+          )}
           <button
             onClick={() => navigate('/dashboard')}
             className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
@@ -577,6 +724,63 @@ if (!token) {
         </div>
       </div>
     );
+  }
+
+  // ✅ CRITICAL: Competition registration mode validation
+  if (isCompetitionRegistration) {
+    if (competition?.registrationType === 'fest' && fest.registration?.mode !== 'INTERNAL_FORM') {
+      return (
+        <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto p-6">
+            <h1 className="text-2xl font-bold text-white mb-4">Competition Registration Not Available</h1>
+            <p className="text-gray-400 mb-4">
+              This competition uses fest registration, but the fest does not accept internal form registrations.
+            </p>
+            <div className="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-6">
+              <p className="text-yellow-300 text-sm">
+                Fest registration mode: <span className="font-mono">{fest.registration?.mode || 'NOT_SET'}</span>
+              </p>
+              <p className="text-yellow-300 text-sm mt-1">
+                Expected mode: <span className="font-mono">INTERNAL_FORM</span>
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      );
+    }
+    
+    if (competition?.registrationType === 'custom' && competition?.registration?.status !== 'internal_form') {
+      return (
+        <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto p-6">
+            <h1 className="text-2xl font-bold text-white mb-4">Competition Registration Not Available</h1>
+            <p className="text-gray-400 mb-4">
+              This competition has custom registration, but internal form registration is not enabled.
+            </p>
+            <div className="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-6">
+              <p className="text-yellow-300 text-sm">
+                Competition registration status: <span className="font-mono">{competition?.registration?.status || 'NOT_SET'}</span>
+              </p>
+              <p className="text-yellow-300 text-sm mt-1">
+                Expected status: <span className="font-mono">internal_form</span>
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      );
+    }
   }
 
 
@@ -723,7 +927,8 @@ if (!token) {
                 {submitting ? (
                   <>
                     <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                    Submitting...
+                    <span className="hidden sm:inline">{submissionProgress || 'Submitting...'}</span>
+                    <span className="sm:hidden">Submitting...</span>
                   </>
                 ) : (
                   'Submit Registration'

@@ -26,6 +26,58 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 axios.defaults.baseURL = API_BASE_URL;
 
+// ✅ Frontend caching system for better Cloud Run performance
+const CACHE_KEYS = {
+    FESTS_LIST: 'crwdctrl_fests_cache',
+    FESTS_TIMESTAMP: 'crwdctrl_fests_timestamp'
+};
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
+
+// Helper functions for localStorage caching
+const getCachedData = (key) => {
+    try {
+        const cached = localStorage.getItem(key);
+        return cached ? JSON.parse(cached) : null;
+    } catch (error) {
+        console.error('Error reading cache:', error);
+        return null;
+    }
+};
+
+const setCachedData = (key, data) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+        localStorage.setItem(CACHE_KEYS.FESTS_TIMESTAMP, Date.now().toString());
+        console.log('💾 Cached fests data to localStorage');
+    } catch (error) {
+        console.error('Error setting cache:', error);
+    }
+};
+
+const isCacheValid = () => {
+    try {
+        const timestamp = localStorage.getItem(CACHE_KEYS.FESTS_TIMESTAMP);
+        if (!timestamp) return false;
+        
+        const age = Date.now() - parseInt(timestamp);
+        return age < CACHE_DURATION;
+    } catch (error) {
+        console.error('Error checking cache validity:', error);
+        return false;
+    }
+};
+
+const clearCache = () => {
+    try {
+        localStorage.removeItem(CACHE_KEYS.FESTS_LIST);
+        localStorage.removeItem(CACHE_KEYS.FESTS_TIMESTAMP);
+        console.log('🗑️ Cleared fests cache');
+    } catch (error) {
+        console.error('Error clearing cache:', error);
+    }
+};
+
 // Status badge styling function - Same as FestCard
 const getStatusBadgeStyle = (status) => {
     switch (status) {
@@ -339,7 +391,7 @@ const Dashboard = () => {
         setShowRegister(false);
     };
 
-    // Fetch fests from backend API with retry logic
+    // Fetch fests from backend API with enhanced caching and retry logic
     useEffect(() => {
         const fetchFests = async (retryCount = 0) => {
             const maxRetries = 3;
@@ -348,20 +400,64 @@ const Dashboard = () => {
             try {
                 setIsFestsLoading(true);
                 
+                // ✅ Check cache first for better Cloud Run performance
+                if (isCacheValid()) {
+                    const cachedFests = getCachedData(CACHE_KEYS.FESTS_LIST);
+                    if (cachedFests && Array.isArray(cachedFests)) {
+                        console.log('⚡ Using cached fests data');
+                        setFests(cachedFests);
+                        setFestError(null);
+                        setIsFestsLoading(false);
+                        return; // Exit early with cached data
+                    }
+                }
+                
+                console.log('🔄 Fetching fresh fests data from API');
+                const fetchStartTime = performance.now();
+                
                 // Use environment-specific timeout
                 const timeout = import.meta.env.VITE_API_TIMEOUT ? 
                     parseInt(import.meta.env.VITE_API_TIMEOUT) : 10000;
                 
                 const response = await axios.get('/fests/all', {
-                    timeout: timeout
+                    timeout: timeout,
+                    headers: {
+                        'Cache-Control': 'public, max-age=300', // Request fresh data if cache miss
+                    }
                 });
+                
+                const fetchEndTime = performance.now();
+                const fetchDuration = Math.round(fetchEndTime - fetchStartTime);
+                console.log(`📊 API fetch completed in ${fetchDuration}ms`);
                 
                 const data = response.data;
                 const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+                
+                // ✅ Cache the fresh data
+                if (festsList.length > 0) {
+                    setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
+                }
+                
                 setFests(festsList);
                 setFestError(null);
+                
+                // Log cache status from server
+                if (response.headers['x-cache']) {
+                    console.log(`📊 Server cache status: ${response.headers['x-cache']}`);
+                }
+                
             } catch (err) {
                 console.error('Dashboard - Error fetching fests:', err);
+                
+                // ✅ Try to use stale cache as fallback
+                const staleCachedFests = getCachedData(CACHE_KEYS.FESTS_LIST);
+                if (staleCachedFests && Array.isArray(staleCachedFests) && staleCachedFests.length > 0) {
+                    console.log('📦 Using stale cached data as fallback');
+                    setFests(staleCachedFests);
+                    setFestError('Using cached data - some information may be outdated');
+                    setIsFestsLoading(false);
+                    return;
+                }
                 
                 // More aggressive retry for Cloud Run cold starts and CORS issues
                 const shouldRetry = retryCount < maxRetries && (
@@ -378,6 +474,7 @@ const Dashboard = () => {
                 );
                 
                 if (shouldRetry) {
+                    console.log(`🔄 Retrying fetch (${retryCount + 1}/${maxRetries}) in ${retryDelay}ms`);
                     setTimeout(() => {
                         fetchFests(retryCount + 1);
                     }, retryDelay);
@@ -405,6 +502,55 @@ const Dashboard = () => {
         }, 300);
 
         return () => clearTimeout(timer);
+    }, []);
+
+    // ✅ Cache cleanup and management
+    useEffect(() => {
+        // Clear cache on page unload if it's getting old
+        const handleBeforeUnload = () => {
+            const timestamp = localStorage.getItem(CACHE_KEYS.FESTS_TIMESTAMP);
+            if (timestamp) {
+                const age = Date.now() - parseInt(timestamp);
+                // Clear cache if it's older than 10 minutes
+                if (age > 10 * 60 * 1000) {
+                    clearCache();
+                }
+            }
+        };
+
+        // ✅ Cache warming - prefetch fresh data when cache is about to expire
+        const warmCache = () => {
+            const timestamp = localStorage.getItem(CACHE_KEYS.FESTS_TIMESTAMP);
+            if (timestamp) {
+                const age = Date.now() - parseInt(timestamp);
+                // Prefetch when cache is 80% expired (4 minutes old)
+                if (age > CACHE_DURATION * 0.8 && age < CACHE_DURATION) {
+                    console.log('🔥 Warming cache with fresh data');
+                    // Silently fetch fresh data in background
+                    axios.get('/fests/all', { timeout: 5000 })
+                        .then(response => {
+                            const data = response.data;
+                            const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+                            if (festsList.length > 0) {
+                                setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
+                                console.log('✅ Cache warmed successfully');
+                            }
+                        })
+                        .catch(err => {
+                            console.log('⚠️ Cache warming failed:', err.message);
+                        });
+                }
+            }
+        };
+
+        // Check for cache warming every 30 seconds
+        const warmingInterval = setInterval(warmCache, 30000);
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            clearInterval(warmingInterval);
+        };
     }, []);
 
     // Switch from login to register
@@ -620,6 +766,15 @@ const Dashboard = () => {
     const handleRegister = useCallback((eventId) => {
         navigate(`/view-details/${eventId}`);
     }, [navigate]);
+
+    // ✅ Manual refresh function to bypass cache (for development/debugging only)
+    const refreshFests = useCallback(async () => {
+        clearCache();
+        setIsFestsLoading(true);
+        
+        // Force a fresh fetch by clearing cache and reloading
+        window.location.reload();
+    }, []);
 
     // Handle search functionality
     const handleSearch = () => {

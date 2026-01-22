@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChange, getCurrentUser } from '../firebase';
 
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 const AuthContext = createContext();
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -85,7 +88,7 @@ export const AuthProvider = ({ children }) => {
         };
     };
 
-    // Function to make authenticated API requests
+    // Function to make authenticated API requests with better error handling
     const apiCall = async (url, options = {}) => {
         const headers = getAuthHeaders();
 
@@ -97,13 +100,33 @@ export const AuthProvider = ({ children }) => {
             },
         });
 
-        // If token is expired or invalid, logout
-        if (response.status === 401 && token) {
+        // ✅ CRITICAL FIX: Don't auto-logout on 401 for all requests
+        // Only logout if it's a user-initiated action, not background requests
+        if (response.status === 401 && token && options.autoLogoutOn401 !== false) {
+            console.log('🔓 Token expired, logging out user');
             logout();
-            window.location.href = '/';
+            // Don't redirect immediately, let the calling component handle it
         }
 
         return response;
+    };
+
+    // ✅ NEW: Function to validate token without auto-logout
+    const validateToken = async () => {
+        if (!token) return false;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/validate`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            return response.ok;
+        } catch (error) {
+            console.error('Token validation error:', error);
+            return false;
+        }
     };
 
     const isAuthenticated = !!user && !!token;
@@ -123,7 +146,8 @@ export const AuthProvider = ({ children }) => {
         logout,
         updateUser,
         getAuthHeaders,
-        apiCall
+        apiCall,
+        validateToken
     };
 
     return (

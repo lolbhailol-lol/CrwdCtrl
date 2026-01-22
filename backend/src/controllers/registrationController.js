@@ -578,16 +578,41 @@ const submitRegistration = async (req, res) => {
 
     console.log('📋 Registration details:', { festId, userId });
 
-    // Check if fest exists and has internal form registration
+    // ✅ CRITICAL: Check if fest exists and validate registration mode
     const fest = await FestOrganizer.findById(festId);
     if (!fest) {
       console.error('❌ Fest not found:', festId);
       return res.status(404).json({ error: 'Fest not found' });
     }
 
-    if (fest.registration.mode !== 'INTERNAL_FORM') {
-      console.error('❌ Invalid registration mode:', fest.registration.mode);
-      return res.status(400).json({ error: 'This fest does not accept internal form registrations' });
+    console.log('🔍 Fest registration check:', {
+      festName: fest.festName,
+      registrationMode: fest.registration?.mode,
+      isApproved: fest.isApproved
+    });
+
+    // ✅ CRITICAL: Validate fest is approved
+    if (!fest.isApproved) {
+      console.error('❌ Fest not approved:', festId);
+      return res.status(400).json({ error: 'This fest is not available for registration' });
+    }
+
+    // ✅ CRITICAL: Validate registration mode
+    if (!fest.registration || fest.registration.mode !== 'INTERNAL_FORM') {
+      console.error('❌ Invalid registration mode:', fest.registration?.mode);
+      return res.status(400).json({ 
+        error: 'Internal form registration is not available for this fest',
+        debug: {
+          currentMode: fest.registration?.mode || 'NOT_SET',
+          expectedMode: 'INTERNAL_FORM'
+        }
+      });
+    }
+
+    // ✅ CRITICAL: Validate form schema exists
+    if (!fest.registration.formSchema || fest.registration.formSchema.length === 0) {
+      console.error('❌ No form schema configured');
+      return res.status(400).json({ error: 'Registration form is not configured for this fest' });
     }
 
     console.log('📝 Form schema:', fest.registration.formSchema?.length || 0, 'fields');
@@ -610,7 +635,7 @@ const submitRegistration = async (req, res) => {
     const registrationId = `REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log('🆔 Generated registration ID:', registrationId);
 
-    // Process uploaded files with proper field matching
+    // ✅ PERFORMANCE: Process uploaded files with better field matching
     if (req.files && req.files.length > 0) {
       console.log('📁 Processing uploaded files:', req.files.length);
       
@@ -622,16 +647,21 @@ const submitRegistration = async (req, res) => {
           size: file.size
         });
 
-        // CRITICAL FIX: Find matching field schema using multiple strategies
+        // ✅ CRITICAL FIX: Enhanced field matching with multiple strategies
         const fieldSchema = fest.registration.formSchema.find(f => {
-          // Strategy 1: Direct fieldname match with id
-          if (f.id === file.fieldname) return true;
-          // Strategy 2: Direct fieldname match with fieldName
+          // Strategy 1: Direct fieldName match (primary)
           if (f.fieldName === file.fieldname) return true;
+          // Strategy 2: Direct id match
+          if (f.id === file.fieldname) return true;
           // Strategy 3: Check if fieldname contains the field id
-          if (file.fieldname.includes(f.id)) return true;
+          if (f.id && file.fieldname.includes(f.id)) return true;
           // Strategy 4: Check if fieldname contains the fieldName
           if (f.fieldName && file.fieldname.includes(f.fieldName)) return true;
+          // Strategy 5: Label-based matching (fallback)
+          if (f.label) {
+            const labelId = `field_${f.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+            if (file.fieldname === labelId) return true;
+          }
           return false;
         });
 
@@ -647,7 +677,11 @@ const submitRegistration = async (req, res) => {
             error: `Invalid form field: ${file.fieldname}. Please refresh the form and try again.`,
             debug: {
               receivedField: file.fieldname,
-              availableFields: fest.registration.formSchema.map(f => ({ id: f.id, fieldName: f.fieldName, label: f.label }))
+              availableFields: fest.registration.formSchema.map(f => ({ 
+                id: f.id, 
+                fieldName: f.fieldName, 
+                label: f.label 
+              }))
             }
           });
         }
@@ -659,7 +693,7 @@ const submitRegistration = async (req, res) => {
           type: fieldSchema.type
         });
 
-        // Upload to Cloudinary with proper error handling
+        // ✅ PERFORMANCE: Upload to Cloudinary with better error handling
         console.log('📤 Uploading to Cloudinary...');
         const uploadResult = await uploadToCloudinary(
           file.buffer,
@@ -673,8 +707,9 @@ const submitRegistration = async (req, res) => {
         console.log('📊 Upload result:', uploadResult);
 
         if (uploadResult.success) {
-          // Successful upload to Cloudinary
-          uploadedFiles[fieldSchema.fieldName] = {
+          // Use fieldName as key for consistency
+          const fieldKey = fieldSchema.fieldName || fieldSchema.id;
+          uploadedFiles[fieldKey] = {
             uploaded: true,
             cloudinaryLink: uploadResult.cloudinaryLink,
             fileName: uploadResult.fileName,
@@ -683,7 +718,7 @@ const submitRegistration = async (req, res) => {
             fileType: uploadResult.fileType,
             fileSize: uploadResult.fileSize
           };
-          console.log('✅ File uploaded successfully for field:', fieldSchema.fieldName);
+          console.log('✅ File uploaded successfully for field:', fieldKey);
         } else {
           console.error('❌ File upload failed for field:', fieldSchema.fieldName, uploadResult.error);
           return res.status(500).json({ 
@@ -703,14 +738,17 @@ const submitRegistration = async (req, res) => {
 
     console.log('📋 Final responses:', Object.keys(responses));
 
-    // Validate required fields with proper file/image handling
+    // ✅ PERFORMANCE: Validate required fields with consistent field naming
     const requiredFields = fest.registration.formSchema.filter(field => field.required);
     console.log('🔍 Validating', requiredFields.length, 'required fields...');
     
     for (const field of requiredFields) {
-      const value = responses[field.fieldName];
+      // Use fieldName as primary key, fallback to id
+      const fieldKey = field.fieldName || field.id;
+      const value = responses[fieldKey];
       
       console.log('🔍 Validating field:', {
+        fieldKey,
         fieldName: field.fieldName,
         label: field.label,
         type: field.type,
@@ -725,7 +763,7 @@ const submitRegistration = async (req, res) => {
           return res.status(400).json({ 
             error: `${field.label} is required - please upload a file`,
             debug: {
-              field: field.fieldName,
+              field: fieldKey,
               received: value,
               expected: 'uploaded file with cloudinaryLink'
             }
@@ -738,7 +776,7 @@ const submitRegistration = async (req, res) => {
           return res.status(400).json({ 
             error: `${field.label} is required`,
             debug: {
-              field: field.fieldName,
+              field: fieldKey,
               received: value,
               expected: 'non-empty value'
             }
@@ -1082,6 +1120,126 @@ const testGoogleSheets = async (req, res) => {
   }
 };
 
+// ✅ NEW: Diagnose Google Sheets integration for a specific fest
+const diagnoseGoogleSheets = async (req, res) => {
+  try {
+    const { festId } = req.params;
+    
+    console.log('🔍 Diagnosing Google Sheets for fest:', festId);
+    
+    // Get fest details
+    const fest = await FestOrganizer.findById(festId);
+    if (!fest) {
+      return res.status(404).json({ error: 'Fest not found' });
+    }
+
+    const diagnosis = {
+      festName: fest.festName,
+      festId: fest._id,
+      issues: [],
+      warnings: [],
+      status: 'healthy'
+    };
+
+    // Check 1: Fest approval
+    if (!fest.isApproved) {
+      diagnosis.issues.push('Fest is not approved - registrations will be blocked');
+      diagnosis.status = 'error';
+    }
+
+    // Check 2: Registration mode
+    if (fest.registration?.mode !== 'INTERNAL_FORM') {
+      diagnosis.issues.push(`Registration mode is "${fest.registration?.mode}" - should be "INTERNAL_FORM" for Google Sheets integration`);
+      diagnosis.status = 'error';
+    }
+
+    // Check 3: Google Sheets URL
+    if (!fest.registration?.googleSheetsUrl) {
+      diagnosis.issues.push('No Google Sheets URL configured');
+      diagnosis.status = 'error';
+    } else {
+      const { extractSpreadsheetId } = require('../services/googleSheetsService');
+      const spreadsheetId = extractSpreadsheetId(fest.registration.googleSheetsUrl);
+      
+      if (!spreadsheetId) {
+        diagnosis.issues.push('Invalid Google Sheets URL format');
+        diagnosis.status = 'error';
+      } else {
+        diagnosis.spreadsheetId = spreadsheetId;
+        
+        // Test connection
+        try {
+          const connectionTest = await testGoogleSheetsConnection(fest.registration.googleSheetsUrl);
+          if (connectionTest.success) {
+            diagnosis.googleSheetsTitle = connectionTest.title;
+            diagnosis.connectionStatus = 'success';
+          } else {
+            diagnosis.issues.push(`Google Sheets connection failed: ${connectionTest.error}`);
+            diagnosis.connectionStatus = 'failed';
+            diagnosis.status = 'error';
+          }
+        } catch (error) {
+          diagnosis.issues.push(`Google Sheets connection error: ${error.message}`);
+          diagnosis.connectionStatus = 'error';
+          diagnosis.status = 'error';
+        }
+      }
+    }
+
+    // Check 4: Form schema
+    if (!fest.registration?.formSchema || fest.registration.formSchema.length === 0) {
+      diagnosis.issues.push('No form schema configured - Google Sheets headers cannot be created');
+      diagnosis.status = 'error';
+    } else {
+      diagnosis.formFieldsCount = fest.registration.formSchema.length;
+      
+      const fieldsWithoutFieldName = fest.registration.formSchema.filter(f => !f.fieldName);
+      if (fieldsWithoutFieldName.length > 0) {
+        diagnosis.warnings.push(`${fieldsWithoutFieldName.length} form fields missing fieldName - may cause data mapping issues`);
+        if (diagnosis.status === 'healthy') diagnosis.status = 'warning';
+      }
+    }
+
+    // Check 5: Environment variables
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+      diagnosis.issues.push('Google service account credentials not configured in environment variables');
+      diagnosis.status = 'error';
+    }
+
+    // Provide solutions
+    diagnosis.solutions = [];
+    if (diagnosis.issues.length > 0) {
+      diagnosis.solutions.push('Fix the issues listed above to enable Google Sheets integration');
+      
+      if (diagnosis.issues.some(i => i.includes('not approved'))) {
+        diagnosis.solutions.push('Approve the fest in the admin panel');
+      }
+      
+      if (diagnosis.issues.some(i => i.includes('registration mode'))) {
+        diagnosis.solutions.push('Set registration mode to "INTERNAL_FORM" in fest settings');
+      }
+      
+      if (diagnosis.issues.some(i => i.includes('Google Sheets URL'))) {
+        diagnosis.solutions.push('Configure a valid Google Sheets URL in fest registration settings');
+      }
+      
+      if (diagnosis.issues.some(i => i.includes('permission') || i.includes('connection failed'))) {
+        diagnosis.solutions.push(`Share the Google Sheets with service account: ${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL}`);
+      }
+      
+      if (diagnosis.issues.some(i => i.includes('form schema'))) {
+        diagnosis.solutions.push('Configure form fields in the fest registration settings');
+      }
+    }
+
+    res.json(diagnosis);
+
+  } catch (error) {
+    console.error('Error diagnosing Google Sheets:', error);
+    res.status(500).json({ error: 'Failed to diagnose Google Sheets integration' });
+  }
+};
+
 
 
 // Get single registration details
@@ -1119,5 +1277,6 @@ module.exports = {
   getUserRegistrations,
   getRegistrationDetails,
   testGoogleSheets,
+  diagnoseGoogleSheets, // ✅ NEW: Export the new diagnostic function
   upload // Export multer middleware
 };

@@ -4,6 +4,7 @@ dotenv.config(); // Load env vars FIRST
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const compression = require("compression");
 const connectDB = require("./config/db");
 
 const userRoutes = require("./routers/userroute");
@@ -87,6 +88,20 @@ app.use(
 // JSON middleware with increased limits for file uploads
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// ✅ Compression middleware for better performance (especially for Cloud Run)
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress responses if the request includes a cache-control header to prevent compression
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Use compression filter function
+    return compression.filter(req, res);
+  },
+  level: 6, // Compression level (1-9, 6 is good balance)
+  threshold: 1024, // Only compress responses larger than 1KB
+}));
 
 // Performance optimization middleware
 app.use((req, res, next) => {

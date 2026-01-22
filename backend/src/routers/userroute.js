@@ -6,6 +6,7 @@ const {
     getUserProfile,
     updateUserProfile,
     checkEmailExists,
+    validateToken,
 } = require('../controllers/usercontroller');
 const { authenticateToken, authorizeRoles } = require('../middleware/authmiddleware');
 const uploadCtrl = require('../controllers/uploadController');
@@ -21,6 +22,9 @@ router.post('/check-email', checkEmailExists);
 // Protected routes (authentication required)
 router.get('/profile', authenticateToken, getUserProfile);
 router.put('/profile', authenticateToken, updateUserProfile);
+
+// ✅ NEW: Token validation endpoint
+router.get('/validate', authenticateToken, validateToken);
 
 // Debug route to check authentication status
 router.get('/auth-status', authenticateToken, (req, res) => {

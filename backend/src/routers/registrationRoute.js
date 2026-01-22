@@ -11,6 +11,7 @@ const {
   getUserRegistrations,
   getRegistrationDetails,
   testGoogleSheets,
+  diagnoseGoogleSheets, // ✅ NEW: Import the diagnostic function
   upload
 } = require('../controllers/registrationController');
 
@@ -91,6 +92,8 @@ router.get('/details/:registrationId', authenticateToken, getRegistrationDetails
 router.get('/admin/fests/:festId/registrations', authenticateAdmin, getFestRegistrations);
 router.put('/admin/registrations/:registrationId/status', authenticateAdmin, updateRegistrationStatus);
 router.post('/admin/test-google-sheets', authenticateAdmin, testGoogleSheets);
+// ✅ NEW: Diagnostic endpoint for Google Sheets integration
+router.get('/admin/fests/:festId/diagnose-google-sheets', authenticateAdmin, diagnoseGoogleSheets);
 
 /* ======================
    DEBUG (OPTIONAL)
