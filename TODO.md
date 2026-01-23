@@ -7,9 +7,11 @@
 - [x] Add async file upload processing to prevent blocking (implemented concurrent uploads)
 
 ## Mobile Login Issues
-- [x] Add retry logic for Firebase authentication failures
-- [x] Improve error messages for mobile-specific issues
-- [x] Add network connectivity checks before login attempts
+- [ ] Add retry logic for Firebase authentication failures (reverted)
+- [ ] Improve error messages for mobile-specific issues (reverted)
+- [ ] Add network connectivity checks before login attempts (reverted)
+- [ ] Implement redirect-based authentication for mobile devices (reverted)
+- [ ] Add redirect result handling on login page load (reverted)
 - [ ] Enhance mobile responsiveness in login component
 
 ## Testing

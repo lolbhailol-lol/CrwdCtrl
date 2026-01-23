@@ -22,6 +22,10 @@ export default function FestRegistration() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState({});
+  // ✅ NEW: Multi-step form state
+  const [currentStep, setCurrentStep] = useState(1);
+  const [stepData, setStepData] = useState({});
+  const [completedSteps, setCompletedSteps] = useState(new Set());
 
   const isCompetitionRegistration = !!competitionId;
 
@@ -84,6 +88,279 @@ export default function FestRegistration() {
       return `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
     }
     return 'unknown_field';
+  };
+
+  // ✅ NEW: Multi-step form helper functions
+  const isMultiStepForm = () => {
+    return fest?.registration?.formType === 'MULTI_STEP' && fest?.registration?.steps?.length > 0;
+  };
+
+  const getCurrentStepFields = () => {
+    if (!isMultiStepForm()) {
+      return fest?.registration?.formSchema || [];
+    }
+    const step = fest.registration.steps.find(s => s.stepNumber === currentStep);
+    return step?.fields || [];
+  };
+
+  const getTotalSteps = () => {
+    return isMultiStepForm() ? fest.registration.steps.length : 1;
+  };
+
+  const getCurrentStepData = () => {
+    if (!isMultiStepForm()) {
+      return formData;
+    }
+    return stepData[currentStep] || {};
+  };
+
+  const validateCurrentStep = () => {
+    const currentFields = getCurrentStepFields();
+    const currentData = getCurrentStepData();
+    
+    for (const field of currentFields) {
+      if (field.required) {
+        const fieldId = generateFieldId(field);
+        const value = currentData[fieldId];
+        
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          setError(`Please fill in the required field: ${field.label}`);
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const handleStepNext = () => {
+    if (!validateCurrentStep()) {
+      return;
+    }
+    
+    // Save current step data
+    if (isMultiStepForm()) {
+      setStepData(prev => ({
+        ...prev,
+        [currentStep]: getCurrentStepData()
+      }));
+      setCompletedSteps(prev => new Set([...prev, currentStep]));
+    }
+    
+    if (currentStep < getTotalSteps()) {
+      setCurrentStep(prev => prev + 1);
+      setError(''); // Clear any errors
+    }
+  };
+
+  const handleStepBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+      setError(''); // Clear any errors
+    }
+  };
+
+  const handleStepFieldChange = (fieldId, value) => {
+    if (isMultiStepForm()) {
+      setStepData(prev => ({
+        ...prev,
+        [currentStep]: {
+          ...prev[currentStep],
+          [fieldId]: value
+        }
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [fieldId]: value
+      }));
+    }
+  };
+
+  const getAllFormData = () => {
+    if (!isMultiStepForm()) {
+      return formData;
+    }
+    
+    // Combine all step data
+    const allData = {};
+    Object.values(stepData).forEach(stepFormData => {
+      Object.assign(allData, stepFormData);
+    });
+    
+    // Include current step data
+    Object.assign(allData, getCurrentStepData());
+    
+    return allData;
+  };
+
+  // ✅ NEW: Render form field function (extracted for reuse)
+  const renderFormField = (field, fieldId, currentData, onFieldChange) => {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-white mb-1.5">
+          {field.label}
+          {field.required && <span className="text-red-400 ml-1">*</span>}
+        </label>
+        {renderField(field, fieldId, currentData, onFieldChange)}
+      </div>
+    );
+  };
+
+  // ✅ NEW: Render individual field based on type
+  const renderField = (field, fieldId, currentData, onFieldChange) => {
+    const value = currentData[fieldId] || '';
+    
+    switch (field.type) {
+      case 'text':
+      case 'email':
+      case 'tel':
+      case 'number':
+        return (
+          <input
+            type={field.type}
+            id={fieldId}
+            name={fieldId}
+            placeholder={field.placeholder}
+            value={value}
+            onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            required={field.required}
+            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm"
+          />
+        );
+      
+      case 'textarea':
+        return (
+          <textarea
+            id={fieldId}
+            name={fieldId}
+            placeholder={field.placeholder}
+            value={value}
+            onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            required={field.required}
+            rows={3}
+            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm resize-none"
+          />
+        );
+      
+      case 'select':
+        return (
+          <select
+            id={fieldId}
+            name={fieldId}
+            value={value}
+            onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            required={field.required}
+            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm"
+          >
+            <option value="">Select an option</option>
+            {field.options?.map((option, index) => (
+              <option key={index} value={option}>{option}</option>
+            ))}
+          </select>
+        );
+      
+      case 'radio':
+        return (
+          <div className="space-y-2">
+            {field.options?.map((option, index) => (
+              <label key={index} className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={fieldId}
+                  value={option}
+                  checked={value === option}
+                  onChange={(e) => onFieldChange(fieldId, e.target.value)}
+                  required={field.required}
+                  className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                />
+                <span className="text-sm text-white">{option}</span>
+              </label>
+            ))}
+          </div>
+        );
+      
+      case 'checkbox':
+        return (
+          <div className="space-y-2">
+            {field.options?.map((option, index) => {
+              const isChecked = Array.isArray(value) ? value.includes(option) : false;
+              return (
+                <label key={index} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    value={option}
+                    checked={isChecked}
+                    onChange={(e) => {
+                      const currentValues = Array.isArray(value) ? value : [];
+                      if (e.target.checked) {
+                        onFieldChange(fieldId, [...currentValues, option]);
+                      } else {
+                        onFieldChange(fieldId, currentValues.filter(v => v !== option));
+                      }
+                    }}
+                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+                  />
+                  <span className="text-sm text-white">{option}</span>
+                </label>
+              );
+            })}
+          </div>
+        );
+      
+      case 'date':
+        return (
+          <input
+            type="date"
+            id={fieldId}
+            name={fieldId}
+            value={value}
+            onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            required={field.required}
+            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm"
+          />
+        );
+      
+      case 'file':
+      case 'image':
+        return (
+          <div className="space-y-2">
+            <input
+              type="file"
+              id={fieldId}
+              name={fieldId}
+              accept={field.type === 'image' ? 'image/*' : '*/*'}
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  onFieldChange(fieldId, file);
+                }
+              }}
+              required={field.required}
+              className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#0ECCEE] file:text-black hover:file:bg-[#0ECCEE]/80"
+            />
+            {uploadingFiles[fieldId] && (
+              <div className="flex items-center gap-2 text-sm text-blue-400">
+                <Loader className="w-4 h-4 animate-spin" />
+                Uploading...
+              </div>
+            )}
+          </div>
+        );
+      
+      default:
+        return (
+          <input
+            type="text"
+            id={fieldId}
+            name={fieldId}
+            placeholder={field.placeholder}
+            value={value}
+            onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            required={field.required}
+            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm"
+          />
+        );
+    }
   };
 
 
@@ -209,27 +486,6 @@ export default function FestRegistration() {
       setLoading(false);
     }
   };
-const handleInputChange = (fieldId, value, fieldType = 'text') => {
-  setFormData(prev => {
-    if (fieldType === 'checkbox') {
-      const currentValues = prev[fieldId] || [];
-      const updatedValues = currentValues.includes(value)
-        ? currentValues.filter(v => v !== value)
-        : [...currentValues, value];
-
-      return {
-        ...prev,
-        [fieldId]: updatedValues
-      };
-    }
-
-    return {
-      ...prev,
-      [fieldId]: value
-    };
-  });
-};
-
 
   const handleFileUpload = async (file, fieldId) => {
     if (!file) return;
@@ -293,6 +549,19 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('🚀 Starting form submission...');
+    
+    // ✅ NEW: For multi-step forms, validate current step first
+    if (isMultiStepForm() && currentStep < getTotalSteps()) {
+      // This is not the final step, just go to next step
+      handleStepNext();
+      return;
+    }
+    
+    // ✅ NEW: Final validation for multi-step forms
+    if (isMultiStepForm() && !validateCurrentStep()) {
+      return;
+    }
+    
     setSubmitting(true);
     setError('');
 
@@ -334,15 +603,20 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
       }
 
       setSubmissionProgress('Validating form fields...');
+      // ✅ NEW: Get all form data (single-step or combined multi-step)
+      const allFormData = getAllFormData();
+      
       // ✅ PERFORMANCE: Validate required fields with better field matching
-      const formSchema = fest.registration?.formSchema || [];
+      const formSchema = isMultiStepForm() 
+        ? fest.registration.steps.flatMap(step => step.fields)
+        : fest.registration?.formSchema || [];
       const requiredFields = formSchema.filter(field => field.required);
       
       console.log('🔍 Validating', requiredFields.length, 'required fields...');
       
       for (const field of requiredFields) {
         const fieldId = generateFieldId(field);
-        const value = formData[fieldId];
+        const value = allFormData[fieldId];
         
         console.log('🔍 Checking field:', { 
           fieldId, 
@@ -498,166 +772,9 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
     }
   };
 
-  const renderField = (field) => {
-    // Use consistent field ID generation
-    const fieldId = generateFieldId(field);
-    const { type, required, options, placeholder } = field;
-    const value = formData[fieldId] || ''; // Use stable fieldId
-    const isUploading = uploadingFiles[fieldId]; // Use stable fieldId
-
-    switch (type) {
-      case 'text':
-      case 'email':
-      case 'tel':
-      case 'number':
-        return (
-          <input
-            type={type}
-            value={value}
-            onChange={(e) => handleInputChange(fieldId, e.target.value)}
-            placeholder={placeholder}
-            required={required}
-            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base"
-          />
-        );
-
-      case 'textarea':
-        return (
-          <textarea
-            value={value}
-            onChange={(e) => handleInputChange(fieldId, e.target.value)}
-            placeholder={placeholder}
-            required={required}
-            rows={4}
-            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white resize-none text-sm sm:text-base"
-          />
-        );
-
-      case 'date':
-        return (
-          <input
-            type="date"
-            value={value}
-            onChange={(e) => handleInputChange(fieldId, e.target.value)}
-            required={required}
-            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base"
-          />
-        );
-
-      case 'select':
-        return (
-          <select
-            value={value}
-            onChange={(e) => handleInputChange(fieldId, e.target.value)}
-            required={required}
-            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base"
-          >
-            <option value="">{placeholder || 'Select an option'}</option>
-            {options?.map((option, idx) => (
-              <option key={idx} value={option}>{option}</option>
-            ))}
-          </select>
-        );
-
-      case 'radio':
-        return (
-          <div className="space-y-2">
-            {options?.map((option, idx) => (
-              <label key={idx} className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="radio"
-                  name={fieldId} // Use stable fieldId
-                  value={option}
-                  checked={value === option}
-                  onChange={(e) => handleInputChange(fieldId, e.target.value)}
-                  required={required}
-                  className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
-                />
-                <span className="text-white">{option}</span>
-              </label>
-            ))}
-          </div>
-        );
-
-      case 'checkbox':
-        return (
-          <div className="space-y-2">
-            {options?.map((option, idx) => (
-              <label key={idx} className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  value={option}
-                  checked={(value || []).includes(option)}
-                  onChange={(e) => handleInputChange(fieldId, option, 'checkbox')}
-                  className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
-                />
-                <span className="text-white">{option}</span>
-              </label>
-            ))}
-          </div>
-        );
-
-      case 'file':
-      case 'image':
-        return (
-          <div className="space-y-2">
-            <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center">
-              <input
-                type="file"
-                accept={type === 'image' ? 'image/*' : '*'}
-                onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    // Validate file size (10MB limit)
-                    const maxSize = 10 * 1024 * 1024; // 10MB
-                    if (file.size > maxSize) {
-                      setError('File size must be less than 10MB');
-                      e.target.value = ''; // Clear the input
-                      return;
-                    }
-                    
-                    // Validate file type for images
-                    if (type === 'image' && !file.type.startsWith('image/')) {
-                      setError('Please select a valid image file');
-                      e.target.value = ''; // Clear the input
-                      return;
-                    }
-                    
-                    handleFileUpload(file, fieldId);
-                  }
-                }}
-                className="hidden"
-                id={`file-${fieldId}`} // Use stable fieldId
-                disabled={isUploading}
-              />
-              <label
-                htmlFor={`file-${fieldId}`} // Use stable fieldId
-                className={`cursor-pointer flex flex-col items-center gap-2 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isUploading ? (
-                  <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
-                ) : (
-                  <Upload className="w-6 h-6 text-gray-400" />
-                )}
-                <span className="text-sm text-gray-400">
-                  {isUploading ? 'Validating...' : `Click to upload ${type}`}
-                </span>
-                <span className="text-xs text-gray-500">
-                  Max size: 10MB {type === 'image' ? '• Images only' : ''}
-                </span>
-              </label>
-            </div>
-            {value && value.uploaded && (
-              <div className="text-sm text-green-400 flex items-center gap-2">
-                <span>✅ File selected: {value.fileName}</span>
-              </div>
-            )}
-          </div>
-        );
-
-      default:
-        return null;
-    }
+  // Helper function for handling input changes (for single-step forms)
+  const handleInputChange = (fieldId, value) => {
+    setFormData(prev => ({ ...prev, [fieldId]: value }));
   };
 
   if (loading || authLoading) {
@@ -863,27 +980,92 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
               </div>
             )}
 
-            {/* Form Fields - Organized in a grid for better layout */}
-            <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4">
-              <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Registration Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                {fest.registration.formSchema.map((field) => {
-                  const fieldId = generateFieldId(field);
-                  const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                     field.type === 'checkbox' || field.type === 'radio';
-                  
-                  return (
-                    <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                      <label className="block text-sm font-medium text-white mb-1.5">
-                        {field.label}
-                        {field.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      {renderField(field)}
+            {/* ✅ NEW: Multi-Step Progress Indicator */}
+            {isMultiStepForm() && (
+              <div className="bg-[#1B1C1E] rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white">Progress</h3>
+                  <span className="text-xs text-gray-400">Step {currentStep} of {getTotalSteps()}</span>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-700 rounded-full h-2 mb-3">
+                  <div 
+                    className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(currentStep / getTotalSteps()) * 100}%` }}
+                  ></div>
+                </div>
+                
+                {/* Step Indicators */}
+                <div className="flex justify-between">
+                  {fest.registration.steps.map((step, index) => (
+                    <div key={step.stepNumber} className="flex flex-col items-center">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                        step.stepNumber === currentStep 
+                          ? 'bg-[#0ECCEE] text-black' 
+                          : completedSteps.has(step.stepNumber)
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-600 text-gray-300'
+                      }`}>
+                        {completedSteps.has(step.stepNumber) ? '✓' : step.stepNumber}
+                      </div>
+                      <span className="text-xs text-gray-400 mt-1 text-center max-w-16 truncate">
+                        {step.stepTitle}
+                      </span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* ✅ NEW: Current Step Title and Description */}
+            {isMultiStepForm() && (
+              <div className="bg-[#1B1C1E] rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepTitle}
+                </h3>
+                {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription && (
+                  <p className="text-sm text-gray-400 mb-4">
+                    {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription}
+                  </p>
+                )}
+                
+                {/* Current Step Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                  {getCurrentStepFields().map((field) => {
+                    const fieldId = generateFieldId(field);
+                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                       field.type === 'checkbox' || field.type === 'radio';
+                    
+                    return (
+                      <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                        {renderFormField(field, fieldId, getCurrentStepData(), handleStepFieldChange)}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ✅ EXISTING: Single Step Form Fields */}
+            {!isMultiStepForm() && (
+              <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4">
+                <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Registration Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                  {fest.registration.formSchema.map((field) => {
+                    const fieldId = generateFieldId(field);
+                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                       field.type === 'checkbox' || field.type === 'radio';
+                    
+                    return (
+                      <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                        {renderFormField(field, fieldId, formData, (fieldId, value) => setFormData(prev => ({ ...prev, [fieldId]: value })))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Payment QR Code Display - Compact and organized */}
             {fest.registration.paymentQR && (
@@ -910,15 +1092,19 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
               </div>
             )}
 
+            {/* ✅ NEW: Multi-Step Form Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6">
+              {/* Back Button */}
               <button
                 type="button"
-                onClick={() => navigate(-1)}
+                onClick={isMultiStepForm() && currentStep > 1 ? handleStepBack : () => navigate(-1)}
                 className="px-4 sm:px-6 py-2.5 rounded-lg border border-gray-700 text-white hover:bg-gray-800 transition-colors text-sm sm:text-base"
                 disabled={submitting}
               >
-                Cancel
+                {isMultiStepForm() && currentStep > 1 ? 'Previous Step' : 'Cancel'}
               </button>
+              
+              {/* Next/Submit Button */}
               <button
                 type="submit"
                 disabled={submitting}
@@ -930,6 +1116,8 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
                     <span className="hidden sm:inline">{submissionProgress || 'Submitting...'}</span>
                     <span className="sm:hidden">Submitting...</span>
                   </>
+                ) : isMultiStepForm() && currentStep < getTotalSteps() ? (
+                  'Next Step'
                 ) : (
                   'Submit Registration'
                 )}

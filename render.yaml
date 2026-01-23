@@ -18,7 +18,7 @@ services:
     publishPath: frontend/dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://crwdctrl-mvp.onrender.com/api
+        value: https://crwdctrl-production.up.railway.app/api
       - key: VITE_APP_ENVIRONMENT
         value: production
     rootDir: ./
