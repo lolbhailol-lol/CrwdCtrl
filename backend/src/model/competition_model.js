@@ -123,6 +123,11 @@ const competitionSchema = new mongoose.Schema(
         return this.registrationType === 'custom' && this.registration?.status === 'external_link';
       }
     },
+    formType: {
+      type: String,
+      enum: ['SINGLE_STEP', 'MULTI_STEP'],
+      default: 'SINGLE_STEP'
+    },
     formSchema: [{
       id: String,
       type: {
@@ -130,6 +135,7 @@ const competitionSchema = new mongoose.Schema(
         enum: ['text', 'email', 'tel', 'textarea', 'select', 'radio', 'checkbox', 'file', 'date', 'time', 'number']
       },
       label: String,
+      fieldName: String,
       placeholder: String,
       required: Boolean,
       options: [String], // For select, radio, checkbox
@@ -139,6 +145,29 @@ const competitionSchema = new mongoose.Schema(
         pattern: String,
         message: String
       }
+    }],
+    steps: [{
+      stepNumber: Number,
+      stepTitle: String,
+      stepDescription: String,
+      fields: [{
+        id: String,
+        type: {
+          type: String,
+          enum: ['text', 'email', 'tel', 'textarea', 'select', 'radio', 'checkbox', 'file', 'date', 'time', 'number']
+        },
+        label: String,
+        fieldName: String,
+        placeholder: String,
+        required: Boolean,
+        options: [String], // For select, radio, checkbox
+        validation: {
+          min: Number,
+          max: Number,
+          pattern: String,
+          message: String
+        }
+      }]
     }],
     googleSheetsUrl: {
       type: String,

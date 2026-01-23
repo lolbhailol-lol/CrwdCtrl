@@ -92,8 +92,16 @@ const festOrganizerSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    // ✅ NEW: Form type configuration
+    formType: {
+      type: String,
+      enum: ['SINGLE_STEP', 'MULTI_STEP'],
+      default: 'SINGLE_STEP'
+    },
+    // ✅ EXISTING: Single step form schema (backward compatible)
     formSchema: [
       {
+        id: String, // Unique field ID
         label: String,
         fieldName: String,
         type: {
@@ -114,6 +122,50 @@ const festOrganizerSchema = new mongoose.Schema(
         required: Boolean,
         options: [String], // for select, radio, checkbox
         placeholder: String
+      }
+    ],
+    // ✅ NEW: Multi-step form configuration
+    steps: [
+      {
+        stepNumber: {
+          type: Number,
+          required: true
+        },
+        stepTitle: {
+          type: String,
+          required: true,
+          trim: true
+        },
+        stepDescription: {
+          type: String,
+          trim: true,
+          default: ''
+        },
+        fields: [
+          {
+            id: String, // Unique field ID
+            label: String,
+            fieldName: String,
+            type: {
+              type: String,
+              enum: [
+                'text',
+                'email',
+                'number',
+                'textarea',
+                'select',
+                'radio',
+                'checkbox',
+                'date',
+                'file',
+                'image'
+              ]
+            },
+            required: Boolean,
+            options: [String], // for select, radio, checkbox
+            placeholder: String
+          }
+        ]
       }
     ]
   },

@@ -4,6 +4,224 @@ import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } fro
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
+// Individual Form Field Component to prevent state sharing
+const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
+  const handleInputChange = (fieldName, value) => {
+    onUpdate(index, fieldName, value);
+  };
+
+  return (
+    <div className="bg-[#2A2B2D] p-4 rounded-lg space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium">Field {index + 1}</span>
+        <button
+          type="button"
+          onClick={() => onRemove(index)}
+          className="text-red-400 hover:text-red-300"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input
+          type="text"
+          placeholder="Field Label"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.label || ''}
+          onChange={(e) => handleInputChange('label', e.target.value)}
+        />
+        <input
+          type="text"
+          placeholder="Field Name (no spaces)"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.fieldName || ''}
+          onChange={(e) => handleInputChange('fieldName', e.target.value.replace(/\s+/g, '_').toLowerCase())}
+        />
+        <select
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.type || 'text'}
+          onChange={(e) => handleInputChange('type', e.target.value)}
+        >
+          <option value="text">Text</option>
+          <option value="email">Email</option>
+          <option value="tel">Phone Number</option>
+          <option value="number">Number</option>
+          <option value="textarea">Textarea</option>
+          <option value="select">Select Dropdown</option>
+          <option value="radio">Radio Buttons</option>
+          <option value="checkbox">Checkbox</option>
+          <option value="date">Date</option>
+          <option value="file">File Upload</option>
+          <option value="image">Image Upload</option>
+        </select>
+        <input
+          type="text"
+          placeholder="Placeholder text"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.placeholder || ''}
+          onChange={(e) => handleInputChange('placeholder', e.target.value)}
+        />
+      </div>
+
+      <div className="flex items-center space-x-3">
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={field.required || false}
+            onChange={(e) => handleInputChange('required', e.target.checked)}
+            className="w-4 h-4 text-[#0ECCEE] bg-[#1B1C1E] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+          />
+          <span className="text-sm">Required Field</span>
+        </label>
+      </div>
+
+      {/* Options for select, radio, checkbox */}
+      {(['select', 'radio', 'checkbox'].includes(field.type)) && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Options</label>
+            <button
+              type="button"
+              onClick={() => onAddOption(index)}
+              className="px-2 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors"
+            >
+              Add Option
+            </button>
+          </div>
+          {field.options?.map((option, optionIndex) => (
+            <div key={`${field.id}-option-${optionIndex}`} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder={`Option ${optionIndex + 1}`}
+                className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                value={option || ''}
+                onChange={(e) => onUpdateOption(index, optionIndex, e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => onRemoveOption(index, optionIndex)}
+                className="text-red-400 hover:text-red-300"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Step Field Editor Component for Multi-Step Forms
+const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
+  const handleInputChange = (fieldName, value) => {
+    onUpdate(stepIndex, fieldIndex, fieldName, value);
+  };
+
+  return (
+    <div className="bg-[#2A2B2D] p-4 rounded-lg space-y-3 ml-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium">Field {fieldIndex + 1}</span>
+        <button
+          type="button"
+          onClick={() => onRemove(stepIndex, fieldIndex)}
+          className="text-red-400 hover:text-red-300"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input
+          type="text"
+          placeholder="Field Label"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.label || ''}
+          onChange={(e) => handleInputChange('label', e.target.value)}
+        />
+        <input
+          type="text"
+          placeholder="Field Name (no spaces)"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.fieldName || ''}
+          onChange={(e) => handleInputChange('fieldName', e.target.value.replace(/\s+/g, '_').toLowerCase())}
+        />
+        <select
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.type || 'text'}
+          onChange={(e) => handleInputChange('type', e.target.value)}
+        >
+          <option value="text">Text</option>
+          <option value="email">Email</option>
+          <option value="tel">Phone Number</option>
+          <option value="number">Number</option>
+          <option value="textarea">Textarea</option>
+          <option value="select">Select Dropdown</option>
+          <option value="radio">Radio Buttons</option>
+          <option value="checkbox">Checkbox</option>
+          <option value="date">Date</option>
+          <option value="file">File Upload</option>
+          <option value="image">Image Upload</option>
+        </select>
+        <input
+          type="text"
+          placeholder="Placeholder text"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.placeholder || ''}
+          onChange={(e) => handleInputChange('placeholder', e.target.value)}
+        />
+      </div>
+
+      <div className="flex items-center space-x-3">
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={field.required || false}
+            onChange={(e) => handleInputChange('required', e.target.checked)}
+            className="w-4 h-4 text-[#0ECCEE] bg-[#1B1C1E] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+          />
+          <span className="text-sm">Required Field</span>
+        </label>
+      </div>
+
+      {/* Options for select, radio, checkbox */}
+      {(['select', 'radio', 'checkbox'].includes(field.type)) && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Options</label>
+            <button
+              type="button"
+              onClick={() => onAddOption(stepIndex, fieldIndex)}
+              className="px-2 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors"
+            >
+              Add Option
+            </button>
+          </div>
+          {field.options?.map((option, optionIndex) => (
+            <div key={`${field.id}-option-${optionIndex}`} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder={`Option ${optionIndex + 1}`}
+                className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                value={option || ''}
+                onChange={(e) => onUpdateOption(stepIndex, fieldIndex, optionIndex, e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => onRemoveOption(stepIndex, fieldIndex, optionIndex)}
+                className="text-red-400 hover:text-red-300"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function CompetitionModal({ fest, onClose }) {
   const [competitions, setCompetitions] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -185,7 +403,9 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       status: 'not_started', // 'not_started', 'external_link', 'internal_form', 'registration_closed'
       externalUrl: '',
       googleSheetsUrl: '',
-      formSchema: [],
+      formType: 'SINGLE_STEP', // SINGLE_STEP | MULTI_STEP
+      formSchema: [], // For single step forms
+      steps: [], // For multi-step forms
       qrCode: '',
       qrCodeMessage: '',
       confirmationEmail: '',
@@ -261,7 +481,20 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
             status: competition.registration?.status || 'not_started',
             externalUrl: competition.registration?.externalUrl || '',
             googleSheetsUrl: competition.registration?.googleSheetsUrl || '',
-            formSchema: Array.isArray(competition.registration?.formSchema) ? competition.registration.formSchema : [],
+            formType: competition.registration?.formType || 'SINGLE_STEP',
+            formSchema: Array.isArray(competition.registration?.formSchema) ? competition.registration.formSchema.map(field => ({
+              ...field,
+              id: field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
+            })) : [],
+            steps: competition.registration?.steps?.map(step => ({
+              ...step,
+              fields: (step.fields || []).map(field => ({
+                ...field,
+                id: field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
+              }))
+            })) || [],
             qrCode: competition.registration?.qrCode || '',
             qrCodeMessage: competition.registration?.qrCodeMessage || '',
             confirmationEmail: competition.registration?.confirmationEmail || '',
@@ -515,6 +748,378 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
     }
   };
 
+  // ✅ NEW: Multi-step form management functions
+  const addFormField = () => {
+    const uuid = crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newField = {
+      id: uuid,
+      label: '',
+      fieldName: `field_${uuid.slice(0, 8)}`,
+      type: 'text',
+      required: false,
+      options: [],
+      placeholder: ''
+    };
+    
+    if (form.registration.formType === 'SINGLE_STEP') {
+      setForm(prevForm => ({
+        ...prevForm,
+        registration: {
+          ...prevForm.registration,
+          formSchema: [...(prevForm.registration.formSchema || []), newField]
+        }
+      }));
+    }
+  };
+
+  const addStep = () => {
+    const newStep = {
+      stepNumber: (form.registration.steps || []).length + 1,
+      stepTitle: `Step ${(form.registration.steps || []).length + 1}`,
+      stepDescription: '',
+      fields: []
+    };
+    
+    setForm(prevForm => ({
+      ...prevForm,
+      registration: {
+        ...prevForm.registration,
+        steps: [...(prevForm.registration.steps || []), newStep]
+      }
+    }));
+  };
+
+  const updateStep = (stepIndex, fieldName, value) => {
+    setForm(prevForm => {
+      const newSteps = (prevForm.registration.steps || []).map((step, i) => {
+        if (i === stepIndex) {
+          return { ...step, [fieldName]: value };
+        }
+        return step;
+      });
+      return { 
+        ...prevForm, 
+        registration: {
+          ...prevForm.registration,
+          steps: newSteps
+        }
+      };
+    });
+  };
+
+  const removeStep = (stepIndex) => {
+    setForm(prevForm => ({
+      ...prevForm,
+      registration: {
+        ...prevForm.registration,
+        steps: (prevForm.registration.steps || []).filter((_, i) => i !== stepIndex).map((step, i) => ({
+          ...step,
+          stepNumber: i + 1
+        }))
+      }
+    }));
+  };
+
+  const addFieldToStep = (stepIndex) => {
+    const uuid = crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newField = {
+      id: uuid,
+      label: '',
+      fieldName: `field_${uuid.slice(0, 8)}`,
+      type: 'text',
+      required: false,
+      options: [],
+      placeholder: ''
+    };
+
+    setForm(prevForm => {
+      const newSteps = (prevForm.registration.steps || []).map((step, i) => {
+        if (i === stepIndex) {
+          return { ...step, fields: [...(step.fields || []), newField] };
+        }
+        return step;
+      });
+      return { 
+        ...prevForm, 
+        registration: {
+          ...prevForm.registration,
+          steps: newSteps
+        }
+      };
+    });
+  };
+
+  const updateStepField = (stepIndex, fieldIndex, fieldName, value) => {
+    setForm(prevForm => {
+      const newSteps = (prevForm.registration.steps || []).map((step, i) => {
+        if (i === stepIndex) {
+          const newFields = (step.fields || []).map((field, j) => {
+            if (j === fieldIndex) {
+              const updatedField = { ...field, [fieldName]: value };
+              
+              // Ensure fieldName is never empty
+              if (fieldName === 'fieldName' && (!value || value.trim() === '')) {
+                updatedField.fieldName = `field_${field.id.slice(0, 8)}`;
+              }
+              
+              return updatedField;
+            }
+            return field;
+          });
+          return { ...step, fields: newFields };
+        }
+        return step;
+      });
+      return { 
+        ...prevForm, 
+        registration: {
+          ...prevForm.registration,
+          steps: newSteps
+        }
+      };
+    });
+  };
+
+  const removeFieldFromStep = (stepIndex, fieldIndex) => {
+    setForm(prevForm => {
+      const newSteps = (prevForm.registration.steps || []).map((step, i) => {
+        if (i === stepIndex) {
+          return { ...step, fields: (step.fields || []).filter((_, j) => j !== fieldIndex) };
+        }
+        return step;
+      });
+      return { 
+        ...prevForm, 
+        registration: {
+          ...prevForm.registration,
+          steps: newSteps
+        }
+      };
+    });
+  };
+
+  const addStepFieldOption = (stepIndex, fieldIndex) => {
+    setForm(prevForm => {
+      const newSteps = (prevForm.registration.steps || []).map((step, i) => {
+        if (i === stepIndex) {
+          const newFields = (step.fields || []).map((field, j) => {
+            if (j === fieldIndex) {
+              return {
+                ...field,
+                options: [...(field.options || []), '']
+              };
+            }
+            return field;
+          });
+          return { ...step, fields: newFields };
+        }
+        return step;
+      });
+      return { 
+        ...prevForm, 
+        registration: {
+          ...prevForm.registration,
+          steps: newSteps
+        }
+      };
+    });
+  };
+
+  const updateStepFieldOption = (stepIndex, fieldIndex, optionIndex, value) => {
+    setForm(prevForm => {
+      const newSteps = (prevForm.registration.steps || []).map((step, i) => {
+        if (i === stepIndex) {
+          const newFields = (step.fields || []).map((field, j) => {
+            if (j === fieldIndex) {
+              const newOptions = [...(field.options || [])];
+              newOptions[optionIndex] = value;
+              return { ...field, options: newOptions };
+            }
+            return field;
+          });
+          return { ...step, fields: newFields };
+        }
+        return step;
+      });
+      return { 
+        ...prevForm, 
+        registration: {
+          ...prevForm.registration,
+          steps: newSteps
+        }
+      };
+    });
+  };
+
+  const removeStepFieldOption = (stepIndex, fieldIndex, optionIndex) => {
+    setForm(prevForm => {
+      const newSteps = (prevForm.registration.steps || []).map((step, i) => {
+        if (i === stepIndex) {
+          const newFields = (step.fields || []).map((field, j) => {
+            if (j === fieldIndex) {
+              return {
+                ...field,
+                options: (field.options || []).filter((_, k) => k !== optionIndex)
+              };
+            }
+            return field;
+          });
+          return { ...step, fields: newFields };
+        }
+        return step;
+      });
+      return { 
+        ...prevForm, 
+        registration: {
+          ...prevForm.registration,
+          steps: newSteps
+        }
+      };
+    });
+  };
+
+  // Handle form type change
+  const handleFormTypeChange = (newFormType) => {
+    setForm(prevForm => {
+      if (newFormType === 'MULTI_STEP' && prevForm.registration.formType === 'SINGLE_STEP') {
+        // Convert single step to multi-step
+        const firstStep = {
+          stepNumber: 1,
+          stepTitle: 'Step 1',
+          stepDescription: '',
+          fields: prevForm.registration.formSchema || []
+        };
+        return {
+          ...prevForm,
+          registration: {
+            ...prevForm.registration,
+            formType: newFormType,
+            steps: [firstStep]
+          }
+        };
+      } else if (newFormType === 'SINGLE_STEP' && prevForm.registration.formType === 'MULTI_STEP') {
+        // Convert multi-step to single step (flatten all fields)
+        const allFields = (prevForm.registration.steps || []).reduce((acc, step) => [...acc, ...(step.fields || [])], []);
+        return {
+          ...prevForm,
+          registration: {
+            ...prevForm.registration,
+            formType: newFormType,
+            formSchema: allFields,
+            steps: []
+          }
+        };
+      }
+      return { 
+        ...prevForm, 
+        registration: {
+          ...prevForm.registration,
+          formType: newFormType
+        }
+      };
+    });
+  };
+
+  const updateFormField = (index, fieldName, value) => {
+    setForm(prevForm => {
+      const newFormSchema = (prevForm.registration.formSchema || []).map((field, i) => {
+        if (i === index) {
+          const updatedField = {
+            ...field,
+            [fieldName]: value
+          };
+          
+          // Ensure fieldName is never empty - auto-generate if needed
+          if (fieldName === 'fieldName' && (!value || value.trim() === '')) {
+            updatedField.fieldName = `field_${field.id.slice(0, 8)}`;
+          }
+          
+          return updatedField;
+        }
+        return field;
+      });
+      
+      return {
+        ...prevForm,
+        registration: {
+          ...prevForm.registration,
+          formSchema: newFormSchema
+        }
+      };
+    });
+  };
+
+  const removeFormField = (index) => {
+    setForm(prevForm => ({
+      ...prevForm,
+      registration: {
+        ...prevForm.registration,
+        formSchema: (prevForm.registration.formSchema || []).filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const addFieldOption = (fieldIndex) => {
+    setForm(prevForm => {
+      const newFormSchema = [...(prevForm.registration.formSchema || [])];
+      if (!newFormSchema[fieldIndex].options) {
+        newFormSchema[fieldIndex].options = [];
+      }
+      newFormSchema[fieldIndex] = {
+        ...newFormSchema[fieldIndex],
+        options: [...newFormSchema[fieldIndex].options, '']
+      };
+      return {
+        ...prevForm,
+        registration: {
+          ...prevForm.registration,
+          formSchema: newFormSchema
+        }
+      };
+    });
+  };
+
+  const updateFieldOption = (fieldIndex, optionIndex, value) => {
+    setForm(prevForm => {
+      const newFormSchema = [...(prevForm.registration.formSchema || [])];
+      if (!newFormSchema[fieldIndex].options) {
+        newFormSchema[fieldIndex].options = [];
+      }
+      const newOptions = [...newFormSchema[fieldIndex].options];
+      newOptions[optionIndex] = value;
+      newFormSchema[fieldIndex] = {
+        ...newFormSchema[fieldIndex],
+        options: newOptions
+      };
+      return {
+        ...prevForm,
+        registration: {
+          ...prevForm.registration,
+          formSchema: newFormSchema
+        }
+      };
+    });
+  };
+
+  const removeFieldOption = (fieldIndex, optionIndex) => {
+    setForm(prevForm => {
+      const newFormSchema = [...(prevForm.registration.formSchema || [])];
+      if (newFormSchema[fieldIndex].options) {
+        newFormSchema[fieldIndex] = {
+          ...newFormSchema[fieldIndex],
+          options: newFormSchema[fieldIndex].options.filter((_, i) => i !== optionIndex)
+        };
+      }
+      return {
+        ...prevForm,
+        registration: {
+          ...prevForm.registration,
+          formSchema: newFormSchema
+        }
+      };
+    });
+  };
+
   const submit = async () => {
     setError('');
     setLoading(true);
@@ -549,19 +1154,54 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
             return;
           }
           
-          if (!form.registration.formSchema || form.registration.formSchema.length === 0) {
-            setError('Please add at least one form field for internal form');
-            setLoading(false);
-            return;
-          }
-          
-          // Validate form fields
-          for (let i = 0; i < form.registration.formSchema.length; i++) {
-            const field = form.registration.formSchema[i];
-            if (!field.label || !field.type) {
-              setError(`Please complete field ${i + 1} (label and type are required)`);
+          // Validate form fields based on form type
+          if (form.registration.formType === 'SINGLE_STEP') {
+            if (!form.registration.formSchema || form.registration.formSchema.length === 0) {
+              setError('Please add at least one form field for internal form');
               setLoading(false);
               return;
+            }
+            
+            // Validate form fields
+            for (let i = 0; i < form.registration.formSchema.length; i++) {
+              const field = form.registration.formSchema[i];
+              if (!field.label || !field.type) {
+                setError(`Please complete field ${i + 1} (label and type are required)`);
+                setLoading(false);
+                return;
+              }
+            }
+          } else if (form.registration.formType === 'MULTI_STEP') {
+            if (!form.registration.steps || form.registration.steps.length === 0) {
+              setError('Please add at least one step for multi-step form');
+              setLoading(false);
+              return;
+            }
+            
+            // Validate each step
+            for (let stepIndex = 0; stepIndex < form.registration.steps.length; stepIndex++) {
+              const step = form.registration.steps[stepIndex];
+              if (!step.stepTitle) {
+                setError(`Please provide a title for step ${stepIndex + 1}`);
+                setLoading(false);
+                return;
+              }
+              
+              if (!step.fields || step.fields.length === 0) {
+                setError(`Please add at least one field to step ${stepIndex + 1}`);
+                setLoading(false);
+                return;
+              }
+              
+              // Validate fields in this step
+              for (let fieldIndex = 0; fieldIndex < step.fields.length; fieldIndex++) {
+                const field = step.fields[fieldIndex];
+                if (!field.label || !field.type) {
+                  setError(`Please complete field ${fieldIndex + 1} in step ${stepIndex + 1} (label and type are required)`);
+                  setLoading(false);
+                  return;
+                }
+              }
             }
           }
         }
@@ -1009,231 +1649,186 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                         </p>
                       </div>
 
-                      {/* Form Schema Builder */}
+                      {/* Form Type Selection */}
                       <div>
-                        <label className="block text-sm font-medium mb-2">Registration Form Fields</label>
-                        <div className="bg-[#1B1C1E] rounded-lg p-4 border border-gray-700">
-                          <p className="text-sm text-gray-400 mb-3">
-                            Configure the fields that users will fill during registration
-                          </p>
-                          
-                          {/* Add Field Button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newField = {
-                                id: `field_${Date.now()}`,
-                                type: 'text',
-                                label: '',
-                                placeholder: '',
-                                required: false,
-                                options: []
-                              };
-                              setForm({
-                                ...form,
-                                registration: {
-                                  ...form.registration,
-                                  formSchema: [...(form.registration?.formSchema || []), newField]
-                                }
-                              });
-                            }}
-                            className="mb-4 px-3 py-2 bg-[#0ECCEE] text-black rounded-lg text-sm font-medium hover:bg-[#0ECCEE]/80 transition-colors flex items-center gap-2"
-                          >
-                            <Plus size={16} />
-                            Add Field
-                          </button>
+                        <label className="block text-sm font-medium mb-3">Form Type</label>
+                        <div className="flex gap-4">
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="formType"
+                              value="SINGLE_STEP"
+                              checked={form.registration?.formType === 'SINGLE_STEP'}
+                              onChange={(e) => handleFormTypeChange(e.target.value)}
+                              className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                            />
+                            <span className="text-sm">Single Step Form</span>
+                          </label>
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="formType"
+                              value="MULTI_STEP"
+                              checked={form.registration?.formType === 'MULTI_STEP'}
+                              onChange={(e) => handleFormTypeChange(e.target.value)}
+                              className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                            />
+                            <span className="text-sm">Multi-Step Form</span>
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">
+                          {form.registration?.formType === 'SINGLE_STEP' 
+                            ? 'All form fields will be displayed on a single page'
+                            : 'Form will be split into multiple steps for better user experience'
+                          }
+                        </p>
+                      </div>
 
-                          {/* Form Fields */}
-                          <div className="space-y-3">
-                            {(form.registration?.formSchema || []).map((field, index) => (
-                              <div key={field.id} className="bg-[#2A2B2D] rounded-lg p-3 border border-gray-700">
-                                <div className="flex items-center justify-between mb-3">
-                                  <span className="text-sm font-medium">Field {index + 1}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const updatedFields = form.registration.formSchema.filter((_, i) => i !== index);
-                                      setForm({
-                                        ...form,
-                                        registration: {
-                                          ...form.registration,
-                                          formSchema: updatedFields
-                                        }
-                                      });
-                                    }}
-                                    className="text-red-400 hover:text-red-300"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                                
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-xs font-medium mb-1">Field Type</label>
-                                    <select
-                                      className="w-full px-2 py-1 rounded bg-[#1B1C1E] border border-gray-700 text-sm"
-                                      value={field.type}
-                                      onChange={(e) => {
-                                        const updatedFields = [...form.registration.formSchema];
-                                        updatedFields[index] = { ...field, type: e.target.value };
-                                        setForm({
-                                          ...form,
-                                          registration: {
-                                            ...form.registration,
-                                            formSchema: updatedFields
-                                          }
-                                        });
-                                      }}
-                                    >
-                                      <option value="text">Text</option>
-                                      <option value="email">Email</option>
-                                      <option value="tel">Phone</option>
-                                      <option value="textarea">Textarea</option>
-                                      <option value="select">Select</option>
-                                      <option value="radio">Radio</option>
-                                      <option value="checkbox">Checkbox</option>
-                                      <option value="file">File</option>
-                                      <option value="date">Date</option>
-                                      <option value="number">Number</option>
-                                    </select>
-                                  </div>
-                                  
-                                  <div>
-                                    <label className="block text-xs font-medium mb-1">Label</label>
-                                    <input
-                                      type="text"
-                                      placeholder="Field label"
-                                      className="w-full px-2 py-1 rounded bg-[#1B1C1E] border border-gray-700 text-sm"
-                                      value={field.label}
-                                      onChange={(e) => {
-                                        const updatedFields = [...form.registration.formSchema];
-                                        updatedFields[index] = { ...field, label: e.target.value };
-                                        setForm({
-                                          ...form,
-                                          registration: {
-                                            ...form.registration,
-                                            formSchema: updatedFields
-                                          }
-                                        });
-                                      }}
-                                    />
-                                  </div>
-                                  
-                                  <div>
-                                    <label className="block text-xs font-medium mb-1">Placeholder</label>
-                                    <input
-                                      type="text"
-                                      placeholder="Placeholder text"
-                                      className="w-full px-2 py-1 rounded bg-[#1B1C1E] border border-gray-700 text-sm"
-                                      value={field.placeholder}
-                                      onChange={(e) => {
-                                        const updatedFields = [...form.registration.formSchema];
-                                        updatedFields[index] = { ...field, placeholder: e.target.value };
-                                        setForm({
-                                          ...form,
-                                          registration: {
-                                            ...form.registration,
-                                            formSchema: updatedFields
-                                          }
-                                        });
-                                      }}
-                                    />
-                                  </div>
-                                  
-                                  <div className="flex items-center">
-                                    <input
-                                      type="checkbox"
-                                      checked={field.required}
-                                      onChange={(e) => {
-                                        const updatedFields = [...form.registration.formSchema];
-                                        updatedFields[index] = { ...field, required: e.target.checked };
-                                        setForm({
-                                          ...form,
-                                          registration: {
-                                            ...form.registration,
-                                            formSchema: updatedFields
-                                          }
-                                        });
-                                      }}
-                                      className="w-4 h-4 text-[#0ECCEE] bg-[#1B1C1E] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
-                                    />
-                                    <label className="ml-2 text-xs">Required</label>
-                                  </div>
-                                </div>
+                      {/* Single Step Form Fields */}
+                      {form.registration?.formType === 'SINGLE_STEP' && (
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Registration Form Fields</label>
+                          <div className="bg-[#1B1C1E] rounded-lg p-4 border border-gray-700">
+                            <div className="flex items-center justify-between mb-4">
+                              <p className="text-sm text-gray-400">
+                                Configure the fields that users will fill during registration
+                              </p>
+                              <button
+                                type="button"
+                                onClick={addFormField}
+                                className="px-3 py-1 bg-[#0ECCEE] text-black rounded-lg text-sm font-medium hover:bg-[#0ECCEE]/80 transition-colors flex items-center gap-2"
+                              >
+                                <Plus size={16} />
+                                Add Field
+                              </button>
+                            </div>
 
-                                {/* Options field for select, radio, checkbox */}
-                                {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') && (
-                                  <div className="mt-3">
-                                    <label className="block text-xs font-medium mb-2">Options</label>
-                                    <div className="space-y-2">
-                                      {(field.options || []).map((option, optionIndex) => (
-                                        <div key={optionIndex} className="flex items-center gap-2">
-                                          <input
-                                            type="text"
-                                            placeholder={`Option ${optionIndex + 1}`}
-                                            className="flex-1 px-2 py-1 rounded bg-[#1B1C1E] border border-gray-700 text-sm"
-                                            value={option}
-                                            onChange={(e) => {
-                                              const updatedFields = [...form.registration.formSchema];
-                                              const updatedOptions = [...(field.options || [])];
-                                              updatedOptions[optionIndex] = e.target.value;
-                                              updatedFields[index] = { ...field, options: updatedOptions };
-                                              setForm({
-                                                ...form,
-                                                registration: {
-                                                  ...form.registration,
-                                                  formSchema: updatedFields
-                                                }
-                                              });
-                                            }}
-                                          />
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const updatedFields = [...form.registration.formSchema];
-                                              const updatedOptions = (field.options || []).filter((_, i) => i !== optionIndex);
-                                              updatedFields[index] = { ...field, options: updatedOptions };
-                                              setForm({
-                                                ...form,
-                                                registration: {
-                                                  ...form.registration,
-                                                  formSchema: updatedFields
-                                                }
-                                              });
-                                            }}
-                                            className="text-red-400 hover:text-red-300 text-sm"
-                                          >
-                                            Remove
-                                          </button>
-                                        </div>
-                                      ))}
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updatedFields = [...form.registration.formSchema];
-                                          const updatedOptions = [...(field.options || []), ''];
-                                          updatedFields[index] = { ...field, options: updatedOptions };
-                                          setForm({
-                                            ...form,
-                                            registration: {
-                                              ...form.registration,
-                                              formSchema: updatedFields
-                                            }
-                                          });
-                                        }}
-                                        className="text-[#0ECCEE] hover:text-[#0ECCEE]/80 text-sm flex items-center gap-1"
-                                      >
-                                        <Plus size={14} />
-                                        Add Option
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                            <div className="space-y-3">
+                              {(form.registration?.formSchema || []).map((field, index) => (
+                                <FormFieldEditor
+                                  key={field.id || `field-${index}`}
+                                  field={field}
+                                  index={index}
+                                  onUpdate={updateFormField}
+                                  onRemove={removeFormField}
+                                  onAddOption={addFieldOption}
+                                  onUpdateOption={updateFieldOption}
+                                  onRemoveOption={removeFieldOption}
+                                />
+                              ))}
+
+                              {(form.registration?.formSchema || []).length === 0 && (
+                                <div className="text-center py-6 text-gray-400">
+                                  <p>No form fields added yet. Click "Add Field" to create your registration form.</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
+
+                      {/* Multi-Step Form Configuration */}
+                      {form.registration?.formType === 'MULTI_STEP' && (
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <label className="block text-sm font-medium">Multi-Step Form Configuration</label>
+                            <button
+                              type="button"
+                              onClick={addStep}
+                              className="px-3 py-1 bg-[#0ECCEE] text-black rounded-lg text-sm font-medium hover:bg-[#0ECCEE]/80 transition-colors flex items-center gap-2"
+                            >
+                              <Plus size={16} />
+                              Add Step
+                            </button>
+                          </div>
+
+                          <div className="bg-[#1B1C1E] rounded-lg p-4 border border-gray-700">
+                            <div className="space-y-4">
+                              {(form.registration?.steps || []).map((step, stepIndex) => (
+                                <div key={`step-${stepIndex}`} className="bg-[#2A2B2D] p-4 rounded-lg border border-gray-700">
+                                  {/* Step Header */}
+                                  <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-[#0ECCEE] text-black rounded-full flex items-center justify-center text-sm font-bold">
+                                        {step.stepNumber}
+                                      </div>
+                                      <div className="flex-1">
+                                        <input
+                                          type="text"
+                                          placeholder="Step Title"
+                                          className="text-lg font-medium bg-transparent border-none focus:outline-none focus:ring-0 text-white placeholder-gray-400 p-0"
+                                          value={step.stepTitle}
+                                          onChange={(e) => updateStep(stepIndex, 'stepTitle', e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeStep(stepIndex)}
+                                      className="text-red-400 hover:text-red-300"
+                                      title="Delete Step"
+                                    >
+                                      <Trash2 size={18} />
+                                    </button>
+                                  </div>
+
+                                  {/* Step Description */}
+                                  <div className="mb-4">
+                                    <input
+                                      type="text"
+                                      placeholder="Step description (optional)"
+                                      className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                                      value={step.stepDescription}
+                                      onChange={(e) => updateStep(stepIndex, 'stepDescription', e.target.value)}
+                                    />
+                                  </div>
+
+                                  {/* Step Fields */}
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <h6 className="text-sm font-medium text-gray-300">Fields in this step</h6>
+                                      <button
+                                        type="button"
+                                        onClick={() => addFieldToStep(stepIndex)}
+                                        className="px-2 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors flex items-center gap-1"
+                                      >
+                                        <Plus size={12} />
+                                        Add Field
+                                      </button>
+                                    </div>
+
+                                    {(step.fields || []).map((field, fieldIndex) => (
+                                      <StepFieldEditor
+                                        key={field.id || `step-${stepIndex}-field-${fieldIndex}`}
+                                        field={field}
+                                        stepIndex={stepIndex}
+                                        fieldIndex={fieldIndex}
+                                        onUpdate={updateStepField}
+                                        onRemove={removeFieldFromStep}
+                                        onAddOption={addStepFieldOption}
+                                        onUpdateOption={updateStepFieldOption}
+                                        onRemoveOption={removeStepFieldOption}
+                                      />
+                                    ))}
+
+                                    {(step.fields || []).length === 0 && (
+                                      <div className="text-center py-4 text-gray-500 bg-[#1B1C1E] rounded-lg">
+                                        <p className="text-sm">No fields in this step. Click "Add Field" to add form fields.</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+
+                              {(form.registration?.steps || []).length === 0 && (
+                                <div className="text-center py-6 text-gray-400">
+                                  <p>No steps created yet. Click "Add Step" to create your multi-step form.</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* QR Code Configuration */}
                       <div>

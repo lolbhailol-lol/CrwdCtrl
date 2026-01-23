@@ -106,7 +106,116 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                 <Trash2 size={14} />
               </button>
             </div>
-          )) || []}
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ✅ NEW: Step Field Editor Component for Multi-Step Forms
+const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
+  const handleInputChange = (fieldName, value) => {
+    onUpdate(stepIndex, fieldIndex, fieldName, value);
+  };
+
+  return (
+    <div className="bg-[#2A2B2D] p-4 rounded-lg space-y-3 ml-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium">Field {fieldIndex + 1}</span>
+        <button
+          type="button"
+          onClick={() => onRemove(stepIndex, fieldIndex)}
+          className="text-red-400 hover:text-red-300"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input
+          type="text"
+          placeholder="Field Label"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.label || ''}
+          onChange={(e) => handleInputChange('label', e.target.value)}
+        />
+        <input
+          type="text"
+          placeholder="Field Name (no spaces)"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.fieldName || ''}
+          onChange={(e) => handleInputChange('fieldName', e.target.value.replace(/\s+/g, '_').toLowerCase())}
+        />
+        <select
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.type || 'text'}
+          onChange={(e) => handleInputChange('type', e.target.value)}
+        >
+          <option value="text">Text</option>
+          <option value="email">Email</option>
+          <option value="tel">Phone Number</option>
+          <option value="number">Number</option>
+          <option value="textarea">Textarea</option>
+          <option value="select">Select Dropdown</option>
+          <option value="radio">Radio Buttons</option>
+          <option value="checkbox">Checkbox</option>
+          <option value="date">Date</option>
+          <option value="file">File Upload</option>
+          <option value="image">Image Upload</option>
+        </select>
+        <input
+          type="text"
+          placeholder="Placeholder text"
+          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          value={field.placeholder || ''}
+          onChange={(e) => handleInputChange('placeholder', e.target.value)}
+        />
+      </div>
+
+      <div className="flex items-center space-x-3">
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={field.required || false}
+            onChange={(e) => handleInputChange('required', e.target.checked)}
+            className="w-4 h-4 text-[#0ECCEE] bg-[#1B1C1E] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+          />
+          <span className="text-sm">Required Field</span>
+        </label>
+      </div>
+
+      {/* Options for select, radio, checkbox */}
+      {(['select', 'radio', 'checkbox'].includes(field.type)) && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Options</label>
+            <button
+              type="button"
+              onClick={() => onAddOption(stepIndex, fieldIndex)}
+              className="px-2 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors"
+            >
+              Add Option
+            </button>
+          </div>
+          {field.options?.map((option, optionIndex) => (
+            <div key={`${field.id}-option-${optionIndex}`} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder={`Option ${optionIndex + 1}`}
+                className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                value={option || ''}
+                onChange={(e) => onUpdateOption(stepIndex, fieldIndex, optionIndex, e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => onRemoveOption(stepIndex, fieldIndex, optionIndex)}
+                className="text-red-400 hover:text-red-300"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -138,7 +247,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     googleSheetsUrl: '',
     formInstructions: '', // Instructions to display at the start of internal form
     organizerEmail: '', // Email to send registration confirmations to
-    formSchema: [],
+    // ✅ NEW: Multi-step form configuration
+    formType: 'SINGLE_STEP', // SINGLE_STEP | MULTI_STEP
+    formSchema: [], // For single step forms (backward compatible)
+    steps: [], // For multi-step forms
     // Images
     festImages: [], // array of URLs (mapped to galleryImages/coverImage)
     coverImage: '',
@@ -173,10 +285,201 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     
     console.log('Adding new field:', newField);
     
+    if (form.formType === 'SINGLE_STEP') {
+      setForm(prevForm => ({
+        ...prevForm,
+        formSchema: [...prevForm.formSchema, newField]
+      }));
+    }
+  };
+
+  // ✅ NEW: Multi-step form management functions
+  const addStep = () => {
+    const newStep = {
+      stepNumber: form.steps.length + 1,
+      stepTitle: `Step ${form.steps.length + 1}`,
+      stepDescription: '',
+      fields: []
+    };
+    
     setForm(prevForm => ({
       ...prevForm,
-      formSchema: [...prevForm.formSchema, newField]
+      steps: [...prevForm.steps, newStep]
     }));
+  };
+
+  const updateStep = (stepIndex, fieldName, value) => {
+    setForm(prevForm => {
+      const newSteps = prevForm.steps.map((step, i) => {
+        if (i === stepIndex) {
+          return { ...step, [fieldName]: value };
+        }
+        return step;
+      });
+      return { ...prevForm, steps: newSteps };
+    });
+  };
+
+  const removeStep = (stepIndex) => {
+    setForm(prevForm => ({
+      ...prevForm,
+      steps: prevForm.steps.filter((_, i) => i !== stepIndex).map((step, i) => ({
+        ...step,
+        stepNumber: i + 1
+      }))
+    }));
+  };
+
+  const addFieldToStep = (stepIndex) => {
+    const uuid = crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newField = {
+      id: uuid,
+      label: '',
+      fieldName: `field_${uuid.slice(0, 8)}`,
+      type: 'text',
+      required: false,
+      options: [],
+      placeholder: ''
+    };
+
+    setForm(prevForm => {
+      const newSteps = prevForm.steps.map((step, i) => {
+        if (i === stepIndex) {
+          return { ...step, fields: [...step.fields, newField] };
+        }
+        return step;
+      });
+      return { ...prevForm, steps: newSteps };
+    });
+  };
+
+  const updateStepField = (stepIndex, fieldIndex, fieldName, value) => {
+    setForm(prevForm => {
+      const newSteps = prevForm.steps.map((step, i) => {
+        if (i === stepIndex) {
+          const newFields = step.fields.map((field, j) => {
+            if (j === fieldIndex) {
+              const updatedField = { ...field, [fieldName]: value };
+              
+              // Ensure fieldName is never empty
+              if (fieldName === 'fieldName' && (!value || value.trim() === '')) {
+                updatedField.fieldName = `field_${field.id.slice(0, 8)}`;
+              }
+              
+              return updatedField;
+            }
+            return field;
+          });
+          return { ...step, fields: newFields };
+        }
+        return step;
+      });
+      return { ...prevForm, steps: newSteps };
+    });
+  };
+
+  const removeFieldFromStep = (stepIndex, fieldIndex) => {
+    setForm(prevForm => {
+      const newSteps = prevForm.steps.map((step, i) => {
+        if (i === stepIndex) {
+          return { ...step, fields: step.fields.filter((_, j) => j !== fieldIndex) };
+        }
+        return step;
+      });
+      return { ...prevForm, steps: newSteps };
+    });
+  };
+
+  const addStepFieldOption = (stepIndex, fieldIndex) => {
+    setForm(prevForm => {
+      const newSteps = prevForm.steps.map((step, i) => {
+        if (i === stepIndex) {
+          const newFields = step.fields.map((field, j) => {
+            if (j === fieldIndex) {
+              return {
+                ...field,
+                options: [...(field.options || []), '']
+              };
+            }
+            return field;
+          });
+          return { ...step, fields: newFields };
+        }
+        return step;
+      });
+      return { ...prevForm, steps: newSteps };
+    });
+  };
+
+  const updateStepFieldOption = (stepIndex, fieldIndex, optionIndex, value) => {
+    setForm(prevForm => {
+      const newSteps = prevForm.steps.map((step, i) => {
+        if (i === stepIndex) {
+          const newFields = step.fields.map((field, j) => {
+            if (j === fieldIndex) {
+              const newOptions = [...(field.options || [])];
+              newOptions[optionIndex] = value;
+              return { ...field, options: newOptions };
+            }
+            return field;
+          });
+          return { ...step, fields: newFields };
+        }
+        return step;
+      });
+      return { ...prevForm, steps: newSteps };
+    });
+  };
+
+  const removeStepFieldOption = (stepIndex, fieldIndex, optionIndex) => {
+    setForm(prevForm => {
+      const newSteps = prevForm.steps.map((step, i) => {
+        if (i === stepIndex) {
+          const newFields = step.fields.map((field, j) => {
+            if (j === fieldIndex) {
+              return {
+                ...field,
+                options: (field.options || []).filter((_, k) => k !== optionIndex)
+              };
+            }
+            return field;
+          });
+          return { ...step, fields: newFields };
+        }
+        return step;
+      });
+      return { ...prevForm, steps: newSteps };
+    });
+  };
+
+  // Handle form type change
+  const handleFormTypeChange = (newFormType) => {
+    setForm(prevForm => {
+      if (newFormType === 'MULTI_STEP' && prevForm.formType === 'SINGLE_STEP') {
+        // Convert single step to multi-step
+        const firstStep = {
+          stepNumber: 1,
+          stepTitle: 'Step 1',
+          stepDescription: '',
+          fields: prevForm.formSchema || []
+        };
+        return {
+          ...prevForm,
+          formType: newFormType,
+          steps: [firstStep]
+        };
+      } else if (newFormType === 'SINGLE_STEP' && prevForm.formType === 'MULTI_STEP') {
+        // Convert multi-step to single step (flatten all fields)
+        const allFields = prevForm.steps.reduce((acc, step) => [...acc, ...step.fields], []);
+        return {
+          ...prevForm,
+          formType: newFormType,
+          formSchema: allFields,
+          steps: []
+        };
+      }
+      return { ...prevForm, formType: newFormType };
+    });
   };
 
   const updateFormField = (index, fieldName, value) => {
@@ -295,10 +598,20 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         googleSheetsUrl: fest.registration?.googleSheetsUrl || '',
         formInstructions: fest.registration?.formInstructions || '',
         organizerEmail: fest.registration?.organizerEmail || '',
+        // ✅ NEW: Multi-step form support
+        formType: fest.registration?.formType || 'SINGLE_STEP',
         formSchema: fest.registration?.formSchema?.map(field => ({
           ...field,
           id: field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Ensure each field has a unique ID
           fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}` // Ensure safe fieldName
+        })) || [],
+        steps: fest.registration?.steps?.map(step => ({
+          ...step,
+          fields: step.fields?.map(field => ({
+            ...field,
+            id: field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
+          })) || []
         })) || [],
         festImages: fest.galleryImages || fest.gallery || (fest.coverImage ? [fest.coverImage] : []),
         coverImage: fest.coverImage || fest.heroImage || '',
@@ -637,7 +950,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         googleSheetsUrl: form.googleSheetsUrl,
         formInstructions: form.formInstructions,
         organizerEmail: form.organizerEmail,
-        formSchema: form.formSchema
+        // ✅ NEW: Multi-step form support
+        formType: form.formType,
+        formSchema: form.formType === 'SINGLE_STEP' ? form.formSchema : [],
+        steps: form.formType === 'MULTI_STEP' ? form.steps : []
       },
     };
 
@@ -1341,43 +1657,187 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   </div>
                 </div>
 
-                {/* Section 3: Form Fields */}
+                {/* Section 3: Form Type Selection */}
                 <div className="bg-[#2A2B2D] p-4 rounded-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2 flex-1">Registration Form Fields</h5>
-                    <button
-                      type="button"
-                      onClick={addFormField}
-                      className="px-3 py-1 bg-[#0ECCEE] text-black rounded-lg text-sm font-medium hover:bg-[#0ECCEE]/80 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      Add Field
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {form.formSchema.map((field, index) => (
-                      <FormFieldEditor
-                        key={field.id || `field-${index}`}
-                        field={field}
-                        index={index}
-                        onUpdate={updateFormField}
-                        onRemove={removeFormField}
-                        onAddOption={addFieldOption}
-                        onUpdateOption={updateFieldOption}
-                        onRemoveOption={removeFieldOption}
-                      />
-                    ))}
-
-                    {form.formSchema.length === 0 && (
-                      <div className="text-center py-6 text-gray-400">
-                        <p>No form fields added yet. Click "Add Field" to create your registration form.</p>
+                  <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Form Configuration</h5>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-3">Form Type</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="formType"
+                            value="SINGLE_STEP"
+                            checked={form.formType === 'SINGLE_STEP'}
+                            onChange={(e) => handleFormTypeChange(e.target.value)}
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                          />
+                          <span className="text-sm">Single Step Form</span>
+                        </label>
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="formType"
+                            value="MULTI_STEP"
+                            checked={form.formType === 'MULTI_STEP'}
+                            onChange={(e) => handleFormTypeChange(e.target.value)}
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                          />
+                          <span className="text-sm">Multi-Step Form</span>
+                        </label>
                       </div>
-                    )}
+                      <p className="text-xs text-gray-400 mt-2">
+                        {form.formType === 'SINGLE_STEP' 
+                          ? 'All form fields will be displayed on a single page'
+                          : 'Form will be split into multiple steps for better user experience'
+                        }
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Section 4: Payment Information - Compact */}
+                {/* Section 4: Form Fields - Single Step */}
+                {form.formType === 'SINGLE_STEP' && (
+                  <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2 flex-1">Registration Form Fields</h5>
+                      <button
+                        type="button"
+                        onClick={addFormField}
+                        className="px-3 py-1 bg-[#0ECCEE] text-black rounded-lg text-sm font-medium hover:bg-[#0ECCEE]/80 transition-colors flex items-center gap-2"
+                      >
+                        <Plus size={16} />
+                        Add Field
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {form.formSchema.map((field, index) => (
+                        <FormFieldEditor
+                          key={field.id || `field-${index}`}
+                          field={field}
+                          index={index}
+                          onUpdate={updateFormField}
+                          onRemove={removeFormField}
+                          onAddOption={addFieldOption}
+                          onUpdateOption={updateFieldOption}
+                          onRemoveOption={removeFieldOption}
+                        />
+                      ))}
+
+                      {form.formSchema.length === 0 && (
+                        <div className="text-center py-6 text-gray-400">
+                          <p>No form fields added yet. Click "Add Field" to create your registration form.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 4: Form Steps - Multi Step */}
+                {form.formType === 'MULTI_STEP' && (
+                  <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2 flex-1">Multi-Step Form Configuration</h5>
+                      <button
+                        type="button"
+                        onClick={addStep}
+                        className="px-3 py-1 bg-[#0ECCEE] text-black rounded-lg text-sm font-medium hover:bg-[#0ECCEE]/80 transition-colors flex items-center gap-2"
+                      >
+                        <Plus size={16} />
+                        Add Step
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {form.steps.map((step, stepIndex) => (
+                        <div key={`step-${stepIndex}`} className="bg-[#1B1C1E] p-4 rounded-lg border border-gray-700">
+                          {/* Step Header */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-[#0ECCEE] text-black rounded-full flex items-center justify-center text-sm font-bold">
+                                {step.stepNumber}
+                              </div>
+                              <div className="flex-1">
+                                <input
+                                  type="text"
+                                  placeholder="Step Title"
+                                  className="text-lg font-medium bg-transparent border-none focus:outline-none focus:ring-0 text-white placeholder-gray-400 p-0"
+                                  value={step.stepTitle}
+                                  onChange={(e) => updateStep(stepIndex, 'stepTitle', e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeStep(stepIndex)}
+                              className="text-red-400 hover:text-red-300"
+                              title="Delete Step"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+
+                          {/* Step Description */}
+                          <div className="mb-4">
+                            <input
+                              type="text"
+                              placeholder="Step description (optional)"
+                              className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                              value={step.stepDescription}
+                              onChange={(e) => updateStep(stepIndex, 'stepDescription', e.target.value)}
+                            />
+                          </div>
+
+                          {/* Step Fields */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h6 className="text-sm font-medium text-gray-300">Fields in this step</h6>
+                              <button
+                                type="button"
+                                onClick={() => addFieldToStep(stepIndex)}
+                                className="px-2 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors flex items-center gap-1"
+                              >
+                                <Plus size={12} />
+                                Add Field
+                              </button>
+                            </div>
+
+                            {step.fields.map((field, fieldIndex) => (
+                              <StepFieldEditor
+                                key={field.id || `step-${stepIndex}-field-${fieldIndex}`}
+                                field={field}
+                                stepIndex={stepIndex}
+                                fieldIndex={fieldIndex}
+                                onUpdate={updateStepField}
+                                onRemove={removeFieldFromStep}
+                                onAddOption={addStepFieldOption}
+                                onUpdateOption={updateStepFieldOption}
+                                onRemoveOption={removeStepFieldOption}
+                              />
+                            ))}
+
+                            {step.fields.length === 0 && (
+                              <div className="text-center py-4 text-gray-500 bg-[#2A2B2D] rounded-lg">
+                                <p className="text-sm">No fields in this step. Click "Add Field" to add form fields.</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {form.steps.length === 0 && (
+                        <div className="text-center py-6 text-gray-400">
+                          <p>No steps created yet. Click "Add Step" to create your multi-step form.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 5: Payment Information - Compact */}
                 <div className="bg-[#2A2B2D] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Payment Information</h5>
                   
