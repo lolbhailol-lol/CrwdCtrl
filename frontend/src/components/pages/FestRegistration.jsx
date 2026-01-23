@@ -410,9 +410,9 @@ const handleInputChange = (fieldId, value, fieldType = 'text') => {
         totalSize: submissionFormData.get('responses')?.length || 0
       });
 
-      // ✅ PERFORMANCE: Use fetch with timeout
+      // ✅ PERFORMANCE: Use fetch with timeout (increased for file uploads)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for file uploads
 
       const response = await fetch(endpoint, {
         method: 'POST',

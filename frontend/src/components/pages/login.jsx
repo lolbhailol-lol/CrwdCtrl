@@ -40,6 +40,13 @@ const handleLogin = async (e) => {
     return;
   }
 
+  // Check network connectivity before attempting login
+  if (!navigator.onLine) {
+    setErrors({ general: 'No internet connection. Please check your network and try again.' });
+    setIsLoading(false);
+    return;
+  }
+
   /* ==========================
      🔐 STEP 1: ADMIN LOGIN CHECK (ENV BASED)
      - MUST be checked FIRST before Firebase
@@ -142,32 +149,57 @@ const handleLogin = async (e) => {
      - Try Firebase to determine which case it is
      ========================== */
   try {
-    // Firebase email/password authentication
-    const firebaseResult = await loginWithEmail(emailOrPhone, password);
+    // Firebase email/password authentication with retry logic
+    let firebaseResult = await loginWithEmail(emailOrPhone, password);
+
+    // Retry once on network-related failures (not credential errors)
+    if (!firebaseResult.success) {
+      const firebaseError = firebaseResult.error || '';
+      const isNetworkError = firebaseError.toLowerCase().includes('network') ||
+                             firebaseError.toLowerCase().includes('timeout') ||
+                             firebaseError.toLowerCase().includes('unavailable') ||
+                             firebaseError.toLowerCase().includes('internal-error');
+
+      if (isNetworkError) {
+        console.log('🔄 Retrying Firebase authentication due to network error...');
+        // Wait 1 second before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        firebaseResult = await loginWithEmail(emailOrPhone, password);
+      }
+    }
 
     if (!firebaseResult.success) {
       // Firebase also failed - this could mean:
       // 1. Wrong admin credentials (admin email not in Firebase)
       // 2. Wrong user credentials (user email not in Firebase)
-      // 
+      //
       // Since admin login also failed, show a helpful error message
       const firebaseError = firebaseResult.error || '';
       const isInvalidCredential = firebaseError.toLowerCase().includes('invalid-credential') ||
                                   firebaseError.toLowerCase().includes('invalid credential') ||
                                   firebaseError.toLowerCase().includes('user-not-found') ||
                                   firebaseError.toLowerCase().includes('wrong-password');
-      
+
       if (isInvalidCredential) {
         // Both admin and Firebase failed - likely wrong credentials
         // Show a message that covers both cases
-        setErrors({ 
-          general: 'Invalid credentials. Please check your email and password. If you are an admin, ensure your admin credentials are correct.' 
+        setErrors({
+          general: 'Invalid credentials. Please check your email and password. If you are an admin, ensure your admin credentials are correct.'
         });
       } else {
-        // Firebase error for other reasons
-        setErrors({ general: firebaseResult.error });
+        // Firebase error for other reasons (network, etc.)
+        const isMobileNetworkError = firebaseError.toLowerCase().includes('network') ||
+                                     firebaseError.toLowerCase().includes('timeout') ||
+                                     firebaseError.toLowerCase().includes('unavailable');
+        if (isMobileNetworkError) {
+          setErrors({
+            general: 'Network error. Please check your internet connection and try again. If using mobile data, try switching to Wi-Fi.'
+          });
+        } else {
+          setErrors({ general: firebaseResult.error });
+        }
       }
-      
+
       setIsLoading(false);
       return;
     }

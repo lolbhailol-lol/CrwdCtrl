@@ -635,10 +635,14 @@ const submitRegistration = async (req, res) => {
     const registrationId = `REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log('🆔 Generated registration ID:', registrationId);
 
-    // ✅ PERFORMANCE: Process uploaded files with better field matching
+    // ✅ PERFORMANCE: Process uploaded files concurrently with better field matching
     if (req.files && req.files.length > 0) {
       console.log('📁 Processing uploaded files:', req.files.length);
-      
+
+      // First, validate all files have matching schemas
+      const fileUploadPromises = [];
+      const fileValidationErrors = [];
+
       for (const file of req.files) {
         console.log('📤 Processing file:', {
           fieldname: file.fieldname,
@@ -667,23 +671,11 @@ const submitRegistration = async (req, res) => {
 
         if (!fieldSchema) {
           console.error('❌ No matching field schema found for:', file.fieldname);
-          console.error('Available field schemas:', fest.registration.formSchema.map(f => ({
-            id: f.id,
-            fieldName: f.fieldName,
-            label: f.label,
-            type: f.type
-          })));
-          return res.status(400).json({ 
-            error: `Invalid form field: ${file.fieldname}. Please refresh the form and try again.`,
-            debug: {
-              receivedField: file.fieldname,
-              availableFields: fest.registration.formSchema.map(f => ({ 
-                id: f.id, 
-                fieldName: f.fieldName, 
-                label: f.label 
-              }))
-            }
+          fileValidationErrors.push({
+            field: file.fieldname,
+            error: 'No matching field schema found'
           });
+          continue;
         }
 
         console.log('✅ Found matching field schema:', {
@@ -693,18 +685,51 @@ const submitRegistration = async (req, res) => {
           type: fieldSchema.type
         });
 
-        // ✅ PERFORMANCE: Upload to Cloudinary with better error handling
-        console.log('📤 Uploading to Cloudinary...');
-        const uploadResult = await uploadToCloudinary(
+        // Prepare upload promise
+        const uploadPromise = uploadToCloudinary(
           file.buffer,
           file.originalname,
           fest.festName,
           registrationId,
           userId,
           fieldSchema.fieldName || fieldSchema.id
-        );
+        ).then(uploadResult => ({
+          file,
+          fieldSchema,
+          uploadResult
+        }));
 
-        console.log('📊 Upload result:', uploadResult);
+        fileUploadPromises.push(uploadPromise);
+      }
+
+      // Check for validation errors
+      if (fileValidationErrors.length > 0) {
+        console.error('Available field schemas:', fest.registration.formSchema.map(f => ({
+          id: f.id,
+          fieldName: f.fieldName,
+          label: f.label,
+          type: f.type
+        })));
+        return res.status(400).json({
+          error: `Invalid form fields: ${fileValidationErrors.map(e => e.field).join(', ')}. Please refresh the form and try again.`,
+          debug: {
+            validationErrors: fileValidationErrors,
+            availableFields: fest.registration.formSchema.map(f => ({
+              id: f.id,
+              fieldName: f.fieldName,
+              label: f.label
+            }))
+          }
+        });
+      }
+
+      // ✅ PERFORMANCE: Upload all files concurrently
+      console.log('📤 Uploading files concurrently...');
+      const uploadResults = await Promise.all(fileUploadPromises);
+
+      // Process upload results
+      for (const { file, fieldSchema, uploadResult } of uploadResults) {
+        console.log('📊 Upload result for', file.originalname, ':', uploadResult);
 
         if (uploadResult.success) {
           // Use fieldName as key for consistency
@@ -721,7 +746,7 @@ const submitRegistration = async (req, res) => {
           console.log('✅ File uploaded successfully for field:', fieldKey);
         } else {
           console.error('❌ File upload failed for field:', fieldSchema.fieldName, uploadResult.error);
-          return res.status(500).json({ 
+          return res.status(500).json({
             error: `Failed to upload ${fieldSchema.label}: ${uploadResult.error}`,
             debug: {
               field: fieldSchema.fieldName,
