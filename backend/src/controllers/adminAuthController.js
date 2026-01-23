@@ -4,6 +4,7 @@ const User = require('../model/usermodel');
 exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt:', { email }); // Debugging
 
     if (
       email !== process.env.ADMIN_EMAIL ||
@@ -17,6 +18,8 @@ exports.adminLogin = async (req, res) => {
       process.env.ADMIN_JWT_SECRET,
       { expiresIn: '1d' }
     );
+
+    console.log('Login successful, token generated:', token); // Debugging
 
     res.json({
       success: true,

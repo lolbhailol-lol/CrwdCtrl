@@ -1,5 +1,6 @@
 export const authFetch = async (url, options = {}) => {
   const token = localStorage.getItem('token');
+  console.log('Token being sent:', token); // Debugging
 
   const headers = {
     ...options.headers,
@@ -8,9 +9,9 @@ export const authFetch = async (url, options = {}) => {
   };
 
   const response = await fetch(url, { ...options, headers });
+  console.log('Response status:', response.status); // Debugging
 
   if (response.status === 401) {
-    // Handle unauthorized access (e.g., redirect to login)
     console.error('Unauthorized: Redirecting to login...');
     localStorage.removeItem('token');
     window.location.href = '/login';
