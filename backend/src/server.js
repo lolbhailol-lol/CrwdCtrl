@@ -52,7 +52,9 @@ const corsOrigins = [
       "https://crwdctrl.in",
       "https://crwdctrl-mvp.vercel.app",
       "https://crwdctrl-jz7pke4i6-lols-projects-43916194.vercel.app",
-      "https://crwdctrl.vercel.app"
+      "https://crwdctrl.vercel.app",
+      // Railway domains
+      "https://crwdctrl-production.up.railway.app"
     ];
 
 console.log("✅ CORS Allowed Origins:", corsOrigins);
@@ -82,6 +84,9 @@ app.use(
       "Pragma"
     ],
     maxAge: 86400, // Cache preflight for 24 hours
+    // Fix for Cross-Origin-Opener-Policy
+    optionsSuccessStatus: 200,
+    preflightContinue: false
   })
 );
 
@@ -119,6 +124,15 @@ app.use((req, res, next) => {
   
   // Add compression hint
   res.set('Vary', 'Accept-Encoding');
+  
+  // Fix Cross-Origin-Opener-Policy for social login (Firebase OAuth)
+  res.set('Cross-Origin-Opener-Policy', 'unsafe-none');
+  res.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  
+  // Additional headers for OAuth compatibility
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
   
   next();
 });
@@ -166,14 +180,30 @@ app.get("/", (req, res) => {
   });
 });
 
-// Health Check (required for Cloud Run)
+// Health Check (required for Railway - optimized for cold starts)
 app.get("/api/health", (req, res) => {
+  // Quick response without database check for faster cold start
   res.status(200).json({
     status: "OK",
     message: "CrwdCtrl API is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
-    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
+    uptime: process.uptime(),
+    // Only check DB if it's already connected (faster response)
+    database: mongoose.connection.readyState === 1 ? "connected" : "connecting"
+  });
+});
+
+// Separate endpoint for full health check with DB
+app.get("/api/health/full", (req, res) => {
+  res.status(200).json({
+    status: "OK",
+    message: "CrwdCtrl API is running",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    uptime: process.uptime(),
+    memory: process.memoryUsage()
   });
 });
 
