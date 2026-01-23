@@ -42,35 +42,31 @@ connectDB().catch(err => {
 // CORS CONFIG
 // ----------------------
 const corsOrigins = [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:3000",
-      "http://127.0.0.1:5173",
-      "http://127.0.0.1:5174",
-      "https://fest-buzzz-z-mvp.vercel.app",
-      "https://www.crwdctrl.in",
-      "https://crwdctrl.in",
-      "https://crwdctrl-mvp.vercel.app",
-      "https://crwdctrl-jz7pke4i6-lols-projects-43916194.vercel.app",
-      "https://crwdctrl.vercel.app"
-    ];
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "https://fest-buzzz-z-mvp.vercel.app",
+  "https://www.crwdctrl.in",
+  "https://crwdctrl.in",
+  "https://crwdctrl-mvp.vercel.app",
+  "https://crwdctrl.vercel.app",
+  "capacitor://localhost", // Add for mobile apps using Capacitor
+  "ionic://localhost",     // Add for Ionic apps
+  "http://localhost"       // Add for mobile emulators
+];
 
 console.log("✅ CORS Allowed Origins:", corsOrigins);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, server-to-server)
-      if (!origin) return callback(null, true);
-
-      // Check if origin is in allowed list
-      if (corsOrigins.includes(origin)) {
+      if (!origin || corsOrigins.includes(origin)) {
         return callback(null, true);
       }
-
-      // Log blocked origin but don't throw error
-      console.warn("⚠ CORS request from unauthorized origin:", origin);
-      return callback(null, false); // Deny but don't throw
+      console.warn("⚠️ CORS request from unauthorized origin:", origin);
+      return callback(null, false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
