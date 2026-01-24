@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { onAuthStateChange, getCurrentUser } from '../firebase';
+import { onAuthStateChange, getCurrentUser, handleRedirectResult } from '../firebase';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -30,6 +30,24 @@ export const AuthProvider = ({ children }) => {
         });
 
         return () => unsubscribe();
+    }, []);
+
+    // Handle redirect result for mobile authentication
+    useEffect(() => {
+        const checkRedirectResult = async () => {
+            try {
+                const result = await handleRedirectResult();
+                if (result && result.success && result.user) {
+                    // Handle successful redirect authentication
+                    console.log('Redirect authentication successful:', result.user.email);
+                    // The auth state change will be handled by the onAuthStateChange listener
+                }
+            } catch (error) {
+                console.error('Error handling redirect result:', error);
+            }
+        };
+
+        checkRedirectResult();
     }, []);
 
     // Check for existing user session on mount

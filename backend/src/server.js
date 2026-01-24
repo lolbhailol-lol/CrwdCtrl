@@ -42,37 +42,34 @@ connectDB().catch(err => {
 // CORS CONFIG
 // ----------------------
 const corsOrigins = [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:3000",
-      "http://127.0.0.1:5173",
-      "http://127.0.0.1:5174",
-      "https://fest-buzzz-z-mvp.vercel.app",
-      "https://www.crwdctrl.in",
-      "https://crwdctrl.in",
-      "https://crwdctrl-mvp.vercel.app",
-      "https://crwdctrl-jz7pke4i6-lols-projects-43916194.vercel.app",
-      "https://crwdctrl.vercel.app",
-      // Railway domains
-      "https://crwdctrl-production.up.railway.app"
-    ];
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "https://fest-buzzz-z-mvp.vercel.app",
+  "https://www.crwdctrl.in",
+  "https://crwdctrl.in",
+  "https://crwdctrl-mvp.vercel.app",
+  "https://crwdctrl.vercel.app",
+  // Google Cloud Run domain
+  "https://crwdctrl-730576782394.asia-south2.run.app",
+  // Mobile app support
+  "capacitor://localhost", // Add for mobile apps using Capacitor
+  "ionic://localhost",     // Add for Ionic apps
+  "http://localhost"       // Add for mobile emulators
+];
 
 console.log("✅ CORS Allowed Origins:", corsOrigins);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, server-to-server)
-      if (!origin) return callback(null, true);
-
-      // Check if origin is in allowed list
-      if (corsOrigins.includes(origin)) {
+      if (!origin || corsOrigins.includes(origin)) {
         return callback(null, true);
       }
-
-      // Log blocked origin but don't throw error
-      console.warn("⚠ CORS request from unauthorized origin:", origin);
-      return callback(null, false); // Deny but don't throw
+      console.warn("⚠️ CORS request from unauthorized origin:", origin);
+      return callback(null, false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -84,9 +81,6 @@ app.use(
       "Pragma"
     ],
     maxAge: 86400, // Cache preflight for 24 hours
-    // Fix for Cross-Origin-Opener-Policy
-    optionsSuccessStatus: 200,
-    preflightContinue: false
   })
 );
 
@@ -125,14 +119,9 @@ app.use((req, res, next) => {
   // Add compression hint
   res.set('Vary', 'Accept-Encoding');
   
-  // Fix Cross-Origin-Opener-Policy for social login (Firebase OAuth)
+  // Fix Cross-Origin-Opener-Policy for Firebase OAuth (required for social login)
   res.set('Cross-Origin-Opener-Policy', 'unsafe-none');
   res.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
-  
-  // Additional headers for OAuth compatibility
-  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.set('X-Content-Type-Options', 'nosniff');
-  res.set('X-Frame-Options', 'SAMEORIGIN');
   
   next();
 });
@@ -180,30 +169,14 @@ app.get("/", (req, res) => {
   });
 });
 
-// Health Check (required for Railway - optimized for cold starts)
+// Health Check (required for Cloud Run)
 app.get("/api/health", (req, res) => {
-  // Quick response without database check for faster cold start
   res.status(200).json({
     status: "OK",
     message: "CrwdCtrl API is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
-    uptime: process.uptime(),
-    // Only check DB if it's already connected (faster response)
-    database: mongoose.connection.readyState === 1 ? "connected" : "connecting"
-  });
-});
-
-// Separate endpoint for full health check with DB
-app.get("/api/health/full", (req, res) => {
-  res.status(200).json({
-    status: "OK",
-    message: "CrwdCtrl API is running",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
-    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-    uptime: process.uptime(),
-    memory: process.memoryUsage()
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
   });
 });
 

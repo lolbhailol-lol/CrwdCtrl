@@ -178,6 +178,7 @@ export default function FestRegistration() {
 
   const getAllFormData = () => {
     if (!isMultiStepForm()) {
+      console.log('🔍 Single-step form data:', formData);
       return formData;
     }
     
@@ -189,6 +190,13 @@ export default function FestRegistration() {
     
     // Include current step data
     Object.assign(allData, getCurrentStepData());
+    
+    console.log('🔍 Multi-step combined data:', {
+      stepData,
+      currentStepData: getCurrentStepData(),
+      combinedData: allData,
+      fileKeys: Object.keys(allData).filter(key => key.includes('_file'))
+    });
     
     return allData;
   };
@@ -332,7 +340,7 @@ export default function FestRegistration() {
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
-                  onFieldChange(fieldId, file);
+                  handleFileUpload(file, fieldId);
                 }
               }}
               required={field.required}
@@ -342,6 +350,11 @@ export default function FestRegistration() {
               <div className="flex items-center gap-2 text-sm text-blue-400">
                 <Loader className="w-4 h-4 animate-spin" />
                 Uploading...
+              </div>
+            )}
+            {value && value.ready && (
+              <div className="flex items-center gap-2 text-sm text-green-400">
+                ✓ File ready: {value.fileName}
               </div>
             )}
           </div>
@@ -522,17 +535,32 @@ export default function FestRegistration() {
 
       // ✅ PERFORMANCE FIX: Store file immediately without uploading
       // Upload will happen during form submission to avoid blocking UI
-      setFormData(prev => ({
-        ...prev,
-        [`${fieldId}_file`]: file, // Store actual file
-        [fieldId]: { 
-          uploaded: true, 
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          ready: true // Mark as ready for submission
-        }
-      }));
+      const fileInfo = { 
+        uploaded: true, 
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        ready: true // Mark as ready for submission
+      };
+      
+      if (isMultiStepForm()) {
+        // For multi-step forms, use step-specific data handling
+        setStepData(prev => ({
+          ...prev,
+          [currentStep]: {
+            ...prev[currentStep],
+            [`${fieldId}_file`]: file, // Store actual file
+            [fieldId]: fileInfo
+          }
+        }));
+      } else {
+        // For single-step forms, use formData directly
+        setFormData(prev => ({
+          ...prev,
+          [`${fieldId}_file`]: file, // Store actual file
+          [fieldId]: fileInfo
+        }));
+      }
       
       console.log('✅ File prepared for upload:', fieldId, '- Will upload during form submission');
     } catch (err) {
@@ -606,6 +634,13 @@ export default function FestRegistration() {
       // ✅ NEW: Get all form data (single-step or combined multi-step)
       const allFormData = getAllFormData();
       
+      console.log('🔍 Form validation starting:', {
+        isMultiStep: isMultiStepForm(),
+        currentStep,
+        allFormDataKeys: Object.keys(allFormData),
+        fileKeys: Object.keys(allFormData).filter(key => key.includes('_file'))
+      });
+      
       // ✅ PERFORMANCE: Validate required fields with better field matching
       const formSchema = isMultiStepForm() 
         ? fest.registration.steps.flatMap(step => step.fields)
@@ -623,12 +658,34 @@ export default function FestRegistration() {
           label: field.label, 
           type: field.type, 
           hasValue: !!value,
-          valueType: typeof value
+          valueType: typeof value,
+          hasFileData: !!(field.type === 'file' || field.type === 'image') && !!allFormData[`${fieldId}_file`],
+          isReady: value?.ready,
+          fieldValue: value,
+          fileKey: `${fieldId}_file`,
+          fileData: allFormData[`${fieldId}_file`],
+          allFormDataKeys: Object.keys(allFormData).filter(key => key.includes(fieldId))
         });
         
         // For file/image fields, check if file was selected and is ready
         if (field.type === 'file' || field.type === 'image') {
-          if (!value || !value.ready || !formData[`${fieldId}_file`]) {
+          console.log('🔍 File field validation:', {
+            fieldId,
+            label: field.label,
+            hasValue: !!value,
+            valueReady: value?.ready,
+            hasFileData: !!allFormData[`${fieldId}_file`],
+            fileDataType: typeof allFormData[`${fieldId}_file`]
+          });
+          
+          if (!value || !value.ready || !allFormData[`${fieldId}_file`]) {
+            console.error('❌ File validation failed:', {
+              fieldId,
+              label: field.label,
+              value,
+              fileData: allFormData[`${fieldId}_file`],
+              allFormDataKeys: Object.keys(allFormData)
+            });
             throw new Error(`${field.label} is required - please upload a file`);
           }
         } else {
@@ -649,14 +706,14 @@ export default function FestRegistration() {
       // Process form fields with consistent field naming
       formSchema.forEach(field => {
         const fieldId = generateFieldId(field);
-        const value = formData[fieldId];
+        const value = allFormData[fieldId];
         
         // ✅ CRITICAL: Use field.fieldName for backend consistency
         const backendFieldName = field.fieldName || field.id || fieldId;
         
         if (field.type === 'file' || field.type === 'image') {
           // Add file to FormData if it exists
-          const fileData = formData[`${fieldId}_file`];
+          const fileData = allFormData[`${fieldId}_file`];
           if (fileData) {
             submissionFormData.append(backendFieldName, fileData);
             console.log('📁 Added file to form data:', backendFieldName, fileData.name);

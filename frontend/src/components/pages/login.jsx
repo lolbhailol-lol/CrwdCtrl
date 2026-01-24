@@ -34,6 +34,13 @@ const handleLogin = async (e) => {
   setErrors({});
   setIsLoading(true);
 
+  // Log device and browser details for debugging
+  console.log('📱 Device Info:', {
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    isMobile: /Mobi|Android/i.test(navigator.userAgent),
+  });
+
   if (!emailOrPhone.trim() || !password.trim()) {
     setErrors({ general: 'Email and password are required' });
     setIsLoading(false);
@@ -225,6 +232,7 @@ const handleLogin = async (e) => {
     }
 
   } catch (error) {
+    console.error('❌ Login error:', error);
     setErrors({ general: handleApiError(error) });
   } finally {
     setIsLoading(false);

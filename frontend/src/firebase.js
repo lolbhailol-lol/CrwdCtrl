@@ -6,6 +6,8 @@ import {
     GoogleAuthProvider,
     FacebookAuthProvider,
     signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     sendEmailVerification,
@@ -42,6 +44,12 @@ facebookProvider.setCustomParameters({
     display: 'popup'
 });
 
+// Helper function to detect mobile devices
+const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           window.innerWidth <= 768;
+};
+
 // Social authentication functions
 export const signInWithGoogle = async () => {
     try {
@@ -49,7 +57,22 @@ export const signInWithGoogle = async () => {
             throw new Error('Firebase authentication not properly initialized');
         }
 
-        const result = await signInWithPopup(auth, googleProvider);
+        let result;
+        
+        // Use redirect for mobile devices, popup for desktop
+        if (isMobileDevice()) {
+            // For mobile, use redirect method
+            await signInWithRedirect(auth, googleProvider);
+            // The result will be handled by getRedirectResult in the app initialization
+            return {
+                success: true,
+                redirecting: true,
+                message: 'Redirecting to Google sign-in...'
+            };
+        } else {
+            // For desktop, use popup method
+            result = await signInWithPopup(auth, googleProvider);
+        }
 
         if (!result || !result.user) {
             throw new Error('No user data received from Google');
@@ -67,7 +90,7 @@ export const signInWithGoogle = async () => {
 
         let errorMessage = 'Google sign-in failed. Please try again.';
 
-        if (error.code === 'auth/popup-closed-by-user') {
+        if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
             errorMessage = 'Sign-in was cancelled. Please try again.';
         } else if (error.code === 'auth/popup-blocked') {
             errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
@@ -94,7 +117,22 @@ export const signInWithFacebook = async () => {
             throw new Error('Firebase authentication not properly initialized');
         }
 
-        const result = await signInWithPopup(auth, facebookProvider);
+        let result;
+        
+        // Use redirect for mobile devices, popup for desktop
+        if (isMobileDevice()) {
+            // For mobile, use redirect method
+            await signInWithRedirect(auth, facebookProvider);
+            // The result will be handled by getRedirectResult in the app initialization
+            return {
+                success: true,
+                redirecting: true,
+                message: 'Redirecting to Facebook sign-in...'
+            };
+        } else {
+            // For desktop, use popup method
+            result = await signInWithPopup(auth, facebookProvider);
+        }
 
         if (!result || !result.user) {
             throw new Error('No user data received from Facebook');
@@ -112,7 +150,7 @@ export const signInWithFacebook = async () => {
 
         let errorMessage = 'Facebook sign-in failed. Please try again.';
 
-        if (error.code === 'auth/popup-closed-by-user') {
+        if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
             errorMessage = 'Sign-in was cancelled. Please try again.';
         } else if (error.code === 'auth/popup-blocked') {
             errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
@@ -327,6 +365,29 @@ export const onAuthStateChange = (callback) => {
 // Get current user's verification status
 export const getCurrentUser = () => {
     return auth.currentUser;
+};
+
+// Handle redirect result for mobile authentication
+export const handleRedirectResult = async () => {
+    try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+            // User signed in via redirect
+            return {
+                success: true,
+                user: result.user,
+                credential: result.credential,
+                needsVerification: false // Social auth emails are pre-verified
+            };
+        }
+        return null; // No redirect result
+    } catch (error) {
+        console.error('Redirect result error:', error);
+        return {
+            success: false,
+            error: 'Authentication failed. Please try again.'
+        };
+    }
 };
 
 export { auth, app, analytics };
