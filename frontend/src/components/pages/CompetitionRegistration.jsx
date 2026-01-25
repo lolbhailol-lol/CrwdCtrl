@@ -15,6 +15,7 @@ export default function CompetitionRegistration() {
     const [formData, setFormData] = useState({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [submissionProgress, setSubmissionProgress] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
     const [uploadingFiles, setUploadingFiles] = useState({});
@@ -86,6 +87,9 @@ export default function CompetitionRegistration() {
             console.log('🎯 QR Code:', data.registration?.qrCode);
             console.log('💬 QR Code Message:', data.registration?.qrCodeMessage);
             console.log('📋 Full registration object:', data.registration);
+            console.log('🔄 Form type:', data.registration?.formType);
+            console.log('📊 Steps count:', data.registration?.steps?.length || 0);
+            console.log('📋 Direct schema count:', data.registration?.formSchema?.length || 0);
             
             setCompetition(data);
             
@@ -98,8 +102,13 @@ export default function CompetitionRegistration() {
 
             // Initialize form data with empty values using stable field IDs
             const initialData = {};
-            if (data.registration?.formSchema) {
-                data.registration.formSchema.forEach(field => {
+            
+            // ✅ CRITICAL: Support both single-step and multi-step forms
+            const formSchema = getFormSchema(data.registration);
+            console.log(`📝 Form schema: ${formSchema.length} fields (${isMultiStepForm(data.registration) ? 'multi-step' : 'single-step'})`);
+            
+            if (formSchema.length > 0) {
+                formSchema.forEach(field => {
                     const fieldId = generateFieldId(field);
                     // Initialize file/image fields as null, others as empty string/array
                     if (field.type === 'file' || field.type === 'image') {
@@ -117,6 +126,23 @@ export default function CompetitionRegistration() {
         } finally {
             setLoading(false);
         }
+    };
+
+    // ✅ HELPER: Get form schema (supports both single-step and multi-step forms)
+    const getFormSchema = (registrationData) => {
+        if (registrationData?.formType === 'MULTI_STEP' && registrationData.steps) {
+            // For multi-step forms, flatten all fields from all steps
+            return registrationData.steps.flatMap(step => step.fields || []);
+        } else if (registrationData?.formSchema) {
+            // For single-step forms, use the direct formSchema
+            return registrationData.formSchema;
+        }
+        return [];
+    };
+
+    // ✅ HELPER: Check if form is multi-step
+    const isMultiStepForm = (registrationData) => {
+        return registrationData?.formType === 'MULTI_STEP' && registrationData?.steps?.length > 0;
     };
 
     const handleInputChange = (fieldId, value, fieldType = 'text') => {
@@ -149,16 +175,18 @@ export default function CompetitionRegistration() {
     const handleFileUpload = async (file, fieldId) => {
         if (!file) return;
 
+        console.log('📁 Starting file upload for field:', fieldId, 'File:', file.name);
+
         setUploadingFiles(prev => ({
             ...prev,
             [fieldId]: true
         }));
 
         try {
-            // Check file size (limit to 10MB)
+            // ✅ PERFORMANCE: Quick validation first
             const maxSize = 10 * 1024 * 1024; // 10MB in bytes
             if (file.size > maxSize) {
-                setError('File size must be less than 10MB');
+                setError(`File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 10MB.`);
                 return;
             }
 
@@ -170,9 +198,29 @@ export default function CompetitionRegistration() {
                 }
             }
 
+            // ✅ PERFORMANCE: Compress images if they're large
+            let processedFile = file;
+            if (file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) { // 2MB threshold
+                console.log('🗜️ Compressing large image:', file.name);
+                try {
+                    processedFile = await compressImage(file);
+                    console.log('✅ Image compressed:', {
+                        original: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+                        compressed: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
+                        reduction: `${(((file.size - processedFile.size) / file.size) * 100).toFixed(1)}%`
+                    });
+                } catch (compressionError) {
+                    console.warn('⚠️ Image compression failed, using original:', compressionError);
+                    processedFile = file;
+                }
+            }
+
             const formDataUpload = new FormData();
-            formDataUpload.append('files', file);
+            formDataUpload.append('files', processedFile);
             formDataUpload.append('folder', `crwdctrl/competitions/${competitionId}/registrations`);
+
+            console.log(`📤 Uploading ${processedFile.name} (${(processedFile.size / 1024 / 1024).toFixed(2)}MB)...`);
+            const uploadStartTime = Date.now();
 
             const response = await fetch(`${API_BASE_URL}/registrations/upload`, {
                 method: 'POST',
@@ -185,7 +233,9 @@ export default function CompetitionRegistration() {
             if (!response.ok) throw new Error('File upload failed');
 
             const data = await response.json();
-            console.log('📁 File upload response:', data);
+            const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(1);
+            console.log(`✅ File uploaded in ${uploadTime}s:`, data);
+            
             const fileUrl = data.urls?.[0]?.url;
             console.log('🔗 Extracted file URL:', fileUrl);
             console.log('🏷️ Setting for field ID:', fieldId);
@@ -200,6 +250,7 @@ export default function CompetitionRegistration() {
             }
             
         } catch (err) {
+            console.error('❌ File upload error:', err);
             setError(`File upload failed: ${err.message}`);
         } finally {
             setUploadingFiles(prev => ({
@@ -207,6 +258,53 @@ export default function CompetitionRegistration() {
                 [fieldId]: false
             }));
         }
+    };
+
+    // ✅ PERFORMANCE: Image compression function
+    const compressImage = (file) => {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = () => {
+                // Calculate new dimensions (max 1920x1080)
+                const maxWidth = 1920;
+                const maxHeight = 1080;
+                let { width, height } = img;
+                
+                if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width *= ratio;
+                    height *= ratio;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Draw and compress
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob(
+                    (blob) => {
+                        if (blob) {
+                            const compressedFile = new File([blob], file.name, {
+                                type: file.type,
+                                lastModified: Date.now()
+                            });
+                            resolve(compressedFile);
+                        } else {
+                            reject(new Error('Compression failed'));
+                        }
+                    },
+                    file.type,
+                    0.8 // 80% quality
+                );
+            };
+            
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = URL.createObjectURL(file);
+        });
     };
 
     const renderField = (field) => {
@@ -346,13 +444,25 @@ export default function CompetitionRegistration() {
                                 className={`cursor-pointer flex flex-col items-center gap-2 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {isUploading ? (
-                                    <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
+                                    <>
+                                        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
+                                        <span className="text-sm text-blue-400">
+                                            Processing & uploading...
+                                        </span>
+                                    </>
                                 ) : (
-                                    <Upload className="w-8 h-8 text-gray-400" />
+                                    <>
+                                        <Upload className="w-8 h-8 text-gray-400" />
+                                        <span className="text-sm text-gray-400">
+                                            {`Click to upload ${type === 'image' ? 'image' : 'file'}`}
+                                        </span>
+                                        {type === 'image' && (
+                                            <span className="text-xs text-gray-500">
+                                                Large images will be compressed automatically
+                                            </span>
+                                        )}
+                                    </>
                                 )}
-                                <span className="text-sm text-gray-400">
-                                    {isUploading ? 'Uploading...' : `Click to upload ${type === 'image' ? 'image' : 'file'}`}
-                                </span>
                             </label>
                         </div>
                         
@@ -378,12 +488,25 @@ export default function CompetitionRegistration() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        console.log('🚀 Starting competition registration submission...');
+        
+        // ✅ PERFORMANCE: Prevent double submission
+        if (submitting) {
+            console.log('⚠️ Submission already in progress, ignoring duplicate request');
+            return;
+        }
+        
         setSubmitting(true);
         setError('');
+        setSubmissionProgress('Validating form fields...');
 
         try {
+            // ✅ CRITICAL: Support both single-step and multi-step forms for validation
+            const formSchema = getFormSchema(competition.registration);
+            console.log(`📝 Validation schema: ${formSchema.length} fields (${isMultiStepForm(competition.registration) ? 'multi-step' : 'single-step'})`);
+            
             // Validate required fields
-            const requiredFields = competition.registration.formSchema?.filter(field => field.required) || [];
+            const requiredFields = formSchema.filter(field => field.required) || [];
             console.log('🔍 Validating required fields:', requiredFields.map(f => f.label));
             console.log('📋 Current form data:', formData);
             
@@ -406,6 +529,7 @@ export default function CompetitionRegistration() {
                 }
             }
 
+            setSubmissionProgress('Preparing registration data...');
             const registrationData = {
                 responses: formData,
                 userInfo: {
@@ -414,6 +538,15 @@ export default function CompetitionRegistration() {
                     email: user.email
                 }
             };
+
+            console.log('📊 Registration summary:', {
+                totalFields: Object.keys(formData).length,
+                requiredFields: requiredFields.length,
+                userId: user.id
+            });
+
+            setSubmissionProgress('Submitting registration...');
+            const startTime = Date.now();
 
             const response = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/custom`, {
                 method: 'POST',
@@ -424,20 +557,69 @@ export default function CompetitionRegistration() {
                 body: JSON.stringify(registrationData),
             });
 
+            const submitTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            console.log(`📡 Registration response received in ${submitTime}s:`, { 
+                status: response.status, 
+                ok: response.ok 
+            });
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Registration failed');
+                let errorMessage = 'Registration failed';
+                
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                    console.error('❌ Backend error details:', errorData);
+                    
+                    // Handle specific error cases
+                    if (response.status === 401) {
+                        errorMessage = 'Authentication failed. Please log in again.';
+                    } else if (response.status === 400 && errorData.error?.includes('registration')) {
+                        errorMessage = `Registration error: ${errorData.error}`;
+                    }
+                } catch (parseError) {
+                    console.error('❌ Could not parse error response:', parseError);
+                    if (response.status === 401) {
+                        errorMessage = 'Authentication failed. Please log in again.';
+                    } else if (response.status === 400) {
+                        errorMessage = 'Invalid registration data. Please check your form and try again.';
+                    } else if (response.status >= 500) {
+                        errorMessage = 'Server error. Please try again in a few moments.';
+                    }
+                }
+                
+                throw new Error(errorMessage);
             }
 
+            setSubmissionProgress('Registration completed successfully!');
+            const result = await response.json();
+            console.log('✅ Registration successful:', result);
+            
             setSuccess(true);
             setTimeout(() => {
                 navigate(`/competitions-view-details/${competitionId}`);
             }, 2000);
 
         } catch (err) {
-            setError(err.message);
+            console.error('❌ Registration error:', err);
+            
+            // Enhanced error handling
+            if (err.message.includes('Authentication') || err.message.includes('401')) {
+                setError('Your session has expired. Please log in again.');
+                // Clear invalid tokens
+                localStorage.removeItem('crwdctrl_token');
+                localStorage.removeItem('crwdctrl_user');
+                setTimeout(() => navigate('/login'), 2000);
+            } else if (err.message.includes('required')) {
+                setError(err.message); // Field validation errors
+            } else if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {
+                setError('Network error. Please check your internet connection and try again.');
+            } else {
+                setError(err.message || 'An unexpected error occurred. Please try again.');
+            }
         } finally {
             setSubmitting(false);
+            setSubmissionProgress('');
         }
     };
 
@@ -554,21 +736,26 @@ export default function CompetitionRegistration() {
                         <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4">
                             <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Registration Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                                {competition?.registration?.formSchema?.map((field) => {
-                                    const fieldId = generateFieldId(field);
-                                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                                       field.type === 'checkbox' || field.type === 'radio';
+                                {(() => {
+                                    // ✅ CRITICAL: Support both single-step and multi-step forms for rendering
+                                    const formSchema = getFormSchema(competition?.registration);
                                     
-                                    return (
-                                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                                            <label className="block text-sm font-medium text-white mb-1.5">
-                                                {field.label}
-                                                {field.required && <span className="text-red-400 ml-1">*</span>}
-                                            </label>
-                                            {renderField(field)}
-                                        </div>
-                                    );
-                                })}
+                                    return formSchema.map((field) => {
+                                        const fieldId = generateFieldId(field);
+                                        const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                                           field.type === 'checkbox' || field.type === 'radio';
+                                        
+                                        return (
+                                            <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                                                <label className="block text-sm font-medium text-white mb-1.5">
+                                                    {field.label}
+                                                    {field.required && <span className="text-red-400 ml-1">*</span>}
+                                                </label>
+                                                {renderField(field)}
+                                            </div>
+                                        );
+                                    });
+                                })()}
                             </div>
                         </div>
 
@@ -585,12 +772,32 @@ export default function CompetitionRegistration() {
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="flex-1 px-4 sm:px-6 py-2.5 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base"
+                                className="flex-1 px-4 sm:px-6 py-2.5 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 text-sm sm:text-base"
                             >
                                 {submitting ? (
                                     <>
-                                        <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                                        Submitting...
+                                        <div className="flex items-center gap-2">
+                                            <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                                            <span className="hidden sm:inline">{submissionProgress || 'Submitting...'}</span>
+                                            <span className="sm:hidden">Submitting...</span>
+                                        </div>
+                                        
+                                        {/* Progress indicator */}
+                                        {submissionProgress && (
+                                            <div className="w-full mt-1">
+                                                <div className="bg-gray-700 rounded-full h-1.5">
+                                                    <div 
+                                                        className="bg-black h-1.5 rounded-full transition-all duration-500 ease-out"
+                                                        style={{
+                                                            width: submissionProgress.includes('Validating') ? '25%' :
+                                                                   submissionProgress.includes('Preparing') ? '50%' :
+                                                                   submissionProgress.includes('Submitting') ? '75%' :
+                                                                   submissionProgress.includes('completed') ? '100%' : '10%'
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </>
                                 ) : (
                                     'Submit Registration'

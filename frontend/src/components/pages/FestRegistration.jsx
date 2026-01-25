@@ -511,10 +511,10 @@ export default function FestRegistration() {
     }));
 
     try {
-      // Check file size (limit to 10MB)
+      // ✅ PERFORMANCE: Quick validation first
       const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
-        setError('File size must be less than 10MB');
+        setError(`File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 10MB.`);
         return;
       }
 
@@ -526,10 +526,27 @@ export default function FestRegistration() {
         }
       }
 
+      // ✅ PERFORMANCE: Compress images if they're large
+      let processedFile = file;
+      if (file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) { // 2MB threshold
+        console.log('🗜️ Compressing large image:', file.name);
+        try {
+          processedFile = await compressImage(file);
+          console.log('✅ Image compressed:', {
+            original: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+            compressed: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
+            reduction: `${(((file.size - processedFile.size) / file.size) * 100).toFixed(1)}%`
+          });
+        } catch (compressionError) {
+          console.warn('⚠️ Image compression failed, using original:', compressionError);
+          processedFile = file;
+        }
+      }
+
       console.log('✅ File validated:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
+        name: processedFile.name,
+        size: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
+        type: processedFile.type,
         fieldId: fieldId
       });
 
@@ -537,9 +554,9 @@ export default function FestRegistration() {
       // Upload will happen during form submission to avoid blocking UI
       const fileInfo = { 
         uploaded: true, 
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
+        fileName: processedFile.name,
+        fileSize: processedFile.size,
+        fileType: processedFile.type,
         ready: true // Mark as ready for submission
       };
       
@@ -549,7 +566,7 @@ export default function FestRegistration() {
           ...prev,
           [currentStep]: {
             ...prev[currentStep],
-            [`${fieldId}_file`]: file, // Store actual file
+            [`${fieldId}_file`]: processedFile, // Store actual file
             [fieldId]: fileInfo
           }
         }));
@@ -557,7 +574,7 @@ export default function FestRegistration() {
         // For single-step forms, use formData directly
         setFormData(prev => ({
           ...prev,
-          [`${fieldId}_file`]: file, // Store actual file
+          [`${fieldId}_file`]: processedFile, // Store actual file
           [fieldId]: fileInfo
         }));
       }
@@ -574,9 +591,62 @@ export default function FestRegistration() {
     }
   };
 
+  // ✅ PERFORMANCE: Image compression function
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        // Calculate new dimensions (max 1920x1080)
+        const maxWidth = 1920;
+        const maxHeight = 1080;
+        let { width, height } = img;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width *= ratio;
+          height *= ratio;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Compression failed'));
+            }
+          },
+          file.type,
+          0.8 // 80% quality
+        );
+      };
+      
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('🚀 Starting form submission...');
+    
+    // ✅ PERFORMANCE: Prevent double submission
+    if (submitting) {
+      console.log('⚠️ Submission already in progress, ignoring duplicate request');
+      return;
+    }
     
     // ✅ NEW: For multi-step forms, validate current step first
     if (isMultiStepForm() && currentStep < getTotalSteps()) {
@@ -702,6 +772,8 @@ export default function FestRegistration() {
       // ✅ PERFORMANCE: Prepare form data efficiently
       const submissionFormData = new FormData();
       const textResponses = {};
+      let totalFileSize = 0;
+      let fileCount = 0;
 
       // Process form fields with consistent field naming
       formSchema.forEach(field => {
@@ -716,7 +788,9 @@ export default function FestRegistration() {
           const fileData = allFormData[`${fieldId}_file`];
           if (fileData) {
             submissionFormData.append(backendFieldName, fileData);
-            console.log('📁 Added file to form data:', backendFieldName, fileData.name);
+            totalFileSize += fileData.size;
+            fileCount++;
+            console.log('📁 Added file to form data:', backendFieldName, fileData.name, `(${(fileData.size / 1024 / 1024).toFixed(2)}MB)`);
           }
         } else {
           // Add text data to responses object using backend field name
@@ -728,7 +802,18 @@ export default function FestRegistration() {
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
 
-      setSubmissionProgress('Submitting registration...');
+      // ✅ PERFORMANCE: Show file upload progress
+      if (fileCount > 0) {
+        setSubmissionProgress(`Uploading ${fileCount} file(s) (${(totalFileSize / 1024 / 1024).toFixed(2)}MB)...`);
+      } else {
+        setSubmissionProgress('Submitting registration...');
+      }
+      // ✅ PERFORMANCE: Pre-validate files before submission
+      const maxTotalSize = 50 * 1024 * 1024; // 50MB total limit
+      if (totalFileSize > maxTotalSize) {
+        throw new Error(`Total file size (${(totalFileSize / 1024 / 1024).toFixed(2)}MB) exceeds limit of 50MB. Please reduce file sizes.`);
+      }
+
       // ✅ PERFORMANCE: Determine endpoint and make request
       const endpoint = isCompetitionRegistration 
         ? `${API_BASE_URL}/registrations/competitions/${competitionId}/register`
@@ -737,13 +822,20 @@ export default function FestRegistration() {
       console.log('🌐 Making registration request to:', endpoint);
       console.log('📊 Submission summary:', {
         textFields: Object.keys(textResponses).length,
-        fileFields: Array.from(submissionFormData.keys()).filter(key => key !== 'responses').length,
-        totalSize: submissionFormData.get('responses')?.length || 0
+        fileFields: fileCount,
+        totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`,
+        estimatedUploadTime: `${Math.ceil(totalFileSize / (1024 * 1024))}s`
       });
 
-      // ✅ PERFORMANCE: Use fetch with timeout (increased for file uploads)
+      // ✅ PERFORMANCE: Dynamic timeout based on file size (minimum 30s, +10s per MB)
+      const dynamicTimeout = Math.max(30000, 30000 + (totalFileSize / 1024 / 1024) * 10000);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for file uploads
+      const timeoutId = setTimeout(() => controller.abort(), dynamicTimeout);
+
+      console.log(`⏱️ Upload timeout set to ${dynamicTimeout / 1000}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
+
+      // ✅ PERFORMANCE: Track upload progress
+      const startTime = Date.now();
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -756,11 +848,13 @@ export default function FestRegistration() {
       });
 
       clearTimeout(timeoutId);
+      const uploadTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
       console.log('📡 Registration response:', { 
         status: response.status, 
         ok: response.ok,
-        statusText: response.statusText
+        statusText: response.statusText,
+        uploadTime: `${uploadTime}s`
       });
 
       if (!response.ok) {
@@ -1124,8 +1218,8 @@ export default function FestRegistration() {
               </div>
             )}
 
-            {/* Payment QR Code Display - Compact and organized */}
-            {fest.registration.paymentQR && (
+            {/* Payment QR Code Display - Only show on final step for multi-step forms */}
+            {fest.registration.paymentQR && (!isMultiStepForm() || currentStep === getTotalSteps()) && (
               <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4 border-2 border-yellow-600/30">
                 <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Payment Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-center">
@@ -1172,6 +1266,24 @@ export default function FestRegistration() {
                     <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                     <span className="hidden sm:inline">{submissionProgress || 'Submitting...'}</span>
                     <span className="sm:hidden">Submitting...</span>
+                    
+                    {/* Progress indicator */}
+                    {submissionProgress && (
+                      <div className="w-full mt-2">
+                        <div className="bg-gray-700 rounded-full h-1.5">
+                          <div 
+                            className="bg-[#0ECCEE] h-1.5 rounded-full transition-all duration-500 ease-out"
+                            style={{
+                              width: submissionProgress.includes('Validating') ? '20%' :
+                                     submissionProgress.includes('Preparing') ? '40%' :
+                                     submissionProgress.includes('Uploading') ? '70%' :
+                                     submissionProgress.includes('Processing') ? '90%' :
+                                     submissionProgress.includes('completed') ? '100%' : '10%'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : isMultiStepForm() && currentStep < getTotalSteps() ? (
                   'Next Step'

@@ -1,12 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChange, getCurrentUser, handleRedirectResult } from '../firebase';
-
-// Configure API base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { authAPI } from '../utils/api';
+import { processSocialAuthUser, validateSocialAuthResult } from '../utils/socialAuth';
 
 const AuthContext = createContext();
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
@@ -39,11 +37,52 @@ export const AuthProvider = ({ children }) => {
                 const result = await handleRedirectResult();
                 if (result && result.success && result.user) {
                     // Handle successful redirect authentication
-                    console.log('Redirect authentication successful:', result.user.email);
-                    // The auth state change will be handled by the onAuthStateChange listener
+                    const provider = result.providerId?.includes('google') ? 'google' : 'facebook';
+                    
+                    // Process user data for backend
+                    const socialAuthData = processSocialAuthUser(result.user, provider);
+                    socialAuthData.isVerified = true;
+                    
+                    try {
+                        // Sync with backend
+                        const data = await authAPI.socialAuth(socialAuthData);
+                        
+                        // Login with backend data
+                        login({
+                            ...data.data.user,
+                            token: data.data.token
+                        }, result.user);
+                        
+                    } catch (backendError) {
+                        console.error('Backend social auth failed:', backendError);
+                        
+                        // Fallback: Login with Firebase user data only
+                        const fallbackUser = {
+                            _id: result.user.uid,
+                            name: result.user.displayName || `${provider} User`,
+                            email: result.user.email,
+                            role: 'student',
+                            isVerified: true,
+                            provider: provider,
+                            profilePic: result.user.photoURL
+                        };
+                        
+                        const fallbackToken = `firebase_${result.user.uid}_${Date.now()}`;
+                        
+                        login({
+                            ...fallbackUser,
+                            token: fallbackToken
+                        }, result.user);
+                    }
+                    
+                    // Clean up the URL
+                    const cleanUrl = window.location.origin + window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
                 }
             } catch (error) {
                 console.error('Error handling redirect result:', error);
+            } finally {
+                setIsLoading(false);
             }
         };
 
@@ -106,7 +145,7 @@ export const AuthProvider = ({ children }) => {
         };
     };
 
-    // Function to make authenticated API requests with better error handling
+    // Function to make authenticated API requests
     const apiCall = async (url, options = {}) => {
         const headers = getAuthHeaders();
 
@@ -118,23 +157,18 @@ export const AuthProvider = ({ children }) => {
             },
         });
 
-        // ✅ CRITICAL FIX: Don't auto-logout on 401 for all requests
-        // Only logout if it's a user-initiated action, not background requests
         if (response.status === 401 && token && options.autoLogoutOn401 !== false) {
-            console.log('🔓 Token expired, logging out user');
             logout();
-            // Don't redirect immediately, let the calling component handle it
         }
 
         return response;
     };
 
-    // ✅ NEW: Function to validate token without auto-logout
     const validateToken = async () => {
         if (!token) return false;
         
         try {
-            const response = await fetch(`${API_BASE_URL}/users/validate`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/validate`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -148,8 +182,6 @@ export const AuthProvider = ({ children }) => {
     };
 
     const isAuthenticated = !!user && !!token;
-
-    // Check if user needs email verification (for Firebase auth users)
     const needsEmailVerification = firebaseUser && !isEmailVerified;
 
     const value = {
