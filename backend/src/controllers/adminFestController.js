@@ -130,6 +130,15 @@ exports.createFest = async (req, res) => {
 
     // Clear cache when new fest is created
     clearFestsCache();
+    
+    // ✅ Also clear public cache for consistency
+    try {
+      const { clearAllCaches } = require('./festOrganizerController');
+      clearAllCaches();
+      console.log('✅ Cleared both admin and public caches after fest creation');
+    } catch (cacheError) {
+      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+    }
 
     res.status(201).json({
       message: 'Fest created successfully',
@@ -242,6 +251,11 @@ exports.updateFest = async (req, res) => {
     console.log('  - artistsHeading:', updateData.artistsHeading);
     console.log('  - competitionsHeading:', updateData.competitionsHeading);
     console.log('  - contacts:', updateData.contacts);
+    console.log('  - registration:', updateData.registration);
+    console.log('  - registration.formType:', updateData.registration?.formType);
+    console.log('  - registration.formSchema:', updateData.registration?.formSchema);
+    console.log('  - registration.steps:', updateData.registration?.steps);
+    
     const fest = await FestOrganizer.findByIdAndUpdate(
       id,
       updateData,
@@ -253,9 +267,24 @@ exports.updateFest = async (req, res) => {
     console.log('  - artistsHeading:', fest.artistsHeading);
     console.log('  - competitionsHeading:', fest.competitionsHeading);
     console.log('  - contacts:', fest.contacts);
+    console.log('  - registration:', fest.registration);
+    console.log('  - registration.formType:', fest.registration?.formType);
+    console.log('  - registration.formSchema:', fest.registration?.formSchema);
+    console.log('  - registration.steps:', fest.registration?.steps);
 
     // Clear cache when fest is updated
     clearFestsCache();
+    
+    // ✅ CRITICAL FIX: Also clear the public fest details cache
+    // The public API uses a different cache system, so we need to clear both
+    try {
+      const { clearAllCaches } = require('./festOrganizerController');
+      clearAllCaches();
+      console.log('✅ Cleared both admin and public caches');
+    } catch (cacheError) {
+      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+      // Continue execution even if public cache clearing fails
+    }
 
     res.json({
       message: 'Fest updated successfully',
@@ -283,6 +312,15 @@ exports.deleteFest = async (req, res) => {
 
     // Clear cache when fest is deleted
     clearFestsCache();
+    
+    // ✅ Also clear public cache for consistency
+    try {
+      const { clearAllCaches } = require('./festOrganizerController');
+      clearAllCaches();
+      console.log('✅ Cleared both admin and public caches after fest deletion');
+    } catch (cacheError) {
+      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+    }
 
     res.json({ message: 'Fest deleted successfully' });
 

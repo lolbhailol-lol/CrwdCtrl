@@ -336,6 +336,10 @@ exports.getFestById = async (req, res) => {
         console.log('🔍 Public fest - contacts data:', fest.contacts);
         console.log('🔍 Public fest - artistsHeading:', fest.artistsHeading);
         console.log('🔍 Public fest - competitionsHeading:', fest.competitionsHeading);
+        console.log('🔍 Public fest - registration data:', fest.registration);
+        console.log('🔍 Public fest - registration.formType:', fest.registration?.formType);
+        console.log('🔍 Public fest - registration.formSchema:', fest.registration?.formSchema);
+        console.log('🔍 Public fest - registration.steps:', fest.registration?.steps);
         
         // Add metadata
         fest.cached = false;
@@ -1167,3 +1171,6 @@ exports.deleteCompetition = async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 };
+
+// ✅ Export cache management functions for use by admin controller
+exports.clearAllCaches = clearAllCaches;

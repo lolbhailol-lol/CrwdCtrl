@@ -388,11 +388,6 @@ export default function FestRegistration() {
         throw new Error('Failed to fetch fest details');
       }
       const data = await response.json();
-      console.log('✅ Fest data received:', {
-        festName: data.festName,
-        registrationMode: data.registration?.mode,
-        formSchemaLength: data.registration?.formSchema?.length || 0
-      });
       
       // ✅ CRITICAL: Validate registration mode immediately
       if (data.registration?.mode !== 'INTERNAL_FORM') {
@@ -451,11 +446,6 @@ export default function FestRegistration() {
         throw new Error('Failed to fetch fest details');
       }
       const festData = await festResponse.json();
-      console.log('✅ Fest data received:', {
-        festName: festData.festName,
-        registrationMode: festData.registration?.mode,
-        formSchemaLength: festData.registration?.formSchema?.length || 0
-      });
       
       // ✅ CRITICAL: Validate registration mode for competition registration
       if (competitionData.registrationType === 'fest') {
@@ -1194,17 +1184,24 @@ export default function FestRegistration() {
                 
                 {/* Current Step Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {getCurrentStepFields().map((field) => {
-                    const fieldId = generateFieldId(field);
-                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                       field.type === 'checkbox' || field.type === 'radio';
+                  {(() => {
+                    const currentFields = getCurrentStepFields();
+                    console.log('🔍 Current step fields:', currentFields);
+                    console.log('🔍 Current step:', currentStep);
+                    console.log('🔍 Total steps:', getTotalSteps());
                     
-                    return (
-                      <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                        {renderFormField(field, fieldId, getCurrentStepData(), handleStepFieldChange)}
-                      </div>
-                    );
-                  })}
+                    return currentFields.map((field) => {
+                      const fieldId = generateFieldId(field);
+                      const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                         field.type === 'checkbox' || field.type === 'radio';
+                      
+                      return (
+                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                          {renderFormField(field, fieldId, getCurrentStepData(), handleStepFieldChange)}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
@@ -1214,17 +1211,21 @@ export default function FestRegistration() {
               <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4">
                 <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Registration Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {fest.registration.formSchema.map((field) => {
-                    const fieldId = generateFieldId(field);
-                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                       field.type === 'checkbox' || field.type === 'radio';
+                  {(() => {
+                    const formFields = fest.registration.formSchema;
                     
-                    return (
-                      <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                        {renderFormField(field, fieldId, formData, (fieldId, value) => setFormData(prev => ({ ...prev, [fieldId]: value })))}
-                      </div>
-                    );
-                  })}
+                    return formFields.map((field) => {
+                      const fieldId = generateFieldId(field);
+                      const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                         field.type === 'checkbox' || field.type === 'radio';
+                      
+                      return (
+                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                          {renderFormField(field, fieldId, formData, (fieldId, value) => setFormData(prev => ({ ...prev, [fieldId]: value })))}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
