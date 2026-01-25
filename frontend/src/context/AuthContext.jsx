@@ -30,12 +30,14 @@ export const AuthProvider = ({ children }) => {
         return () => unsubscribe();
     }, []);
 
-    // Handle redirect result for mobile authentication
+    // ✅ ENHANCED REDIRECT RESULT HANDLING FOR MOBILE
     useEffect(() => {
         const checkRedirectResult = async () => {
             try {
                 const result = await handleRedirectResult();
                 if (result && result.success && result.user) {
+                    console.log('✅ Redirect authentication successful:', result.user.email);
+                    
                     // Handle successful redirect authentication
                     const provider = result.providerId?.includes('google') ? 'google' : 'facebook';
                     
@@ -53,8 +55,15 @@ export const AuthProvider = ({ children }) => {
                             token: data.data.token
                         }, result.user);
                         
+                        console.log('✅ Backend sync successful after redirect');
+                        
                     } catch (backendError) {
-                        console.error('Backend social auth failed:', backendError);
+                        console.error('Backend social auth failed after redirect:', backendError);
+                        
+                        // ✅ ENHANCED FALLBACK FOR REDIRECT CASE
+                        if (backendError.status === 0 || backendError.networkError) {
+                            console.warn('Network error during backend sync, using Firebase-only auth');
+                        }
                         
                         // Fallback: Login with Firebase user data only
                         const fallbackUser = {
@@ -73,14 +82,20 @@ export const AuthProvider = ({ children }) => {
                             ...fallbackUser,
                             token: fallbackToken
                         }, result.user);
+                        
+                        console.log('✅ Fallback authentication successful after redirect');
                     }
                     
                     // Clean up the URL
                     const cleanUrl = window.location.origin + window.location.pathname;
                     window.history.replaceState({}, document.title, cleanUrl);
+                } else if (result && !result.success) {
+                    console.error('❌ Redirect authentication failed:', result.error);
+                    // Don't show error to user here - they might not have initiated a redirect
                 }
             } catch (error) {
                 console.error('Error handling redirect result:', error);
+                // Don't show error to user - this is a background check
             } finally {
                 setIsLoading(false);
             }
