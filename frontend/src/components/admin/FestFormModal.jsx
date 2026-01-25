@@ -950,10 +950,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         googleSheetsUrl: form.googleSheetsUrl,
         formInstructions: form.formInstructions,
         organizerEmail: form.organizerEmail,
-        // ✅ FIXED: Preserve form schema regardless of form type
+         // ✅ NEW: Multi-step form support
         formType: form.formType,
-        formSchema: form.formSchema || [],
-        steps: form.steps || []
+        formSchema: form.formType === 'SINGLE_STEP' ? form.formSchema : [],
+        steps: form.formType === 'MULTI_STEP' ? form.steps : []
       },
     };
 
