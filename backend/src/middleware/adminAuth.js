@@ -9,12 +9,14 @@ module.exports = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Use ADMIN_JWT_SECRET for admin token verification
+    const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
 
     req.user = decoded;
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    console.error('Admin authentication error:', error);
+    res.status(401).json({ error: 'Unauthorized: Invalid admin token' });
   }
 };

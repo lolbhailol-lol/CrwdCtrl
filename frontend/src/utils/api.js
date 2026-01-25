@@ -42,8 +42,22 @@ class ApiClient {
 
             config.signal = controller.signal;
 
+            console.log('📤 API Request:', {
+                method: config.method,
+                url: url,
+                headers: config.headers,
+                hasBody: !!config.body
+            });
+
             const response = await fetch(url, config);
             clearTimeout(timeoutId);
+
+            console.log('📥 API Response:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+                headers: Object.fromEntries(response.headers.entries())
+            });
 
             // Handle non-JSON responses
             const contentType = response.headers.get('content-type');
@@ -56,6 +70,12 @@ class ApiClient {
             }
 
             if (!response.ok) {
+                console.error('❌ API Error Response:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data
+                });
+                
                 throw new ApiError(
                     data.message || `HTTP ${response.status} ${response.statusText}`,
                     response.status,
@@ -63,9 +83,11 @@ class ApiClient {
                 );
             }
 
+            console.log('✅ API Success:', data);
             return data;
         } catch (error) {
             if (error.name === 'AbortError') {
+                console.error('⏰ API Request Timeout:', url);
                 throw new ApiError('Request timeout', 408);
             }
 
@@ -73,7 +95,40 @@ class ApiClient {
                 throw error;
             }
 
-            // Network or other errors
+            // Enhanced network error handling
+            console.error('🌐 Network Error:', {
+                message: error.message,
+                name: error.name,
+                stack: error.stack,
+                url: url
+            });
+
+            // Check for specific network error types
+            if (error.message.includes('Failed to fetch')) {
+                throw new ApiError(
+                    'Unable to connect to server. Please check your internet connection and try again.',
+                    0,
+                    { originalError: error, networkError: true }
+                );
+            }
+
+            if (error.message.includes('NetworkError')) {
+                throw new ApiError(
+                    'Network error occurred. Please check your connection and try again.',
+                    0,
+                    { originalError: error, networkError: true }
+                );
+            }
+
+            if (error.message.includes('CORS')) {
+                throw new ApiError(
+                    'Cross-origin request blocked. Please contact support.',
+                    0,
+                    { originalError: error, corsError: true }
+                );
+            }
+
+            // Generic network error
             throw new ApiError(
                 error.message || 'Network error occurred',
                 0,

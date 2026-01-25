@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import { DarkModeProvider } from './context/DarkModeContext'
 import { FavoritesProvider } from './context/FavoritesContext'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { RegisteredEventsProvider } from './context/RegisteredEventsContext'
 import { NotificationsProvider } from './context/NotificationsContext'
 import ConnectionStatus from './components/ConnectionStatus'
@@ -12,6 +12,7 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
 import AppLoadingPage from './components/AppLoadingPage'
+import AuthLoadingPage from './components/AuthLoadingPage'
 import LoadingBar from './components/LoadingBar'
 import AdminStatsCard from './components/admin/AdminStatsCard'
 import Competiton_Modal from './components/admin/Competition_Modal'
@@ -106,6 +107,18 @@ function App() {
     // Check if this is a page refresh by checking if performance.navigation exists
     // and its type or checking if sessionStorage has our flag
     const checkIfPageRefresh = () => {
+      // ✅ CRITICAL FIX: Don't show loading page if we have Firebase auth parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasAuthParams = urlParams.has('apiKey') || urlParams.has('oobCode') || 
+                          window.location.hash.includes('access_token') ||
+                          window.location.search.includes('state=') ||
+                          window.location.search.includes('code=');
+      
+      if (hasAuthParams) {
+        console.log('🔄 Firebase auth redirect detected, skipping loading page');
+        return false; // Don't show loading page for auth redirects
+      }
+
       // Method 1: Check performance navigation API
       if (performance.navigation && performance.navigation.type === 1) {
         return true;
@@ -140,7 +153,7 @@ function App() {
 
       return () => clearTimeout(timer);
     } else {
-      // No loading for navigation
+      // No loading for navigation or auth redirects
       setIsInitialLoading(false);
     }
   }, []);
@@ -177,7 +190,13 @@ function App() {
 
   const AppContent = () => {
     const location = useLocation();
+    const { isAuthProcessing } = useAuth();
     const isAdminRoute = location.pathname.startsWith('/admin');
+
+    // Show auth loading page when processing OAuth redirect
+    if (isAuthProcessing) {
+      return <AuthLoadingPage />;
+    }
 
     return (
       <div className="relative min-h-screen">

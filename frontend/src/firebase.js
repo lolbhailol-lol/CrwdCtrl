@@ -44,64 +44,29 @@ facebookProvider.setCustomParameters({
     display: 'popup'
 });
 
-// Helper function to detect mobile devices
-const isMobileDevice = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           window.innerWidth <= 768;
-};
-
 // Social authentication functions
 export const signInWithGoogle = async () => {
     try {
-        if (!auth || !googleProvider) {
-            throw new Error('Firebase authentication not properly initialized');
-        }
-
-        let result;
-        
-        // Use redirect for mobile devices, popup for desktop
-        if (isMobileDevice()) {
-            // For mobile, use redirect method
-            await signInWithRedirect(auth, googleProvider);
-            // The result will be handled by getRedirectResult in the app initialization
-            return {
-                success: true,
-                redirecting: true,
-                message: 'Redirecting to Google sign-in...'
-            };
-        } else {
-            // For desktop, use popup method
-            result = await signInWithPopup(auth, googleProvider);
-        }
-
-        if (!result || !result.user) {
-            throw new Error('No user data received from Google');
-        }
-
-        // For social auth, user email is already verified by the provider
+        const result = await signInWithPopup(auth, googleProvider);
         return {
             success: true,
             user: result.user,
             credential: result.credential,
-            needsVerification: false // Social auth emails are pre-verified
+            needsVerification: false
         };
     } catch (error) {
         console.error('Google sign-in error:', error);
 
         let errorMessage = 'Google sign-in failed. Please try again.';
 
-        if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        if (error.code === 'auth/popup-closed-by-user') {
             errorMessage = 'Sign-in was cancelled. Please try again.';
         } else if (error.code === 'auth/popup-blocked') {
             errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
         } else if (error.code === 'auth/network-request-failed') {
             errorMessage = 'Network error. Please check your connection and try again.';
-        } else if (error.code === 'auth/too-many-requests') {
-            errorMessage = 'Too many requests. Please wait a moment and try again.';
-        } else if (error.code === 'auth/configuration-not-found') {
-            errorMessage = 'Google sign-in is not properly configured. Please contact support.';
-        } else if (error.message && error.message.includes('not properly initialized')) {
-            errorMessage = 'Authentication service not available. Please refresh and try again.';
+        } else if (error.code === 'auth/unauthorized-domain') {
+            errorMessage = 'This domain is not authorized for Google sign-in. Please contact support.';
         }
 
         return {
@@ -113,44 +78,19 @@ export const signInWithGoogle = async () => {
 
 export const signInWithFacebook = async () => {
     try {
-        if (!auth || !facebookProvider) {
-            throw new Error('Firebase authentication not properly initialized');
-        }
-
-        let result;
-        
-        // Use redirect for mobile devices, popup for desktop
-        if (isMobileDevice()) {
-            // For mobile, use redirect method
-            await signInWithRedirect(auth, facebookProvider);
-            // The result will be handled by getRedirectResult in the app initialization
-            return {
-                success: true,
-                redirecting: true,
-                message: 'Redirecting to Facebook sign-in...'
-            };
-        } else {
-            // For desktop, use popup method
-            result = await signInWithPopup(auth, facebookProvider);
-        }
-
-        if (!result || !result.user) {
-            throw new Error('No user data received from Facebook');
-        }
-
-        // For social auth, user email is already verified by the provider
+        const result = await signInWithPopup(auth, facebookProvider);
         return {
             success: true,
             user: result.user,
             credential: result.credential,
-            needsVerification: false // Social auth emails are pre-verified
+            needsVerification: false
         };
     } catch (error) {
         console.error('Facebook sign-in error:', error);
 
         let errorMessage = 'Facebook sign-in failed. Please try again.';
 
-        if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        if (error.code === 'auth/popup-closed-by-user') {
             errorMessage = 'Sign-in was cancelled. Please try again.';
         } else if (error.code === 'auth/popup-blocked') {
             errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
@@ -158,12 +98,10 @@ export const signInWithFacebook = async () => {
             errorMessage = 'Network error. Please check your connection and try again.';
         } else if (error.code === 'auth/account-exists-with-different-credential') {
             errorMessage = 'An account already exists with this email. Please use your original sign-in method.';
-        } else if (error.code === 'auth/too-many-requests') {
-            errorMessage = 'Too many requests. Please wait a moment and try again.';
-        } else if (error.code === 'auth/configuration-not-found') {
-            errorMessage = 'Facebook sign-in is not properly configured. Please contact support.';
-        } else if (error.message && error.message.includes('not properly initialized')) {
-            errorMessage = 'Authentication service not available. Please refresh and try again.';
+        } else if (error.code === 'auth/unauthorized-domain') {
+            errorMessage = 'This domain is not authorized for Facebook sign-in. Please contact support.';
+        } else if (error.code === 'auth/operation-not-allowed') {
+            errorMessage = 'Facebook sign-in is not enabled. Please contact support to enable Facebook authentication.';
         }
 
         return {
@@ -176,21 +114,14 @@ export const signInWithFacebook = async () => {
 // Email/Password authentication functions
 export const registerWithEmail = async (email, password) => {
     try {
-        if (!auth) {
-            throw new Error('Firebase authentication not properly initialized');
-        }
-
-        // Create user account
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
         // Send verification email
-        console.log('Sending verification email to:', user.email);
         await sendEmailVerification(user, {
-            url: `${window.location.origin}/verify-email`, // Redirect to verification page after clicking email link
+            url: `${window.location.origin}/verify-email`,
             handleCodeInApp: true
         });
-        console.log('Verification email sent successfully');
 
         return {
             success: true,
@@ -221,10 +152,6 @@ export const registerWithEmail = async (email, password) => {
 
 export const loginWithEmail = async (email, password) => {
     try {
-        if (!auth) {
-            throw new Error('Firebase authentication not properly initialized');
-        }
-
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
@@ -272,28 +199,10 @@ export const sendVerificationEmail = async () => {
             };
         }
 
-        // Check if we've sent an email recently to prevent rate limiting
-        const lastSent = localStorage.getItem('lastVerificationEmailSent');
-        const now = Date.now();
-        const cooldownPeriod = 60000; // 1 minute cooldown
-
-        if (lastSent && (now - parseInt(lastSent)) < cooldownPeriod) {
-            const remainingTime = Math.ceil((cooldownPeriod - (now - parseInt(lastSent))) / 1000);
-            return {
-                success: false,
-                error: `Please wait ${remainingTime} seconds before requesting another email.`
-            };
-        }
-
-        console.log('Resending verification email to:', user.email);
         await sendEmailVerification(user, {
             url: `${window.location.origin}/verify-email`,
             handleCodeInApp: true
         });
-        console.log('Verification email resent successfully');
-
-        // Store timestamp of last sent email
-        localStorage.setItem('lastVerificationEmailSent', now.toString());
 
         return {
             success: true,
@@ -322,10 +231,6 @@ export const sendVerificationEmail = async () => {
 // Verify email with action code
 export const verifyEmail = async (actionCode) => {
     try {
-        if (!auth) {
-            throw new Error('Firebase authentication not properly initialized');
-        }
-
         await applyActionCode(auth, actionCode);
 
         // Reload the user to get updated emailVerified status
@@ -371,21 +276,36 @@ export const getCurrentUser = () => {
 export const handleRedirectResult = async () => {
     try {
         const result = await getRedirectResult(auth);
+        
         if (result) {
-            // User signed in via redirect
             return {
                 success: true,
                 user: result.user,
                 credential: result.credential,
-                needsVerification: false // Social auth emails are pre-verified
+                providerId: result.providerId,
+                needsVerification: false,
+                isNewUser: result._tokenResponse?.isNewUser || false
             };
         }
+        
         return null; // No redirect result
     } catch (error) {
         console.error('Redirect result error:', error);
+        
+        let errorMessage = 'Authentication failed. Please try again.';
+        
+        if (error.code === 'auth/account-exists-with-different-credential') {
+            errorMessage = 'An account already exists with this email using a different sign-in method.';
+        } else if (error.code === 'auth/user-disabled') {
+            errorMessage = 'This user account has been disabled. Please contact support.';
+        } else if (error.code === 'auth/unauthorized-domain') {
+            errorMessage = 'This domain is not authorized for authentication. Please contact support.';
+        }
+        
         return {
             success: false,
-            error: 'Authentication failed. Please try again.'
+            error: errorMessage,
+            code: error.code
         };
     }
 };

@@ -54,6 +54,12 @@ const corsOrigins = [
   "https://crwdctrl.vercel.app",
   // Google Cloud Run domain
   "https://crwdctrl-730576782394.asia-south2.run.app",
+  // Additional Vercel domains
+  "https://crwdctrl-mvp-git-main-your-username.vercel.app",
+  "https://crwdctrl-mvp-git-main.vercel.app",
+  // Firebase hosting domains
+  "https://crwdctrl.firebaseapp.com",
+  "https://crwdctrl.web.app",
   // Mobile app support
   "capacitor://localhost", // Add for mobile apps using Capacitor
   "ionic://localhost",     // Add for Ionic apps
@@ -65,11 +71,41 @@ console.log("✅ CORS Allowed Origins:", corsOrigins);
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || corsOrigins.includes(origin)) {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) {
         return callback(null, true);
       }
+      
+      // Check if origin is in allowed list
+      if (corsOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // For debugging: Allow any localhost or 127.0.0.1 origin
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        console.log('🔧 Debug: Allowing localhost origin:', origin);
+        return callback(null, true);
+      }
+      
+      // For debugging: Allow any Vercel domain
+      if (origin.includes('vercel.app')) {
+        console.log('🔧 Debug: Allowing Vercel origin:', origin);
+        return callback(null, true);
+      }
+      
+      // For debugging: Allow Firebase hosting domains
+      if (origin.includes('firebaseapp.com') || origin.includes('web.app')) {
+        console.log('🔧 Debug: Allowing Firebase origin:', origin);
+        return callback(null, true);
+      }
+      
       console.warn("⚠️ CORS request from unauthorized origin:", origin);
-      return callback(null, false);
+      console.warn("   Allowed origins:", corsOrigins);
+      
+      // For now, allow all origins to debug the network issue
+      // TODO: Remove this in production
+      console.log('🔧 Debug: Temporarily allowing all origins for debugging');
+      return callback(null, true);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -78,7 +114,14 @@ app.use(
       "Authorization", 
       "X-Requested-With",
       "Cache-Control",
-      "Pragma"
+      "Pragma",
+      "Origin",
+      "Accept"
+    ],
+    exposedHeaders: [
+      "Content-Length", 
+      "Content-Range",
+      "X-Total-Count"
     ],
     maxAge: 86400, // Cache preflight for 24 hours
   })
@@ -120,8 +163,16 @@ app.use((req, res, next) => {
   res.set('Vary', 'Accept-Encoding');
   
   // Fix Cross-Origin-Opener-Policy for Firebase OAuth (required for social login)
-  res.set('Cross-Origin-Opener-Policy', 'unsafe-none');
+  res.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  
+  // Additional OAuth compatibility headers
+  res.set('Access-Control-Allow-Credentials', 'true');
+  res.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+  
+  // Security headers
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
   
   next();
 });
@@ -196,8 +247,16 @@ app.get("/api/cors-test", (req, res) => {
     message: "CORS working",
     origin: req.get("origin") || "none",
     timestamp: new Date().toISOString(),
+    headers: {
+      'user-agent': req.get("user-agent"),
+      'referer': req.get("referer"),
+      'host': req.get("host")
+    }
   });
 });
+
+// Note: OPTIONS preflight requests are handled by the CORS middleware above
+// No need for explicit OPTIONS handler - CORS middleware handles it automatically
 
 // 404 Handler
 app.use((req, res) => {

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple OAuth Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 15px 30px; margin: 10px; font-size: 18px; cursor: pointer; }
+        .log { margin: 5px 0; padding: 5px; background: #f0f0f0; font-family: monospace; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <h1>Simple OAuth Test</h1>
+    <p>This will test if Firebase OAuth is working at all.</p>
+    
+    <button onclick="testSimpleGoogleAuth()">Test Google Sign-In</button>
+    <button onclick="clearLogs()">Clear Logs</button>
+    
+    <div id="logs"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDoyaNIB6GPi4mfn9Wi1YT5rL3o_A-3N9A",
+            authDomain: "crwdctrl.firebaseapp.com",
+            projectId: "crwdctrl",
+            storageBucket: "crwdctrl.firebasestorage.app",
+            messagingSenderId: "420309062914",
+            appId: "1:420309062914:web:73bb8e49df575f90dd9e1b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logsDiv.appendChild(logDiv);
+            console.log(message);
+        }
+
+        window.testSimpleGoogleAuth = async function() {
+            try {
+                log('🔄 Starting simple Google authentication test...');
+                log('📋 Firebase config loaded successfully');
+                log('🔧 Creating Google provider...');
+                
+                // Test popup capability first
+                log('🧪 Testing popup capability...');
+                try {
+                    const testPopup = window.open('', '_blank', 'width=1,height=1');
+                    if (testPopup) {
+                        testPopup.close();
+                        log('✅ Popup capability: Available');
+                    } else {
+                        log('⚠️ Popup capability: Blocked');
+                    }
+                } catch (e) {
+                    log('⚠️ Popup capability: Error - ' + e.message);
+                }
+                
+                log('🚀 Attempting Google sign-in with popup...');
+                const result = await signInWithPopup(auth, provider);
+                
+                log('✅ Google authentication successful!', 'success');
+                log(`👤 User: ${result.user.displayName} (${result.user.email})`, 'success');
+                log(`🔑 UID: ${result.user.uid}`, 'success');
+                log(`✉️ Email verified: ${result.user.emailVerified}`, 'success');
+                
+            } catch (error) {
+                log('❌ Google authentication failed: ' + error.message, 'error');
+                log('📋 Error code: ' + error.code, 'error');
+                
+                if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+                    log('🔄 Trying redirect authentication as fallback...', 'info');
+                    try {
+                        await signInWithRedirect(auth, provider);
+                        log('🔄 Redirecting to Google...', 'info');
+                    } catch (redirectError) {
+                        log('❌ Redirect also failed: ' + redirectError.message, 'error');
+                    }
+                }
+            }
+        };
+
+        window.clearLogs = function() {
+            document.getElementById('logs').innerHTML = '';
+        };
+
+        // Auto-log initialization
+        window.addEventListener('load', () => {
+            log('🚀 Simple OAuth test loaded');
+            log('🔧 Firebase initialized');
+        });
+    </script>
+</body>
+</html>
+</body>
+</html>
