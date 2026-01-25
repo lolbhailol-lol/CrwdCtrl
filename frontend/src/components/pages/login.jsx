@@ -133,6 +133,13 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 return;
             }
 
+            // ✅ HANDLE REDIRECT CASE FOR MOBILE
+            if (result.redirectInitiated) {
+                // Show loading message for redirect
+                setErrors({ general: 'Redirecting to Google... Please wait.' });
+                return; // Don't set loading to false - redirect is in progress
+            }
+
             if (!validateSocialAuthResult(result)) {
                 setErrors({ general: 'Invalid authentication result. Please try again.' });
                 return;
@@ -155,6 +162,12 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
             } catch (backendError) {
                 console.error('Backend social auth failed:', backendError);
+                
+                // ✅ ENHANCED FALLBACK WITH BETTER ERROR HANDLING
+                if (backendError.status === 0 || backendError.networkError) {
+                    setErrors({ general: 'Network error. Please check your connection and try again.' });
+                    return;
+                }
                 
                 // Fallback: Login with Firebase user data only
                 const fallbackUser = {
@@ -186,19 +199,33 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             
             let errorMessage = 'Google sign-in failed. Please try again.';
             
+            // ✅ ENHANCED ERROR MESSAGES FOR MOBILE
             if (error.code === 'auth/popup-closed-by-user') {
                 errorMessage = 'Sign-in was cancelled. Please try again.';
             } else if (error.code === 'auth/popup-blocked') {
-                errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
+                errorMessage = 'Popup was blocked. Trying alternative method...';
+                // Don't show error immediately - the fallback redirect might work
+                setTimeout(() => {
+                    if (isLoading) { // Only show error if still loading (redirect didn't work)
+                        setErrors({ general: 'Please allow popups for this site or try email login.' });
+                        setIsLoading(false);
+                    }
+                }, 3000);
+                return;
             } else if (error.code === 'auth/network-request-failed') {
                 errorMessage = 'Network error. Please check your connection and try again.';
             } else if (error.code === 'auth/unauthorized-domain') {
                 errorMessage = 'This domain is not authorized for Google sign-in. Please contact support.';
+            } else if (error.message && error.message.includes('network')) {
+                errorMessage = 'Network error. Please check your connection and try again.';
             }
             
             setErrors({ general: errorMessage });
         } finally {
-            setIsLoading(false);
+            // Only set loading to false if not redirecting
+            if (!errors.general || !errors.general.includes('Redirecting')) {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -212,6 +239,13 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             if (!result.success) {
                 setErrors({ general: result.error });
                 return;
+            }
+
+            // ✅ HANDLE REDIRECT CASE FOR MOBILE
+            if (result.redirectInitiated) {
+                // Show loading message for redirect
+                setErrors({ general: 'Redirecting to Facebook... Please wait.' });
+                return; // Don't set loading to false - redirect is in progress
             }
 
             if (!validateSocialAuthResult(result)) {
@@ -236,6 +270,12 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
             } catch (backendError) {
                 console.error('Backend social auth failed:', backendError);
+                
+                // ✅ ENHANCED FALLBACK WITH BETTER ERROR HANDLING
+                if (backendError.status === 0 || backendError.networkError) {
+                    setErrors({ general: 'Network error. Please check your connection and try again.' });
+                    return;
+                }
                 
                 // Fallback: Login with Firebase user data only
                 const fallbackUser = {
@@ -270,16 +310,31 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             if (error.code === 'auth/popup-closed-by-user') {
                 errorMessage = 'Sign-in was cancelled. Please try again.';
             } else if (error.code === 'auth/popup-blocked') {
-                errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
+                errorMessage = 'Popup was blocked. Trying alternative method...';
+                // Don't show error immediately - the fallback redirect might work
+                setTimeout(() => {
+                    if (isLoading) { // Only show error if still loading (redirect didn't work)
+                        setErrors({ general: 'Please allow popups for this site or try email login.' });
+                        setIsLoading(false);
+                    }
+                }, 3000);
+                return;
             } else if (error.code === 'auth/network-request-failed') {
                 errorMessage = 'Network error. Please check your connection and try again.';
             } else if (error.code === 'auth/unauthorized-domain') {
                 errorMessage = 'This domain is not authorized for Facebook sign-in. Please contact support.';
+            } else if (error.code === 'auth/operation-not-allowed') {
+                errorMessage = 'Facebook sign-in is not enabled. Please contact support to enable Facebook authentication.';
+            } else if (error.message && error.message.includes('network')) {
+                errorMessage = 'Network error. Please check your connection and try again.';
             }
             
             setErrors({ general: errorMessage });
         } finally {
-            setIsLoading(false);
+            // Only set loading to false if not redirecting
+            if (!errors.general || !errors.general.includes('Redirecting')) {
+                setIsLoading(false);
+            }
         }
     };
 

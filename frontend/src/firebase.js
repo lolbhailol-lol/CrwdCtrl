@@ -44,29 +44,70 @@ facebookProvider.setCustomParameters({
     display: 'popup'
 });
 
-// Social authentication functions
+// ✅ MOBILE DETECTION UTILITY
+const isMobileDevice = () => {
+    return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 768 && 'ontouchstart' in window);
+};
+
+// ✅ ENHANCED TIMEOUT FOR MOBILE
+const getAuthTimeout = () => {
+    return isMobileDevice() ? 30000 : 15000; // 30s mobile, 15s desktop
+};
+
+// ✅ ENHANCED GOOGLE SIGN-IN WITH MOBILE FALLBACK
 export const signInWithGoogle = async () => {
     try {
+        // Try popup first (works for desktop and some mobile browsers)
         const result = await signInWithPopup(auth, googleProvider);
         return {
             success: true,
             user: result.user,
             credential: result.credential,
-            needsVerification: false
+            needsVerification: false,
+            method: 'popup'
         };
     } catch (error) {
-        console.error('Google sign-in error:', error);
+        console.error('Google popup sign-in error:', error);
 
+        // ✅ MOBILE FALLBACK: If popup fails, try redirect (especially for mobile)
+        if (error.code === 'auth/popup-blocked' || 
+            error.code === 'auth/popup-closed-by-user' ||
+            error.code === 'auth/cancelled-popup-request' ||
+            isMobileDevice()) {
+            
+            console.log('🔄 Falling back to redirect method for mobile/popup-blocked');
+            
+            try {
+                // Use redirect method for mobile devices
+                await signInWithRedirect(auth, googleProvider);
+                // Note: Result will be handled by handleRedirectResult in AuthContext
+                return {
+                    success: true,
+                    user: null, // Will be handled by redirect result
+                    credential: null,
+                    needsVerification: false,
+                    method: 'redirect',
+                    redirectInitiated: true
+                };
+            } catch (redirectError) {
+                console.error('Google redirect sign-in error:', redirectError);
+                return {
+                    success: false,
+                    error: 'Google sign-in failed. Please try again or use email login.'
+                };
+            }
+        }
+
+        // Handle other specific errors
         let errorMessage = 'Google sign-in failed. Please try again.';
 
-        if (error.code === 'auth/popup-closed-by-user') {
-            errorMessage = 'Sign-in was cancelled. Please try again.';
-        } else if (error.code === 'auth/popup-blocked') {
-            errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
-        } else if (error.code === 'auth/network-request-failed') {
+        if (error.code === 'auth/network-request-failed') {
             errorMessage = 'Network error. Please check your connection and try again.';
         } else if (error.code === 'auth/unauthorized-domain') {
             errorMessage = 'This domain is not authorized for Google sign-in. Please contact support.';
+        } else if (error.code === 'auth/operation-not-allowed') {
+            errorMessage = 'Google sign-in is not enabled. Please contact support.';
         }
 
         return {
@@ -76,25 +117,54 @@ export const signInWithGoogle = async () => {
     }
 };
 
+// ✅ ENHANCED FACEBOOK SIGN-IN WITH MOBILE FALLBACK
 export const signInWithFacebook = async () => {
     try {
+        // Try popup first (works for desktop and some mobile browsers)
         const result = await signInWithPopup(auth, facebookProvider);
         return {
             success: true,
             user: result.user,
             credential: result.credential,
-            needsVerification: false
+            needsVerification: false,
+            method: 'popup'
         };
     } catch (error) {
-        console.error('Facebook sign-in error:', error);
+        console.error('Facebook popup sign-in error:', error);
 
+        // ✅ MOBILE FALLBACK: If popup fails, try redirect (especially for mobile)
+        if (error.code === 'auth/popup-blocked' || 
+            error.code === 'auth/popup-closed-by-user' ||
+            error.code === 'auth/cancelled-popup-request' ||
+            isMobileDevice()) {
+            
+            console.log('🔄 Falling back to redirect method for mobile/popup-blocked');
+            
+            try {
+                // Use redirect method for mobile devices
+                await signInWithRedirect(auth, facebookProvider);
+                // Note: Result will be handled by handleRedirectResult in AuthContext
+                return {
+                    success: true,
+                    user: null, // Will be handled by redirect result
+                    credential: null,
+                    needsVerification: false,
+                    method: 'redirect',
+                    redirectInitiated: true
+                };
+            } catch (redirectError) {
+                console.error('Facebook redirect sign-in error:', redirectError);
+                return {
+                    success: false,
+                    error: 'Facebook sign-in failed. Please try again or use email login.'
+                };
+            }
+        }
+
+        // Handle other specific errors
         let errorMessage = 'Facebook sign-in failed. Please try again.';
 
-        if (error.code === 'auth/popup-closed-by-user') {
-            errorMessage = 'Sign-in was cancelled. Please try again.';
-        } else if (error.code === 'auth/popup-blocked') {
-            errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
-        } else if (error.code === 'auth/network-request-failed') {
+        if (error.code === 'auth/network-request-failed') {
             errorMessage = 'Network error. Please check your connection and try again.';
         } else if (error.code === 'auth/account-exists-with-different-credential') {
             errorMessage = 'An account already exists with this email. Please use your original sign-in method.';

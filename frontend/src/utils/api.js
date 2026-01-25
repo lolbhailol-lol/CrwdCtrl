@@ -14,7 +14,154 @@ class ApiClient {
     }
 
     /**
-     * Make HTTP request with error handling
+     * ✅ MOBILE-OPTIMIZED TIMEOUT CALCULATION
+     */
+    getMobileOptimizedTimeout(endpoint = '') {
+        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isAuthEndpoint = endpoint.includes('/login') || endpoint.includes('/register') || endpoint.includes('/social-auth');
+        
+        if (isMobile) {
+            return isAuthEndpoint ? 30000 : 20000; // 30s for auth, 20s for other requests on mobile
+        }
+        return this.timeout; // Use default timeout for desktop
+    }
+
+    /**
+     * ✅ RETRY MECHANISM FOR NETWORK FAILURES
+     */
+    async requestWithRetry(url, config, maxRetries = 2) {
+        let lastError;
+        
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const controller = new AbortController();
+                const timeout = this.getMobileOptimizedTimeout(url);
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                config.signal = controller.signal;
+
+                console.log(`📤 API Request (attempt ${attempt + 1}/${maxRetries + 1}):`, {
+                    method: config.method,
+                    url: url,
+                    timeout: timeout,
+                    isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+                });
+
+                const response = await fetch(url, config);
+                clearTimeout(timeoutId);
+
+                console.log('📥 API Response:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    ok: response.ok,
+                    attempt: attempt + 1
+                });
+
+                // Handle non-JSON responses
+                const contentType = response.headers.get('content-type');
+                let data;
+
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    data = { message: await response.text() };
+                }
+
+                if (!response.ok) {
+                    console.error('❌ API Error Response:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        data: data,
+                        attempt: attempt + 1
+                    });
+                    
+                    throw new ApiError(
+                        data.message || `HTTP ${response.status} ${response.statusText}`,
+                        response.status,
+                        data
+                    );
+                }
+
+                console.log('✅ API Success:', data);
+                return data;
+
+            } catch (error) {
+                lastError = error;
+                
+                if (error.name === 'AbortError') {
+                    console.error(`⏰ API Request Timeout (attempt ${attempt + 1}):`, url);
+                    
+                    // Don't retry on timeout for the last attempt
+                    if (attempt === maxRetries) {
+                        throw new ApiError('Request timeout. Please check your connection and try again.', 408);
+                    }
+                    
+                    // Wait before retry (exponential backoff)
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                    continue;
+                }
+
+                if (error instanceof ApiError) {
+                    // Don't retry on client errors (4xx) except for specific cases
+                    if (error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
+                        throw error;
+                    }
+                    
+                    // Retry on server errors (5xx) and specific client errors
+                    if (attempt < maxRetries && (error.status >= 500 || error.status === 408 || error.status === 429)) {
+                        console.log(`🔄 Retrying request (attempt ${attempt + 2}/${maxRetries + 1}) after error:`, error.status);
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                        continue;
+                    }
+                    
+                    throw error;
+                }
+
+                // Handle network errors
+                console.error(`🌐 Network Error (attempt ${attempt + 1}):`, {
+                    message: error.message,
+                    name: error.name,
+                    url: url
+                });
+
+                // Retry on network errors
+                if (attempt < maxRetries) {
+                    console.log(`🔄 Retrying request (attempt ${attempt + 2}/${maxRetries + 1}) after network error`);
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                    continue;
+                }
+
+                // Final attempt failed - throw appropriate error
+                if (error.message.includes('Failed to fetch')) {
+                    throw new ApiError(
+                        'Unable to connect to server. Please check your internet connection and try again.',
+                        0,
+                        { originalError: error, networkError: true }
+                    );
+                }
+
+                if (error.message.includes('NetworkError')) {
+                    throw new ApiError(
+                        'Network error occurred. Please check your connection and try again.',
+                        0,
+                        { originalError: error, networkError: true }
+                    );
+                }
+
+                throw new ApiError(
+                    error.message || 'Network error occurred',
+                    0,
+                    { originalError: error }
+                );
+            }
+        }
+        
+        // This should never be reached, but just in case
+        throw lastError;
+    }
+
+    /**
+     * ✅ ENHANCED REQUEST METHOD WITH MOBILE OPTIMIZATIONS
      */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
@@ -36,105 +183,8 @@ class ApiClient {
             config.body = JSON.stringify(config.body);
         }
 
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-            config.signal = controller.signal;
-
-            console.log('📤 API Request:', {
-                method: config.method,
-                url: url,
-                headers: config.headers,
-                hasBody: !!config.body
-            });
-
-            const response = await fetch(url, config);
-            clearTimeout(timeoutId);
-
-            console.log('📥 API Response:', {
-                status: response.status,
-                statusText: response.statusText,
-                ok: response.ok,
-                headers: Object.fromEntries(response.headers.entries())
-            });
-
-            // Handle non-JSON responses
-            const contentType = response.headers.get('content-type');
-            let data;
-
-            if (contentType && contentType.includes('application/json')) {
-                data = await response.json();
-            } else {
-                data = { message: await response.text() };
-            }
-
-            if (!response.ok) {
-                console.error('❌ API Error Response:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    data: data
-                });
-                
-                throw new ApiError(
-                    data.message || `HTTP ${response.status} ${response.statusText}`,
-                    response.status,
-                    data
-                );
-            }
-
-            console.log('✅ API Success:', data);
-            return data;
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                console.error('⏰ API Request Timeout:', url);
-                throw new ApiError('Request timeout', 408);
-            }
-
-            if (error instanceof ApiError) {
-                throw error;
-            }
-
-            // Enhanced network error handling
-            console.error('🌐 Network Error:', {
-                message: error.message,
-                name: error.name,
-                stack: error.stack,
-                url: url
-            });
-
-            // Check for specific network error types
-            if (error.message.includes('Failed to fetch')) {
-                throw new ApiError(
-                    'Unable to connect to server. Please check your internet connection and try again.',
-                    0,
-                    { originalError: error, networkError: true }
-                );
-            }
-
-            if (error.message.includes('NetworkError')) {
-                throw new ApiError(
-                    'Network error occurred. Please check your connection and try again.',
-                    0,
-                    { originalError: error, networkError: true }
-                );
-            }
-
-            if (error.message.includes('CORS')) {
-                throw new ApiError(
-                    'Cross-origin request blocked. Please contact support.',
-                    0,
-                    { originalError: error, corsError: true }
-                );
-            }
-
-            // Generic network error
-            throw new ApiError(
-                error.message || 'Network error occurred',
-                0,
-                { originalError: error }
-            );
-        }
+        // ✅ USE RETRY MECHANISM FOR MOBILE RELIABILITY
+        return this.requestWithRetry(url, config);
     }
 
     /**
