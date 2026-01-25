@@ -950,10 +950,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         googleSheetsUrl: form.googleSheetsUrl,
         formInstructions: form.formInstructions,
         organizerEmail: form.organizerEmail,
-        // ✅ NEW: Multi-step form support
+        // ✅ FIXED: Preserve form schema regardless of form type
         formType: form.formType,
-        formSchema: form.formType === 'SINGLE_STEP' ? form.formSchema : [],
-        steps: form.formType === 'MULTI_STEP' ? form.steps : []
+        formSchema: form.formSchema || [],
+        steps: form.steps || []
       },
     };
 
@@ -965,6 +965,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('🌐 Making API call to:', url);
     console.log('📤 Method:', method);
     console.log('📦 Payload:', payload);
+    console.log('🔍 DEBUG - Registration data in payload:');
+    console.log('  - registration.formType:', payload.registration.formType);
+    console.log('  - registration.formSchema:', payload.registration.formSchema);
+    console.log('  - registration.steps:', payload.registration.steps);
+    console.log('  - form.formType:', form.formType);
+    console.log('  - form.formSchema:', form.formSchema);
+    console.log('  - form.steps:', form.steps);
     console.log('🔍 DEBUG - Key fields in payload:');
     console.log('  - artistsHeading:', payload.artistsHeading, '(type:', typeof payload.artistsHeading, ')');
     console.log('  - competitionsHeading:', payload.competitionsHeading, '(type:', typeof payload.competitionsHeading, ')');

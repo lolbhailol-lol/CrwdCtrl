@@ -76,8 +76,11 @@ app.use(
         return callback(null, true);
       }
       
+      console.log('🔍 CORS request from origin:', origin);
+      
       // Check if origin is in allowed list
       if (corsOrigins.includes(origin)) {
+        console.log('✅ Origin allowed from corsOrigins list');
         return callback(null, true);
       }
       
@@ -102,9 +105,8 @@ app.use(
       console.warn("⚠️ CORS request from unauthorized origin:", origin);
       console.warn("   Allowed origins:", corsOrigins);
       
-      // For now, allow all origins to debug the network issue
-      // TODO: Remove this in production
-      console.log('🔧 Debug: Temporarily allowing all origins for debugging');
+      // TEMPORARY: Allow all origins for debugging
+      console.log('🔧 TEMPORARY: Allowing all origins for debugging');
       return callback(null, true);
     },
     credentials: true,

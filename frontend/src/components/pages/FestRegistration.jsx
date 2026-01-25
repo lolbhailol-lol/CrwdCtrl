@@ -80,9 +80,11 @@ export default function FestRegistration() {
 
   // Helper function to generate consistent field IDs
   const generateFieldId = (field) => {
-    // Priority: use field.id with field_ prefix if it exists
-    if (field.id) return `field_${field.id}`;
+    // Priority 1: use fieldName directly (this is what backend expects)
     if (field.fieldName) return field.fieldName;
+    // Priority 2: use field.id directly (without field_ prefix)
+    if (field.id) return field.id;
+    // Priority 3: generate from label as fallback
     if (field.label) {
       // More robust label sanitization
       return `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
@@ -349,7 +351,7 @@ export default function FestRegistration() {
             {uploadingFiles[fieldId] && (
               <div className="flex items-center gap-2 text-sm text-blue-400">
                 <Loader className="w-4 h-4 animate-spin" />
-                Uploading...
+                Processing...
               </div>
             )}
             {value && value.ready && (
@@ -386,11 +388,6 @@ export default function FestRegistration() {
         throw new Error('Failed to fetch fest details');
       }
       const data = await response.json();
-      console.log('✅ Fest data received:', {
-        festName: data.festName,
-        registrationMode: data.registration?.mode,
-        formSchemaLength: data.registration?.formSchema?.length || 0
-      });
       
       // ✅ CRITICAL: Validate registration mode immediately
       if (data.registration?.mode !== 'INTERNAL_FORM') {
@@ -449,11 +446,6 @@ export default function FestRegistration() {
         throw new Error('Failed to fetch fest details');
       }
       const festData = await festResponse.json();
-      console.log('✅ Fest data received:', {
-        festName: festData.festName,
-        registrationMode: festData.registration?.mode,
-        formSchemaLength: festData.registration?.formSchema?.length || 0
-      });
       
       // ✅ CRITICAL: Validate registration mode for competition registration
       if (competitionData.registrationType === 'fest') {
@@ -717,6 +709,14 @@ export default function FestRegistration() {
         : fest.registration?.formSchema || [];
       const requiredFields = formSchema.filter(field => field.required);
       
+      console.log('🔍 Form schema fields:', formSchema.map(field => ({
+        id: field.id,
+        fieldName: field.fieldName,
+        label: field.label,
+        type: field.type,
+        generatedId: generateFieldId(field)
+      })));
+      
       console.log('🔍 Validating', requiredFields.length, 'required fields...');
       
       for (const field of requiredFields) {
@@ -780,8 +780,9 @@ export default function FestRegistration() {
         const fieldId = generateFieldId(field);
         const value = allFormData[fieldId];
         
-        // ✅ CRITICAL: Use field.fieldName for backend consistency
-        const backendFieldName = field.fieldName || field.id || fieldId;
+        // ✅ CRITICAL: Use the same field identifier for backend consistency
+        // This should match what generateFieldId returns
+        const backendFieldName = generateFieldId(field);
         
         if (field.type === 'file' || field.type === 'image') {
           // Add file to FormData if it exists
@@ -802,9 +803,9 @@ export default function FestRegistration() {
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
 
-      // ✅ PERFORMANCE: Show file upload progress
+      // ✅ PERFORMANCE: Show file submission progress
       if (fileCount > 0) {
-        setSubmissionProgress(`Uploading ${fileCount} file(s) (${(totalFileSize / 1024 / 1024).toFixed(2)}MB)...`);
+        setSubmissionProgress(`Submitting ${fileCount} file(s) (${(totalFileSize / 1024 / 1024).toFixed(2)}MB)...`);
       } else {
         setSubmissionProgress('Submitting registration...');
       }
@@ -1183,17 +1184,24 @@ export default function FestRegistration() {
                 
                 {/* Current Step Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {getCurrentStepFields().map((field) => {
-                    const fieldId = generateFieldId(field);
-                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                       field.type === 'checkbox' || field.type === 'radio';
+                  {(() => {
+                    const currentFields = getCurrentStepFields();
+                    console.log('🔍 Current step fields:', currentFields);
+                    console.log('🔍 Current step:', currentStep);
+                    console.log('🔍 Total steps:', getTotalSteps());
                     
-                    return (
-                      <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                        {renderFormField(field, fieldId, getCurrentStepData(), handleStepFieldChange)}
-                      </div>
-                    );
-                  })}
+                    return currentFields.map((field) => {
+                      const fieldId = generateFieldId(field);
+                      const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                         field.type === 'checkbox' || field.type === 'radio';
+                      
+                      return (
+                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                          {renderFormField(field, fieldId, getCurrentStepData(), handleStepFieldChange)}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
@@ -1203,17 +1211,21 @@ export default function FestRegistration() {
               <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4">
                 <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Registration Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {fest.registration.formSchema.map((field) => {
-                    const fieldId = generateFieldId(field);
-                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                       field.type === 'checkbox' || field.type === 'radio';
+                  {(() => {
+                    const formFields = fest.registration.formSchema;
                     
-                    return (
-                      <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                        {renderFormField(field, fieldId, formData, (fieldId, value) => setFormData(prev => ({ ...prev, [fieldId]: value })))}
-                      </div>
-                    );
-                  })}
+                    return formFields.map((field) => {
+                      const fieldId = generateFieldId(field);
+                      const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                         field.type === 'checkbox' || field.type === 'radio';
+                      
+                      return (
+                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                          {renderFormField(field, fieldId, formData, (fieldId, value) => setFormData(prev => ({ ...prev, [fieldId]: value })))}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
@@ -1276,7 +1288,7 @@ export default function FestRegistration() {
                             style={{
                               width: submissionProgress.includes('Validating') ? '20%' :
                                      submissionProgress.includes('Preparing') ? '40%' :
-                                     submissionProgress.includes('Uploading') ? '70%' :
+                                     submissionProgress.includes('Submitting') ? '70%' :
                                      submissionProgress.includes('Processing') ? '90%' :
                                      submissionProgress.includes('completed') ? '100%' : '10%'
                             }}
