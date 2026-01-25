@@ -64,9 +64,11 @@ export default function CompetitionRegistration() {
 
     // Helper function to generate consistent field IDs
     const generateFieldId = (field) => {
-        // Priority: use field.id with field_ prefix if it exists
-        if (field.id) return `field_${field.id}`;
+        // Priority 1: use fieldName directly (this is what backend expects)
         if (field.fieldName) return field.fieldName;
+        // Priority 2: use field.id directly (without field_ prefix)
+        if (field.id) return field.id;
+        // Priority 3: generate from label as fallback
         if (field.label) {
             // More robust label sanitization
             return `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
@@ -219,7 +221,7 @@ export default function CompetitionRegistration() {
             formDataUpload.append('files', processedFile);
             formDataUpload.append('folder', `crwdctrl/competitions/${competitionId}/registrations`);
 
-            console.log(`📤 Uploading ${processedFile.name} (${(processedFile.size / 1024 / 1024).toFixed(2)}MB)...`);
+            console.log(`📤 Processing ${processedFile.name} (${(processedFile.size / 1024 / 1024).toFixed(2)}MB)...`);
             const uploadStartTime = Date.now();
 
             const response = await fetch(`${API_BASE_URL}/registrations/upload`, {
@@ -447,7 +449,7 @@ export default function CompetitionRegistration() {
                                     <>
                                         <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
                                         <span className="text-sm text-blue-400">
-                                            Processing & uploading...
+                                            Processing file...
                                         </span>
                                     </>
                                 ) : (
