@@ -213,6 +213,18 @@ function RegisteredFest() {
         }
     }, [searchParams]);
 
+    // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
+    useEffect(() => {
+        if (isAuthenticated && showLogin) {
+            console.log('✅ User authenticated, closing login modal in registered-fest');
+            setShowLogin(false);
+        }
+        if (isAuthenticated && showRegister) {
+            console.log('✅ User authenticated, closing register modal in registered-fest');
+            setShowRegister(false);
+        }
+    }, [isAuthenticated, showLogin, showRegister]);
+
     // Handle login modal close
     const handleCloseLogin = () => {
         setShowLogin(false);

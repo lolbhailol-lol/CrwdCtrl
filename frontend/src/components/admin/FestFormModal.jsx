@@ -269,6 +269,12 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [formInitialized, setFormInitialized] = useState(false); // NEW: Track if form has been initialized
+
+  // Reset form initialization when fest changes (new fest selected)
+  useEffect(() => {
+    setFormInitialized(false);
+  }, [fest?._id]); // Reset when fest ID changes
 
   // Form builder functions for registration configuration
   const addFormField = () => {
@@ -573,8 +579,9 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     const timer = setTimeout(() => setError(''), 5000);
     return () => clearTimeout(timer);
   }
-    if (fest) {
-      console.log('🔄 Loading fest data into form:', fest);
+    // Only initialize form once when fest data is first loaded
+    if (fest && !formInitialized) {
+      console.log('🔄 Loading fest data into form (first time):', fest);
       console.log('  - fest.artistsHeading:', fest.artistsHeading);
       console.log('  - fest.competitionsHeading:', fest.competitionsHeading);
       console.log('  - fest.contacts:', fest.contacts);
@@ -657,8 +664,11 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       console.log('  - form.formType will be:', fest.registration?.formType || 'SINGLE_STEP');
       console.log('  - form.formSchema will be:', (fest.registration?.formSchema || []).length, 'fields');
       console.log('  - form.steps will be:', (fest.registration?.steps || []).length, 'steps');
+      
+      // Mark form as initialized to prevent future resets
+      setFormInitialized(true);
     }
-  }, [fest, error]);
+  }, [fest, error, formInitialized]); // Add formInitialized to dependencies
 
   const addHighlight = () => {
     if (highlightInput.trim()) {

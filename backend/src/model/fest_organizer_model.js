@@ -176,6 +176,13 @@ const festOrganizerSchema = new mongoose.Schema(
     default: 'upcoming',
   },
 
+  priority: {
+    type: Number,
+    default: 999, // New fests appear last until admin sets priority
+    min: 1,
+    max: 999
+  },
+
   artists: [
     {
       name: String,

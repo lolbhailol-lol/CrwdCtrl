@@ -45,6 +45,15 @@ router.post(
   uploadCtrl.uploadFile
 );
 
+// ===== IMAGE UPLOAD (for payment receipts, etc.) =====
+router.post(
+  '/upload/image',
+  authenticateToken,
+  uploadCtrl.uploadSingle,
+  uploadCtrl.multerErrorHandler, // Add multer error handler
+  uploadCtrl.uploadImage
+);
+
 // Example of role-based access (only organizers can access)
 router.get('/organizer-only', authenticateToken, authorizeRoles('organizer'), (req, res) => {
     res.json({

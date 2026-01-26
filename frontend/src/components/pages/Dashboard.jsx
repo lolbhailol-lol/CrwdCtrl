@@ -18,6 +18,7 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import { getImageUrl } from '../../utils/imageImports';
 import { searchFests } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
+import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlRegister from './register';
 import LoadingSkeleton from '../LoadingSkeleton';
 import axios from 'axios';
@@ -32,7 +33,7 @@ const CACHE_KEYS = {
     FESTS_TIMESTAMP: 'crwdctrl_fests_timestamp'
 };
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
+const CACHE_DURATION = 2 * 60 * 1000; // Reduced to 2 minutes cache duration
 
 // Helper functions for localStorage caching
 const getCachedData = (key) => {
@@ -280,6 +281,7 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
+    const { isAuthenticated } = useAuth();
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [error, setError] = useState(null);
@@ -316,12 +318,69 @@ const Dashboard = () => {
     const [lastYearShowLeftArrow, setLastYearShowLeftArrow] = useState(false);
     const [lastYearShowRightArrow, setLastYearShowRightArrow] = useState(true);
 
-    // Check for login modal parameter
+    // Function to force refresh data (clear cache and fetch fresh)
+    const forceRefreshData = useCallback(() => {
+        console.log('🔄 Force refreshing dashboard data...');
+        clearCache();
+        setIsFestsLoading(true);
+        
+        // Force fetch fresh data
+        const fetchFreshData = async () => {
+            try {
+                const cacheBuster = Date.now();
+                const response = await axios.get(`/fests/all?_cb=${cacheBuster}&force_refresh=1`, {
+                    timeout: 15000
+                });
+                
+                const data = response.data;
+                const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+                
+                setFests(festsList);
+                setFestError(null);
+                
+                // Cache the fresh data
+                if (festsList.length > 0) {
+                    setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
+                }
+                
+                console.log('✅ Dashboard data refreshed successfully');
+            } catch (error) {
+                console.error('❌ Failed to refresh dashboard data:', error);
+                setFestError('Failed to refresh data. Please try again.');
+            } finally {
+                setIsFestsLoading(false);
+            }
+        };
+        
+        fetchFreshData();
+    }, []);
+
+    // Check for admin changes by listening to localStorage
     useEffect(() => {
-        if (searchParams.get('showLogin') === 'true') {
+        const handleAdminChanges = (e) => {
+            if (e.key === 'admin_data_updated' && e.newValue) {
+                console.log('🔄 Admin data change detected, refreshing dashboard...');
+                forceRefreshData();
+                // Clear the flag
+                localStorage.removeItem('admin_data_updated');
+            }
+        };
+
+        window.addEventListener('storage', handleAdminChanges);
+        return () => window.removeEventListener('storage', handleAdminChanges);
+    }, [forceRefreshData]);
+
+    // Check for login modal parameter (but only show if not authenticated)
+    useEffect(() => {
+        if (searchParams.get('showLogin') === 'true' && !isAuthenticated) {
             setShowLogin(true);
+        } else if (isAuthenticated && showLogin) {
+            // Close login modal if user becomes authenticated
+            setShowLogin(false);
+            // Clear URL parameters
+            setSearchParams({});
         }
-    }, [searchParams]);
+    }, [searchParams, isAuthenticated, showLogin, setSearchParams]);
 
     // Get user's location on component mount (same as Navbar)
     useEffect(() => {
@@ -421,7 +480,7 @@ const Dashboard = () => {
                 
                 // Add cache busting to ensure fresh data
                 const cacheBuster = Date.now();
-                const response = await axios.get(`/fests/all?_cb=${cacheBuster}`, {
+                const response = await axios.get(`/fests/all?_cb=${cacheBuster}&priority_check=1`, {
                     timeout: timeout
                 });
                 
@@ -712,24 +771,59 @@ const Dashboard = () => {
                 duration: fest?.duration || '',
                 venue: fest?.venue || 'Venue TBA',
                 dateTime: fest?.festDate || 'Date TBA',
-                ticketPrice: fest?.ticketPrice || 'Free'
+                ticketPrice: fest?.ticketPrice || 'Free',
+                priority: fest?.priority || 999, // Include priority for sorting
+                createdAt: fest?.createdAt // Include creation date for secondary sorting
             };
         }).filter(f => f.id);
     }, [fests]);
 
-    // Filter events by status
+    // Filter events by status and sort by priority within each section
     const ongoingEvents = useMemo(() => 
-        transformedFests.filter(f => f.status === 'ongoing'), 
+        transformedFests
+            .filter(f => f.status === 'ongoing')
+            .sort((a, b) => {
+                // Sort by priority first (1 = highest priority), then by creation date
+                const priorityA = a.priority || 999;
+                const priorityB = b.priority || 999;
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                // If same priority, sort by date (newest first)
+                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            }), 
         [transformedFests]
     );
     
     const beyondCampusEvents = useMemo(() => 
-        transformedFests.filter(f => f.status === 'beyondcampus'), 
+        transformedFests
+            .filter(f => f.status === 'beyondcampus')
+            .sort((a, b) => {
+                // Sort by priority first (1 = highest priority), then by creation date
+                const priorityA = a.priority || 999;
+                const priorityB = b.priority || 999;
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                // If same priority, sort by date (newest first)
+                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            }), 
         [transformedFests]
     );
     
     const upcomingEvents = useMemo(() => 
-        transformedFests.filter(f => f.status === 'upcoming'), 
+        transformedFests
+            .filter(f => f.status === 'upcoming')
+            .sort((a, b) => {
+                // Sort by priority first (1 = highest priority), then by creation date
+                const priorityA = a.priority || 999;
+                const priorityB = b.priority || 999;
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                // If same priority, sort by date (newest first)
+                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            }), 
         [transformedFests]
     );
     

@@ -13,7 +13,7 @@ import CrwdCtrlRegister from '../register';
 
 function EditProfile() {
     const { isDark } = useDarkMode();
-    const { user, token, updateUser, isAuthenticated } = useAuth();
+    const { user, token, updateUser, isAuthenticated, isLoading, isAuthProcessing } = useAuth();
     const navigate = useNavigate();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
@@ -32,12 +32,12 @@ function EditProfile() {
         }
     }, [searchParams]);
 
-    // Redirect to login if not authenticated
+    // Redirect to login if not authenticated (but only after auth is fully initialized)
     useEffect(() => {
-        if (!isAuthenticated) {
+        if (!isAuthenticated && !isLoading && !isAuthProcessing) {
             setShowLogin(true);
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, isLoading, isAuthProcessing]);
 
     // Handle login modal close
     const handleCloseLogin = () => {

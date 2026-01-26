@@ -184,6 +184,18 @@ function EventDetailsPage() {
     }
   }, [searchParams]);
 
+  // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && showLogin) {
+      console.log('✅ User authenticated, closing login modal in view-details');
+      setShowLogin(false);
+    }
+    if (isAuthenticated && showRegister) {
+      console.log('✅ User authenticated, closing register modal in view-details');
+      setShowRegister(false);
+    }
+  }, [isAuthenticated, showLogin, showRegister]);
+
   // Get available competition tabs based on event data
   const availableTabs = Object.keys(eventData?.competitions || {});
 

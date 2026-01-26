@@ -182,12 +182,12 @@ exports.getAllFests = async (req, res) => {
     // Get total count for pagination info
     const totalFests = await FestOrganizer.countDocuments();
     
-    // Get fests with pagination, sorted by most recent first
+    // Get fests with pagination, sorted by priority first, then by most recent
     const fests = await FestOrganizer.find()
-      .sort({ createdAt: -1 })
+      .sort({ priority: 1, createdAt: -1 }) // Priority first (1 = highest), then by creation date
       .skip(skip)
       .limit(limit)
-      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts') // Only select needed fields
+      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority') // Include priority field
       .lean(); // Use lean() for better performance
 
     // Calculate pagination info
@@ -476,5 +476,134 @@ exports.createCompetition = async (req, res) => {
   } catch (error) {
     console.error('Create competition error:', error);
     res.status(500).json({ message: 'Failed to create competition', error: error.message });
+  }
+};
+
+/* =========================
+   UPDATE FEST PRIORITY
+========================= */
+exports.updateFestPriority = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { priority } = req.body;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: 'Invalid fest ID format'
+      });
+    }
+
+    // Validate priority
+    if (priority === undefined || priority === null) {
+      return res.status(400).json({
+        message: 'Priority is required'
+      });
+    }
+
+    const priorityNum = parseInt(priority);
+    if (isNaN(priorityNum) || priorityNum < 1 || priorityNum > 999) {
+      return res.status(400).json({
+        message: 'Priority must be a number between 1 and 999'
+      });
+    }
+
+    // Find and update the fest
+    const fest = await FestOrganizer.findById(id);
+    if (!fest) {
+      return res.status(404).json({ message: 'Fest not found' });
+    }
+
+    // Update priority
+    fest.priority = priorityNum;
+    await fest.save();
+
+    // Clear cache when priority is updated
+    clearFestsCache();
+    
+    // Also clear public cache for consistency
+    try {
+      const { clearAllCaches } = require('./festOrganizerController');
+      clearAllCaches();
+      console.log('✅ Cleared both admin and public caches after priority update');
+    } catch (cacheError) {
+      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+    }
+
+    res.status(200).json({
+      message: 'Fest priority updated successfully',
+      fest: {
+        _id: fest._id,
+        festName: fest.festName,
+        status: fest.status,
+        priority: fest.priority
+      }
+    });
+  } catch (error) {
+    console.error('Error updating fest priority:', error);
+    res.status(500).json({ message: 'Failed to update fest priority' });
+  }
+};
+
+/* =========================
+   BULK REORDER FESTS
+========================= */
+exports.reorderFests = async (req, res) => {
+  try {
+    const { festUpdates } = req.body;
+
+    // Validate input
+    if (!Array.isArray(festUpdates) || festUpdates.length === 0) {
+      return res.status(400).json({
+        message: 'festUpdates must be a non-empty array'
+      });
+    }
+
+    // Validate each fest update
+    for (const update of festUpdates) {
+      if (!update.festId || !mongoose.Types.ObjectId.isValid(update.festId)) {
+        return res.status(400).json({
+          message: 'Each fest update must have a valid festId'
+        });
+      }
+
+      const priority = parseInt(update.priority);
+      if (isNaN(priority) || priority < 1 || priority > 999) {
+        return res.status(400).json({
+          message: 'Each priority must be a number between 1 and 999'
+        });
+      }
+    }
+
+    // Update all fests in bulk
+    const bulkOps = festUpdates.map(update => ({
+      updateOne: {
+        filter: { _id: update.festId },
+        update: { priority: parseInt(update.priority) }
+      }
+    }));
+
+    const result = await FestOrganizer.bulkWrite(bulkOps);
+
+    // Clear cache after bulk update
+    clearFestsCache();
+    
+    // Also clear public cache for consistency
+    try {
+      const { clearAllCaches } = require('./festOrganizerController');
+      clearAllCaches();
+      console.log('✅ Cleared both admin and public caches after bulk reorder');
+    } catch (cacheError) {
+      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+    }
+
+    res.status(200).json({
+      message: 'Fests reordered successfully',
+      updated: result.modifiedCount,
+      total: festUpdates.length
+    });
+  } catch (error) {
+    console.error('Error reordering fests:', error);
+    res.status(500).json({ message: 'Failed to reorder fests' });
   }
 };

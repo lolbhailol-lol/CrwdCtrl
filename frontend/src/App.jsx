@@ -190,11 +190,23 @@ function App() {
 
   const AppContent = () => {
     const location = useLocation();
-    const { isAuthProcessing } = useAuth();
+    const { isAuthProcessing, isLoading, isAuthenticated } = useAuth();
     const isAdminRoute = location.pathname.startsWith('/admin');
 
-    // Show auth loading page when processing OAuth redirect
-    if (isAuthProcessing) {
+    // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
+    useEffect(() => {
+      if (isAuthenticated && showLogin) {
+        console.log('✅ User authenticated, closing login modal');
+        setShowLogin(false);
+      }
+      if (isAuthenticated && showRegister) {
+        console.log('✅ User authenticated, closing register modal');
+        setShowRegister(false);
+      }
+    }, [isAuthenticated, showLogin, showRegister]);
+
+    // ✅ CRITICAL FIX: Show auth loading page when processing OAuth redirect OR during initial loading
+    if (isAuthProcessing || isLoading) {
       return <AuthLoadingPage />;
     }
 

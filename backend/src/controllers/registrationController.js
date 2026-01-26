@@ -639,10 +639,25 @@ const submitRegistration = async (req, res) => {
       return res.status(400).json({ error: 'Registration form is not configured for this fest' });
     }
     console.log('📁 Files received:', req.files?.length || 0);
+    console.log('🔍 Request body keys:', Object.keys(req.body));
+    console.log('🔍 Request body paymentReceiptUrl:', req.body.paymentReceiptUrl);
 
     // Parse form data and files
     const responses = {};
     const uploadedFiles = {};
+
+    // ✅ NEW: Add payment receipt URL if provided
+    if (req.body.paymentReceiptUrl) {
+      responses['Payment Receipt'] = req.body.paymentReceiptUrl;
+      console.log('💳 Payment receipt URL added to responses:', req.body.paymentReceiptUrl);
+      console.log('💳 Payment receipt key in responses:', 'Payment Receipt');
+    } else {
+      console.log('⚠️ No payment receipt URL found in request body');
+      console.log('🔍 Request body keys:', Object.keys(req.body));
+    }
+    
+    console.log('📊 Final responses object keys:', Object.keys(responses));
+    console.log('💳 Payment Receipt in final responses:', responses['Payment Receipt']);
 
     // Process text fields from request body
     if (req.body.responses) {

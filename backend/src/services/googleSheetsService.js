@@ -52,6 +52,11 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
     formSchema.forEach(field => {
       headers.push(field.label); // Use label for column headers
     });
+    
+    // ✅ ALWAYS add Payment Receipt column if it exists in responses
+    if (responses['Payment Receipt']) {
+      headers.push('Payment Receipt');
+    }
 
     // Add headers if sheet is empty or headers don't match
     if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
@@ -103,6 +108,21 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
         }
       }
     });
+
+    // ✅ ALWAYS add Payment Receipt data if available in responses
+    if (responses['Payment Receipt']) {
+      const paymentReceiptUrl = responses['Payment Receipt'];
+      console.log('💳 Processing competition payment receipt from responses:', paymentReceiptUrl);
+      
+      if (paymentReceiptUrl && typeof paymentReceiptUrl === 'string' && paymentReceiptUrl.startsWith('http')) {
+        // Use HYPERLINK formula for clickable link
+        rowData.push(`=HYPERLINK("${paymentReceiptUrl}","🔗 View Receipt")`);
+        console.log('✅ Competition payment receipt added to Google Sheets row data');
+      } else {
+        rowData.push('');
+        console.log('⚠️ Competition payment receipt URL not valid');
+      }
+    }
 
 
     // Append the new row
@@ -213,10 +233,27 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
     formSchema.forEach(field => {
       headers.push(field.label); // Use label for column headers
     });
+    
+    // ✅ ALWAYS add Payment Receipt column if it exists in responses
+    if (responses['Payment Receipt']) {
+      headers.push('Payment Receipt');
+    }
 
     // Add headers if sheet is empty or headers don't match
-    if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
+    const hasPaymentReceiptInResponses = !!responses['Payment Receipt'];
+    const hasPaymentReceiptColumn = existingHeaders.includes('Payment Receipt');
+    const headersNeedUpdate = existingHeaders.length === 0 || 
+                             !arraysEqual(existingHeaders, headers) ||
+                             (hasPaymentReceiptInResponses && !hasPaymentReceiptColumn);
+    
+    if (headersNeedUpdate) {
       console.log('📝 Creating/updating headers...');
+      console.log('🔍 Header update reason:', {
+        emptyHeaders: existingHeaders.length === 0,
+        headersMismatch: !arraysEqual(existingHeaders, headers),
+        hasPaymentReceiptInResponses: hasPaymentReceiptInResponses,
+        hasPaymentReceiptColumn: hasPaymentReceiptColumn
+      });
       await sheets.spreadsheets.values.update({
         spreadsheetId: spreadsheetId,
         range: `${sheetName}!1:1`,
@@ -286,6 +323,21 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
         }
       }
     });
+
+    // ✅ ALWAYS add Payment Receipt data if available in responses
+    if (responses['Payment Receipt']) {
+      const paymentReceiptUrl = responses['Payment Receipt'];
+      console.log('💳 Processing payment receipt from responses:', paymentReceiptUrl);
+      
+      if (paymentReceiptUrl && typeof paymentReceiptUrl === 'string' && paymentReceiptUrl.startsWith('http')) {
+        // Use HYPERLINK formula for clickable link
+        rowData.push(`=HYPERLINK("${paymentReceiptUrl}","🔗 View Receipt")`);
+        console.log('✅ Payment receipt added to Google Sheets row data');
+      } else {
+        rowData.push('');
+        console.log('⚠️ Payment receipt URL not valid');
+      }
+    }
 
     console.log('📊 Row data prepared:', rowData);
     console.log('🔍 Field mapping debug:');
