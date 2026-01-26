@@ -6,8 +6,8 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import { getImageUrl } from '../../utils/imageImports';
 import axios from 'axios';
 
-// Configure axios base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// Configure axios base URL - HARDCODED FOR PRODUCTION FIX
+const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
 axios.defaults.baseURL = API_BASE_URL;
 
 const CompetitionListPage = () => {

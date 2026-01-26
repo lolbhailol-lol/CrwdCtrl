@@ -28,7 +28,7 @@ export default function CompetitionRegistrationsAdmin() {
     const fetchRegistrations = async () => {
         try {
             setLoading(true);
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+            const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
 
             const queryParams = new URLSearchParams();
             if (filters.competition) queryParams.append('competition', filters.competition);
@@ -54,7 +54,7 @@ export default function CompetitionRegistrationsAdmin() {
     // Fetch statistics
     const fetchStats = async () => {
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+            const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
             const response = await fetch(`${API_BASE_URL}/competitions/registrations/stats`);
 
             if (response.ok) {
@@ -69,7 +69,7 @@ export default function CompetitionRegistrationsAdmin() {
     // Update registration status
     const updateStatus = async (registrationId, newStatus, reviewNotes = '') => {
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+            const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
             const response = await fetch(`${API_BASE_URL}/competitions/registrations/${registrationId}/status`, {
                 method: 'PUT',
                 headers: {

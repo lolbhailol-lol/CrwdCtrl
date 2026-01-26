@@ -6,7 +6,8 @@ import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
  */
 class ApiClient {
     constructor() {
-        this.baseURL = API_CONFIG.BASE_URL;
+        // HARDCODED FOR PRODUCTION FIX
+        this.baseURL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
         this.timeout = API_CONFIG.TIMEOUT;
         this.defaultHeaders = {
             'Content-Type': 'application/json',

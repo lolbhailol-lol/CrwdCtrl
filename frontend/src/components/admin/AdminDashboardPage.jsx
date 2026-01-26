@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import AdminStats from './AdminStatsCard';
 import FestTable from './FestTable';
 
-// Configure API base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// Configure API base URL - HARDCODED FOR PRODUCTION FIX
+const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();

@@ -23,8 +23,14 @@ import CrwdCtrlRegister from './register';
 import LoadingSkeleton from '../LoadingSkeleton';
 import axios from 'axios';
 
-// Configure axios base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// Configure axios base URL - HARDCODED FOR PRODUCTION FIX
+const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
+console.log('🔧 Dashboard API Configuration (HARDCODED):', {
+    VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+    API_BASE_URL: API_BASE_URL,
+    NODE_ENV: import.meta.env.NODE_ENV,
+    MODE: import.meta.env.MODE
+});
 axios.defaults.baseURL = API_BASE_URL;
 
 // ✅ Frontend caching system for better Cloud Run performance

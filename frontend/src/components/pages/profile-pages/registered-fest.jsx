@@ -9,8 +9,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 
-// Configure API base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// Configure API base URL - HARDCODED FOR PRODUCTION FIX
+const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
 
 function RegisteredFest() {
     const { isDark } = useDarkMode();
