@@ -84,6 +84,22 @@ exports.createFest = async (req, res) => {
     }
 
     console.log('✅ Creating new fest...');
+    console.log('🔍 DEBUG - Multi-step form validation (create):');
+    if (registration?.formType === 'MULTI_STEP') {
+      console.log('  - Creating multi-step form: YES');
+      console.log('  - Steps count:', registration.steps?.length || 0);
+      if (registration.steps?.length > 0) {
+        registration.steps.forEach((step, index) => {
+          console.log(`    Create Step ${index + 1}:`, {
+            stepNumber: step.stepNumber,
+            stepTitle: step.stepTitle,
+            fieldsCount: step.fields?.length || 0
+          });
+        });
+      }
+    } else {
+      console.log('  - Creating multi-step form: NO (formType:', registration?.formType, ')');
+    }
 
     const fest = new FestOrganizer({
       organizer: null,
@@ -255,6 +271,22 @@ exports.updateFest = async (req, res) => {
     console.log('  - registration.formType:', updateData.registration?.formType);
     console.log('  - registration.formSchema:', updateData.registration?.formSchema);
     console.log('  - registration.steps:', updateData.registration?.steps);
+    console.log('🔍 DEBUG - Multi-step form validation (backend):');
+    if (updateData.registration?.formType === 'MULTI_STEP') {
+      console.log('  - Backend received multi-step form: YES');
+      console.log('  - Steps count:', updateData.registration.steps?.length || 0);
+      if (updateData.registration.steps?.length > 0) {
+        updateData.registration.steps.forEach((step, index) => {
+          console.log(`    Backend Step ${index + 1}:`, {
+            stepNumber: step.stepNumber,
+            stepTitle: step.stepTitle,
+            fieldsCount: step.fields?.length || 0
+          });
+        });
+      }
+    } else {
+      console.log('  - Backend received multi-step form: NO (formType:', updateData.registration?.formType, ')');
+    }
     
     const fest = await FestOrganizer.findByIdAndUpdate(
       id,
@@ -271,6 +303,22 @@ exports.updateFest = async (req, res) => {
     console.log('  - registration.formType:', fest.registration?.formType);
     console.log('  - registration.formSchema:', fest.registration?.formSchema);
     console.log('  - registration.steps:', fest.registration?.steps);
+    console.log('🔍 DEBUG - Multi-step form after save:');
+    if (fest.registration?.formType === 'MULTI_STEP') {
+      console.log('  - Saved as multi-step form: YES');
+      console.log('  - Saved steps count:', fest.registration.steps?.length || 0);
+      if (fest.registration.steps?.length > 0) {
+        fest.registration.steps.forEach((step, index) => {
+          console.log(`    Saved Step ${index + 1}:`, {
+            stepNumber: step.stepNumber,
+            stepTitle: step.stepTitle,
+            fieldsCount: step.fields?.length || 0
+          });
+        });
+      }
+    } else {
+      console.log('  - Saved as multi-step form: NO (formType:', fest.registration?.formType, ')');
+    }
 
     // Clear cache when fest is updated
     clearFestsCache();
@@ -286,10 +334,15 @@ exports.updateFest = async (req, res) => {
       // Continue execution even if public cache clearing fails
     }
 
-    res.json({
+    // ✅ NEW: Add timestamp to response to help with cache busting
+    const responseData = {
       message: 'Fest updated successfully',
-      fest
-    });
+      fest,
+      timestamp: Date.now(),
+      cacheCleared: true
+    };
+
+    res.json(responseData);
 
   } catch (error) {
     console.error('💥 Admin update fest error:', error);

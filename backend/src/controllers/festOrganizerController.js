@@ -288,9 +288,14 @@ exports.getFestById = async (req, res) => {
         const cachedFest = getFromCache('festDetails', id);
         if (cachedFest) {
             console.log('⚡ Returning cached fest details');
+            const isProduction = process.env.NODE_ENV === 'production';
+            const cacheMaxAge = isProduction ? 300 : 60;
+            
             res.set({
-                'Cache-Control': 'public, max-age=600', // 10 minutes client cache
-                'X-Cache': 'HIT'
+                'Cache-Control': `public, max-age=${cacheMaxAge}, must-revalidate`,
+                'X-Cache': 'HIT',
+                'ETag': `"${Date.now()}"`,
+                'Last-Modified': new Date().toUTCString()
             });
             return res.status(200).json(cachedFest);
         }
@@ -345,13 +350,18 @@ exports.getFestById = async (req, res) => {
         fest.cached = false;
         fest.timestamp = new Date().toISOString();
 
-        // Cache the fest details
+        // Cache the fest details with shorter TTL for frequently updated data
         setCache('festDetails', id, fest);
 
-        // Add cache headers
+        // Add cache headers with environment-appropriate cache time
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cacheMaxAge = isProduction ? 300 : 60; // 5 minutes in prod, 1 minute in dev
+        
         res.set({
-            'Cache-Control': 'public, max-age=600', // 10 minutes client cache
-            'X-Cache': 'MISS'
+            'Cache-Control': `public, max-age=${cacheMaxAge}, must-revalidate`,
+            'X-Cache': 'MISS',
+            'ETag': `"${Date.now()}"`,
+            'Last-Modified': new Date().toUTCString()
         });
         
         res.status(200).json(fest);

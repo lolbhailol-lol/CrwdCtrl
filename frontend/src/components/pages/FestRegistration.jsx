@@ -120,22 +120,41 @@ export default function FestRegistration() {
     const currentFields = getCurrentStepFields();
     const currentData = getCurrentStepData();
     
+    console.log('🔍 DEBUG - validateCurrentStep:', {
+      currentFields: currentFields.map(f => ({ label: f.label, required: f.required, fieldName: f.fieldName })),
+      currentData,
+      currentStep
+    });
+    
     for (const field of currentFields) {
       if (field.required) {
         const fieldId = generateFieldId(field);
         const value = currentData[fieldId];
+        console.log('🔍 Validating required field:', { fieldId, value, hasValue: !!value });
         
         if (!value || (typeof value === 'string' && value.trim() === '')) {
           setError(`Please fill in the required field: ${field.label}`);
+          console.log('❌ Validation failed for field:', field.label);
           return false;
         }
       }
     }
+    
+    console.log('✅ Step validation passed');
     return true;
   };
 
   const handleStepNext = () => {
+    console.log('🔍 DEBUG - handleStepNext called:', {
+      currentStep,
+      totalSteps: getTotalSteps(),
+      isValid: validateCurrentStep(),
+      currentFields: getCurrentStepFields(),
+      currentData: getCurrentStepData()
+    });
+    
     if (!validateCurrentStep()) {
+      console.log('❌ Step validation failed, not proceeding to next step');
       return;
     }
     
@@ -149,6 +168,7 @@ export default function FestRegistration() {
     }
     
     if (currentStep < getTotalSteps()) {
+      console.log('✅ Moving to next step:', currentStep + 1);
       setCurrentStep(prev => prev + 1);
       setError(''); // Clear any errors
     }
@@ -383,11 +403,16 @@ export default function FestRegistration() {
   const fetchFestDetails = async () => {
     try {
       console.log('📡 Fetching fest details for:', festId);
-      const response = await fetch(`${API_BASE_URL}/fests/${festId}/public`);
+      // Add cache busting parameter to ensure fresh data
+      const cacheBuster = Date.now();
+      const response = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`);
       if (!response.ok) {
         throw new Error('Failed to fetch fest details');
       }
       const data = await response.json();
+      console.log('🔍 DEBUG - Raw API response:', data);
+      console.log('🔍 DEBUG - Raw registration data:', data.registration);
+      console.log('🔍 DEBUG - Raw steps data:', data.registration?.steps);
       
       // ✅ CRITICAL: Validate registration mode immediately
       if (data.registration?.mode !== 'INTERNAL_FORM') {
@@ -398,6 +423,18 @@ export default function FestRegistration() {
       }
       
       setFest(data);
+      console.log('🔍 DEBUG - Fest registration data loaded:', {
+        mode: data.registration?.mode,
+        formType: data.registration?.formType,
+        formSchemaLength: data.registration?.formSchema?.length,
+        stepsLength: data.registration?.steps?.length,
+        steps: data.registration?.steps?.map(step => ({
+          stepNumber: step.stepNumber,
+          stepTitle: step.stepTitle,
+          fieldsCount: step.fields?.length
+        })),
+        fullStepsData: data.registration?.steps
+      });
 
       // Initialize form data with empty values using stable field IDs
       const initialData = {};
@@ -441,11 +478,15 @@ export default function FestRegistration() {
       setCompetition(competitionData);
 
       // Fetch fest details
-      const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public`);
+      const cacheBuster = Date.now();
+      const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`);
       if (!festResponse.ok) {
         throw new Error('Failed to fetch fest details');
       }
       const festData = await festResponse.json();
+      console.log('🔍 DEBUG - Raw fest API response:', festData);
+      console.log('🔍 DEBUG - Raw fest registration data:', festData.registration);
+      console.log('🔍 DEBUG - Raw fest steps data:', festData.registration?.steps);
       
       // ✅ CRITICAL: Validate registration mode for competition registration
       if (competitionData.registrationType === 'fest') {
@@ -467,6 +508,17 @@ export default function FestRegistration() {
       }
       
       setFest(festData);
+      console.log('🔍 DEBUG - Competition fest registration data loaded:', {
+        mode: festData.registration?.mode,
+        formType: festData.registration?.formType,
+        formSchemaLength: festData.registration?.formSchema?.length,
+        stepsLength: festData.registration?.steps?.length,
+        steps: festData.registration?.steps?.map(step => ({
+          stepNumber: step.stepNumber,
+          stepTitle: step.stepTitle,
+          fieldsCount: step.fields?.length
+        }))
+      });
 
       // Initialize form data with empty values using stable field IDs
       const initialData = {};
@@ -633,6 +685,13 @@ export default function FestRegistration() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('🚀 Starting form submission...');
+    console.log('🔍 DEBUG - Form submission state:', {
+      isMultiStep: isMultiStepForm(),
+      currentStep,
+      totalSteps: getTotalSteps(),
+      isNotFinalStep: currentStep < getTotalSteps(),
+      submitting
+    });
     
     // ✅ PERFORMANCE: Prevent double submission
     if (submitting) {
@@ -642,11 +701,13 @@ export default function FestRegistration() {
     
     // ✅ NEW: For multi-step forms, validate current step first
     if (isMultiStepForm() && currentStep < getTotalSteps()) {
+      console.log('📝 Multi-step form: Moving to next step instead of submitting');
       // This is not the final step, just go to next step
       handleStepNext();
       return;
     }
     
+    console.log('📤 Final step reached, proceeding with actual submission');
     // ✅ NEW: Final validation for multi-step forms
     if (isMultiStepForm() && !validateCurrentStep()) {
       return;
@@ -1297,11 +1358,16 @@ export default function FestRegistration() {
                       </div>
                     )}
                   </>
-                ) : isMultiStepForm() && currentStep < getTotalSteps() ? (
-                  'Next Step'
-                ) : (
-                  'Submit Registration'
-                )}
+                ) : (() => {
+                  console.log('🔍 DEBUG - Button text logic:', {
+                    isMultiStep: isMultiStepForm(),
+                    currentStep,
+                    totalSteps: getTotalSteps(),
+                    isNotFinalStep: currentStep < getTotalSteps(),
+                    shouldShowNextStep: isMultiStepForm() && currentStep < getTotalSteps()
+                  });
+                  return isMultiStepForm() && currentStep < getTotalSteps() ? 'Next Step' : 'Submit Registration';
+                })()}
               </button>
             </div>
           </form>

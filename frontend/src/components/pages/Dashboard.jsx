@@ -419,11 +419,10 @@ const Dashboard = () => {
                 const timeout = import.meta.env.VITE_API_TIMEOUT ? 
                     parseInt(import.meta.env.VITE_API_TIMEOUT) : 10000;
                 
-                const response = await axios.get('/fests/all', {
-                    timeout: timeout,
-                    headers: {
-                        'Cache-Control': 'public, max-age=300', // Request fresh data if cache miss
-                    }
+                // Add cache busting to ensure fresh data
+                const cacheBuster = Date.now();
+                const response = await axios.get(`/fests/all?_cb=${cacheBuster}`, {
+                    timeout: timeout
                 });
                 
                 const fetchEndTime = performance.now();

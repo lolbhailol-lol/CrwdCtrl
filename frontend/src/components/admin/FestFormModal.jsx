@@ -578,6 +578,22 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       console.log('  - fest.artistsHeading:', fest.artistsHeading);
       console.log('  - fest.competitionsHeading:', fest.competitionsHeading);
       console.log('  - fest.contacts:', fest.contacts);
+      console.log('🔍 DEBUG - Registration data from fest:');
+      console.log('  - fest.registration:', fest.registration);
+      console.log('  - fest.registration.formType:', fest.registration?.formType);
+      console.log('  - fest.registration.formSchema:', fest.registration?.formSchema);
+      console.log('  - fest.registration.steps:', fest.registration?.steps);
+      console.log('  - fest.registration.steps length:', fest.registration?.steps?.length);
+      if (fest.registration?.steps?.length > 0) {
+        console.log('  - Steps details:');
+        fest.registration.steps.forEach((step, index) => {
+          console.log(`    Step ${index + 1}:`, {
+            stepNumber: step.stepNumber,
+            stepTitle: step.stepTitle,
+            fieldsCount: step.fields?.length || 0
+          });
+        });
+      }
       
       setForm({
         festName: fest.festName || fest.festival_name || '',
@@ -637,6 +653,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       console.log('  - artistsHeading will be:', fest.artistsHeading || "Artists You'll Love");
       console.log('  - competitionsHeading will be:', fest.competitionsHeading || "Competitions");
       console.log('  - contacts will be:', fest.contacts || []);
+      console.log('🔍 DEBUG - Form state after setting:');
+      console.log('  - form.formType will be:', fest.registration?.formType || 'SINGLE_STEP');
+      console.log('  - form.formSchema will be:', (fest.registration?.formSchema || []).length, 'fields');
+      console.log('  - form.steps will be:', (fest.registration?.steps || []).length, 'steps');
     }
   }, [fest, error]);
 
@@ -972,6 +992,24 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('  - form.formType:', form.formType);
     console.log('  - form.formSchema:', form.formSchema);
     console.log('  - form.steps:', form.steps);
+    console.log('🔍 DEBUG - Multi-step form validation:');
+    if (form.formType === 'MULTI_STEP') {
+      console.log('  - Is multi-step form: YES');
+      console.log('  - Steps count:', form.steps?.length || 0);
+      console.log('  - Steps data:', form.steps);
+      if (form.steps?.length > 0) {
+        form.steps.forEach((step, index) => {
+          console.log(`    Step ${index + 1}:`, {
+            stepNumber: step.stepNumber,
+            stepTitle: step.stepTitle,
+            fieldsCount: step.fields?.length || 0,
+            fields: step.fields?.map(f => ({ label: f.label, type: f.type, fieldName: f.fieldName }))
+          });
+        });
+      }
+    } else {
+      console.log('  - Is multi-step form: NO (formType:', form.formType, ')');
+    }
     console.log('🔍 DEBUG - Key fields in payload:');
     console.log('  - artistsHeading:', payload.artistsHeading, '(type:', typeof payload.artistsHeading, ')');
     console.log('  - competitionsHeading:', payload.competitionsHeading, '(type:', typeof payload.competitionsHeading, ')');
