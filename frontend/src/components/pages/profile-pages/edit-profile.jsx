@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
 import Footer from '../../Footer';
@@ -19,7 +19,7 @@ function EditProfile() {
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
-    const [isLoading, setIsLoading] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -271,7 +271,7 @@ function EditProfile() {
             return;
         }
 
-        setIsLoading(true);
+        setIsUpdating(true);
         setError('');
         setSuccess('');
 
@@ -332,7 +332,7 @@ function EditProfile() {
                 console.error('Failed to save profile locally:', localError);
             }
         } finally {
-            setIsLoading(false);
+            setIsUpdating(false);
         }
     };
 
@@ -489,7 +489,7 @@ function EditProfile() {
                                     </div>
                                     <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                         {user.role || 'student'}
-                                        {user.college && ` • ${user.college}`}
+                                        {user.college && ` â€¢ ${user.college}`}
                                         {user.email && (
                                             <div className="mt-1">{user.email}</div>
                                         )}
@@ -530,8 +530,8 @@ function EditProfile() {
                                         placeholder="Enter first name"
                                         value={formData.firstName || ''}
                                         onChange={handleInputChange}
-                                        disabled={isLoading}
-                                        className={`w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                        disabled={isUpdating}
+                                        className={`w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                             ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                                             : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                                             }`}
@@ -548,7 +548,7 @@ function EditProfile() {
                                             type="button"
                                             onClick={() => setIsEditingEmail(!isEditingEmail)}
                                             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                            disabled={isLoading}
+                                            disabled={isUpdating}
                                         >
                                             {isEditingEmail ? 'Cancel' : 'Edit'}
                                         </button>
@@ -582,8 +582,8 @@ function EditProfile() {
                                         placeholder="Enter last name"
                                         value={formData.lastName || ''}
                                         onChange={handleInputChange}
-                                        disabled={isLoading}
-                                        className={`w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                        disabled={isUpdating}
+                                        className={`w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                             ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                                             : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                                             }`}
@@ -600,14 +600,14 @@ function EditProfile() {
                                             type="button"
                                             onClick={() => setIsEditingPhone(!isEditingPhone)}
                                             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                            disabled={isLoading}
+                                            disabled={isUpdating}
                                         >
                                             {isEditingPhone ? 'Cancel' : 'Edit'}
                                         </button>
                                     </div>
                                     {user?.provider && !formData.phoneNumber && (
                                         <div className={`mb-2 p-2 rounded text-xs ${isDark ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                                            📱 Add your mobile number to receive notifications and updates
+                                            ðŸ“± Add your mobile number to receive notifications and updates
                                         </div>
                                     )}
                                     <input
@@ -642,8 +642,8 @@ function EditProfile() {
                                     placeholder="Enter college or institution name"
                                     value={formData.college || ''}
                                     onChange={handleInputChange}
-                                    disabled={isLoading}
-                                    className={`w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                    disabled={isUpdating}
+                                    className={`w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                                         : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                                         }`}
@@ -660,10 +660,10 @@ function EditProfile() {
                                     name="dateOfBirth"
                                     value={formData.dateOfBirth || ''}
                                     onChange={handleInputChange}
-                                    disabled={isLoading}
+                                    disabled={isUpdating}
                                     max={new Date().toISOString().split('T')[0]}
                                     placeholder="dd-mm-yyyy"
-                                    className={`w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                    className={`w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                         ? 'bg-gray-700 border-gray-600 text-white'
                                         : 'bg-white border-gray-300 text-gray-700'
                                         }`}
@@ -684,8 +684,8 @@ function EditProfile() {
                                     <button
                                         type="button"
                                         onClick={() => handleGenderSelect('Male')}
-                                        disabled={isLoading}
-                                        className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Male'
+                                        disabled={isUpdating}
+                                        className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Male'
                                             ? isDark
                                                 ? 'bg-gray-600 text-white border border-gray-500'
                                                 : 'bg-gray-200 text-gray-900 border border-gray-300'
@@ -699,8 +699,8 @@ function EditProfile() {
                                     <button
                                         type="button"
                                         onClick={() => handleGenderSelect('Female')}
-                                        disabled={isLoading}
-                                        className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Female'
+                                        disabled={isUpdating}
+                                        className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Female'
                                             ? isDark
                                                 ? 'bg-gray-600 text-white border border-gray-500'
                                                 : 'bg-gray-200 text-gray-900 border border-gray-300'
@@ -714,8 +714,8 @@ function EditProfile() {
                                     <button
                                         type="button"
                                         onClick={() => handleGenderSelect('Others')}
-                                        disabled={isLoading}
-                                        className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Others'
+                                        disabled={isUpdating}
+                                        className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Others'
                                             ? isDark
                                                 ? 'bg-gray-600 text-white border border-gray-500'
                                                 : 'bg-gray-200 text-gray-900 border border-gray-300'
@@ -734,8 +734,8 @@ function EditProfile() {
                                 <button
                                     type="button"
                                     onClick={() => navigate(-1)}
-                                    disabled={isLoading}
-                                    className={`px-6 py-3 rounded-md text-sm font-medium transition-colors border ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                    disabled={isUpdating}
+                                    className={`px-6 py-3 rounded-md text-sm font-medium transition-colors border ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                         ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
                                         : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                                         }`}
@@ -745,11 +745,11 @@ function EditProfile() {
                                 <button
                                     type="button"
                                     onClick={handleSave}
-                                    disabled={isLoading}
-                                    className={`px-6 py-3 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 ${isLoading ? 'cursor-not-allowed opacity-50' : ''}`}
+                                    disabled={isUpdating}
+                                    className={`px-6 py-3 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 ${isUpdating ? 'cursor-not-allowed opacity-50' : ''}`}
                                 >
-                                    {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {isLoading ? 'Saving...' : 'Save Changes'}
+                                    {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    {isUpdating ? 'Saving...' : 'Save Changes'}
                                 </button>
                             </div>
                         </div>
@@ -771,7 +771,7 @@ function EditProfile() {
                                 </div>
                                 <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                     {user.role || 'student'}
-                                    {user.college && ` • ${user.college}`}
+                                    {user.college && ` â€¢ ${user.college}`}
                                     {user.email && (
                                         <div className="mt-1">{user.email}</div>
                                     )}
@@ -809,8 +809,8 @@ function EditProfile() {
                                         placeholder="Enter first name"
                                         value={formData.firstName || ''}
                                         onChange={handleInputChange}
-                                        disabled={isLoading}
-                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                        disabled={isUpdating}
+                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                             ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                                             : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                                             }`}
@@ -828,8 +828,8 @@ function EditProfile() {
                                         placeholder="Enter last name"
                                         value={formData.lastName || ''}
                                         onChange={handleInputChange}
-                                        disabled={isLoading}
-                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                        disabled={isUpdating}
+                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                             ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                                             : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                                             }`}
@@ -846,7 +846,7 @@ function EditProfile() {
                                             type="button"
                                             onClick={() => setIsEditingEmail(!isEditingEmail)}
                                             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                            disabled={isLoading}
+                                            disabled={isUpdating}
                                         >
                                             {isEditingEmail ? 'Cancel' : 'Edit'}
                                         </button>
@@ -879,14 +879,14 @@ function EditProfile() {
                                             type="button"
                                             onClick={() => setIsEditingPhone(!isEditingPhone)}
                                             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                            disabled={isLoading}
+                                            disabled={isUpdating}
                                         >
                                             {isEditingPhone ? 'Cancel' : 'Edit'}
                                         </button>
                                     </div>
                                     {user?.provider && !formData.phoneNumber && (
                                         <div className={`mb-2 p-2 rounded text-xs ${isDark ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                                            📱 Add your mobile number to receive notifications and updates
+                                            ðŸ“± Add your mobile number to receive notifications and updates
                                         </div>
                                     )}
                                     <input
@@ -920,8 +920,8 @@ function EditProfile() {
                                         placeholder="Enter college or institution name"
                                         value={formData.college || ''}
                                         onChange={handleInputChange}
-                                        disabled={isLoading}
-                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                        disabled={isUpdating}
+                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                             ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                                             : 'bg-white border-gray-300 text-gray-700 placeholder-gray-400'
                                             }`}
@@ -938,10 +938,10 @@ function EditProfile() {
                                         name="dateOfBirth"
                                         value={formData.dateOfBirth || ''}
                                         onChange={handleInputChange}
-                                        disabled={isLoading}
+                                        disabled={isUpdating}
                                         max={new Date().toISOString().split('T')[0]}
                                         placeholder="dd-mm-yyyy"
-                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                             ? 'bg-gray-700 border-gray-600 text-white'
                                             : 'bg-white border-gray-300 text-gray-700'
                                             }`}
@@ -962,8 +962,8 @@ function EditProfile() {
                                         <button
                                             type="button"
                                             onClick={() => handleGenderSelect('Male')}
-                                            disabled={isLoading}
-                                            className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Male'
+                                            disabled={isUpdating}
+                                            className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Male'
                                                 ? isDark
                                                     ? 'bg-gray-600 text-white border border-gray-500'
                                                     : 'bg-gray-200 text-gray-900 border border-gray-300'
@@ -977,8 +977,8 @@ function EditProfile() {
                                         <button
                                             type="button"
                                             onClick={() => handleGenderSelect('Female')}
-                                            disabled={isLoading}
-                                            className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Female'
+                                            disabled={isUpdating}
+                                            className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Female'
                                                 ? isDark
                                                     ? 'bg-gray-600 text-white border border-gray-500'
                                                     : 'bg-gray-200 text-gray-900 border border-gray-300'
@@ -992,8 +992,8 @@ function EditProfile() {
                                         <button
                                             type="button"
                                             onClick={() => handleGenderSelect('Others')}
-                                            disabled={isLoading}
-                                            className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Others'
+                                            disabled={isUpdating}
+                                            className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${formData.gender === 'Others'
                                                 ? isDark
                                                     ? 'bg-gray-600 text-white border border-gray-500'
                                                     : 'bg-gray-200 text-gray-900 border border-gray-300'
@@ -1013,17 +1013,17 @@ function EditProfile() {
                                 <button
                                     type="button"
                                     onClick={handleSave}
-                                    disabled={isLoading}
-                                    className={`w-full px-6 py-4 bg-blue-600 text-white rounded-lg text-base font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 ${isLoading ? 'cursor-not-allowed opacity-50' : ''}`}
+                                    disabled={isUpdating}
+                                    className={`w-full px-6 py-4 bg-blue-600 text-white rounded-lg text-base font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 ${isUpdating ? 'cursor-not-allowed opacity-50' : ''}`}
                                 >
-                                    {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {isLoading ? 'Saving...' : 'Save Changes'}
+                                    {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    {isUpdating ? 'Saving...' : 'Save Changes'}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => navigate(-1)}
-                                    disabled={isLoading}
-                                    className={`w-full px-6 py-4 rounded-lg text-base font-medium transition-colors border ${isLoading ? 'cursor-not-allowed opacity-50' : ''} ${isDark
+                                    disabled={isUpdating}
+                                    className={`w-full px-6 py-4 rounded-lg text-base font-medium transition-colors border ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                         ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
                                         : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                                         }`}
