@@ -5,7 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authAPI, handleApiError } from '../../utils/api';
 import { processSocialAuthUser, validateSocialAuthResult } from '../../utils/socialAuth';
-import { loginWithEmail, signInWithGoogle, signInWithFacebook } from '../../firebase';
+import { signInWithGoogle, signInWithFacebook } from '../../firebase';
 
 export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const [showPassword, setShowPassword] = useState(false);
