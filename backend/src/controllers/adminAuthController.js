@@ -4,14 +4,23 @@ const User = require('../model/usermodel');
 exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log('🔐 Admin login attempt:', { email });
+    console.log('🔐 [BACKEND] Admin login attempt:', { 
+      email, 
+      receivedEmail: email,
+      expectedEmail: process.env.ADMIN_EMAIL,
+      emailMatch: email === process.env.ADMIN_EMAIL,
+      passwordMatch: password === process.env.ADMIN_PASSWORD
+    });
 
     // Validate admin credentials
     if (
       email !== process.env.ADMIN_EMAIL ||
       password !== process.env.ADMIN_PASSWORD
     ) {
-      console.error('❌ Invalid admin credentials for:', email);
+      console.error('❌ [BACKEND] Invalid admin credentials for:', email);
+      console.error('❌ [BACKEND] Expected email:', process.env.ADMIN_EMAIL);
+      console.error('❌ [BACKEND] Received email:', email);
+      console.error('❌ [BACKEND] Password match:', password === process.env.ADMIN_PASSWORD);
       return res.status(401).json({ 
         success: false,
         message: 'Invalid admin credentials' 
@@ -20,6 +29,7 @@ exports.adminLogin = async (req, res) => {
 
     // Use JWT_SECRET (consistent with middleware verification)
     const secret = process.env.JWT_SECRET || 'your-default-secret';
+    console.log('🔐 [BACKEND] Secret loaded:', !!secret);
     
     // Generate access token (short-lived: 1 hour)
     const accessToken = jwt.sign(
@@ -35,7 +45,7 @@ exports.adminLogin = async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    console.log('✅ Admin login successful:', { email, accessTokenExpiry: '1h', refreshTokenExpiry: '7d' });
+    console.log('✅ [BACKEND] Admin login successful:', { email, accessTokenExpiry: '1h', refreshTokenExpiry: '7d' });
 
     res.json({
       success: true,
@@ -44,7 +54,7 @@ exports.adminLogin = async (req, res) => {
       user: { email, role: 'admin' }
     });
   } catch (error) {
-    console.error('❌ Login error:', error);
+    console.error('❌ [BACKEND] Login error:', error);
     res.status(500).json({ 
       success: false,
       error: 'Login failed' 

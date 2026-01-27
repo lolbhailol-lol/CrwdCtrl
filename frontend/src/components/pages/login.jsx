@@ -48,14 +48,22 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
         // Try admin login first
         try {
+            console.log('🔐 [ADMIN LOGIN] Attempting with:', { email: emailOrPhone.trim() });
             const adminData = await authAPI.adminLogin({
                 email: emailOrPhone.trim(),
                 password
             });
 
+            console.log('🔐 [ADMIN LOGIN] Response received:', adminData);
+
             // Handle different response formats
             const accessToken = adminData?.accessToken || adminData?.data?.accessToken;
             const refreshToken = adminData?.refreshToken || adminData?.data?.refreshToken;
+
+            console.log('🔐 [ADMIN LOGIN] Extracted tokens:', { 
+                hasAccessToken: !!accessToken, 
+                hasRefreshToken: !!refreshToken 
+            });
 
             if (accessToken) {
                 // Store both access and refresh tokens
@@ -64,7 +72,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                     localStorage.setItem('admin_refresh_token', refreshToken);
                 }
                 
-                console.log('✅ Admin login successful');
+                console.log('✅ [ADMIN LOGIN] SUCCESS - Redirecting to /admin');
                 
                 if (onClose) {
                     onClose();
@@ -73,14 +81,22 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 navigate('/admin', { replace: true });
                 setIsLoading(false);
                 return;
+            } else {
+                console.warn('⚠️ [ADMIN LOGIN] No access token in response');
             }
         } catch (adminError) {
+            console.error('🔴 [ADMIN LOGIN] Error caught:', {
+                status: adminError?.status,
+                message: adminError?.message,
+                data: adminError?.data
+            });
+            
             // 401 means invalid admin credentials, so continue to user login
             if (adminError?.status === 401 || adminError?.data?.message === 'Invalid admin credentials') {
-                console.log('ℹ️ Not admin credentials, attempting backend user login...');
+                console.log('ℹ️ [ADMIN LOGIN] Got 401 - Not admin, attempting backend user login...');
             } else {
                 // Other errors (network, server errors) should be reported
-                console.error('Admin login error:', adminError);
+                console.error('🔴 [ADMIN LOGIN] Non-401 error:', adminError);
                 setErrors({ general: adminError?.message || 'Login failed. Please try again.' });
                 setIsLoading(false);
                 return;
