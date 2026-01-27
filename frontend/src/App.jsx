@@ -60,10 +60,10 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
   const shouldHideMobileBottomNav = location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
-    location.pathname.startsWith('/view-details') ||
-    location.pathname.startsWith('/competitions-view-details') ||
     location.pathname.startsWith('/admin') ||
     isProfileOpen; // Hide when profile sidebar is open (ProfileSidebar has its own bottom nav)
+  
+  // ✅ FIXED: Show mobile nav on view-details so users can navigate from shared links
 
   if (shouldHideMobileBottomNav) {
     return null;

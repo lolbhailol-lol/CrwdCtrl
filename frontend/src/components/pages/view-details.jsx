@@ -266,12 +266,27 @@ function EventDetailsPage() {
           <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
             {error || 'Event not found'}
           </h2>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-          >
-            Go to Dashboard
-          </button>
+          <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'} mb-6`}>
+            The fest page you're looking for is not available.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={handleBackClick}
+              className={`px-6 py-2 rounded-lg transition ${
+                isDark 
+                  ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                  : 'bg-gray-300 hover:bg-gray-400 text-gray-900'
+              }`}
+            >
+              Go Back
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+            >
+              Go to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -812,12 +827,22 @@ function EventDetailsPage() {
           {/* Header Icons */}
           <div className="relative z-20">
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/20 to-transparent">
-              <button
-                onClick={() => navigate(-1)}
-                className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
-              >
-                <ArrowLeft size={20} />
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => navigate(-1)}
+                  className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
+                  title="Go Back"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <button
+                  onClick={() => navigate('/')}
+                  className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
+                  title="Go to Home"
+                >
+                  <Home size={20} />
+                </button>
+              </div>
               <div className="flex items-center space-x-3">
                 <button
                   onClick={handleShare}
