@@ -47,7 +47,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         }
 
         // Try admin login first
-        let isAdminAttempted = false;
         try {
             const adminData = await authAPI.adminLogin({
                 email: emailOrPhone.trim(),
@@ -78,8 +77,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         } catch (adminError) {
             // 401 means invalid admin credentials, so continue to user login
             if (adminError?.status === 401 || adminError?.data?.message === 'Invalid admin credentials') {
-                isAdminAttempted = true;
-                console.log('ℹ️ Not admin credentials, attempting user login...');
+                console.log('ℹ️ Not admin credentials, attempting backend user login...');
             } else {
                 // Other errors (network, server errors) should be reported
                 console.error('Admin login error:', adminError);
@@ -89,35 +87,22 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             }
         }
 
-        // Try user login with Firebase
+        // Try backend user login (simple email/password)
         try {
-            const firebaseResult = await loginWithEmail(emailOrPhone, password);
+            const data = await authAPI.login({
+                email: emailOrPhone.trim(),
+                password
+            });
 
-            if (!firebaseResult.success) {
-                // Check if it's an invalid credential error (user not found)
-                if (firebaseResult.code === 'auth/invalid-credential' || firebaseResult.code === 'auth/user-not-found') {
-                    setErrors({ 
-                        general: firebaseResult.error,
-                        showRegisterLink: true
-                    });
-                } else {
-                    setErrors({ general: firebaseResult.error });
-                }
+            if (!data || !data.data || !data.data.user) {
+                setErrors({ general: 'Login failed. Invalid credentials.' });
                 setIsLoading(false);
                 return;
             }
 
-            // Backend user login with Firebase UID
-            const data = await authAPI.login({
-                email: emailOrPhone.trim(),
-                password,
-                firebaseUid: firebaseResult.user.uid
-            });
-
             // Update AuthContext with user data
             login(
-                { ...data.data.user, token: data.data.token },
-                firebaseResult.user
+                { ...data.data.user, token: data.data.token }
             );
 
             // Navigate to user dashboard
@@ -126,6 +111,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             } else {
                 navigate('/');
             }
+
 
         } catch (error) {
             console.error('Login error:', error);
@@ -457,14 +443,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         {errors.general && (
                             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
                                 <span className="block sm:inline">{errors.general}</span>
-                                {(errors.general.includes('No account found') || errors.showRegisterLink || errors.general.includes('Invalid email or password')) && (
-                                    <button
-                                        onClick={onSwitchToRegister}
-                                        className="block mt-2 text-blue-600 hover:text-blue-700 font-medium underline"
-                                    >
-                                        Go to Register Page
-                                    </button>
-                                )}
                                 {/* ✅ Open in Browser Button for In-App Browser Warning */}
                                 {errors.showOpenInBrowser && (
                                     <button
