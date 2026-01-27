@@ -84,7 +84,8 @@ export default function AdminDashboardPage() {
           console.warn('⚠️ No admin token found');
           setError('No admin token found. Please log in again.');
           setTimeout(() => {
-            localStorage.clear();
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_refresh_token');
             window.location.href = '/admin/login';
           }, 1500);
           return;
@@ -98,7 +99,8 @@ export default function AdminDashboardPage() {
             console.error('❌ No refresh token available');
             setError('Session expired. Please log in again.');
             setTimeout(() => {
-              localStorage.clear();
+              localStorage.removeItem('admin_token');
+              localStorage.removeItem('admin_refresh_token');
               window.location.href = '/admin/login';
             }, 1500);
             return;
@@ -110,7 +112,8 @@ export default function AdminDashboardPage() {
             console.error('❌ Token refresh failed:', refreshErr.message);
             setError('Session expired. Please log in again.');
             setTimeout(() => {
-              localStorage.clear();
+              localStorage.removeItem('admin_token');
+              localStorage.removeItem('admin_refresh_token');
               window.location.href = '/admin/login';
             }, 1500);
             return;

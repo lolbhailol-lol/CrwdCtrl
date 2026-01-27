@@ -503,6 +503,10 @@ export const loginWithEmail = async (email, password) => {
             errorMessage = 'This account has been disabled. Please contact support.';
         } else if (error.code === 'auth/too-many-requests') {
             errorMessage = 'Too many failed attempts. Please wait and try again later.';
+        } else if (error.code === 'auth/invalid-credential') {
+            errorMessage = 'Invalid email or password. Please try again.';
+        } else if (error.code === 'auth/network-request-failed') {
+            errorMessage = 'Network error. Please check your internet connection and try again.';
         }
 
         return {

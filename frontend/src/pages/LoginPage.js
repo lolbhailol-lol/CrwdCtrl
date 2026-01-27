@@ -49,7 +49,7 @@ const LoginPage = () => {
         
         // Redirect to admin dashboard
         setTimeout(() => {
-          window.location.href = '/admin/dashboard';
+          window.location.href = '/admin';
         }, 500);
       } else {
         setError(data.message || 'Login failed - no token received');

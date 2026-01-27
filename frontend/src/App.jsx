@@ -225,6 +225,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/login" element={<CrwdCtrlLogin />} />
+                <Route path="/admin/login" element={<CrwdCtrlLogin />} />
                 <Route path="/register" element={<CrwdCtrlRegister />} />
                 <Route path="/verify-email" element={<EmailVerification />} />
                 <Route path="/cultural-fest" element={<CulturalFestPage />} />

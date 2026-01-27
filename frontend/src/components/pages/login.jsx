@@ -47,6 +47,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         }
 
         // Try admin login first
+        let isAdminAttempted = false;
         try {
             const adminData = await authAPI.adminLogin({
                 email: emailOrPhone.trim(),
@@ -75,10 +76,14 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 return;
             }
         } catch (adminError) {
-            // If not admin credentials, try user login
-            if (adminError?.status !== 401) {
+            // 401 means invalid admin credentials, so continue to user login
+            if (adminError?.status === 401 || adminError?.data?.message === 'Invalid admin credentials') {
+                isAdminAttempted = true;
+                console.log('ℹ️ Not admin credentials, attempting user login...');
+            } else {
+                // Other errors (network, server errors) should be reported
                 console.error('Admin login error:', adminError);
-                setErrors({ general: 'Login failed. Please try again.' });
+                setErrors({ general: adminError?.message || 'Login failed. Please try again.' });
                 setIsLoading(false);
                 return;
             }
