@@ -9,6 +9,9 @@ const uploadCtrl = require('../controllers/uploadController');
 // ===== ADMIN LOGIN =====
 router.post('/login', adminAuthCtrl.adminLogin);
 
+// ===== REFRESH TOKEN ENDPOINT =====
+router.post('/refresh-token', adminAuthCtrl.refreshAdminToken);
+
 // ===== DASHBOARD =====
 router.get('/stats', adminAuth, async (req, res) => {
   const User = require('../model/usermodel');

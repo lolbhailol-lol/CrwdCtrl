@@ -23,9 +23,11 @@ import CrwdCtrlRegister from './register';
 import LoadingSkeleton from '../LoadingSkeleton';
 import axios from 'axios';
 
-// Configure axios base URL - HARDCODED FOR PRODUCTION FIX
-const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
-console.log('🔧 Dashboard API Configuration (HARDCODED):', {
+// Configure axios base URL - Use Vite environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+axios.defaults.baseURL = API_BASE_URL;
+
+console.log('🔧 Dashboard API Configuration:', {
     VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
     API_BASE_URL: API_BASE_URL,
     NODE_ENV: import.meta.env.NODE_ENV,

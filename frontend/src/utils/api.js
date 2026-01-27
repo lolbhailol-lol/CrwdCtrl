@@ -6,8 +6,8 @@ import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
  */
 class ApiClient {
     constructor() {
-        // HARDCODED FOR PRODUCTION FIX
-        this.baseURL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
+        // Use Vite environment variables for API base URL
+        this.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
         this.timeout = API_CONFIG.TIMEOUT;
         this.defaultHeaders = {
             'Content-Type': 'application/json',

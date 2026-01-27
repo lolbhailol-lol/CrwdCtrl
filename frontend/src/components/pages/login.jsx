@@ -53,10 +53,18 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 password
             });
 
-            const adminToken = adminData?.token || adminData?.data?.token;
+            // Handle different response formats
+            const accessToken = adminData?.accessToken || adminData?.data?.accessToken;
+            const refreshToken = adminData?.refreshToken || adminData?.data?.refreshToken;
 
-            if (adminToken) {
-                localStorage.setItem('admin_token', adminToken);
+            if (accessToken) {
+                // Store both access and refresh tokens
+                localStorage.setItem('admin_token', accessToken);
+                if (refreshToken) {
+                    localStorage.setItem('admin_refresh_token', refreshToken);
+                }
+                
+                console.log('✅ Admin login successful');
                 
                 if (onClose) {
                     onClose();
@@ -69,6 +77,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         } catch (adminError) {
             // If not admin credentials, try user login
             if (adminError?.status !== 401) {
+                console.error('Admin login error:', adminError);
                 setErrors({ general: 'Login failed. Please try again.' });
                 setIsLoading(false);
                 return;

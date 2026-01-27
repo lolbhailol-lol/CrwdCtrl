@@ -4,7 +4,7 @@ import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
-const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 export default function CompetitionRegistration() {
     const { competitionId } = useParams();

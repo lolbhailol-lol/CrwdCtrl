@@ -3,8 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import AdminStats from './AdminStatsCard';
 import FestTable from './FestTable';
 
-// Configure API base URL - HARDCODED FOR PRODUCTION FIX
-const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
+// Configure API base URL - Use Vite environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+console.log('🔧 AdminDashboardPage - API_BASE_URL:', API_BASE_URL);
+
+function isTokenExpired(token) {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    // Consider token expired if it expires within the next 5 minutes
+    return Date.now() >= (payload.exp * 1000) - (5 * 60 * 1000);
+  } catch {
+    return true;
+  }
+}
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
@@ -15,51 +27,131 @@ export default function AdminDashboardPage() {
     ongoingFests: 0,
     upcomingFests: 0,
   });
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Helper to refresh admin token
+  async function refreshAdminToken(refreshToken) {
+    try {
+      console.log('🔄 Attempting admin token refresh...');
+      const response = await fetch(`${API_BASE_URL}/admin/refresh-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      
+      console.log('🔄 Refresh response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Token refresh failed:', errorData);
+        throw new Error(errorData.message || 'Token refresh failed');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Token refreshed successfully');
+      
+      // Store new access token
+      localStorage.setItem('admin_token', data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem('admin_refresh_token', data.refreshToken);
+      }
+      
+      return data.accessToken;
+    } catch (err) {
+      console.error('❌ Token refresh error:', err.message);
+      // Clear tokens on refresh failure
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_refresh_token');
+      throw err;
+    }
+  }
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const adminToken = localStorage.getItem('admin_token');
+        let adminToken = localStorage.getItem('admin_token');
+        const adminRefreshToken = localStorage.getItem('admin_refresh_token');
         
+        console.log('📋 Token check:', {
+          hasToken: !!adminToken,
+          hasRefreshToken: !!adminRefreshToken,
+          tokenExpired: adminToken ? isTokenExpired(adminToken) : 'N/A'
+        });
+
         // Check if admin token exists
         if (!adminToken) {
-          console.error('No admin token found');
+          console.warn('⚠️ No admin token found');
           setError('No admin token found. Please log in again.');
-          setTimeout(() => navigate('/login'), 2000);
+          setTimeout(() => {
+            localStorage.clear();
+            window.location.href = '/admin/login';
+          }, 1500);
           return;
         }
 
-        console.log('Fetching admin stats with token:', adminToken.substring(0, 20) + '...');
+        // If token expired, try to refresh
+        if (isTokenExpired(adminToken)) {
+          console.warn('⚠️ Admin token expired or expiring soon, attempting refresh...');
+          
+          if (!adminRefreshToken) {
+            console.error('❌ No refresh token available');
+            setError('Session expired. Please log in again.');
+            setTimeout(() => {
+              localStorage.clear();
+              window.location.href = '/admin/login';
+            }, 1500);
+            return;
+          }
 
+          try {
+            adminToken = await refreshAdminToken(adminRefreshToken);
+          } catch (refreshErr) {
+            console.error('❌ Token refresh failed:', refreshErr.message);
+            setError('Session expired. Please log in again.');
+            setTimeout(() => {
+              localStorage.clear();
+              window.location.href = '/admin/login';
+            }, 1500);
+            return;
+          }
+        }
+
+        console.log('📡 Fetching admin stats with valid token');
         const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${adminToken}`,
             'Content-Type': 'application/json',
           },
         });
 
-        console.log('Admin stats response:', response.status, response.statusText);
+        console.log('📡 Stats response status:', response.status);
 
         if (!response.ok) {
-          if (response.status === 401) {
-            console.error('Admin token expired or invalid');
+          if (response.status === 401 || response.status === 403) {
+            console.error('❌ Unauthorized/Forbidden - token invalid');
             localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_refresh_token');
             setError('Admin session expired. Please log in again.');
-            setTimeout(() => navigate('/login'), 2000);
+            setTimeout(() => {
+              window.location.href = '/admin/login';
+            }, 1500);
             return;
           }
-          throw new Error(`Failed to fetch stats (${response.status})`);
+          if (response.status === 404) {
+            throw new Error('Dashboard stats endpoint not found');
+          }
+          throw new Error(`Failed to fetch stats (HTTP ${response.status})`);
         }
 
         const data = await response.json();
-        console.log('Admin stats data:', data);
+        console.log('✅ Stats fetched successfully:', data);
         setStats(data);
+        setError(null);
       } catch (err) {
-        console.error('Error fetching admin stats:', err);
-        setError(err.message);
+        console.error('❌ Error in fetchStats:', err.message);
+        setError(err.message || 'Failed to load dashboard. Please refresh the page.');
       } finally {
         setLoading(false);
       }
@@ -83,7 +175,7 @@ export default function AdminDashboardPage() {
         <p>{error}</p>
         {error.includes('log in') && (
           <button
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/admin/login')}
             className="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
           >
             Go to Login
