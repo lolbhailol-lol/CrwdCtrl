@@ -191,6 +191,9 @@ class ApiClient {
      */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
+        console.log('📍 API URL being called:', url);
+        console.log('📍 Base URL:', this.baseURL);
+        console.log('📍 Endpoint:', endpoint);
 
         const config = {
             method: 'GET',

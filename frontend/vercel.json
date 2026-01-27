@@ -11,5 +11,11 @@
       "VITE_API_TIMEOUT": "15000",
       "VITE_APP_ENVIRONMENT": "production"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
