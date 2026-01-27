@@ -5,7 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authAPI, handleApiError } from '../../utils/api';
 import { processSocialAuthUser, validateSocialAuthResult } from '../../utils/socialAuth';
-import { signInWithGoogle, signInWithFacebook } from '../../firebase';
+import { loginWithEmail, signInWithGoogle, signInWithFacebook } from '../../firebase';
 
 export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -87,6 +87,9 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             }
         }
 
+        // If admin login failed (401), continue to user login
+        if (!errors.general) {
+
         // Try backend user login (simple email/password)
         try {
             const data = await authAPI.login({
@@ -115,7 +118,47 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
         } catch (error) {
             console.error('Login error:', error);
-            setErrors({ general: handleApiError(error) });
+            
+            // If backend user login fails with 401, try Firebase
+            if (error?.status === 401 || error?.message?.includes('Invalid credentials')) {
+                console.log('ℹ️ Backend user login failed, trying Firebase email/password...');
+                
+                try {
+                    const firebaseResult = await loginWithEmail(emailOrPhone, password);
+
+                    if (!firebaseResult.success) {
+                        setErrors({ general: firebaseResult.error });
+                        setIsLoading(false);
+                        return;
+                    }
+
+                    // Backend user login with Firebase UID
+                    const backendData = await authAPI.login({
+                        email: emailOrPhone.trim(),
+                        password,
+                        firebaseUid: firebaseResult.user.uid
+                    });
+
+                    // Update AuthContext with user data
+                    login(
+                        { ...backendData.data.user, token: backendData.data.token },
+                        firebaseResult.user
+                    );
+
+                    // Navigate to user dashboard
+                    if (onClose) {
+                        onClose();
+                    } else {
+                        navigate('/');
+                    }
+
+                } catch (firebaseError) {
+                    console.error('Firebase login error:', firebaseError);
+                    setErrors({ general: firebaseError?.message || 'Login failed. Please try again.' });
+                }
+            } else {
+                setErrors({ general: handleApiError(error) });
+            }
         } finally {
             setIsLoading(false);
         }
