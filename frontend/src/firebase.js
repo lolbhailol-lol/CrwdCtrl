@@ -16,14 +16,22 @@ import {
 } from "firebase/auth";
 
 // Your web app's Firebase configuration
+const VITE_FIREBASE_API_KEY="AIzaSyDoyaNIB6GPi4mfn9Wi1YT5rL3o_A-3N9A"
+const VITE_FIREBASE_AUTH_DOMAIN="crwdctrl.firebaseapp.com"
+const VITE_FIREBASE_PROJECT_ID="crwdctrl"
+const VITE_FIREBASE_STORAGE_BUCKET="crwdctrl.firebasestorage.app"
+const VITE_FIREBASE_MESSAGING_SENDER_ID="420309062914"
+const VITE_FIREBASE_APP_ID="1:420309062914:web:73bb8e49df575f90dd9e1b"
+const VITE_FIREBASE_MEASUREMENT_ID="G-V080C13RPJ"
+
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID ,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID 
+    apiKey: VITE_FIREBASE_API_KEY ,
+    authDomain: VITE_FIREBASE_AUTH_DOMAIN ,
+    projectId: VITE_FIREBASE_PROJECT_ID ,
+    storageBucket: VITE_FIREBASE_STORAGE_BUCKET ,
+    messagingSenderId: VITE_FIREBASE_MESSAGING_SENDER_ID ,
+    appId: VITE_FIREBASE_APP_ID ,
+    measurementId: VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase

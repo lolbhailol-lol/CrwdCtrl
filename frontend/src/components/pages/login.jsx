@@ -365,79 +365,79 @@ const handleLogin = async (e) => {
                         </h1>
                     </div>
 
-                    {/* Form */}
-                    <form onSubmit={handleLogin} className="space-y-4">
-                        {/* Error Message */}
-                        {errors.general && (
-                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-                                <span className="block sm:inline">{errors.general}</span>
-                                {errors.general.includes('No account found') && (
-                                    <button
-                                        onClick={onSwitchToRegister}
-                                        className="block mt-2 text-blue-600 hover:text-blue-700 font-medium underline"
-                                    >
-                                        Go to Register Page
-                                    </button>
-                                )}
-                            </div>
-                        )}
+                    {/*/!* Form *!/*/}
+                    {/*<form onSubmit={handleLogin} className="space-y-4">*/}
+                    {/*    /!* Error Message *!/*/}
+                    {/*    {errors.general && (*/}
+                    {/*        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">*/}
+                    {/*            <span className="block sm:inline">{errors.general}</span>*/}
+                    {/*            {errors.general.includes('No account found') && (*/}
+                    {/*                <button*/}
+                    {/*                    onClick={onSwitchToRegister}*/}
+                    {/*                    className="block mt-2 text-blue-600 hover:text-blue-700 font-medium underline"*/}
+                    {/*                >*/}
+                    {/*                    Go to Register Page*/}
+                    {/*                </button>*/}
+                    {/*            )}*/}
+                    {/*        </div>*/}
+                    {/*    )}*/}
 
-                        {/* Email or Phone Input */}
-                        <div>
-                            <input
-                                type="text"
-                                placeholder="Enter your Email "
-                                value={emailOrPhone}
-                                onChange={(e) => setEmailOrPhone(e.target.value)}
-                                className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
-                        ${errors.emailOrPhone ? 'border-red-500' : ''}
-                        ${isDark
-                                        ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
-                                        : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
-                                    } focus:outline-none focus:ring-2`}
-                            />
-                            {errors.emailOrPhone && <p className="text-red-500 text-sm mt-1">{errors.emailOrPhone}</p>}
-                        </div>
+                    {/*    /!* Email or Phone Input *!/*/}
+                    {/*    <div>*/}
+                    {/*        <input*/}
+                    {/*            type="text"*/}
+                    {/*            placeholder="Enter your Email "*/}
+                    {/*            value={emailOrPhone}*/}
+                    {/*            onChange={(e) => setEmailOrPhone(e.target.value)}*/}
+                    {/*            className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors*/}
+                    {/*    ${errors.emailOrPhone ? 'border-red-500' : ''}*/}
+                    {/*    ${isDark*/}
+                    {/*                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'*/}
+                    {/*                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'*/}
+                    {/*                } focus:outline-none focus:ring-2`}*/}
+                    {/*        />*/}
+                    {/*        {errors.emailOrPhone && <p className="text-red-500 text-sm mt-1">{errors.emailOrPhone}</p>}*/}
+                    {/*    </div>*/}
 
-                        {/* Password Input */}
-                        <div>
-                            <div className="relative">
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    placeholder="Password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
-                            ${errors.password ? 'border-red-500' : ''}
-                            ${isDark
-                                            ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
-                                            : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
-                                        } focus:outline-none focus:ring-2`}
-                                />
-                                <button
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    type="button"
-                                    className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
-                                        }`}
-                                >
-                                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                                </button>
-                            </div>
-                            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
-                        </div>
+                    {/*    /!* Password Input *!/*/}
+                    {/*    <div>*/}
+                    {/*        <div className="relative">*/}
+                    {/*            <input*/}
+                    {/*                type={showPassword ? "text" : "password"}*/}
+                    {/*                placeholder="Password"*/}
+                    {/*                value={password}*/}
+                    {/*                onChange={(e) => setPassword(e.target.value)}*/}
+                    {/*                className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors*/}
+                    {/*        ${errors.password ? 'border-red-500' : ''}*/}
+                    {/*        ${isDark*/}
+                    {/*                        ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'*/}
+                    {/*                        : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'*/}
+                    {/*                    } focus:outline-none focus:ring-2`}*/}
+                    {/*            />*/}
+                    {/*            <button*/}
+                    {/*                onClick={() => setShowPassword(!showPassword)}*/}
+                    {/*                type="button"*/}
+                    {/*                className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'*/}
+                    {/*                    }`}*/}
+                    {/*            >*/}
+                    {/*                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}*/}
+                    {/*            </button>*/}
+                    {/*        </div>*/}
+                    {/*        {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}*/}
+                    {/*    </div>*/}
 
-                        {/* Continue Button */}
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className={`w-full font-semibold py-2 sm:py-2.5 rounded-lg transition-colors ${isLoading
-                                ? 'bg-gray-400 cursor-not-allowed'
-                                : 'bg-blue-600 hover:bg-blue-700'
-                                } text-white`}
-                        >
-                            {isLoading ? 'Logging in...' : 'Continue'}
-                        </button>
-                    </form>
+                    {/*    /!* Continue Button *!/*/}
+                    {/*    <button*/}
+                    {/*        type="submit"*/}
+                    {/*        disabled={isLoading}*/}
+                    {/*        className={`w-full font-semibold py-2 sm:py-2.5 rounded-lg transition-colors ${isLoading*/}
+                    {/*            ? 'bg-gray-400 cursor-not-allowed'*/}
+                    {/*            : 'bg-blue-600 hover:bg-blue-700'*/}
+                    {/*            } text-white`}*/}
+                    {/*    >*/}
+                    {/*        {isLoading ? 'Logging in...' : 'Continue'}*/}
+                    {/*    </button>*/}
+                    {/*</form>*/}
 
                     {/* Divider */}
                     <div className="relative my-3 sm:my-4">
@@ -447,7 +447,7 @@ const handleLogin = async (e) => {
 
                         <div className={`relative flex justify-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             <span className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} px-4`}>
-                                or continue with
+                                sign in with
                             </span>
                         </div>
                     </div>
@@ -499,24 +499,24 @@ const handleLogin = async (e) => {
                     </div>
 
 
-                    {/* Register Link */}
-                    <div className="text-center mt-4">
-                        <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm`}>
-                            Don't have an account?{' '}
-                            <button
-                                onClick={() => {
-                                    if (onSwitchToRegister) {
-                                        onSwitchToRegister();
-                                    } else {
-                                        navigate('/register');
-                                    }
-                                }}
-                                className="text-blue-600 hover:text-blue-700 font-medium hover:underline"
-                            >
-                                Sign Up
-                            </button>
-                        </p>
-                    </div>
+                    {/*/!* Register Link *!/*/}
+                    {/*<div className="text-center mt-4">*/}
+                    {/*    <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm`}>*/}
+                    {/*        Don't have an account?{' '}*/}
+                    {/*        <button*/}
+                    {/*            onClick={() => {*/}
+                    {/*                if (onSwitchToRegister) {*/}
+                    {/*                    onSwitchToRegister();*/}
+                    {/*                } else {*/}
+                    {/*                    navigate('/register');*/}
+                    {/*                }*/}
+                    {/*            }}*/}
+                    {/*            className="text-blue-600 hover:text-blue-700 font-medium hover:underline"*/}
+                    {/*        >*/}
+                    {/*            Sign Up*/}
+                    {/*        </button>*/}
+                    {/*    </p>*/}
+                    {/*</div>*/}
                 </div>
             </div>
 
