@@ -57,14 +57,13 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             console.log('🔐 [ADMIN LOGIN] Full response:', JSON.stringify(adminData, null, 2));
             console.log('🔐 [ADMIN LOGIN] Response keys:', Object.keys(adminData || {}));
 
-            // Handle different response formats - the backend returns: { success, accessToken, refreshToken, user }
-            const accessToken = adminData?.accessToken;
-            const refreshToken = adminData?.refreshToken;
+            // Backend returns: { success: true, token: "...", user: {...} }
+            const accessToken = adminData?.token;  // It's "token", not "accessToken"
+            const refreshToken = adminData?.refreshToken;  // May not exist
 
             console.log('🔐 [ADMIN LOGIN] Extracted tokens:', { 
-                accessToken: accessToken?.substring(0, 20) + '...', 
-                refreshToken: refreshToken?.substring(0, 20) + '...',
-                hasAccessToken: !!accessToken, 
+                token: accessToken?.substring(0, 20) + '...', 
+                hasToken: !!accessToken, 
                 hasRefreshToken: !!refreshToken 
             });
 
