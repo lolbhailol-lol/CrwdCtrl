@@ -331,9 +331,10 @@ exports.getFestById = async (req, res) => {
         if (!fest) {
             return res.status(404).json({ message: 'Fest not found' });
         }
-        
-        // For public access, only return approved fests
+
+        // ✅ CRITICAL FIX: Check if fest is approved for public viewing (when accessed via /public endpoint)
         if (!fest.isApproved) {
+            console.log(`⛔ Attempt to access unapproved fest: ${id}`);
             return res.status(404).json({ message: 'Fest not found' });
         }
         
