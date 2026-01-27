@@ -34,7 +34,7 @@ steps:
       - '--max-instances'
       - '10'
       - '--set-env-vars'
-      - 'NODE_ENV=production,PORT=8080,ADMIN_EMAIL=crwdctrl.in@gmail.com,ADMIN_PASSWORD=CrwdCtrl0430,JWT_SECRET=Yd9n#2@zC5f*1R!e$gT7xP0vLqWm^KsA,MONGODB_URI=mongodb+srv://karan_lol:jadhav0908@crwdctrl.6smlz12.mongodb.net/?appName=crwdctrl,EMAIL_USER=karanjadhav0430@gmail.com,EMAIL_PASS=imfpwilyjzscquin,CLOUDINARY_CLOUD_NAME=dyonimhgb,CLOUDINARY_API_KEY=364951443798767,CLOUDINARY_API_SECRET=i0F-jEG4V3n6vM_tlLtSCVx6bUI,GOOGLE_SERVICE_ACCOUNT_EMAIL=sheet-service-507@keen-incline-483004-g5.iam.gserviceaccount.com'
+      - 'NODE_ENV=production,PORT=8080,ADMIN_EMAIL=crwdctrl.in@gmail.com,ADMIN_PASSWORD=CrwdCtrl0430,JWT_SECRET=festbuzzjwtsecretkey123456789abcdefghijklmnopqrstuvwxyz,MONGODB_URI=mongodb+srv://karan_lol:jadhav0908@crwdctrl.6smlz12.mongodb.net/?appName=crwdctrl,EMAIL_USER=karanjadhav0430@gmail.com,EMAIL_PASS=imfpwilyjzscquin,CLOUDINARY_CLOUD_NAME=dyonimhgb,CLOUDINARY_API_KEY=364951443798767,CLOUDINARY_API_SECRET=i0F-jEG4V3n6vM_tlLtSCVx6bUI,GOOGLE_SERVICE_ACCOUNT_EMAIL=sheet-service-507@keen-incline-483004-g5.iam.gserviceaccount.com'
       - '--set-secrets'
       - 'GOOGLE_PRIVATE_KEY=projects/keen-incline-483004/secrets/google-private-key:latest'
 
