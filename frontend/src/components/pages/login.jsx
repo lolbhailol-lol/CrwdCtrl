@@ -89,17 +89,34 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
         // Try backend user login (simple email/password)
         try {
+            console.log('👤 Attempting backend user login with:', { email: emailOrPhone.trim() });
             const response = await authAPI.login({
                 email: emailOrPhone.trim(),
                 password
             });
 
-            // Backend returns: { success: true, data: { user: {...}, token: "..." } }
+            console.log('👤 Backend login response:', response);
+
+            // Backend returns: { success: true, message: 'Login successful', data: { user: {...}, token: "..." } }
+            if (!response?.success) {
+                console.error('❌ Backend login not successful:', response);
+                setErrors({ general: response?.message || 'Login failed.' });
+                setIsLoading(false);
+                return;
+            }
+
             const userData = response?.data?.user;
             const userToken = response?.data?.token;
 
+            console.log('👤 Extracted credentials:', { 
+                hasUser: !!userData, 
+                hasToken: !!userToken,
+                userName: userData?.name 
+            });
+
             if (!userData || !userToken) {
-                setErrors({ general: 'Login failed. Invalid credentials.' });
+                console.error('❌ Missing user data or token from response');
+                setErrors({ general: 'Login failed. Invalid response from server.' });
                 setIsLoading(false);
                 return;
             }
@@ -107,6 +124,8 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             // Store user token and update AuthContext
             localStorage.setItem('user_token', userToken);
             login({ ...userData, token: userToken });
+            
+            console.log('✅ Backend user login successful');
 
             // Navigate to user dashboard
             if (onClose) {
@@ -115,51 +134,22 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 navigate('/');
             }
 
+            return; // IMPORTANT: Exit after successful login
 
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('❌ Backend user login error:', error);
+            console.error('Error details:', { 
+                status: error?.status, 
+                message: error?.message,
+                data: error?.data 
+            });
             
-            // If backend user login fails with 401, try Firebase
-            if (error?.status === 401 || error?.message?.includes('Invalid credentials')) {
-                console.log('ℹ️ Backend user login failed, trying Firebase email/password...');
-                
-                try {
-                    const firebaseResult = await loginWithEmail(emailOrPhone, password);
-
-                    if (!firebaseResult.success) {
-                        setErrors({ general: firebaseResult.error });
-                        setIsLoading(false);
-                        return;
-                    }
-
-                    // Backend user login with Firebase UID
-                    const backendResponse = await authAPI.login({
-                        email: emailOrPhone.trim(),
-                        password,
-                        firebaseUid: firebaseResult.user.uid
-                    });
-
-                    // Backend returns: { success: true, data: { user: {...}, token: "..." } }
-                    const backendUserData = backendResponse?.data?.user;
-                    const backendUserToken = backendResponse?.data?.token;
-
-                    if (backendUserData && backendUserToken) {
-                        localStorage.setItem('user_token', backendUserToken);
-                        login({ ...backendUserData, token: backendUserToken }, firebaseResult.user);
-                    }
-
-                    // Navigate to user dashboard
-                    if (onClose) {
-                        onClose();
-                    } else {
-                        navigate('/');
-                    }
-
-                } catch (firebaseError) {
-                    console.error('Firebase login error:', firebaseError);
-                    setErrors({ general: firebaseError?.message || 'Login failed. Please try again.' });
-                }
+            // If backend user login fails with 401, just show error
+            if (error?.status === 401) {
+                console.log('❌ Invalid credentials for user login');
+                setErrors({ general: 'Invalid email/password. Please try again.' });
             } else {
+                console.error('❌ Backend error:', error?.message);
                 setErrors({ general: handleApiError(error) });
             }
         } finally {
