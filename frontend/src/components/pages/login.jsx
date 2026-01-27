@@ -94,7 +94,15 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             const firebaseResult = await loginWithEmail(emailOrPhone, password);
 
             if (!firebaseResult.success) {
-                setErrors({ general: firebaseResult.error });
+                // Check if it's an invalid credential error (user not found)
+                if (firebaseResult.code === 'auth/invalid-credential' || firebaseResult.code === 'auth/user-not-found') {
+                    setErrors({ 
+                        general: firebaseResult.error,
+                        showRegisterLink: true
+                    });
+                } else {
+                    setErrors({ general: firebaseResult.error });
+                }
                 setIsLoading(false);
                 return;
             }
@@ -449,7 +457,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         {errors.general && (
                             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
                                 <span className="block sm:inline">{errors.general}</span>
-                                {errors.general.includes('No account found') && (
+                                {(errors.general.includes('No account found') || errors.showRegisterLink || errors.general.includes('Invalid email or password')) && (
                                     <button
                                         onClick={onSwitchToRegister}
                                         className="block mt-2 text-blue-600 hover:text-blue-700 font-medium underline"

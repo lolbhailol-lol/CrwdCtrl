@@ -494,24 +494,28 @@ export const loginWithEmail = async (email, password) => {
         let errorMessage = 'Login failed. Please try again.';
 
         if (error.code === 'auth/user-not-found') {
-            errorMessage = 'No account found with this email. Please register first.';
+            errorMessage = 'No account found with this email. Please register first at /register.';
         } else if (error.code === 'auth/wrong-password') {
-            errorMessage = 'Incorrect password. Please try again.';
+            errorMessage = 'Incorrect password. Please try again or reset your password.';
         } else if (error.code === 'auth/invalid-email') {
             errorMessage = 'Please enter a valid email address.';
         } else if (error.code === 'auth/user-disabled') {
             errorMessage = 'This account has been disabled. Please contact support.';
         } else if (error.code === 'auth/too-many-requests') {
-            errorMessage = 'Too many failed attempts. Please wait and try again later.';
+            errorMessage = 'Too many failed login attempts. Please wait 15 minutes and try again.';
         } else if (error.code === 'auth/invalid-credential') {
-            errorMessage = 'Invalid email or password. Please try again.';
+            // This includes both user-not-found and wrong-password scenarios
+            errorMessage = 'Invalid email or password. Please check your credentials or register first at /register if you are a new user.';
         } else if (error.code === 'auth/network-request-failed') {
             errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (error.code === 'auth/invalid-api-key') {
+            errorMessage = 'Firebase configuration error. Please contact support.';
         }
 
         return {
             success: false,
-            error: errorMessage
+            error: errorMessage,
+            code: error.code
         };
     }
 };

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 const LoginPage = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -22,6 +24,7 @@ const LoginPage = () => {
 
       console.log('🔧 LoginPage - API_BASE_URL:', API_BASE_URL);
       console.log('🔐 Attempting admin login with email:', email);
+      console.log('📍 Environment:', import.meta.env.VITE_APP_ENVIRONMENT);
 
       const response = await fetch(`${API_BASE_URL}/admin/login`, {
         method: 'POST',
@@ -29,10 +32,15 @@ const LoginPage = () => {
         body: JSON.stringify({ email, password }),
       });
 
-      console.log('🔐 Login response status:', response.status);
+      console.log('📍 Request sent to:', `${API_BASE_URL}/admin/login`);
+      console.log('🔐 Login response status:', response.status, response.statusText);
 
       const data = await response.json();
-      console.log('🔐 Login response:', { success: data.success, hasAccessToken: !!data.accessToken });
+      console.log('🔐 Login response data:', { 
+        success: data.success, 
+        hasAccessToken: !!data.accessToken,
+        message: data.message || data.error 
+      });
 
       if (!response.ok) {
         setError(data.message || data.error || 'Login failed');
@@ -47,10 +55,10 @@ const LoginPage = () => {
         localStorage.setItem('admin_refresh_token', data.refreshToken || '');
         console.log('✅ Admin tokens stored successfully');
         
-        // Redirect to admin dashboard
-        setTimeout(() => {
-          window.location.href = '/admin';
-        }, 500);
+        // Use React Router navigate instead of window.location.href
+        // This ensures tokens are stored before navigation
+        console.log('🔄 Navigating to admin dashboard...');
+        navigate('/admin', { replace: true });
       } else {
         setError(data.message || 'Login failed - no token received');
         console.error('❌ Login failed:', data.message);

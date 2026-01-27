@@ -1,33 +1,58 @@
 # Admin Panel Login Deployment Fix
 
-## Issues Identified and Fixed
+## Latest Issue: Admin Login Works Locally But Not in Deployment ✅ FIXED
 
-### 1. **Incorrect Redirect Path After Login** ✅ FIXED
-**Problem:** After successful login, `LoginPage.js` was redirecting to `/admin/dashboard` but the routing expects `/admin`
-- **File:** `frontend/src/pages/LoginPage.js` (line 52)
-- **Fix:** Changed redirect URL from `/admin/dashboard` to `/admin`
-- **Impact:** Users can now successfully access the admin dashboard after login
+### Root Cause
+The admin login was using `window.location.href` for redirect, which causes full page reload. In deployment environments (especially with slow networks), this can lose the tokens before they're stored properly in localStorage.
 
-### 2. **Missing Admin Login Route** ✅ FIXED
-**Problem:** No route defined for `/admin/login` - users trying to access admin login directly would get 404
-- **File:** `frontend/src/App.jsx`
-- **Fix:** Added route: `<Route path="/admin/login" element={<CrwdCtrlLogin />} />`
-- **Impact:** Users can now directly access `/admin/login` URL
+### Issues Identified and Fixed
 
-### 3. **Incorrect localStorage Clearing** ✅ FIXED
-**Problem:** Using `localStorage.clear()` which removes ALL user data, not just admin tokens
-- **Files:** `frontend/src/components/admin/AdminDashboardPage.jsx` (3 instances)
-- **Fix:** Changed all `localStorage.clear()` to:
-  ```javascript
-  localStorage.removeItem('admin_token');
-  localStorage.removeItem('admin_refresh_token');
-  ```
-- **Impact:** User sessions and preferences are now preserved when admin session expires
+#### 1. **Navigation Method Issue** ✅ FIXED
+**Problem:** Using `window.location.href = '/admin'` instead of React Router navigation
+- Full page reload can clear tokens mid-transition
+- Timing issues with localStorage in production
+- Doesn't work well with lazy loading in production builds
 
-## Backend Configuration Status ✅ VERIFIED
+**Files Fixed:** `frontend/src/pages/LoginPage.js`
 
-The backend is correctly configured:
-- ✅ Admin login controller uses `JWT_SECRET` consistently
+**Changes:**
+```javascript
+// BEFORE (problematic)
+setTimeout(() => {
+  window.location.href = '/admin';
+}, 500);
+
+// AFTER (fixed)
+navigate('/admin', { replace: true });
+```
+
+#### 2. **Missing useNavigate Hook** ✅ FIXED
+**Problem:** LoginPage.js wasn't using React Router's navigate
+**Fix:** Added `import { useNavigate } from 'react-router-dom'` and `const navigate = useNavigate()`
+
+#### 3. **Inadequate Debug Logging** ✅ FIXED
+**Added detailed logging to trace deployment issues:**
+```javascript
+console.log('🔧 LoginPage - API_BASE_URL:', API_BASE_URL);
+console.log('📍 Environment:', import.meta.env.VITE_APP_ENVIRONMENT);
+console.log('📍 Request sent to:', `${API_BASE_URL}/admin/login`);
+console.log('🔐 Login response data:', { ... });
+```
+
+#### 4. **Missing Health Check** ✅ ADDED
+**New endpoint:** `GET /api/admin/health`
+- Verifies admin API is working
+- Helps diagnose deployment connectivity issues
+- Located in `backend/src/routers/adminRoute.js`
+
+### Previous Issues (Already Fixed)
+
+1. ✅ Incorrect redirect path (`/admin/dashboard` → `/admin`)
+2. ✅ Missing `/admin/login` route
+3. ✅ localStorage.clear() removing all user data
+4. ✅ Admin error handling improved
+
+## Deployment Environment Check
 - ✅ Token refresh endpoint properly implemented
 - ✅ Admin authentication middleware validates tokens correctly
 - ✅ CORS configuration includes deployment domain

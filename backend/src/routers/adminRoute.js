@@ -6,6 +6,17 @@ const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
 const uploadCtrl = require('../controllers/uploadController');
 
+// ===== ADMIN HEALTH CHECK =====
+router.get('/health', (req, res) => {
+  console.log('✅ Admin health check endpoint called');
+  res.json({ 
+    success: true, 
+    message: 'Admin API is operational',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
+  });
+});
+
 // ===== ADMIN LOGIN =====
 router.post('/login', adminAuthCtrl.adminLogin);
 
