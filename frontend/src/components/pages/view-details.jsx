@@ -17,8 +17,8 @@ import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
 import axios from 'axios';
 
-// Configure axios base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// Configure axios base URL - HARDCODED FOR PRODUCTION FIX
+const API_BASE_URL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
 axios.defaults.baseURL = API_BASE_URL;
 
 function EventDetailsPage() {
@@ -183,6 +183,18 @@ function EventDetailsPage() {
       setShowLogin(true);
     }
   }, [searchParams]);
+
+  // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && showLogin) {
+      console.log('✅ User authenticated, closing login modal in view-details');
+      setShowLogin(false);
+    }
+    if (isAuthenticated && showRegister) {
+      console.log('✅ User authenticated, closing register modal in view-details');
+      setShowRegister(false);
+    }
+  }, [isAuthenticated, showLogin, showRegister]);
 
   // Get available competition tabs based on event data
   const availableTabs = Object.keys(eventData?.competitions || {});

@@ -6,7 +6,8 @@ import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
  */
 class ApiClient {
     constructor() {
-        this.baseURL = API_CONFIG.BASE_URL;
+        // HARDCODED FOR PRODUCTION FIX
+        this.baseURL = 'https://crwdctrl-730576782394.asia-south2.run.app/api';
         this.timeout = API_CONFIG.TIMEOUT;
         this.defaultHeaders = {
             'Content-Type': 'application/json',
@@ -14,22 +15,40 @@ class ApiClient {
     }
 
     /**
-     * ✅ MOBILE-OPTIMIZED TIMEOUT CALCULATION
+     * ✅ ENHANCED MOBILE-OPTIMIZED TIMEOUT CALCULATION
      */
     getMobileOptimizedTimeout(endpoint = '') {
-        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const isAuthEndpoint = endpoint.includes('/login') || endpoint.includes('/register') || endpoint.includes('/social-auth');
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|webOS|Windows Phone/i.test(userAgent) ||
+                         (window.innerWidth <= 768 && 'ontouchstart' in window);
+        
+        const isAuthEndpoint = endpoint.includes('/login') || 
+                              endpoint.includes('/register') || 
+                              endpoint.includes('/social-auth');
+        
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        const effectiveType = connection?.effectiveType || '4g';
+        
+        let baseTimeout = this.timeout; // Default 15s
         
         if (isMobile) {
-            return isAuthEndpoint ? 30000 : 20000; // 30s for auth, 20s for other requests on mobile
+            baseTimeout = isAuthEndpoint ? 35000 : 25000; // 35s for auth, 25s for other requests on mobile
         }
-        return this.timeout; // Use default timeout for desktop
+        
+        // Adjust for connection speed
+        if (effectiveType === 'slow-2g' || effectiveType === '2g') {
+            baseTimeout += 20000; // Add 20s for slow connections
+        } else if (effectiveType === '3g') {
+            baseTimeout += 10000; // Add 10s for 3g
+        }
+        
+        return baseTimeout;
     }
 
     /**
-     * ✅ RETRY MECHANISM FOR NETWORK FAILURES
+     * ✅ ENHANCED RETRY MECHANISM WITH EXPONENTIAL BACKOFF
      */
-    async requestWithRetry(url, config, maxRetries = 2) {
+    async requestWithRetry(url, config, maxRetries = 3) {
         let lastError;
         
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -44,7 +63,8 @@ class ApiClient {
                     method: config.method,
                     url: url,
                     timeout: timeout,
-                    isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+                    isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+                    connection: navigator.connection?.effectiveType || 'unknown'
                 });
 
                 const response = await fetch(url, config);
@@ -88,29 +108,40 @@ class ApiClient {
             } catch (error) {
                 lastError = error;
                 
+                // Handle timeout errors
                 if (error.name === 'AbortError') {
                     console.error(`⏰ API Request Timeout (attempt ${attempt + 1}):`, url);
                     
                     // Don't retry on timeout for the last attempt
                     if (attempt === maxRetries) {
-                        throw new ApiError('Request timeout. Please check your connection and try again.', 408);
+                        throw new ApiError(
+                            'Request timeout. Please check your internet connection and try again.',
+                            408,
+                            { networkError: true, timeout: true }
+                        );
                     }
                     
-                    // Wait before retry (exponential backoff)
-                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                    // Wait before retry with exponential backoff
+                    const delay = Math.min(Math.pow(2, attempt) * 1000, 10000); // Max 10s delay
+                    console.log(`⏳ Waiting ${delay}ms before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
                     continue;
                 }
 
+                // Handle API errors
                 if (error instanceof ApiError) {
                     // Don't retry on client errors (4xx) except for specific cases
-                    if (error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
+                    if (error.status >= 400 && error.status < 500 && 
+                        error.status !== 408 && error.status !== 429) {
                         throw error;
                     }
                     
                     // Retry on server errors (5xx) and specific client errors
-                    if (attempt < maxRetries && (error.status >= 500 || error.status === 408 || error.status === 429)) {
-                        console.log(`🔄 Retrying request (attempt ${attempt + 2}/${maxRetries + 1}) after error:`, error.status);
-                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                    if (attempt < maxRetries && 
+                        (error.status >= 500 || error.status === 408 || error.status === 429)) {
+                        const delay = Math.min(Math.pow(2, attempt) * 1000, 10000);
+                        console.log(`🔄 Retrying request (attempt ${attempt + 2}/${maxRetries + 1}) after ${delay}ms due to error:`, error.status);
+                        await new Promise(resolve => setTimeout(resolve, delay));
                         continue;
                     }
                     
@@ -126,23 +157,18 @@ class ApiClient {
 
                 // Retry on network errors
                 if (attempt < maxRetries) {
-                    console.log(`🔄 Retrying request (attempt ${attempt + 2}/${maxRetries + 1}) after network error`);
-                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                    const delay = Math.min(Math.pow(2, attempt) * 1000, 10000);
+                    console.log(`🔄 Retrying request (attempt ${attempt + 2}/${maxRetries + 1}) after ${delay}ms due to network error`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
                     continue;
                 }
 
                 // Final attempt failed - throw appropriate error
-                if (error.message.includes('Failed to fetch')) {
+                if (error.message.includes('Failed to fetch') || 
+                    error.message.includes('NetworkError') ||
+                    error.message.includes('fetch')) {
                     throw new ApiError(
                         'Unable to connect to server. Please check your internet connection and try again.',
-                        0,
-                        { originalError: error, networkError: true }
-                    );
-                }
-
-                if (error.message.includes('NetworkError')) {
-                    throw new ApiError(
-                        'Network error occurred. Please check your connection and try again.',
                         0,
                         { originalError: error, networkError: true }
                     );
@@ -151,13 +177,13 @@ class ApiClient {
                 throw new ApiError(
                     error.message || 'Network error occurred',
                     0,
-                    { originalError: error }
+                    { originalError: error, networkError: true }
                 );
             }
         }
         
         // This should never be reached, but just in case
-        throw lastError;
+        throw lastError || new ApiError('Maximum retry attempts exceeded', 0, { networkError: true });
     }
 
     /**

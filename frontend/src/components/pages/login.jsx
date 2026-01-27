@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -125,34 +125,69 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         setIsLoading(true);
         setErrors({});
 
+        console.log('🚀 Starting popup-first Google authentication...');
+        console.log('📱 Device info:', {
+            userAgent: navigator.userAgent,
+            innerWidth: window.innerWidth,
+            innerHeight: window.innerHeight,
+            touchPoints: navigator.maxTouchPoints,
+            platform: navigator.platform
+        });
+
         try {
             const result = await signInWithGoogle();
+            console.log('📊 Google auth result:', { 
+                success: result.success, 
+                method: result.method,
+                redirectInitiated: result.redirectInitiated,
+                error: result.error,
+                code: result.code
+            });
 
             if (!result.success) {
-                setErrors({ general: result.error });
+                console.error('❌ Google auth failed:', result.error);
+                
+                // ✅ Handle in-app browser warning
+                if (result.code === 'auth/in-app-browser' && result.showOpenInBrowser) {
+                    setErrors({ 
+                        general: result.error,
+                        showOpenInBrowser: true
+                    });
+                } else {
+                    setErrors({ general: result.error });
+                }
+                setIsLoading(false);
                 return;
             }
 
-            // ✅ HANDLE REDIRECT CASE FOR MOBILE
+            // ✅ Handle redirect fallback case (rare)
             if (result.redirectInitiated) {
-                // Show loading message for redirect
-                setErrors({ general: 'Redirecting to Google... Please wait.' });
-                return; // Don't set loading to false - redirect is in progress
+                console.log('🔄 Redirect fallback initiated - page will reload automatically...');
+                setErrors({ 
+                    general: result.message || 'Popup blocked. Redirecting to Google sign-in... Please wait.' 
+                });
+                return; // Exit here - redirect will handle the rest
             }
 
-            if (!validateSocialAuthResult(result)) {
-                setErrors({ general: 'Invalid authentication result. Please try again.' });
+            // ✅ Handle successful popup authentication
+            if (!result.user) {
+                console.error('❌ No user data in result');
+                setErrors({ general: 'Authentication failed. Please try again.' });
+                setIsLoading(false);
                 return;
             }
 
             const { user } = result;
+            console.log('✅ User authenticated via popup:', user.email);
 
             // Process user data for backend
             const socialAuthData = processSocialAuthUser(user, 'google');
             socialAuthData.isVerified = true;
 
             try {
+                console.log('🔄 Syncing with backend...');
                 const data = await authAPI.socialAuth(socialAuthData);
+                console.log('✅ Backend sync successful');
 
                 // Auto login after successful social authentication
                 login({
@@ -161,69 +196,72 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 }, user);
 
             } catch (backendError) {
-                console.error('Backend social auth failed:', backendError);
+                console.error('❌ Backend social auth failed:', backendError);
                 
-                // ✅ ENHANCED FALLBACK WITH BETTER ERROR HANDLING
-                if (backendError.status === 0 || backendError.networkError) {
-                    setErrors({ general: 'Network error. Please check your connection and try again.' });
+                // ✅ Enhanced fallback with network error detection
+                if (backendError.status === 0 || 
+                    backendError.networkError || 
+                    backendError.message?.includes('fetch')) {
+                    
+                    console.log('🔄 Network error detected, using Firebase-only fallback...');
+                    
+                    // Fallback: Login with Firebase user data only
+                    const fallbackUser = {
+                        _id: user.uid,
+                        name: user.displayName || 'Google User',
+                        email: user.email,
+                        role: 'student',
+                        isVerified: true,
+                        provider: 'google',
+                        profilePic: user.photoURL
+                    };
+                    
+                    const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
+                    
+                    login({
+                        ...fallbackUser,
+                        token: fallbackToken
+                    }, user);
+                    
+                    console.log('✅ Fallback authentication successful');
+                } else {
+                    // Other backend errors
+                    setErrors({ 
+                        general: 'Authentication failed. Please try again or contact support.' 
+                    });
+                    setIsLoading(false);
                     return;
                 }
-                
-                // Fallback: Login with Firebase user data only
-                const fallbackUser = {
-                    _id: user.uid,
-                    name: user.displayName || 'Google User',
-                    email: user.email,
-                    role: 'student',
-                    isVerified: true,
-                    provider: 'google',
-                    profilePic: user.photoURL
-                };
-                
-                const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
-                
-                login({
-                    ...fallbackUser,
-                    token: fallbackToken
-                }, user);
             }
 
-            // Close modal and go to dashboard
+            // ✅ Success - Navigate to dashboard
+            console.log('✅ Authentication complete, navigating...');
             if (onClose) {
                 onClose();
             } else {
                 navigate('/');
             }
+
         } catch (error) {
-            console.error('Google authentication error:', error);
+            console.error('❌ Google authentication error:', error);
             
+            // ✅ Comprehensive error handling
             let errorMessage = 'Google sign-in failed. Please try again.';
-            
-            // ✅ ENHANCED ERROR MESSAGES FOR MOBILE
-            if (error.code === 'auth/popup-closed-by-user') {
-                errorMessage = 'Sign-in was cancelled. Please try again.';
-            } else if (error.code === 'auth/popup-blocked') {
-                errorMessage = 'Popup was blocked. Trying alternative method...';
-                // Don't show error immediately - the fallback redirect might work
-                setTimeout(() => {
-                    if (isLoading) { // Only show error if still loading (redirect didn't work)
-                        setErrors({ general: 'Please allow popups for this site or try email login.' });
-                        setIsLoading(false);
-                    }
-                }, 3000);
-                return;
-            } else if (error.code === 'auth/network-request-failed') {
-                errorMessage = 'Network error. Please check your connection and try again.';
-            } else if (error.code === 'auth/unauthorized-domain') {
-                errorMessage = 'This domain is not authorized for Google sign-in. Please contact support.';
-            } else if (error.message && error.message.includes('network')) {
-                errorMessage = 'Network error. Please check your connection and try again.';
+
+            if (error.message?.includes('network') || error.message?.includes('fetch')) {
+                errorMessage = 'Network error. Please check your internet connection and try again.';
+            } else if (error.message?.includes('unauthorized-domain')) {
+                errorMessage = 'This website is not authorized for Google sign-in. Please contact support.';
+            } else if (error.message?.includes('popup-blocked')) {
+                errorMessage = 'Popup was blocked. Please allow popups for this site or try again.';
+            } else if (error.message?.includes('operation-not-allowed')) {
+                errorMessage = 'Google sign-in is not enabled. Please contact support.';
             }
-            
+
             setErrors({ general: errorMessage });
         } finally {
-            // Only set loading to false if not redirecting
-            if (!errors.general || !errors.general.includes('Redirecting')) {
+            // Only set loading to false if we're not redirecting
+            if (!errors.general?.includes('Redirecting')) {
                 setIsLoading(false);
             }
         }
@@ -233,34 +271,59 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         setIsLoading(true);
         setErrors({});
 
+        console.log('🚀 Starting popup-first Facebook authentication...');
+
         try {
             const result = await signInWithFacebook();
+            console.log('📊 Facebook auth result:', { 
+                success: result.success, 
+                method: result.method,
+                redirectInitiated: result.redirectInitiated 
+            });
 
             if (!result.success) {
-                setErrors({ general: result.error });
+                console.error('❌ Facebook auth failed:', result.error);
+                
+                // ✅ Handle in-app browser warning
+                if (result.code === 'auth/in-app-browser' && result.showOpenInBrowser) {
+                    setErrors({ 
+                        general: result.error,
+                        showOpenInBrowser: true
+                    });
+                } else {
+                    setErrors({ general: result.error });
+                }
+                setIsLoading(false);
                 return;
             }
 
-            // ✅ HANDLE REDIRECT CASE FOR MOBILE
+            // ✅ Handle redirect fallback case (rare)
             if (result.redirectInitiated) {
-                // Show loading message for redirect
-                setErrors({ general: 'Redirecting to Facebook... Please wait.' });
+                console.log('🔄 Facebook redirect fallback initiated - page will reload automatically...');
+                setErrors({ 
+                    general: result.message || 'Popup blocked. Redirecting to Facebook... Please wait.' 
+                });
                 return; // Don't set loading to false - redirect is in progress
             }
 
-            if (!validateSocialAuthResult(result)) {
-                setErrors({ general: 'Invalid authentication result. Please try again.' });
+            if (!result.user) {
+                console.error('❌ No user data in Facebook result');
+                setErrors({ general: 'Facebook authentication failed. Please try again.' });
+                setIsLoading(false);
                 return;
             }
 
             const { user } = result;
+            console.log('✅ Facebook user authenticated via popup:', user.email);
 
             // Process user data for backend
             const socialAuthData = processSocialAuthUser(user, 'facebook');
             socialAuthData.isVerified = true;
 
             try {
+                console.log('🔄 Syncing Facebook user with backend...');
                 const data = await authAPI.socialAuth(socialAuthData);
+                console.log('✅ Facebook backend sync successful');
 
                 // Auto login after successful social authentication
                 login({
@@ -269,56 +332,56 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 }, user);
 
             } catch (backendError) {
-                console.error('Backend social auth failed:', backendError);
+                console.error('❌ Facebook backend social auth failed:', backendError);
                 
-                // ✅ ENHANCED FALLBACK WITH BETTER ERROR HANDLING
+                // ✅ Enhanced fallback with better error handling
                 if (backendError.status === 0 || backendError.networkError) {
-                    setErrors({ general: 'Network error. Please check your connection and try again.' });
+                    console.log('🔄 Network error detected, using Facebook Firebase-only fallback...');
+                    
+                    // Fallback: Login with Firebase user data only
+                    const fallbackUser = {
+                        _id: user.uid,
+                        name: user.displayName || 'Facebook User',
+                        email: user.email,
+                        role: 'student',
+                        isVerified: true,
+                        provider: 'facebook',
+                        profilePic: user.photoURL
+                    };
+                    
+                    const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
+                    
+                    login({
+                        ...fallbackUser,
+                        token: fallbackToken
+                    }, user);
+                    
+                    console.log('✅ Facebook fallback authentication successful');
+                } else {
+                    setErrors({ 
+                        general: 'Facebook authentication failed. Please try again or contact support.' 
+                    });
+                    setIsLoading(false);
                     return;
                 }
-                
-                // Fallback: Login with Firebase user data only
-                const fallbackUser = {
-                    _id: user.uid,
-                    name: user.displayName || 'Facebook User',
-                    email: user.email,
-                    role: 'student',
-                    isVerified: true,
-                    provider: 'facebook',
-                    profilePic: user.photoURL
-                };
-                
-                const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
-                
-                login({
-                    ...fallbackUser,
-                    token: fallbackToken
-                }, user);
             }
 
-            // Close modal and go to dashboard
+            // ✅ Success - Navigate to dashboard
+            console.log('✅ Facebook authentication complete, navigating...');
             if (onClose) {
                 onClose();
             } else {
                 navigate('/');
             }
         } catch (error) {
-            console.error('Facebook authentication error:', error);
+            console.error('❌ Facebook authentication error:', error);
             
             let errorMessage = 'Facebook sign-in failed. Please try again.';
             
             if (error.code === 'auth/popup-closed-by-user') {
                 errorMessage = 'Sign-in was cancelled. Please try again.';
             } else if (error.code === 'auth/popup-blocked') {
-                errorMessage = 'Popup was blocked. Trying alternative method...';
-                // Don't show error immediately - the fallback redirect might work
-                setTimeout(() => {
-                    if (isLoading) { // Only show error if still loading (redirect didn't work)
-                        setErrors({ general: 'Please allow popups for this site or try email login.' });
-                        setIsLoading(false);
-                    }
-                }, 3000);
-                return;
+                errorMessage = 'Popup was blocked. Please allow popups for this site or try again.';
             } else if (error.code === 'auth/network-request-failed') {
                 errorMessage = 'Network error. Please check your connection and try again.';
             } else if (error.code === 'auth/unauthorized-domain') {
@@ -378,6 +441,28 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                                         className="block mt-2 text-blue-600 hover:text-blue-700 font-medium underline"
                                     >
                                         Go to Register Page
+                                    </button>
+                                )}
+                                {/* ✅ Open in Browser Button for In-App Browser Warning */}
+                                {errors.showOpenInBrowser && (
+                                    <button
+                                        onClick={() => {
+                                            // Try to open in default browser
+                                            const currentUrl = window.location.href;
+                                            // For iOS
+                                            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                                                window.open(`googlechrome://${currentUrl}`, '_blank') || 
+                                                window.open(`firefox://open-url?url=${encodeURIComponent(currentUrl)}`, '_blank') ||
+                                                window.open(currentUrl, '_blank');
+                                            } else {
+                                                // For Android and others
+                                                window.open(`intent://${currentUrl.replace(/https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`, '_blank') ||
+                                                window.open(currentUrl, '_blank');
+                                            }
+                                        }}
+                                        className="block mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors"
+                                    >
+                                        Open in Browser
                                     </button>
                                 )}
                             </div>
