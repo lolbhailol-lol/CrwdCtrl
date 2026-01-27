@@ -8,12 +8,35 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 console.log('🔧 AdminDashboardPage - API_BASE_URL:', API_BASE_URL);
 
 function isTokenExpired(token) {
-  if (!token) return true;
+  if (!token) {
+    console.error('❌ [isTokenExpired] No token provided');
+    return true;
+  }
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const parts = token.split('.');
+    console.log('🔐 [isTokenExpired] Token parts:', parts.length);
+    
+    if (parts.length !== 3) {
+      console.error('❌ [isTokenExpired] Invalid token format - expected 3 parts, got', parts.length);
+      return true;
+    }
+
+    const payload = JSON.parse(atob(parts[1]));
+    console.log('🔐 [isTokenExpired] Decoded payload:', { 
+      role: payload.role,
+      email: payload.email,
+      expTime: new Date(payload.exp * 1000).toISOString(),
+      nowTime: new Date().toISOString(),
+      expiresIn: (payload.exp * 1000) - Date.now(),
+      isExpired: Date.now() >= (payload.exp * 1000) - (5 * 60 * 1000)
+    });
+    
     // Consider token expired if it expires within the next 5 minutes
-    return Date.now() >= (payload.exp * 1000) - (5 * 60 * 1000);
-  } catch {
+    const isExpired = Date.now() >= (payload.exp * 1000) - (5 * 60 * 1000);
+    console.log('🔐 [isTokenExpired] Result:', isExpired);
+    return isExpired;
+  } catch (error) {
+    console.error('❌ [isTokenExpired] Error decoding token:', error.message);
     return true;
   }
 }
