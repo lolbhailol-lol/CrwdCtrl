@@ -89,21 +89,24 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
         // Try backend user login (simple email/password)
         try {
-            const data = await authAPI.login({
+            const response = await authAPI.login({
                 email: emailOrPhone.trim(),
                 password
             });
 
-            if (!data || !data.data || !data.data.user) {
+            // Backend returns: { success: true, data: { user: {...}, token: "..." } }
+            const userData = response?.data?.user;
+            const userToken = response?.data?.token;
+
+            if (!userData || !userToken) {
                 setErrors({ general: 'Login failed. Invalid credentials.' });
                 setIsLoading(false);
                 return;
             }
 
-            // Update AuthContext with user data
-            login(
-                { ...data.data.user, token: data.data.token }
-            );
+            // Store user token and update AuthContext
+            localStorage.setItem('user_token', userToken);
+            login({ ...userData, token: userToken });
 
             // Navigate to user dashboard
             if (onClose) {
@@ -130,17 +133,20 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                     }
 
                     // Backend user login with Firebase UID
-                    const backendData = await authAPI.login({
+                    const backendResponse = await authAPI.login({
                         email: emailOrPhone.trim(),
                         password,
                         firebaseUid: firebaseResult.user.uid
                     });
 
-                    // Update AuthContext with user data
-                    login(
-                        { ...backendData.data.user, token: backendData.data.token },
-                        firebaseResult.user
-                    );
+                    // Backend returns: { success: true, data: { user: {...}, token: "..." } }
+                    const backendUserData = backendResponse?.data?.user;
+                    const backendUserToken = backendResponse?.data?.token;
+
+                    if (backendUserData && backendUserToken) {
+                        localStorage.setItem('user_token', backendUserToken);
+                        login({ ...backendUserData, token: backendUserToken }, firebaseResult.user);
+                    }
 
                     // Navigate to user dashboard
                     if (onClose) {
