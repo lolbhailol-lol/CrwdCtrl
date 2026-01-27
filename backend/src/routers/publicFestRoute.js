@@ -124,23 +124,43 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
 router.get('/:id/debug', async (req, res) => {
     try {
         const { id } = req.params;
+        const mongoose = require('mongoose');
         
-        if (!require('mongoose').Types.ObjectId.isValid(id)) {
-            return res.json({ error: 'Invalid ObjectId format', id });
+        console.log(`🔍 DEBUG: Checking fest with ID: ${id}`);
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.json({ 
+                error: 'Invalid ObjectId format', 
+                id,
+                message: 'The provided ID is not a valid MongoDB ObjectId format'
+            });
         }
         
         const FestOrganizer = require('../model/fest_organizer_model');
         const fest = await FestOrganizer.findById(id);
         
-        res.json({
-            exists: !!fest,
-            isApproved: fest?.isApproved,
-            festName: fest?.festName,
-            id: fest?._id,
-            allFields: fest ? Object.keys(fest.toObject()) : []
-        });
+        if (fest) {
+            res.json({
+                exists: true,
+                isApproved: fest.isApproved,
+                festName: fest.festName,
+                collegeName: fest.collegeName,
+                festType: fest.festType,
+                id: fest._id,
+                hasCompetitions: fest.competitions?.length || 0,
+                hasGalleryImages: fest.galleryImages?.length || 0,
+                createdAt: fest.createdAt,
+                status: 'Fest found in database'
+            });
+        } else {
+            res.json({
+                exists: false,
+                id,
+                status: 'Fest NOT found in database'
+            });
+        }
     } catch (err) {
-        res.json({ error: err.message });
+        res.json({ error: err.message, status: 'Database error' });
     }
 });
 

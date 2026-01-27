@@ -329,14 +329,12 @@ exports.getFestById = async (req, res) => {
         }
 
         if (!fest) {
+            console.log(`❌ Fest not found in database: ${id}`);
             return res.status(404).json({ message: 'Fest not found' });
         }
 
-        // ✅ CRITICAL FIX: Check if fest is approved for public viewing (when accessed via /public endpoint)
-        if (!fest.isApproved) {
-            console.log(`⛔ Attempt to access unapproved fest: ${id}`);
-            return res.status(404).json({ message: 'Fest not found' });
-        }
+        // ✅ DEBUG: Log fest details to check approval status and data integrity
+        console.log(`🔍 Fest found: ${fest.festName}, isApproved: ${fest.isApproved}, hasGalleryImages: ${fest.galleryImages?.length || 0}`);
         
         // Debug: Log contacts data
         console.log('🔍 Public fest - contacts data:', fest.contacts);

@@ -168,7 +168,17 @@ function EventDetailsPage() {
         }
       } catch (err) {
         console.error('ViewDetails - Error fetching event data:', err);
-        setError('Failed to load event details');
+        console.error('ViewDetails - Error status:', err.response?.status);
+        console.error('ViewDetails - Error message:', err.response?.data?.message);
+        console.error('ViewDetails - Error details:', err.response?.data);
+        
+        if (err.response?.status === 404) {
+          setError('Fest not found - it may not be approved yet or the link might be incorrect');
+        } else if (err.response?.status === 400) {
+          setError('Invalid fest ID format');
+        } else {
+          setError('Failed to load event details');
+        }
       } finally {
         setLoading(false);
       }
