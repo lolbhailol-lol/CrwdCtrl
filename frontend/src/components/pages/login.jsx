@@ -87,9 +87,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             }
         }
 
-        // If admin login failed (401), continue to user login
-        if (!errors.general) {
-
         // Try backend user login (simple email/password)
         try {
             const data = await authAPI.login({
