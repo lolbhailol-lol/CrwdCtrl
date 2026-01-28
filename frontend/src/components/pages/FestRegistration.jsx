@@ -751,12 +751,25 @@ export default function FestRegistration() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`
+          // Don't set Content-Type - let browser set it with boundary for FormData
         },
         body: formData
       });
 
+      console.log('📤 Upload response status:', response.status);
+      console.log('📤 Upload response headers:', {
+        contentType: response.headers.get('content-type'),
+        status: response.status,
+        statusText: response.statusText
+      });
+
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
         throw new Error(errorData.message || 'Failed to upload receipt');
       }
 
