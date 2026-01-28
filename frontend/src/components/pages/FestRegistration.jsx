@@ -231,20 +231,26 @@ export default function FestRegistration() {
       return formData;
     }
     
-    // Combine all step data
+    // Combine all step data - THIS IS CRITICAL FOR MULTI-STEP FORMS
     const allData = {};
-    Object.values(stepData).forEach(stepFormData => {
+    
+    // First, merge all completed steps
+    Object.entries(stepData).forEach(([stepNum, stepFormData]) => {
+      console.log(`🔍 Merging step ${stepNum} data:`, stepFormData);
       Object.assign(allData, stepFormData);
     });
     
-    // Include current step data
-    Object.assign(allData, getCurrentStepData());
+    // Then, include current step data (in case it hasn't been saved yet)
+    const currentStepData = getCurrentStepData();
+    console.log(`🔍 Current step ${currentStep} data:`, currentStepData);
+    Object.assign(allData, currentStepData);
     
     console.log('🔍 Multi-step combined data:', {
-      stepData,
-      currentStepData: getCurrentStepData(),
-      combinedData: allData,
-      fileKeys: Object.keys(allData).filter(key => key.includes('_file'))
+      stepDataKeys: Object.keys(stepData),
+      currentStep,
+      allDataKeys: Object.keys(allData),
+      fileKeys: Object.keys(allData).filter(key => key.includes('_file')),
+      allData
     });
     
     return allData;
@@ -1032,6 +1038,16 @@ export default function FestRegistration() {
       // formSchema already defined above for validation purposes
 
       // Process form fields with consistent field naming
+      console.log('🔍 PROCESSING FIELDS - Starting:', {
+        formSchemaLength: formSchema.length,
+        allFormDataKeys: Object.keys(allFormData),
+        fileFieldsInSchema: formSchema.filter(f => f.type === 'file' || f.type === 'image').map(f => ({
+          label: f.label,
+          fieldId: generateFieldId(f),
+          lookingFor: `${generateFieldId(f)}_file`
+        }))
+      });
+      
       formSchema.forEach(field => {
         const fieldId = generateFieldId(field);
         const value = allFormData[fieldId];
@@ -1045,11 +1061,24 @@ export default function FestRegistration() {
           const fileData = allFormData[`${fieldId}_file`];
           if (fileData) {
             submissionFormData.append(backendFieldName, fileData);
+            const fileSizeInMB = (fileData.size / 1024 / 1024).toFixed(2);
             totalFileSize += fileData.size;
             fileCount++;
-            console.log('📁 Added file to form data:', backendFieldName, fileData.name, `(${(fileData.size / 1024 / 1024).toFixed(2)}MB)`);
+            console.log('📁 Added file to form data:', {
+              fieldName: backendFieldName,
+              fileName: fileData.name,
+              fileSize: `${fileSizeInMB}MB`,
+              actualSize: fileData.size,
+              totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`
+            });
           } else {
-            console.log('⚠️ No file found for field:', fieldId, 'looking for key:', `${fieldId}_file`);
+            console.log('⚠️ No file found for field:', {
+              fieldId,
+              label: field.label,
+              lookingForKey: `${fieldId}_file`,
+              allFormDataKeys: Object.keys(allFormData),
+              allFormDataFileKeys: Object.keys(allFormData).filter(k => k.includes('_file'))
+            });
           }
         } else {
           // Add text data to responses object using backend field name
@@ -1105,9 +1134,21 @@ export default function FestRegistration() {
 
 
       // ✅ PERFORMANCE: Dynamic timeout based on file size
-      // Minimum 120s for backend processing, plus 20s per MB for upload
-      const baseTimeout = 120000; // 120 seconds base timeout for any request
-      const uploadSpeedTimeout = (totalFileSize / 1024 / 1024) * 20000; // 20 seconds per MB
+      // Base timeout for backend processing: 300s (5 min) minimum for database ops, validation, email
+      // Plus additional time for file upload: 30s per MB (conservative estimate for slow connections)
+      
+      console.log('🔍 BEFORE TIMEOUT CALCULATION:', {
+        totalFileSize: totalFileSize,
+        totalFileSizeInMB: (totalFileSize / 1024 / 1024).toFixed(2),
+        fileCount: fileCount,
+        formSchemaLength: formSchema.length,
+        allFormDataKeys: Object.keys(allFormData).length,
+        allFormDataFileKeys: Object.keys(allFormData).filter(k => k.includes('_file')),
+        isMultiStep: isMultiStepForm()
+      });
+      
+      const baseTimeout = 300000; // 300 seconds base for backend processing (database, validation, emails, etc)
+      const uploadSpeedTimeout = (totalFileSize / 1024 / 1024) * 30000; // 30 seconds per MB for file upload
       const dynamicTimeout = baseTimeout + uploadSpeedTimeout;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
@@ -1115,7 +1156,7 @@ export default function FestRegistration() {
         controller.abort();
       }, dynamicTimeout);
 
-      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(0)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(0)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB (base: 300s + upload: 30s/MB)`);
 
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
