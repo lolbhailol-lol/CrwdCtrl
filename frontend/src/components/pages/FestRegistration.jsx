@@ -1027,15 +1027,7 @@ export default function FestRegistration() {
 
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
-
-      // ✅ NEW: Add payment receipt URL if uploaded
-      if (paymentReceiptUrl) {
-        submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
-        console.log('💳 Added payment receipt URL to submission:', paymentReceiptUrl);
-        console.log('💳 FormData now contains paymentReceiptUrl');
-      } else {
-        console.log('⚠️ No payment receipt URL to add to submission');
-      }
+      // (Do not add paymentReceiptUrl here; add it just before fetch)
 
       // ✅ PERFORMANCE: Show file submission progress
       if (fileCount > 0) {
@@ -1075,6 +1067,14 @@ export default function FestRegistration() {
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
 
+      // Add payment receipt URL to FormData right before fetch
+      if (paymentReceiptUrl) {
+        submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
+        console.log('💳 Added payment receipt URL to submission (final step):', paymentReceiptUrl);
+      } else {
+        console.log('⚠️ No payment receipt URL to add to submission (final step)');
+      }
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -1097,20 +1097,22 @@ export default function FestRegistration() {
 
       if (!response.ok) {
         let errorMessage = 'Failed to submit registration';
-        
+        let errorData = undefined;
         try {
-          const errorData = await response.json();
+          errorData = await response.json();
+        } catch (parseError) {
+          // Not JSON, skip logging errorData
+        }
+        if (errorData) {
           errorMessage = errorData.error || errorData.message || errorMessage;
           console.error('❌ Backend error details:', errorData);
-          
           // Handle specific error cases
           if (response.status === 401) {
             errorMessage = 'Authentication failed. Please log in again.';
           } else if (response.status === 400 && errorData.error?.includes('registration')) {
             errorMessage = `Registration error: ${errorData.error}`;
           }
-        } catch (parseError) {
-          console.error('❌ Could not parse error response:', parseError);
+        } else {
           if (response.status === 401) {
             errorMessage = 'Authentication failed. Please log in again.';
           } else if (response.status === 400) {
@@ -1119,7 +1121,6 @@ export default function FestRegistration() {
             errorMessage = 'Server error. Please try again in a few moments.';
           }
         }
-        
         throw new Error(errorMessage);
       }
 
