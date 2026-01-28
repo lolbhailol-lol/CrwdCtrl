@@ -569,7 +569,7 @@ function EventPage() {
                     <Navbar setIsProfileOpen={setIsProfileOpen} />
                 </div>
 
-                <main className={`flex-1 pb-20 md:pb-8 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
+                <main className={`flex-1 pb-40 sm:pb-32 md:pb-16 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
                     <div className="max-w-7xl mx-auto">
                         {/* Mobile Layout */}
                         <div className="block md:hidden">
