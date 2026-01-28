@@ -583,11 +583,7 @@ export default function FestRegistration() {
       // ✅ PERFORMANCE: Quick validation first
       const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
-<<<<<<< HEAD
-        setError(`File size must be less than ${maxSize / (1024 * 1024)} MB`);
-=======
         setError(`File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 10MB.`);
->>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
         return;
       }
 
@@ -622,20 +618,6 @@ export default function FestRegistration() {
         fieldId: fieldId
       });
 
-<<<<<<< HEAD
-      // Store file in formData for submission
-      setFormData(prev => ({
-        ...prev,
-        [`${fieldId}_file`]: file, // Store actual file
-        [fieldId]: { 
-          uploaded: true, 
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          ready: true // Mark as ready for submission
-        }
-      }));
-=======
       // ✅ PERFORMANCE FIX: Store file immediately without uploading
       // Upload will happen during form submission to avoid blocking UI
       const fileInfo = { 
@@ -664,7 +646,6 @@ export default function FestRegistration() {
           [fieldId]: fileInfo
         }));
       }
->>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
       
       console.log('✅ File prepared for upload:', fieldId, '- Will upload during form submission');
     } catch (err) {
@@ -815,7 +796,6 @@ export default function FestRegistration() {
       return;
     }
     
-<<<<<<< HEAD
     // Validate all required fields, including file uploads
     const allFormData = getAllFormData();
     const formSchema = isMultiStepForm() 
@@ -836,7 +816,8 @@ export default function FestRegistration() {
         setError(`${field.label} is required`);
         return;
       }
-=======
+    }
+
     // ✅ NEW: For multi-step forms, validate current step first
     if (isMultiStepForm() && currentStep < getTotalSteps()) {
       console.log('📝 Multi-step form: Moving to next step instead of submitting');
@@ -849,7 +830,6 @@ export default function FestRegistration() {
     // ✅ NEW: Final validation for multi-step forms
     if (isMultiStepForm() && !validateCurrentStep()) {
       return;
->>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
     }
 
     console.log('✅ All required fields validated');
@@ -1633,10 +1613,6 @@ export default function FestRegistration() {
                 disabled={submitting}
                 className="px-4 sm:px-6 py-2.5 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition-colors text-sm sm:text-base flex items-center justify-center gap-2"
               >
-<<<<<<< HEAD
-                {submitting && <Loader className="w-5 h-5 animate-spin" />}
-                {currentStep < getTotalSteps() ? 'Next Step' : 'Submit Registration'}
-=======
                 {submitting ? (
                   <>
                     <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
@@ -1683,7 +1659,6 @@ export default function FestRegistration() {
                   const isPaymentStep = isMultiStepForm() && fest.registration.paymentQR && currentStep > (fest.registration.steps?.length || 0);
                   return isPaymentStep ? 'Complete Payment & Registration' : 'Submit Registration';
                 })()}
->>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
               </button>
             </div>
           </form>
