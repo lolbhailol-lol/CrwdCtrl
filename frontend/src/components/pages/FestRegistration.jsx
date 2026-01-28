@@ -1091,7 +1091,7 @@ export default function FestRegistration() {
       submissionFormData.append('responses', JSON.stringify(textResponses));
 
       // ✅ NEW: Add transaction ID if available
-      if (transactionId.trim()) {
+      if (transactionId && transactionId.trim()) {
         submissionFormData.append('transactionId', transactionId.trim());
         console.log('💳 Added transaction ID to submission:', transactionId);
       } else {
@@ -1162,6 +1162,10 @@ export default function FestRegistration() {
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
 
+      console.log('🌐 Making fetch request to:', endpoint);
+      console.log('📤 FormData size:', submissionFormData.size || 'unknown');
+      console.log('🔑 Authorization header present:', !!token);
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -1175,11 +1179,12 @@ export default function FestRegistration() {
       clearTimeout(timeoutId);
       const uploadTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
-      console.log('📡 Registration response:', { 
+      console.log('📡 Registration response received:', { 
         status: response.status, 
         ok: response.ok,
         statusText: response.statusText,
-        uploadTime: `${uploadTime}s`
+        uploadTime: `${uploadTime}s`,
+        contentType: response.headers.get('content-type')
       });
 
       if (!response.ok) {
@@ -1223,6 +1228,9 @@ export default function FestRegistration() {
 
     } catch (err) {
       console.error('❌ Registration error:', err);
+      console.error('❌ Error name:', err.name);
+      console.error('❌ Error message:', err.message);
+      console.error('❌ Error stack:', err.stack);
       
       // Handle specific error types with better user feedback
       if (err.name === 'AbortError') {
