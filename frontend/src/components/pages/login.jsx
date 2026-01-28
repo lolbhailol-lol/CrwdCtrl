@@ -491,12 +491,12 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     return (
         <>
             {/* Background overlay with blur */}
-            <div className={`absolute inset-0 backdrop-blur-sm  ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
+            <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
 
-            {/* Login Modal Container */}
-            <div className="absolute inset-0 flex items-center justify-center p-4 z-10">
+            {/* Login Modal Container - Fixed positioning with proper centering */}
+            <div className="fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto">
                 <div
-                    className={`relative rounded-2xl shadow-2xl w-full max-w-xs sm:max-w-sm p-4 sm:p-6 transition-colors duration-300 
+                    className={`relative rounded-2xl shadow-2xl w-full max-w-xs sm:max-w-sm p-4 sm:p-6 transition-colors duration-300 my-8
         ${isDark ? 'bg-[#1B1C1E] text-white' : 'bg-white text-gray-900'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
