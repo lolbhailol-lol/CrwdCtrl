@@ -46,11 +46,7 @@ router.post(
 );
 
 // ===== IMAGE UPLOAD (for payment receipts, etc.) =====
-// SIMPLE TEST ROUTE
-router.post('/upload/image', (req, res) => {
-  console.log('✅ UPLOAD/IMAGE ROUTE WORKS');
-  res.json({ success: true, message: 'Route is live' });
-});
+router.post('/upload/image', authenticateToken, uploadCtrl.uploadSingle, uploadCtrl.multerErrorHandler, uploadCtrl.uploadImage);
 
 // Example of role-based access (only organizers can access)
 router.get('/organizer-only', authenticateToken, authorizeRoles('organizer'), (req, res) => {
