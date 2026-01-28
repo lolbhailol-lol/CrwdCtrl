@@ -188,11 +188,12 @@ app.use((req, res, next) => {
     }`
   );
 
-  // Additional logging for competition routes
-  if (req.path.includes('/competitions')) {
-    console.log('🎯 Competition route hit:', {
+  // Additional logging for upload routes
+  if (req.path.includes('/upload') || req.path.includes('/users')) {
+    console.log('🎯 USERS/UPLOAD route hit:', {
       method: req.method,
       path: req.path,
+      fullUrl: req.originalUrl,
       origin: req.get("origin"),
       contentType: req.get("content-type"),
       hasFile: !!req.file
@@ -291,7 +292,7 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌐 Ready to accept connections`);
-  console.log(`📤 Payment receipt upload endpoint: POST /api/users/upload/image`);
+  console.log(`✅ PAYMENT RECEIPT UPLOAD: /api/users/upload/image is LIVE`);
 });
 
 // Graceful shutdown handling
