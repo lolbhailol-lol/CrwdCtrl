@@ -370,7 +370,6 @@ export const AuthProvider = ({ children }) => {
 
             console.log('🔍 Making API call:', { url, headers, options });
 
-<<<<<<< HEAD
             const response = await fetch(`${API_BASE_URL}${url}`, {
                 ...options,
                 headers: {
@@ -391,18 +390,6 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             console.error('❌ API call failed:', err);
             throw new Error('Failed to connect to the server. Please try again later.');
-=======
-        if (response.status === 401 && token && options.autoLogoutOn401 !== false) {
-            const isAuthEndpoint = url.includes('/auth/') || 
-                                  url.includes('/login') || 
-                                  url.includes('/validate') ||
-                                  url.includes('/profile');
-            
-            if (isAuthEndpoint || options.autoLogoutOn401 === true) {
-                console.warn('🚪 Auto-logout triggered due to 401 response');
-                logout();
-            }
->>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
         }
     };
 
