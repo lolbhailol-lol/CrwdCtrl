@@ -857,7 +857,6 @@ export default function FestRegistration() {
       console.log('📝 Multi-step form: Moving to next step instead of submitting');
       // This is not the final step, just go to next step
       handleStepNext();
-        setSubmitting(false); // Reset submitting so button is clickable
       return;
     }
     
