@@ -1134,8 +1134,9 @@ export default function FestRegistration() {
 
 
       // ✅ PERFORMANCE: Dynamic timeout based on file size
-      // Base timeout for backend processing: 300s (5 min) minimum for database ops, validation, email
-      // Plus additional time for file upload: 30s per MB (conservative estimate for slow connections)
+      // Base timeout: 90s (enough for backend file processing and response)
+      // Plus additional time for file upload: 30s per MB
+      // Backend will continue sending emails in background after response
       
       console.log('🔍 BEFORE TIMEOUT CALCULATION:', {
         totalFileSize: totalFileSize,
@@ -1147,7 +1148,7 @@ export default function FestRegistration() {
         isMultiStep: isMultiStepForm()
       });
       
-      const baseTimeout = 300000; // 300 seconds base for backend processing (database, validation, emails, etc)
+      const baseTimeout = 90000; // 90 seconds base for file upload and registration processing
       const uploadSpeedTimeout = (totalFileSize / 1024 / 1024) * 30000; // 30 seconds per MB for file upload
       const dynamicTimeout = baseTimeout + uploadSpeedTimeout;
       const controller = new AbortController();
@@ -1156,7 +1157,7 @@ export default function FestRegistration() {
         controller.abort();
       }, dynamicTimeout);
 
-      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(0)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB (base: 300s + upload: 30s/MB)`);
+      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(0)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB (base: 90s + upload: 30s/MB)`);
 
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
