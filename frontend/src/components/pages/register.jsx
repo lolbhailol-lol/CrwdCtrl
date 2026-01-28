@@ -176,46 +176,104 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const handleGoogleAuth = async () => {
         setIsLoading(true);
         setErrors({});
-        try {
-            const result = await signInWithGoogle();
-            if (!result || !result.success || !validateSocialAuthResult(result)) {
-                setErrors({ general: result?.error || 'Google authentication failed. Please try again.' });
-                return;
+        
+        // ✅ MOBILE FIX: Add retry logic for mobile devices
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const maxAttempts = isMobile ? 3 : 1;
+        
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                console.log(`📍 Google auth attempt ${attempt}/${maxAttempts}...`);
+                const result = await signInWithGoogle();
+                
+                if (!result || !result.success || !validateSocialAuthResult(result)) {
+                    const errorMsg = result?.error || 'Google authentication failed. Please try again.';
+                    
+                    if (attempt < maxAttempts && isMobile) {
+                        console.log(`⏳ Mobile retry in 1 second (attempt ${attempt}/${maxAttempts})...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        continue;
+                    }
+                    
+                    setErrors({ general: errorMsg });
+                    setIsLoading(false);
+                    return;
+                }
+                
+                const { user } = result;
+                const processedSocialAuthData = processSocialAuthUser(user, 'google');
+                setSocialAuthData(processedSocialAuthData);
+                setAuthProvider('Google');
+                setName(user.displayName || '');
+                setEmail(user.email || '');
+                setShowSocialFields(true);
+                setIsLoading(false);
+                return; // Exit after successful authentication
+                
+            } catch (error) {
+                console.error(`❌ Google auth error (attempt ${attempt}/${maxAttempts}):`, error);
+                
+                if (attempt < maxAttempts && isMobile) {
+                    console.log(`⏳ Mobile retry in 1 second (error: ${error.message})...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    continue;
+                }
+                
+                setErrors({ general: handleSocialAuthError(error, 'Google') });
+                setIsLoading(false);
             }
-            const { user } = result;
-            const processedSocialAuthData = processSocialAuthUser(user, 'google');
-            setSocialAuthData(processedSocialAuthData);
-            setAuthProvider('Google');
-            setName(user.displayName || '');
-            setEmail(user.email || '');
-            setShowSocialFields(true);
-        } catch (error) {
-            setErrors({ general: handleSocialAuthError(error, 'Google') });
-        } finally {
-            setIsLoading(false);
         }
     };
 
     const handleFacebookAuth = async () => {
         setIsLoading(true);
         setErrors({});
-        try {
-            const result = await signInWithFacebook();
-            if (!result || !result.success || !validateSocialAuthResult(result)) {
-                setErrors({ general: result?.error || 'Facebook authentication failed. Please try again.' });
-                return;
+        
+        // ✅ MOBILE FIX: Add retry logic for mobile devices
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const maxAttempts = isMobile ? 3 : 1;
+        
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                console.log(`📍 Facebook auth attempt ${attempt}/${maxAttempts}...`);
+                const result = await signInWithFacebook();
+                
+                if (!result || !result.success || !validateSocialAuthResult(result)) {
+                    const errorMsg = result?.error || 'Facebook authentication failed. Please try again.';
+                    
+                    if (attempt < maxAttempts && isMobile) {
+                        console.log(`⏳ Mobile retry in 1 second (attempt ${attempt}/${maxAttempts})...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        continue;
+                    }
+                    
+                    setErrors({ general: errorMsg });
+                    setIsLoading(false);
+                    return;
+                }
+                
+                const { user } = result;
+                const processedSocialAuthData = processSocialAuthUser(user, 'facebook');
+                setSocialAuthData(processedSocialAuthData);
+                setAuthProvider('Facebook');
+                setName(user.displayName || '');
+                setEmail(user.email || '');
+                setShowSocialFields(true);
+                setIsLoading(false);
+                return; // Exit after successful authentication
+                
+            } catch (error) {
+                console.error(`❌ Facebook auth error (attempt ${attempt}/${maxAttempts}):`, error);
+                
+                if (attempt < maxAttempts && isMobile) {
+                    console.log(`⏳ Mobile retry in 1 second (error: ${error.message})...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    continue;
+                }
+                
+                setErrors({ general: handleSocialAuthError(error, 'Facebook') });
+                setIsLoading(false);
             }
-            const { user } = result;
-            const processedSocialAuthData = processSocialAuthUser(user, 'facebook');
-            setSocialAuthData(processedSocialAuthData);
-            setAuthProvider('Facebook');
-            setName(user.displayName || '');
-            setEmail(user.email || '');
-            setShowSocialFields(true);
-        } catch (error) {
-            setErrors({ general: handleSocialAuthError(error, 'Facebook') });
-        } finally {
-            setIsLoading(false);
         }
     };
 

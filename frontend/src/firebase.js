@@ -198,7 +198,7 @@ const isInAppBrowser = () => {
     return isInApp;
 };
 
-// ✅ POPUP-FIRST GOOGLE SIGN-IN FOR ALL DEVICES
+// ✅ POPUP-FIRST GOOGLE SIGN-IN FOR ALL DEVICES (WITH MOBILE FIX)
 export const signInWithGoogle = async () => {
     console.log('🚀 Starting popup-first Google authentication...');
     
@@ -224,9 +224,26 @@ export const signInWithGoogle = async () => {
     });
 
     // ✅ STEP 1: Check for existing redirect result first (cleanup from any previous redirects)
+    // This must be done with proper error handling for mobile
     try {
         console.log('🔍 Checking for existing redirect result...');
-        const redirectResult = await getRedirectResult(auth);
+        let redirectResult = null;
+        
+        try {
+            redirectResult = await getRedirectResult(auth);
+        } catch (redirectCheckError) {
+            // On some mobile browsers, getRedirectResult can throw temporarily
+            // Wait a bit and retry once if it fails
+            console.log('⚠️ First redirect check failed, retrying after 500ms:', redirectCheckError.code);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            try {
+                redirectResult = await getRedirectResult(auth);
+            } catch (retryError) {
+                console.log('⚠️ Second redirect check also failed, continuing:', retryError.code);
+            }
+        }
+        
         if (redirectResult && redirectResult.user) {
             console.log('✅ Found existing redirect result - completing authentication');
             return {
@@ -259,6 +276,10 @@ export const signInWithGoogle = async () => {
     console.log('🖥️ Attempting popup authentication (works on mobile + desktop)...');
     
     try {
+        // ✅ MOBILE FIX: Use longer timeout and better retry strategy for mobile
+        const maxRetries = isMobile ? 3 : 2;
+        const baseDelay = isMobile ? 1500 : 1000; // Longer delay between retries on mobile
+        
         const result = await retryWithBackoff(async () => {
             return await Promise.race([
                 signInWithPopup(auth, googleProvider),
@@ -266,7 +287,7 @@ export const signInWithGoogle = async () => {
                     setTimeout(() => reject(new Error('POPUP_TIMEOUT')), timeout)
                 )
             ]);
-        });
+        }, maxRetries, baseDelay);
 
         console.log('✅ Popup authentication successful');
         return {
@@ -279,7 +300,7 @@ export const signInWithGoogle = async () => {
     } catch (error) {
         console.log('⚠️ Popup authentication failed:', error.code || error.message);
         
-        // ✅ STEP 4: FALLBACK TO REDIRECT ONLY IF POPUP IS BLOCKED
+        // ✅ STEP 4: FALLBACK TO REDIRECT ONLY IF POPUP IS BLOCKED/TIMEOUT
         const shouldFallbackToRedirect = (
             error.code === 'auth/popup-blocked' || 
             error.code === 'auth/popup-closed-by-user' ||

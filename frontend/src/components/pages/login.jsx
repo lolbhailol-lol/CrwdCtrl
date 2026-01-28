@@ -188,7 +188,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         setIsLoading(true);
         setErrors({});
 
-        console.log('🚀 Starting popup-first Google authentication...');
+        console.log('🚀 Starting Google authentication...');
         console.log('📱 Device info:', {
             userAgent: navigator.userAgent,
             innerWidth: window.innerWidth,
@@ -197,137 +197,161 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             platform: navigator.platform
         });
 
-        try {
-            const result = await signInWithGoogle();
-            console.log('📊 Google auth result:', { 
-                success: result.success, 
-                method: result.method,
-                redirectInitiated: result.redirectInitiated,
-                error: result.error,
-                code: result.code
-            });
-
-            if (!result.success) {
-                console.error('❌ Google auth failed:', result.error);
-                
-                // ✅ Handle in-app browser warning
-                if (result.code === 'auth/in-app-browser' && result.showOpenInBrowser) {
-                    setErrors({ 
-                        general: result.error,
-                        showOpenInBrowser: true
-                    });
-                } else {
-                    setErrors({ general: result.error });
-                }
-                setIsLoading(false);
-                return;
-            }
-
-            // ✅ Handle redirect fallback case (rare)
-            if (result.redirectInitiated) {
-                console.log('🔄 Redirect fallback initiated - page will reload automatically...');
-                setErrors({ 
-                    general: result.message || 'Popup blocked. Redirecting to Google sign-in... Please wait.' 
-                });
-                return; // Exit here - redirect will handle the rest
-            }
-
-            // ✅ Handle successful popup authentication
-            if (!result.user) {
-                console.error('❌ No user data in result');
-                setErrors({ general: 'Authentication failed. Please try again.' });
-                setIsLoading(false);
-                return;
-            }
-
-            const { user } = result;
-            console.log('✅ User authenticated via popup:', user.email);
-
-            // Process user data for backend
-            const socialAuthData = processSocialAuthUser(user, 'google');
-            socialAuthData.isVerified = true;
-
+        // ✅ MOBILE FIX: Add retry logic for mobile devices
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const maxAttempts = isMobile ? 3 : 1;
+        
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                console.log('🔄 Syncing with backend...');
-                const data = await authAPI.socialAuth(socialAuthData);
-                console.log('✅ Backend sync successful');
-
-                // Auto login after successful social authentication
-                login({
-                    ...data.data.user,
-                    token: data.data.token
-                }, user);
-
-            } catch (backendError) {
-                console.error('❌ Backend social auth failed:', backendError);
+                console.log(`📍 Google auth attempt ${attempt}/${maxAttempts}...`);
                 
-                // ✅ Enhanced fallback with network error detection
-                if (backendError.status === 0 || 
-                    backendError.networkError || 
-                    backendError.message?.includes('fetch')) {
+                const result = await signInWithGoogle();
+                console.log('📊 Google auth result:', { 
+                    success: result.success, 
+                    method: result.method,
+                    redirectInitiated: result.redirectInitiated,
+                    error: result.error,
+                    code: result.code,
+                    attempt
+                });
+
+                if (!result.success) {
+                    console.error('❌ Google auth failed:', result.error);
                     
-                    console.log('🔄 Network error detected, using Firebase-only fallback...');
-                    
-                    // Fallback: Login with Firebase user data only
-                    const fallbackUser = {
-                        _id: user.uid,
-                        name: user.displayName || 'Google User',
-                        email: user.email,
-                        role: 'student',
-                        isVerified: true,
-                        provider: 'google',
-                        profilePic: user.photoURL
-                    };
-                    
-                    const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
-                    
-                    login({
-                        ...fallbackUser,
-                        token: fallbackToken
-                    }, user);
-                    
-                    console.log('✅ Fallback authentication successful');
-                } else {
-                    // Other backend errors
-                    setErrors({ 
-                        general: 'Authentication failed. Please try again or contact support.' 
-                    });
+                    // ✅ Handle in-app browser warning
+                    if (result.code === 'auth/in-app-browser' && result.showOpenInBrowser) {
+                        setErrors({ 
+                            general: result.error,
+                            showOpenInBrowser: true
+                        });
+                    } else if (attempt < maxAttempts && isMobile) {
+                        // ✅ On mobile, wait and retry if it's not the last attempt
+                        console.log(`⏳ Mobile retry in 1 second (attempt ${attempt}/${maxAttempts})...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        continue;
+                    } else {
+                        setErrors({ general: result.error });
+                    }
                     setIsLoading(false);
                     return;
                 }
-            }
 
-            // ✅ Success - Navigate to dashboard
-            console.log('✅ Authentication complete, navigating...');
-            if (onClose) {
-                onClose();
-            } else {
-                navigate('/');
-            }
+                // ✅ Handle redirect fallback case (rare)
+                if (result.redirectInitiated) {
+                    console.log('🔄 Redirect fallback initiated - page will reload automatically...');
+                    setErrors({ 
+                        general: result.message || 'Popup blocked. Redirecting to Google sign-in... Please wait.' 
+                    });
+                    return; // Exit here - redirect will handle the rest
+                }
 
-        } catch (error) {
-            console.error('❌ Google authentication error:', error);
-            
-            // ✅ Comprehensive error handling
-            let errorMessage = 'Google sign-in failed. Please try again.';
+                // ✅ Handle successful popup authentication
+                if (!result.user) {
+                    console.error('❌ No user data in result');
+                    if (attempt < maxAttempts && isMobile) {
+                        console.log(`⏳ Mobile retry in 1 second (no user data)...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        continue;
+                    }
+                    setErrors({ general: 'Authentication failed. Please try again.' });
+                    setIsLoading(false);
+                    return;
+                }
 
-            if (error.message?.includes('network') || error.message?.includes('fetch')) {
-                errorMessage = 'Network error. Please check your internet connection and try again.';
-            } else if (error.message?.includes('unauthorized-domain')) {
-                errorMessage = 'This website is not authorized for Google sign-in. Please contact support.';
-            } else if (error.message?.includes('popup-blocked')) {
-                errorMessage = 'Popup was blocked. Please allow popups for this site or try again.';
-            } else if (error.message?.includes('operation-not-allowed')) {
-                errorMessage = 'Google sign-in is not enabled. Please contact support.';
-            }
+                const { user } = result;
+                console.log('✅ User authenticated via popup:', user.email);
 
-            setErrors({ general: errorMessage });
-        } finally {
-            // Only set loading to false if we're not redirecting
-            if (!errors.general?.includes('Redirecting')) {
-                setIsLoading(false);
+                // Process user data for backend
+                const socialAuthData = processSocialAuthUser(user, 'google');
+                socialAuthData.isVerified = true;
+
+                try {
+                    console.log('🔄 Syncing with backend...');
+                    const data = await authAPI.socialAuth(socialAuthData);
+                    console.log('✅ Backend sync successful');
+
+                    // Auto login after successful social authentication
+                    login({
+                        ...data.data.user,
+                        token: data.data.token
+                    }, user);
+
+                } catch (backendError) {
+                    console.error('❌ Backend social auth failed:', backendError);
+                    
+                    // ✅ Enhanced fallback with network error detection
+                    if (backendError.status === 0 || 
+                        backendError.networkError || 
+                        backendError.message?.includes('fetch')) {
+                        
+                        console.log('🔄 Network error detected, using Firebase-only fallback...');
+                        
+                        // Fallback: Login with Firebase user data only
+                        const fallbackUser = {
+                            _id: user.uid,
+                            name: user.displayName || 'Google User',
+                            email: user.email,
+                            role: 'student',
+                            isVerified: true,
+                            provider: 'google',
+                            profilePic: user.photoURL
+                        };
+                        
+                        const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
+                        
+                        login({
+                            ...fallbackUser,
+                            token: fallbackToken
+                        }, user);
+                        
+                        console.log('✅ Fallback authentication successful');
+                    } else {
+                        // Other backend errors
+                        setErrors({ 
+                            general: 'Authentication failed. Please try again or contact support.' 
+                        });
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                // ✅ Success - Navigate to dashboard
+                console.log('✅ Authentication complete, navigating...');
+                if (onClose) {
+                    onClose();
+                } else {
+                    navigate('/');
+                }
+                return; // Exit after successful authentication
+
+            } catch (error) {
+                console.error(`❌ Google authentication error (attempt ${attempt}/${maxAttempts}):`, error);
+                
+                if (attempt < maxAttempts && isMobile) {
+                    // ✅ On mobile, retry if not the last attempt
+                    console.log(`⏳ Mobile retry in 1 second (error: ${error.message})...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    continue;
+                }
+                
+                // ✅ Comprehensive error handling
+                let errorMessage = 'Google sign-in failed. Please try again.';
+
+                if (error.message?.includes('network') || error.message?.includes('fetch')) {
+                    errorMessage = 'Network error. Please check your internet connection and try again.';
+                } else if (error.message?.includes('unauthorized-domain')) {
+                    errorMessage = 'This website is not authorized for Google sign-in. Please contact support.';
+                } else if (error.message?.includes('popup-blocked')) {
+                    errorMessage = 'Popup was blocked. Please allow popups for this site or try again.';
+                } else if (error.message?.includes('operation-not-allowed')) {
+                    errorMessage = 'Google sign-in is not enabled. Please contact support.';
+                }
+
+                setErrors({ general: errorMessage });
             }
         }
+        
+        setIsLoading(false);
     };
 
     const handleFacebookAuth = async () => {
