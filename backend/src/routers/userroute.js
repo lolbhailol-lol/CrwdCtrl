@@ -46,32 +46,11 @@ router.post(
 );
 
 // ===== IMAGE UPLOAD (for payment receipts, etc.) =====
-// Handle preflight requests
-router.options('/upload/image', (req, res) => {
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.set('Access-Control-Max-Age', '3600');
-  res.sendStatus(200);
-});
-
-// IMPORTANT: uploadSingle must come BEFORE authenticateToken to parse file properly
 router.post(
   '/upload/image',
-  uploadCtrl.uploadSingle, // Parse file first
-  (req, res, next) => {
-    console.log('🎯 PAYMENT RECEIPT UPLOAD: File parsed');
-    console.log('📋 File received:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'No file');
-    next();
-  },
-  authenticateToken, // Then authenticate
-  (req, res, next) => {
-    console.log('🎯 PAYMENT RECEIPT UPLOAD: User authenticated');
-    console.log('👤 User ID:', req.user?.userId);
-    console.log('📌 Auth header:', req.get('Authorization') ? 'Present' : 'Missing');
-    next();
-  },
-  uploadCtrl.multerErrorHandler, // Handle multer errors
-  uploadCtrl.uploadImage // Finally upload
+  authenticateToken, // Authenticate FIRST
+  uploadCtrl.uploadSingle, // THEN parse file
+  uploadCtrl.uploadImage // THEN handle upload
 );
 
 // Example of role-based access (only organizers can access)

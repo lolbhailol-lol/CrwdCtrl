@@ -291,6 +291,7 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌐 Ready to accept connections`);
+  console.log(`📤 Payment receipt upload endpoint: POST /api/users/upload/image`);
 });
 
 // Graceful shutdown handling
