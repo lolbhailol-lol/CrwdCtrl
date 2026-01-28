@@ -48,9 +48,26 @@ router.post(
 // ===== IMAGE UPLOAD (for payment receipts, etc.) =====
 router.post(
   '/upload/image',
-  authenticateToken, // Authenticate FIRST
-  uploadCtrl.uploadSingle, // THEN parse file
-  uploadCtrl.uploadImage // THEN handle upload
+  (req, res, next) => {
+    console.log('🎯 UPLOAD/IMAGE ROUTE HIT');
+    console.log('📋 Method:', req.method);
+    console.log('📋 Path:', req.path);
+    console.log('📋 Content-Type:', req.get('content-type'));
+    console.log('📋 Auth Header:', req.get('authorization') ? 'Present' : 'Missing');
+    next();
+  },
+  authenticateToken, // Authenticate
+  (req, res, next) => {
+    console.log('✅ User authenticated. User ID:', req.user?.userId);
+    next();
+  },
+  uploadCtrl.uploadSingle, // Parse file
+  (req, res, next) => {
+    console.log('✅ File parsed:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'No file');
+    next();
+  },
+  uploadCtrl.multerErrorHandler, // Handle multer errors
+  uploadCtrl.uploadImage // Upload
 );
 
 // Example of role-based access (only organizers can access)
