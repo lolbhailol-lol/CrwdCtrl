@@ -49,6 +49,12 @@ router.post(
 router.post(
   '/upload/image',
   authenticateToken,
+  (req, res, next) => {
+    console.log('🎯 PAYMENT RECEIPT UPLOAD ENDPOINT HIT');
+    console.log('📋 File received:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'No file');
+    console.log('👤 User ID:', req.user?.userId);
+    next();
+  },
   uploadCtrl.uploadSingle,
   uploadCtrl.multerErrorHandler, // Add multer error handler
   uploadCtrl.uploadImage
