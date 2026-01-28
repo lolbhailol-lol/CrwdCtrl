@@ -1026,7 +1026,15 @@ export default function FestRegistration() {
 
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
-      // (Do not add paymentReceiptUrl here; add it just before fetch)
+
+      // ✅ NEW: Add payment receipt URL if uploaded
+      if (paymentReceiptUrl) {
+        submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
+        console.log('💳 Added payment receipt URL to submission:', paymentReceiptUrl);
+        console.log('💳 FormData now contains paymentReceiptUrl');
+      } else {
+        console.log('⚠️ No payment receipt URL to add to submission');
+      }
 
       // ✅ PERFORMANCE: Show file submission progress
       if (fileCount > 0) {
@@ -1054,25 +1062,14 @@ export default function FestRegistration() {
       });
 
       // ✅ PERFORMANCE: Dynamic timeout based on file size (minimum 30s, +10s per MB)
-      // Increased timeout: minimum 90s, +30s per MB
-      const minTimeout = 90000; // 90 seconds
-      const perMbTimeout = 30000; // 30 seconds per MB
-      const dynamicTimeout = Math.max(minTimeout, minTimeout + (totalFileSize / 1024 / 1024) * perMbTimeout);
+      const dynamicTimeout = Math.max(30000, 30000 + (totalFileSize / 1024 / 1024) * 10000);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), dynamicTimeout);
 
-      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(1)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`⏱️ Upload timeout set to ${dynamicTimeout / 1000}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
 
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
-
-      // Add payment receipt URL to FormData right before fetch
-      if (paymentReceiptUrl) {
-        submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
-        console.log('💳 Added payment receipt URL to submission (final step):', paymentReceiptUrl);
-      } else {
-        console.log('⚠️ No payment receipt URL to add to submission (final step)');
-      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1096,22 +1093,20 @@ export default function FestRegistration() {
 
       if (!response.ok) {
         let errorMessage = 'Failed to submit registration';
-        let errorData = undefined;
+        
         try {
-          errorData = await response.json();
-        } catch (parseError) {
-          // Not JSON, skip logging errorData
-        }
-        if (errorData) {
+          const errorData = await response.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
           console.error('❌ Backend error details:', errorData);
+          
           // Handle specific error cases
           if (response.status === 401) {
             errorMessage = 'Authentication failed. Please log in again.';
           } else if (response.status === 400 && errorData.error?.includes('registration')) {
             errorMessage = `Registration error: ${errorData.error}`;
           }
-        } else {
+        } catch (parseError) {
+          console.error('❌ Could not parse error response:', parseError);
           if (response.status === 401) {
             errorMessage = 'Authentication failed. Please log in again.';
           } else if (response.status === 400) {
@@ -1120,6 +1115,7 @@ export default function FestRegistration() {
             errorMessage = 'Server error. Please try again in a few moments.';
           }
         }
+        
         throw new Error(errorMessage);
       }
 
@@ -1630,30 +1626,6 @@ export default function FestRegistration() {
                     Please upload a clear image or PDF of your payment receipt/screenshot after completing the payment.
                   </p>
                 </div>
-
-                {/* Transaction ID input for payment step */}
-                {(() => {
-                  const baseSteps = fest?.registration?.steps?.length || 0;
-                  const isPaymentStep = fest?.registration?.paymentQR && currentStep > baseSteps;
-                  if (!isPaymentStep) return null;
-                  return (
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="transactionId">
-                        Transaction ID <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        id="transactionId"
-                        name="transactionId"
-                        className="w-full px-4 py-2 rounded-lg bg-[#232325] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white"
-                        placeholder="Enter your payment transaction/reference ID"
-                        value={formData.transactionId || ''}
-                        onChange={e => setFormData(prev => ({ ...prev, transactionId: e.target.value }))}
-                        required
-                      />
-                    </div>
-                  );
-                })()}
               </div>
             )}
 
