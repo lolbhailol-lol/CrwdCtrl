@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, Loader } from 'lucide-react';
 
-// Configure API base URL
+// Configure API base URL - Use Vite environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
+console.log('🔧 FestFormModal - API_BASE_URL:', API_BASE_URL);
 
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -269,6 +271,12 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [formInitialized, setFormInitialized] = useState(false); // NEW: Track if form has been initialized
+
+  // Reset form initialization when fest changes (new fest selected)
+  useEffect(() => {
+    setFormInitialized(false);
+  }, [fest?._id]); // Reset when fest ID changes
 
   // Form builder functions for registration configuration
   const addFormField = () => {
@@ -573,11 +581,28 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     const timer = setTimeout(() => setError(''), 5000);
     return () => clearTimeout(timer);
   }
-    if (fest) {
-      console.log('🔄 Loading fest data into form:', fest);
+    // Only initialize form once when fest data is first loaded
+    if (fest && !formInitialized) {
+      console.log('🔄 Loading fest data into form (first time):', fest);
       console.log('  - fest.artistsHeading:', fest.artistsHeading);
       console.log('  - fest.competitionsHeading:', fest.competitionsHeading);
       console.log('  - fest.contacts:', fest.contacts);
+      console.log('🔍 DEBUG - Registration data from fest:');
+      console.log('  - fest.registration:', fest.registration);
+      console.log('  - fest.registration.formType:', fest.registration?.formType);
+      console.log('  - fest.registration.formSchema:', fest.registration?.formSchema);
+      console.log('  - fest.registration.steps:', fest.registration?.steps);
+      console.log('  - fest.registration.steps length:', fest.registration?.steps?.length);
+      if (fest.registration?.steps?.length > 0) {
+        console.log('  - Steps details:');
+        fest.registration.steps.forEach((step, index) => {
+          console.log(`    Step ${index + 1}:`, {
+            stepNumber: step.stepNumber,
+            stepTitle: step.stepTitle,
+            fieldsCount: step.fields?.length || 0
+          });
+        });
+      }
       
       setForm({
         festName: fest.festName || fest.festival_name || '',
@@ -637,8 +662,15 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       console.log('  - artistsHeading will be:', fest.artistsHeading || "Artists You'll Love");
       console.log('  - competitionsHeading will be:', fest.competitionsHeading || "Competitions");
       console.log('  - contacts will be:', fest.contacts || []);
+      console.log('🔍 DEBUG - Form state after setting:');
+      console.log('  - form.formType will be:', fest.registration?.formType || 'SINGLE_STEP');
+      console.log('  - form.formSchema will be:', (fest.registration?.formSchema || []).length, 'fields');
+      console.log('  - form.steps will be:', (fest.registration?.steps || []).length, 'steps');
+      
+      // Mark form as initialized to prevent future resets
+      setFormInitialized(true);
     }
-  }, [fest, error]);
+  }, [fest, error, formInitialized]); // Add formInitialized to dependencies
 
   const addHighlight = () => {
     if (highlightInput.trim()) {
@@ -950,10 +982,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         googleSheetsUrl: form.googleSheetsUrl,
         formInstructions: form.formInstructions,
         organizerEmail: form.organizerEmail,
-        // ✅ NEW: Multi-step form support
+          // ✅ FIXED: Preserve form schema regardless of form type
         formType: form.formType,
-        formSchema: form.formType === 'SINGLE_STEP' ? form.formSchema : [],
-        steps: form.formType === 'MULTI_STEP' ? form.steps : []
+        formSchema: form.formSchema || [],
+        steps: form.steps || []
       },
     };
 
@@ -965,6 +997,31 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('🌐 Making API call to:', url);
     console.log('📤 Method:', method);
     console.log('📦 Payload:', payload);
+    console.log('🔍 DEBUG - Registration data in payload:');
+    console.log('  - registration.formType:', payload.registration.formType);
+    console.log('  - registration.formSchema:', payload.registration.formSchema);
+    console.log('  - registration.steps:', payload.registration.steps);
+    console.log('  - form.formType:', form.formType);
+    console.log('  - form.formSchema:', form.formSchema);
+    console.log('  - form.steps:', form.steps);
+    console.log('🔍 DEBUG - Multi-step form validation:');
+    if (form.formType === 'MULTI_STEP') {
+      console.log('  - Is multi-step form: YES');
+      console.log('  - Steps count:', form.steps?.length || 0);
+      console.log('  - Steps data:', form.steps);
+      if (form.steps?.length > 0) {
+        form.steps.forEach((step, index) => {
+          console.log(`    Step ${index + 1}:`, {
+            stepNumber: step.stepNumber,
+            stepTitle: step.stepTitle,
+            fieldsCount: step.fields?.length || 0,
+            fields: step.fields?.map(f => ({ label: f.label, type: f.type, fieldName: f.fieldName }))
+          });
+        });
+      }
+    } else {
+      console.log('  - Is multi-step form: NO (formType:', form.formType, ')');
+    }
     console.log('🔍 DEBUG - Key fields in payload:');
     console.log('  - artistsHeading:', payload.artistsHeading, '(type:', typeof payload.artistsHeading, ')');
     console.log('  - competitionsHeading:', payload.competitionsHeading, '(type:', typeof payload.competitionsHeading, ')');

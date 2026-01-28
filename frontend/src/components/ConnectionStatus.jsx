@@ -23,7 +23,7 @@ const ConnectionStatus = () => {
         setConnectionStatus(prev => ({ ...prev, testing: true, error: null }));
 
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
             const tests = [
                 { test: 'Backend Health Check', endpoint: '/health' },
                 { test: 'API Base Connection', endpoint: '/' }
@@ -65,7 +65,7 @@ const ConnectionStatus = () => {
         setManualTest(prev => ({ ...prev, loading: true, result: null }));
 
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
             const url = `${API_BASE_URL}${manualTest.endpoint}`;
 
             const response = await fetch(url, {
@@ -249,8 +249,8 @@ const ConnectionStatus = () => {
             <div className="p-4 bg-blue-50 border border-blue-200 rounded">
                 <h4 className="font-semibold text-blue-800 mb-2">Connection Troubleshooting Tips:</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• Make sure the backend server is running on port 3000</li>
-                    <li>• Check that the frontend is configured to connect to http://localhost:3000/api</li>
+                    <li>• Make sure the backend server is running on port 8080</li>
+                    <li>• Check that the frontend is configured to connect to http://localhost:8080/api</li>
                     <li>• Verify CORS is properly configured in the backend</li>
                     <li>• Check the browser console for any error messages</li>
                     <li>• Ensure MongoDB is connected in the backend</li>

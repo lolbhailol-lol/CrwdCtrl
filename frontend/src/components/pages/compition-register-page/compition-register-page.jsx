@@ -311,10 +311,17 @@ function CompetitionRegisterPage() {
 
             // Get API base URL from environment or use default
             const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-            const fullURL = `${API_BASE_URL}/competitions/register`;
+            
+            // Get competition ID from the selected competition
+            const selectedComp = competitionOptions.find(comp => comp.name === formData.competitionName);
+            const competitionId = selectedComp?.id || formData.competitionName;
+            
+            // Construct proper endpoint URL
+            const fullURL = `${API_BASE_URL}/registrations/competitions/${competitionId}/register`;
 
             console.log('🔧 Environment VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
             console.log('🔧 Final API_BASE_URL:', API_BASE_URL);
+            console.log('🏆 Competition ID:', competitionId);
             console.log('🚀 Submitting to:', fullURL);
             console.log('📝 Form data being sent:', Array.from(submitData.entries()));
 

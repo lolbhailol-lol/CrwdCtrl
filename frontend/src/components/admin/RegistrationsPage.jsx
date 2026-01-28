@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Eye, Download, Filter, Search, Calendar, User, Mail, Phone } from 'lucide-react';
 
-// Configure API base URL
+// Configure API base URL - Use Vite environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+console.log('🔧 RegistrationsPage - API_BASE_URL:', API_BASE_URL);
 
 export default function RegistrationsPage() {
   const [fests, setFests] = useState([]);

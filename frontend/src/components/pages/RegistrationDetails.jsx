@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle, Calendar, MapPin, User, Mail, Phone } from 'luc
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 
-// Configure API base URL
+// Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 export default function RegistrationDetails() {

@@ -22,7 +22,7 @@ const cache = {
     fests: {
         data: new Map(), // Use Map for better performance
         timestamp: 0,
-        duration: 10 * 60 * 1000 // 10 minutes cache for fests list
+        duration: 2 * 60 * 1000 // Reduced to 2 minutes cache for fests list
     },
     festDetails: {
         data: new Map(), // Individual fest details cache
@@ -288,9 +288,14 @@ exports.getFestById = async (req, res) => {
         const cachedFest = getFromCache('festDetails', id);
         if (cachedFest) {
             console.log('⚡ Returning cached fest details');
+            const isProduction = process.env.NODE_ENV === 'production';
+            const cacheMaxAge = isProduction ? 300 : 60;
+            
             res.set({
-                'Cache-Control': 'public, max-age=600', // 10 minutes client cache
-                'X-Cache': 'HIT'
+                'Cache-Control': `public, max-age=${cacheMaxAge}, must-revalidate`,
+                'X-Cache': 'HIT',
+                'ETag': `"${Date.now()}"`,
+                'Last-Modified': new Date().toUTCString()
             });
             return res.status(200).json(cachedFest);
         }
@@ -324,30 +329,38 @@ exports.getFestById = async (req, res) => {
         }
 
         if (!fest) {
+            console.log(`❌ Fest not found in database: ${id}`);
             return res.status(404).json({ message: 'Fest not found' });
         }
-        
-        // For public access, only return approved fests
-        if (!fest.isApproved) {
-            return res.status(404).json({ message: 'Fest not found' });
-        }
+
+        // ✅ DEBUG: Log fest details to check approval status and data integrity
+        console.log(`🔍 Fest found: ${fest.festName}, isApproved: ${fest.isApproved}, hasGalleryImages: ${fest.galleryImages?.length || 0}`);
         
         // Debug: Log contacts data
         console.log('🔍 Public fest - contacts data:', fest.contacts);
         console.log('🔍 Public fest - artistsHeading:', fest.artistsHeading);
         console.log('🔍 Public fest - competitionsHeading:', fest.competitionsHeading);
+        console.log('🔍 Public fest - registration data:', fest.registration);
+        console.log('🔍 Public fest - registration.formType:', fest.registration?.formType);
+        console.log('🔍 Public fest - registration.formSchema:', fest.registration?.formSchema);
+        console.log('🔍 Public fest - registration.steps:', fest.registration?.steps);
         
         // Add metadata
         fest.cached = false;
         fest.timestamp = new Date().toISOString();
 
-        // Cache the fest details
+        // Cache the fest details with shorter TTL for frequently updated data
         setCache('festDetails', id, fest);
 
-        // Add cache headers
+        // Add cache headers with environment-appropriate cache time
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cacheMaxAge = isProduction ? 60 : 30; // Reduced cache time: 1 minute in prod, 30 seconds in dev
+        
         res.set({
-            'Cache-Control': 'public, max-age=600', // 10 minutes client cache
-            'X-Cache': 'MISS'
+            'Cache-Control': `public, max-age=${cacheMaxAge}, must-revalidate`,
+            'X-Cache': 'MISS',
+            'ETag': `"${Date.now()}"`,
+            'Last-Modified': new Date().toUTCString()
         });
         
         res.status(200).json(fest);
@@ -386,10 +399,10 @@ exports.deleteFest = async (req, res) => {
     }
 };
 
-// ✅ Get all fests (public) - for discovery page with enhanced caching
+// ✅ Get all fests (public) - for discovery page with enhanced caching and priority sorting
 exports.getAllFests = async (req, res) => {
     try {
-        const { page = 1, limit = 20, festType, college, search, sortBy = 'createdAt' } = req.query;
+        const { page = 1, limit = 20, festType, college, search, sortBy = 'priority' } = req.query;
 
         // Create cache key based on query parameters
         const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy });
@@ -425,11 +438,19 @@ exports.getAllFests = async (req, res) => {
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
-        // Optimized query: removed .populate(), added .lean(), selected only needed fields
+        // Optimized query with priority sorting
+        let sortOptions = {};
+        if (sortBy === 'priority') {
+            // Sort by priority first (1 = highest), then by creation date
+            sortOptions = { priority: 1, createdAt: -1 };
+        } else {
+            sortOptions = { [sortBy]: -1 };
+        }
+
         const fests = await FestOrganizer.find(filter)
-            .select('festName collegeName festType festDate venue coverImage images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode')
+            .select('festName collegeName festType festDate venue coverImage images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode priority')
             .lean() // Returns plain JS objects, 40-60% faster
-            .sort({ [sortBy]: -1 })
+            .sort(sortOptions)
             .skip(skip)
             .limit(parseInt(limit));
 
@@ -1164,6 +1185,122 @@ exports.deleteCompetition = async (req, res) => {
 
     } catch (err) {
         console.error('Error in deleteCompetition:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// ✅ Export cache management functions for use by admin controller
+exports.clearAllCaches = clearAllCaches;
+
+// ✅ Update fest priority
+exports.updateFestPriority = async (req, res) => {
+    try {
+        const festId = req.params.id;
+        const { priority } = req.body;
+
+        // Validate ObjectId
+        if (!mongoose.Types.ObjectId.isValid(festId)) {
+            return res.status(400).json({
+                error: 'Invalid fest ID format',
+                message: 'The provided ID is not a valid MongoDB ObjectId'
+            });
+        }
+
+        // Validate priority
+        if (priority === undefined || priority === null) {
+            return res.status(400).json({
+                error: 'Priority is required',
+                message: 'Please provide a priority value'
+            });
+        }
+
+        const priorityNum = parseInt(priority);
+        if (isNaN(priorityNum) || priorityNum < 1 || priorityNum > 999) {
+            return res.status(400).json({
+                error: 'Invalid priority value',
+                message: 'Priority must be a number between 1 and 999'
+            });
+        }
+
+        // Find and update the fest
+        const fest = await FestOrganizer.findById(festId);
+        if (!fest) {
+            return res.status(404).json({ message: 'Fest not found' });
+        }
+
+        // Update priority
+        fest.priority = priorityNum;
+        await fest.save();
+
+        // Clear cache when priority is updated
+        clearAllCaches();
+
+        res.status(200).json({
+            message: 'Fest priority updated successfully',
+            fest: {
+                _id: fest._id,
+                festName: fest.festName,
+                status: fest.status,
+                priority: fest.priority
+            }
+        });
+    } catch (err) {
+        console.error('Error in updateFestPriority:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// ✅ Bulk reorder fests within a section
+exports.reorderFests = async (req, res) => {
+    try {
+        const { festUpdates } = req.body;
+
+        // Validate input
+        if (!Array.isArray(festUpdates) || festUpdates.length === 0) {
+            return res.status(400).json({
+                error: 'Invalid input',
+                message: 'festUpdates must be a non-empty array'
+            });
+        }
+
+        // Validate each fest update
+        for (const update of festUpdates) {
+            if (!update.festId || !mongoose.Types.ObjectId.isValid(update.festId)) {
+                return res.status(400).json({
+                    error: 'Invalid fest ID',
+                    message: 'Each fest update must have a valid festId'
+                });
+            }
+
+            const priority = parseInt(update.priority);
+            if (isNaN(priority) || priority < 1 || priority > 999) {
+                return res.status(400).json({
+                    error: 'Invalid priority',
+                    message: 'Each priority must be a number between 1 and 999'
+                });
+            }
+        }
+
+        // Update all fests in bulk
+        const bulkOps = festUpdates.map(update => ({
+            updateOne: {
+                filter: { _id: update.festId },
+                update: { priority: parseInt(update.priority) }
+            }
+        }));
+
+        const result = await FestOrganizer.bulkWrite(bulkOps);
+
+        // Clear cache after bulk update
+        clearAllCaches();
+
+        res.status(200).json({
+            message: 'Fests reordered successfully',
+            updated: result.modifiedCount,
+            total: festUpdates.length
+        });
+    } catch (err) {
+        console.error('Error in reorderFests:', err);
         res.status(500).json({ error: 'Server error' });
     }
 };

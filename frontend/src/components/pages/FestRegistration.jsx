@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-// Configure API base URL
+// Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 export default function FestRegistration() {
@@ -22,6 +22,11 @@ export default function FestRegistration() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState({});
+  // ✅ NEW: Payment receipt upload state
+  const [paymentReceipt, setPaymentReceipt] = useState(null);
+  const [paymentReceiptUrl, setPaymentReceiptUrl] = useState('');
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
   // ✅ NEW: Multi-step form state
   const [currentStep, setCurrentStep] = useState(1);
   const [stepData, setStepData] = useState({});
@@ -80,9 +85,11 @@ export default function FestRegistration() {
 
   // Helper function to generate consistent field IDs
   const generateFieldId = (field) => {
-    // Priority: use field.id with field_ prefix if it exists
-    if (field.id) return `field_${field.id}`;
+    // Priority 1: use fieldName directly (this is what backend expects)
     if (field.fieldName) return field.fieldName;
+    // Priority 2: use field.id directly (without field_ prefix)
+    if (field.id) return field.id;
+    // Priority 3: generate from label as fallback
     if (field.label) {
       // More robust label sanitization
       return `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
@@ -99,12 +106,27 @@ export default function FestRegistration() {
     if (!isMultiStepForm()) {
       return fest?.registration?.formSchema || [];
     }
+    
+    // ✅ NEW: If this is the payment step (last step with QR), return empty fields
+    const baseSteps = fest.registration.steps.length;
+    const isPaymentStep = fest.registration.paymentQR && currentStep > baseSteps;
+    
+    if (isPaymentStep) {
+      return []; // Payment step has no form fields
+    }
+    
     const step = fest.registration.steps.find(s => s.stepNumber === currentStep);
     return step?.fields || [];
   };
 
   const getTotalSteps = () => {
-    return isMultiStepForm() ? fest.registration.steps.length : 1;
+    if (!isMultiStepForm()) return 1;
+    
+    // ✅ NEW: Add +1 for dedicated payment step if QR is configured
+    const baseSteps = fest.registration.steps.length;
+    const hasPaymentStep = fest.registration.paymentQR;
+    
+    return hasPaymentStep ? baseSteps + 1 : baseSteps;
   };
 
   const getCurrentStepData = () => {
@@ -118,22 +140,41 @@ export default function FestRegistration() {
     const currentFields = getCurrentStepFields();
     const currentData = getCurrentStepData();
     
+    console.log('🔍 DEBUG - validateCurrentStep:', {
+      currentFields: currentFields.map(f => ({ label: f.label, required: f.required, fieldName: f.fieldName })),
+      currentData,
+      currentStep
+    });
+    
     for (const field of currentFields) {
       if (field.required) {
         const fieldId = generateFieldId(field);
         const value = currentData[fieldId];
+        console.log('🔍 Validating required field:', { fieldId, value, hasValue: !!value });
         
         if (!value || (typeof value === 'string' && value.trim() === '')) {
           setError(`Please fill in the required field: ${field.label}`);
+          console.log('❌ Validation failed for field:', field.label);
           return false;
         }
       }
     }
+    
+    console.log('✅ Step validation passed');
     return true;
   };
 
   const handleStepNext = () => {
+    console.log('🔍 DEBUG - handleStepNext called:', {
+      currentStep,
+      totalSteps: getTotalSteps(),
+      isValid: validateCurrentStep(),
+      currentFields: getCurrentStepFields(),
+      currentData: getCurrentStepData()
+    });
+    
     if (!validateCurrentStep()) {
+      console.log('❌ Step validation failed, not proceeding to next step');
       return;
     }
     
@@ -147,6 +188,7 @@ export default function FestRegistration() {
     }
     
     if (currentStep < getTotalSteps()) {
+      console.log('✅ Moving to next step:', currentStep + 1);
       setCurrentStep(prev => prev + 1);
       setError(''); // Clear any errors
     }
@@ -178,6 +220,7 @@ export default function FestRegistration() {
 
   const getAllFormData = () => {
     if (!isMultiStepForm()) {
+      console.log('🔍 Single-step form data:', formData);
       return formData;
     }
     
@@ -190,18 +233,27 @@ export default function FestRegistration() {
     // Include current step data
     Object.assign(allData, getCurrentStepData());
     
+    console.log('🔍 Multi-step combined data:', {
+      stepData,
+      currentStepData: getCurrentStepData(),
+      combinedData: allData,
+      fileKeys: Object.keys(allData).filter(key => key.includes('_file'))
+    });
+    
     return allData;
   };
 
   // ✅ NEW: Render form field function (extracted for reuse)
   const renderFormField = (field, fieldId, currentData, onFieldChange) => {
     return (
-      <div>
+      <div className="space-y-2">
         <label className="block text-sm font-medium text-white mb-1.5">
           {field.label}
           {field.required && <span className="text-red-400 ml-1">*</span>}
         </label>
-        {renderField(field, fieldId, currentData, onFieldChange)}
+        <div className="relative">
+          {renderField(field, fieldId, currentData, onFieldChange)}
+        </div>
       </div>
     );
   };
@@ -224,7 +276,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm"
+            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm transition-colors"
           />
         );
       
@@ -238,7 +290,7 @@ export default function FestRegistration() {
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
             rows={3}
-            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm resize-none"
+            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm resize-none transition-colors"
           />
         );
       
@@ -250,7 +302,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm"
+            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm transition-colors"
           >
             <option value="">Select an option</option>
             {field.options?.map((option, index) => (
@@ -263,7 +315,7 @@ export default function FestRegistration() {
         return (
           <div className="space-y-2">
             {field.options?.map((option, index) => (
-              <label key={index} className="flex items-center space-x-2 cursor-pointer">
+              <label key={index} className="flex items-center space-x-3 cursor-pointer p-2 rounded-lg border border-gray-600 hover:border-gray-500 hover:bg-gray-800/30 transition-colors">
                 <input
                   type="radio"
                   name={fieldId}
@@ -271,7 +323,7 @@ export default function FestRegistration() {
                   checked={value === option}
                   onChange={(e) => onFieldChange(fieldId, e.target.value)}
                   required={field.required}
-                  className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                  className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-600 focus:ring-[#0ECCEE] focus:ring-2"
                 />
                 <span className="text-sm text-white">{option}</span>
               </label>
@@ -285,7 +337,7 @@ export default function FestRegistration() {
             {field.options?.map((option, index) => {
               const isChecked = Array.isArray(value) ? value.includes(option) : false;
               return (
-                <label key={index} className="flex items-center space-x-2 cursor-pointer">
+                <label key={index} className="flex items-center space-x-3 cursor-pointer p-2 rounded-lg border border-gray-600 hover:border-gray-500 hover:bg-gray-800/30 transition-colors">
                   <input
                     type="checkbox"
                     value={option}
@@ -298,7 +350,7 @@ export default function FestRegistration() {
                         onFieldChange(fieldId, currentValues.filter(v => v !== option));
                       }
                     }}
-                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-600 rounded focus:ring-[#0ECCEE] focus:ring-2"
                   />
                   <span className="text-sm text-white">{option}</span>
                 </label>
@@ -316,7 +368,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm"
+            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm transition-colors"
           />
         );
       
@@ -332,16 +384,21 @@ export default function FestRegistration() {
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
-                  onFieldChange(fieldId, file);
+                  handleFileUpload(file, fieldId);
                 }
               }}
               required={field.required}
-              className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#0ECCEE] file:text-black hover:file:bg-[#0ECCEE]/80"
+              className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#0ECCEE] file:text-black hover:file:bg-[#0ECCEE]/80 transition-colors"
             />
             {uploadingFiles[fieldId] && (
               <div className="flex items-center gap-2 text-sm text-blue-400">
                 <Loader className="w-4 h-4 animate-spin" />
-                Uploading...
+                Processing...
+              </div>
+            )}
+            {value && value.ready && (
+              <div className="flex items-center gap-2 text-sm text-green-400">
+                ✓ File ready: {value.fileName}
               </div>
             )}
           </div>
@@ -357,7 +414,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm"
+            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm transition-colors"
           />
         );
     }
@@ -368,16 +425,16 @@ export default function FestRegistration() {
   const fetchFestDetails = async () => {
     try {
       console.log('📡 Fetching fest details for:', festId);
-      const response = await fetch(`${API_BASE_URL}/fests/${festId}/public`);
+      // Add cache busting parameter to ensure fresh data
+      const cacheBuster = Date.now();
+      const response = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`);
       if (!response.ok) {
         throw new Error('Failed to fetch fest details');
       }
       const data = await response.json();
-      console.log('✅ Fest data received:', {
-        festName: data.festName,
-        registrationMode: data.registration?.mode,
-        formSchemaLength: data.registration?.formSchema?.length || 0
-      });
+      console.log('🔍 DEBUG - Raw API response:', data);
+      console.log('🔍 DEBUG - Raw registration data:', data.registration);
+      console.log('🔍 DEBUG - Raw steps data:', data.registration?.steps);
       
       // ✅ CRITICAL: Validate registration mode immediately
       if (data.registration?.mode !== 'INTERNAL_FORM') {
@@ -388,6 +445,18 @@ export default function FestRegistration() {
       }
       
       setFest(data);
+      console.log('🔍 DEBUG - Fest registration data loaded:', {
+        mode: data.registration?.mode,
+        formType: data.registration?.formType,
+        formSchemaLength: data.registration?.formSchema?.length,
+        stepsLength: data.registration?.steps?.length,
+        steps: data.registration?.steps?.map(step => ({
+          stepNumber: step.stepNumber,
+          stepTitle: step.stepTitle,
+          fieldsCount: step.fields?.length
+        })),
+        fullStepsData: data.registration?.steps
+      });
 
       // Initialize form data with empty values using stable field IDs
       const initialData = {};
@@ -431,16 +500,15 @@ export default function FestRegistration() {
       setCompetition(competitionData);
 
       // Fetch fest details
-      const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public`);
+      const cacheBuster = Date.now();
+      const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`);
       if (!festResponse.ok) {
         throw new Error('Failed to fetch fest details');
       }
       const festData = await festResponse.json();
-      console.log('✅ Fest data received:', {
-        festName: festData.festName,
-        registrationMode: festData.registration?.mode,
-        formSchemaLength: festData.registration?.formSchema?.length || 0
-      });
+      console.log('🔍 DEBUG - Raw fest API response:', festData);
+      console.log('🔍 DEBUG - Raw fest registration data:', festData.registration);
+      console.log('🔍 DEBUG - Raw fest steps data:', festData.registration?.steps);
       
       // ✅ CRITICAL: Validate registration mode for competition registration
       if (competitionData.registrationType === 'fest') {
@@ -462,6 +530,17 @@ export default function FestRegistration() {
       }
       
       setFest(festData);
+      console.log('🔍 DEBUG - Competition fest registration data loaded:', {
+        mode: festData.registration?.mode,
+        formType: festData.registration?.formType,
+        formSchemaLength: festData.registration?.formSchema?.length,
+        stepsLength: festData.registration?.steps?.length,
+        steps: festData.registration?.steps?.map(step => ({
+          stepNumber: step.stepNumber,
+          stepTitle: step.stepTitle,
+          fieldsCount: step.fields?.length
+        }))
+      });
 
       // Initialize form data with empty values using stable field IDs
       const initialData = {};
@@ -501,10 +580,14 @@ export default function FestRegistration() {
     }));
 
     try {
-      // Check file size (limit to 10MB)
+      // ✅ PERFORMANCE: Quick validation first
       const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
+<<<<<<< HEAD
         setError(`File size must be less than ${maxSize / (1024 * 1024)} MB`);
+=======
+        setError(`File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 10MB.`);
+>>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
         return;
       }
 
@@ -515,13 +598,31 @@ export default function FestRegistration() {
         return;
       }
 
+      // ✅ PERFORMANCE: Compress images if they're large
+      let processedFile = file;
+      if (file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) { // 2MB threshold
+        console.log('🗜️ Compressing large image:', file.name);
+        try {
+          processedFile = await compressImage(file);
+          console.log('✅ Image compressed:', {
+            original: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+            compressed: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
+            reduction: `${(((file.size - processedFile.size) / file.size) * 100).toFixed(1)}%`
+          });
+        } catch (compressionError) {
+          console.warn('⚠️ Image compression failed, using original:', compressionError);
+          processedFile = file;
+        }
+      }
+
       console.log('✅ File validated:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
+        name: processedFile.name,
+        size: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
+        type: processedFile.type,
         fieldId: fieldId
       });
 
+<<<<<<< HEAD
       // Store file in formData for submission
       setFormData(prev => ({
         ...prev,
@@ -534,6 +635,36 @@ export default function FestRegistration() {
           ready: true // Mark as ready for submission
         }
       }));
+=======
+      // ✅ PERFORMANCE FIX: Store file immediately without uploading
+      // Upload will happen during form submission to avoid blocking UI
+      const fileInfo = { 
+        uploaded: true, 
+        fileName: processedFile.name,
+        fileSize: processedFile.size,
+        fileType: processedFile.type,
+        ready: true // Mark as ready for submission
+      };
+      
+      if (isMultiStepForm()) {
+        // For multi-step forms, use step-specific data handling
+        setStepData(prev => ({
+          ...prev,
+          [currentStep]: {
+            ...prev[currentStep],
+            [`${fieldId}_file`]: processedFile, // Store actual file
+            [fieldId]: fileInfo
+          }
+        }));
+      } else {
+        // For single-step forms, use formData directly
+        setFormData(prev => ({
+          ...prev,
+          [`${fieldId}_file`]: processedFile, // Store actual file
+          [fieldId]: fileInfo
+        }));
+      }
+>>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
       
       console.log('✅ File prepared for upload:', fieldId, '- Will upload during form submission');
     } catch (err) {
@@ -547,10 +678,144 @@ export default function FestRegistration() {
     }
   };
 
+  // ✅ PERFORMANCE: Image compression function
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        // Calculate new dimensions (max 1920x1080)
+        const maxWidth = 1920;
+        const maxHeight = 1080;
+        let { width, height } = img;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width *= ratio;
+          height *= ratio;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Compression failed'));
+            }
+          },
+          file.type,
+          0.8 // 80% quality
+        );
+      };
+      
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // ✅ NEW: Payment receipt upload function
+  const handlePaymentReceiptUpload = async (file) => {
+    if (!file) return;
+
+    console.log('💳 Starting payment receipt upload:', file.name);
+    setUploadingReceipt(true);
+    setReceiptError('');
+
+    try {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Please upload a valid image (JPG, PNG) or PDF file');
+      }
+
+      // Validate file size (5MB limit)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxSize) {
+        throw new Error('File size must be less than 5MB');
+      }
+
+      // Compress image if it's an image file
+      let processedFile = file;
+      if (file.type.startsWith('image/')) {
+        try {
+          processedFile = await compressImage(file);
+          console.log('🗜️ Receipt image compressed:', {
+            original: file.size,
+            compressed: processedFile.size,
+            reduction: Math.round((1 - processedFile.size / file.size) * 100) + '%'
+          });
+        } catch (compressionError) {
+          console.warn('⚠️ Image compression failed, using original:', compressionError);
+          processedFile = file;
+        }
+      }
+
+      // Upload to backend
+      const formData = new FormData();
+      formData.append('image', processedFile);
+
+      const response = await fetch(`${API_BASE_URL}/users/upload/image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to upload receipt');
+      }
+
+      const result = await response.json();
+      const uploadedUrl = result.url || result.imageUrl;
+
+      if (!uploadedUrl) {
+        throw new Error('Upload successful but no URL returned');
+      }
+
+      setPaymentReceiptUrl(uploadedUrl);
+      setPaymentReceipt(processedFile);
+      console.log('✅ Payment receipt uploaded successfully:', uploadedUrl);
+
+    } catch (error) {
+      console.error('❌ Payment receipt upload error:', error);
+      setReceiptError(error.message || 'Failed to upload payment receipt');
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('🚀 Starting form submission...');
+    console.log('🔍 DEBUG - Form submission state:', {
+      isMultiStep: isMultiStepForm(),
+      currentStep,
+      totalSteps: getTotalSteps(),
+      isNotFinalStep: currentStep < getTotalSteps(),
+      submitting
+    });
     
+    // ✅ PERFORMANCE: Prevent double submission
+    if (submitting) {
+      console.log('⚠️ Submission already in progress, ignoring duplicate request');
+      return;
+    }
+    
+<<<<<<< HEAD
     // Validate all required fields, including file uploads
     const allFormData = getAllFormData();
     const formSchema = isMultiStepForm() 
@@ -571,6 +836,20 @@ export default function FestRegistration() {
         setError(`${field.label} is required`);
         return;
       }
+=======
+    // ✅ NEW: For multi-step forms, validate current step first
+    if (isMultiStepForm() && currentStep < getTotalSteps()) {
+      console.log('📝 Multi-step form: Moving to next step instead of submitting');
+      // This is not the final step, just go to next step
+      handleStepNext();
+      return;
+    }
+    
+    console.log('📤 Final step reached, proceeding with actual submission');
+    // ✅ NEW: Final validation for multi-step forms
+    if (isMultiStepForm() && !validateCurrentStep()) {
+      return;
+>>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
     }
 
     console.log('✅ All required fields validated');
@@ -619,11 +898,26 @@ export default function FestRegistration() {
       // ✅ NEW: Get all form data (single-step or combined multi-step)
       const allFormData = getAllFormData();
       
+      console.log('🔍 Form validation starting:', {
+        isMultiStep: isMultiStepForm(),
+        currentStep,
+        allFormDataKeys: Object.keys(allFormData),
+        fileKeys: Object.keys(allFormData).filter(key => key.includes('_file'))
+      });
+      
       // ✅ PERFORMANCE: Validate required fields with better field matching
       const formSchema = isMultiStepForm() 
         ? fest.registration.steps.flatMap(step => step.fields)
         : fest.registration?.formSchema || [];
       const requiredFields = formSchema.filter(field => field.required);
+      
+      console.log('🔍 Form schema fields:', formSchema.map(field => ({
+        id: field.id,
+        fieldName: field.fieldName,
+        label: field.label,
+        type: field.type,
+        generatedId: generateFieldId(field)
+      })));
       
       console.log('🔍 Validating', requiredFields.length, 'required fields...');
       
@@ -636,12 +930,34 @@ export default function FestRegistration() {
           label: field.label, 
           type: field.type, 
           hasValue: !!value,
-          valueType: typeof value
+          valueType: typeof value,
+          hasFileData: !!(field.type === 'file' || field.type === 'image') && !!allFormData[`${fieldId}_file`],
+          isReady: value?.ready,
+          fieldValue: value,
+          fileKey: `${fieldId}_file`,
+          fileData: allFormData[`${fieldId}_file`],
+          allFormDataKeys: Object.keys(allFormData).filter(key => key.includes(fieldId))
         });
         
         // For file/image fields, check if file was selected and is ready
         if (field.type === 'file' || field.type === 'image') {
-          if (!value || !value.ready || !formData[`${fieldId}_file`]) {
+          console.log('🔍 File field validation:', {
+            fieldId,
+            label: field.label,
+            hasValue: !!value,
+            valueReady: value?.ready,
+            hasFileData: !!allFormData[`${fieldId}_file`],
+            fileDataType: typeof allFormData[`${fieldId}_file`]
+          });
+          
+          if (!value || !value.ready || !allFormData[`${fieldId}_file`]) {
+            console.error('❌ File validation failed:', {
+              fieldId,
+              label: field.label,
+              value,
+              fileData: allFormData[`${fieldId}_file`],
+              allFormDataKeys: Object.keys(allFormData)
+            });
             throw new Error(`${field.label} is required - please upload a file`);
           }
         } else {
@@ -654,25 +970,38 @@ export default function FestRegistration() {
 
       console.log('✅ All required fields validated');
 
+      // ✅ NEW: Validate payment receipt if on payment step
+      const baseSteps = fest.registration.steps?.length || 0;
+      const isPaymentStep = fest.registration.paymentQR && isMultiStepForm() && currentStep > baseSteps;
+      
+      if (isPaymentStep && !paymentReceiptUrl) {
+        throw new Error('Payment receipt is required. Please upload your payment proof after scanning the QR code.');
+      }
+
       setSubmissionProgress('Preparing form data...');
       // ✅ PERFORMANCE: Prepare form data efficiently
       const submissionFormData = new FormData();
       const textResponses = {};
+      let totalFileSize = 0;
+      let fileCount = 0;
 
       // Process form fields with consistent field naming
       formSchema.forEach(field => {
         const fieldId = generateFieldId(field);
-        const value = formData[fieldId];
+        const value = allFormData[fieldId];
         
-        // ✅ CRITICAL: Use field.fieldName for backend consistency
-        const backendFieldName = field.fieldName || field.id || fieldId;
+        // ✅ CRITICAL: Use the same field identifier for backend consistency
+        // This should match what generateFieldId returns
+        const backendFieldName = generateFieldId(field);
         
         if (field.type === 'file' || field.type === 'image') {
           // Add file to FormData if it exists
-          const fileData = formData[`${fieldId}_file`];
+          const fileData = allFormData[`${fieldId}_file`];
           if (fileData) {
             submissionFormData.append(backendFieldName, fileData);
-            console.log('📁 Added file to form data:', backendFieldName, fileData.name);
+            totalFileSize += fileData.size;
+            fileCount++;
+            console.log('📁 Added file to form data:', backendFieldName, fileData.name, `(${(fileData.size / 1024 / 1024).toFixed(2)}MB)`);
           }
         } else {
           // Add text data to responses object using backend field name
@@ -684,7 +1013,27 @@ export default function FestRegistration() {
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
 
-      setSubmissionProgress('Submitting registration...');
+      // ✅ NEW: Add payment receipt URL if uploaded
+      if (paymentReceiptUrl) {
+        submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
+        console.log('💳 Added payment receipt URL to submission:', paymentReceiptUrl);
+        console.log('💳 FormData now contains paymentReceiptUrl');
+      } else {
+        console.log('⚠️ No payment receipt URL to add to submission');
+      }
+
+      // ✅ PERFORMANCE: Show file submission progress
+      if (fileCount > 0) {
+        setSubmissionProgress(`Submitting ${fileCount} file(s) (${(totalFileSize / 1024 / 1024).toFixed(2)}MB)...`);
+      } else {
+        setSubmissionProgress('Submitting registration...');
+      }
+      // ✅ PERFORMANCE: Pre-validate files before submission
+      const maxTotalSize = 50 * 1024 * 1024; // 50MB total limit
+      if (totalFileSize > maxTotalSize) {
+        throw new Error(`Total file size (${(totalFileSize / 1024 / 1024).toFixed(2)}MB) exceeds limit of 50MB. Please reduce file sizes.`);
+      }
+
       // ✅ PERFORMANCE: Determine endpoint and make request
       const endpoint = isCompetitionRegistration 
         ? `${API_BASE_URL}/registrations/competitions/${competitionId}/register`
@@ -693,13 +1042,20 @@ export default function FestRegistration() {
       console.log('🌐 Making registration request to:', endpoint);
       console.log('📊 Submission summary:', {
         textFields: Object.keys(textResponses).length,
-        fileFields: Array.from(submissionFormData.keys()).filter(key => key !== 'responses').length,
-        totalSize: submissionFormData.get('responses')?.length || 0
+        fileFields: fileCount,
+        totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`,
+        estimatedUploadTime: `${Math.ceil(totalFileSize / (1024 * 1024))}s`
       });
 
-      // ✅ PERFORMANCE: Use fetch with timeout (increased for file uploads)
+      // ✅ PERFORMANCE: Dynamic timeout based on file size (minimum 30s, +10s per MB)
+      const dynamicTimeout = Math.max(30000, 30000 + (totalFileSize / 1024 / 1024) * 10000);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for file uploads
+      const timeoutId = setTimeout(() => controller.abort(), dynamicTimeout);
+
+      console.log(`⏱️ Upload timeout set to ${dynamicTimeout / 1000}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
+
+      // ✅ PERFORMANCE: Track upload progress
+      const startTime = Date.now();
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -712,11 +1068,13 @@ export default function FestRegistration() {
       });
 
       clearTimeout(timeoutId);
+      const uploadTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
       console.log('📡 Registration response:', { 
         status: response.status, 
         ok: response.ok,
-        statusText: response.statusText
+        statusText: response.statusText,
+        uploadTime: `${uploadTime}s`
       });
 
       if (!response.ok) {
@@ -998,7 +1356,9 @@ export default function FestRegistration() {
               <div className="bg-[#1B1C1E] rounded-lg p-4 mb-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-white">Progress</h3>
-                  <span className="text-xs text-gray-400">Step {currentStep} of {getTotalSteps()}</span>
+                  <div className="text-right">
+                    <span className="text-xs text-gray-400">Step {currentStep} of {getTotalSteps()}</span>
+                  </div>
                 </div>
                 
                 {/* Progress Bar */}
@@ -1011,6 +1371,7 @@ export default function FestRegistration() {
                 
                 {/* Step Indicators */}
                 <div className="flex justify-between">
+                  {/* Regular form steps */}
                   {fest.registration.steps.map((step, index) => (
                     <div key={step.stepNumber} className="flex flex-col items-center">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
@@ -1027,6 +1388,24 @@ export default function FestRegistration() {
                       </span>
                     </div>
                   ))}
+                  
+                  {/* Payment step indicator (if QR is configured) */}
+                  {fest.registration.paymentQR && (
+                    <div className="flex flex-col items-center">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                        currentStep > fest.registration.steps.length
+                          ? 'bg-[#0ECCEE] text-black' 
+                          : completedSteps.has(fest.registration.steps.length + 1)
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-600 text-gray-300'
+                      }`}>
+                        {completedSteps.has(fest.registration.steps.length + 1) ? '✓' : '💳'}
+                      </div>
+                      <span className="text-xs text-gray-400 mt-1 text-center max-w-16">
+                        Payment
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1034,29 +1413,54 @@ export default function FestRegistration() {
             {/* ✅ NEW: Current Step Title and Description */}
             {isMultiStepForm() && (
               <div className="bg-[#1B1C1E] rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-white mb-2">
-                  {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepTitle}
-                </h3>
-                {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription && (
-                  <p className="text-sm text-gray-400 mb-4">
-                    {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription}
-                  </p>
+                {/* Step title and description */}
+                {currentStep <= fest.registration.steps.length ? (
+                  // Regular form step
+                  <>
+                    <h3 className="text-lg font-semibold text-white mb-2">
+                      {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepTitle}
+                    </h3>
+                    {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription && (
+                      <p className="text-sm text-gray-400 mb-4">
+                        {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  // Payment step
+                  <>
+                    <h3 className="text-lg font-semibold text-white mb-2">
+                      Payment
+                    </h3>
+                    <p className="text-sm text-gray-400 mb-4">
+                      Complete your payment to finalize your registration
+                    </p>
+                  </>
                 )}
                 
-                {/* Current Step Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {getCurrentStepFields().map((field) => {
-                    const fieldId = generateFieldId(field);
-                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                       field.type === 'checkbox' || field.type === 'radio';
-                    
-                    return (
-                      <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                        {renderFormField(field, fieldId, getCurrentStepData(), handleStepFieldChange)}
-                      </div>
-                    );
-                  })}
-                </div>
+                {/* Current Step Fields - Only show if not payment step */}
+                {currentStep <= fest.registration.steps.length && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                    {(() => {
+                      const currentFields = getCurrentStepFields();
+                      console.log('🔍 Current step fields:', currentFields);
+                      console.log('🔍 Current step:', currentStep);
+                      console.log('🔍 Total steps:', getTotalSteps());
+                      
+                      return currentFields.map((field) => {
+                      const fieldId = generateFieldId(field);
+                      const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                         field.type === 'checkbox' || field.type === 'radio';
+                      
+                      return (
+                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                          {renderFormField(field, fieldId, getCurrentStepData(), handleStepFieldChange)}
+                        </div>
+                      );
+                    });
+                  })()}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1065,25 +1469,34 @@ export default function FestRegistration() {
               <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4">
                 <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Registration Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {fest.registration.formSchema.map((field) => {
-                    const fieldId = generateFieldId(field);
-                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                       field.type === 'checkbox' || field.type === 'radio';
+                  {(() => {
+                    const formFields = fest.registration.formSchema;
                     
-                    return (
-                      <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                        {renderFormField(field, fieldId, formData, (fieldId, value) => setFormData(prev => ({ ...prev, [fieldId]: value })))}
-                      </div>
-                    );
-                  })}
+                    return formFields.map((field) => {
+                      const fieldId = generateFieldId(field);
+                      const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                         field.type === 'checkbox' || field.type === 'radio';
+                      
+                      return (
+                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                          {renderFormField(field, fieldId, formData, (fieldId, value) => setFormData(prev => ({ ...prev, [fieldId]: value })))}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
 
-            {/* Payment QR Code Display - Compact and organized */}
+            {/* Payment QR Code Display - Only on dedicated payment step for multi-step forms */}
             {fest.registration.paymentQR && (
+              !isMultiStepForm() || 
+              (isMultiStepForm() && currentStep > fest.registration.steps.length)
+            ) && (
               <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4 border-2 border-yellow-600/30">
-                <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Payment Information</h3>
+                <div className="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
+                  <h3 className="text-base font-semibold text-white">Payment Information</h3>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-center">
                   <div className="flex justify-center">
                     <img 
@@ -1101,6 +1514,103 @@ export default function FestRegistration() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* ✅ NEW: Payment Receipt Upload Section */}
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                  <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    Upload Payment Receipt <span className="text-red-400">*</span>
+                  </h4>
+                  
+                  {!paymentReceiptUrl ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center w-full">
+                        <label 
+                          htmlFor="payment-receipt-upload" 
+                          className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                            uploadingReceipt 
+                              ? 'border-blue-400 bg-blue-900/20' 
+                              : 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70'
+                          }`}
+                        >
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            {uploadingReceipt ? (
+                              <>
+                                <Loader className="w-8 h-8 mb-2 text-blue-400 animate-spin" />
+                                <p className="text-sm text-blue-400">Uploading receipt...</p>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                                <p className="mb-2 text-sm text-gray-300">
+                                  <span className="font-semibold">Click to upload</span> payment receipt
+                                </p>
+                                <p className="text-xs text-gray-400">PNG, JPG or PDF (Max 5MB)</p>
+                              </>
+                            )}
+                          </div>
+                          <input 
+                            id="payment-receipt-upload" 
+                            type="file" 
+                            className="hidden" 
+                            accept="image/jpeg,image/jpg,image/png,application/pdf"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                handlePaymentReceiptUpload(file);
+                              }
+                            }}
+                            disabled={uploadingReceipt}
+                          />
+                        </label>
+                      </div>
+                      
+                      {receiptError && (
+                        <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-2">
+                          {receiptError}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-3 bg-green-900/20 border border-green-800 rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm text-green-400 font-medium">Payment receipt uploaded successfully</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {paymentReceipt?.name} ({(paymentReceipt?.size / 1024 / 1024).toFixed(2)}MB)
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaymentReceiptUrl('');
+                            setPaymentReceipt(null);
+                            setReceiptError('');
+                          }}
+                          className="text-gray-400 hover:text-white text-sm underline"
+                        >
+                          Change
+                        </button>
+                      </div>
+                      
+                      {/* Preview for images */}
+                      {paymentReceipt?.type.startsWith('image/') && (
+                        <div className="flex justify-center">
+                          <img 
+                            src={paymentReceiptUrl} 
+                            alt="Payment receipt preview" 
+                            className="max-w-full max-h-32 object-contain rounded-lg border border-gray-600"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-gray-400 mt-2">
+                    Please upload a clear image or PDF of your payment receipt/screenshot after completing the payment.
+                  </p>
                 </div>
               </div>
             )}
@@ -1123,8 +1633,57 @@ export default function FestRegistration() {
                 disabled={submitting}
                 className="px-4 sm:px-6 py-2.5 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition-colors text-sm sm:text-base flex items-center justify-center gap-2"
               >
+<<<<<<< HEAD
                 {submitting && <Loader className="w-5 h-5 animate-spin" />}
                 {currentStep < getTotalSteps() ? 'Next Step' : 'Submit Registration'}
+=======
+                {submitting ? (
+                  <>
+                    <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                    <span className="hidden sm:inline">{submissionProgress || 'Submitting...'}</span>
+                    <span className="sm:hidden">Submitting...</span>
+                    
+                    {/* Progress indicator */}
+                    {submissionProgress && (
+                      <div className="w-full mt-2">
+                        <div className="bg-gray-700 rounded-full h-1.5">
+                          <div 
+                            className="bg-[#0ECCEE] h-1.5 rounded-full transition-all duration-500 ease-out"
+                            style={{
+                              width: submissionProgress.includes('Validating') ? '20%' :
+                                     submissionProgress.includes('Preparing') ? '40%' :
+                                     submissionProgress.includes('Submitting') ? '70%' :
+                                     submissionProgress.includes('Processing') ? '90%' :
+                                     submissionProgress.includes('completed') ? '100%' : '10%'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (() => {
+                  console.log('🔍 DEBUG - Button text logic:', {
+                    isMultiStep: isMultiStepForm(),
+                    currentStep,
+                    totalSteps: getTotalSteps(),
+                    baseSteps: fest.registration.steps?.length || 0,
+                    isNotFinalStep: currentStep < getTotalSteps(),
+                    shouldShowNextStep: isMultiStepForm() && currentStep < getTotalSteps(),
+                    hasPaymentQR: !!fest.registration.paymentQR,
+                    isPaymentStep: isMultiStepForm() && fest.registration.paymentQR && currentStep > (fest.registration.steps?.length || 0)
+                  });
+                  
+                  if (isMultiStepForm() && currentStep < getTotalSteps()) {
+                    // Check if next step is payment step
+                    const nextStepIsPayment = fest.registration.paymentQR && currentStep === (fest.registration.steps?.length || 0);
+                    return nextStepIsPayment ? 'Continue to Payment' : 'Next Step';
+                  }
+                  
+                  // Final step
+                  const isPaymentStep = isMultiStepForm() && fest.registration.paymentQR && currentStep > (fest.registration.steps?.length || 0);
+                  return isPaymentStep ? 'Complete Payment & Registration' : 'Submit Registration';
+                })()}
+>>>>>>> 7933887f323d0e26627f05d2318f437df18fa7dc
               </button>
             </div>
           </form>

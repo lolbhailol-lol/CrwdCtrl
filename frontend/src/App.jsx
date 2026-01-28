@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import { DarkModeProvider } from './context/DarkModeContext'
 import { FavoritesProvider } from './context/FavoritesContext'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { RegisteredEventsProvider } from './context/RegisteredEventsContext'
 import { NotificationsProvider } from './context/NotificationsContext'
 import ConnectionStatus from './components/ConnectionStatus'
@@ -12,6 +12,7 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
 import AppLoadingPage from './components/AppLoadingPage'
+import AuthLoadingPage from './components/AuthLoadingPage'
 import LoadingBar from './components/LoadingBar'
 import AdminStatsCard from './components/admin/AdminStatsCard'
 import Competiton_Modal from './components/admin/Competition_Modal'
@@ -59,10 +60,10 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
   const shouldHideMobileBottomNav = location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
-    location.pathname.startsWith('/view-details') ||
-    location.pathname.startsWith('/competitions-view-details') ||
     location.pathname.startsWith('/admin') ||
     isProfileOpen; // Hide when profile sidebar is open (ProfileSidebar has its own bottom nav)
+  
+  // ✅ FIXED: Show mobile nav on view-details so users can navigate from shared links
 
   if (shouldHideMobileBottomNav) {
     return null;
@@ -106,6 +107,18 @@ function App() {
     // Check if this is a page refresh by checking if performance.navigation exists
     // and its type or checking if sessionStorage has our flag
     const checkIfPageRefresh = () => {
+      // ✅ CRITICAL FIX: Don't show loading page if we have Firebase auth parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasAuthParams = urlParams.has('apiKey') || urlParams.has('oobCode') || 
+                          window.location.hash.includes('access_token') ||
+                          window.location.search.includes('state=') ||
+                          window.location.search.includes('code=');
+      
+      if (hasAuthParams) {
+        console.log('🔄 Firebase auth redirect detected, skipping loading page');
+        return false; // Don't show loading page for auth redirects
+      }
+
       // Method 1: Check performance navigation API
       if (performance.navigation && performance.navigation.type === 1) {
         return true;
@@ -140,7 +153,7 @@ function App() {
 
       return () => clearTimeout(timer);
     } else {
-      // No loading for navigation
+      // No loading for navigation or auth redirects
       setIsInitialLoading(false);
     }
   }, []);
@@ -177,7 +190,25 @@ function App() {
 
   const AppContent = () => {
     const location = useLocation();
+    const { isAuthProcessing, isLoading, isAuthenticated } = useAuth();
     const isAdminRoute = location.pathname.startsWith('/admin');
+
+    // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
+    useEffect(() => {
+      if (isAuthenticated && showLogin) {
+        console.log('✅ User authenticated, closing login modal');
+        setShowLogin(false);
+      }
+      if (isAuthenticated && showRegister) {
+        console.log('✅ User authenticated, closing register modal');
+        setShowRegister(false);
+      }
+    }, [isAuthenticated, showLogin, showRegister]);
+
+    // ✅ CRITICAL FIX: Show auth loading page when processing OAuth redirect OR during initial loading
+    if (isAuthProcessing || isLoading) {
+      return <AuthLoadingPage />;
+    }
 
     return (
       <div className="relative min-h-screen">
@@ -194,6 +225,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/login" element={<CrwdCtrlLogin />} />
+                <Route path="/admin/login" element={<CrwdCtrlLogin />} />
                 <Route path="/register" element={<CrwdCtrlRegister />} />
                 <Route path="/verify-email" element={<EmailVerification />} />
                 <Route path="/cultural-fest" element={<CulturalFestPage />} />

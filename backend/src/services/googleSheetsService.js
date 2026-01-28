@@ -52,6 +52,11 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
     formSchema.forEach(field => {
       headers.push(field.label); // Use label for column headers
     });
+    
+    // ✅ ALWAYS add Payment Receipt column if it exists in responses
+    if (responses['Payment Receipt']) {
+      headers.push('Payment Receipt');
+    }
 
     // Add headers if sheet is empty or headers don't match
     if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
@@ -103,6 +108,21 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
         }
       }
     });
+
+    // ✅ ALWAYS add Payment Receipt data if available in responses
+    if (responses['Payment Receipt']) {
+      const paymentReceiptUrl = responses['Payment Receipt'];
+      console.log('💳 Processing competition payment receipt from responses:', paymentReceiptUrl);
+      
+      if (paymentReceiptUrl && typeof paymentReceiptUrl === 'string' && paymentReceiptUrl.startsWith('http')) {
+        // Use HYPERLINK formula for clickable link
+        rowData.push(`=HYPERLINK("${paymentReceiptUrl}","🔗 View Receipt")`);
+        console.log('✅ Competition payment receipt added to Google Sheets row data');
+      } else {
+        rowData.push('');
+        console.log('⚠️ Competition payment receipt URL not valid');
+      }
+    }
 
 
     // Append the new row
@@ -188,22 +208,52 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       ]
     });
 
-    if (!fest || !fest.registration?.formSchema) {
-      throw new Error('Fest registration form schema not found');
+    if (!fest || !fest.registration) {
+      throw new Error('Fest registration configuration not found');
     }
 
-    const formSchema = fest.registration.formSchema;
-    console.log('📋 Form schema loaded with', formSchema.length, 'fields');
+    // ✅ CRITICAL FIX: Handle both single-step and multi-step forms
+    let formSchema = [];
+    if (fest.registration.formType === 'MULTI_STEP' && fest.registration.steps) {
+      // For multi-step forms, flatten all fields from all steps
+      formSchema = fest.registration.steps.flatMap(step => step.fields || []);
+      console.log('📋 Multi-step form schema loaded with', formSchema.length, 'fields from', fest.registration.steps.length, 'steps');
+    } else if (fest.registration.formSchema) {
+      // For single-step forms, use the direct formSchema
+      formSchema = fest.registration.formSchema;
+      console.log('📋 Single-step form schema loaded with', formSchema.length, 'fields');
+    }
+
+    if (!formSchema || formSchema.length === 0) {
+      throw new Error('Fest registration form schema not found or empty');
+    }
 
     // Create headers using field.label (human-readable names)
     const headers = ['Timestamp', 'User Name', 'User Email'];
     formSchema.forEach(field => {
       headers.push(field.label); // Use label for column headers
     });
+    
+    // ✅ ALWAYS add Payment Receipt column if it exists in responses
+    if (responses['Payment Receipt']) {
+      headers.push('Payment Receipt');
+    }
 
     // Add headers if sheet is empty or headers don't match
-    if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
+    const hasPaymentReceiptInResponses = !!responses['Payment Receipt'];
+    const hasPaymentReceiptColumn = existingHeaders.includes('Payment Receipt');
+    const headersNeedUpdate = existingHeaders.length === 0 || 
+                             !arraysEqual(existingHeaders, headers) ||
+                             (hasPaymentReceiptInResponses && !hasPaymentReceiptColumn);
+    
+    if (headersNeedUpdate) {
       console.log('📝 Creating/updating headers...');
+      console.log('🔍 Header update reason:', {
+        emptyHeaders: existingHeaders.length === 0,
+        headersMismatch: !arraysEqual(existingHeaders, headers),
+        hasPaymentReceiptInResponses: hasPaymentReceiptInResponses,
+        hasPaymentReceiptColumn: hasPaymentReceiptColumn
+      });
       await sheets.spreadsheets.values.update({
         spreadsheetId: spreadsheetId,
         range: `${sheetName}!1:1`,
@@ -222,11 +272,26 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       userInfo.email || 'Unknown'
     ];
 
-    // Map form responses using field labels for column headers
+    // Map form responses using field names for column headers
     formSchema.forEach(field => {
       if (field.type === 'image' || field.type === 'file') {
         // For file/image fields: show "🔗 View" hyperlink if uploaded
-        const fileData = responses[field.fieldName];
+        // Try multiple field key strategies to find the file data
+        const possibleKeys = [
+          field.fieldName,
+          field.id,
+          `field_${field.id}`,
+          `field_${field.label?.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`
+        ].filter(Boolean);
+        
+        let fileData = null;
+        for (const key of possibleKeys) {
+          if (responses[key]) {
+            fileData = responses[key];
+            break;
+          }
+        }
+        
         if (fileData && fileData.uploaded && fileData.cloudinaryLink) {
           // Use HYPERLINK formula but ensure it displays as clickable text
           rowData.push(`=HYPERLINK("${fileData.cloudinaryLink}","🔗 View")`);
@@ -235,11 +300,67 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
         }
       } else {
         // For other fields: show actual value or empty string
-        rowData.push(responses[field.fieldName] ?? '');
+        // Try multiple field key strategies to find the value
+        const possibleKeys = [
+          field.fieldName,
+          field.id,
+          `field_${field.id}`,
+          `field_${field.label?.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`
+        ].filter(Boolean);
+        
+        let value = null;
+        for (const key of possibleKeys) {
+          if (responses.hasOwnProperty(key)) {
+            value = responses[key];
+            break;
+          }
+        }
+        
+        if (Array.isArray(value)) {
+          rowData.push(value.join(', '));
+        } else {
+          rowData.push(value ?? '');
+        }
       }
     });
 
+    // ✅ ALWAYS add Payment Receipt data if available in responses
+    if (responses['Payment Receipt']) {
+      const paymentReceiptUrl = responses['Payment Receipt'];
+      console.log('💳 Processing payment receipt from responses:', paymentReceiptUrl);
+      
+      if (paymentReceiptUrl && typeof paymentReceiptUrl === 'string' && paymentReceiptUrl.startsWith('http')) {
+        // Use HYPERLINK formula for clickable link
+        rowData.push(`=HYPERLINK("${paymentReceiptUrl}","🔗 View Receipt")`);
+        console.log('✅ Payment receipt added to Google Sheets row data');
+      } else {
+        rowData.push('');
+        console.log('⚠️ Payment receipt URL not valid');
+      }
+    }
+
     console.log('📊 Row data prepared:', rowData);
+    console.log('🔍 Field mapping debug:');
+    formSchema.forEach((field, index) => {
+      const possibleKeys = [
+        field.fieldName,
+        field.id,
+        `field_${field.id}`,
+        `field_${field.label?.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`
+      ].filter(Boolean);
+      
+      let foundKey = null;
+      let foundValue = null;
+      for (const key of possibleKeys) {
+        if (responses.hasOwnProperty(key)) {
+          foundKey = key;
+          foundValue = responses[key];
+          break;
+        }
+      }
+      
+      console.log(`  Field ${index + 1}: ${field.label} -> Key: ${foundKey || 'NOT_FOUND'}, Value: ${foundValue ? 'FOUND' : 'EMPTY'}`);
+    });
 
     // Append the new row
     const appendResponse = await sheets.spreadsheets.values.append({

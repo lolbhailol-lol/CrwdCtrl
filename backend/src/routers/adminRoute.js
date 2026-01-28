@@ -6,8 +6,22 @@ const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
 const uploadCtrl = require('../controllers/uploadController');
 
+// ===== ADMIN HEALTH CHECK =====
+router.get('/health', (req, res) => {
+  console.log('✅ Admin health check endpoint called');
+  res.json({ 
+    success: true, 
+    message: 'Admin API is operational',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
+  });
+});
+
 // ===== ADMIN LOGIN =====
 router.post('/login', adminAuthCtrl.adminLogin);
+
+// ===== REFRESH TOKEN ENDPOINT =====
+router.post('/refresh-token', adminAuthCtrl.refreshAdminToken);
 
 // ===== DASHBOARD =====
 router.get('/stats', adminAuth, async (req, res) => {
@@ -34,6 +48,10 @@ router.post('/fests', adminAuth, adminFestCtrl.createFest);
 router.get('/fests', adminAuth, adminFestCtrl.getAllFests);
 router.put('/fests/:id', adminAuth, adminFestCtrl.updateFest);
 router.delete('/fests/:id', adminAuth, adminFestCtrl.deleteFest);
+
+// ===== FEST PRIORITY MANAGEMENT =====
+router.put('/fests/:id/priority', adminAuth, adminFestCtrl.updateFestPriority);
+router.post('/fests/reorder', adminAuth, adminFestCtrl.reorderFests);
 
 // ===== COMPETITION (ONLY CREATE FOR NOW) =====
 router.post(
@@ -404,6 +422,259 @@ router.post(
   uploadCtrl.uploadMultipleImages
 );
 
+// ===== TEST REGISTRATION WITH PAYMENT RECEIPT =====
+router.post('/test-registration-payment', adminAuth, async (req, res) => {
+  try {
+    const { googleSheetsUrl, festId } = req.body;
+    
+    if (!googleSheetsUrl) {
+      return res.status(400).json({ error: 'Google Sheets URL is required' });
+    }
+    
+    // Simulate a registration with payment receipt
+    const mockResponses = {
+      'name': 'Test User With Receipt',
+      'email': 'test-receipt@example.com',
+      'phone': '9876543210',
+      'Payment Receipt': 'https://res.cloudinary.com/dyonimhgb/image/upload/v1234567890/test-payment-receipt.jpg'
+    };
+    
+    const mockFestData = {
+      festName: 'Test Fest',
+      festId: festId || 'test-fest-id'
+    };
+    
+    const mockUserData = {
+      name: 'Test User With Receipt',
+      email: 'test-receipt@example.com'
+    };
+    
+    console.log('🧪 Testing registration with payment receipt...');
+    console.log('📊 Mock responses:', mockResponses);
+    console.log('💳 Payment Receipt in responses:', mockResponses['Payment Receipt']);
+    
+    const { appendToGoogleSheets } = require('../services/googleSheetsService');
+    const result = await appendToGoogleSheets(googleSheetsUrl, mockResponses, mockFestData, mockUserData);
+    
+    res.json({
+      success: true,
+      message: 'Test registration with payment receipt completed',
+      mockData: {
+        responses: mockResponses,
+        hasPaymentReceipt: !!mockResponses['Payment Receipt']
+      },
+      result: result
+    });
+    
+  } catch (error) {
+    console.error('Test registration with payment receipt error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ===== DEBUG FEST PAYMENT QR ENDPOINT =====
+router.get('/debug-fest-payment/:festId', adminAuth, async (req, res) => {
+  try {
+    const { festId } = req.params;
+    const FestOrganizer = require('../model/fest_organizer_model');
+    
+    const fest = await FestOrganizer.findById(festId);
+    
+    if (!fest) {
+      return res.status(404).json({ error: 'Fest not found' });
+    }
+    
+    res.json({
+      festId: fest._id,
+      festName: fest.festName,
+      hasRegistration: !!fest.registration,
+      hasPaymentQR: !!fest.registration?.paymentQR,
+      paymentQR: fest.registration?.paymentQR,
+      registrationConfig: fest.registration,
+      formType: fest.registration?.formType,
+      hasFormSchema: !!fest.registration?.formSchema,
+      hasSteps: !!fest.registration?.steps,
+      stepsCount: fest.registration?.steps?.length || 0
+    });
+    
+  } catch (error) {
+    console.error('Debug fest payment error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ===== DEBUG PAYMENT RECEIPT ENDPOINT =====
+router.post('/debug-payment-receipt', adminAuth, async (req, res) => {
+  try {
+    console.log('🔍 Debug payment receipt request:');
+    console.log('📋 Request body:', req.body);
+    console.log('📁 Request files:', req.files);
+    console.log('🔑 Body keys:', Object.keys(req.body));
+    console.log('💳 Payment receipt URL:', req.body.paymentReceiptUrl);
+    
+    // Test Google Sheets integration with payment receipt
+    if (req.body.googleSheetsUrl && req.body.paymentReceiptUrl) {
+      const { appendToGoogleSheets } = require('../services/googleSheetsService');
+      
+      const testResponses = {
+        'Payment Receipt': req.body.paymentReceiptUrl,
+        'name': 'Debug Test User',
+        'email': 'debug@test.com'
+      };
+      
+      const festData = {
+        festName: 'Debug Test Fest',
+        festId: 'debug123'
+      };
+      
+      const userData = {
+        name: 'Debug Test User',
+        email: 'debug@test.com'
+      };
+      
+      console.log('🧪 Testing Google Sheets with payment receipt...');
+      const result = await appendToGoogleSheets(req.body.googleSheetsUrl, testResponses, festData, userData);
+      
+      res.json({
+        success: true,
+        debug: {
+          bodyKeys: Object.keys(req.body),
+          hasPaymentReceipt: !!req.body.paymentReceiptUrl,
+          paymentReceiptUrl: req.body.paymentReceiptUrl
+        },
+        googleSheetsResult: result
+      });
+    } else {
+      res.json({
+        success: true,
+        debug: {
+          bodyKeys: Object.keys(req.body),
+          hasPaymentReceipt: !!req.body.paymentReceiptUrl,
+          paymentReceiptUrl: req.body.paymentReceiptUrl,
+          message: 'Provide googleSheetsUrl and paymentReceiptUrl to test Google Sheets integration'
+        }
+      });
+    }
+    
+  } catch (error) {
+    console.error('Debug payment receipt error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ===== DIRECT GOOGLE SHEETS TEST WITH PAYMENT RECEIPT =====
+router.post('/test-google-sheets-direct', adminAuth, async (req, res) => {
+  try {
+    const { googleSheetsUrl } = req.body;
+    
+    if (!googleSheetsUrl) {
+      return res.status(400).json({ error: 'Google Sheets URL is required' });
+    }
+    
+    const { google } = require('googleapis');
+    
+    // Extract spreadsheet ID from URL
+    const extractSpreadsheetId = (url) => {
+      const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      return match ? match[1] : null;
+    };
+    
+    const getGoogleAuth = async () => {
+      const auth = new google.auth.GoogleAuth({
+        credentials: {
+          type: 'service_account',
+          project_id: 'keen-incline-483004-g5',
+          private_key_id: process.env.GOOGLE_PRIVATE_KEY_ID,
+          private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+          client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+          client_id: process.env.GOOGLE_CLIENT_ID,
+          auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+          token_uri: 'https://oauth2.googleapis.com/token',
+          auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+          client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL}`
+        },
+        scopes: ['https://www.googleapis.com/auth/spreadsheets']
+      });
+      return auth;
+    };
+    
+    const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
+    if (!spreadsheetId) {
+      throw new Error('Invalid Google Sheets URL format');
+    }
+    
+    // Initialize Google Sheets API
+    const auth = await getGoogleAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Get spreadsheet metadata
+    const spreadsheetInfo = await sheets.spreadsheets.get({
+      spreadsheetId: spreadsheetId,
+    });
+    
+    const firstSheet = spreadsheetInfo.data.sheets[0];
+    const sheetName = firstSheet.properties.title;
+    
+    // Create headers with payment receipt
+    const headers = ['Timestamp', 'User Name', 'User Email', 'Name', 'Email', 'Phone', 'Payment Receipt'];
+    
+    // Update headers
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: spreadsheetId,
+      range: `${sheetName}!1:1`,
+      valueInputOption: 'RAW',
+      resource: {
+        values: [headers],
+      },
+    });
+    
+    // Prepare test row data with payment receipt
+    const rowData = [
+      new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
+      'Direct Test User',
+      'direct@test.com',
+      'Direct Test User',
+      'direct@test.com',
+      '9876543210',
+      '=HYPERLINK("https://res.cloudinary.com/dyonimhgb/image/upload/v1234567890/test-receipt.jpg","🔗 View Receipt")'
+    ];
+    
+    // Append the test row
+    const appendResponse = await sheets.spreadsheets.values.append({
+      spreadsheetId: spreadsheetId,
+      range: `${sheetName}!A:A`,
+      valueInputOption: 'USER_ENTERED', // This processes formulas
+      insertDataOption: 'INSERT_ROWS',
+      resource: {
+        values: [rowData],
+      },
+    });
+    
+    res.json({
+      success: true,
+      message: 'Direct Google Sheets test with payment receipt completed',
+      updatedRange: appendResponse.data.updates.updatedRange,
+      rowsAdded: appendResponse.data.updates.updatedRows
+    });
+    
+  } catch (error) {
+    console.error('Direct Google Sheets test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ===== TEST GOOGLE SHEETS INTEGRATION =====
 router.post('/test-google-sheets', adminAuth, async (req, res) => {
   try {
@@ -419,7 +690,8 @@ router.post('/test-google-sheets', adminAuth, async (req, res) => {
     const testData = {
       name: 'Test User',
       email: 'test@example.com',
-      phone: '1234567890'
+      phone: '1234567890',
+      'Payment Receipt': 'https://res.cloudinary.com/dyonimhgb/image/upload/v1234567890/test-receipt.jpg'
     };
     
     const festData = {

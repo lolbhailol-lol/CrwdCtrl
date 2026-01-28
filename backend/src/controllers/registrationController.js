@@ -280,7 +280,20 @@ const submitCompetitionRegistration = async (req, res) => {
 
     // Use the fest's form schema for validation and processing
     const fest = competition.fest;
-    if (!fest.registration?.formSchema) {
+    
+    // ✅ CRITICAL: Get form schema (support both single-step and multi-step forms)
+    let formSchema = [];
+    if (fest.registration?.formType === 'MULTI_STEP' && fest.registration.steps) {
+      // For multi-step forms, flatten all fields from all steps
+      formSchema = fest.registration.steps.flatMap(step => step.fields || []);
+      console.log('📝 Multi-step form schema:', formSchema.length, 'fields from', fest.registration.steps.length, 'steps');
+    } else if (fest.registration?.formSchema) {
+      // For single-step forms, use the direct formSchema
+      formSchema = fest.registration.formSchema;
+      console.log('📝 Single-step form schema:', formSchema.length, 'fields');
+    }
+
+    if (!formSchema || formSchema.length === 0) {
       return res.status(400).json({ error: 'Registration form is not configured for this fest' });
     }
 
@@ -288,7 +301,7 @@ const submitCompetitionRegistration = async (req, res) => {
       return res.status(400).json({ error: 'This fest does not accept internal form registrations' });
     }
 
-    console.log('📝 Form schema:', fest.registration.formSchema?.length || 0, 'fields');
+    console.log('📝 Form schema:', formSchema?.length || 0, 'fields');
     console.log('📁 Files received:', req.files?.length || 0);
 
     // Parse form data and files (same as fest registration)
@@ -375,7 +388,7 @@ const submitCompetitionRegistration = async (req, res) => {
     // Map field IDs to fieldNames for backend processing (same as fest registration)
     const processedResponses = {};
     
-    for (const field of fest.registration.formSchema) {
+    for (const field of formSchema) {
       // Try multiple field ID strategies to find the value
       const possibleFieldIds = [
         field.id,
@@ -401,7 +414,7 @@ const submitCompetitionRegistration = async (req, res) => {
     console.log('🔄 Processed responses:', Object.keys(processedResponses));
 
     // Validate required fields with proper file/image handling
-    const requiredFields = fest.registration.formSchema.filter(field => field.required);
+    const requiredFields = formSchema.filter(field => field.required);
     console.log('🔍 Validating', requiredFields.length, 'required fields...');
     
     for (const field of requiredFields) {
@@ -609,18 +622,42 @@ const submitRegistration = async (req, res) => {
       });
     }
 
-    // ✅ CRITICAL: Validate form schema exists
-    if (!fest.registration.formSchema || fest.registration.formSchema.length === 0) {
+    // ✅ CRITICAL: Get form schema (support both single-step and multi-step forms)
+    let formSchema = [];
+    if (fest.registration.formType === 'MULTI_STEP' && fest.registration.steps) {
+      // For multi-step forms, flatten all fields from all steps
+      formSchema = fest.registration.steps.flatMap(step => step.fields || []);
+      console.log('📝 Multi-step form schema:', formSchema.length, 'fields from', fest.registration.steps.length, 'steps');
+    } else if (fest.registration.formSchema) {
+      // For single-step forms, use the direct formSchema
+      formSchema = fest.registration.formSchema;
+      console.log('📝 Single-step form schema:', formSchema.length, 'fields');
+    }
+
+    if (!formSchema || formSchema.length === 0) {
       console.error('❌ No form schema configured');
       return res.status(400).json({ error: 'Registration form is not configured for this fest' });
     }
-
-    console.log('📝 Form schema:', fest.registration.formSchema?.length || 0, 'fields');
     console.log('📁 Files received:', req.files?.length || 0);
+    console.log('🔍 Request body keys:', Object.keys(req.body));
+    console.log('🔍 Request body paymentReceiptUrl:', req.body.paymentReceiptUrl);
 
     // Parse form data and files
     const responses = {};
     const uploadedFiles = {};
+
+    // ✅ NEW: Add payment receipt URL if provided
+    if (req.body.paymentReceiptUrl) {
+      responses['Payment Receipt'] = req.body.paymentReceiptUrl;
+      console.log('💳 Payment receipt URL added to responses:', req.body.paymentReceiptUrl);
+      console.log('💳 Payment receipt key in responses:', 'Payment Receipt');
+    } else {
+      console.log('⚠️ No payment receipt URL found in request body');
+      console.log('🔍 Request body keys:', Object.keys(req.body));
+    }
+    
+    console.log('📊 Final responses object keys:', Object.keys(responses));
+    console.log('💳 Payment Receipt in final responses:', responses['Payment Receipt']);
 
     // Process text fields from request body
     if (req.body.responses) {
@@ -652,7 +689,7 @@ const submitRegistration = async (req, res) => {
         });
 
         // ✅ CRITICAL FIX: Enhanced field matching with multiple strategies
-        const fieldSchema = fest.registration.formSchema.find(f => {
+        const fieldSchema = formSchema.find(f => {
           // Strategy 1: Direct fieldName match (primary)
           if (f.fieldName === file.fieldname) return true;
           // Strategy 2: Direct id match
@@ -704,7 +741,7 @@ const submitRegistration = async (req, res) => {
 
       // Check for validation errors
       if (fileValidationErrors.length > 0) {
-        console.error('Available field schemas:', fest.registration.formSchema.map(f => ({
+        console.error('Available field schemas:', formSchema.map(f => ({
           id: f.id,
           fieldName: f.fieldName,
           label: f.label,
@@ -714,7 +751,7 @@ const submitRegistration = async (req, res) => {
           error: `Invalid form fields: ${fileValidationErrors.map(e => e.field).join(', ')}. Please refresh the form and try again.`,
           debug: {
             validationErrors: fileValidationErrors,
-            availableFields: fest.registration.formSchema.map(f => ({
+            availableFields: formSchema.map(f => ({
               id: f.id,
               fieldName: f.fieldName,
               label: f.label
@@ -723,9 +760,12 @@ const submitRegistration = async (req, res) => {
         });
       }
 
-      // ✅ PERFORMANCE: Upload all files concurrently
+      // ✅ PERFORMANCE: Upload all files concurrently with progress logging
       console.log('📤 Uploading files concurrently...');
+      const uploadStartTime = Date.now();
       const uploadResults = await Promise.all(fileUploadPromises);
+      const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(1);
+      console.log(`✅ All files uploaded in ${uploadTime}s`);
 
       // Process upload results
       for (const { file, fieldSchema, uploadResult } of uploadResults) {
@@ -764,7 +804,7 @@ const submitRegistration = async (req, res) => {
     console.log('📋 Final responses:', Object.keys(responses));
 
     // ✅ PERFORMANCE: Validate required fields with consistent field naming
-    const requiredFields = fest.registration.formSchema.filter(field => field.required);
+    const requiredFields = formSchema.filter(field => field.required);
     console.log('🔍 Validating', requiredFields.length, 'required fields...');
     
     for (const field of requiredFields) {
@@ -876,7 +916,7 @@ const submitRegistration = async (req, res) => {
         let competitionName = null;
         
         // Look for competition-related fields in form schema
-        const competitionField = fest.registration.formSchema.find(field => {
+        const competitionField = formSchema.find(field => {
           const label = field.label.toLowerCase();
           return label.includes('competition') || 
                  label.includes('event') || 

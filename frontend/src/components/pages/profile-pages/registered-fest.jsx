@@ -9,7 +9,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 
-// Configure API base URL
+// Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 function RegisteredFest() {
@@ -212,6 +212,18 @@ function RegisteredFest() {
             setShowLogin(true);
         }
     }, [searchParams]);
+
+    // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
+    useEffect(() => {
+        if (isAuthenticated && showLogin) {
+            console.log('✅ User authenticated, closing login modal in registered-fest');
+            setShowLogin(false);
+        }
+        if (isAuthenticated && showRegister) {
+            console.log('✅ User authenticated, closing register modal in registered-fest');
+            setShowRegister(false);
+        }
+    }, [isAuthenticated, showLogin, showRegister]);
 
     // Handle login modal close
     const handleCloseLogin = () => {

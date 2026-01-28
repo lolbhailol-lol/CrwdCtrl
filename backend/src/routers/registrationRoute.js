@@ -27,6 +27,12 @@ router.post(
   '/fests/:festId/register',
   authenticateToken,
   upload.any(),
+  (req, res, next) => {
+    console.log('🎯 FEST REGISTRATION ENDPOINT HIT:', req.params.festId);
+    console.log('🔍 Request body keys:', Object.keys(req.body));
+    console.log('💳 Payment receipt in body:', req.body.paymentReceiptUrl);
+    next();
+  },
   submitRegistration
 );
 

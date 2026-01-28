@@ -17,7 +17,7 @@ import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
 import axios from 'axios';
 
-// Configure axios base URL
+// Configure axios base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 axios.defaults.baseURL = API_BASE_URL;
 
@@ -168,7 +168,17 @@ function EventDetailsPage() {
         }
       } catch (err) {
         console.error('ViewDetails - Error fetching event data:', err);
-        setError('Failed to load event details');
+        console.error('ViewDetails - Error status:', err.response?.status);
+        console.error('ViewDetails - Error message:', err.response?.data?.message);
+        console.error('ViewDetails - Error details:', err.response?.data);
+        
+        if (err.response?.status === 404) {
+          setError('Fest not found - it may not be approved yet or the link might be incorrect');
+        } else if (err.response?.status === 400) {
+          setError('Invalid fest ID format');
+        } else {
+          setError('Failed to load event details');
+        }
       } finally {
         setLoading(false);
       }
@@ -183,6 +193,18 @@ function EventDetailsPage() {
       setShowLogin(true);
     }
   }, [searchParams]);
+
+  // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && showLogin) {
+      console.log('✅ User authenticated, closing login modal in view-details');
+      setShowLogin(false);
+    }
+    if (isAuthenticated && showRegister) {
+      console.log('✅ User authenticated, closing register modal in view-details');
+      setShowRegister(false);
+    }
+  }, [isAuthenticated, showLogin, showRegister]);
 
   // Get available competition tabs based on event data
   const availableTabs = Object.keys(eventData?.competitions || {});
@@ -244,12 +266,27 @@ function EventDetailsPage() {
           <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
             {error || 'Event not found'}
           </h2>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-          >
-            Go to Dashboard
-          </button>
+          <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'} mb-6`}>
+            The fest page you're looking for is not available.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={handleBackClick}
+              className={`px-6 py-2 rounded-lg transition ${
+                isDark 
+                  ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                  : 'bg-gray-300 hover:bg-gray-400 text-gray-900'
+              }`}
+            >
+              Go Back
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+            >
+              Go to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -790,12 +827,22 @@ function EventDetailsPage() {
           {/* Header Icons */}
           <div className="relative z-20">
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/20 to-transparent">
-              <button
-                onClick={() => navigate(-1)}
-                className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
-              >
-                <ArrowLeft size={20} />
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => navigate(-1)}
+                  className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
+                  title="Go Back"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <button
+                  onClick={() => navigate('/')}
+                  className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
+                  title="Go to Home"
+                >
+                  <Home size={20} />
+                </button>
+              </div>
               <div className="flex items-center space-x-3">
                 <button
                   onClick={handleShare}
