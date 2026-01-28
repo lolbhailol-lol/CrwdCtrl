@@ -302,28 +302,8 @@ function EventDetailsPage() {
       return;
     }
 
-    // Handle dynamic registration based on mode
-    const registrationMode = eventData?.registration?.mode || 'NOT_STARTED';
-
-    if (registrationMode === 'EXTERNAL_LINK') {
-      // External registration link
-      const externalLink = eventData?.registration?.externalLink || eventData?.registrationLink;
-      if (externalLink && externalLink.trim() !== '') {
-        window.open(externalLink, '_blank');
-      } else {
-        alert('Registration link is not available. Please contact the organizers.');
-      }
-    } else if (registrationMode === 'INTERNAL_FORM') {
-      // Internal form - navigate to registration page
-      navigate(`/fest/${eventData.id}/register`);
-    } else if (registrationMode === 'CLOSED') {
-      // Registration is closed
-      alert('Registration for this fest is closed.');
-    } else {
-      // Registration not started
-      alert('Registration for this fest has not started yet.');
-    }
-    // For NOT_STARTED mode, do nothing (button is disabled)
+    // Redirect to view competitions for this particular fest
+    navigate(`/competition-list/${eventData.id}`);
   };
 
   const handleCompetitionRegister = (competition) => {

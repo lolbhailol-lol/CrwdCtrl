@@ -274,12 +274,38 @@ const submitCompetitionRegistration = async (req, res) => {
       return res.status(404).json({ error: 'Competition not found' });
     }
 
-    if (competition.registration?.status !== 'STARTED') {
-      return res.status(400).json({ error: 'Registration has not started for this competition' });
-    }
+    console.log('🏆 Competition details:', {
+      name: competition.name,
+      registrationType: competition.registrationType,
+      registrationStatus: competition.registration?.status
+    });
 
     // Use the fest's form schema for validation and processing
     const fest = competition.fest;
+    
+    // ✅ CRITICAL: Check registration based on competition type
+    if (competition.registrationType === 'fest') {
+      // Fest-based competitions use the fest's registration mode
+      if (fest.registration.mode !== 'INTERNAL_FORM') {
+        return res.status(400).json({ 
+          error: 'Registration is not available for this competition',
+          debug: { festMode: fest.registration.mode }
+        });
+      }
+    } else if (competition.registrationType === 'custom') {
+      // Custom competitions use their own registration status
+      if (competition.registration?.status !== 'internal_form') {
+        return res.status(400).json({ 
+          error: 'Registration has not started for this competition',
+          debug: { status: competition.registration?.status }
+        });
+      }
+    } else {
+      return res.status(400).json({ 
+        error: 'Invalid competition registration type',
+        debug: { registrationType: competition.registrationType }
+      });
+    }
     
     // ✅ CRITICAL: Get form schema (support both single-step and multi-step forms)
     let formSchema = [];
@@ -655,9 +681,18 @@ const submitRegistration = async (req, res) => {
       console.log('⚠️ No payment receipt URL found in request body');
       console.log('🔍 Request body keys:', Object.keys(req.body));
     }
+
+    // ✅ NEW: Add transaction ID if provided
+    if (req.body.transactionId) {
+      responses['Transaction ID'] = req.body.transactionId;
+      console.log('💳 Transaction ID added to responses:', req.body.transactionId);
+    } else {
+      console.log('⚠️ No transaction ID found in request body');
+    }
     
     console.log('📊 Final responses object keys:', Object.keys(responses));
     console.log('💳 Payment Receipt in final responses:', responses['Payment Receipt']);
+    console.log('💳 Transaction ID in final responses:', responses['Transaction ID']);
 
     // Process text fields from request body
     if (req.body.responses) {

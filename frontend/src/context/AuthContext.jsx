@@ -1,7 +1,10 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { onAuthStateChange, getCurrentUser, handleRedirectResult, signOut, auth } from '../firebase';
+import { onAuthStateChange, handleRedirectResult, signOut, auth } from '../firebase';
 import { authAPI } from '../utils/api';
 import { processSocialAuthUser } from '../utils/socialAuth';
+
+// Configure API base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 const AuthContext = createContext();
 
@@ -267,7 +270,7 @@ export const AuthProvider = ({ children }) => {
         // Small delay to allow Firebase to initialize
         const timer = setTimeout(initializeAuth, 100);
         return () => clearTimeout(timer);
-    }, []);
+    }, [authInitialized]);
 
     // ✅ HELPER FUNCTION TO CLEAR LOCAL SESSION
     const clearLocalSession = () => {

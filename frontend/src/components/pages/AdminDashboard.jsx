@@ -4,7 +4,7 @@ import { Loader } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminDashboard() {
-  const { isAuthenticated, token, apiCall, validateToken } = useAuth();
+  const { apiCall, validateToken } = useAuth();
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);

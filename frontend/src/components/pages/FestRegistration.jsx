@@ -11,7 +11,7 @@ export default function FestRegistration() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const competitionId = searchParams.get('competition');
-  const { isAuthenticated, apiCall, isLoading: authLoading, user, token: authToken } = useAuth(); // Get user and token for debugging
+  const { isAuthenticated, isLoading: authLoading, token: authToken } = useAuth();
   
   const [fest, setFest] = useState(null);
   const [competition, setCompetition] = useState(null);
@@ -27,6 +27,8 @@ export default function FestRegistration() {
   const [paymentReceiptUrl, setPaymentReceiptUrl] = useState('');
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [receiptError, setReceiptError] = useState('');
+  // ✅ NEW: Transaction ID state
+  const [transactionId, setTransactionId] = useState('');
   // ✅ NEW: Multi-step form state
   const [currentStep, setCurrentStep] = useState(1);
   const [stepData, setStepData] = useState({});
@@ -74,7 +76,8 @@ export default function FestRegistration() {
     };
 
     initializeRegistration();
-  }, [festId, competitionId, isCompetitionRegistration, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [festId, competitionId]);
 
   useEffect(() => {
     if (error) {
@@ -771,7 +774,8 @@ export default function FestRegistration() {
         let errorData;
         try {
           errorData = await response.json();
-        } catch (e) {
+        } catch {
+          // Error handled - continue
           errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
         }
         throw new Error(errorData.message || 'Failed to upload receipt');
@@ -984,12 +988,30 @@ export default function FestRegistration() {
 
       console.log('✅ All required fields validated');
 
-      // ✅ NEW: Validate payment receipt if on payment step
-      const baseSteps = fest.registration.steps?.length || 0;
-      const isPaymentStep = fest.registration.paymentQR && isMultiStepForm() && currentStep > baseSteps;
+      // ✅ NEW: Validate payment receipt only on the final payment step
+      const totalSteps = getTotalSteps();
+      const hasPaymentQR = fest.registration.paymentQR;
+      const isOnPaymentStep = isMultiStepForm() && hasPaymentQR && currentStep === totalSteps;
       
-      if (isPaymentStep && !paymentReceiptUrl) {
-        throw new Error('Payment receipt is required. Please upload your payment proof after scanning the QR code.');
+      console.log('💳 Payment validation check:', {
+        hasPaymentQR,
+        totalSteps,
+        currentStep,
+        isOnPaymentStep,
+        hasPaymentReceiptUrl: !!paymentReceiptUrl,
+        hasTransactionId: !!transactionId.trim()
+      });
+      
+      // Only require payment receipt and transaction ID on the final payment step
+      if (isOnPaymentStep) {
+        if (!paymentReceiptUrl) {
+          console.error('❌ Payment receipt missing on payment step');
+          throw new Error('Payment receipt is required. Please upload your payment proof after scanning the QR code.');
+        }
+        if (!transactionId.trim()) {
+          console.error('❌ Transaction ID missing on payment step');
+          throw new Error('Transaction ID is required. Please enter your payment reference number.');
+        }
       }
 
       setSubmissionProgress('Preparing form data...');
@@ -1027,6 +1049,14 @@ export default function FestRegistration() {
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
 
+      // ✅ NEW: Add transaction ID if available
+      if (transactionId.trim()) {
+        submissionFormData.append('transactionId', transactionId.trim());
+        console.log('💳 Added transaction ID to submission:', transactionId);
+      } else {
+        console.log('⚠️ No transaction ID provided');
+      }
+
       // ✅ NEW: Add payment receipt URL if uploaded
       if (paymentReceiptUrl) {
         submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
@@ -1061,12 +1091,18 @@ export default function FestRegistration() {
         estimatedUploadTime: `${Math.ceil(totalFileSize / (1024 * 1024))}s`
       });
 
-      // ✅ PERFORMANCE: Dynamic timeout based on file size (minimum 30s, +10s per MB)
-      const dynamicTimeout = Math.max(30000, 30000 + (totalFileSize / 1024 / 1024) * 10000);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), dynamicTimeout);
 
-      console.log(`⏱️ Upload timeout set to ${dynamicTimeout / 1000}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
+      // ✅ PERFORMANCE: Dynamic timeout based on file size (minimum 60s, +20s per MB)
+      const minTimeout = 60000; // 60 seconds
+      const perMbTimeout = 20000; // 20 seconds per MB
+      const dynamicTimeout = Math.max(minTimeout, minTimeout + (totalFileSize / 1024 / 1024) * perMbTimeout);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.warn(`⏱️ Aborting request after ${(dynamicTimeout / 1000).toFixed(0)}s timeout`);
+        controller.abort();
+      }, dynamicTimeout);
+
+      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(0)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
 
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
@@ -1158,7 +1194,7 @@ export default function FestRegistration() {
   };
 
   // Helper function for handling input changes (for single-step forms)
-  const handleInputChange = (fieldId, value) => {
+  const _handleInputChange = (fieldId, value) => {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
   };
 
@@ -1386,7 +1422,7 @@ export default function FestRegistration() {
                 {/* Step Indicators */}
                 <div className="flex justify-between">
                   {/* Regular form steps */}
-                  {fest.registration.steps.map((step, index) => (
+                  {fest.registration.steps.map((step) => (
                     <div key={step.stepNumber} className="flex flex-col items-center">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                         step.stepNumber === currentStep 
@@ -1619,6 +1655,23 @@ export default function FestRegistration() {
                           />
                         </div>
                       )}
+                    </div>
+                  )}
+                  
+                  {/* ✅ NEW: Transaction ID Input - Always Visible Below Upload */}
+                  {paymentReceiptUrl && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      <label className="block text-sm font-semibold text-white mb-2">
+                        Transaction ID <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={transactionId}
+                        onChange={(e) => setTransactionId(e.target.value)}
+                        placeholder="Enter transaction ID from payment (e.g., UPI ref, bank ref, etc.)"
+                        className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
                     </div>
                   )}
                   

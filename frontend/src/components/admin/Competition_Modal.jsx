@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
 
 // Configure API base URL - Use Vite environment variables
@@ -227,19 +227,39 @@ export default function CompetitionModal({ fest, onClose }) {
   const [competitions, setCompetitions] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchCompetitions = async () => {
+  const fetchCompetitions = useCallback(async () => {
     try {
       console.log('Frontend - Fetching competitions for fest:', fest._id);
+      const adminToken = localStorage.getItem('admin_token');
+      
+      if (!adminToken) {
+        console.error('❌ No admin token found in localStorage');
+        setError('Authentication expired. Please log in again.');
+        // Redirect to admin login
+        window.location.href = '/admin/login';
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/admin/fests/${fest._id}/competitions`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+          Authorization: `Bearer ${adminToken}`,
         },
       });
 
       console.log('Frontend - Fetch competitions response status:', response.status);
+
+      if (response.status === 401) {
+        console.error('❌ Admin token expired or invalid');
+        localStorage.removeItem('admin_token');
+        setError('Authentication expired. Please log in again.');
+        // Redirect to admin login
+        setTimeout(() => {
+          window.location.href = '/admin/login';
+        }, 1500);
+        return;
+      }
 
       if (!response.ok) throw new Error('Failed to fetch competitions');
 
@@ -248,15 +268,15 @@ export default function CompetitionModal({ fest, onClose }) {
       setCompetitions(data.competitions || []);
     } catch (err) {
       console.error('Error fetching competitions:', err);
-      setError(err.message);
+      setError(err.message || 'Failed to fetch competitions');
     }
-  };
+  }, [fest._id]);
 
   useEffect(() => {
     if (fest?._id) {
       fetchCompetitions();
     }
-  }, [fest]);
+  }, [fest, fetchCompetitions]);
 
   const deleteCompetition = async (id) => {
     if (!window.confirm('Are you sure you want to delete this competition?')) return;
@@ -464,7 +484,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         console.log('Competition_Modal - rounds detailed:', competition.rounds?.map(r => ({
           title: r.title,
           roundRulesMessage: r.roundRulesMessage,
-          hasRoundRulesMessage: r.hasOwnProperty('roundRulesMessage')
+          hasRoundRulesMessage: Object.prototype.hasOwnProperty.call(r, 'roundRulesMessage')
         })));
         
         // Safely extract form data with proper fallbacks

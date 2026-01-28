@@ -15,8 +15,8 @@ import {
     onAuthStateChanged,
     signOut,
     setPersistence,
-    browserLocalPersistence,
-    connectAuthEmulator
+    browserLocalPersistence
+    // connectAuthEmulator - Not used currently
 } from "firebase/auth";
 
 // Your web app's Firebase configuration
