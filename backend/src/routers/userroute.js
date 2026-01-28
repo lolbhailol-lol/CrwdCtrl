@@ -46,29 +46,11 @@ router.post(
 );
 
 // ===== IMAGE UPLOAD (for payment receipts, etc.) =====
-router.post(
-  '/upload/image',
-  (req, res, next) => {
-    console.log('🎯 UPLOAD/IMAGE ROUTE HIT');
-    console.log('📋 Method:', req.method);
-    console.log('📋 Path:', req.path);
-    console.log('📋 Content-Type:', req.get('content-type'));
-    console.log('📋 Auth Header:', req.get('authorization') ? 'Present' : 'Missing');
-    next();
-  },
-  authenticateToken, // Authenticate
-  (req, res, next) => {
-    console.log('✅ User authenticated. User ID:', req.user?.userId);
-    next();
-  },
-  uploadCtrl.uploadSingle, // Parse file
-  (req, res, next) => {
-    console.log('✅ File parsed:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'No file');
-    next();
-  },
-  uploadCtrl.multerErrorHandler, // Handle multer errors
-  uploadCtrl.uploadImage // Upload
-);
+// SIMPLE TEST ROUTE
+router.post('/upload/image', (req, res) => {
+  console.log('✅ UPLOAD/IMAGE ROUTE WORKS');
+  res.json({ success: true, message: 'Route is live' });
+});
 
 // Example of role-based access (only organizers can access)
 router.get('/organizer-only', authenticateToken, authorizeRoles('organizer'), (req, res) => {
