@@ -1427,6 +1427,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     <option value="GAMING">GAMING</option>
                     <option value="QUIZ">QUIZ</option>
                     <option value="CULTURAL">CULTURAL</option>
+                    <option value="TECHNICAL">TECHNICAL</option>
                     <option value="OTHER">OTHER</option>
                   </select>
                 </div>
@@ -1461,6 +1462,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     <option value="fashion">Fashion</option>
                     <option value="media">Media</option>
                     <option value="marathon">Marathon</option>
+                    <option value="Technical">Technical</option>
                     <option value="other">Other</option>
                   </select>
                 </div>

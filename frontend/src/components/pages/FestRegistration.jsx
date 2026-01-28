@@ -1627,6 +1627,30 @@ export default function FestRegistration() {
                     Please upload a clear image or PDF of your payment receipt/screenshot after completing the payment.
                   </p>
                 </div>
+
+                {/* Transaction ID input for payment step */}
+                {(() => {
+                  const baseSteps = fest?.registration?.steps?.length || 0;
+                  const isPaymentStep = fest?.registration?.paymentQR && currentStep > baseSteps;
+                  if (!isPaymentStep) return null;
+                  return (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="transactionId">
+                        Transaction ID <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        id="transactionId"
+                        name="transactionId"
+                        className="w-full px-4 py-2 rounded-lg bg-[#232325] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white"
+                        placeholder="Enter your payment transaction/reference ID"
+                        value={formData.transactionId || ''}
+                        onChange={e => setFormData(prev => ({ ...prev, transactionId: e.target.value }))}
+                        required
+                      />
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
