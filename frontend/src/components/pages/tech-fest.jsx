@@ -4,7 +4,6 @@ import { Heart, Share2, ArrowLeft, Search } from 'lucide-react';
 import ShareIcon from '../../assets/share.svg';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
-import Footer from '../Footer';
 import ProfileSidebar from '../ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
@@ -222,11 +221,6 @@ function TechFestPage() {
                         )}
                     </div>
                 </main>
-
-                {/* Footer - Hidden on mobile */}
-                <div className={`hidden md:block mt-16 transition-all duration-300  ${isProfileOpen ? 'blur-sm' : ''}`}>
-                    <Footer />
-                </div>
             </div>
 
             {/* Profile Sidebar */}

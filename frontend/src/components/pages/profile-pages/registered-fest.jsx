@@ -430,10 +430,6 @@ function RegisteredFest() {
                         )}
                     </div>
                 </main>
-
-                <div className="hidden md:block mt-16 transition-all duration-300">
-                    <Footer />
-                </div>
             </div>
 
             {/* Login Modal */}

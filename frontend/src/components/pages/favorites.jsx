@@ -489,9 +489,6 @@ function FestFavoritesPage() {
                     )}
                 </div>
 
-                <div className={`mt-16 transition-all duration-300`}>
-                    <Footer />
-                </div>
             </div>
 
             {/* Mobile Layout */}

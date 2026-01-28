@@ -803,7 +803,7 @@ function EventDetailsPage() {
       {/* Mobile Version */}
       <div className="lg:hidden">
         {/* Mobile Content */}
-        <div className="pb-20">
+        <div>
           {/* Header Icons */}
           <div className="relative z-20">
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/20 to-transparent">
@@ -1104,29 +1104,25 @@ function EventDetailsPage() {
           )}
 
           {/* Fixed Register Button */}
-          <div className={`fixed bottom-24 md:bottom-28 left-0 right-0 flex justify-center px-4 z-50`}>
-            <div className={`max-w-5xl w-full p-2`}>
-              <button
-                onClick={handleRegister}
-                disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
-                className={`w-full font-semibold py-3 rounded-xl transition ${
-                  eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
-                    ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
-                    : isRegistered(eventData.id)
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
-              }`}
-            >
-              {eventData?.registration?.mode === 'NOT_STARTED'
-                ? 'Registrations Not Started'
-                : eventData?.registration?.mode === 'CLOSED'
-                ? 'Registration Closed'
-                : isRegistered(eventData.id) 
-                ? '✓ Registered' 
-                : 'Register Now'}
-              </button>
-            </div>
-          </div>
+          <button
+            onClick={handleRegister}
+            disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
+            className={`fixed bottom-4 left-1/2 -translate-x-1/2 w-11/12 font-semibold py-3 rounded-xl transition z-50 ${
+              eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
+                ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
+                : isRegistered(eventData.id)
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
+          }`}
+          >
+            {eventData?.registration?.mode === 'NOT_STARTED'
+              ? 'Registrations Not Started'
+              : eventData?.registration?.mode === 'CLOSED'
+              ? 'Registration Closed'
+              : isRegistered(eventData.id) 
+              ? '✓ Registered' 
+              : 'Register Now'}
+          </button>
         </div>
       </div>
 

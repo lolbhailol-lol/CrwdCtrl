@@ -149,9 +149,8 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             // Navigate to user dashboard
             if (onClose) {
                 onClose();
-            } else {
-                navigate('/');
             }
+            // If no onClose provided (full page login), stay on page
 
             return; // IMPORTANT: Exit after successful login
 
@@ -179,9 +178,8 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const handleClose = () => {
         if (onClose) {
             onClose();
-        } else {
-            navigate('/');
         }
+        // If no onClose provided, stay on page
     };
 
     const handleGoogleAuth = async () => {
@@ -319,9 +317,8 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 console.log('✅ Authentication complete, navigating...');
                 if (onClose) {
                     onClose();
-                } else {
-                    navigate('/');
                 }
+                // If no onClose provided, stay on current page
                 return; // Exit after successful authentication
 
             } catch (error) {
@@ -457,9 +454,8 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             console.log('✅ Facebook authentication complete, navigating...');
             if (onClose) {
                 onClose();
-            } else {
-                navigate('/');
             }
+            // If no onClose provided, stay on current page
         } catch (error) {
             console.error('❌ Facebook authentication error:', error);
             
