@@ -1292,8 +1292,8 @@ function EventPage() {
             />
 
             {/* Mobile Fixed Bottom Register Button */}
-            <div className="fixed bottom-0 left-0 right-0 md:hidden z-50">
-                <div className="p-6 relative">
+            <div className="fixed bottom-24 md:bottom-28 left-0 right-0 z-50 flex justify-center px-4">
+                <div className="p-6 relative max-w-5xl w-full">
                     {showRegistrationSuccess && (
                         <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 animate-fade-in z-10">
                             <Check className="w-4 h-4" />

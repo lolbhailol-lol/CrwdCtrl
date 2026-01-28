@@ -1124,15 +1124,16 @@ function EventDetailsPage() {
           )}
 
           {/* Fixed Register Button */}
-          <div className={`fixed bottom-0 left-0 right-0 ${isDark ? 'bg-[#0E0E0F]' : ''}  ${isDark ? 'border-gray-700' : 'border-gray-200'} p-2`}>
-            <button
-              onClick={handleRegister}
-              disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
-              className={`w-full font-semibold py-3 rounded-xl transition ${
-                eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
-                  ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
-                  : isRegistered(eventData.id)
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
+          <div className={`fixed bottom-24 md:bottom-28 left-0 right-0 flex justify-center px-4 z-50`}>
+            <div className={`max-w-5xl w-full p-2`}>
+              <button
+                onClick={handleRegister}
+                disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
+                className={`w-full font-semibold py-3 rounded-xl transition ${
+                  eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
+                    ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
+                    : isRegistered(eventData.id)
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
                   : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
               }`}
             >
@@ -1143,7 +1144,8 @@ function EventDetailsPage() {
                 : isRegistered(eventData.id) 
                 ? '✓ Registered' 
                 : 'Register Now'}
-            </button>
+              </button>
+            </div>
           </div>
         </div>
       </div>

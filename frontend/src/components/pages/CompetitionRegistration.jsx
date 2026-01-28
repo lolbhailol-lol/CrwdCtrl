@@ -762,7 +762,7 @@ export default function CompetitionRegistration() {
                         </div>
 
                         {/* Submit Button */}
-                        <div className="flex gap-3 pt-2">
+                        <div className="flex gap-3 pt-2 pb-44 md:pb-32">
                             <button
                                 type="button"
                                 onClick={() => navigate(-1)}

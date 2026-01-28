@@ -1609,7 +1609,7 @@ export default function FestRegistration() {
             )}
 
             {/* ✅ NEW: Multi-Step Form Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 pb-44 md:pb-32">
               {/* Back Button */}
               <button
                 type="button"
