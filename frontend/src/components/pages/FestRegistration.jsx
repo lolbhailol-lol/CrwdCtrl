@@ -146,6 +146,10 @@ export default function FestRegistration() {
       currentStep
     });
     
+    if (currentFields.length === 0) {
+      // No fields to validate, skip validation for this step
+      return true;
+    }
     for (const field of currentFields) {
       if (field.required) {
         const fieldId = generateFieldId(field);
@@ -159,7 +163,7 @@ export default function FestRegistration() {
         }
       }
     }
-    
+
     console.log('✅ Step validation passed');
     return true;
   };
@@ -809,25 +813,42 @@ export default function FestRegistration() {
       return;
     }
     
-    // Validate all required fields, including file uploads
-    const allFormData = getAllFormData();
-    const formSchema = isMultiStepForm() 
-      ? fest.registration.steps.flatMap(step => step.fields)
-      : fest.registration?.formSchema || [];
-    const requiredFields = formSchema.filter(field => field.required);
-
-    for (const field of requiredFields) {
-      const fieldId = generateFieldId(field);
-      const value = allFormData[fieldId];
-
-      if (field.type === 'file' || field.type === 'image') {
-        if (!value || !value.ready || !formData[`${fieldId}_file`]) {
-          setError(`${field.label} is required - please upload a file`);
+    // Validate only current step's required fields for multi-step forms
+    if (isMultiStepForm()) {
+      const currentFields = getCurrentStepFields();
+      const currentData = getCurrentStepData();
+      for (const field of currentFields) {
+        if (field.required) {
+          const fieldId = generateFieldId(field);
+          const value = currentData[fieldId];
+          if (field.type === 'file' || field.type === 'image') {
+            if (!value || !value.ready || !formData[`${fieldId}_file`]) {
+              setError(`${field.label} is required - please upload a file`);
+              return;
+            }
+          } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
+            setError(`${field.label} is required`);
+            return;
+          }
+        }
+      }
+    } else {
+      // Single-step form: validate all required fields
+      const allFormData = getAllFormData();
+      const formSchema = fest.registration?.formSchema || [];
+      const requiredFields = formSchema.filter(field => field.required);
+      for (const field of requiredFields) {
+        const fieldId = generateFieldId(field);
+        const value = allFormData[fieldId];
+        if (field.type === 'file' || field.type === 'image') {
+          if (!value || !value.ready || !formData[`${fieldId}_file`]) {
+            setError(`${field.label} is required - please upload a file`);
+            return;
+          }
+        } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
+          setError(`${field.label} is required`);
           return;
         }
-      } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
-        setError(`${field.label} is required`);
-        return;
       }
     }
 
@@ -836,6 +857,7 @@ export default function FestRegistration() {
       console.log('📝 Multi-step form: Moving to next step instead of submitting');
       // This is not the final step, just go to next step
       handleStepNext();
+        setSubmitting(false); // Reset submitting so button is clickable
       return;
     }
     
