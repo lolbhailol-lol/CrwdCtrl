@@ -1063,11 +1063,14 @@ export default function FestRegistration() {
       });
 
       // ✅ PERFORMANCE: Dynamic timeout based on file size (minimum 30s, +10s per MB)
-      const dynamicTimeout = Math.max(30000, 30000 + (totalFileSize / 1024 / 1024) * 10000);
+      // Increased timeout: minimum 90s, +30s per MB
+      const minTimeout = 90000; // 90 seconds
+      const perMbTimeout = 30000; // 30 seconds per MB
+      const dynamicTimeout = Math.max(minTimeout, minTimeout + (totalFileSize / 1024 / 1024) * perMbTimeout);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), dynamicTimeout);
 
-      console.log(`⏱️ Upload timeout set to ${dynamicTimeout / 1000}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(1)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB`);
 
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
