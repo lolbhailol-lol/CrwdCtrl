@@ -488,7 +488,10 @@ export default function FestRegistration() {
   };
 
   const handleFileUpload = async (file, fieldId) => {
-    if (!file) return;
+    if (!file) {
+      setError('No file selected. Please upload a file.');
+      return;
+    }
 
     console.log('📁 Starting file upload for field:', fieldId, 'File:', file.name);
 
@@ -548,17 +551,29 @@ export default function FestRegistration() {
     e.preventDefault();
     console.log('🚀 Starting form submission...');
     
-    // ✅ NEW: For multi-step forms, validate current step first
-    if (isMultiStepForm() && currentStep < getTotalSteps()) {
-      // This is not the final step, just go to next step
-      handleStepNext();
-      return;
+    // Validate all required fields, including file uploads
+    const allFormData = getAllFormData();
+    const formSchema = isMultiStepForm() 
+      ? fest.registration.steps.flatMap(step => step.fields)
+      : fest.registration?.formSchema || [];
+    const requiredFields = formSchema.filter(field => field.required);
+
+    for (const field of requiredFields) {
+      const fieldId = generateFieldId(field);
+      const value = allFormData[fieldId];
+
+      if (field.type === 'file' || field.type === 'image') {
+        if (!value || !value.ready || !formData[`${fieldId}_file`]) {
+          setError(`${field.label} is required - please upload a file`);
+          return;
+        }
+      } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
+        setError(`${field.label} is required`);
+        return;
+      }
     }
-    
-    // ✅ NEW: Final validation for multi-step forms
-    if (isMultiStepForm() && !validateCurrentStep()) {
-      return;
-    }
+
+    console.log('✅ All required fields validated');
     
     setSubmitting(true);
     setError('');
@@ -1106,19 +1121,10 @@ export default function FestRegistration() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 px-4 sm:px-6 py-2.5 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base"
+                className="px-4 sm:px-6 py-2.5 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition-colors text-sm sm:text-base flex items-center justify-center gap-2"
               >
-                {submitting ? (
-                  <>
-                    <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                    <span className="hidden sm:inline">{submissionProgress || 'Submitting...'}</span>
-                    <span className="sm:hidden">Submitting...</span>
-                  </>
-                ) : isMultiStepForm() && currentStep < getTotalSteps() ? (
-                  'Next Step'
-                ) : (
-                  'Submit Registration'
-                )}
+                {submitting && <Loader className="w-5 h-5 animate-spin" />}
+                {currentStep < getTotalSteps() ? 'Next Step' : 'Submit Registration'}
               </button>
             </div>
           </form>

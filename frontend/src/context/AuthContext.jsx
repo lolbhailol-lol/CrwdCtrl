@@ -90,25 +90,36 @@ export const AuthProvider = ({ children }) => {
 
     // Function to make authenticated API requests with better error handling
     const apiCall = async (url, options = {}) => {
-        const headers = getAuthHeaders();
+        try {
+            const token = localStorage.getItem('crwdctrl_token'); // Ensure token is fetched from localStorage
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(token && { Authorization: `Bearer ${token}` }), // Add token if available
+            };
 
-        const response = await fetch(url, {
-            ...options,
-            headers: {
-                ...headers,
-                ...options.headers,
-            },
-        });
+            console.log('🔍 Making API call:', { url, headers, options });
 
-        // ✅ CRITICAL FIX: Don't auto-logout on 401 for all requests
-        // Only logout if it's a user-initiated action, not background requests
-        if (response.status === 401 && token && options.autoLogoutOn401 !== false) {
-            console.log('🔓 Token expired, logging out user');
-            logout();
-            // Don't redirect immediately, let the calling component handle it
+            const response = await fetch(`${API_BASE_URL}${url}`, {
+                ...options,
+                headers: {
+                    ...headers,
+                    ...options.headers,
+                },
+            });
+
+            if (response.status === 401) {
+                console.error('❌ Unauthorized (401). Clearing token and redirecting to login.');
+                localStorage.removeItem('crwdctrl_token');
+                localStorage.removeItem('crwdctrl_user');
+                window.location.href = '/login';
+                return response;
+            }
+
+            return response;
+        } catch (err) {
+            console.error('❌ API call failed:', err);
+            throw new Error('Failed to connect to the server. Please try again later.');
         }
-
-        return response;
     };
 
     // ✅ NEW: Function to validate token without auto-logout
