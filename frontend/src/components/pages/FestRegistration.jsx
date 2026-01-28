@@ -501,16 +501,15 @@ export default function FestRegistration() {
       // Check file size (limit to 10MB)
       const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
-        setError('File size must be less than 10MB');
+        setError(`File size must be less than ${maxSize / (1024 * 1024)} MB`);
         return;
       }
 
-      // Validate file type for images
-      if (fieldId.includes('image')) {
-        if (!file.type.startsWith('image/')) {
-          setError('Please select a valid image file');
-          return;
-        }
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Invalid file type. Allowed types: JPEG, PNG, GIF, PDF');
+        return;
       }
 
       console.log('✅ File validated:', {
@@ -520,8 +519,7 @@ export default function FestRegistration() {
         fieldId: fieldId
       });
 
-      // ✅ PERFORMANCE FIX: Store file immediately without uploading
-      // Upload will happen during form submission to avoid blocking UI
+      // Store file in formData for submission
       setFormData(prev => ({
         ...prev,
         [`${fieldId}_file`]: file, // Store actual file
