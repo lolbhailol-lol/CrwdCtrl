@@ -1154,8 +1154,23 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         }))
       });
 
+      // ✅ ENHANCED: Add validation for dateTime and competitionType
       if (!form.name || !form.description || !form.prizePool || !form.registrationFee) {
         setError('Please fill Competition Name, Description, Prize Pool and Registration Fee');
+        setLoading(false);
+        return;
+      }
+
+      // ✅ NEW: Validate dateTime (required by backend model)
+      if (!form.dateTime || form.dateTime.trim() === '') {
+        setError('Please fill the Date and Time field');
+        setLoading(false);
+        return;
+      }
+
+      // ✅ NEW: Validate competitionType (required by backend model)
+      if (!form.competitionType) {
+        setError('Please select a Competition Type');
         setLoading(false);
         return;
       }
@@ -1264,6 +1279,14 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       };
 
       console.log('Frontend - Submitting competition payload:', payload);
+      console.log('Frontend - Payload validation:', {
+        hasName: !!payload.name,
+        hasDescription: !!payload.description,
+        hasPrizePool: !!payload.prizePool,
+        hasRegistrationFee: !!payload.registrationFee,
+        hasDateTime: !!payload.dateTime,
+        hasCompetitionType: !!payload.competitionType
+      });
       console.log('Frontend - commonRulesMessage:', form.commonRulesMessage);
       console.log('Frontend - rounds with roundRulesMessage:', (form.rounds || []).map(r => ({
         title: r?.roundName,
@@ -1305,7 +1328,20 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
           throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 200)}`);
         }
         console.log('Frontend - Error response:', err);
-        throw new Error(err.message || `Failed to save competition (${response.status})`);
+        
+        // ✅ Enhanced error message with validation details
+        let errorMessage = err.message || `Failed to save competition (${response.status})`;
+        
+        // If there are validation errors, include them
+        if (err.validationErrors && Array.isArray(err.validationErrors)) {
+          const fieldErrors = err.validationErrors.map(e => `${e.field}: ${e.message}`).join('; ');
+          errorMessage = `${errorMessage} - ${fieldErrors}`;
+        } else if (err.details) {
+          errorMessage = `${errorMessage} - ${err.details}`;
+        }
+        
+        console.error('Frontend - Final error message:', errorMessage);
+        throw new Error(errorMessage);
       }
 
       let result;
@@ -1453,36 +1489,34 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Competition Type</label>
+                  <label className="block text-sm font-medium mb-2">Competition Type *</label>
                   <select
                     className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={form.competitionType || 'other'}
                     onChange={(e) => setForm({ ...form, competitionType: e.target.value })}
                   >
+                    <option value="">Select Competition Type</option>
                     <option value="hackathon">Hackathon</option>
                     <option value="coding">Coding</option>
                     <option value="quiz">Quiz</option>
                     <option value="debate">Debate</option>
                     <option value="design">Design</option>
-                    <option value="photography">Photography</option>
-                    <option value="videography">Videography</option>
                     <option value="dance">Dance</option>
                     <option value="music">Music</option>
-                    <option value="drama">Drama</option>
                     <option value="sports">Sports</option>
-                    <option value="business">Business</option>
-                    <option value="theater">Theater</option>
-                    <option value="esports">Esports</option>
                     <option value="art">Art</option>
+                    <option value="theater">Theater</option>
                     <option value="cultural">Cultural</option>
+                    <option value="business">Business</option>
+                    <option value="esports">Esports</option>
                     <option value="management">Management</option>
-                    <option value="finance">Finance</option>
-                    <option value="marketing">Marketing</option>
+                    <option value="media">Media</option>
                     <option value="literary">Literary</option>
                     <option value="fashion">Fashion</option>
-                    <option value="media">Media</option>
+                    <option value="finance">Finance</option>
+                    <option value="marketing">Marketing</option>
                     <option value="marathon">Marathon</option>
-                    <option value="Technical">Technical</option>
+                    <option value="technical">Technical</option>
                     <option value="other">Other</option>
                   </select>
                 </div>

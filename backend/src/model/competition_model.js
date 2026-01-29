@@ -42,6 +42,7 @@ const competitionSchema = new mongoose.Schema(
       'finance',
       'marketing',
       'marathon',
+      'technical',
       'other',
     ],
     required: true,

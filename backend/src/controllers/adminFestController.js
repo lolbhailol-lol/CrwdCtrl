@@ -389,9 +389,18 @@ exports.createCompetition = async (req, res) => {
   try {
     const { festId } = req.params;
 
-
+    console.log('Backend - Create competition request:', {
+      festId,
+      bodyKeys: Object.keys(req.body),
+      competitionType: req.body.competitionType,
+      dateTime: req.body.dateTime,
+      registrationFee: req.body.registrationFee,
+      name: req.body.name,
+      description: req.body.description?.substring(0, 50)
+    });
 
     if (!mongoose.Types.ObjectId.isValid(festId)) {
+      console.error('❌ Invalid fest ID format:', festId);
       return res.status(400).json({ message: 'Invalid fest ID' });
     }
 
@@ -417,9 +426,35 @@ exports.createCompetition = async (req, res) => {
       legacyRegistration // NEW: for backward compatibility
     } = req.body;
 
+    // ✅ Enhanced validation with detailed error messages
     if (!name || !description || !prizePool || !registrationFee) {
+      console.error('❌ Missing required fields:', { name, description, prizePool, registrationFee });
       return res.status(400).json({
         message: 'Please fill Competition Name, Description, Prize Pool and Registration Fee'
+      });
+    }
+
+    // ✅ NEW: Validate dateTime is not empty (required by model)
+    if (!dateTime || dateTime.trim() === '') {
+      console.error('❌ Missing required field: dateTime');
+      return res.status(400).json({
+        message: 'Please fill the Date and Time field'
+      });
+    }
+
+    // ✅ NEW: Validate competitionType
+    if (!competitionType) {
+      console.error('❌ Missing required field: competitionType');
+      return res.status(400).json({
+        message: 'Please select a Competition Type'
+      });
+    }
+
+    // ✅ NEW: Validate competitionType
+    if (!competitionType) {
+      console.error('❌ Missing required field: competitionType');
+      return res.status(400).json({
+        message: 'Please select a Competition Type'
       });
     }
 
@@ -460,7 +495,16 @@ exports.createCompetition = async (req, res) => {
       legacyRegistration: legacyRegistration || { status: 'NOT_STARTED' }
     });
 
+    console.log('Backend - Creating competition with:', {
+      name: competition.name,
+      competitionType: competition.competitionType,
+      dateTime: competition.dateTime,
+      hasRegistration: !!competition.registration,
+      hasFest: !!competition.fest
+    });
+
     const savedCompetition = await competition.save();
+    console.log('✅ Competition created successfully:', savedCompetition._id);
 
     const updatedFest = await FestOrganizer.findByIdAndUpdate(
       festId,
@@ -474,8 +518,27 @@ exports.createCompetition = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Create competition error:', error);
-    res.status(500).json({ message: 'Failed to create competition', error: error.message });
+    console.error('❌ Create competition error:', error);
+    
+    // ✅ Better error handling for validation errors
+    if (error.name === 'ValidationError') {
+      console.error('Backend - Mongoose validation error details:', error.errors);
+      const missingFields = Object.keys(error.errors).join(', ');
+      return res.status(400).json({ 
+        message: 'Validation failed', 
+        details: `Missing or invalid fields: ${missingFields}`,
+        validationErrors: Object.keys(error.errors).map(key => ({
+          field: key,
+          message: error.errors[key].message,
+          value: error.errors[key].value
+        }))
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Failed to create competition', 
+      error: error.message 
+    });
   }
 };
 
