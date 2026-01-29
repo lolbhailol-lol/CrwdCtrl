@@ -379,6 +379,8 @@ export const AuthProvider = ({ children }) => {
                     ...headers,
                     ...options.headers,
                 },
+                credentials: 'include', // ✅ FIX: Include cookies for production
+                mode: 'cors', // ✅ FIX: Enable CORS for production
             });
 
             if (response.status === 401) {
@@ -405,6 +407,8 @@ export const AuthProvider = ({ children }) => {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
+                credentials: 'include', // ✅ FIX: Include cookies for production
+                mode: 'cors', // ✅ FIX: Enable CORS for production
             });
             return response.ok;
         } catch (error) {

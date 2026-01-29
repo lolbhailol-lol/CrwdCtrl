@@ -273,11 +273,28 @@ app.use((req, res) => {
 
 // Error Handler
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err.message);
+  console.error('❌ Error Handler triggered:', {
+    message: err.message,
+    status: err.status || 500,
+    method: req.method,
+    path: req.path,
+    origin: req.get('origin'),
+    userAgent: req.get('user-agent'),
+    timestamp: new Date().toISOString(),
+    body: req.body ? Object.keys(req.body) : 'no body'
+  });
+  
+  console.error('   Stack:', err.stack);
+  
   res.status(err.status || 500).json({
     success: false,
     message: err.message || "Internal server error",
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    status: err.status || 500,
+    timestamp: new Date().toISOString(),
+    ...(process.env.NODE_ENV === 'development' && { 
+      stack: err.stack,
+      details: err.details || err
+    })
   });
 });
 

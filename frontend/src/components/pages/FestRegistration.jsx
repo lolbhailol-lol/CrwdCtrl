@@ -440,7 +440,10 @@ export default function FestRegistration() {
       console.log('📡 Fetching fest details for:', festId);
       // Add cache busting parameter to ensure fresh data
       const cacheBuster = Date.now();
-      const response = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`);
+      const response = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
+        credentials: 'include',
+        mode: 'cors'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch fest details');
       }
@@ -500,7 +503,10 @@ export default function FestRegistration() {
       console.log('📡 Fetching competition and fest details...', { competitionId, festId });
       
       // Fetch competition details first
-      const competitionResponse = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`);
+      const competitionResponse = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`, {
+        credentials: 'include',
+        mode: 'cors'
+      });
       if (!competitionResponse.ok) {
         throw new Error('Failed to fetch competition details');
       }
@@ -514,7 +520,10 @@ export default function FestRegistration() {
 
       // Fetch fest details
       const cacheBuster = Date.now();
-      const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`);
+      const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
+        credentials: 'include',
+        mode: 'cors'
+      });
       if (!festResponse.ok) {
         throw new Error('Failed to fetch fest details');
       }
@@ -766,7 +775,9 @@ export default function FestRegistration() {
           'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`
           // Don't set Content-Type - let browser set it with boundary for FormData
         },
-        body: formData
+        body: formData,
+        credentials: 'include', // ✅ FIX: Include cookies for production
+        mode: 'cors' // ✅ FIX: Enable CORS for production
       });
 
       console.log('📤 Upload response status:', response.status);
@@ -1148,8 +1159,12 @@ export default function FestRegistration() {
         isMultiStep: isMultiStepForm()
       });
       
-      const baseTimeout = 90000; // 90 seconds base for file upload and registration processing
-      const uploadSpeedTimeout = (totalFileSize / 1024 / 1024) * 30000; // 30 seconds per MB for file upload
+      // ✅ FIXED: Increased timeout for production deployment latency
+      // Base timeout: 180s (3 minutes) - accounting for production network latency
+      // Plus additional time for file upload: 60s per MB (conservative for slow uploads)
+      // Backend will continue sending emails in background after response
+      const baseTimeout = 180000; // 180 seconds (3 minutes) for production reliability
+      const uploadSpeedTimeout = (totalFileSize / 1024 / 1024) * 60000; // 60 seconds per MB for file upload
       const dynamicTimeout = baseTimeout + uploadSpeedTimeout;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
@@ -1157,7 +1172,7 @@ export default function FestRegistration() {
         controller.abort();
       }, dynamicTimeout);
 
-      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(0)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB (base: 90s + upload: 30s/MB)`);
+      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(0)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB (base: 180s + upload: 60s/MB)`);
 
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
@@ -1166,6 +1181,9 @@ export default function FestRegistration() {
       console.log('📤 FormData size:', submissionFormData.size || 'unknown');
       console.log('🔑 Authorization header present:', !!token);
 
+      // ✅ PRODUCTION FIX: Show user that submission is in progress (don't timeout on their end)
+      setSubmissionProgress('Submitting registration to server... (this may take up to 3+ minutes)');
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -1173,7 +1191,9 @@ export default function FestRegistration() {
           // Don't set Content-Type for FormData - browser will set it with boundary
         },
         body: submissionFormData,
-        signal: controller.signal
+        signal: controller.signal,
+        credentials: 'include', // ✅ FIX: Include cookies for production auth
+        mode: 'cors', // ✅ FIX: Enable CORS for production domains
       });
 
       clearTimeout(timeoutId);
@@ -1193,7 +1213,13 @@ export default function FestRegistration() {
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
-          console.error('❌ Backend error details:', errorData);
+          console.error('❌ Backend error details:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData,
+            endpoint: endpoint,
+            timestamp: new Date().toISOString()
+          });
           
           // Handle specific error cases
           if (response.status === 401) {
@@ -1234,7 +1260,11 @@ export default function FestRegistration() {
       
       // Handle specific error types with better user feedback
       if (err.name === 'AbortError') {
-        setError('Registration timed out. Please check your internet connection and try again.');
+        console.error('❌ Request was aborted/timed out after', ((Date.now() - startTime) / 1000).toFixed(1), 'seconds');
+        console.log('ℹ️ Registration may have been saved on the server. Checking registered events...');
+        setError('Registration is taking longer than expected. Your submission may have been saved. Please check your registered events in a moment. Contact support if needed.');
+        // Don't prevent navigation - allow user to check registered events
+        setTimeout(() => navigate('/registered-fest'), 3000);
       } else if (err.message.includes('Authentication') || err.message.includes('session') || err.message.includes('token')) {
         setError('Your session has expired. Please log in again.');
         // Clear invalid tokens

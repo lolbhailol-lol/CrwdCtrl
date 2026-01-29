@@ -246,6 +246,8 @@ export default function CompetitionModal({ fest, onClose }) {
         headers: {
           Authorization: `Bearer ${adminToken}`,
         },
+        credentials: 'include', // ✅ FIX: Include cookies for production
+        mode: 'cors', // ✅ FIX: Enable CORS for production
       });
 
       console.log('Frontend - Fetch competitions response status:', response.status);
@@ -284,9 +286,11 @@ export default function CompetitionModal({ fest, onClose }) {
     try {
       const response = await fetch(`${API_BASE_URL}/admin/competitions/${id}`, {
         method: 'DELETE',
-      headers: {
+        headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },
+        credentials: 'include', // ✅ FIX: Include cookies for production
+        mode: 'cors', // ✅ FIX: Enable CORS for production
       });
 
       if (!response.ok) throw new Error('Failed to delete competition');
@@ -613,11 +617,13 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       formData.append('folder', 'crwdctrl/competitions');
 
       const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
-      method: 'POST',
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },
         body: formData,
+        credentials: 'include', // ✅ FIX: Include cookies for production
+        mode: 'cors', // ✅ FIX: Enable CORS for production
       });
 
       if (!response.ok) {
@@ -1310,6 +1316,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
         },
         body: JSON.stringify(payload),
+        credentials: 'include', // ✅ FIX: Include cookies for production auth
+        mode: 'cors', // ✅ FIX: Enable CORS for production domains
       });
 
       console.log('Frontend - Response status:', response.status);
@@ -1324,7 +1332,13 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         try {
           err = JSON.parse(responseText);
         } catch (parseError) {
-          console.error('Frontend - Failed to parse error response:', parseError);
+          console.error('Frontend - Failed to parse error response:', {
+            parseError: parseError.message,
+            rawResponse: responseText.substring(0, 500),
+            status: response.status,
+            url: url,
+            timestamp: new Date().toISOString()
+          });
           throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 200)}`);
         }
         console.log('Frontend - Error response:', err);
@@ -1911,6 +1925,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                         Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
                                       },
                                       body: formData,
+                                      credentials: 'include', // ✅ FIX: Include cookies for production
+                                      mode: 'cors', // ✅ FIX: Enable CORS for production
                                     });
 
                                     if (!response.ok) throw new Error('Failed to upload QR code');
@@ -1986,6 +2002,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                             Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
                                           },
                                           body: JSON.stringify(testPayload),
+                                          credentials: 'include', // ✅ FIX: Include cookies for production
+                                          mode: 'cors', // ✅ FIX: Enable CORS for production
                                         });
                                         
                                         const result = await response.json();
