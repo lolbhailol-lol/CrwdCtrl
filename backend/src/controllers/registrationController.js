@@ -264,15 +264,26 @@ const submitCompetitionRegistration = async (req, res) => {
     const { competitionId } = req.params;
     const userId = req.user.userId;
 
-    console.log('🏆 Competition registration request:', { competitionId, userId, competitionIdType: typeof competitionId });
+    console.log('\n🏆🏆🏆 COMPETITION REGISTRATION CONTROLLER HIT 🏆🏆🏆');
+    console.log('🏆 Competition registration request:', { 
+      competitionId, 
+      userId, 
+      competitionIdType: typeof competitionId,
+      competitionIdLength: competitionId?.length,
+      competitionIdValue: competitionId
+    });
 
     // Check if competition exists and has started registration
     const Competition = require('../model/competition_model');
     const competition = await Competition.findById(competitionId).populate('fest');
     
-    if (!competition) {
-      return res.status(404).json({ error: 'Competition not found' });
-    }
+    console.log('🔍 [DEBUG] Queried competition with ID:', competitionId);
+    console.log('🔍 [DEBUG] Found competition:', {
+      exists: !!competition,
+      name: competition?.name,
+      id: competition?._id,
+      registrationType: competition?.registrationType
+    });
 
     console.log('🏆 Competition details:', {
       name: competition.name,
@@ -342,6 +353,22 @@ const submitCompetitionRegistration = async (req, res) => {
       Object.assign(responses, parsedResponses);
       console.log('📝 Text responses parsed:', Object.keys(responses));
     }
+
+    // ✅ CRITICAL: Capture payment receipt URL and transaction ID separately (sent as form fields, not in responses JSON)
+    if (req.body.paymentReceiptUrl) {
+      responses['Payment Receipt'] = req.body.paymentReceiptUrl;
+      console.log('💳 Captured payment receipt URL from form field:', req.body.paymentReceiptUrl);
+    }
+    if (req.body.transactionId) {
+      responses['Transaction ID'] = req.body.transactionId;
+      console.log('💳 Captured transaction ID from form field:', req.body.transactionId);
+    }
+
+    console.log('📝 All responses after payment capture:', {
+      hasPaymentReceipt: !!responses['Payment Receipt'],
+      hasTransactionId: !!responses['Transaction ID'],
+      totalFields: Object.keys(responses).length
+    });
 
     // CRITICAL: Create registration ID for folder structure
     const registrationId = `REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -435,6 +462,16 @@ const submitCompetitionRegistration = async (req, res) => {
       if (value !== null) {
         processedResponses[field.fieldName] = value;
       }
+    }
+    
+    // ✅ CRITICAL: Add payment receipt and transaction ID to processedResponses for Google Sheets
+    if (responses['Payment Receipt']) {
+      processedResponses['Payment Receipt'] = responses['Payment Receipt'];
+      console.log('💳 Added Payment Receipt to processed responses:', responses['Payment Receipt']);
+    }
+    if (responses['Transaction ID']) {
+      processedResponses['Transaction ID'] = responses['Transaction ID'];
+      console.log('💳 Added Transaction ID to processed responses:', responses['Transaction ID']);
     }
 
     console.log('🔄 Processed responses:', Object.keys(processedResponses));
@@ -574,6 +611,13 @@ const submitCompetitionRegistration = async (req, res) => {
         if (fest.registration.googleSheetsUrl) {
           try {
             console.log('📊 Adding registration to Google Sheets (async)...');
+            console.log('📊 Including payment receipt in sheets:', {
+              hasPaymentReceipt: !!processedResponses['Payment Receipt'],
+              paymentReceiptValue: processedResponses['Payment Receipt'],
+              hasTransactionId: !!processedResponses['Transaction ID'],
+              transactionIdValue: processedResponses['Transaction ID'],
+              allResponseKeys: Object.keys(processedResponses)
+            });
             const sheetsResult = await appendToGoogleSheets(
               fest.registration.googleSheetsUrl,
               processedResponses, // Use processed responses
@@ -937,6 +981,13 @@ const submitRegistration = async (req, res) => {
         // Append to Google Sheets if configured (async, non-blocking)
         if (fest.registration.googleSheetsUrl) {
           console.log('📊 Google Sheets sync starting (async)...');
+          console.log('📊 Including payment receipt in sheets:', {
+            hasPaymentReceipt: !!responses['Payment Receipt'],
+            paymentReceiptValue: responses['Payment Receipt'],
+            hasTransactionId: !!responses['Transaction ID'],
+            transactionIdValue: responses['Transaction ID'],
+            allResponseKeys: Object.keys(responses)
+          });
           try {
             const sheetsResult = await appendToGoogleSheets(
               fest.registration.googleSheetsUrl,

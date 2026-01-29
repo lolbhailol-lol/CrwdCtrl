@@ -1170,7 +1170,17 @@ export default function FestRegistration() {
         : `${API_BASE_URL}/registrations/fests/${festId}/register`;
 
       console.log('🌐 Making registration request to:', endpoint);
-      console.log('📊 Submission summary:', {
+      console.log('� [DEBUG] Submission details:', {
+        endpoint: endpoint,
+        isCompetition: isCompetitionRegistration,
+        competitionId: competitionId,
+        festId: festId,
+        hasCompetitionId: !!competitionId,
+        competitionIdType: typeof competitionId,
+        competitionIdLength: competitionId?.length,
+        competitionIdValue: competitionId
+      });
+      console.log('�📊 Submission summary:', {
         textFields: Object.keys(textResponses).length,
         fileFields: fileCount,
         totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`,

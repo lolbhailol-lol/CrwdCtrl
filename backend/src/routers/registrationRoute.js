@@ -41,6 +41,22 @@ router.post(
   '/competitions/:competitionId/register',
   authenticateToken,
   upload.any(),
+  (req, res, next) => {
+    console.log('\n🎯🎯🎯 COMPETITION REGISTRATION ENDPOINT HIT 🎯🎯🎯');
+    console.log('📍 Route params:', req.params);
+    console.log('📍 competitionId from params:', req.params.competitionId);
+    console.log('📍 competitionId type:', typeof req.params.competitionId);
+    console.log('📍 Full URL path:', req.path);
+    console.log('📍 Full URL originalUrl:', req.originalUrl);
+    console.log('🔍 Request body keys:', Object.keys(req.body));
+    console.log('💳 Payment receipt URL in body:', req.body.paymentReceiptUrl);
+    console.log('💰 Transaction ID in body:', req.body.transactionId);
+    console.log('📁 Files received:', req.files?.length || 0);
+    if (req.files && req.files.length > 0) {
+      console.log('📋 File details:', req.files.map(f => ({ fieldname: f.fieldname, originalname: f.originalname, size: f.size })));
+    }
+    next();
+  },
   submitCompetitionRegistration
 );
 

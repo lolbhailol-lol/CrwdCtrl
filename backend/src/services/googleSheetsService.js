@@ -165,6 +165,13 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
 const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userInfo) => {
   try {
     console.log('📊 Starting Google Sheets integration...');
+    console.log('📊 [DEBUG] Responses passed to Google Sheets:', {
+      hasPaymentReceipt: !!responses['Payment Receipt'],
+      paymentReceiptValue: responses['Payment Receipt'],
+      hasTransactionId: !!responses['Transaction ID'],
+      transactionIdValue: responses['Transaction ID'],
+      allKeys: Object.keys(responses).slice(0, 10) // Show first 10 keys
+    });
     
     // Extract spreadsheet ID from URL
     const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
@@ -332,14 +339,20 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       if (paymentReceiptUrl && typeof paymentReceiptUrl === 'string' && paymentReceiptUrl.startsWith('http')) {
         // Use HYPERLINK formula for clickable link
         rowData.push(`=HYPERLINK("${paymentReceiptUrl}","🔗 View Receipt")`);
-        console.log('✅ Payment receipt added to Google Sheets row data');
+        console.log('✅ Payment receipt added to Google Sheets row data with HYPERLINK formula');
       } else {
         rowData.push('');
-        console.log('⚠️ Payment receipt URL not valid');
+        console.log('⚠️ Payment receipt URL not valid:', paymentReceiptUrl);
       }
+    } else {
+      console.log('⚠️ No payment receipt in responses - Payment Receipt column will be empty');
     }
 
-    console.log('📊 Row data prepared:', rowData);
+    console.log('📊 Row data prepared:', {
+      rowLength: rowData.length,
+      lastThreeElements: rowData.slice(-3),
+      hasPaymentLink: rowData.some(item => item?.includes('HYPERLINK'))
+    });
     console.log('🔍 Field mapping debug:');
     formSchema.forEach((field, index) => {
       const possibleKeys = [
