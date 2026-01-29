@@ -135,13 +135,18 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Parse Cookie header (no new lib) so auth can read tokens from cookies for mobile/credential requests
+// Parse Cookie header (no new lib) so auth can read tokens from cookies for mobile/credential requests.
+// Split only on first '=' so values containing '=' (e.g. JWT base64 padding) are preserved.
 app.use((req, res, next) => {
   req.cookies = {};
   const raw = req.headers.cookie;
   if (raw) {
     raw.split(';').forEach(pair => {
-      const [k, v] = pair.trim().split('=').map(s => s?.trim());
+      const trimmed = pair.trim();
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) return;
+      const k = trimmed.slice(0, eq).trim();
+      const v = trimmed.slice(eq + 1).trim();
       if (k && v) req.cookies[decodeURIComponent(k)] = decodeURIComponent(v);
     });
   }
