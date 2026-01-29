@@ -78,13 +78,22 @@ export default function FestTable() {
   const [priorityValues, setPriorityValues] = useState({});
 
   const fetchFests = () => {
+    // Clear any cached data before fetching fresh data
+    localStorage.removeItem('crwdctrl_fests_cache');
+    localStorage.removeItem('crwdctrl_fests_timestamp');
+    localStorage.removeItem('crwdctrl_fest_details_cache');
+    
     fetch(`${API_BASE_URL}/admin/fests`, {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('admin_token')}`
+        Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+        'Cache-Control': 'no-cache'
       }
     })
       .then(res => res.json())
-      .then(data => setFests(data.fests || data))
+      .then(data => {
+        console.log('✅ Fetched fresh fests from backend:', data);
+        setFests(data.fests || data);
+      })
       .catch(err => console.error('Error fetching fests:', err));
   };
 
@@ -625,6 +634,7 @@ export default function FestTable() {
         <CompetitionModal
           fest={selectedFest}
           onClose={() => setShowCompetition(false)}
+          onSaved={fetchFests}
         />
       )}
     </div>

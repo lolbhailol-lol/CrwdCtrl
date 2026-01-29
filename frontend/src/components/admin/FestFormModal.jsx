@@ -1072,16 +1072,37 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('✅ Success result:', result);
 
     // ✅ CRITICAL: Add cache busting to ensure changes are visible immediately
-    console.log('🔄 Clearing browser cache and triggering refresh...');
+    console.log('🔄 Clearing all caches and triggering refresh...');
     
-    // Clear any cached data
+    // 1. Clear localStorage caches used by Dashboard
+    console.log('🗑️ Clearing localStorage caches...');
+    localStorage.removeItem('crwdctrl_fests_cache');
+    localStorage.removeItem('crwdctrl_fests_timestamp');
+    localStorage.removeItem('crwdctrl_fest_details_cache');
+    
+    // 2. Clear browser service worker caches
     if ('caches' in window) {
       caches.keys().then(names => {
         names.forEach(name => {
           caches.delete(name);
+          console.log(`🗑️ Deleted cache: ${name}`);
         });
       });
     }
+    
+    // 3. Dispatch custom event for same-tab listeners (Dashboard)
+    console.log('📢 Dispatching custom admin_updated event...');
+    const event = new CustomEvent('admin_fest_updated', {
+      detail: { 
+        festId: fest?._id, 
+        timestamp: Date.now(),
+        action: fest ? 'update' : 'create'
+      }
+    });
+    window.dispatchEvent(event);
+    
+    // 4. Also use localStorage for cross-tab notifications
+    localStorage.setItem('admin_data_updated', Date.now().toString());
 
     // Force a small delay to ensure backend has processed the changes
     await new Promise(resolve => setTimeout(resolve, 500));

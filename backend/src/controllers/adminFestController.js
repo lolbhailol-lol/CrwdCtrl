@@ -304,13 +304,21 @@ exports.updateFest = async (req, res) => {
     console.log('  - registration.formSchema:', fest.registration?.formSchema);
     console.log('  - registration.steps:', fest.registration?.steps);
     
-    // ✅ CRITICAL: Verify data was actually saved
-    const verifyFest = await FestOrganizer.findById(id);
-    console.log('🔍 DEBUG - Verification fetch after save:');
+    // ✅ CRITICAL: Verify data was actually saved AND re-fetch to confirm
+    const verifyFest = await FestOrganizer.findById(id).lean();
+    console.log('✅ VERIFICATION FETCH - Data persisted to database:');
     console.log('  - artistsHeading in DB:', verifyFest.artistsHeading);
     console.log('  - competitionsHeading in DB:', verifyFest.competitionsHeading);
     console.log('  - contacts in DB:', verifyFest.contacts);
+    console.log('  - registration.formType in DB:', verifyFest.registration?.formType);
     console.log('  - registration in DB:', verifyFest.registration);
+    
+    if (!verifyFest.artistsHeading) {
+      console.error('❌ ERROR: artistsHeading not persisted!');
+    }
+    if (!verifyFest.competitionsHeading) {
+      console.error('❌ ERROR: competitionsHeading not persisted!');
+    }
     
     console.log('🔍 DEBUG - Multi-step form after save:');
     if (fest.registration?.formType === 'MULTI_STEP') {
@@ -329,18 +337,25 @@ exports.updateFest = async (req, res) => {
       console.log('  - Saved as multi-step form: NO (formType:', fest.registration?.formType, ')');
     }
 
-    // Clear cache when fest is updated
-    clearFestsCache();
+    // ✅ CRITICAL: Clear ALL caches to ensure fresh data is fetched everywhere
+    console.log('🧹 Starting cache cleanup for updated fest:', id);
     
-    // ✅ CRITICAL FIX: Also clear the public fest details cache
-    // The public API uses a different cache system, so we need to clear both
+    // Clear admin cache
+    clearFestsCache();
+    console.log('✅ Cleared admin fest cache');
+    
+    // Clear public cache by forcing a reload
     try {
-      const { clearAllCaches } = require('./festOrganizerController');
-      clearAllCaches();
-      console.log('✅ Cleared both admin and public caches');
+      // Import the cache clearing function
+      const festController = require('./festOrganizerController');
+      if (typeof festController.clearAllCaches === 'function') {
+        festController.clearAllCaches();
+        console.log('✅ Cleared public fest cache');
+      } else {
+        console.warn('⚠️ clearAllCaches not found as function');
+      }
     } catch (cacheError) {
       console.warn('⚠️ Could not clear public cache:', cacheError.message);
-      // Continue execution even if public cache clearing fails
     }
 
     // ✅ NEW: Add timestamp to response to help with cache busting

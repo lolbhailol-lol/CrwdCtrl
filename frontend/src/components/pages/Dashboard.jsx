@@ -362,20 +362,33 @@ const Dashboard = () => {
         
         fetchFreshData();
     }, []);
-
-    // Check for admin changes by listening to localStorage
+    // Check for admin changes by listening to custom event AND localStorage
     useEffect(() => {
+        // Handler for custom event (same-tab admin updates)
+        const handleAdminFestUpdate = (e) => {
+            console.log('📢 Custom admin_fest_updated event received:', e.detail);
+            console.log('🔄 Admin fest updated, refreshing dashboard...');
+            forceRefreshData();
+        };
+
+        // Handler for storage event (cross-tab admin updates)
         const handleAdminChanges = (e) => {
             if (e.key === 'admin_data_updated' && e.newValue) {
-                console.log('🔄 Admin data change detected, refreshing dashboard...');
+                console.log('🔄 Admin data change detected via storage event, refreshing dashboard...');
                 forceRefreshData();
                 // Clear the flag
                 localStorage.removeItem('admin_data_updated');
             }
         };
 
+        // Listen for both custom event and storage changes
+        window.addEventListener('admin_fest_updated', handleAdminFestUpdate);
         window.addEventListener('storage', handleAdminChanges);
-        return () => window.removeEventListener('storage', handleAdminChanges);
+        
+        return () => {
+            window.removeEventListener('admin_fest_updated', handleAdminFestUpdate);
+            window.removeEventListener('storage', handleAdminChanges);
+        };
     }, [forceRefreshData]);
 
     // Check for login modal parameter (but only show if not authenticated)

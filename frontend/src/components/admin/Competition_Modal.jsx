@@ -223,7 +223,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
   );
 };
 
-export default function CompetitionModal({ fest, onClose }) {
+export default function CompetitionModal({ fest, onClose, onSaved }) {
   const [competitions, setCompetitions] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
@@ -315,6 +315,10 @@ export default function CompetitionModal({ fest, onClose }) {
           fetchCompetitions();
           setShowForm(false);
           setSelectedCompetition(null);
+          // Call the parent component's onSaved callback
+          if (onSaved) {
+            onSaved();
+          }
         }}
       />
     );
@@ -1367,6 +1371,44 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       }
       console.log('Frontend - Success response:', result);
 
+      // ✅ CRITICAL: Clear caches to update website immediately
+      console.log('🔄 Clearing caches for competition update...');
+      
+      // 1. Clear localStorage caches
+      localStorage.removeItem('crwdctrl_fests_cache');
+      localStorage.removeItem('crwdctrl_fests_timestamp');
+      localStorage.removeItem('crwdctrl_fest_details_cache');
+      
+      // 2. Clear service worker caches
+      if ('caches' in window) {
+        try {
+          const cacheNames = await caches.keys();
+          await Promise.all(
+            cacheNames.map(name => {
+              console.log(`🗑️ Cleared cache: ${name}`);
+              return caches.delete(name);
+            })
+          );
+        } catch (cacheError) {
+          console.warn('⚠️ Could not clear service worker caches:', cacheError);
+        }
+      }
+      
+      // 3. Dispatch event for Dashboard to refresh
+      console.log('📢 Dispatching admin update event for competitions...');
+      window.dispatchEvent(new CustomEvent('admin_fest_updated', {
+        detail: { 
+          festId: fest?._id, 
+          competitionId: competition?._id,
+          timestamp: Date.now(),
+          action: 'competition_update'
+        }
+      }));
+      
+      // 4. Also use localStorage for cross-tab notifications
+      localStorage.setItem('admin_data_updated', Date.now().toString());
+
+      await new Promise(resolve => setTimeout(resolve, 500));
       onSaved();
     } catch (err) {
       console.error('Frontend - Submit error:', err);
