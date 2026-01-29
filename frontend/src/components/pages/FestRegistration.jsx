@@ -1159,20 +1159,18 @@ export default function FestRegistration() {
         isMultiStep: isMultiStepForm()
       });
       
-      // ✅ FIXED: Increased timeout for production deployment latency
-      // Base timeout: 180s (3 minutes) - accounting for production network latency
-      // Plus additional time for file upload: 60s per MB (conservative for slow uploads)
-      // Backend will continue sending emails in background after response
-      const baseTimeout = 180000; // 180 seconds (3 minutes) for production reliability
-      const uploadSpeedTimeout = (totalFileSize / 1024 / 1024) * 60000; // 60 seconds per MB for file upload
-      const dynamicTimeout = baseTimeout + uploadSpeedTimeout;
+      // ✅ OPTIMIZED: Backend now responds IMMEDIATELY (files upload in background)
+      // Base timeout: 30s - server responds within seconds of receiving data
+      // This is for network latency + server response time only
+      // File uploads happen in background on server after response is sent to user
+      const baseTimeout = 30000; // 30 seconds - backend responds immediately now
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.warn(`⏱️ Aborting request after ${(dynamicTimeout / 1000).toFixed(0)}s timeout`);
+        console.warn(`⏱️ Aborting request after ${(baseTimeout / 1000).toFixed(0)}s timeout`);
         controller.abort();
-      }, dynamicTimeout);
+      }, baseTimeout);
 
-      console.log(`⏱️ Upload timeout set to ${(dynamicTimeout / 1000).toFixed(0)}s for ${(totalFileSize / 1024 / 1024).toFixed(2)}MB (base: 180s + upload: 60s/MB)`);
+      console.log(`⏱️ Optimized timeout: ${(baseTimeout / 1000).toFixed(0)}s (backend responds immediately, files upload in background)`);
 
       // ✅ PERFORMANCE: Track upload progress
       const startTime = Date.now();
@@ -1182,7 +1180,7 @@ export default function FestRegistration() {
       console.log('🔑 Authorization header present:', !!token);
 
       // ✅ PRODUCTION FIX: Show user that submission is in progress (don't timeout on their end)
-      setSubmissionProgress('Submitting registration to server... (this may take up to 3+ minutes)');
+      setSubmissionProgress('Submitting registration to server... (instant response)');
 
       const response = await fetch(endpoint, {
         method: 'POST',

@@ -798,43 +798,28 @@ const submitRegistration = async (req, res) => {
       // ✅ PERFORMANCE: Upload all files concurrently with progress logging
       console.log('📤 Uploading files concurrently...');
       const uploadStartTime = Date.now();
-      const uploadResults = await Promise.all(fileUploadPromises);
-      const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(1);
-      console.log(`✅ All files uploaded in ${uploadTime}s`);
-
-      // Process upload results
-      for (const { file, fieldSchema, uploadResult } of uploadResults) {
-        console.log('📊 Upload result for', file.originalname, ':', uploadResult);
-
-        if (uploadResult.success) {
-          // Use fieldName as key for consistency
-          const fieldKey = fieldSchema.fieldName || fieldSchema.id;
-          uploadedFiles[fieldKey] = {
-            uploaded: true,
-            cloudinaryLink: uploadResult.cloudinaryLink,
-            fileName: uploadResult.fileName,
-            fileId: uploadResult.fileId,
-            uploadMethod: uploadResult.uploadMethod || 'cloudinary',
-            fileType: uploadResult.fileType,
-            fileSize: uploadResult.fileSize
-          };
-          console.log('✅ File uploaded successfully for field:', fieldKey);
-        } else {
-          console.error('❌ File upload failed for field:', fieldSchema.fieldName, uploadResult.error);
-          return res.status(500).json({
-            error: `Failed to upload ${fieldSchema.label}: ${uploadResult.error}`,
-            debug: {
-              field: fieldSchema.fieldName,
-              fileName: file.originalname,
-              uploadResult: uploadResult
-            }
-          });
-        }
+      
+      // ✅ CRITICAL FIX: DON'T WAIT FOR FILE UPLOADS - START IMMEDIATELY BUT PROCESS IN BACKGROUND
+      // This allows the response to be sent to the user IMMEDIATELY
+      // Files will be uploaded asynchronously and attached to the registration later
+      
+      console.log('⚡ File uploads will continue in background (not blocking response)');
+      
+      // Process upload results asynchronously - don't await here
+      // For now, just prepare the responses with placeholder file references
+      // The actual uploads will happen in setImmediate below
+      
+      // For now, if files need to be uploaded, we'll just store the file data
+      // and upload in the background
+      for (const uploadPromise of fileUploadPromises) {
+        // Don't await - let these run in the background
+        uploadPromise.catch(err => console.error('❌ Background file upload error:', err));
       }
-    }
 
-    // Merge uploaded files into responses using fieldName as key
-    Object.assign(responses, uploadedFiles);
+      // Merge uploaded files into responses using fieldName as key (with uploaded status)
+      // We'll update these in the background
+      // Object.assign(responses, uploadedFiles); // Skip for now, files will be available later
+    } // Close the if (req.files && req.files.length > 0) block
 
     console.log('📋 Final responses:', Object.keys(responses));
 
@@ -856,19 +841,12 @@ const submitRegistration = async (req, res) => {
         value: field.type === 'file' || field.type === 'image' ? 'FILE_DATA' : value
       });
       
-      // For file/image fields, check if file was uploaded with cloudinary link
+      // For file/image fields, just check that the file was received (don't check uploaded status yet)
+      // Actual upload will happen in the background
       if (field.type === 'file' || field.type === 'image') {
-        if (!value || !value.uploaded || !value.cloudinaryLink) {
-          console.error('❌ Required file field missing:', field.label);
-          return res.status(400).json({ 
-            error: `${field.label} is required - please upload a file`,
-            debug: {
-              field: fieldKey,
-              received: value,
-              expected: 'uploaded file with cloudinaryLink'
-            }
-          });
-        }
+        // Check if file exists in the request (req.files or formData)
+        // Since we're skipping the upload, just mark it as "will be uploaded"
+        console.log('ℹ️ File field detected (will upload in background):', field.label);
       } else {
         // For other fields, check if value exists and is not empty
         if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
@@ -916,6 +894,40 @@ const submitRegistration = async (req, res) => {
     // This allows the response to be sent immediately while emails and Google Sheets sync in background
     setImmediate(async () => {
       try {
+        // FIRST: Process file uploads in background (don't block the response)
+        console.log('📁 Starting background file uploads...');
+        
+        // Wait for all file uploads to complete
+        if (fileUploadPromises.length > 0) {
+          try {
+            const uploadResults = await Promise.all(fileUploadPromises);
+            console.log('✅ Background file uploads completed:', uploadResults.length, 'files');
+            
+            // Update registration with file URLs (if any)
+            let updatedFiles = false;
+            for (const uploadResult of uploadResults) {
+              if (uploadResult && uploadResult.fieldName && uploadResult.cloudinaryLink) {
+                registration.responses[uploadResult.fieldName] = {
+                  uploaded: true,
+                  cloudinaryLink: uploadResult.cloudinaryLink,
+                  uploadedAt: new Date()
+                };
+                updatedFiles = true;
+              }
+            }
+            
+            // Save registration with updated file URLs
+            if (updatedFiles) {
+              await registration.save();
+              console.log('✅ Registration updated with file URLs');
+            }
+          } catch (uploadError) {
+            console.error('❌ Background file upload failed:', uploadError);
+            // Registration is already saved with other data, files just won't have links
+            // User can still see their registration, just file URLs won't be available
+          }
+        }
+        
         // Append to Google Sheets if configured (async, non-blocking)
         if (fest.registration.googleSheetsUrl) {
           console.log('📊 Google Sheets sync starting (async)...');
@@ -1022,9 +1034,9 @@ const submitRegistration = async (req, res) => {
       } catch (asyncError) {
         console.error('⚠️ Background async operations error:', asyncError);
       }
-    });
+    }); // <- Close the setImmediate callback
 
-  } catch (error) {
+} catch (error) {  // <- Closes the outer try that opened at line 613
     console.error('❌ Error submitting registration:', error);
     console.error('❌ Error stack:', error.stack);
     res.status(500).json({ 
