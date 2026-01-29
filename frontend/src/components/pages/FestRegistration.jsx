@@ -1160,20 +1160,21 @@ export default function FestRegistration() {
       });
       
       // ✅ OPTIMIZED: Backend now responds IMMEDIATELY (files upload in background)
-      // Base timeout: 30s - server responds within seconds of receiving data
-      // This is for network latency + server response time only
+      // Base timeout: 120s - allowing time for server processing and slow connections
+      // Backend responds with registration ID immediately, files upload in background
       // File uploads happen in background on server after response is sent to user
-      const baseTimeout = 30000; // 30 seconds - backend responds immediately now
+      const baseTimeout = 120000; // 120 seconds - reasonable timeout for production stability
       const controller = new AbortController();
+      
+      // ✅ PERFORMANCE: Track upload progress (define BEFORE fetch so it's available in error handler)
+      const startTime = Date.now();
+      
       const timeoutId = setTimeout(() => {
         console.warn(`⏱️ Aborting request after ${(baseTimeout / 1000).toFixed(0)}s timeout`);
         controller.abort();
       }, baseTimeout);
 
-      console.log(`⏱️ Optimized timeout: ${(baseTimeout / 1000).toFixed(0)}s (backend responds immediately, files upload in background)`);
-
-      // ✅ PERFORMANCE: Track upload progress
-      const startTime = Date.now();
+      console.log(`⏱️ Request timeout: ${(baseTimeout / 1000).toFixed(0)}s (backend responds immediately, files upload in background)`);
 
       console.log('🌐 Making fetch request to:', endpoint);
       console.log('📤 FormData size:', submissionFormData.size || 'unknown');
