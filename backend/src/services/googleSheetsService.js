@@ -10,7 +10,11 @@ const { google } = require('googleapis');
  */
 const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, competitionInfo, userInfo, formSchema) => {
   try {
+    console.log('\n🔥🔥🔥 COMPETITION GOOGLE SHEETS FUNCTION CALLED 🔥🔥🔥');
     console.log('📊 Starting Competition Google Sheets integration...');
+    console.log('📊 [CRITICAL DEBUG] Full responses object keys:', Object.keys(responses));
+    console.log('📊 [CRITICAL DEBUG] Transaction ID value:', responses['Transaction ID']);
+    console.log('📊 [CRITICAL DEBUG] Payment Receipt value:', responses['Payment Receipt']);
     
     // Extract spreadsheet ID from URL
     const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
@@ -184,8 +188,12 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
  */
 const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userInfo) => {
   try {
+    console.log('\n🔥🔥🔥 GOOGLE SHEETS FUNCTION CALLED 🔥🔥🔥');
     console.log('📊 Starting Google Sheets integration...');
-    console.log('📊 [DEBUG] Responses passed to Google Sheets:', {
+    console.log('📊 [CRITICAL DEBUG] Full responses object keys:', Object.keys(responses));
+    console.log('📊 [CRITICAL DEBUG] Transaction ID value:', responses['Transaction ID']);
+    console.log('📊 [CRITICAL DEBUG] Payment Receipt value:', responses['Payment Receipt']);
+    console.log('📊 [CRITICAL DEBUG] Responses passed to Google Sheets:', {
       hasPaymentReceipt: !!responses['Payment Receipt'],
       paymentReceiptValue: responses['Payment Receipt'],
       hasTransactionId: !!responses['Transaction ID'],
