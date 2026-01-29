@@ -58,6 +58,11 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
       headers.push('Payment Receipt');
     }
 
+    // ✅ ALWAYS add Transaction ID column if it exists in responses
+    if (responses['Transaction ID']) {
+      headers.push('Transaction ID');
+    }
+
     // Add headers if sheet is empty or headers don't match
     if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
       console.log('📝 Creating/updating headers...');
@@ -121,6 +126,21 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
       } else {
         rowData.push('');
         console.log('⚠️ Competition payment receipt URL not valid');
+      }
+    }
+
+    // ✅ ALWAYS add Transaction ID data if available in responses
+    if (responses['Transaction ID']) {
+      const transactionId = responses['Transaction ID'];
+      console.log('💰 Processing competition transaction ID from responses:', transactionId);
+      
+      if (transactionId && typeof transactionId === 'string' && transactionId.trim()) {
+        // Add transaction ID directly
+        rowData.push(transactionId);
+        console.log('✅ Competition transaction ID added to Google Sheets row data');
+      } else {
+        rowData.push('');
+        console.log('⚠️ Competition transaction ID not valid');
       }
     }
 
@@ -246,12 +266,21 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       headers.push('Payment Receipt');
     }
 
+    // ✅ ALWAYS add Transaction ID column if it exists in responses
+    if (responses['Transaction ID']) {
+      headers.push('Transaction ID');
+    }
+
     // Add headers if sheet is empty or headers don't match
     const hasPaymentReceiptInResponses = !!responses['Payment Receipt'];
     const hasPaymentReceiptColumn = existingHeaders.includes('Payment Receipt');
+    const hasTransactionIdInResponses = !!responses['Transaction ID'];
+    const hasTransactionIdColumn = existingHeaders.includes('Transaction ID');
+    
     const headersNeedUpdate = existingHeaders.length === 0 || 
                              !arraysEqual(existingHeaders, headers) ||
-                             (hasPaymentReceiptInResponses && !hasPaymentReceiptColumn);
+                             (hasPaymentReceiptInResponses && !hasPaymentReceiptColumn) ||
+                             (hasTransactionIdInResponses && !hasTransactionIdColumn);
     
     if (headersNeedUpdate) {
       console.log('📝 Creating/updating headers...');
@@ -259,7 +288,9 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
         emptyHeaders: existingHeaders.length === 0,
         headersMismatch: !arraysEqual(existingHeaders, headers),
         hasPaymentReceiptInResponses: hasPaymentReceiptInResponses,
-        hasPaymentReceiptColumn: hasPaymentReceiptColumn
+        hasPaymentReceiptColumn: hasPaymentReceiptColumn,
+        hasTransactionIdInResponses: hasTransactionIdInResponses,
+        hasTransactionIdColumn: hasTransactionIdColumn
       });
       await sheets.spreadsheets.values.update({
         spreadsheetId: spreadsheetId,
@@ -346,6 +377,23 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       }
     } else {
       console.log('⚠️ No payment receipt in responses - Payment Receipt column will be empty');
+    }
+
+    // ✅ ALWAYS add Transaction ID data if available in responses
+    if (responses['Transaction ID']) {
+      const transactionId = responses['Transaction ID'];
+      console.log('💰 Processing transaction ID from responses:', transactionId);
+      
+      if (transactionId && typeof transactionId === 'string' && transactionId.trim()) {
+        // Add transaction ID directly
+        rowData.push(transactionId);
+        console.log('✅ Transaction ID added to Google Sheets row data');
+      } else {
+        rowData.push('');
+        console.log('⚠️ Transaction ID not valid');
+      }
+    } else {
+      console.log('⚠️ No transaction ID in responses - Transaction ID column will be empty');
     }
 
     console.log('📊 Row data prepared:', {
