@@ -98,6 +98,9 @@ function CompetitionRegisterPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [filePreview, setFilePreview] = useState(null);
+    // Multi-step form (same flow as main fest registration): Step 1 = details, Step 2 = payment
+    const [currentStep, setCurrentStep] = useState(1);
+    const totalSteps = 2;
 
     // Get selected competition details
     const getSelectedCompetition = () => {
@@ -218,39 +221,23 @@ function CompetitionRegisterPage() {
         document.getElementById('paymentScreenshot').value = '';
     };
 
-    // Validate form
-    const validateForm = () => {
+    // Validate Step 1 only (details – same fields as main registration step 1)
+    const validateStep1 = () => {
         const newErrors = {};
-
-        if (!formData.name.trim()) {
-            newErrors.name = 'Name is required';
-        }
-
-        if (!formData.instagramId.trim()) {
-            newErrors.instagramId = 'Instagram ID is required';
-        }
-
+        if (!formData.name.trim()) newErrors.name = 'Name is required';
+        if (!formData.instagramId.trim()) newErrors.instagramId = 'Instagram ID is required';
         if (!formData.contactNumber.trim()) {
             newErrors.contactNumber = 'Contact number is required';
         } else if (!/^\+?[1-9]\d{1,14}$/.test(formData.contactNumber.replace(/\s/g, ''))) {
             newErrors.contactNumber = 'Please enter a valid contact number';
         }
-
         if (!formData.email.trim()) {
             newErrors.email = 'Email is required';
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
             newErrors.email = 'Please enter a valid email address';
         }
-
-        if (!formData.dateOfBirth) {
-            newErrors.dateOfBirth = 'Date of birth is required';
-        }
-
-        if (!formData.competitionName) {
-            newErrors.competitionName = 'Please select a competition';
-        }
-
-        // Validate number of participants based on competition type
+        if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
+        if (!formData.competitionName) newErrors.competitionName = 'Please select a competition';
         const selectedCompetition = getSelectedCompetition();
         if (selectedCompetition?.isGroup) {
             if (!formData.numberOfParticipants.trim()) {
@@ -261,38 +248,59 @@ function CompetitionRegisterPage() {
                 newErrors.numberOfParticipants = `Team size must be between ${selectedCompetition.minParticipants}-${selectedCompetition.maxParticipants} members for ${selectedCompetition.name}`;
             }
         }
-
-        if (!formData.city.trim()) {
-            newErrors.city = 'City is required';
-        }
-
-        if (!formData.collegeName.trim()) {
-            newErrors.collegeName = 'College/Organization name is required';
-        }
-
-        if (!formData.paymentMode) {
-            newErrors.paymentMode = 'Please select a payment mode';
-        }
-
-        if (!formData.paymentScreenshot) {
-            newErrors.paymentScreenshot = 'Payment screenshot is required';
-        }
-
-        if (!formData.transactionId.trim()) {
-            newErrors.transactionId = 'Transaction ID is required';
-        }
-
+        if (!formData.city.trim()) newErrors.city = 'City is required';
+        if (!formData.collegeName.trim()) newErrors.collegeName = 'College/Organization name is required';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    // Handle form submission
+    // Validate full form (all fields including payment – used on Step 2 submit)
+    const validateFormFull = () => {
+        const newErrors = {};
+        if (!formData.name.trim()) newErrors.name = 'Name is required';
+        if (!formData.instagramId.trim()) newErrors.instagramId = 'Instagram ID is required';
+        if (!formData.contactNumber.trim()) {
+            newErrors.contactNumber = 'Contact number is required';
+        } else if (!/^\+?[1-9]\d{1,14}$/.test(formData.contactNumber.replace(/\s/g, ''))) {
+            newErrors.contactNumber = 'Please enter a valid contact number';
+        }
+        if (!formData.email.trim()) {
+            newErrors.email = 'Email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            newErrors.email = 'Please enter a valid email address';
+        }
+        if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
+        if (!formData.competitionName) newErrors.competitionName = 'Please select a competition';
+        const selectedCompetition = getSelectedCompetition();
+        if (selectedCompetition?.isGroup) {
+            if (!formData.numberOfParticipants.trim()) {
+                newErrors.numberOfParticipants = `Number of participants is required for ${selectedCompetition.name}`;
+            } else if (isNaN(formData.numberOfParticipants) ||
+                formData.numberOfParticipants < selectedCompetition.minParticipants ||
+                formData.numberOfParticipants > selectedCompetition.maxParticipants) {
+                newErrors.numberOfParticipants = `Team size must be between ${selectedCompetition.minParticipants}-${selectedCompetition.maxParticipants} members for ${selectedCompetition.name}`;
+            }
+        }
+        if (!formData.city.trim()) newErrors.city = 'City is required';
+        if (!formData.collegeName.trim()) newErrors.collegeName = 'College/Organization name is required';
+        if (!formData.paymentMode) newErrors.paymentMode = 'Please select a payment mode';
+        if (!formData.paymentScreenshot) newErrors.paymentScreenshot = 'Payment screenshot is required';
+        if (!formData.transactionId.trim()) newErrors.transactionId = 'Transaction ID is required';
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    // Handle form submission (multi-step: Step 1 → Next to payment; Step 2 → submit)
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!validateForm()) {
+        if (currentStep === 1) {
+            if (!validateStep1()) return;
+            setCurrentStep(2);
             return;
         }
+
+        if (!validateFormFull()) return;
 
         setIsSubmitting(true);
 
@@ -361,9 +369,10 @@ function CompetitionRegisterPage() {
                 // You can store this in state if you want to display it in the success message
             }
 
-            // Reset form after success (extended timeout for better user experience)
+            // Reset form and step after success
             setTimeout(() => {
                 setShowSuccess(false);
+                setCurrentStep(1);
                 setFormData({
                     name: '',
                     instagramId: '',
@@ -383,7 +392,7 @@ function CompetitionRegisterPage() {
                 const desktopFileInput = document.getElementById('paymentScreenshotDesktop');
                 if (fileInput) fileInput.value = '';
                 if (desktopFileInput) desktopFileInput.value = '';
-            }, 5000); // Increased timeout to 5 seconds so users can read the success message
+            }, 5000);
 
         } catch (error) {
             console.error('❌ Full Error Details:', {
@@ -413,8 +422,9 @@ function CompetitionRegisterPage() {
         }
     };
 
-    // Handle form reset
+    // Handle form reset (reset step to 1)
     const handleReset = () => {
+        setCurrentStep(1);
         setFormData({
             name: '',
             instagramId: '',
@@ -431,7 +441,10 @@ function CompetitionRegisterPage() {
         });
         setErrors({});
         setFilePreview(null);
-        document.getElementById('paymentScreenshot').value = '';
+        const fileInput = document.getElementById('paymentScreenshot');
+        const desktopFileInput = document.getElementById('paymentScreenshotDesktop');
+        if (fileInput) fileInput.value = '';
+        if (desktopFileInput) desktopFileInput.value = '';
     };
 
     return (
@@ -504,10 +517,41 @@ function CompetitionRegisterPage() {
                                         <p className="text-sm">📱 Please check your email for your registration ID and next steps</p>
                                     </div>
                                 </div>
-                            )}                            {/* Form */}
+                            )}                            {/* Multi-step progress (same as main registration) */}
+                            <div className={`mb-6 rounded-lg border p-4 ${isDark ? 'bg-[#1B1C1E] border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Step {currentStep} of {totalSteps}
+                                    </span>
+                                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {currentStep === 1 ? 'Your details' : 'Payment'}
+                                    </span>
+                                </div>
+                                <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-300 ${currentStep === 1 ? 'bg-[#0ECCEE]' : 'bg-[#053780]'}`}
+                                        style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+                                    />
+                                </div>
+                                <div className="flex gap-4 mt-2">
+                                    <div className={`flex items-center gap-2 ${currentStep >= 1 ? (isDark ? 'text-[#0ECCEE]' : 'text-[#053780]') : (isDark ? 'text-gray-500' : 'text-gray-400')}`}>
+                                        <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-medium">{currentStep > 1 ? '✓' : '1'}</span>
+                                        <span className="text-xs">Details</span>
+                                    </div>
+                                    <div className={`flex items-center gap-2 ${currentStep >= 2 ? (isDark ? 'text-[#0ECCEE]' : 'text-[#053780]') : (isDark ? 'text-gray-500' : 'text-gray-400')}`}>
+                                        <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-medium">{currentStep > 2 ? '✓' : '2'}</span>
+                                        <span className="text-xs">Payment</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Form */}
                             <form onSubmit={handleSubmit}>
                                 {/* Mobile and Tablet View - Stack vertically */}
                                 <div className="block lg:hidden space-y-6">
+                                    {/* Step 1: Details */}
+                                    {currentStep === 1 && (
+                                    <>
                                     {/* Name */}
                                     <div>
                                         <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
@@ -709,7 +753,12 @@ function CompetitionRegisterPage() {
                                             )}
                                         </div>
                                     </div>
+                                    </>
+                                    )}
 
+                                    {/* Step 2: Payment (same as main registration payment step) */}
+                                    {currentStep === 2 && (
+                                    <>
                                     {/* Payment Mode */}
                                     <div>
                                         <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
@@ -820,10 +869,14 @@ function CompetitionRegisterPage() {
                                             <p className="mt-1 text-sm text-red-500">{errors.transactionId}</p>
                                         )}
                                     </div>
+                                    </>
+                                    )}
                                 </div>
 
-                                {/* Desktop View - Two columns */}
-                                <div className="hidden lg:grid lg:grid-cols-2 lg:gap-8">
+                                {/* Desktop View - Two columns (Step 1: details; Step 2: payment) */}
+                                <div className="hidden lg:block">
+                                    {currentStep === 1 && (
+                                    <div className="grid lg:grid-cols-2 lg:gap-8">
                                     {/* Left Column */}
                                     <div className="space-y-6">
                                         {/* Name */}
@@ -1028,7 +1081,14 @@ function CompetitionRegisterPage() {
                                                 <p className="mt-1 text-sm text-red-500">{errors.collegeName}</p>
                                             )}
                                         </div>
+                                    </div>
+                                    </div>
+                                    )}
 
+                                    {/* Desktop Step 2: Payment (same as main registration payment step) */}
+                                    {currentStep === 2 && (
+                                    <div className="grid lg:grid-cols-2 lg:gap-8">
+                                        <div className="space-y-6 lg:col-span-2">
                                         {/* Payment Mode */}
                                         <div>
                                             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
@@ -1140,20 +1200,40 @@ function CompetitionRegisterPage() {
                                                 <p className="mt-1 text-sm text-red-500">{errors.transactionId}</p>
                                             )}
                                         </div>
+                                        </div>
                                     </div>
+                                    )}
                                 </div>
 
                                 
-                                {/* Buttons */}
+                                {/* Buttons (multi-step: same as main registration) */}
                                 <div className="flex flex-col sm:flex-row gap-4 pt-6 lg:col-span-2">
+                                    {currentStep > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentStep(1)}
+                                            disabled={isSubmitting}
+                                            className={`sm:flex-initial px-6 py-3 rounded-lg font-semibold border transition-colors duration-200 ${isDark
+                                                ? 'border-gray-600 text-gray-300 hover:bg-gray-700 focus:ring-gray-500'
+                                                : 'border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-400'
+                                                } focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        >
+                                            Previous Step
+                                        </button>
+                                    )}
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
                                         className="flex-1 bg-gradient-to-r from-[#053780] to-[#0ECCEE] text-white font-semibold py-3 px-6 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {isSubmitting ? 'Submitting...' : formData.competitionName ? `Register for ${formData.competitionName}` : 'Submit Registration'}
+                                        {currentStep === 1
+                                            ? 'Next: Payment'
+                                            : isSubmitting
+                                                ? 'Submitting...'
+                                                : formData.competitionName
+                                                    ? `Register for ${formData.competitionName}`
+                                                    : 'Submit Registration'}
                                     </button>
-
                                     <button
                                         type="button"
                                         onClick={handleReset}
