@@ -393,6 +393,7 @@ export default function FestRegistration() {
               type="file"
               id={fieldId}
               name={fieldId}
+              data-field-id={fieldId}
               accept={field.type === 'image' ? 'image/*' : '*/*'}
               onChange={(e) => {
                 const file = e.target.files[0];
@@ -1105,6 +1106,24 @@ export default function FestRegistration() {
               allFormDataKeys: Object.keys(allFormData),
               allFormDataFileKeys: Object.keys(allFormData).filter(k => k.includes('_file'))
             });
+            
+            // ✅ FALLBACK: Try to get file from DOM input element
+            try {
+              const fileInput = document.querySelector(`input[data-field-id="${fieldId}"]`);
+              if (fileInput?.files?.length > 0) {
+                const file = fileInput.files[0];
+                console.log('✅ FALLBACK: Found file in DOM:', {
+                  fieldId,
+                  fileName: file.name,
+                  fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`
+                });
+                submissionFormData.append(backendFieldName, file);
+                totalFileSize += file.size;
+                fileCount++;
+              }
+            } catch (fallbackErr) {
+              console.log('ℹ️ No fallback file input found for:', fieldId);
+            }
           }
         } else {
           // Add text data to responses object using backend field name
@@ -1710,6 +1729,7 @@ export default function FestRegistration() {
                           <input 
                             id="payment-receipt-upload" 
                             type="file" 
+                            data-field-id="payment-receipt"
                             className="hidden" 
                             accept="image/jpeg,image/jpg,image/png,application/pdf"
                             onChange={(e) => {
