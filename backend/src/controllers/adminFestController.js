@@ -303,6 +303,15 @@ exports.updateFest = async (req, res) => {
     console.log('  - registration.formType:', fest.registration?.formType);
     console.log('  - registration.formSchema:', fest.registration?.formSchema);
     console.log('  - registration.steps:', fest.registration?.steps);
+    
+    // ✅ CRITICAL: Verify data was actually saved
+    const verifyFest = await FestOrganizer.findById(id);
+    console.log('🔍 DEBUG - Verification fetch after save:');
+    console.log('  - artistsHeading in DB:', verifyFest.artistsHeading);
+    console.log('  - competitionsHeading in DB:', verifyFest.competitionsHeading);
+    console.log('  - contacts in DB:', verifyFest.contacts);
+    console.log('  - registration in DB:', verifyFest.registration);
+    
     console.log('🔍 DEBUG - Multi-step form after save:');
     if (fest.registration?.formType === 'MULTI_STEP') {
       console.log('  - Saved as multi-step form: YES');
