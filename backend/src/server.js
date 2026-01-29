@@ -109,7 +109,8 @@ app.use(
       console.log('🔧 TEMPORARY: Allowing all origins for debugging');
       return callback(null, true);
     },
-    credentials: true,
+    credentials: true, // Required for cookie/credential requests (mobile + cross-origin)
+    optionsSuccessStatus: 200, // Some mobile clients expect 200 for preflight
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: [
       "Content-Type", 
@@ -133,6 +134,19 @@ app.use(
 // JSON middleware with increased limits for file uploads
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// Parse Cookie header (no new lib) so auth can read tokens from cookies for mobile/credential requests
+app.use((req, res, next) => {
+  req.cookies = {};
+  const raw = req.headers.cookie;
+  if (raw) {
+    raw.split(';').forEach(pair => {
+      const [k, v] = pair.trim().split('=').map(s => s?.trim());
+      if (k && v) req.cookies[decodeURIComponent(k)] = decodeURIComponent(v);
+    });
+  }
+  next();
+});
 
 // ✅ Compression middleware for better performance (especially for Cloud Run)
 app.use(compression({

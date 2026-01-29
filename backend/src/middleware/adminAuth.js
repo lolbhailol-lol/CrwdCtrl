@@ -2,16 +2,19 @@ const jwt = require('jsonwebtoken');
 
 module.exports = (req, res, next) => {
   try {
+    // Accept token from cookie (mobile/credentials) or Authorization header
+    const tokenFromCookie = req.cookies?.admin_token;
     const authHeader = req.headers.authorization;
-    console.log('🔐 [ADMIN AUTH] Auth header present:', !!authHeader);
-    console.log('🔐 [ADMIN AUTH] Auth header format:', authHeader?.substring(0, 20) + '...');
+    const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    const token = tokenFromCookie || tokenFromHeader;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('🔐 [ADMIN AUTH] Auth header present:', !!authHeader);
+    console.log('🔐 [ADMIN AUTH] Cookie token present:', !!tokenFromCookie);
+
+    if (!token) {
       console.error('❌ [ADMIN AUTH] Missing or invalid Bearer token');
       return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
     }
-
-    const token = authHeader.split(' ')[1];
     const secret = process.env.JWT_SECRET || 'your-default-secret';
     
     console.log('🔐 [ADMIN AUTH] Secret loaded:', !!secret);

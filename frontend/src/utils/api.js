@@ -6,8 +6,12 @@ import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
  */
 class ApiClient {
     constructor() {
-        // Use Vite environment variables for API base URL
-        this.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+        // Use Vite environment variables for API base URL; enforce HTTPS in production
+        let base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+        if (import.meta.env.PROD && base.startsWith('http://')) {
+            base = base.replace(/^http:\/\//, 'https://');
+        }
+        this.baseURL = base;
         this.timeout = API_CONFIG.TIMEOUT;
         this.defaultHeaders = {
             'Content-Type': 'application/json',
@@ -58,6 +62,7 @@ class ApiClient {
                 const timeoutId = setTimeout(() => controller.abort(), timeout);
 
                 config.signal = controller.signal;
+                if (config.credentials === undefined) config.credentials = 'include';
 
                 console.log(`📤 API Request (attempt ${attempt + 1}/${maxRetries + 1}):`, {
                     method: config.method,
@@ -201,11 +206,14 @@ class ApiClient {
             ...options,
         };
 
-        // Add authorization header if token exists
+        // Add authorization header if token exists (cookie is also sent via credentials)
         const token = this.getAuthToken();
         if (token && !config.headers.Authorization) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        // Required for cookies/credentials on cross-origin (mobile + production)
+        config.credentials = 'include';
 
         // Handle request body
         if (config.body && typeof config.body === 'object') {

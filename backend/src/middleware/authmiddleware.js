@@ -3,23 +3,25 @@ const User = require('../model/usermodel');
 
 const authenticateToken = async (req, res, next) => {
     try {
+        // Accept token from cookie (mobile/credentials) or Authorization header
+        const tokenFromCookie = req.cookies?.crwdctrl_token;
         const authHeader = req.headers.authorization;
+        const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const token = tokenFromCookie || tokenFromHeader;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            console.log('❌ User auth: No authorization header or invalid format');
+        if (!token) {
+            console.log('❌ User auth: No authorization header or cookie');
             return res.status(401).json({
                 success: false,
                 message: 'Access token is required',
                 debug: {
                     hasAuthHeader: !!authHeader,
-                    headerFormat: authHeader ? authHeader.substring(0, 20) + '...' : 'none'
+                    hasCookie: !!tokenFromCookie
                 }
             });
         }
 
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-        if (!token) {
+        if (!token.trim()) {
             console.log('❌ User auth: Empty token');
             return res.status(401).json({
                 success: false,

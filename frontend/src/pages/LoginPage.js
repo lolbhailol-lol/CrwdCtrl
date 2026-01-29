@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// Enforce HTTPS in production for credential/cookie requests
+const raw = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+const API_BASE_URL = (import.meta.env.PROD && raw.startsWith('http://')) ? raw.replace(/^http:\/\//, 'https://') : raw;
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -30,6 +32,7 @@ const LoginPage = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        credentials: 'include', // Required for cookies on mobile/cross-origin
       });
 
       console.log('📍 Request sent to:', `${API_BASE_URL}/admin/login`);

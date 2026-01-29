@@ -149,6 +149,16 @@ const register = async (req, res) => {
             });
         }
 
+        // Set auth cookie on register so mobile/credentials work (same options as login)
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cookieOpts = {
+            httpOnly: true,
+            path: '/',
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+        };
+        res.cookie('crwdctrl_token', token, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 });
+
         res.status(201).json({
             success: true,
             message: 'User registered successfully',
@@ -225,6 +235,16 @@ const login = async (req, res) => {
         // Remove password from response
         const userResponse = user.toObject();
         delete userResponse.password;
+
+        // Cookie for mobile/production so credentials are sent; SameSite=None; Secure for cross-origin
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cookieOpts = {
+            httpOnly: true,
+            path: '/',
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+        };
+        res.cookie('crwdctrl_token', token, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7d
 
         res.status(200).json({
             success: true,

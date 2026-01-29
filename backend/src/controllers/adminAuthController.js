@@ -47,6 +47,17 @@ exports.adminLogin = async (req, res) => {
 
     console.log('✅ [BACKEND] Admin login successful:', { email, accessTokenExpiry: '1h', refreshTokenExpiry: '7d' });
 
+    // Cookie options for mobile/production: SameSite=None; Secure required for cross-origin credentials
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOpts = {
+      httpOnly: true,
+      path: '/',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+    };
+    res.cookie('admin_token', accessToken, { ...cookieOpts, maxAge: 60 * 60 * 1000 });       // 1h
+    res.cookie('admin_refresh_token', refreshToken, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7d
+
     res.json({
       success: true,
       accessToken,
