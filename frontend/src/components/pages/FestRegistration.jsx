@@ -1070,7 +1070,20 @@ export default function FestRegistration() {
         if (field.type === 'file' || field.type === 'image') {
           // Add file to FormData if it exists
           const fileData = allFormData[`${fieldId}_file`];
-          if (fileData) {
+          
+          // Debug: Check what we have
+          console.log('🔍 FILE DEBUG:', {
+            fieldId,
+            fieldLabel: field.label,
+            hasFileData: !!fileData,
+            fileDataType: typeof fileData,
+            isFile: fileData instanceof File,
+            isBlob: fileData instanceof Blob,
+            fileDataSize: fileData?.size || 'N/A',
+            fileDataName: fileData?.name || 'N/A'
+          });
+          
+          if (fileData && fileData.size > 0) {
             submissionFormData.append(backendFieldName, fileData);
             const fileSizeInMB = (fileData.size / 1024 / 1024).toFixed(2);
             totalFileSize += fileData.size;
@@ -1083,10 +1096,12 @@ export default function FestRegistration() {
               totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`
             });
           } else {
-            console.log('⚠️ No file found for field:', {
+            console.log('⚠️ No valid file found for field:', {
               fieldId,
               label: field.label,
               lookingForKey: `${fieldId}_file`,
+              hasFileData: !!fileData,
+              fileSize: fileData?.size,
               allFormDataKeys: Object.keys(allFormData),
               allFormDataFileKeys: Object.keys(allFormData).filter(k => k.includes('_file'))
             });
