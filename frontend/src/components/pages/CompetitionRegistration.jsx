@@ -65,14 +65,23 @@ export default function CompetitionRegistration() {
     // Helper function to generate consistent field IDs
     const generateFieldId = (field) => {
         // Priority 1: use fieldName directly (this is what backend expects)
-        if (field.fieldName) return field.fieldName;
+        if (field.fieldName) {
+            console.log(`🔑 Using fieldName for "${field.label}":`, field.fieldName);
+            return field.fieldName;
+        }
         // Priority 2: use field.id directly (without field_ prefix)
-        if (field.id) return field.id;
+        if (field.id) {
+            console.log(`🔑 Using id for "${field.label}":`, field.id);
+            return field.id;
+        }
         // Priority 3: generate from label as fallback
         if (field.label) {
-            // More robust label sanitization
-            return `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+            // More robust label sanitization - match backend logic
+            const sanitized = `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+            console.log(`🔑 Generated ID for "${field.label}":`, sanitized);
+            return sanitized;
         }
+        console.warn(`🔑 No ID could be generated for field:`, field);
         return 'unknown_field';
     };
 
@@ -509,18 +518,21 @@ export default function CompetitionRegistration() {
             
             // Validate required fields
             const requiredFields = formSchema.filter(field => field.required) || [];
-            console.log('🔍 Validating required fields:', requiredFields.map(f => f.label));
+            console.log('🔍 Validating required fields:', requiredFields.map(f => ({ label: f.label, id: generateFieldId(f) })));
+            console.log('📋 Current form data keys:', Object.keys(formData));
             console.log('📋 Current form data:', formData);
             
             for (const field of requiredFields) {
                 const fieldId = generateFieldId(field);
                 const fieldValue = formData[fieldId];
                 
-                console.log(`🔍 Validating field "${field.label}" (${fieldId}):`, {
+                console.log(`🔍 Validating field "${field.label}":`, {
+                    fieldId: fieldId,
                     value: fieldValue,
                     hasValue: !!fieldValue,
                     isArray: Array.isArray(fieldValue),
-                    arrayLength: Array.isArray(fieldValue) ? fieldValue.length : 'N/A'
+                    arrayLength: Array.isArray(fieldValue) ? fieldValue.length : 'N/A',
+                    isEmpty: typeof fieldValue === 'string' && fieldValue.trim() === ''
                 });
                 
                 if (!fieldValue || 
@@ -544,8 +556,10 @@ export default function CompetitionRegistration() {
             console.log('📊 Registration summary:', {
                 totalFields: Object.keys(formData).length,
                 requiredFields: requiredFields.length,
-                userId: user.id
+                userId: user.id,
+                formDataKeys: Object.keys(formData)
             });
+            console.log('📤 Sending registration data:', registrationData);
 
             setSubmissionProgress('Submitting registration...');
             const startTime = Date.now();
@@ -572,6 +586,15 @@ export default function CompetitionRegistration() {
                     const errorData = await response.json();
                     errorMessage = errorData.error || errorData.message || errorMessage;
                     console.error('❌ Backend error details:', errorData);
+                    
+                    // Show detailed error info for debugging
+                    if (errorData.details) {
+                        console.error('📋 Error details:', {
+                            missingField: errorData.details.missingField,
+                            triedFieldIds: errorData.details.triedFieldIds,
+                            receivedFields: errorData.details.receivedFields
+                        });
+                    }
                     
                     // Handle specific error cases
                     if (response.status === 401) {

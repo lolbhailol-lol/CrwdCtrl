@@ -79,25 +79,59 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     }
 
     console.log('📝 Competition form schema:', competition.registration.formSchema.length, 'fields');
-    console.log('📝 Form schema fields:', competition.registration.formSchema.map(f => ({ id: f.id, label: f.label, required: f.required })));
+    console.log('📝 Form schema fields:', competition.registration.formSchema.map(f => ({ id: f.id, fieldName: f.fieldName, label: f.label, required: f.required })));
+    console.log('📥 Received responses keys:', Object.keys(responses));
 
     // Validate required fields
     const requiredFields = competition.registration.formSchema.filter(field => field.required);
     for (const field of requiredFields) {
-      // Generate the same field ID format as frontend
-      const fieldId = field.id ? `field_${field.id}` : 
-                     field.fieldName ? field.fieldName :
-                     field.label ? `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}` :
-                     'unknown_field';
+      // Try multiple field ID formats for compatibility
+      let fieldId = null;
+      let fieldValue = null;
+
+      // Try exact field name first
+      if (field.fieldName && responses[field.fieldName]) {
+        fieldId = field.fieldName;
+        fieldValue = responses[field.fieldName];
+      }
+      // Try field.id
+      else if (field.id && responses[field.id]) {
+        fieldId = field.id;
+        fieldValue = responses[field.id];
+      }
+      // Try with field_ prefix
+      else if (field.id && responses[`field_${field.id}`]) {
+        fieldId = `field_${field.id}`;
+        fieldValue = responses[fieldId];
+      }
+      // Try generated ID from label
+      else if (field.label) {
+        const generatedId = `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+        if (responses[generatedId]) {
+          fieldId = generatedId;
+          fieldValue = responses[fieldId];
+        }
+      }
       
-      console.log('🔍 Validating field:', { fieldId, value: responses[fieldId], required: field.required });
+      console.log('🔍 Validating field:', { 
+        fieldLabel: field.label,
+        fieldId: fieldId || 'NOT_FOUND',
+        value: fieldValue,
+        required: field.required,
+        availableKeys: Object.keys(responses)
+      });
       
-      if (!responses[fieldId] || 
-          (Array.isArray(responses[fieldId]) && responses[fieldId].length === 0) ||
-          (typeof responses[fieldId] === 'string' && responses[fieldId].trim() === '')) {
-        console.log('❌ Required field missing:', fieldId);
+      if (!fieldValue || 
+          (Array.isArray(fieldValue) && fieldValue.length === 0) ||
+          (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
+        console.log('❌ Required field missing:', field.label);
         return res.status(400).json({ 
-          error: `${field.label} is required` 
+          error: `${field.label} is required`,
+          details: {
+            missingField: field.label,
+            triedFieldIds: [field.fieldName, field.id, `field_${field.id}`],
+            receivedFields: Object.keys(responses)
+          }
         });
       }
     }

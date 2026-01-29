@@ -97,9 +97,15 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             // 401 means invalid admin credentials, so continue to user login
             if (adminError?.status === 401 || adminError?.data?.message === 'Invalid admin credentials') {
                 console.log('ℹ️ [ADMIN LOGIN] Got 401 - Not admin, attempting backend user login...');
+            } else if (adminError?.status === 0 || adminError?.message?.includes('Failed to fetch')) {
+                // Network error - don't continue to user login, show error
+                console.error('🔴 [ADMIN LOGIN] Network error:', adminError);
+                setErrors({ general: 'Network error. Please check your connection and try again.' });
+                setIsLoading(false);
+                return;
             } else {
-                // Other errors (network, server errors) should be reported
-                console.error('🔴 [ADMIN LOGIN] Non-401 error:', adminError);
+                // Other errors (server errors) should be reported
+                console.error('🔴 [ADMIN LOGIN] Server error:', adminError);
                 setErrors({ general: adminError?.message || 'Login failed. Please try again.' });
                 setIsLoading(false);
                 return;
@@ -162,13 +168,19 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 data: error?.data 
             });
             
-            // If backend user login fails with 401, just show error
-            if (error?.status === 401) {
+            // Check for network errors first
+            if (error?.status === 0 || error?.message?.includes('Failed to fetch')) {
+                console.log('❌ Network error during login');
+                setErrors({ general: 'Network error. Please check your internet connection and try again.' });
+            } else if (error?.status === 401) {
                 console.log('❌ Invalid credentials for user login');
                 setErrors({ general: 'Invalid email/password. Please try again.' });
+            } else if (error?.status === 400) {
+                console.log('❌ Bad request - validation error');
+                setErrors({ general: error?.data?.message || 'Please check your input and try again.' });
             } else {
                 console.error('❌ Backend error:', error?.message);
-                setErrors({ general: handleApiError(error) });
+                setErrors({ general: handleApiError(error) || 'Login failed. Please try again.' });
             }
         } finally {
             setIsLoading(false);
