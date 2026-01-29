@@ -501,102 +501,108 @@ const submitCompetitionRegistration = async (req, res) => {
     // Get user details for emails and Google Sheets
     const user = await User.findById(userId).select('name email');
 
-    // STEP 1: Send immediate thank you email
-    try {
-      console.log('📧 Sending immediate thank you email for competition...');
-      await sendRegistrationThankYouEmail(user.email, user.name, fest.festName);
-      console.log('✅ Thank you email sent successfully');
-    } catch (emailError) {
-      console.error('⚠️ Thank you email failed (non-blocking):', emailError.message);
-      // Don't fail registration if email fails
-    }
-
-    // STEP 2: Send async confirmation email with competition name
-    setTimeout(async () => {
-      try {
-        console.log('📧 Sending async confirmation email for competition...');
-        
-        // Format submission date in Asia/Kolkata timezone
-        const submissionDate = new Date().toLocaleString('en-IN', {
-          timeZone: 'Asia/Kolkata',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-
-        await sendRegistrationConfirmationEmail(
-          user.email,
-          user.name,
-          fest.festName,
-          competition.name, // Use competition name
-          registration._id.toString(),
-          submissionDate
-        );
-        console.log('✅ Async confirmation email sent successfully');
-
-        // STEP 2.5: Send organizer notification email
-        if (fest.registration?.organizerEmail) {
-          try {
-            console.log('📧 Sending organizer notification email...');
-            await sendOrganizerNotificationEmail(
-              fest.registration.organizerEmail,
-              user.name,
-              user.email,
-              fest.festName,
-              competition.name,
-              registration._id.toString(),
-              submissionDate
-            );
-            console.log('✅ Organizer notification email sent successfully');
-          } catch (orgEmailError) {
-            console.error('⚠️ Organizer notification email failed (non-blocking):', orgEmailError.message);
-          }
-        } else {
-          console.log('ℹ️ No organizer email configured for this fest');
-        }
-      } catch (emailError) {
-        console.error('⚠️ Async confirmation email failed (non-blocking):', emailError.message);
-      }
-    }, 2000);
-
-    // STEP 3: Add to Google Sheets (same as fest registration)
-    if (fest.registration.googleSheetsUrl) {
-      setTimeout(async () => {
-        try {
-          console.log('📊 Adding registration to Google Sheets...');
-          const sheetsResult = await appendToGoogleSheets(
-            fest.registration.googleSheetsUrl,
-            processedResponses, // Use processed responses
-            {
-              festName: fest.festName,
-              collegeName: fest.collegeName,
-              competitionName: competition.name, // Add competition name
-              festId: fest._id
-            },
-            {
-              name: user.name,
-              email: user.email
-            }
-          );
-          console.log('✅ Registration added to Google Sheets successfully');
-          
-          if (!sheetsResult.success) {
-            console.warn('⚠️ Google Sheets sync failed:', sheetsResult.error);
-          }
-        } catch (sheetsError) {
-          console.error('⚠️ Google Sheets update failed (non-blocking):', sheetsError.message);
-        }
-      }, 3000);
-    }
-
+    // ✅ CRITICAL: Send success response immediately to user (don't wait for emails)
     res.status(201).json({
       message: 'Registration successful',
       registrationId: registration._id,
       festName: fest.festName,
       competitionName: competition.name
     });
+
+    // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
+    // This allows the response to be sent immediately while emails sync in background
+    setImmediate(async () => {
+      try {
+        // STEP 1: Send thank you email (async, non-blocking)
+        try {
+          console.log('📧 Sending thank you email for competition (async)...');
+          await sendRegistrationThankYouEmail(user.email, user.name, fest.festName);
+          console.log('✅ Thank you email sent successfully');
+        } catch (emailError) {
+          console.error('⚠️ Thank you email failed:', emailError.message);
+        }
+
+        // STEP 2: Send confirmation email with competition name (async, non-blocking)
+        try {
+          console.log('📧 Sending confirmation email for competition (async)...');
+          
+          // Format submission date in Asia/Kolkata timezone
+          const submissionDate = new Date().toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
+          await sendRegistrationConfirmationEmail(
+            user.email,
+            user.name,
+            fest.festName,
+            competition.name, // Use competition name
+            registration._id.toString(),
+            submissionDate
+          );
+          console.log('✅ Confirmation email sent successfully');
+
+          // STEP 2.5: Send organizer notification email
+          if (fest.registration?.organizerEmail) {
+            try {
+              console.log('📧 Sending organizer notification email (async)...');
+              await sendOrganizerNotificationEmail(
+                fest.registration.organizerEmail,
+                user.name,
+                user.email,
+                fest.festName,
+                competition.name,
+                registration._id.toString(),
+                submissionDate
+              );
+              console.log('✅ Organizer notification email sent successfully');
+            } catch (orgEmailError) {
+              console.error('⚠️ Organizer notification email failed:', orgEmailError.message);
+            }
+          } else {
+            console.log('ℹ️ No organizer email configured for this fest');
+          }
+        } catch (emailError) {
+          console.error('⚠️ Confirmation email failed:', emailError.message);
+        }
+
+        // STEP 3: Add to Google Sheets (async, non-blocking)
+        if (fest.registration.googleSheetsUrl) {
+          try {
+            console.log('📊 Adding registration to Google Sheets (async)...');
+            const sheetsResult = await appendToGoogleSheets(
+              fest.registration.googleSheetsUrl,
+              processedResponses, // Use processed responses
+              {
+                festName: fest.festName,
+                collegeName: fest.collegeName,
+                competitionName: competition.name, // Add competition name
+                festId: fest._id
+              },
+              {
+                name: user.name,
+                email: user.email
+              }
+            );
+            console.log('✅ Registration added to Google Sheets successfully');
+            
+            if (!sheetsResult.success) {
+              console.warn('⚠️ Google Sheets sync failed:', sheetsResult.error);
+            }
+          } catch (sheetsError) {
+            console.error('⚠️ Google Sheets update failed:', sheetsError.message);
+          }
+        }
+
+        console.log('🎉 All async operations completed for competition registration');
+      } catch (asyncError) {
+        console.error('⚠️ Background async operations error:', asyncError);
+      }
+    }); // <- Close the setImmediate callback
 
   } catch (error) {
     console.error('❌ Competition registration error:', error);
