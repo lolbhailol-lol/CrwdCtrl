@@ -1991,10 +1991,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                       />
                       <p className="text-xs text-gray-400">This message will be displayed with the QR code</p>
                     </div>
-                  </div>
 
-                  {/* WhatsApp Community Link (Optional) - Outside Grid */}
-                  <div className="mt-4 p-4 bg-[#1B1C1E] rounded-lg border border-gray-700">
+                    {/* WhatsApp Community Link (Optional) */}
                     <div className="space-y-2">
                       <label className="block text-sm font-medium mb-2">WhatsApp Community Link <span className="text-gray-400">(Optional)</span></label>
                       <input

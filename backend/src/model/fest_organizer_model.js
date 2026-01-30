@@ -92,6 +92,10 @@ const festOrganizerSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    whatsappCommunityLink: {
+      type: String,
+      default: ''
+    },
     // ✅ NEW: Form type configuration
     formType: {
       type: String,

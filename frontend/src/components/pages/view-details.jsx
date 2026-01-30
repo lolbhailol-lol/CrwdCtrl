@@ -296,12 +296,6 @@ function EventDetailsPage() {
   const isSaksham = eventData.title.toLowerCase() === 'saksham 4.0';
 
   const handleRegister = () => {
-    // Check authentication first
-    if (!isAuthenticated) {
-      setShowLogin(true);
-      return;
-    }
-
     // Redirect to view competitions for this particular fest
     navigate(`/competition-list/${eventData.id}`);
   };

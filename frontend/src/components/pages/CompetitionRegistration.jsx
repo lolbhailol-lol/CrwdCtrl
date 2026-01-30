@@ -1424,20 +1424,27 @@ export default function CompetitionRegistration() {
                             </div>
                         )}
 
-                        {/* WhatsApp Community Link (Optional) */}
-                        <div className="mt-4 pt-4 border-t border-gray-700">
-                            <label className="block text-sm font-semibold text-white mb-2">
-                                WhatsApp Community Link <span className="text-gray-400">(Optional)</span>
-                            </label>
-                            <input
-                                type="url"
-                                value={whatsappCommunityLink}
-                                onChange={(e) => setWhatsappCommunityLink(e.target.value)}
-                                placeholder="https://chat.whatsapp.com/... or https://whatsapp.com/..."
-                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
-                            />
-                            <p className="text-xs text-gray-400 mt-1">Share your WhatsApp community link to connect with other participants</p>
-                        </div>
+                        {/* ✅ Join WhatsApp Community (Admin-Controlled Link) */}
+                        {whatsappCommunityLink && (
+                            <div className="mt-4 pt-4 border-t border-gray-700">
+                                <label className="block text-sm font-semibold text-white mb-2">
+                                    Join WhatsApp Community
+                                </label>
+                                <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 flex items-center justify-between">
+                                    <span className="text-gray-300 text-sm truncate flex-1">
+                                        {whatsappCommunityLink}
+                                    </span>
+                                    <a
+                                        href={whatsappCommunityLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="ml-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors flex-shrink-0"
+                                    >
+                                        Open
+                                    </a>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
