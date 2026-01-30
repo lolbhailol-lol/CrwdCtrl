@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { onAuthStateChange, handleRedirectResult, signOut, auth } from '../firebase';
+import { onAuthStateChange, handleRedirectResult, signOut, auth, firebaseReady } from '../firebase';
 import { authAPI } from '../utils/api';
 import { processSocialAuthUser } from '../utils/socialAuth';
 
@@ -154,6 +154,11 @@ export const AuthProvider = ({ children }) => {
             setIsAuthProcessing(true);
             
             try {
+                // ✅ CRITICAL: Wait for Firebase to be fully initialized first
+                console.log('⏳ Waiting for Firebase to be ready...');
+                await firebaseReady;
+                console.log('✅ Firebase is ready');
+                
                 // Step 1: Check for any pending redirect result (cleanup only)
                 console.log('🔍 Checking for pending redirect result...');
                 const result = await handleRedirectResult();
