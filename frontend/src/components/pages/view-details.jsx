@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Bell, User, Home, ChevronRight, Sun, Moon, Phone, Instagram, Mail, ArrowLeft, Share, MoreHorizontal } from 'lucide-react';
+import { Search, Bell, User, Home, ChevronRight,ChevronLeft, Sun, Moon, Phone, Instagram, Mail, ArrowLeft, Share, MoreHorizontal } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import shareIcon from '../../assets/share.svg';
 import calendarIcon from '../../assets/calendar.svg';
@@ -631,65 +631,75 @@ function EventDetailsPage() {
                   </h2>
                 </div>
                 {eventData.artists && eventData.artists.length > 0 && (
-                  <div className={`${isDark ? 'bg-[#1B1C1E] rounded-2xl' : 'bg-white-100 rounded-2xl'} w-full`}>
+                    <div className={`${isDark ? 'bg-[#1B1C1E] rounded-2xl' : 'bg-white-100 rounded-2xl'} w-full`}>
 
-                    {/* Artist Card */}
-                    <div className={`w-full max-w-full rounded-2xl overflow-hidden duration-300 
-                      ${isDark
-                        ? 'bg-[#1B1C1E] border-8 border-[#1B1C1E]'
-                        : 'bg-[#F5F6FA] border-8 border-[#F5F6FA]'
+                      {/* Artist Card */}
+                      <div className={`w-full max-w-full rounded-2xl overflow-hidden duration-300 
+      ${isDark
+                          ? 'bg-[#1B1C1E] border-8 border-[#1B1C1E]'
+                          : 'bg-[#F5F6FA] border-8 border-[#F5F6FA]'
                       }`}
-                    >
-                      <div className="relative h-[280px] sm:h-[300px] overflow-hidden">
-                        <img
-                          src={getImageUrl(eventData.artists[currentArtist].image)}
-                          alt={eventData.artists[currentArtist].name}
-                          className="w-full h-full object-cover transition-transform duration-300 rounded-[16px]"
-                          onError={(e) => {
-                            handleImageErrorWithFallback(e, 300, 300, '#6366f1', eventData.artists[currentArtist].name || 'Artist');
-                          }}
-                        />
+                      >
+                        <div className="relative h-[280px] sm:h-[300px] overflow-hidden">
+                          <img
+                              src={getImageUrl(eventData.artists[currentArtist].image)}
+                              alt={eventData.artists[currentArtist].name}
+                              className="w-full h-full object-cover transition-transform duration-300 rounded-[16px]"
+                              onError={(e) => {
+                                handleImageErrorWithFallback(e, 300, 300, '#6366f1', eventData.artists[currentArtist].name || 'Artist');
+                              }}
+                          />
 
-                        {/* Navigation arrows for multiple artists */}
-                        {eventData.artists.length > 1 && (
-                          <>
-                            <button
-                              onClick={() => setCurrentArtist(currentArtist === eventData.artists.length - 1 ? 0 : currentArtist + 1)}
-                              className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 backdrop-blur-sm text-white rounded-full hover:bg-black/50 transition-all duration-300 flex items-center justify-center"
-                              title="Next Artist"
-                            >
-                              <ChevronRight size={16} className="sm:w-5 sm:h-5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
+                          {/* Navigation arrows for multiple artists */}
+                          {eventData.artists.length > 1 && (
+                              <>
+                                {/* Left Arrow */}
+                                <button
+                                    onClick={() => setCurrentArtist(currentArtist === 0 ? eventData.artists.length - 1 : currentArtist - 1)}
+                                    className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 backdrop-blur-sm text-white rounded-full hover:bg-black/50 transition-all duration-300 flex items-center justify-center"
+                                    title="Previous Artist"
+                                >
+                                  <ChevronLeft size={16} className="sm:w-5 sm:h-5" />
+                                </button>
 
-                      <div className={`p-4 sm:p-5 rounded-[16px] ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
-                        {/* Artist Name */}
-                        <div className="mb-2">
-                          <h3 className={`text-lg sm:text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {eventData.artists[currentArtist].name}
-                          </h3>
-                          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {eventData.artists[currentArtist].genre}
-                          </p>
+                                {/* Right Arrow */}
+                                <button
+                                    onClick={() => setCurrentArtist(currentArtist === eventData.artists.length - 1 ? 0 : currentArtist + 1)}
+                                    className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 backdrop-blur-sm text-white rounded-full hover:bg-black/50 transition-all duration-300 flex items-center justify-center"
+                                    title="Next Artist"
+                                >
+                                  <ChevronRight size={16} className="sm:w-5 sm:h-5" />
+                                </button>
+                              </>
+                          )}
                         </div>
 
-                        {/* Event Details */}
-                        <div className="space-y-1 mb-3">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                {eventData.venue}
-                              </p>
-                              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-900'}`}>
-                                {eventData.artists[currentArtist].message || 'No message available'}
-                              </p>
+                        <div className={`p-4 sm:p-5 rounded-[16px] ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+                          {/* Artist Name */}
+                          <div className="mb-2">
+                            <h3 className={`text-lg sm:text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {eventData.artists[currentArtist].name}
+                            </h3>
+                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {eventData.artists[currentArtist].genre}
+                            </p>
+                          </div>
+
+                          {/* Event Details */}
+                          <div className="space-y-1 mb-3">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                  {eventData.venue}
+                                </p>
+                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-900'}`}>
+                                  {eventData.artists[currentArtist].message || 'No message available'}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
                     {/* Carousel dots */}
                     {eventData.artists.length > 1 && (
