@@ -57,8 +57,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             console.log('🔐 [ADMIN LOGIN] Full response:', JSON.stringify(adminData, null, 2));
             console.log('🔐 [ADMIN LOGIN] Response keys:', Object.keys(adminData || {}));
 
-            // Backend returns: { success: true, accessToken: "...", refreshToken: "...", user: {...} }
-            // But may also return { success: true, token: "...", user: {...} }
             const accessToken = adminData?.accessToken || adminData?.token;
             const refreshToken = adminData?.refreshToken;
 
@@ -69,7 +67,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             });
 
             if (accessToken) {
-                // Store both access and refresh tokens
                 localStorage.setItem('admin_token', accessToken);
                 if (refreshToken) {
                     localStorage.setItem('admin_refresh_token', refreshToken);
@@ -94,17 +91,14 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 data: adminError?.data
             });
             
-            // 401 means invalid admin credentials, so continue to user login
             if (adminError?.status === 401 || adminError?.data?.message === 'Invalid admin credentials') {
                 console.log('ℹ️ [ADMIN LOGIN] Got 401 - Not admin, attempting backend user login...');
             } else if (adminError?.status === 0 || adminError?.message?.includes('Failed to fetch')) {
-                // Network error - don't continue to user login, show error
                 console.error('🔴 [ADMIN LOGIN] Network error:', adminError);
                 setErrors({ general: 'Network error. Please check your connection and try again.' });
                 setIsLoading(false);
                 return;
             } else {
-                // Other errors (server errors) should be reported
                 console.error('🔴 [ADMIN LOGIN] Server error:', adminError);
                 setErrors({ general: adminError?.message || 'Login failed. Please try again.' });
                 setIsLoading(false);
@@ -112,7 +106,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             }
         }
 
-        // Try backend user login (simple email/password)
+        // Try backend user login
         try {
             console.log('👤 Attempting backend user login with:', { email: emailOrPhone.trim() });
             const response = await authAPI.login({
@@ -122,7 +116,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
             console.log('👤 Backend login response:', response);
 
-            // Backend returns: { success: true, message: 'Login successful', data: { user: {...}, token: "..." } }
             if (!response?.success) {
                 console.error('❌ Backend login not successful:', response);
                 setErrors({ general: response?.message || 'Login failed.' });
@@ -147,18 +140,18 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             }
 
             // Store user token and update AuthContext
-            localStorage.setItem('user_token', userToken);
-            login({ ...userData, token: userToken });
+            login({
+                ...userData,
+                token: userToken
+            });
             
             console.log('✅ Backend user login successful');
 
-            // Navigate to user dashboard
             if (onClose) {
                 onClose();
             }
-            // If no onClose provided (full page login), stay on page
 
-            return; // IMPORTANT: Exit after successful login
+            return;
 
         } catch (error) {
             console.error('❌ Backend user login error:', error);
@@ -168,7 +161,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 data: error?.data 
             });
             
-            // Check for network errors first
             if (error?.status === 0 || error?.message?.includes('Failed to fetch')) {
                 console.log('❌ Network error during login');
                 setErrors({ general: 'Network error. Please check your internet connection and try again.' });
@@ -191,176 +183,205 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         if (onClose) {
             onClose();
         }
-        // If no onClose provided, stay on page
     };
 
+    // ✅ UNIFIED GOOGLE AUTHENTICATION - Works for both mobile and desktop
     const handleGoogleAuth = async () => {
         setIsLoading(true);
         setErrors({});
 
-        console.log('🚀 Starting Google authentication...');
-        console.log('📱 Device info:', {
-            userAgent: navigator.userAgent,
-            innerWidth: window.innerWidth,
-            innerHeight: window.innerHeight,
-            touchPoints: navigator.maxTouchPoints,
-            platform: navigator.platform
-        });
-
-        // ✅ MOBILE FIX: Add retry logic for mobile devices
+        console.log('🚀 Starting unified Google authentication...');
+        
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const maxAttempts = isMobile ? 3 : 1;
+        console.log('📱 Device detected:', isMobile ? 'Mobile' : 'Desktop');
+
+        const maxAttempts = 3;
+        const retryDelay = 1500;
         
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                console.log(`📍 Google auth attempt ${attempt}/${maxAttempts}...`);
+                console.log(`🔄 Google auth attempt ${attempt}/${maxAttempts}...`);
                 
                 const result = await signInWithGoogle();
                 console.log('📊 Google auth result:', { 
                     success: result.success, 
                     method: result.method,
-                    redirectInitiated: result.redirectInitiated,
                     error: result.error,
                     code: result.code,
+                    hasUser: !!result.user,
                     attempt
                 });
 
+                // Handle success
+                if (result.success && result.user) {
+                    console.log('✅ Google authentication successful:', result.user.email);
+                    await processSuccessfulAuth(result.user);
+                    return;
+                }
+
+                // Handle redirect case
+                if (result.redirectInitiated) {
+                    console.log('🔄 Redirect initiated, waiting for completion...');
+                    setErrors({ 
+                        general: result.message || 'Redirecting to Google... Please wait.' 
+                    });
+                    return;
+                }
+
+                // Handle failure cases
                 if (!result.success) {
                     console.error('❌ Google auth failed:', result.error);
                     
-                    // ✅ Handle in-app browser warning
+                    // Special case: In-app browser warning
                     if (result.code === 'auth/in-app-browser' && result.showOpenInBrowser) {
                         setErrors({ 
                             general: result.error,
                             showOpenInBrowser: true
                         });
-                    } else if (attempt < maxAttempts && isMobile) {
-                        // ✅ On mobile, wait and retry if it's not the last attempt
-                        console.log(`⏳ Mobile retry in 1 second (attempt ${attempt}/${maxAttempts})...`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        continue;
-                    } else {
-                        setErrors({ general: result.error });
+                        setIsLoading(false);
+                        return;
                     }
+                    
+                    // Determine if we should retry
+                    const retryableErrors = [
+                        'auth/popup-blocked',
+                        'auth/popup-closed-by-user',
+                        'auth/network-request-failed',
+                        'auth/cancelled-popup-request'
+                    ];
+                    
+                    if (attempt < maxAttempts && retryableErrors.includes(result.code)) {
+                        console.log(`⏳ Retrying in ${retryDelay}ms (${result.code})...`);
+                        await new Promise(resolve => setTimeout(resolve, retryDelay));
+                        continue;
+                    }
+                    
+                    setErrors({ general: result.error });
                     setIsLoading(false);
                     return;
                 }
 
-                // ✅ Handle redirect fallback case (rare)
-                if (result.redirectInitiated) {
-                    console.log('🔄 Redirect fallback initiated - page will reload automatically...');
-                    setErrors({ 
-                        general: result.message || 'Popup blocked. Redirecting to Google sign-in... Please wait.' 
-                    });
-                    return; // Exit here - redirect will handle the rest
-                }
-
-                // ✅ Handle successful popup authentication
+                // Handle missing user data
                 if (!result.user) {
-                    console.error('❌ No user data in result');
-                    if (attempt < maxAttempts && isMobile) {
-                        console.log(`⏳ Mobile retry in 1 second (no user data)...`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    console.error('❌ No user data received');
+                    
+                    if (attempt < maxAttempts) {
+                        console.log(`⏳ Retrying for missing user data in ${retryDelay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, retryDelay));
                         continue;
                     }
+                    
                     setErrors({ general: 'Authentication failed. Please try again.' });
                     setIsLoading(false);
                     return;
                 }
 
-                const { user } = result;
-                console.log('✅ User authenticated via popup:', user.email);
-
-                // Process user data for backend
-                const socialAuthData = processSocialAuthUser(user, 'google');
-                socialAuthData.isVerified = true;
-
-                try {
-                    console.log('🔄 Syncing with backend...');
-                    const data = await authAPI.socialAuth(socialAuthData);
-                    console.log('✅ Backend sync successful');
-
-                    // Auto login after successful social authentication
-                    login({
-                        ...data.data.user,
-                        token: data.data.token
-                    }, user);
-
-                } catch (backendError) {
-                    console.error('❌ Backend social auth failed:', backendError);
-                    
-                    // ✅ Enhanced fallback with network error detection
-                    if (backendError.status === 0 || 
-                        backendError.networkError || 
-                        backendError.message?.includes('fetch')) {
-                        
-                        console.log('🔄 Network error detected, using Firebase-only fallback...');
-                        
-                        // Fallback: Login with Firebase user data only
-                        const fallbackUser = {
-                            _id: user.uid,
-                            name: user.displayName || 'Google User',
-                            email: user.email,
-                            role: 'student',
-                            isVerified: true,
-                            provider: 'google',
-                            profilePic: user.photoURL
-                        };
-                        
-                        const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
-                        
-                        login({
-                            ...fallbackUser,
-                            token: fallbackToken
-                        }, user);
-                        
-                        console.log('✅ Fallback authentication successful');
-                    } else {
-                        // Other backend errors
-                        setErrors({ 
-                            general: 'Authentication failed. Please try again or contact support.' 
-                        });
-                        setIsLoading(false);
-                        return;
-                    }
-                }
-
-                // ✅ Success - Navigate to dashboard
-                console.log('✅ Authentication complete, navigating...');
-                if (onClose) {
-                    onClose();
-                }
-                // If no onClose provided, stay on current page
-                return; // Exit after successful authentication
-
             } catch (error) {
-                console.error(`❌ Google authentication error (attempt ${attempt}/${maxAttempts}):`, error);
+                console.error(`❌ Google auth error (attempt ${attempt}/${maxAttempts}):`, error);
                 
-                if (attempt < maxAttempts && isMobile) {
-                    // ✅ On mobile, retry if not the last attempt
-                    console.log(`⏳ Mobile retry in 1 second (error: ${error.message})...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                const retryableErrors = [
+                    'auth/popup-blocked',
+                    'auth/popup-closed-by-user',
+                    'auth/cancelled-popup-request',
+                    'auth/network-request-failed'
+                ];
+                
+                const shouldRetry = attempt < maxAttempts && (
+                    retryableErrors.includes(error.code) ||
+                    error.name === 'AbortError' ||
+                    error.message?.includes('network') ||
+                    error.message?.includes('fetch')
+                );
+                
+                if (shouldRetry) {
+                    console.log(`⏳ Retrying after error in ${retryDelay}ms (${error.code || error.message})...`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
                     continue;
                 }
                 
-                // ✅ Comprehensive error handling
                 let errorMessage = 'Google sign-in failed. Please try again.';
-
-                if (error.message?.includes('network') || error.message?.includes('fetch')) {
-                    errorMessage = 'Network error. Please check your internet connection and try again.';
-                } else if (error.message?.includes('unauthorized-domain')) {
-                    errorMessage = 'This website is not authorized for Google sign-in. Please contact support.';
-                } else if (error.message?.includes('popup-blocked')) {
-                    errorMessage = 'Popup was blocked. Please allow popups for this site or try again.';
-                } else if (error.message?.includes('operation-not-allowed')) {
-                    errorMessage = 'Google sign-in is not enabled. Please contact support.';
+                
+                if (error.code === 'auth/popup-blocked') {
+                    errorMessage = 'Popup was blocked. Please allow popups and try again.';
+                } else if (error.code === 'auth/popup-closed-by-user') {
+                    errorMessage = 'Sign-in was cancelled. Please try again.';
+                } else if (error.code === 'auth/network-request-failed' || error.message?.includes('network')) {
+                    errorMessage = 'Network error. Please check your connection and try again.';
+                } else if (error.code === 'auth/unauthorized-domain') {
+                    errorMessage = 'This domain is not authorized. Please contact support.';
                 }
-
+                
                 setErrors({ general: errorMessage });
+                break;
             }
         }
         
         setIsLoading(false);
+    };
+
+    // Process successful authentication
+    const processSuccessfulAuth = async (user) => {
+        try {
+            console.log('🔄 Processing successful authentication...');
+            
+            const socialAuthData = processSocialAuthUser(user, 'google');
+            socialAuthData.isVerified = true;
+
+            try {
+                console.log('🔄 Syncing with backend...');
+                const data = await authAPI.socialAuth(socialAuthData);
+                console.log('✅ Backend sync successful');
+
+                login({
+                    ...data.data.user,
+                    token: data.data.token
+                }, user);
+
+            } catch (backendError) {
+                console.error('❌ Backend sync failed:', backendError);
+                
+                if (backendError.status === 0 || 
+                    backendError.networkError || 
+                    backendError.message?.includes('fetch')) {
+                    
+                    console.log('🔄 Using Firebase-only fallback...');
+                    
+                    const fallbackUser = {
+                        _id: user.uid,
+                        name: user.displayName || 'Google User',
+                        email: user.email,
+                        role: 'student',
+                        isVerified: true,
+                        provider: 'google',
+                        profilePic: user.photoURL
+                    };
+                    
+                    const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
+                    
+                    login({
+                        ...fallbackUser,
+                        token: fallbackToken
+                    }, user);
+                    
+                    console.log('✅ Fallback authentication successful');
+                } else {
+                    throw backendError;
+                }
+            }
+
+            console.log('✅ Authentication complete');
+            if (onClose) {
+                onClose();
+            }
+            
+        } catch (error) {
+            console.error('❌ Auth processing failed:', error);
+            setErrors({ 
+                general: 'Authentication failed. Please try again or contact support.' 
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleFacebookAuth = async () => {
@@ -380,7 +401,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             if (!result.success) {
                 console.error('❌ Facebook auth failed:', result.error);
                 
-                // ✅ Handle in-app browser warning
                 if (result.code === 'auth/in-app-browser' && result.showOpenInBrowser) {
                     setErrors({ 
                         general: result.error,
@@ -393,13 +413,12 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 return;
             }
 
-            // ✅ Handle redirect fallback case (rare)
             if (result.redirectInitiated) {
                 console.log('🔄 Facebook redirect fallback initiated - page will reload automatically...');
                 setErrors({ 
                     general: result.message || 'Popup blocked. Redirecting to Facebook... Please wait.' 
                 });
-                return; // Don't set loading to false - redirect is in progress
+                return;
             }
 
             if (!result.user) {
@@ -412,7 +431,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             const { user } = result;
             console.log('✅ Facebook user authenticated via popup:', user.email);
 
-            // Process user data for backend
             const socialAuthData = processSocialAuthUser(user, 'facebook');
             socialAuthData.isVerified = true;
 
@@ -421,7 +439,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 const data = await authAPI.socialAuth(socialAuthData);
                 console.log('✅ Facebook backend sync successful');
 
-                // Auto login after successful social authentication
                 login({
                     ...data.data.user,
                     token: data.data.token
@@ -430,11 +447,9 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             } catch (backendError) {
                 console.error('❌ Facebook backend social auth failed:', backendError);
                 
-                // ✅ Enhanced fallback with better error handling
                 if (backendError.status === 0 || backendError.networkError) {
                     console.log('🔄 Network error detected, using Facebook Firebase-only fallback...');
                     
-                    // Fallback: Login with Firebase user data only
                     const fallbackUser = {
                         _id: user.uid,
                         name: user.displayName || 'Facebook User',
@@ -462,12 +477,10 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 }
             }
 
-            // ✅ Success - Navigate to dashboard
             console.log('✅ Facebook authentication complete, navigating...');
             if (onClose) {
                 onClose();
             }
-            // If no onClose provided, stay on current page
         } catch (error) {
             console.error('❌ Facebook authentication error:', error);
             
@@ -489,7 +502,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             
             setErrors({ general: errorMessage });
         } finally {
-            // Only set loading to false if not redirecting
             if (!errors.general || !errors.general.includes('Redirecting')) {
                 setIsLoading(false);
             }
@@ -501,7 +513,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             {/* Background overlay with blur */}
             <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
 
-            {/* Login Modal Container - Fixed positioning with proper centering */}
+            {/* Login Modal Container */}
             <div className="fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto">
                 <div
                     className={`relative rounded-2xl shadow-2xl w-full max-w-xs sm:max-w-sm p-4 sm:p-6 transition-colors duration-300 my-8
@@ -530,19 +542,15 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         {errors.general && (
                             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
                                 <span className="block sm:inline">{errors.general}</span>
-                                {/* ✅ Open in Browser Button for In-App Browser Warning */}
                                 {errors.showOpenInBrowser && (
                                     <button
                                         onClick={() => {
-                                            // Try to open in default browser
                                             const currentUrl = window.location.href;
-                                            // For iOS
                                             if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
                                                 window.open(`googlechrome://${currentUrl}`, '_blank') || 
                                                 window.open(`firefox://open-url?url=${encodeURIComponent(currentUrl)}`, '_blank') ||
                                                 window.open(currentUrl, '_blank');
                                             } else {
-                                                // For Android and others
                                                 window.open(`intent://${currentUrl.replace(/https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`, '_blank') ||
                                                 window.open(currentUrl, '_blank');
                                             }
@@ -555,7 +563,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                             </div>
                         )}
 
-                        {/* Email or Phone Input */}
+                        {/* Email Input */}
                         <div>
                             <input
                                 type="text"
@@ -617,7 +625,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         <div className="absolute inset-0 flex items-center">
                             <div className={`w-full border-t ${isDark ? 'border-gray-700' : 'border-gray-300'}`}></div>
                         </div>
-
                         <div className={`relative flex justify-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             <span className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} px-4`}>
                                 or continue with
