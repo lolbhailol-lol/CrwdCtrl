@@ -278,6 +278,40 @@ function EventPage() {
 
     const isRegistered = registeredEvents.some(event => event.id === eventData?.id);
 
+    // Helper function to check if custom internal form is properly configured
+    const isCustomFormConfigured = () => {
+        if (eventData?.registrationType !== 'custom' || eventData?.registration?.status !== 'internal_form') {
+            return true; // Not a custom form, so return true (not applicable)
+        }
+        
+        const formType = eventData?.registration?.formType || 'SINGLE_STEP';
+        let hasFormFields = false;
+        
+        if (formType === 'SINGLE_STEP') {
+            // Check SINGLE_STEP formSchema
+            const formSchema = eventData?.registration?.formSchema || [];
+            hasFormFields = Array.isArray(formSchema) && formSchema.length > 0;
+        } else if (formType === 'MULTI_STEP') {
+            // Check MULTI_STEP steps with fields
+            const steps = eventData?.registration?.steps || [];
+            hasFormFields = steps.length > 0 && steps.some(step => step.fields && step.fields.length > 0);
+        }
+        
+        console.log('🔍 Form configuration check:', {
+            formType,
+            isCustomForm: true,
+            hasFormFields,
+            singleStepLength: eventData?.registration?.formSchema?.length || 0,
+            multiStepCount: eventData?.registration?.steps?.length || 0,
+            multiStepFields: eventData?.registration?.steps?.map(s => ({ 
+                stepNumber: s.stepNumber, 
+                fieldsCount: s.fields?.length || 0 
+            }))
+        });
+        
+        return hasFormFields;
+    };
+
     // Helper function to determine registration availability
     const getRegistrationStatus = () => {
         const registrationType = eventData?.registrationType || 'fest';
@@ -316,6 +350,18 @@ function EventPage() {
                 isDisabled: mode === 'NOT_STARTED' || mode === 'CLOSED'
             };
         } else if (registrationType === 'custom') {
+            // Check if form is properly configured
+            const isConfigured = isCustomFormConfigured();
+            
+            if (!isConfigured) {
+                return {
+                    isAvailable: false,
+                    buttonText: 'Form Not Configured',
+                    isDisabled: true,
+                    notConfigured: true
+                };
+            }
+            
             return {
                 isAvailable: registrationStatus === 'external_link' || registrationStatus === 'internal_form',
                 buttonText: registrationStatus === 'not_started' ? 'Registrations Not Started' : 
@@ -350,6 +396,13 @@ function EventPage() {
             registrationConfig: eventData?.registration,
             festRegistration: eventData?.fest?.registration
         });
+        
+        // Check if custom form is properly configured
+        if (registrationType === 'custom' && !isCustomFormConfigured()) {
+            console.error('❌ Custom form not configured');
+            alert('This competition\'s registration form is not properly configured. Please contact the organizers to set up the form.');
+            return;
+        }
         
         if (registrationType === 'fest') {
             console.log('📋 Using fest registration system');
@@ -1149,6 +1202,21 @@ function EventPage() {
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Warning: Form Not Configured */}
+                                    {registrationInfo.notConfigured && (
+                                        <div className={`mt-4 p-4 rounded-lg border ${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
+                                            <div className="flex items-start gap-3">
+                                                <span className="text-yellow-500 text-lg">⚠️</span>
+                                                <div>
+                                                    <p className={`font-semibold ${isDark ? 'text-yellow-300' : 'text-yellow-800'}`}>Registration Form Not Ready</p>
+                                                    <p className={`text-sm mt-1 ${isDark ? 'text-yellow-200/80' : 'text-yellow-700'}`}>
+                                                        This competition's registration form hasn't been set up yet. Please contact the organizers to complete the configuration.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Competition Rounds */}

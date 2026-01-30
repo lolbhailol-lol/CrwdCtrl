@@ -1060,6 +1060,8 @@ export default function CompetitionRegistration() {
                 localStorage.removeItem('crwdctrl_token');
                 localStorage.removeItem('crwdctrl_user');
                 setTimeout(() => navigate('/login'), 2000);
+            } else if (err.message.includes('not configured') || err.message.includes('form field')) {
+                setError('❌ This competition\'s registration form is not properly configured. Please contact the organizer to set up the registration form.');
             } else if (err.message.includes('required')) {
                 setError(err.message); // Field validation errors
             } else if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {

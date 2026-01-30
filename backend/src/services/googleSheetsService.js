@@ -99,6 +99,8 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
       let matchedFieldId = null;
       
       // Try multiple key formats to find the value
+      // Priority: fieldName > id variations > label-based > position-based fallback
+      
       // 1. Try exact fieldName
       if (field.fieldName && responses[field.fieldName] !== undefined) {
         fieldValue = responses[field.fieldName];
@@ -127,7 +129,22 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
         }
       }
       
-      // If still not found, try all keys in responses and log what we tried
+      // 5. Fallback: If no exact match, try field_ prefix variations of the ID
+      if ((fieldValue === null || fieldValue === undefined) && field.id) {
+        // Try the plain ID without any prefix
+        const allResponseKeys = Object.keys(responses).filter(k => k.startsWith('field_'));
+        if (allResponseKeys.length > 0) {
+          // Use position-based matching if we know the field position
+          const fieldIndex = formSchema.indexOf(field);
+          if (fieldIndex >= 0 && fieldIndex < allResponseKeys.length) {
+            fieldValue = responses[allResponseKeys[fieldIndex]];
+            matchedFieldId = allResponseKeys[fieldIndex];
+            console.log('✅ Matched by position fallback:', field.label, '→', matchedFieldId, 'at index', fieldIndex);
+          }
+        }
+      }
+      
+      // If still not found, log what we tried
       if (fieldValue === null || fieldValue === undefined) {
         console.log('❌ NO MATCH FOUND for field:', field.label);
         console.log('   Tried keys:', [field.fieldName, field.id, `field_${field.id}`, `field_${field.label?.toLowerCase().replace(/[^a-z0-9]/g, '_')}`]);

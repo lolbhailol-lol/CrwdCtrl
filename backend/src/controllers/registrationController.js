@@ -100,14 +100,73 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       return res.status(400).json({ error: 'Internal form registration is not available for this competition' });
     }
 
-    // Validate form schema
-    if (!competition.registration?.formSchema || competition.registration.formSchema.length === 0) {
-      console.log('❌ No form schema configured');
-      return res.status(400).json({ error: 'Registration form is not configured for this competition' });
+    // Validate form schema - check both SINGLE_STEP and MULTI_STEP forms
+    const formType = competition.registration?.formType || 'SINGLE_STEP';
+    let hasFormFields = false;
+    let fieldsCount = 0;
+
+    if (formType === 'SINGLE_STEP') {
+      // For SINGLE_STEP: check formSchema
+      hasFormFields = competition.registration?.formSchema && competition.registration.formSchema.length > 0;
+      fieldsCount = competition.registration?.formSchema?.length || 0;
+    } else if (formType === 'MULTI_STEP') {
+      // For MULTI_STEP: check steps and their fields
+      const steps = competition.registration?.steps || [];
+      hasFormFields = steps.length > 0 && steps.some(step => step.fields && step.fields.length > 0);
+      fieldsCount = steps.reduce((total, step) => total + (step.fields?.length || 0), 0);
     }
 
-    console.log('📝 Competition form schema:', competition.registration.formSchema.length, 'fields');
-    console.log('📝 Form schema fields:', competition.registration.formSchema.map(f => ({ id: f.id, fieldName: f.fieldName, label: f.label, required: f.required })));
+    console.log('🔍 DETAILED FORM VALIDATION:', {
+      formType,
+      hasFormFields,
+      fieldsCount,
+      singleStepSchema: competition.registration?.formSchema?.length || 0,
+      multiStepCount: competition.registration?.steps?.length || 0,
+      multiStepFields: competition.registration?.steps?.map(s => ({ 
+        stepNumber: s.stepNumber, 
+        fieldsCount: s.fields?.length || 0 
+      }))
+    });
+
+    if (!hasFormFields) {
+      console.log('❌ No form fields configured');
+      console.log('🔍 Debug info:', {
+        formType,
+        hasFormSchema: !!competition.registration?.formSchema,
+        schemaLength: competition.registration?.formSchema?.length,
+        stepsCount: competition.registration?.steps?.length,
+        fullRegistration: competition.registration,
+        competitionName: competition.name,
+        competitionId: competitionId,
+        allRegistrationKeys: Object.keys(competition.registration || {})
+      });
+      return res.status(400).json({ 
+        error: 'Registration form is not configured for this competition. Please add at least one form field in the admin panel.',
+        debug: {
+          formType,
+          hasFormSchema: !!competition.registration?.formSchema,
+          schemaLength: competition.registration?.formSchema?.length,
+          stepsCount: competition.registration?.steps?.length,
+          registrationStatus: competition.registration?.status,
+          allRegistrationKeys: Object.keys(competition.registration || {})
+        }
+      });
+    }
+
+    // ✅ Get form schema based on form type
+    let formSchemaToValidate = [];
+    if (formType === 'SINGLE_STEP') {
+      formSchemaToValidate = competition.registration?.formSchema || [];
+    } else if (formType === 'MULTI_STEP') {
+      // For MULTI_STEP, combine all fields from all steps
+      formSchemaToValidate = (competition.registration?.steps || []).reduce((allFields, step) => {
+        return allFields.concat(step.fields || []);
+      }, []);
+    }
+
+    console.log('📝 Competition form type:', formType);
+    console.log('📝 Total form fields:', formSchemaToValidate.length);
+    console.log('📝 Form fields:', formSchemaToValidate.map(f => ({ id: f.id, fieldName: f.fieldName, label: f.label, required: f.required })));
     console.log('📥 Received responses keys:', Object.keys(responses));
 
     // ✅ NEW: Handle file uploads - store file info in responses
@@ -159,7 +218,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     }
 
     // Validate required fields
-    const requiredFields = competition.registration.formSchema.filter(field => field.required);
+    const requiredFields = formSchemaToValidate.filter(field => field.required);
     for (const field of requiredFields) {
       // Try multiple field ID formats for compatibility
       let fieldId = null;
@@ -345,6 +404,25 @@ const submitCustomCompetitionRegistration = async (req, res) => {
           try {
             console.log('📊 Adding registration to Google Sheets (async)...');
             const { appendToCompetitionGoogleSheets } = require('../services/googleSheetsService');
+            
+            // Get form schema based on form type
+            let formSchema = [];
+            const formType = competition.registration?.formType || 'SINGLE_STEP';
+            if (formType === 'SINGLE_STEP') {
+              formSchema = competition.registration?.formSchema || [];
+            } else if (formType === 'MULTI_STEP') {
+              // For MULTI_STEP, combine all fields from all steps
+              formSchema = (competition.registration?.steps || []).reduce((allFields, step) => {
+                return allFields.concat(step.fields || []);
+              }, []);
+            }
+            
+            console.log('📊 Form schema for Google Sheets:', {
+              formType,
+              totalFields: formSchema.length,
+              responses: Object.keys(responses)
+            });
+            
             await appendToCompetitionGoogleSheets(
               competition.registration.googleSheetsUrl,
               responses,
@@ -359,7 +437,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
                 email: user.email,
                 phone: user.phoneNumber
               },
-              competition.registration.formSchema
+              formSchema
             );
             console.log('✅ Data sent to Google Sheets successfully (async)');
           } catch (sheetsError) {
