@@ -2085,7 +2085,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                           qrCode: data.urls[0].url
                                         }
                                       });
-                                    } catch (err) {
+                                    } catch (error) {
+                                      console.error('Payment QR upload error:', error?.message);
                                       setError('Failed to upload payment QR');
                                     } finally {
                                       setUploadingImage(false);
@@ -2129,6 +2130,27 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                               })}
                             />
                             <p className="text-xs text-gray-400">This message will be displayed with the QR code</p>
+                          </div>
+                        </div>
+
+                        {/* WhatsApp Community Link (Optional) - Outside Grid */}
+                        <div className="mt-4 p-4 bg-[#1B1C1E] rounded-lg border border-gray-700">
+                          <div className="space-y-2">
+                            <label className="block text-sm font-medium mb-2">WhatsApp Community Link <span className="text-gray-400">(Optional)</span></label>
+                            <input
+                              type="url"
+                              placeholder="https://chat.whatsapp.com/... (optional - for participants to join)"
+                              className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                              value={form.registration?.whatsappCommunityLink || ''}
+                              onChange={(e) => setForm({
+                                ...form,
+                                registration: {
+                                  ...form.registration,
+                                  whatsappCommunityLink: e.target.value
+                                }
+                              })}
+                            />
+                            <p className="text-xs text-gray-400">Share a WhatsApp community link for participants to join after registration</p>
                           </div>
                         </div>
                       </div>

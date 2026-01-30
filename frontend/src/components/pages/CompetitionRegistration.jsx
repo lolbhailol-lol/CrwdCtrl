@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -9,7 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 export default function CompetitionRegistration() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
-    const { isAuthenticated, apiCall, isLoading: authLoading, user, token } = useAuth();
+    const { isAuthenticated, isLoading: authLoading, token } = useAuth();
     
     const [competition, setCompetition] = useState(null);
     const [formData, setFormData] = useState({});
@@ -29,7 +29,130 @@ export default function CompetitionRegistration() {
     const [uploadingReceipt, setUploadingReceipt] = useState(false);
     const [receiptError, setReceiptError] = useState('');
     const [transactionId, setTransactionId] = useState('');
+    const [whatsappCommunityLink, setWhatsappCommunityLink] = useState('');
 
+    // Helper function to generate consistent field IDs
+    const generateFieldId = (field) => {
+        // Priority 1: use fieldName directly (this is what backend expects)
+        if (field.fieldName) {
+            console.log(`🔑 Using fieldName for "${field.label}":`, field.fieldName);
+            return field.fieldName;
+        }
+        // Priority 2: use field.id directly (without field_ prefix)
+        if (field.id) {
+            console.log(`🔑 Using id for "${field.label}":`, field.id);
+            return field.id;
+        }
+        // Priority 3: generate from label as fallback (if label exists)
+        if (field.label) {
+            // More robust label sanitization - match backend logic
+            // Remove 'field_' prefix if it already exists to avoid duplication
+            let labelToSanitize = field.label;
+            if (labelToSanitize.startsWith('field_')) {
+                labelToSanitize = labelToSanitize.substring(6); // Remove 'field_' prefix
+            }
+            const sanitized = `field_${labelToSanitize.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+            console.log(`🔑 Generated ID for "${field.label}":`, sanitized);
+            return sanitized;
+        }
+        console.warn(`🔑 No ID could be generated for field:`, field);
+        return 'unknown_field';
+    };
+
+    // ✅ DEFINE fetchCompetitionDetails BEFORE useEffect that uses it
+    const fetchCompetitionDetails = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch competition details');
+            }
+            const data = await response.json();
+            console.log('🏆 Competition data for registration:', data);
+            console.log('🔧 Registration type:', data.registrationType);
+            console.log('📝 Registration status:', data.registration?.status);
+            console.log('🎯 QR Code:', data.registration?.qrCode);
+            console.log('💬 QR Code Message:', data.registration?.qrCodeMessage);
+            console.log('📋 Full registration object:', data.registration);
+            console.log('🔄 Form type:', data.registration?.formType);
+            console.log('📊 Steps count:', data.registration?.steps?.length || 0);
+            console.log('📋 Direct schema count:', data.registration?.formSchema?.length || 0);
+            
+            setCompetition(data);
+            
+            // Check if competition has custom internal form registration
+            if (data.registrationType !== 'custom' || 
+                data.registration?.status !== 'internal_form') {
+                setError('This competition does not have internal form registration enabled');
+                return;
+            }
+
+            // Initialize form data with empty values using stable field IDs
+            const initialData = {};
+            
+            // ✅ CRITICAL: Support both single-step and multi-step forms
+            const formSchema = getFormSchema(data.registration);
+            console.log(`📝 Form schema: ${formSchema.length} fields (${isMultiStepForm(data.registration) ? 'multi-step' : 'single-step'})`);
+            console.log('📋 BGMI DEBUG - Form schema details:', formSchema.map(f => ({ label: f.label, type: f.type, id: f.id, fieldName: f.fieldName, defaultValue: f.defaultValue })));
+            console.log('📋 BGMI DEBUG - Full formSchema:', formSchema);
+            
+            if (formSchema.length > 0) {
+                formSchema.forEach(field => {
+                    const fieldId = generateFieldId(field);
+                    // Initialize file/image fields as null, others as empty string/array
+                    if (field.type === 'file' || field.type === 'image') {
+                        initialData[fieldId] = null;
+                    } else {
+                        // Check if there's an accidental defaultValue that contains wrong data (like "Pune" for date fields)
+                        if (field.defaultValue) {
+                            console.warn(`⚠️ BGMI: Field "${field.label}" (${fieldId}) has defaultValue: "${field.defaultValue}", type: ${field.type}`);
+                        }
+                        initialData[fieldId] = field.type === 'checkbox' ? [] : '';
+                    }
+                });
+            }
+            setFormData(initialData);
+            
+            // ✅ CRITICAL FIX: Initialize stepData with the same structure for multi-step forms
+            if (isMultiStepForm(data.registration)) {
+                console.log('🔄 Initializing stepData for multi-step form - initializing ALL steps');
+                const allStepsData = {};
+                
+                // Initialize each step with its own field data
+                data.registration.steps.forEach(step => {
+                    const stepFields = step.fields || [];
+                    const stepInitialData = {};
+                    
+                    stepFields.forEach(field => {
+                        const fieldId = generateFieldId(field);
+                        if (field.type === 'file' || field.type === 'image') {
+                            stepInitialData[fieldId] = null;
+                        } else {
+                            stepInitialData[fieldId] = field.type === 'checkbox' ? [] : '';
+                        }
+                    });
+                    
+                    allStepsData[step.stepNumber] = stepInitialData;
+                });
+                
+                console.log('📊 Initialized stepData for all steps:', allStepsData);
+                setStepData(allStepsData);
+            }
+            
+            // ✅ Load WhatsApp community link from competition configuration
+            if (data.registration?.whatsappCommunityLink) {
+                console.log('💬 Loading WhatsApp community link:', data.registration.whatsappCommunityLink);
+                setWhatsappCommunityLink(data.registration.whatsappCommunityLink);
+            }
+            
+        } catch (err) {
+            console.error('Error fetching competition:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [competitionId]);
+
+    // ✅ MAIN: Initialize registration and fetch competition details
     useEffect(() => {
         const initializeRegistration = async () => {
             // Wait for auth context to fully load
@@ -63,7 +186,7 @@ export default function CompetitionRegistration() {
         };
 
         initializeRegistration();
-    }, [competitionId, isAuthenticated, authLoading, navigate, token]);
+    }, [competitionId, isAuthenticated, authLoading, navigate, token, fetchCompetitionDetails]);
 
     useEffect(() => {
         if (error) {
@@ -71,93 +194,6 @@ export default function CompetitionRegistration() {
             return () => clearTimeout(timer);
         }
     }, [error]);
-
-    // Helper function to generate consistent field IDs
-    const generateFieldId = (field) => {
-        // Priority 1: use fieldName directly (this is what backend expects)
-        if (field.fieldName) {
-            console.log(`🔑 Using fieldName for "${field.label}":`, field.fieldName);
-            return field.fieldName;
-        }
-        // Priority 2: use field.id directly (without field_ prefix)
-        if (field.id) {
-            console.log(`🔑 Using id for "${field.label}":`, field.id);
-            return field.id;
-        }
-        // Priority 3: generate from label as fallback
-        if (field.label) {
-            // More robust label sanitization - match backend logic
-            const sanitized = `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
-            console.log(`🔑 Generated ID for "${field.label}":`, sanitized);
-            return sanitized;
-        }
-        console.warn(`🔑 No ID could be generated for field:`, field);
-        return 'unknown_field';
-    };
-
-    const fetchCompetitionDetails = async () => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`);
-            if (!response.ok) {
-                throw new Error('Failed to fetch competition details');
-            }
-            const data = await response.json();
-            console.log('🏆 Competition data for registration:', data);
-            console.log('🔧 Registration type:', data.registrationType);
-            console.log('📝 Registration status:', data.registration?.status);
-            console.log('🎯 QR Code:', data.registration?.qrCode);
-            console.log('💬 QR Code Message:', data.registration?.qrCodeMessage);
-            console.log('📋 Full registration object:', data.registration);
-            console.log('🔄 Form type:', data.registration?.formType);
-            console.log('📊 Steps count:', data.registration?.steps?.length || 0);
-            console.log('📋 Direct schema count:', data.registration?.formSchema?.length || 0);
-            
-            setCompetition(data);
-            
-            // Check if competition has custom internal form registration
-            if (data.registrationType !== 'custom' || 
-                data.registration?.status !== 'internal_form') {
-                setError('This competition does not have internal form registration enabled');
-                return;
-            }
-
-            // Initialize form data with empty values using stable field IDs
-            const initialData = {};
-            
-            // ✅ CRITICAL: Support both single-step and multi-step forms
-            const formSchema = getFormSchema(data.registration);
-            console.log(`📝 Form schema: ${formSchema.length} fields (${isMultiStepForm(data.registration) ? 'multi-step' : 'single-step'})`);
-            console.log('📋 BGMI DEBUG - Form schema details:', formSchema.map(f => ({ label: f.label, type: f.type, id: f.id, fieldName: f.fieldName })));
-            console.log('📋 BGMI DEBUG - Full formSchema:', formSchema);
-            
-            if (formSchema.length > 0) {
-                formSchema.forEach(field => {
-                    const fieldId = generateFieldId(field);
-                    // Initialize file/image fields as null, others as empty string/array
-                    if (field.type === 'file' || field.type === 'image') {
-                        initialData[fieldId] = null;
-                    } else {
-                        initialData[fieldId] = field.type === 'checkbox' ? [] : '';
-                    }
-                });
-            }
-            setFormData(initialData);
-            
-            // ✅ CRITICAL FIX: Initialize stepData with the same structure for multi-step forms
-            if (isMultiStepForm(data.registration)) {
-                console.log('🔄 Initializing stepData for multi-step form with step 1 data');
-                setStepData({
-                    1: initialData
-                });
-            }
-            
-        } catch (err) {
-            console.error('Error fetching competition:', err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     // ✅ HELPER: Get form schema (supports both single-step and multi-step forms)
     const getFormSchema = (registrationData) => {
@@ -271,7 +307,7 @@ export default function CompetitionRegistration() {
         }
     };
 
-    const handleStepFieldChange = (fieldId, value) => {
+    const _handleStepFieldChange = (fieldId, value) => {
         if (isMultiStepFormActive()) {
             setStepData(prev => ({
                 ...prev,
@@ -297,7 +333,7 @@ export default function CompetitionRegistration() {
         const allData = {};
         
         // First, merge all completed steps
-        Object.entries(stepData).forEach(([stepNum, stepFormData]) => {
+        Object.entries(stepData).forEach(([, stepFormData]) => {
             Object.assign(allData, stepFormData);
         });
         
@@ -600,16 +636,23 @@ export default function CompetitionRegistration() {
                     />
                 );
 
-            case 'date':
+            case 'date': {
+                // Validate and sanitize date value - only allow YYYY-MM-DD format
+                let sanitizedValue = value;
+                if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                    console.warn(`⚠️ Invalid date value for field "${field.label}": "${value}", resetting to empty`);
+                    sanitizedValue = '';
+                }
                 return (
                     <input
                         type="date"
-                        value={value}
+                        value={sanitizedValue}
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         required={required}
                         className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base"
                     />
                 );
+            }
 
             case 'select':
                 return (
@@ -655,7 +698,7 @@ export default function CompetitionRegistration() {
                                     type="checkbox"
                                     value={option}
                                     checked={(value || []).includes(option)}
-                                    onChange={(e) => handleInputChange(fieldId, option, 'checkbox')}
+                                    onChange={() => handleInputChange(fieldId, option, 'checkbox')}
                                     className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
                                 />
                                 <span className="text-white">{option}</span>
@@ -930,6 +973,12 @@ export default function CompetitionRegistration() {
                 console.log('💳 Added payment receipt URL to submission:', paymentReceiptUrl);
             }
 
+            // ✅ NEW: Add WhatsApp community link if provided (optional)
+            if (whatsappCommunityLink && whatsappCommunityLink.trim()) {
+                submissionFormData.append('whatsappCommunityLink', whatsappCommunityLink.trim());
+                console.log('💬 Added WhatsApp community link to submission:', whatsappCommunityLink);
+            }
+
             // ✅ PERFORMANCE: Show file submission progress
             if (fileCount > 0) {
                 setSubmissionProgress(`Submitting ${fileCount} file(s) (${(totalFileSize / 1024 / 1024).toFixed(2)}MB)...`);
@@ -1076,6 +1125,25 @@ export default function CompetitionRegistration() {
                     <p className="text-sm text-gray-500 mb-4">
                         You will receive a confirmation email shortly with your registration details.
                     </p>
+                    
+                    {/* ✅ NEW: Show WhatsApp Community Link if available */}
+                    {whatsappCommunityLink && (
+                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+                            <p className="text-sm text-gray-400 mb-2">Join our community</p>
+                            <a
+                                href={whatsappCommunityLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.67-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.076 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421-7.403h-.004a9.87 9.87 0 00-5.031 1.378c-3.055 2.016-4.966 5.114-4.966 8.456 0 3.119 1.193 6.054 3.352 8.235.609.606 1.323 1.169 2.119 1.666l.04 2.47s-.944.31-2.289.31c-.963 0-1.823-.212-2.505-.624-.78-.465-1.38-1.151-1.694-2.029-.315-.878-.315-1.927 0-2.805.315-.878.914-1.564 1.694-2.029.682-.412 1.542-.624 2.505-.624 1.345 0 2.289.31 2.289.31l-.04-2.47c-.796.497-1.51 1.06-2.119 1.666-2.159-2.181-3.352-5.116-3.352-8.235 0-3.342 1.911-6.44 4.966-8.456a9.87 9.87 0 015.031-1.378h.004"/>
+                                </svg>
+                                Join WhatsApp Community
+                            </a>
+                        </div>
+                    )}
+                    
                     <button
                         onClick={() => navigate(`/competitions-view-details/${competitionId}`)}
                         className="px-6 py-2.5 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
@@ -1237,7 +1305,143 @@ export default function CompetitionRegistration() {
                     </div>
                 )}
 
-                {/* Payment Receipt Upload Section (only on final payment step) */}
+                {/* ✅ Payment Section for SINGLE-STEP forms with QR */}
+                {!isMultiStepFormActive() && competition.registration.qrCode && (
+                    <div className="bg-[#1B1C1E] rounded-lg p-4 mb-6 border border-gray-700">
+                        <h4 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                            <Upload className="w-4 h-4" />
+                            Payment Information
+                        </h4>
+                        
+                        {/* QR Code Display */}
+                        <div className="mb-4">
+                            <h5 className="text-sm font-medium text-white mb-3">Payment QR Code</h5>
+                            <div className="flex justify-center">
+                                <img 
+                                    src={competition.registration.qrCode} 
+                                    alt="Payment QR Code" 
+                                    className="w-40 h-40 object-cover rounded-lg border border-gray-600"
+                                    onError={(e) => {
+                                        console.error('QR Code image failed to load');
+                                        e.target.style.display = 'none';
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Payment Instructions */}
+                        {competition.registration.qrCodeMessage && (
+                            <div className="mb-4 p-3 bg-gray-800/50 rounded border border-gray-700">
+                                <p className="text-sm text-gray-300">{competition.registration.qrCodeMessage}</p>
+                            </div>
+                        )}
+
+                        {/* Transaction ID */}
+                        <div className="mb-4">
+                            <label className="block text-sm font-semibold text-white mb-2">
+                                Transaction ID <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={transactionId}
+                                onChange={(e) => setTransactionId(e.target.value)}
+                                placeholder="Enter transaction ID (UPI ref, bank ref, etc.)"
+                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
+                        </div>
+
+                        {/* Payment Receipt Upload */}
+                        {!paymentReceiptUrl ? (
+                            <div className="mb-4 space-y-3">
+                                <label className="block text-sm font-semibold text-white mb-2">
+                                    Upload Payment Receipt <span className="text-red-400">*</span>
+                                </label>
+                                <div className="flex items-center justify-center w-full">
+                                    <label 
+                                        htmlFor="payment-receipt-upload" 
+                                        className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                                            uploadingReceipt 
+                                                ? 'border-blue-400 bg-blue-900/20' 
+                                                : 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            {uploadingReceipt ? (
+                                                <>
+                                                    <Loader className="w-8 h-8 mb-2 text-blue-400 animate-spin" />
+                                                    <p className="text-sm text-blue-400">Uploading receipt...</p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                                                    <p className="mb-2 text-sm text-gray-300">
+                                                        <span className="font-semibold">Click to upload</span> payment receipt
+                                                    </p>
+                                                    <p className="text-xs text-gray-400">PNG, JPG or PDF (Max 5MB)</p>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input 
+                                            id="payment-receipt-upload" 
+                                            type="file" 
+                                            className="hidden" 
+                                            accept="image/jpeg,image/jpg,image/png,application/pdf"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) handlePaymentReceiptUpload(file);
+                                            }}
+                                            disabled={uploadingReceipt}
+                                        />
+                                    </label>
+                                </div>
+                                {receiptError && (
+                                    <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-2">
+                                        {receiptError}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="mb-4">
+                                <div className="flex items-center gap-3 p-3 bg-green-900/20 border border-green-800 rounded-lg">
+                                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <p className="text-sm text-green-400 font-medium">Payment receipt uploaded</p>
+                                        <p className="text-xs text-gray-400 mt-1">{paymentReceipt?.name}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPaymentReceiptUrl('');
+                                            setPaymentReceipt(null);
+                                            setReceiptError('');
+                                        }}
+                                        className="text-gray-400 hover:text-white text-sm underline"
+                                    >
+                                        Change
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* WhatsApp Community Link (Optional) */}
+                        <div className="mt-4 pt-4 border-t border-gray-700">
+                            <label className="block text-sm font-semibold text-white mb-2">
+                                WhatsApp Community Link <span className="text-gray-400">(Optional)</span>
+                            </label>
+                            <input
+                                type="url"
+                                value={whatsappCommunityLink}
+                                onChange={(e) => setWhatsappCommunityLink(e.target.value)}
+                                placeholder="https://chat.whatsapp.com/... or https://whatsapp.com/..."
+                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">Share your WhatsApp community link to connect with other participants</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* ✅ Payment Section for MULTI-STEP forms (final payment step) */}
                 {isMultiStepFormActive() && competition.registration.qrCode && currentStep === getTotalSteps() && (
                     <div className="bg-[#1B1C1E] rounded-lg p-4 mb-6 border border-gray-700">
                         <h4 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
@@ -1327,28 +1531,40 @@ export default function CompetitionRegistration() {
                             </div>
                         )}
                         
-                        {/* Transaction ID Input */}
-                        {paymentReceiptUrl && (
-                            <div className="mt-4 pt-4 border-t border-gray-700">
-                                <label className="block text-sm font-semibold text-white mb-2">
-                                    Transaction ID <span className="text-red-400">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={transactionId}
-                                    onChange={(e) => setTransactionId(e.target.value)}
-                                    placeholder="Enter transaction ID (UPI ref, bank ref, etc.)"
-                                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
-                                />
-                                <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
-                            </div>
-                        )}
+                        {/* Transaction ID Input - Always visible */}
+                        <div className="mt-4 pt-4 border-t border-gray-700">
+                            <label className="block text-sm font-semibold text-white mb-2">
+                                Transaction ID <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={transactionId}
+                                onChange={(e) => setTransactionId(e.target.value)}
+                                placeholder="Enter transaction ID (UPI ref, bank ref, etc.)"
+                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
+                        </div>
+
+                        {/* ✅ WhatsApp Community Link (Optional) - Always visible */}
+                        <div className="mt-4 pt-4 border-t border-gray-700">
+                            <label className="block text-sm font-semibold text-white mb-2">
+                                WhatsApp Community Link <span className="text-gray-400">(Optional)</span>
+                            </label>
+                            <input
+                                type="url"
+                                value={whatsappCommunityLink}
+                                onChange={(e) => setWhatsappCommunityLink(e.target.value)}
+                                placeholder="https://chat.whatsapp.com/... or https://whatsapp.com/..."
+                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">Share your WhatsApp community link to connect with other participants</p>
+                        </div>
                     </div>
                 )}
 
                 {/* ✅ NEW: Form Fields Section */}
                 {(() => {
-                    const formSchema = getFormSchema(competition?.registration);
                     const currentFields = getCurrentStepFields();
                     
                     // Don't show fields section for payment step

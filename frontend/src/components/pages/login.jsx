@@ -28,6 +28,16 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         }
     }, [onClose, location.pathname, navigate]);
 
+    // Auto-dismiss errors after 5 seconds (but not "Redirecting..." messages)
+    useEffect(() => {
+        if (errors.general && !errors.general.includes('Redirecting')) {
+            const timer = setTimeout(() => {
+                setErrors({});
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [errors]);
+
     const handleLogin = async (e) => {
         e.preventDefault();
         setErrors({});
@@ -538,29 +548,42 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
                     {/* Form */}
                     <form onSubmit={handleLogin} className="space-y-4">
-                        {/* Error Message */}
+                        {/* Error Message - Toast Style */}
                         {errors.general && (
-                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-                                <span className="block sm:inline">{errors.general}</span>
-                                {errors.showOpenInBrowser && (
-                                    <button
-                                        onClick={() => {
-                                            const currentUrl = window.location.href;
-                                            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                                                window.open(`googlechrome://${currentUrl}`, '_blank') || 
-                                                window.open(`firefox://open-url?url=${encodeURIComponent(currentUrl)}`, '_blank') ||
-                                                window.open(currentUrl, '_blank');
-                                            } else {
-                                                window.open(`intent://${currentUrl.replace(/https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`, '_blank') ||
-                                                window.open(currentUrl, '_blank');
-                                            }
-                                        }}
-                                        className="block mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors"
-                                    >
-                                        Open in Browser
-                                    </button>
-                                )}
+                            <div className={`p-4 rounded-lg flex items-start justify-between gap-3 ${
+                                errors.general.includes('Redirecting') 
+                                    ? 'bg-blue-100 border border-blue-400 text-blue-700'
+                                    : 'bg-red-100 border border-red-400 text-red-700'
+                            }`}>
+                                <span className="block flex-1">{errors.general}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setErrors({})}
+                                    className="text-xl leading-none hover:opacity-70"
+                                >
+                                    ×
+                                </button>
                             </div>
+                        )}
+
+                        {errors.general && errors.showOpenInBrowser && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const currentUrl = window.location.href;
+                                    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                                        window.open(`googlechrome://${currentUrl}`, '_blank') || 
+                                        window.open(`firefox://open-url?url=${encodeURIComponent(currentUrl)}`, '_blank') ||
+                                        window.open(currentUrl, '_blank');
+                                    } else {
+                                        window.open(`intent://${currentUrl.replace(/https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`, '_blank') ||
+                                        window.open(currentUrl, '_blank');
+                                    }
+                                }}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors"
+                            >
+                                Open in Browser
+                            </button>
                         )}
 
                         {/* Email Input */}

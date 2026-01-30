@@ -247,6 +247,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     paymentQR: '',
     paymentQRMessage: '', // Message to display with QR code
     googleSheetsUrl: '',
+    whatsappCommunityLink: '', // Optional WhatsApp community link for participants
     formInstructions: '', // Instructions to display at the start of internal form
     organizerEmail: '', // Email to send registration confirmations to
     // ✅ NEW: Multi-step form configuration
@@ -621,6 +622,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         paymentQR: fest.registration?.paymentQR || '',
         paymentQRMessage: fest.registration?.paymentQRMessage || '',
         googleSheetsUrl: fest.registration?.googleSheetsUrl || '',
+        whatsappCommunityLink: fest.registration?.whatsappCommunityLink || '',
         formInstructions: fest.registration?.formInstructions || '',
         organizerEmail: fest.registration?.organizerEmail || '',
         // ✅ NEW: Multi-step form support
@@ -672,7 +674,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     }
   }, [fest, error, formInitialized]); // Add formInitialized to dependencies
 
-  const addHighlight = () => {
+  const _addHighlight = () => {
     if (highlightInput.trim()) {
       setForm({
         ...form,
@@ -682,14 +684,14 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     }
   };
 
-  const removeHighlight = (index) => {
+  const _removeHighlight = (index) => {
     setForm({
       ...form,
       highlights: form.highlights.filter((_, i) => i !== index),
     });
   };
 
-  const addTag = () => {
+  const _addTag = () => {
     if (tagInput.trim()) {
       setForm({
         ...form,
@@ -699,7 +701,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     }
   };
 
-  const removeTag = (index) => {
+  const _removeTag = (index) => {
     setForm({
       ...form,
       tags: form.tags.filter((_, i) => i !== index),
@@ -980,6 +982,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         paymentQR: form.paymentQR,
         paymentQRMessage: form.paymentQRMessage,
         googleSheetsUrl: form.googleSheetsUrl,
+        whatsappCommunityLink: form.whatsappCommunityLink,
         formInstructions: form.formInstructions,
         organizerEmail: form.organizerEmail,
           // ✅ FIXED: Preserve form schema regardless of form type
@@ -1711,7 +1714,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                             } else {
                               setError(`❌ Connection failed: ${result.error}`);
                             }
-                          } catch (err) {
+                          } catch (error) {
+                            console.error('Sheet connection test error:', error?.message);
                             setError('❌ Failed to test connection');
                           } finally {
                             setUploadingImage(false);
@@ -1947,7 +1951,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                                 if (!response.ok) throw new Error('Upload failed');
                                 const data = await response.json();
                                 setForm({ ...form, paymentQR: data.url });
-                              } catch (err) {
+                              } catch (error) {
+                                console.error('Payment QR upload error:', error?.message);
                                 setError('Failed to upload payment QR');
                               } finally {
                                 setUploadingImage(false);
@@ -1985,6 +1990,21 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                         onChange={(e) => setForm({ ...form, paymentQRMessage: e.target.value })}
                       />
                       <p className="text-xs text-gray-400">This message will be displayed with the QR code</p>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Community Link (Optional) - Outside Grid */}
+                  <div className="mt-4 p-4 bg-[#1B1C1E] rounded-lg border border-gray-700">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium mb-2">WhatsApp Community Link <span className="text-gray-400">(Optional)</span></label>
+                      <input
+                        type="url"
+                        placeholder="https://chat.whatsapp.com/... (optional - for participants to join)"
+                        className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                        value={form.whatsappCommunityLink || ''}
+                        onChange={(e) => setForm({ ...form, whatsappCommunityLink: e.target.value })}
+                      />
+                      <p className="text-xs text-gray-400">Share a WhatsApp community link for participants to join after registration</p>
                     </div>
                   </div>
                 </div>

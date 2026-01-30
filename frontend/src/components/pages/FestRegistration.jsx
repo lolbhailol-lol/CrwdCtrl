@@ -29,6 +29,7 @@ export default function FestRegistration() {
   const [receiptError, setReceiptError] = useState('');
   // ✅ NEW: Transaction ID state
   const [transactionId, setTransactionId] = useState('');
+  const [whatsappCommunityLink, setWhatsappCommunityLink] = useState('');
   // ✅ NEW: Multi-step form state
   const [currentStep, setCurrentStep] = useState(1);
   const [stepData, setStepData] = useState({});
@@ -94,8 +95,12 @@ export default function FestRegistration() {
     if (field.id) return field.id;
     // Priority 3: generate from label as fallback
     if (field.label) {
-      // More robust label sanitization
-      return `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+      // More robust label sanitization - avoid duplicate 'field_' prefix
+      let labelToSanitize = field.label;
+      if (labelToSanitize.startsWith('field_')) {
+        labelToSanitize = labelToSanitize.substring(6); // Remove 'field_' prefix
+      }
+      return `field_${labelToSanitize.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
     }
     return 'unknown_field';
   };
@@ -372,18 +377,25 @@ export default function FestRegistration() {
           </div>
         );
       
-      case 'date':
+      case 'date': {
+        // Validate and sanitize date value - only allow YYYY-MM-DD format
+        let sanitizedValue = value;
+        if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          console.warn(`⚠️ Invalid date value for field "${field.label}": "${value}", resetting to empty`);
+          sanitizedValue = '';
+        }
         return (
           <input
             type="date"
             id={fieldId}
             name={fieldId}
-            value={value}
+            value={sanitizedValue}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
             className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm transition-colors"
           />
         );
+      }
       
       case 'file':
       case 'image':
@@ -462,6 +474,13 @@ export default function FestRegistration() {
       }
       
       setFest(data);
+      
+      // ✅ Load WhatsApp community link from fest configuration
+      if (data.registration?.whatsappCommunityLink) {
+        console.log('💬 Loading WhatsApp community link:', data.registration.whatsappCommunityLink);
+        setWhatsappCommunityLink(data.registration.whatsappCommunityLink);
+      }
+      
       console.log('🔍 DEBUG - Fest registration data loaded:', {
         mode: data.registration?.mode,
         formType: data.registration?.formType,
@@ -820,6 +839,7 @@ export default function FestRegistration() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const formSubmissionStartTime = Date.now(); // Track submission time for error reporting
     console.log('🚀 Starting form submission...');
     console.log('🔍 DEBUG - Form submission state:', {
       isMultiStep: isMultiStepForm(),
@@ -1121,8 +1141,8 @@ export default function FestRegistration() {
                 totalFileSize += file.size;
                 fileCount++;
               }
-            } catch (fallbackErr) {
-              console.log('ℹ️ No fallback file input found for:', fieldId);
+            } catch (error) {
+              console.log('ℹ️ No fallback file input found for:', fieldId, error?.message);
             }
           }
         } else {
@@ -1150,6 +1170,12 @@ export default function FestRegistration() {
         console.log('💳 FormData now contains paymentReceiptUrl');
       } else {
         console.log('⚠️ No payment receipt URL to add to submission');
+      }
+
+      // ✅ NEW: Add WhatsApp community link if provided (optional)
+      if (whatsappCommunityLink && whatsappCommunityLink.trim()) {
+        submissionFormData.append('whatsappCommunityLink', whatsappCommunityLink.trim());
+        console.log('💬 Added WhatsApp community link to submission:', whatsappCommunityLink);
       }
 
       // ✅ PERFORMANCE: Show file submission progress
@@ -1303,7 +1329,8 @@ export default function FestRegistration() {
       
       // Handle specific error types with better user feedback
       if (err.name === 'AbortError') {
-        console.error('❌ Request was aborted/timed out after', ((Date.now() - startTime) / 1000).toFixed(1), 'seconds');
+        const elapsedTime = ((Date.now() - formSubmissionStartTime) / 1000).toFixed(1);
+        console.error('❌ Request was aborted/timed out after', elapsedTime, 'seconds');
         console.log('ℹ️ Registration may have been saved on the server. Checking registered events...');
         setError('Registration is taking longer than expected. Your submission may have been saved. Please check your registered events in a moment. Contact support if needed.');
         // Don't prevent navigation - allow user to check registered events
@@ -1461,7 +1488,7 @@ export default function FestRegistration() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
+      <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center px-4">
         <div className="text-center max-w-md mx-auto p-8">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
           <h1 className="text-3xl font-bold text-white mb-4">🎉 Registration Successful!</h1>
@@ -1473,6 +1500,25 @@ export default function FestRegistration() {
           <p className="text-sm text-gray-500 mb-6">
             You will be redirected to your registered events shortly...
           </p>
+
+          {/* ✅ NEW: Show WhatsApp Community Link if available */}
+          {whatsappCommunityLink && (
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-400 mb-2">Join our community</p>
+              <a
+                href={whatsappCommunityLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.67-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.076 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421-7.403h-.004a9.87 9.87 0 00-5.031 1.378c-3.055 2.016-4.966 5.114-4.966 8.456 0 3.119 1.193 6.054 3.352 8.235.609.606 1.323 1.169 2.119 1.666l.04 2.47s-.944.31-2.289.31c-.963 0-1.823-.212-2.505-.624-.78-.465-1.38-1.151-1.694-2.029-.315-.878-.315-1.927 0-2.805.315-.878.914-1.564 1.694-2.029.682-.412 1.542-.624 2.505-.624 1.345 0 2.289.31 2.289.31l-.04-2.47c-.796.497-1.51 1.06-2.119 1.666-2.159-2.181-3.352-5.116-3.352-8.235 0-3.342 1.911-6.44 4.966-8.456a9.87 9.87 0 015.031-1.378h.004"/>
+                </svg>
+                Join WhatsApp Community
+              </a>
+            </div>
+          )}
+
           <button
             onClick={() => navigate('/registered-fest')}
             className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
@@ -1811,6 +1857,21 @@ export default function FestRegistration() {
                       <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
                     </div>
                   )}
+
+                  {/* ✅ WhatsApp Community Link (Optional) */}
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                      <label className="block text-sm font-semibold text-white mb-2">
+                        WhatsApp Community Link <span className="text-gray-400">(Optional)</span>
+                      </label>
+                      <input
+                        type="url"
+                        value={whatsappCommunityLink}
+                        onChange={(e) => setWhatsappCommunityLink(e.target.value)}
+                        placeholder="https://chat.whatsapp.com/... or https://whatsapp.com/..."
+                        className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Share your WhatsApp community link to connect with other participants</p>
+                    </div>
                   
                   <p className="text-xs text-gray-400 mt-2">
                     Please upload a clear image or PDF of your payment receipt/screenshot after completing the payment.
