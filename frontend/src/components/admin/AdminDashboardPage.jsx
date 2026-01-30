@@ -150,6 +150,7 @@ export default function AdminDashboardPage() {
             'Authorization': `Bearer ${adminToken}`,
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // Add credentials for Railway
         });
 
         console.log('📡 Stats response status:', response.status);

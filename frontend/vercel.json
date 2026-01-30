@@ -2,7 +2,9 @@
   "buildCommand": "npm run build",
   "env": {
     "VITE_API_BASE_URL": "https://prolific-learning-production-13aa.up.railway.app/api",
-    "VITE_API_TIMEOUT": "15000",
+    "VITE_API_TIMEOUT": "45000",
+    "VITE_RAILWAY_COLD_START_TIMEOUT": "45000",
+    "VITE_ENABLE_RAILWAY_OPTIMIZATIONS": "true",
     "VITE_APP_ENVIRONMENT": "production",
     "VITE_FIREBASE_API_KEY": "AIzaSyDoyaNIB6GPi4mfn9Wi1YT5rL3o_A-3N9A",
     "VITE_FIREBASE_AUTH_DOMAIN": "crwdctrl.firebaseapp.com",
@@ -15,7 +17,9 @@
   "build": {
     "env": {
       "VITE_API_BASE_URL": "https://prolific-learning-production-13aa.up.railway.app/api",
-      "VITE_API_TIMEOUT": "15000",
+      "VITE_API_TIMEOUT": "45000",
+      "VITE_RAILWAY_COLD_START_TIMEOUT": "45000",
+      "VITE_ENABLE_RAILWAY_OPTIMIZATIONS": "true",
       "VITE_APP_ENVIRONMENT": "production",
       "VITE_FIREBASE_API_KEY": "AIzaSyDoyaNIB6GPi4mfn9Wi1YT5rL3o_A-3N9A",
       "VITE_FIREBASE_AUTH_DOMAIN": "crwdctrl.firebaseapp.com",

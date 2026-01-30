@@ -138,7 +138,7 @@ const CompetitionListPage = () => {
     // Loading state
     if (loading) {
         return (
-            <div className={`lg:hidden min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
+            <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
                     <h2 className="text-xl font-semibold">Loading competitions...</h2>
@@ -150,7 +150,7 @@ const CompetitionListPage = () => {
     // Error state
     if (error || !eventData) {
         return (
-            <div className={`lg:hidden min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
+            <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">{error || 'Event not found'}</h2>
                     <button
@@ -165,7 +165,7 @@ const CompetitionListPage = () => {
     }
 
     return (
-        <div className={`lg:hidden min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} transition-colors duration-300`}>
+        <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} transition-colors duration-300`}>
             {/* Header */}
             <div className={`flex items-center justify-between p-4  ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
                 <div className="flex items-center gap-3">

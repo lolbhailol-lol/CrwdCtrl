@@ -19,6 +19,14 @@ console.log('🚀 Starting FestBuzzZ Backend Server...');
 console.log('📍 Node Environment:', process.env.NODE_ENV || 'development');
 console.log('🔧 Port Configuration:', process.env.PORT || 8080);
 
+// ✅ RAILWAY ENVIRONMENT DETECTION
+if (process.env.RAILWAY_ENVIRONMENT) {
+  console.log('🚂 Railway deployment detected');
+  console.log('🚂 Railway Environment:', process.env.RAILWAY_ENVIRONMENT);
+  console.log('🚂 Railway Public Domain:', process.env.RAILWAY_PUBLIC_DOMAIN || 'Not set');
+  console.log('🚂 Railway Static URL:', process.env.RAILWAY_STATIC_URL || 'Not set');
+}
+
 // Register mongoose models
 console.log('📋 Registering Mongoose models...');
 require("./model/fest_organizer_model");
@@ -250,16 +258,79 @@ app.get("/api/health", (req, res) => {
     message: "CrwdCtrl API is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
-    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    uptime: process.uptime(),
+    platform: "Railway"
   });
 });
 
-// API Status
+// ✅ RAILWAY KEEP-ALIVE MECHANISM
+// Self-ping every 10 minutes to prevent Railway cold starts
+if (process.env.NODE_ENV === 'production' && process.env.RAILWAY_ENVIRONMENT) {
+  console.log('🚂 Railway environment detected - enabling keep-alive mechanism');
+  
+  const KEEP_ALIVE_INTERVAL = 10 * 60 * 1000; // 10 minutes
+  const RAILWAY_URL = process.env.RAILWAY_PUBLIC_DOMAIN || 
+                     process.env.RAILWAY_STATIC_URL || 
+                     'https://prolific-learning-production-13aa.up.railway.app';
+  
+  setInterval(async () => {
+    try {
+      console.log('🔄 Railway keep-alive ping...');
+      const response = await fetch(`${RAILWAY_URL}/api/health`, {
+        method: 'GET',
+        timeout: 5000
+      });
+      
+      if (response.ok) {
+        console.log('✅ Railway keep-alive successful');
+      } else {
+        console.warn('⚠️ Railway keep-alive returned:', response.status);
+      }
+    } catch (error) {
+      console.warn('⚠️ Railway keep-alive failed:', error.message);
+    }
+  }, KEEP_ALIVE_INTERVAL);
+  
+  console.log(`✅ Railway keep-alive scheduled every ${KEEP_ALIVE_INTERVAL / 60000} minutes`);
+}
+
+// ✅ RAILWAY COLD START DETECTION
+app.get("/api/cold-start-check", (req, res) => {
+  const uptime = process.uptime();
+  const isColdStart = uptime < 30; // Less than 30 seconds uptime indicates cold start
+  
+  res.status(200).json({
+    isColdStart,
+    uptime,
+    timestamp: new Date().toISOString(),
+    message: isColdStart ? "Cold start detected" : "Warm instance"
+  });
+});
+
+// API Status with Railway Plan Detection
 app.get("/api/status", (req, res) => {
+  // Try to detect Railway plan based on available resources and environment
+  const railwayInfo = {
+    isRailway: !!process.env.RAILWAY_ENVIRONMENT,
+    environment: process.env.RAILWAY_ENVIRONMENT || 'unknown',
+    publicDomain: process.env.RAILWAY_PUBLIC_DOMAIN || 'not-set',
+    staticUrl: process.env.RAILWAY_STATIC_URL || 'not-set',
+    // Memory limit can help identify plan (512MB = Hobby, 8GB+ = Pro)
+    memoryUsage: process.memoryUsage(),
+    uptime: process.uptime(),
+    // If service sleeps, it's likely Hobby plan
+    likelySleepingService: process.uptime() < 60 // Less than 1 minute uptime suggests recent wake-up
+  };
+
   res.status(200).json({
     success: true,
     message: "CrwdCtrl API is operational",
     version: "1.0.0",
+    railway: railwayInfo,
+    planHint: railwayInfo.likelySleepingService ? 
+      "Likely Hobby Plan (service was sleeping)" : 
+      "Unknown plan (service was running)"
   });
 });
 

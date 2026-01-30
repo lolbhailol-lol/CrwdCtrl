@@ -61,9 +61,13 @@ function EventPage() {
                 setError(null);
                 
                 console.log('ViewDetails - Fetching competition data for ID:', competitionId);
+                console.log('ViewDetails - API URL:', `${API_BASE_URL}/fests/competitions/${competitionId}/public`);
                 
                 // Try to fetch competition data from backend
                 const response = await axios.get(`/fests/competitions/${competitionId}/public`);
+                console.log('ViewDetails - API Response Status:', response.status);
+                console.log('ViewDetails - API Response Data:', response.data);
+                
                 const compData = response.data;
                 console.log('🔍 Raw competition data from API:', compData);
                 console.log('🔍 Registration type:', compData.registrationType);
@@ -137,6 +141,24 @@ function EventPage() {
                 }
             } catch (err) {
                 console.error('Error fetching competition data:', err);
+                console.error('Error details:', {
+                    message: err.message,
+                    status: err.response?.status,
+                    statusText: err.response?.statusText,
+                    data: err.response?.data
+                });
+                
+                let errorMessage = 'Competition not found';
+                
+                if (err.response?.status === 404) {
+                    errorMessage = 'Competition not found or not available';
+                } else if (err.response?.status === 400) {
+                    errorMessage = 'Invalid competition ID format';
+                } else if (err.response?.status >= 500) {
+                    errorMessage = 'Server error. Please try again later.';
+                } else if (err.message?.includes('Network Error') || !err.response) {
+                    errorMessage = 'Network error. Please check your connection.';
+                }
                 
                 // Fallback to navigation state if API fails
                 const stateCompetition = location.state?.competition;
@@ -144,8 +166,8 @@ function EventPage() {
                     console.log('API failed, using competition data from navigation state:', stateCompetition);
                     setCompetitionData(stateCompetition);
                 } else {
-                    setError('Competition not found');
-                    setTimeout(() => navigate('/'), 2000);
+                    setError(errorMessage);
+                    console.log('No fallback data available, showing error:', errorMessage);
                 }
             } finally {
                 setLoading(false);
@@ -179,16 +201,43 @@ function EventPage() {
     if (error || !competitionData) {
         return (
             <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} flex items-center justify-center`}>
-                <div className="text-center">
+                <div className="text-center max-w-md mx-auto p-6">
+                    <div className="mb-6">
+                        <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? 'bg-red-900/20' : 'bg-red-100'}`}>
+                            <svg className={`w-8 h-8 ${isDark ? 'text-red-400' : 'text-red-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        </div>
+                    </div>
                     <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
                         {error || 'Competition not found'}
                     </h2>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-600 transition"
-                    >
-                        Go to Dashboard
-                    </button>
+                    <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mb-6`}>
+                        The competition you're looking for might have been removed or the link might be incorrect.
+                    </p>
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => navigate('/')}
+                            className="w-full bg-cyan-500 text-white px-6 py-3 rounded-lg hover:bg-cyan-600 transition font-medium"
+                        >
+                            Go to Dashboard
+                        </button>
+                        <button
+                            onClick={() => window.location.reload()}
+                            className={`w-full px-6 py-3 rounded-lg transition font-medium ${
+                                isDark 
+                                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            Try Again
+                        </button>
+                    </div>
+                    {competitionId && (
+                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-4`}>
+                            Competition ID: {competitionId}
+                        </p>
+                    )}
                 </div>
             </div>
         );
@@ -517,21 +566,21 @@ function EventPage() {
 
     return (
         <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-[#F5F6FA]'}`}>
-            {/* Desktop Sidebar - Hidden on mobile */}
-            <div className="hidden md:block">
+            {/* Desktop Sidebar - Hidden on mobile and when viewport is too narrow */}
+            <div className="hidden lg:block">
                 <Sidebar onProfileToggle={() => setIsProfileOpen(!isProfileOpen)} />
             </div>
 
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
-                {/* Desktop Navbar - Hidden on mobile */}
-                <div className="hidden md:block">
+                {/* Desktop Navbar - Hidden on mobile and when viewport is too narrow */}
+                <div className="hidden lg:block">
                     <Navbar setIsProfileOpen={setIsProfileOpen} />
                 </div>
 
-                <main className={`flex-1 pb-40 sm:pb-32 md:pb-16 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
+                <main className={`flex-1 pb-40 sm:pb-32 lg:pb-16 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
                     <div className="max-w-7xl mx-auto">
-                        {/* Mobile Layout */}
-                        <div className="block md:hidden">
+                        {/* Mobile/Narrow Layout */}
+                        <div className="block lg:hidden pb-24">
                             {/* Mobile Back Button */}
                             <div className="px-4 pt-4 pb-2">
                                 <button
@@ -543,7 +592,7 @@ function EventPage() {
                                     } shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
                                 >
                                     <ArrowLeft className="w-4 h-4" />
-                                    <span className="text-sm font-medium"></span>
+                                    <span className="text-sm font-medium">Back</span>
                                 </button>
                             </div>
 
@@ -757,7 +806,7 @@ function EventPage() {
                             </div>
 
                             {/* Mobile Contact Details */}
-                            <div className="px-4 py-4">
+                            <div className="px-4 py-4 mb-6">
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
 
@@ -858,7 +907,7 @@ function EventPage() {
                         </div>
 
                         {/* Desktop Layout - Properly Aligned */}
-                        <div className="hidden md:grid md:grid-cols-2 gap-8 p-6">
+                        <div className="hidden lg:grid lg:grid-cols-2 gap-8 p-6">
                             {/* Left Column - Image and Rules */}
                             <div className="space-y-6">
                                 {/* Event Image Card */}
@@ -1237,7 +1286,7 @@ function EventPage() {
                 </main>
 
                 {/* Footer - Hidden on mobile due to sticky button */}
-                <div className="hidden md:block">
+                <div className="hidden lg:block">
                     <Footer />
                 </div>
             </div>
@@ -1250,11 +1299,11 @@ function EventPage() {
                 onShowRegister={() => setShowRegister(true)}
             />
 
-            {/* Mobile Fixed Bottom Register Button */}
+            {/* Mobile Fixed Bottom Register Button - Only show on narrow screens */}
             <button
                 onClick={handleRegister}
                 disabled={isRegistered || registrationInfo.isDisabled}
-                className={`fixed bottom-4 left-1/2 -translate-x-1/2 w-11/12 py-3 px-4 rounded-full font-semibold transition z-50 ${isRegistered
+                className={`lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 w-11/12 py-3 px-4 rounded-full font-semibold transition z-50 ${isRegistered
                     ? 'bg-green-500 text-white cursor-not-allowed'
                     : registrationInfo.isDisabled
                     ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'

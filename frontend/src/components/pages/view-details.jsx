@@ -411,20 +411,20 @@ function EventDetailsPage() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} transition-colors duration-300`}>
-      {/* Desktop Version */}
-      <div className="hidden lg:block">
+      {/* Desktop Version - Show when viewport is wide enough (1280px+) */}
+      <div className="hidden xl:block">
         <div className={`transition-all duration-300`}>
           {/* Content */}
           <div className="max-w-9xl mx-auto px-2  py-4 ml-3">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-8">
               {/* Left Column - Event Details */}
-              <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+              <div className="xl:col-span-2 space-y-4 sm:space-y-6">
                 {/* Hero Image */}
                 <div className="relative rounded-2xl overflow-hidden">
                   <img
                     src={getImageUrl(currentHeroImage)}
                     alt={eventData.title}
-                    className="w-full h-64 sm:h-80 lg:h-96 object-cover"
+                    className="w-full h-64 sm:h-80 xl:h-96 object-cover"
                     onError={(e) => {
                       handleImageErrorWithFallback(e, 400, 300, '#6366f1', eventData.title || 'Event');
                     }}
@@ -794,8 +794,8 @@ function EventDetailsPage() {
         </div>
       </div>
 
-      {/* Mobile Version */}
-      <div className="lg:hidden">
+      {/* Mobile/Tablet Version - Show when viewport is narrow */}
+      <div className="xl:hidden pb-24">
         {/* Mobile Content */}
         <div>
           {/* Header Icons */}
@@ -1034,7 +1034,7 @@ function EventDetailsPage() {
 
           {/* Contact Details */}
           {eventData.contacts && eventData.contacts.length > 0 && (
-            <div className={`${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} p-3 rounded-xl mt-4`}>
+            <div className={`${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} p-3 rounded-xl mt-4 mb-6`}>
               <h3 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
               <div className="space-y-2">
                 {eventData.contacts.map((contact, index) => (
@@ -1097,11 +1097,11 @@ function EventDetailsPage() {
             </div>
           )}
 
-          {/* Fixed Register Button */}
+          {/* Fixed Register Button - Only show on mobile/tablet */}
           <button
             onClick={handleRegister}
             disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
-            className={`fixed bottom-4 left-1/2 -translate-x-1/2 w-11/12 font-semibold py-3 rounded-xl transition z-50 ${
+            className={`xl:hidden fixed bottom-4 left-1/2 -translate-x-1/2 w-11/12 font-semibold py-3 rounded-xl transition z-50 ${
               eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
                 ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
                 : isRegistered(eventData.id)

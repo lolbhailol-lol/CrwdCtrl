@@ -19,7 +19,7 @@ class ApiClient {
     }
 
     /**
-     * ✅ ENHANCED MOBILE-OPTIMIZED TIMEOUT CALCULATION
+     * ✅ ENHANCED MOBILE-OPTIMIZED TIMEOUT CALCULATION WITH RAILWAY SUPPORT
      */
     getMobileOptimizedTimeout(endpoint = '') {
         const userAgent = navigator.userAgent || navigator.vendor || window.opera;
@@ -33,10 +33,21 @@ class ApiClient {
         const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
         const effectiveType = connection?.effectiveType || '4g';
         
-        let baseTimeout = this.timeout; // Default 15s
+        // ✅ RAILWAY COLD START DETECTION
+        const isProduction = import.meta.env.PROD;
+        const isRailway = import.meta.env.VITE_ENABLE_RAILWAY_OPTIMIZATIONS === 'true';
+        const railwayTimeout = parseInt(import.meta.env.VITE_RAILWAY_COLD_START_TIMEOUT) || 45000;
+        
+        let baseTimeout = this.timeout; // Default timeout
+        
+        // ✅ RAILWAY-SPECIFIC TIMEOUT ADJUSTMENTS
+        if (isProduction && isRailway) {
+            baseTimeout = railwayTimeout; // Use Railway-optimized timeout (45s)
+            console.log('🚂 Railway production mode - using extended timeout:', baseTimeout);
+        }
         
         if (isMobile) {
-            baseTimeout = isAuthEndpoint ? 35000 : 25000; // 35s for auth, 25s for other requests on mobile
+            baseTimeout = Math.max(baseTimeout, isAuthEndpoint ? 35000 : 25000);
         }
         
         // Adjust for connection speed
@@ -50,7 +61,58 @@ class ApiClient {
     }
 
     /**
-     * ✅ ENHANCED RETRY MECHANISM WITH EXPONENTIAL BACKOFF
+     * ✅ RAILWAY COLD START DETECTION AND HANDLING
+     */
+    async detectAndHandleColdStart(url) {
+        const isProduction = import.meta.env.PROD;
+        const isRailway = import.meta.env.VITE_ENABLE_RAILWAY_OPTIMIZATIONS === 'true';
+        
+        if (!isProduction || !isRailway) {
+            return { isColdStart: false };
+        }
+        
+        try {
+            console.log('🚂 Checking for Railway cold start...');
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // Quick check
+            
+            const response = await fetch(`${this.baseURL}/cold-start-check`, {
+                method: 'GET',
+                signal: controller.signal,
+                credentials: 'include'
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('🚂 Cold start check result:', data);
+                
+                if (data.isColdStart) {
+                    console.log('❄️ Railway cold start detected - using extended timeouts');
+                    return { 
+                        isColdStart: true, 
+                        uptime: data.uptime,
+                        message: 'Server is warming up, please wait...' 
+                    };
+                }
+            }
+            
+            return { isColdStart: false };
+            
+        } catch (error) {
+            console.warn('⚠️ Cold start detection failed:', error.message);
+            // Assume cold start if detection fails
+            return { 
+                isColdStart: true, 
+                message: 'Connecting to server...' 
+            };
+        }
+    }
+
+    /**
+     * ✅ ENHANCED RETRY MECHANISM WITH RAILWAY COLD START SUPPORT
      */
     async requestWithRetry(url, config, maxRetries = 3) {
         let lastError;
@@ -192,13 +254,19 @@ class ApiClient {
     }
 
     /**
-     * ✅ ENHANCED REQUEST METHOD WITH MOBILE OPTIMIZATIONS
+     * ✅ ENHANCED REQUEST METHOD WITH RAILWAY COLD START OPTIMIZATIONS
      */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
         console.log('📍 API URL being called:', url);
         console.log('📍 Base URL:', this.baseURL);
         console.log('📍 Endpoint:', endpoint);
+
+        // ✅ RAILWAY COLD START DETECTION (for first request)
+        const coldStartInfo = await this.detectAndHandleColdStart(url);
+        if (coldStartInfo.isColdStart) {
+            console.log('❄️ Railway cold start detected, adjusting strategy...');
+        }
 
         const config = {
             method: 'GET',
@@ -220,8 +288,9 @@ class ApiClient {
             config.body = JSON.stringify(config.body);
         }
 
-        // ✅ USE RETRY MECHANISM FOR MOBILE RELIABILITY
-        return this.requestWithRetry(url, config);
+        // ✅ USE ENHANCED RETRY MECHANISM WITH RAILWAY SUPPORT
+        const maxRetries = coldStartInfo.isColdStart ? 4 : 3; // Extra retry for cold starts
+        return this.requestWithRetry(url, config, maxRetries);
     }
 
     /**

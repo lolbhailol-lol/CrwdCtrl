@@ -23,6 +23,9 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
 
+    // Determine if this is being used as a modal or a page
+    const isModal = !!onClose;
+
     const handleRegister = async (e) => {
         e.preventDefault();
         setErrors({});
@@ -86,7 +89,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
             );
 
             // Direct redirect (NO verification page)
-            if (onClose) {
+            if (isModal && onClose) {
                 onClose();
             } else {
                 navigate('/');
@@ -154,7 +157,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                 token: data.data.token
             });
 
-            if (onClose) {
+            if (isModal && onClose) {
                 onClose();
             } else {
                 navigate('/');
@@ -169,8 +172,12 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     };
 
     const handleClose = () => {
-        if (onClose) onClose();
-        else navigate('/');
+        if (isModal && onClose) {
+            onClose();
+        } else {
+            // If not a modal, navigate back to home
+            navigate('/');
+        }
     };
 
     const handleGoogleAuth = async () => {
@@ -279,24 +286,28 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
     return (
         <>
-            {/* Background overlay with blur */}
-            <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
+            {/* Background overlay with blur - only show for modal */}
+            {isModal && (
+                <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
+            )}
 
             {/* Register Modal Container - Fixed positioning with proper centering */}
-            <div className="fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className={`${isModal ? 'fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto' : 'min-h-screen flex items-center justify-center p-4'}`}>
                 <div
                     className={`relative rounded-2xl shadow-2xl w-full max-w-xs sm:max-w-sm p-4 sm:p-6 transition-colors duration-300 my-8
         ${isDark ? 'bg-[#1B1C1E] text-white' : 'bg-white text-gray-900'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Close Button */}
-                    <button
-                        onClick={handleClose}
-                        className={`absolute top-4 right-4 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
-                            }`}
-                    >
-                        <X size={22} />
-                    </button>
+                    {/* Close Button - only show for modal */}
+                    {isModal && (
+                        <button
+                            onClick={handleClose}
+                            className={`absolute top-4 right-4 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            <X size={22} />
+                        </button>
+                    )}
 
                     {/* Logo */}
                     <div className="text-center mb-4 sm:mb-6">
@@ -591,7 +602,13 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                             <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm`}>
                                 Already have an account?{" "}
                                 <button
-                                    onClick={onSwitchToLogin}
+                                    onClick={() => {
+                                        if (isModal && onSwitchToLogin) {
+                                            onSwitchToLogin();
+                                        } else {
+                                            navigate('/login');
+                                        }
+                                    }}
                                     className="text-blue-600 hover:text-blue-700 font-medium"
                                 >
                                     Sign In

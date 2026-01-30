@@ -18,15 +18,19 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const navigate = useNavigate();
     const location = useLocation();
 
+    // Determine if this is being used as a modal or a page
+    const isModal = !!onClose;
+    const isAdminLogin = location.pathname === '/admin/login';
+
     // Redirect admin if already logged in (when visiting /login page directly)
     useEffect(() => {
-        if (!onClose && location.pathname === '/login') {
+        if (!isModal && location.pathname === '/login') {
             const adminToken = localStorage.getItem('admin_token');
             if (adminToken) {
                 navigate('/admin', { replace: true });
             }
         }
-    }, [onClose, location.pathname, navigate]);
+    }, [isModal, location.pathname, navigate]);
 
     // Auto-dismiss errors after 5 seconds (but not "Redirecting..." messages)
     useEffect(() => {
@@ -84,7 +88,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 
                 console.log('✅ [ADMIN LOGIN] SUCCESS - Redirecting to /admin');
                 
-                if (onClose) {
+                if (isModal && onClose) {
                     onClose();
                 }
                 
@@ -157,7 +161,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             
             console.log('✅ Backend user login successful');
 
-            if (onClose) {
+            if (isModal && onClose) {
                 onClose();
             }
 
@@ -190,8 +194,11 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     };
 
     const handleClose = () => {
-        if (onClose) {
+        if (isModal && onClose) {
             onClose();
+        } else {
+            // If not a modal, navigate back to home
+            navigate('/');
         }
     };
 
@@ -380,7 +387,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             }
 
             console.log('✅ Authentication complete');
-            if (onClose) {
+            if (isModal && onClose) {
                 onClose();
             }
             
@@ -488,7 +495,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             }
 
             console.log('✅ Facebook authentication complete, navigating...');
-            if (onClose) {
+            if (isModal && onClose) {
                 onClose();
             }
         } catch (error) {
@@ -520,24 +527,28 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
     return (
         <>
-            {/* Background overlay with blur */}
-            <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
+            {/* Background overlay with blur - only show for modal */}
+            {isModal && (
+                <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
+            )}
 
             {/* Login Modal Container */}
-            <div className="fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className={`${isModal ? 'fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto' : 'min-h-screen flex items-center justify-center p-4'}`}>
                 <div
                     className={`relative rounded-2xl shadow-2xl w-full max-w-xs sm:max-w-sm p-4 sm:p-6 transition-colors duration-300 my-8
         ${isDark ? 'bg-[#1B1C1E] text-white' : 'bg-white text-gray-900'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Close Button */}
-                    <button
-                        onClick={handleClose}
-                        className={`absolute top-4 right-4 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
-                            }`}
-                    >
-                        <X size={22} />
-                    </button>
+                    {/* Close Button - only show for modal or if not admin login */}
+                    {(isModal || !isAdminLogin) && (
+                        <button
+                            onClick={handleClose}
+                            className={`absolute top-4 right-4 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            <X size={22} />
+                        </button>
+                    )}
 
                     {/* Logo */}
                     <div className="text-center mb-4 sm:mb-6">
@@ -704,7 +715,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                             Don't have an account?{' '}
                             <button
                                 onClick={() => {
-                                    if (onSwitchToRegister) {
+                                    if (isModal && onSwitchToRegister) {
                                         onSwitchToRegister();
                                     } else {
                                         navigate('/register');
