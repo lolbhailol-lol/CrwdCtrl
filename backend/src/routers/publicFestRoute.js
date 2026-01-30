@@ -93,6 +93,8 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
                 externalUrl: competitionData.registration.externalUrl || '',
                 googleSheetsUrl: competitionData.registration.googleSheetsUrl || '',
                 formSchema: competitionData.registration.formSchema || [],
+                formType: competitionData.registration.formType || 'SINGLE_STEP',
+                steps: competitionData.registration.steps || [],
                 qrCode: competitionData.registration.qrCode || '',
                 qrCodeMessage: competitionData.registration.qrCodeMessage || '',
                 confirmationEmail: competitionData.registration.confirmationEmail || '',

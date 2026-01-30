@@ -91,45 +91,102 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
     ];
 
     // Map form responses using field IDs to match frontend field generation
+    console.log('🔍 MATCHING FIELDS - Frontend responses keys:', Object.keys(responses));
+    console.log('🔍 MATCHING FIELDS - Backend formSchema fields:', formSchema.map(f => ({ label: f.label, id: f.id, fieldName: f.fieldName })));
+    
     formSchema.forEach(field => {
-      // Generate the same field ID format as frontend
-      const fieldId = field.id ? `field_${field.id}` : 
-                     field.fieldName ? field.fieldName :
-                     field.label ? `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}` :
-                     'unknown_field';
+      let fieldValue = null;
+      let matchedFieldId = null;
+      
+      // Try multiple key formats to find the value
+      // 1. Try exact fieldName
+      if (field.fieldName && responses[field.fieldName] !== undefined) {
+        fieldValue = responses[field.fieldName];
+        matchedFieldId = field.fieldName;
+        console.log('✅ Matched by fieldName:', field.label, '→', matchedFieldId);
+      }
+      // 2. Try field.id (might be hash without field_ prefix)
+      else if (field.id && responses[field.id] !== undefined) {
+        fieldValue = responses[field.id];
+        matchedFieldId = field.id;
+        console.log('✅ Matched by id:', field.label, '→', matchedFieldId);
+      }
+      // 3. Try with field_ prefix on id
+      else if (field.id && responses[`field_${field.id}`] !== undefined) {
+        fieldValue = responses[`field_${field.id}`];
+        matchedFieldId = `field_${field.id}`;
+        console.log('✅ Matched by field_id:', field.label, '→', matchedFieldId);
+      }
+      // 4. Generate from label and try
+      else if (field.label) {
+        const generatedId = `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+        if (responses[generatedId] !== undefined) {
+          fieldValue = responses[generatedId];
+          matchedFieldId = generatedId;
+          console.log('✅ Matched by generated label ID:', field.label, '→', matchedFieldId);
+        }
+      }
+      
+      // If still not found, try all keys in responses and log what we tried
+      if (fieldValue === null || fieldValue === undefined) {
+        console.log('❌ NO MATCH FOUND for field:', field.label);
+        console.log('   Tried keys:', [field.fieldName, field.id, `field_${field.id}`, `field_${field.label?.toLowerCase().replace(/[^a-z0-9]/g, '_')}`]);
+        console.log('   Available response keys:', Object.keys(responses));
+      }
       
       if (field.type === 'image' || field.type === 'file') {
         // For file/image fields: show "🔗 View" hyperlink if uploaded
-        const fileData = responses[fieldId];
-        if (fileData && typeof fileData === 'string' && fileData.startsWith('http')) {
+        let fileUrl = null;
+        
+        // ✅ NEW: Handle both string URLs and object format {url: '...'}
+        if (fieldValue) {
+          if (typeof fieldValue === 'string' && fieldValue.startsWith('http')) {
+            fileUrl = fieldValue;
+          } else if (typeof fieldValue === 'object' && fieldValue.url && fieldValue.url.startsWith('http')) {
+            fileUrl = fieldValue.url;
+          }
+        }
+        
+        if (fileUrl) {
           // Use HYPERLINK formula but ensure it displays as clickable text
-          rowData.push(`=HYPERLINK("${fileData}","🔗 View")`);
+          rowData.push(`=HYPERLINK("${fileUrl}","🔗 View")`);
+          console.log('✅ File field added:', { label: field.label, fieldId: matchedFieldId, url: fileUrl });
         } else {
           rowData.push('');
+          console.log('⚠️ File field empty or no URL:', { label: field.label, fieldId: matchedFieldId, value: fieldValue });
         }
       } else {
         // For other fields: show actual value or empty string
-        const value = responses[fieldId];
-        if (Array.isArray(value)) {
-          rowData.push(value.join(', '));
+        if (Array.isArray(fieldValue)) {
+          rowData.push(fieldValue.join(', '));
         } else {
-          rowData.push(value ?? '');
+          rowData.push(fieldValue ?? '');
         }
+        console.log('✅ Text field added:', { label: field.label, fieldId: matchedFieldId, value: fieldValue });
       }
     });
 
     // ✅ ALWAYS add Payment Receipt data if available in responses
     if (responses['Payment Receipt']) {
-      const paymentReceiptUrl = responses['Payment Receipt'];
-      console.log('💳 Processing competition payment receipt from responses:', paymentReceiptUrl);
+      const paymentReceiptData = responses['Payment Receipt'];
+      console.log('💳 Processing competition payment receipt from responses:', paymentReceiptData);
       
-      if (paymentReceiptUrl && typeof paymentReceiptUrl === 'string' && paymentReceiptUrl.startsWith('http')) {
+      let paymentReceiptUrl = null;
+      
+      // ✅ NEW: Handle both string URLs and object format {url: '...'}
+      if (typeof paymentReceiptData === 'string' && paymentReceiptData.startsWith('http')) {
+        paymentReceiptUrl = paymentReceiptData;
+      } else if (typeof paymentReceiptData === 'object' && paymentReceiptData.url && paymentReceiptData.url.startsWith('http')) {
+        paymentReceiptUrl = paymentReceiptData.url;
+      }
+      
+      if (paymentReceiptUrl) {
         // Use HYPERLINK formula for clickable link
         rowData.push(`=HYPERLINK("${paymentReceiptUrl}","🔗 View Receipt")`);
         console.log('✅ Competition payment receipt added to Google Sheets row data');
       } else {
         rowData.push('');
-        console.log('⚠️ Competition payment receipt URL not valid');
+        console.log('⚠️ Competition payment receipt URL not valid:', paymentReceiptData);
       }
     }
 

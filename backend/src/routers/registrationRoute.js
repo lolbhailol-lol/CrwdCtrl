@@ -64,6 +64,19 @@ router.post(
 router.post(
   '/competitions/:competitionId/custom',
   authenticateToken,
+  upload.any(),
+  (req, res, next) => {
+    console.log('\n🎯 CUSTOM COMPETITION REGISTRATION ENDPOINT HIT');
+    console.log('📍 competitionId:', req.params.competitionId);
+    console.log('🔍 Request body keys:', Object.keys(req.body));
+    console.log('💳 Payment receipt URL in body:', req.body.paymentReceiptUrl);
+    console.log('💰 Transaction ID in body:', req.body.transactionId);
+    console.log('📁 Files received:', req.files?.length || 0);
+    if (req.files && req.files.length > 0) {
+      console.log('📋 File details:', req.files.map(f => ({ fieldname: f.fieldname, originalname: f.originalname, size: f.size })));
+    }
+    next();
+  },
   submitCustomCompetitionRegistration
 );
 

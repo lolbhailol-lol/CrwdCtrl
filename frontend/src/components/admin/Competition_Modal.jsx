@@ -1943,7 +1943,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                         </div>
                       )}
 
-                      {/* QR Code Configuration */}
+                      {/* QR Code Configuration - Only show for internal form and SINGLE_STEP */}
+                      {form.registration?.status === 'internal_form' && form.registration?.formType === 'SINGLE_STEP' && (
                       <div>
                         <label className="block text-sm font-medium mb-2">QR Code (Optional)</label>
                         <div className="space-y-3">
@@ -1967,16 +1968,14 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                         Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
                                       },
                                       body: formData,
-                                      credentials: 'include', // ✅ FIX: Include cookies for production
-                                      mode: 'cors', // ✅ FIX: Enable CORS for production
+                                      credentials: 'include',
+                                      mode: 'cors'
                                     });
 
                                     if (!response.ok) throw new Error('Failed to upload QR code');
 
                                     const data = await response.json();
                                     const qrCodeUrl = data.urls[0].url;
-                                    
-                                    console.log('QR Code uploaded successfully:', qrCodeUrl);
                                     
                                     setForm({
                                       ...form,
@@ -2008,59 +2007,19 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                   alt="QR Code" 
                                   className="w-16 h-16 object-cover rounded border border-gray-700"
                                 />
-                                <div className="flex flex-col gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setForm({
-                                      ...form,
-                                      registration: {
-                                        ...form.registration,
-                                        qrCode: ''
-                                      }
-                                    })}
-                                    className="text-red-400 hover:text-red-300 text-sm"
-                                  >
-                                    Remove
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      // Test QR code saving directly
-                                      try {
-                                        const testPayload = {
-                                          registration: {
-                                            ...form.registration,
-                                            qrCode: form.registration.qrCode,
-                                            qrCodeMessage: form.registration.qrCodeMessage
-                                          }
-                                        };
-                                        
-                                        console.log('Testing QR code save with payload:', testPayload);
-                                        
-                                        const response = await fetch(`${API_BASE_URL}/admin/competitions/${competition._id}`, {
-                                          method: 'PUT',
-                                          headers: {
-                                            'Content-Type': 'application/json',
-                                            Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-                                          },
-                                          body: JSON.stringify(testPayload),
-                                          credentials: 'include', // ✅ FIX: Include cookies for production
-                                          mode: 'cors', // ✅ FIX: Enable CORS for production
-                                        });
-                                        
-                                        const result = await response.json();
-                                        console.log('QR code test result:', result);
-                                        alert('QR code test completed - check console');
-                                      } catch (err) {
-                                        console.error('QR code test error:', err);
-                                        alert('QR code test failed - check console');
-                                      }
-                                    }}
-                                    className="text-blue-400 hover:text-blue-300 text-sm"
-                                  >
-                                    Test Save
-                                  </button>
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setForm({
+                                    ...form,
+                                    registration: {
+                                      ...form.registration,
+                                      qrCode: ''
+                                    }
+                                  })}
+                                  className="text-red-400 hover:text-red-300 text-sm"
+                                >
+                                  Remove
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2083,6 +2042,97 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                           </div>
                         </div>
                       </div>
+                      )}
+
+                      {/* Payment Information - Only show for internal form and MULTI_STEP */}
+                      {form.registration?.status === 'internal_form' && form.registration?.formType === 'MULTI_STEP' && (
+                      <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                        <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Payment Information</h5>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Payment QR Upload */}
+                          <div className="space-y-2">
+                            <label className="block text-sm font-medium mb-2">Payment QR Code *</label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                  const file = e.target.files[0];
+                                  if (file) {
+                                    setUploadingImage(true);
+                                    try {
+                                      const formData = new FormData();
+                                      formData.append('images', file);
+                                      formData.append('folder', 'crwdctrl/competitions/payment-qr');
+
+                                      const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
+                                        method: 'POST',
+                                        headers: {
+                                          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+                                        },
+                                        body: formData,
+                                        credentials: 'include',
+                                        mode: 'cors'
+                                      });
+
+                                      if (!response.ok) throw new Error('Upload failed');
+                                      const data = await response.json();
+                                      setForm({
+                                        ...form,
+                                        registration: {
+                                          ...form.registration,
+                                          qrCode: data.urls[0].url
+                                        }
+                                      });
+                                    } catch (err) {
+                                      setError('Failed to upload payment QR');
+                                    } finally {
+                                      setUploadingImage(false);
+                                    }
+                                  }
+                                }}
+                                className="hidden"
+                                id="paymentQR"
+                              />
+                              <label
+                                htmlFor="paymentQR"
+                                className="px-3 py-2 bg-[#1B1C1E] border border-gray-700 rounded-lg cursor-pointer hover:bg-[#3A3B3D] transition-colors flex items-center gap-2 text-sm"
+                              >
+                                {uploadingImage ? <Loader className="w-4 h-4 animate-spin" /> : <Upload size={16} />}
+                                {uploadingImage ? 'Uploading...' : 'Upload QR'}
+                              </label>
+                              {form.registration?.qrCode && (
+                                <div className="flex items-center gap-2">
+                                  <img src={form.registration.qrCode} alt="Payment QR" className="w-10 h-10 object-cover rounded" />
+                                  <span className="text-xs text-green-400">✓ Uploaded</span>
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400">Upload QR code for payment processing</p>
+                          </div>
+
+                          {/* Payment Instructions */}
+                          <div className="space-y-2">
+                            <label className="block text-sm font-medium mb-2">Payment Instructions</label>
+                            <textarea
+                              rows={3}
+                              placeholder="Enter payment instructions (e.g., Scan QR to pay ₹500 registration fee...)"
+                              className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none text-sm"
+                              value={form.registration?.qrCodeMessage || ''}
+                              onChange={(e) => setForm({
+                                ...form,
+                                registration: {
+                                  ...form.registration,
+                                  qrCodeMessage: e.target.value
+                                }
+                              })}
+                            />
+                            <p className="text-xs text-gray-400">This message will be displayed with the QR code</p>
+                          </div>
+                        </div>
+                      </div>
+                      )}
 
                       {/* Confirmation Email Configuration */}
                       <div>

@@ -19,6 +19,16 @@ export default function CompetitionRegistration() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
     const [uploadingFiles, setUploadingFiles] = useState({});
+    // ✅ NEW: Multi-step form state
+    const [currentStep, setCurrentStep] = useState(1);
+    const [stepData, setStepData] = useState({});
+    const [completedSteps, setCompletedSteps] = useState(new Set());
+    // ✅ NEW: Payment info state
+    const [paymentReceipt, setPaymentReceipt] = useState(null);
+    const [paymentReceiptUrl, setPaymentReceiptUrl] = useState('');
+    const [uploadingReceipt, setUploadingReceipt] = useState(false);
+    const [receiptError, setReceiptError] = useState('');
+    const [transactionId, setTransactionId] = useState('');
 
     useEffect(() => {
         const initializeRegistration = async () => {
@@ -131,6 +141,14 @@ export default function CompetitionRegistration() {
             }
             setFormData(initialData);
             
+            // ✅ CRITICAL FIX: Initialize stepData with the same structure for multi-step forms
+            if (isMultiStepForm(data.registration)) {
+                console.log('🔄 Initializing stepData for multi-step form with step 1 data');
+                setStepData({
+                    1: initialData
+                });
+            }
+            
         } catch (err) {
             console.error('Error fetching competition:', err);
             setError(err.message);
@@ -156,31 +174,176 @@ export default function CompetitionRegistration() {
         return registrationData?.formType === 'MULTI_STEP' && registrationData?.steps?.length > 0;
     };
 
-    const handleInputChange = (fieldId, value, fieldType = 'text') => {
-        console.log(`📝 Setting form field: ${fieldId} = ${value} (type: ${fieldType})`);
+    // ✅ NEW: Multi-step form helper functions
+    const isMultiStepFormActive = () => {
+        const isMulti = competition?.registration?.formType === 'MULTI_STEP' && competition?.registration?.steps?.length > 0;
+        console.log('🔍 isMultiStepFormActive check:', {
+            formType: competition?.registration?.formType,
+            stepsLength: competition?.registration?.steps?.length,
+            result: isMulti
+        });
+        return isMulti;
+    };
+
+    const getCurrentStepFields = () => {
+        if (!isMultiStepFormActive()) {
+            return competition?.registration?.formSchema || [];
+        }
         
-        setFormData(prev => {
-            if (fieldType === 'checkbox') {
-                const currentValues = prev[fieldId] || [];
-                const updatedValues = currentValues.includes(value)
-                    ? currentValues.filter(v => v !== value)
-                    : [...currentValues, value];
+        // ✅ NEW: If this is the payment step (last step with QR), return empty fields
+        const baseSteps = competition.registration.steps.length;
+        const isPaymentStep = competition.registration.qrCode && currentStep > baseSteps;
+        
+        if (isPaymentStep) {
+            return []; // Payment step has no form fields
+        }
+        
+        const step = competition.registration.steps.find(s => s.stepNumber === currentStep);
+        return step?.fields || [];
+    };
 
-                const newData = {
-                    ...prev,
-                    [fieldId]: updatedValues
-                };
-                console.log(`📋 Updated form data (checkbox):`, newData);
-                return newData;
+    const getTotalSteps = () => {
+        if (!isMultiStepFormActive()) return 1;
+        
+        // ✅ NEW: Add +1 for dedicated payment step if QR is configured
+        const baseSteps = competition.registration.steps.length;
+        const hasPaymentStep = competition.registration.qrCode;
+        
+        return hasPaymentStep ? baseSteps + 1 : baseSteps;
+    };
+
+    const getCurrentStepData = () => {
+        if (!isMultiStepFormActive()) {
+            return formData;
+        }
+        return stepData[currentStep] || {};
+    };
+
+    const validateCurrentStep = () => {
+        const currentFields = getCurrentStepFields();
+        const currentData = getCurrentStepData();
+        
+        if (currentFields.length === 0) {
+            // No fields to validate, skip validation for this step
+            return true;
+        }
+        for (const field of currentFields) {
+            if (field.required) {
+                const fieldId = generateFieldId(field);
+                const value = currentData[fieldId];
+                
+                if (!value || (typeof value === 'string' && value.trim() === '')) {
+                    setError(`Please fill in the required field: ${field.label}`);
+                    return false;
+                }
             }
+        }
 
-            const newData = {
+        return true;
+    };
+
+    const handleStepNext = () => {
+        if (!validateCurrentStep()) {
+            return;
+        }
+        
+        // Save current step data
+        if (isMultiStepFormActive()) {
+            setStepData(prev => ({
+                ...prev,
+                [currentStep]: getCurrentStepData()
+            }));
+            setCompletedSteps(prev => new Set([...prev, currentStep]));
+        }
+        
+        if (currentStep < getTotalSteps()) {
+            setCurrentStep(prev => prev + 1);
+            setError(''); // Clear any errors
+        }
+    };
+
+    const handleStepBack = () => {
+        if (currentStep > 1) {
+            setCurrentStep(prev => prev - 1);
+            setError(''); // Clear any errors
+        }
+    };
+
+    const handleStepFieldChange = (fieldId, value) => {
+        if (isMultiStepFormActive()) {
+            setStepData(prev => ({
+                ...prev,
+                [currentStep]: {
+                    ...prev[currentStep],
+                    [fieldId]: value
+                }
+            }));
+        } else {
+            setFormData(prev => ({
                 ...prev,
                 [fieldId]: value
-            };
-            console.log(`📋 Updated form data:`, newData);
-            return newData;
+            }));
+        }
+    };
+
+    const getAllFormData = () => {
+        if (!isMultiStepFormActive()) {
+            return formData;
+        }
+        
+        // Combine all step data - THIS IS CRITICAL FOR MULTI-STEP FORMS
+        const allData = {};
+        
+        // First, merge all completed steps
+        Object.entries(stepData).forEach(([stepNum, stepFormData]) => {
+            Object.assign(allData, stepFormData);
         });
+        
+        // Then, include current step data (in case it hasn't been saved yet)
+        const currentStepData = getCurrentStepData();
+        Object.assign(allData, currentStepData);
+        
+        return allData;
+    };
+
+    const handleInputChange = (fieldId, value, fieldType = 'text') => {
+        console.log('🎯 handleInputChange CALLED:', { fieldId, value, fieldType, isMultiStep: isMultiStepFormActive() });
+        console.log(`📝 Setting form field: ${fieldId} = ${value} (type: ${fieldType})`);
+        
+        if (isMultiStepFormActive()) {
+            // For multi-step forms, use step-specific data handling
+            setStepData(prev => ({
+                ...prev,
+                [currentStep]: {
+                    ...prev[currentStep],
+                    [fieldId]: fieldType === 'checkbox' ? 
+                        ((prev[currentStep]?.[fieldId] || []).includes(value)
+                            ? (prev[currentStep]?.[fieldId] || []).filter(v => v !== value)
+                            : [...(prev[currentStep]?.[fieldId] || []), value])
+                        : value
+                }
+            }));
+        } else {
+            // For single-step forms, use formData directly
+            setFormData(prev => {
+                if (fieldType === 'checkbox') {
+                    const currentValues = prev[fieldId] || [];
+                    const updatedValues = currentValues.includes(value)
+                        ? currentValues.filter(v => v !== value)
+                        : [...currentValues, value];
+
+                    return {
+                        ...prev,
+                        [fieldId]: updatedValues
+                    };
+                }
+
+                return {
+                    ...prev,
+                    [fieldId]: value
+                };
+            });
+        }
     };
 
     const handleFileUpload = async (file, fieldId) => {
@@ -226,43 +389,39 @@ export default function CompetitionRegistration() {
                 }
             }
 
-            const formDataUpload = new FormData();
-            formDataUpload.append('files', processedFile);
-            formDataUpload.append('folder', `crwdctrl/competitions/${competitionId}/registrations`);
-
-            console.log(`📤 Processing ${processedFile.name} (${(processedFile.size / 1024 / 1024).toFixed(2)}MB)...`);
-            const uploadStartTime = Date.now();
-
-            const response = await fetch(`${API_BASE_URL}/registrations/upload`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('crwdctrl_token')}`,
-                },
-                body: formDataUpload,
-            });
-
-            if (!response.ok) throw new Error('File upload failed');
-
-            const data = await response.json();
-            const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(1);
-            console.log(`✅ File uploaded in ${uploadTime}s:`, data);
+            // ✅ PERFORMANCE FIX: Store file immediately without uploading
+            // Upload will happen during form submission to avoid blocking UI
+            const fileInfo = { 
+                uploaded: true, 
+                fileName: processedFile.name,
+                fileSize: processedFile.size,
+                fileType: processedFile.type,
+                ready: true // Mark as ready for submission
+            };
             
-            const fileUrl = data.urls?.[0]?.url;
-            console.log('🔗 Extracted file URL:', fileUrl);
-            console.log('🏷️ Setting for field ID:', fieldId);
-            
-            if (fileUrl) {
-                console.log('✅ Setting file URL in form data');
-                handleInputChange(fieldId, fileUrl);
-                console.log('📋 Form data after file upload:', formData);
+            if (isMultiStepFormActive()) {
+                // For multi-step forms, use step-specific data handling
+                setStepData(prev => ({
+                    ...prev,
+                    [currentStep]: {
+                        ...prev[currentStep],
+                        [`${fieldId}_file`]: processedFile, // Store actual file
+                        [fieldId]: fileInfo
+                    }
+                }));
             } else {
-                console.error('❌ No file URL in response');
-                setError('File upload failed: No URL returned');
+                // For single-step forms, use formData directly
+                setFormData(prev => ({
+                    ...prev,
+                    [`${fieldId}_file`]: processedFile, // Store actual file
+                    [fieldId]: fileInfo
+                }));
             }
             
+            console.log('✅ File prepared for upload:', fieldId, '- Will upload during form submission');
         } catch (err) {
-            console.error('❌ File upload error:', err);
-            setError(`File upload failed: ${err.message}`);
+            console.error('❌ File validation error:', err);
+            setError(err.message || 'Failed to validate file');
         } finally {
             setUploadingFiles(prev => ({
                 ...prev,
@@ -318,11 +477,97 @@ export default function CompetitionRegistration() {
         });
     };
 
+    // ✅ NEW: Payment receipt upload function
+    const handlePaymentReceiptUpload = async (file) => {
+        if (!file) return;
+
+        console.log('💳 Starting payment receipt upload:', file.name);
+        setUploadingReceipt(true);
+        setReceiptError('');
+
+        try {
+            // Validate file type
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+            if (!allowedTypes.includes(file.type)) {
+                throw new Error('Please upload a valid image (JPG, PNG) or PDF file');
+            }
+
+            // Validate file size (5MB limit)
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                throw new Error('File size must be less than 5MB');
+            }
+
+            // Compress image if it's an image file
+            let processedFile = file;
+            if (file.type.startsWith('image/')) {
+                try {
+                    processedFile = await compressImage(file);
+                    console.log('🗜️ Receipt image compressed');
+                } catch (compressionError) {
+                    console.warn('⚠️ Image compression failed, using original:', compressionError);
+                    processedFile = file;
+                }
+            }
+
+            // Upload to backend
+            const formData = new FormData();
+            formData.append('image', processedFile);
+
+            const response = await fetch(`${API_BASE_URL}/users/upload/image`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`
+                },
+                body: formData,
+                credentials: 'include',
+                mode: 'cors'
+            });
+
+            if (!response.ok) {
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch {
+                    errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+                }
+                throw new Error(errorData.message || 'Failed to upload receipt');
+            }
+
+            const result = await response.json();
+            const uploadedUrl = result.url || result.imageUrl;
+
+            if (!uploadedUrl) {
+                throw new Error('Upload successful but no URL returned');
+            }
+
+            setPaymentReceiptUrl(uploadedUrl);
+            setPaymentReceipt(processedFile);
+            console.log('✅ Payment receipt uploaded successfully');
+
+        } catch (error) {
+            console.error('❌ Payment receipt upload error:', error);
+            setReceiptError(error.message || 'Failed to upload payment receipt');
+        } finally {
+            setUploadingReceipt(false);
+        }
+    };
+
     const renderField = (field) => {
         // Use consistent field ID generation
         const fieldId = generateFieldId(field);
         const { type, required, options, placeholder } = field;
-        const value = formData[fieldId] || ''; // Use stable fieldId
+        
+        console.log(`🎨 renderField called for: ${field.label} (${fieldId}, type: ${type})`);
+        
+        // Get value from appropriate location based on form type
+        let value;
+        if (isMultiStepFormActive()) {
+            value = getCurrentStepData()[fieldId] || '';
+        } else {
+            value = formData[fieldId] || '';
+        }
+        
         const isUploading = uploadingFiles[fieldId]; // Use stable fieldId
 
         switch (type) {
@@ -448,6 +693,7 @@ export default function CompetitionRegistration() {
                                 }}
                                 className="hidden"
                                 id={`file-${fieldId}`} // Use stable fieldId
+                                data-field-id={fieldId}
                                 disabled={isUploading}
                             />
                             <label
@@ -506,6 +752,35 @@ export default function CompetitionRegistration() {
             console.log('⚠️ Submission already in progress, ignoring duplicate request');
             return;
         }
+
+        // ✅ NEW: For multi-step forms, validate current step first and move to next
+        if (isMultiStepFormActive()) {
+            const currentFields = getCurrentStepFields();
+            const currentData = getCurrentStepData();
+            
+            // Validate current step
+            for (const field of currentFields) {
+                if (field.required) {
+                    const fieldId = generateFieldId(field);
+                    const value = currentData[fieldId];
+                    if (field.type === 'file' || field.type === 'image') {
+                        if (!value || !value.ready) {
+                            setError(`${field.label} is required - please upload a file`);
+                            return;
+                        }
+                    } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
+                        setError(`${field.label} is required`);
+                        return;
+                    }
+                }
+            }
+
+            // If not on final step, move to next step instead of submitting
+            if (currentStep < getTotalSteps()) {
+                handleStepNext();
+                return;
+            }
+        }
         
         setSubmitting(true);
         setError('');
@@ -516,26 +791,24 @@ export default function CompetitionRegistration() {
             const formSchema = getFormSchema(competition.registration);
             console.log(`📝 Validation schema: ${formSchema.length} fields (${isMultiStepForm(competition.registration) ? 'multi-step' : 'single-step'})`);
             
+            // Get all form data (combine all steps if multi-step)
+            const allFormData = getAllFormData();
+            
             // Validate required fields
             const requiredFields = formSchema.filter(field => field.required) || [];
             console.log('🔍 Validating required fields:', requiredFields.map(f => ({ label: f.label, id: generateFieldId(f) })));
-            console.log('📋 Current form data keys:', Object.keys(formData));
-            console.log('📋 Current form data:', formData);
+            console.log('📋 Current form data keys:', Object.keys(allFormData));
             
             for (const field of requiredFields) {
                 const fieldId = generateFieldId(field);
-                const fieldValue = formData[fieldId];
+                const fieldValue = allFormData[fieldId];
                 
-                console.log(`🔍 Validating field "${field.label}":`, {
-                    fieldId: fieldId,
-                    value: fieldValue,
-                    hasValue: !!fieldValue,
-                    isArray: Array.isArray(fieldValue),
-                    arrayLength: Array.isArray(fieldValue) ? fieldValue.length : 'N/A',
-                    isEmpty: typeof fieldValue === 'string' && fieldValue.trim() === ''
-                });
-                
-                if (!fieldValue || 
+                if (field.type === 'file' || field.type === 'image') {
+                    if (!fieldValue || !fieldValue.ready || !allFormData[`${fieldId}_file`]) {
+                        console.error(`❌ Required file missing: ${field.label} (${fieldId})`);
+                        throw new Error(`${field.label} is required - please upload a file`);
+                    }
+                } else if (!fieldValue || 
                     (Array.isArray(fieldValue) && fieldValue.length === 0) ||
                     (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
                     console.error(`❌ Required field missing: ${field.label} (${fieldId})`);
@@ -543,40 +816,170 @@ export default function CompetitionRegistration() {
                 }
             }
 
-            setSubmissionProgress('Preparing registration data...');
-            const registrationData = {
-                responses: formData,
-                userInfo: {
-                    userId: user.id,
-                    name: user.name,
-                    email: user.email
-                }
-            };
-
-            console.log('📊 Registration summary:', {
-                totalFields: Object.keys(formData).length,
-                requiredFields: requiredFields.length,
-                userId: user.id,
-                formDataKeys: Object.keys(formData)
+            // ✅ NEW: Validate payment receipt only on the final payment step
+            const totalSteps = getTotalSteps();
+            const hasPaymentQR = competition.registration.qrCode;
+            const isOnPaymentStep = isMultiStepFormActive() && hasPaymentQR && currentStep === totalSteps;
+            
+            console.log('💳 Payment validation check:', {
+                hasPaymentQR,
+                totalSteps,
+                currentStep,
+                isOnPaymentStep,
+                hasPaymentReceiptUrl: !!paymentReceiptUrl,
+                hasTransactionId: !!transactionId.trim()
             });
-            console.log('📤 Sending registration data:', registrationData);
+            
+            // Only require payment receipt and transaction ID on the final payment step
+            if (isOnPaymentStep) {
+                if (!paymentReceiptUrl) {
+                    throw new Error('Payment receipt is required. Please upload your payment proof after scanning the QR code.');
+                }
+                if (!transactionId.trim()) {
+                    throw new Error('Transaction ID is required. Please enter your payment reference number.');
+                }
+            }
 
-            setSubmissionProgress('Submitting registration...');
+            setSubmissionProgress('Preparing form data...');
+            // ✅ MATCHING FEST FORM: Use FormData for proper file handling
+            const submissionFormData = new FormData();
+            const textResponses = {};
+            let totalFileSize = 0;
+            let fileCount = 0;
+
+            // Process form fields with consistent field naming
+            console.log('🔍 PROCESSING FIELDS - Starting:', {
+                formSchemaLength: formSchema.length,
+                allFormDataKeys: Object.keys(allFormData),
+                allFormDataFull: allFormData,
+                isMultiStep: isMultiStepFormActive(),
+                fileFieldsInSchema: formSchema.filter(f => f.type === 'file' || f.type === 'image').map(f => ({
+                    label: f.label,
+                    fieldId: generateFieldId(f),
+                    lookingFor: `${generateFieldId(f)}_file`
+                }))
+            });
+            
+            formSchema.forEach(field => {
+                const fieldId = generateFieldId(field);
+                const value = allFormData[fieldId];
+                const backendFieldName = generateFieldId(field);
+                
+                console.log('🔍 PROCESSING FIELD:', {
+                    label: field.label,
+                    fieldId,
+                    fieldType: field.type,
+                    value: typeof value === 'string' ? value.substring(0, 100) : value,
+                    hasValue: !!value,
+                    allFormDataKeys: Object.keys(allFormData)
+                });
+                
+                if (field.type === 'file' || field.type === 'image') {
+                    // Add file to FormData if it exists
+                    const fileData = allFormData[`${fieldId}_file`];
+                    
+                    console.log('🔍 FILE DEBUG:', {
+                        fieldId,
+                        fieldLabel: field.label,
+                        hasFileData: !!fileData,
+                        fileDataType: typeof fileData,
+                        isFile: fileData instanceof File,
+                        isBlob: fileData instanceof Blob,
+                        fileDataSize: fileData?.size || 'N/A',
+                        fileDataName: fileData?.name || 'N/A'
+                    });
+                    
+                    if (fileData && fileData.size > 0) {
+                        submissionFormData.append(backendFieldName, fileData);
+                        const fileSizeInMB = (fileData.size / 1024 / 1024).toFixed(2);
+                        totalFileSize += fileData.size;
+                        fileCount++;
+                        console.log('📁 Added file to form data:', {
+                            fieldName: backendFieldName,
+                            fileName: fileData.name,
+                            fileSize: `${fileSizeInMB}MB`,
+                            actualSize: fileData.size,
+                            totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`
+                        });
+                    }
+                } else {
+                    // Add text data to responses object
+                    textResponses[backendFieldName] = value ?? '';
+                    console.log('📝 Added text response:', backendFieldName, '=', typeof value === 'string' ? value.substring(0, 50) : value);
+                }
+            });
+
+            console.log('📋 Final textResponses object:', textResponses);
+            console.log('📋 Final textResponses keys:', Object.keys(textResponses));
+
+            // Add text responses as JSON
+            submissionFormData.append('responses', JSON.stringify(textResponses));
+            console.log('✅ Appended responses to FormData');
+
+            // ✅ MATCHING FEST FORM: Add transaction ID
+            if (transactionId && transactionId.trim()) {
+                submissionFormData.append('transactionId', transactionId.trim());
+                console.log('💳 Added transaction ID to submission:', transactionId);
+            }
+
+            // ✅ MATCHING FEST FORM: Add payment receipt URL if uploaded
+            if (paymentReceiptUrl) {
+                submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
+                console.log('💳 Added payment receipt URL to submission:', paymentReceiptUrl);
+            }
+
+            // ✅ PERFORMANCE: Show file submission progress
+            if (fileCount > 0) {
+                setSubmissionProgress(`Submitting ${fileCount} file(s) (${(totalFileSize / 1024 / 1024).toFixed(2)}MB)...`);
+            } else {
+                setSubmissionProgress('Submitting registration...');
+            }
+
+            // ✅ PERFORMANCE: Pre-validate file sizes
+            const maxTotalSize = 50 * 1024 * 1024; // 50MB total limit
+            if (totalFileSize > maxTotalSize) {
+                throw new Error(`Total file size (${(totalFileSize / 1024 / 1024).toFixed(2)}MB) exceeds limit of 50MB. Please reduce file sizes.`);
+            }
+
+            console.log('📊 Submission summary:', {
+                textFields: Object.keys(textResponses).length,
+                fileFields: fileCount,
+                totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`,
+                hasPaymentInfo: !!paymentReceiptUrl
+            });
+
+            setSubmissionProgress('Submitting registration to server... (instant response)');
             const startTime = Date.now();
+
+            // ✅ MATCHING FEST FORM: Dynamic timeout based on file size
+            const baseTimeout = 120000; // 120 seconds
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                console.warn(`⏱️ Aborting request after ${(baseTimeout / 1000).toFixed(0)}s timeout`);
+                controller.abort();
+            }, baseTimeout);
+
+            console.log(`⏱️ Request timeout: ${(baseTimeout / 1000).toFixed(0)}s`);
+            console.log('🌐 Making fetch request to:', `${API_BASE_URL}/registrations/competitions/${competitionId}/custom`);
 
             const response = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/custom`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${localStorage.getItem('crwdctrl_token')}`,
+                    'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`,
+                    // Don't set Content-Type for FormData - browser will set it with boundary
                 },
-                body: JSON.stringify(registrationData),
+                body: submissionFormData,
+                signal: controller.signal,
+                credentials: 'include',
+                mode: 'cors'
             });
 
+            clearTimeout(timeoutId);
             const submitTime = ((Date.now() - startTime) / 1000).toFixed(1);
             console.log(`📡 Registration response received in ${submitTime}s:`, { 
                 status: response.status, 
-                ok: response.ok 
+                ok: response.ok,
+                contentType: response.headers.get('content-type')
             });
 
             if (!response.ok) {
@@ -586,22 +989,6 @@ export default function CompetitionRegistration() {
                     const errorData = await response.json();
                     errorMessage = errorData.error || errorData.message || errorMessage;
                     console.error('❌ Backend error details:', errorData);
-                    
-                    // Show detailed error info for debugging
-                    if (errorData.details) {
-                        console.error('📋 Error details:', {
-                            missingField: errorData.details.missingField,
-                            triedFieldIds: errorData.details.triedFieldIds,
-                            receivedFields: errorData.details.receivedFields
-                        });
-                    }
-                    
-                    // Handle specific error cases
-                    if (response.status === 401) {
-                        errorMessage = 'Authentication failed. Please log in again.';
-                    } else if (response.status === 400 && errorData.error?.includes('registration')) {
-                        errorMessage = `Registration error: ${errorData.error}`;
-                    }
                 } catch (parseError) {
                     console.error('❌ Could not parse error response:', parseError);
                     if (response.status === 401) {
@@ -639,6 +1026,8 @@ export default function CompetitionRegistration() {
                 setError(err.message); // Field validation errors
             } else if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {
                 setError('Network error. Please check your internet connection and try again.');
+            } else if (err.name === 'AbortError') {
+                setError('Request timeout. Please check your internet connection and try again.');
             } else {
                 setError(err.message || 'An unexpected error occurred. Please try again.');
             }
@@ -727,73 +1116,283 @@ export default function CompetitionRegistration() {
                 {/* Registration Form */}
                 <div className="bg-[#2A2B2D] rounded-xl p-4 sm:p-6">
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        {/* QR Code Section */}
-                        {(competition?.registration?.qrCode && competition.registration.qrCode.trim() !== '') && (
-                            <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3 sm:p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center mt-0.5">
-                                        <span className="text-white text-xs font-bold">QR</span>
-                                    </div>
-                                    <div className="flex-1">
-                                        <h3 className="text-base font-semibold text-blue-300 mb-1">
-                                            {competition.registration.qrCodeMessage || 'QR Code'}
-                                        </h3>
-                                        <div className="flex justify-center">
-                                            <img 
-                                                src={competition.registration.qrCode} 
-                                                alt="QR Code" 
-                                                className="w-32 h-32 object-cover rounded-lg border border-blue-700"
-                                                onError={(e) => {
-                                                    console.error('QR Code image failed to load:', competition.registration.qrCode);
-                                                    e.target.style.display = 'none';
-                                                }}
-                                                onLoad={() => {
-                                                    console.log('QR Code image loaded successfully:', competition.registration.qrCode);
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Form Fields - Organized in a grid for better layout */}
-                        <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4">
-                            <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Registration Details</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                                {(() => {
-                                    // ✅ CRITICAL: Support both single-step and multi-step forms for rendering
-                                    const formSchema = getFormSchema(competition?.registration);
-                                    
-                                    return formSchema.map((field) => {
-                                        const fieldId = generateFieldId(field);
-                                        const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                                           field.type === 'checkbox' || field.type === 'radio';
-                                        
-                                        return (
-                                            <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                                                <label className="block text-sm font-medium text-white mb-1.5">
-                                                    {field.label}
-                                                    {field.required && <span className="text-red-400 ml-1">*</span>}
-                                                </label>
-                                                {renderField(field)}
-                                            </div>
-                                        );
-                                    });
-                                })()}
+                        {/* DEBUG: Check if multi-step form is active */}
+                        {console.log('📋 Render check - isMultiStepFormActive():', isMultiStepFormActive(), 'competition:', competition?.registration?.formType)}
+                        
+{/* ✅ NEW: Multi-Step Form Progress - Matching Fest Model */}
+                {isMultiStepFormActive() && (
+                    <div className="bg-[#1B1C1E] rounded-lg p-4 mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-white">Progress</h3>
+                            <div className="text-right">
+                                <span className="text-xs text-gray-400">Step {currentStep} of {getTotalSteps()}</span>
                             </div>
                         </div>
+                        
+                        {/* Progress Bar */}
+                        <div className="w-full bg-gray-700 rounded-full h-2 mb-3">
+                            <div 
+                                className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${(currentStep / getTotalSteps()) * 100}%` }}
+                            ></div>
+                        </div>
+                        
+                        {/* Step Indicators */}
+                        <div className="flex justify-between">
+                            {/* Regular form steps */}
+                            {competition.registration.steps && competition.registration.steps.map((step) => (
+                                <div key={step.stepNumber} className="flex flex-col items-center">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                                        step.stepNumber === currentStep 
+                                            ? 'bg-[#0ECCEE] text-black' 
+                                            : completedSteps.has(step.stepNumber)
+                                                ? 'bg-green-600 text-white'
+                                                : 'bg-gray-600 text-gray-300'
+                                    }`}>
+                                        {completedSteps.has(step.stepNumber) ? '✓' : step.stepNumber}
+                                    </div>
+                                    <span className="text-xs text-gray-400 mt-1 text-center max-w-16 truncate">
+                                        {step.stepTitle}
+                                    </span>
+                                </div>
+                            ))}
+                            
+                            {/* Payment step indicator (if QR is configured) */}
+                            {competition.registration.qrCode && (
+                                <div className="flex flex-col items-center">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                                        currentStep > (competition.registration.steps ? competition.registration.steps.length : 0)
+                                            ? 'bg-[#0ECCEE] text-black' 
+                                            : completedSteps.has((competition.registration.steps ? competition.registration.steps.length : 0) + 1)
+                                                ? 'bg-green-600 text-white'
+                                                : 'bg-gray-600 text-gray-300'
+                                    }`}>
+                                        {completedSteps.has((competition.registration.steps ? competition.registration.steps.length : 0) + 1) ? '✓' : '💳'}
+                                    </div>
+                                    <span className="text-xs text-gray-400 mt-1 text-center max-w-16">
+                                        Payment
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ✅ NEW: Current Step Title and Description */}
+                {isMultiStepFormActive() && (
+                    <div className="bg-[#1B1C1E] rounded-lg p-4 mb-4">
+                        {/* Step title and description */}
+                        {currentStep <= (competition.registration.steps ? competition.registration.steps.length : 0) ? (
+                            // Regular form step
+                            <>
+                                <h3 className="text-lg font-semibold text-white mb-2">
+                                    {competition.registration.steps && competition.registration.steps.find(s => s.stepNumber === currentStep)?.stepTitle}
+                                </h3>
+                                {competition.registration.steps && competition.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription && (
+                                    <p className="text-sm text-gray-400 mb-4">
+                                        {competition.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription}
+                                    </p>
+                                )}
+                            </>
+                        ) : (
+                            // Payment step
+                            <>
+                                <h3 className="text-lg font-semibold text-white mb-2">
+                                    Payment
+                                </h3>
+                                <p className="text-sm text-gray-400 mb-4">
+                                    Complete your payment to finalize your registration
+                                </p>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* ✅ NEW: QR Code Section (only on final payment step) */}
+                {isMultiStepFormActive() && competition.registration.qrCode && currentStep === getTotalSteps() && (
+                    <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-4 mb-6">
+                        <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center mt-0.5">
+                                <span className="text-white text-xs font-bold">QR</span>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-base font-semibold text-blue-300 mb-3">
+                                    {competition.registration.qrCodeMessage || 'Scan QR Code to Pay'}
+                                </h3>
+                                <div className="flex justify-center">
+                                    <img 
+                                        src={competition.registration.qrCode} 
+                                        alt="Payment QR Code" 
+                                        className="w-40 h-40 object-cover rounded-lg border border-blue-700"
+                                        onError={(e) => {
+                                            console.error('QR Code image failed to load');
+                                            e.target.style.display = 'none';
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Payment Receipt Upload Section (only on final payment step) */}
+                {isMultiStepFormActive() && competition.registration.qrCode && currentStep === getTotalSteps() && (
+                    <div className="bg-[#1B1C1E] rounded-lg p-4 mb-6 border border-gray-700">
+                        <h4 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                            <Upload className="w-4 h-4" />
+                            Upload Payment Receipt <span className="text-red-400">*</span>
+                        </h4>
+                        
+                        {!paymentReceiptUrl ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-center w-full">
+                                    <label 
+                                        htmlFor="payment-receipt-upload" 
+                                        className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                                            uploadingReceipt 
+                                                ? 'border-blue-400 bg-blue-900/20' 
+                                                : 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            {uploadingReceipt ? (
+                                                <>
+                                                    <Loader className="w-8 h-8 mb-2 text-blue-400 animate-spin" />
+                                                    <p className="text-sm text-blue-400">Uploading receipt...</p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                                                    <p className="mb-2 text-sm text-gray-300">
+                                                        <span className="font-semibold">Click to upload</span> payment receipt
+                                                    </p>
+                                                    <p className="text-xs text-gray-400">PNG, JPG or PDF (Max 5MB)</p>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input 
+                                            id="payment-receipt-upload" 
+                                            type="file" 
+                                            className="hidden" 
+                                            accept="image/jpeg,image/jpg,image/png,application/pdf"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) handlePaymentReceiptUpload(file);
+                                            }}
+                                            disabled={uploadingReceipt}
+                                        />
+                                    </label>
+                                </div>
+                                
+                                {receiptError && (
+                                    <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-2">
+                                        {receiptError}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 p-3 bg-green-900/20 border border-green-800 rounded-lg">
+                                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <p className="text-sm text-green-400 font-medium">Payment receipt uploaded</p>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            {paymentReceipt?.name}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPaymentReceiptUrl('');
+                                            setPaymentReceipt(null);
+                                            setReceiptError('');
+                                        }}
+                                        className="text-gray-400 hover:text-white text-sm underline"
+                                    >
+                                        Change
+                                    </button>
+                                </div>
+                                
+                                {paymentReceipt?.type.startsWith('image/') && (
+                                    <div className="flex justify-center">
+                                        <img 
+                                            src={paymentReceiptUrl} 
+                                            alt="Payment receipt" 
+                                            className="max-w-full max-h-32 object-contain rounded-lg border border-gray-600"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
+                        {/* Transaction ID Input */}
+                        {paymentReceiptUrl && (
+                            <div className="mt-4 pt-4 border-t border-gray-700">
+                                <label className="block text-sm font-semibold text-white mb-2">
+                                    Transaction ID <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={transactionId}
+                                    onChange={(e) => setTransactionId(e.target.value)}
+                                    placeholder="Enter transaction ID (UPI ref, bank ref, etc.)"
+                                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
+                                />
+                                <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ✅ NEW: Form Fields Section */}
+                {(() => {
+                    const formSchema = getFormSchema(competition?.registration);
+                    const currentFields = getCurrentStepFields();
+                    
+                    // Don't show fields section for payment step
+                    if (isMultiStepFormActive() && competition.registration.qrCode && currentStep === getTotalSteps()) {
+                        return null;
+                    }
+                    
+                    return (
+                        <div className="bg-[#1B1C1E] rounded-lg p-4 mb-6">
+                            <h3 className="text-base font-semibold text-white mb-4 border-b border-gray-700 pb-3">
+                                {isMultiStepFormActive() ? `Step ${currentStep}` : 'Registration Details'}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {currentFields.map((field) => {
+                                    const fieldId = generateFieldId(field);
+                                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
+                                                       field.type === 'checkbox' || field.type === 'radio';
+                                    
+                                    return (
+                                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                                            <label className="block text-sm font-medium text-white mb-2">
+                                                {field.label}
+                                                {field.required && <span className="text-red-400 ml-1">*</span>}
+                                            </label>
+                                            {renderField(field)}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })()}
 
                         {/* Submit Button */}
                         <div className="flex gap-3 pt-2 pb-44 md:pb-32">
+                            {/* Back Button */}
                             <button
                                 type="button"
-                                onClick={() => navigate(-1)}
+                                onClick={isMultiStepFormActive() && currentStep > 1 ? handleStepBack : () => navigate(-1)}
                                 className="px-4 sm:px-6 py-2.5 rounded-lg border border-gray-700 text-white hover:bg-gray-800 transition-colors text-sm sm:text-base"
                                 disabled={submitting}
                             >
-                                Cancel
+                                {isMultiStepFormActive() && currentStep > 1 ? 'Previous Step' : 'Cancel'}
                             </button>
+                            
+                            {/* Next/Submit Button */}
                             <button
                                 type="submit"
                                 disabled={submitting}
@@ -824,9 +1423,17 @@ export default function CompetitionRegistration() {
                                             </div>
                                         )}
                                     </>
-                                ) : (
-                                    'Submit Registration'
-                                )}
+                                ) : (() => {
+                                    if (isMultiStepFormActive() && currentStep < getTotalSteps()) {
+                                        // Check if next step is payment step
+                                        const nextStepIsPayment = competition.registration.qrCode && currentStep === (competition.registration.steps?.length || 0);
+                                        return nextStepIsPayment ? 'Continue to Payment' : 'Next Step';
+                                    }
+                                    
+                                    // Final step
+                                    const isPaymentStep = isMultiStepFormActive() && competition.registration.qrCode && currentStep > (competition.registration.steps?.length || 0);
+                                    return isPaymentStep ? 'Complete Payment & Registration' : 'Submit Registration';
+                                })()}
                             </button>
                         </div>
                     </form>

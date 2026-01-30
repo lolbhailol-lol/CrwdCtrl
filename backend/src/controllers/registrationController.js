@@ -38,12 +38,40 @@ const submitCustomCompetitionRegistration = async (req, res) => {
   try {
     const { competitionId } = req.params;
     const userId = req.user.userId;
-    const { responses, userInfo } = req.body;
+    
+    // ✅ CRITICAL FIX: Handle both JSON and FormData payloads
+    let responses = req.body.responses;
+    let transactionId = req.body.transactionId;
+    let paymentReceiptUrl = req.body.paymentReceiptUrl;
+    
+    // If responses is a string (from FormData), parse it
+    if (typeof responses === 'string') {
+      try {
+        responses = JSON.parse(responses);
+      } catch (parseErr) {
+        console.error('❌ Failed to parse responses JSON:', parseErr);
+        return res.status(400).json({ error: 'Invalid responses format' });
+      }
+    }
+    
+    // Ensure responses is an object
+    if (!responses || typeof responses !== 'object') {
+      responses = {};
+    }
+    
+    // ✅ NEW: Handle file uploads from FormData
+    const files = req.files || [];
+    console.log('📁 Received files:', files.length, files.map(f => ({ fieldname: f.fieldname, size: f.size })));
+
+    const { userInfo } = req.body;
 
     console.log('🏆 Custom competition registration request:', { 
       competitionId, 
       userId, 
-      responsesKeys: Object.keys(responses || {}),
+      responsesKeys: Object.keys(responses),
+      hasFiles: files.length > 0,
+      hasTransactionId: !!transactionId,
+      hasPaymentReceiptUrl: !!paymentReceiptUrl,
       userInfo 
     });
 
@@ -82,6 +110,54 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     console.log('📝 Form schema fields:', competition.registration.formSchema.map(f => ({ id: f.id, fieldName: f.fieldName, label: f.label, required: f.required })));
     console.log('📥 Received responses keys:', Object.keys(responses));
 
+    // ✅ NEW: Handle file uploads - store file info in responses
+    if (files.length > 0) {
+      const { uploadToCloudinary } = require('../services/cloudinaryService');
+      
+      for (const file of files) {
+        try {
+          console.log('📤 Uploading file to Cloudinary:', { fieldname: file.fieldname, size: file.size, mimetype: file.mimetype });
+          
+          const result = await uploadToCloudinary(
+            file.buffer,
+            file.originalname,
+            'competition-registration',
+            `comp_${competitionId}_${Date.now()}`,
+            userId,
+            file.fieldname
+          );
+          
+          if (result.success) {
+            // Store the uploaded file URL in responses
+            responses[file.fieldname] = {
+              fileName: file.originalname,
+              url: result.cloudinaryLink,
+              size: file.size,
+              uploaded: true
+            };
+            console.log('✅ File uploaded successfully:', { fieldname: file.fieldname, url: result.cloudinaryLink });
+          } else {
+            console.error('❌ File upload failed:', result.error);
+            return res.status(400).json({ error: `File upload failed for ${file.fieldname}` });
+          }
+        } catch (uploadErr) {
+          console.error('❌ Upload error:', uploadErr);
+          return res.status(500).json({ error: 'File upload failed' });
+        }
+      }
+    }
+
+    // ✅ NEW: Add transaction ID and payment receipt to responses if provided
+    // Use proper case names for Google Sheets compatibility
+    if (transactionId) {
+      responses['Transaction ID'] = transactionId;
+      console.log('💳 Added transaction ID to responses:', transactionId);
+    }
+    if (paymentReceiptUrl) {
+      responses['Payment Receipt'] = paymentReceiptUrl;
+      console.log('💳 Added payment receipt URL to responses:', paymentReceiptUrl);
+    }
+
     // Validate required fields
     const requiredFields = competition.registration.formSchema.filter(field => field.required);
     for (const field of requiredFields) {
@@ -116,12 +192,26 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       console.log('🔍 Validating field:', { 
         fieldLabel: field.label,
         fieldId: fieldId || 'NOT_FOUND',
-        value: fieldValue,
+        value: typeof fieldValue === 'object' ? JSON.stringify(fieldValue).substring(0, 100) : fieldValue,
         required: field.required,
         availableKeys: Object.keys(responses)
       });
       
-      if (!fieldValue || 
+      // For file uploads, check if it's an object with url property
+      if (field.type === 'file' || field.type === 'image') {
+        if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.url && !fieldValue.uploaded)) {
+          if (!fieldValue || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
+            console.log('❌ Required file field missing:', field.label);
+            return res.status(400).json({ 
+              error: `${field.label} is required`,
+              details: {
+                missingField: field.label,
+                fieldType: 'file'
+              }
+            });
+          }
+        }
+      } else if (!fieldValue || 
           (Array.isArray(fieldValue) && fieldValue.length === 0) ||
           (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
         console.log('❌ Required field missing:', field.label);
@@ -163,110 +253,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     await registration.save();
     console.log('✅ Registration saved to database');
 
-    // Send to Google Sheets if configured
-    if (competition.registration.googleSheetsUrl) {
-      try {
-        console.log('📊 Sending to Google Sheets...');
-        const { appendToCompetitionGoogleSheets } = require('../services/googleSheetsService');
-        await appendToCompetitionGoogleSheets(
-          competition.registration.googleSheetsUrl,
-          responses,
-          {
-            festName: competition.fest.festName,
-            competitionName: competition.name,
-            registrationId,
-            submittedAt: new Date().toISOString()
-          },
-          {
-            name: user.name,
-            email: user.email,
-            phone: user.phoneNumber
-          },
-          competition.registration.formSchema // Pass competition form schema
-        );
-        console.log('✅ Data sent to Google Sheets successfully');
-      } catch (sheetsError) {
-        console.error('❌ Google Sheets error:', sheetsError);
-        // Don't fail the registration if sheets fails
-      }
-    }
-
-    // Send confirmation emails
-    try {
-      const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = require('../services/emailService');
-      
-      console.log('📧 Starting email sending process...');
-      
-      // Send thank you email immediately
-      console.log('📧 Sending thank you email...');
-      await sendRegistrationThankYouEmail(
-        user.email,
-        user.name,
-        competition.name
-      );
-      console.log('✅ Thank you email sent successfully');
-
-      // Send detailed confirmation email asynchronously
-      setTimeout(async () => {
-        try {
-          console.log('📧 Sending confirmation email...');
-          const submissionDate = new Date().toLocaleString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-          
-          await sendRegistrationConfirmationEmail(
-            user.email,
-            user.name,
-            competition.fest.festName || competition.name,
-            competition.name,
-            registrationId,
-            submissionDate
-          );
-          console.log('✅ Confirmation email sent successfully');
-        } catch (emailError) {
-          console.error('❌ Confirmation email error:', emailError);
-        }
-      }, 1000);
-
-      // Send notification to custom confirmation email if provided
-      if (competition.registration.confirmationEmail) {
-        setTimeout(async () => {
-          try {
-            console.log('📧 Sending organizer notification email to:', competition.registration.confirmationEmail);
-            const { sendOrganizerNotificationEmail } = require('../services/emailService');
-            await sendOrganizerNotificationEmail(
-              competition.registration.confirmationEmail,
-              user.name,
-              user.email,
-              competition.name,
-              competition.name, // competition name as event name
-              registrationId,
-              new Date().toLocaleString('en-IN', {
-                timeZone: 'Asia/Kolkata',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })
-            );
-            console.log('✅ Custom organizer notification email sent to:', competition.registration.confirmationEmail);
-          } catch (orgEmailError) {
-            console.error('❌ Custom organizer notification email error:', orgEmailError);
-          }
-        }, 2000);
-      }
-
-    } catch (emailError) {
-      console.error('❌ Email error:', emailError);
-      // Don't fail registration if email fails
-    }
-
+    // ✅ PERFORMANCE: Return success IMMEDIATELY to frontend - don't wait for emails/sheets
     res.status(201).json({
       success: true,
       message: 'Registration submitted successfully',
@@ -279,6 +266,109 @@ const submitCustomCompetitionRegistration = async (req, res) => {
         registrationId,
         status: 'approved',
         submittedAt: registration.submittedAt
+      }
+    });
+
+    // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
+    setImmediate(async () => {
+      try {
+        // STEP 1: Send thank you email (async, non-blocking)
+        try {
+          console.log('📧 Sending thank you email (async)...');
+          await sendRegistrationThankYouEmail(
+            user.email,
+            user.name,
+            competition.name
+          );
+          console.log('✅ Thank you email sent successfully');
+        } catch (emailError) {
+          console.error('❌ Thank you email error:', emailError);
+        }
+
+        // STEP 2: Send confirmation email (async, non-blocking)
+        setTimeout(async () => {
+          try {
+            console.log('📧 Sending confirmation email (async)...');
+            const submissionDate = new Date().toLocaleString('en-IN', {
+              timeZone: 'Asia/Kolkata',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            
+            await sendRegistrationConfirmationEmail(
+              user.email,
+              user.name,
+              competition.fest.festName || competition.name,
+              competition.name,
+              registrationId,
+              submissionDate
+            );
+            console.log('✅ Confirmation email sent successfully');
+          } catch (emailError) {
+            console.error('❌ Confirmation email error:', emailError);
+          }
+        }, 500);
+
+        // STEP 3: Send organizer notification email if configured (async, non-blocking)
+        if (competition.registration.confirmationEmail) {
+          setTimeout(async () => {
+            try {
+              console.log('📧 Sending organizer notification email (async)...');
+              await sendOrganizerNotificationEmail(
+                competition.registration.confirmationEmail,
+                user.name,
+                user.email,
+                competition.name,
+                competition.name,
+                registrationId,
+                new Date().toLocaleString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              );
+              console.log('✅ Organizer notification email sent successfully');
+            } catch (orgEmailError) {
+              console.error('❌ Organizer notification email error:', orgEmailError);
+            }
+          }, 1000);
+        }
+
+        // STEP 4: Add to Google Sheets (async, non-blocking)
+        if (competition.registration.googleSheetsUrl) {
+          try {
+            console.log('📊 Adding registration to Google Sheets (async)...');
+            const { appendToCompetitionGoogleSheets } = require('../services/googleSheetsService');
+            await appendToCompetitionGoogleSheets(
+              competition.registration.googleSheetsUrl,
+              responses,
+              {
+                festName: competition.fest.festName,
+                competitionName: competition.name,
+                registrationId,
+                submittedAt: new Date().toISOString()
+              },
+              {
+                name: user.name,
+                email: user.email,
+                phone: user.phoneNumber
+              },
+              competition.registration.formSchema
+            );
+            console.log('✅ Data sent to Google Sheets successfully (async)');
+          } catch (sheetsError) {
+            console.error('❌ Google Sheets error (async):', sheetsError);
+          }
+        }
+
+      } catch (backgroundError) {
+        console.error('❌ Background task error:', backgroundError);
       }
     });
 
