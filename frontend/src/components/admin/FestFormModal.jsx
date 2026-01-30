@@ -6,6 +6,70 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 console.log('🔧 FestFormModal - API_BASE_URL:', API_BASE_URL);
 
+// Helper function to check if token is expired
+function isTokenExpired(token) {
+  if (!token) {
+    console.error('❌ [isTokenExpired] No token provided');
+    return true;
+  }
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.error('❌ [isTokenExpired] Invalid token format');
+      return true;
+    }
+    const payload = JSON.parse(atob(parts[1]));
+    // Consider token expired if it expires within the next 5 minutes
+    const isExpired = Date.now() >= (payload.exp * 1000) - (5 * 60 * 1000);
+    console.log('🔐 [isTokenExpired] Token expiry check:', {
+      expiresAt: new Date(payload.exp * 1000).toISOString(),
+      isExpired,
+      expiresIn: Math.ceil(((payload.exp * 1000) - Date.now()) / 1000) + 's'
+    });
+    return isExpired;
+  } catch (err) {
+    console.error('❌ [isTokenExpired] Error parsing token:', err.message);
+    return true;
+  }
+}
+
+// Helper function to refresh admin token
+async function refreshAdminToken(refreshToken) {
+  try {
+    console.log('🔄 Attempting admin token refresh...');
+    const response = await fetch(`${API_BASE_URL}/admin/refresh-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    
+    console.log('🔄 Refresh response status:', response.status);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Token refresh failed:', errorData);
+      throw new Error(errorData.message || 'Token refresh failed');
+    }
+    
+    const data = await response.json();
+    console.log('✅ Token refreshed successfully');
+    
+    // Store new access token
+    localStorage.setItem('admin_token', data.accessToken);
+    if (data.refreshToken) {
+      localStorage.setItem('admin_refresh_token', data.refreshToken);
+    }
+    
+    return data.accessToken;
+  } catch (err) {
+    console.error('❌ Token refresh error:', err.message);
+    // Clear tokens on refresh failure
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_refresh_token');
+    throw err;
+  }
+}
+
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
   const handleInputChange = (fieldName, value) => {
@@ -871,13 +935,37 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
   try {
     // Check if admin token exists
-    const adminToken = localStorage.getItem('admin_token');
+    let adminToken = localStorage.getItem('admin_token');
+    const adminRefreshToken = localStorage.getItem('admin_refresh_token');
+    
     console.log('🔑 Admin token check:', adminToken ? 'Present' : 'Missing');
     if (!adminToken) {
       console.error('❌ No admin token found');
       setError('Admin session expired. Please log in again.');
       setLoading(false);
       return;
+    }
+
+    // Check if token is expired and refresh if needed
+    if (isTokenExpired(adminToken)) {
+      console.warn('⚠️ Admin token expired or expiring soon, attempting refresh...');
+      
+      if (!adminRefreshToken) {
+        console.error('❌ No refresh token available');
+        setError('Session expired. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        adminToken = await refreshAdminToken(adminRefreshToken);
+        console.log('✅ Token refreshed successfully');
+      } catch (refreshErr) {
+        console.error('❌ Token refresh failed:', refreshErr.message);
+        setError('Session expired. Please log in again.');
+        setLoading(false);
+        return;
+      }
     }
 
     console.log('📋 Submitting fest form with data:', form);
