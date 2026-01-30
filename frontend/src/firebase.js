@@ -56,14 +56,8 @@ const initializePersistence = async () => {
     }
 };
 
-// Create a promise that resolves when Firebase is fully initialized
-export const firebaseReady = initializePersistence().then(() => {
-    console.log('✅ Firebase initialization complete');
-    return true;
-}).catch(error => {
-    console.error('⚠️ Firebase initialization issue:', error);
-    return false;
-});
+// Initialize persistence immediately
+initializePersistence();
 
 // Initialize providers with optimal settings
 const googleProvider = new GoogleAuthProvider();
@@ -158,6 +152,32 @@ const getAuthTimeout = () => {
     return baseTimeout;
 };
 
+// ✅ RETRY MECHANISM WITH EXPONENTIAL BACKOFF
+const retryWithBackoff = async (fn, maxRetries = 3, baseDelay = 1000) => {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            // Don't retry certain errors
+            const nonRetryableErrors = [
+                'auth/popup-blocked',
+                'auth/unauthorized-domain',
+                'auth/operation-not-allowed',
+                'auth/user-disabled',
+                'auth/account-exists-with-different-credential'
+            ];
+            
+            if (nonRetryableErrors.includes(error.code) || i === maxRetries - 1) {
+                throw error;
+            }
+            
+            const delay = baseDelay * Math.pow(2, i);
+            console.log(`🔄 Retry attempt ${i + 1} after ${delay}ms for error:`, error.code);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+};
+
 // ✅ ENHANCED IN-APP BROWSER DETECTION
 const isInAppBrowser = () => {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
@@ -188,7 +208,7 @@ const isInAppBrowser = () => {
 
 // ✅ POPUP-FIRST GOOGLE SIGN-IN FOR ALL DEVICES (WITH MOBILE FIX)
 export const signInWithGoogle = async () => {
-    console.log('🚀 Starting Google authentication...');
+    console.log('🚀 Starting popup-first Google authentication...');
     
     // Ensure persistence is set before any auth operations
     await initializePersistence();
@@ -260,60 +280,113 @@ export const signInWithGoogle = async () => {
         };
     }
 
-    // ✅ STEP 3: USE REDIRECT-FIRST APPROACH (AVOIDS COOP WARNINGS & WORKS EVERYWHERE)
-    // Redirect flow works on mobile, desktop, and avoids popup-related COOP warnings
-    console.log('🔄 Using redirect-first authentication flow (avoids COOP warnings)...');
+    // ✅ STEP 3: TRY POPUP FIRST ON ALL DEVICES (Mobile + Desktop)
+    console.log('🖥️ Attempting popup authentication (works on mobile + desktop)...');
     
     try {
-        await signInWithRedirect(auth, googleProvider);
+        // ✅ MOBILE FIX: Use longer timeout and better retry strategy for mobile
+        const maxRetries = isMobile ? 3 : 2;
+        const baseDelay = isMobile ? 1500 : 1000; // Longer delay between retries on mobile
+        
+        const result = await retryWithBackoff(async () => {
+            return await Promise.race([
+                signInWithPopup(auth, googleProvider),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('POPUP_TIMEOUT')), timeout)
+                )
+            ]);
+        }, maxRetries, baseDelay);
+
+        console.log('✅ Popup authentication successful');
         return {
             success: true,
-            user: null,
-            credential: null,
+            user: result.user,
+            credential: result.credential,
             needsVerification: false,
-            method: 'redirect-first',
-            redirectInitiated: true,
-            message: 'Redirecting to Google sign-in...'
+            method: 'popup'
         };
-    } catch (redirectError) {
-        console.error('❌ Google redirect failed:', redirectError);
+    } catch (error) {
+        console.log('⚠️ Popup authentication failed:', error.code || error.message);
         
+        // ✅ STEP 4: FALLBACK TO REDIRECT ONLY IF POPUP IS BLOCKED/TIMEOUT
+        const shouldFallbackToRedirect = (
+            error.code === 'auth/popup-blocked' || 
+            error.code === 'auth/popup-closed-by-user' ||
+            error.code === 'auth/cancelled-popup-request' ||
+            error.message === 'POPUP_TIMEOUT' ||
+            error.code === 'auth/web-storage-unsupported'
+        );
+        
+        if (shouldFallbackToRedirect) {
+            console.log('🔄 Popup blocked/failed, trying redirect fallback...');
+            
+            try {
+                await signInWithRedirect(auth, googleProvider);
+                return {
+                    success: true,
+                    user: null,
+                    credential: null,
+                    needsVerification: false,
+                    method: 'redirect-fallback',
+                    redirectInitiated: true,
+                    message: 'Popup blocked. Redirecting to Google sign-in...'
+                };
+            } catch (redirectError) {
+                console.error('❌ Redirect fallback also failed:', redirectError);
+                
+                return {
+                    success: false,
+                    error: 'Google sign-in failed. Please try again or contact support.',
+                    code: redirectError.code,
+                    method: 'all-failed'
+                };
+            }
+        }
+        
+        // Handle other popup errors (don't fallback to redirect)
         let errorMessage = 'Google sign-in failed. Please try again.';
         
-        if (redirectError.code === 'auth/network-request-failed') {
+        if (error.code === 'auth/network-request-failed') {
             errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (redirectError.code === 'auth/unauthorized-domain') {
+        } else if (error.code === 'auth/unauthorized-domain') {
             errorMessage = 'This website is not authorized for Google sign-in. Please contact support.';
-        } else if (redirectError.code === 'auth/operation-not-allowed') {
+        } else if (error.code === 'auth/operation-not-allowed') {
             errorMessage = 'Google sign-in is not enabled. Please contact support.';
-        } else if (redirectError.code === 'auth/user-disabled') {
+        } else if (error.code === 'auth/user-disabled') {
             errorMessage = 'Your account has been disabled. Please contact support.';
-        } else if (redirectError.code === 'auth/account-exists-with-different-credential') {
+        } else if (error.code === 'auth/account-exists-with-different-credential') {
             errorMessage = 'An account already exists with this email using a different sign-in method. Please try signing in with your original method.';
         }
 
         return {
             success: false,
             error: errorMessage,
-            code: redirectError.code,
-            method: 'redirect-failed'
+            code: error.code,
+            method: 'popup-failed'
         };
     }
 };
 
-// ✅ REDIRECT-FIRST FACEBOOK SIGN-IN (AVOIDS COOP WARNINGS)
-// ✅ REDIRECT-FIRST FACEBOOK SIGN-IN (AVOIDS COOP WARNINGS)
+// ✅ POPUP-FIRST FACEBOOK SIGN-IN FOR ALL DEVICES
 export const signInWithFacebook = async () => {
-    console.log('🚀 Starting Facebook authentication...');
+    console.log('🚀 Starting popup-first Facebook authentication...');
     
     // Ensure persistence is set before any auth operations
     await initializePersistence();
     
+    const isMobile = isMobileDevice();
+    const browser = getBrowserInfo();
     const isInApp = isInAppBrowser();
     
+    console.log('📱 Facebook sign-in device info:', {
+        isMobile,
+        isInApp,
+        isIOS: browser.isIOS
+    });
+
     // ✅ Handle in-app browsers with warning
     if (isInApp) {
-        console.log('🚨 In-app browser detected - authentication may not work properly');
+        console.log('🚨 In-app browser detected for Facebook - authentication may not work properly');
         return {
             success: false,
             error: 'Please open this page in Chrome, Safari, or your default browser for Facebook sign-in to work properly.',
@@ -323,24 +396,57 @@ export const signInWithFacebook = async () => {
         };
     }
 
-    // ✅ USE REDIRECT-FIRST APPROACH (AVOIDS COOP WARNINGS & WORKS EVERYWHERE)
-    console.log('🔄 Using redirect-first Facebook authentication...');
-    
+    // ✅ TRY POPUP FIRST ON ALL DEVICES (Mobile + Desktop)
     try {
-        await signInWithRedirect(auth, facebookProvider);
+        console.log('🖥️ Attempting Facebook popup authentication...');
+        const result = await signInWithPopup(auth, facebookProvider);
+        
+        console.log('✅ Facebook popup sign-in successful');
         return {
             success: true,
-            user: null,
-            credential: null,
+            user: result.user,
+            credential: result.credential,
             needsVerification: false,
-            method: 'redirect-first',
-            redirectInitiated: true,
-            message: 'Redirecting to Facebook sign-in...'
+            method: 'popup'
         };
     } catch (error) {
-        console.error('❌ Facebook redirect failed:', error);
+        console.error('❌ Facebook popup sign-in error:', error);
 
-        // Handle specific errors
+        // ✅ FALLBACK TO REDIRECT ONLY IF POPUP IS BLOCKED
+        const shouldFallbackToRedirect = (
+            error.code === 'auth/popup-blocked' || 
+            error.code === 'auth/popup-closed-by-user' ||
+            error.code === 'auth/cancelled-popup-request' ||
+            error.code === 'auth/web-storage-unsupported'
+        );
+
+        if (shouldFallbackToRedirect) {
+            console.log('🔄 Facebook popup blocked - trying redirect fallback...');
+            
+            try {
+                await signInWithRedirect(auth, facebookProvider);
+                return {
+                    success: true,
+                    user: null,
+                    credential: null,
+                    needsVerification: false,
+                    method: 'redirect-fallback',
+                    redirectInitiated: true,
+                    message: 'Popup blocked. Redirecting to Facebook sign-in...'
+                };
+            } catch (redirectError) {
+                console.error('❌ Facebook redirect fallback failed:', redirectError);
+                
+                return {
+                    success: false,
+                    error: 'Facebook sign-in failed. Please try again or use email login.',
+                    code: redirectError.code,
+                    method: 'all-failed'
+                };
+            }
+        }
+
+        // Handle other specific errors (don't fallback to redirect)
         let errorMessage = 'Facebook sign-in failed. Please try again.';
 
         if (error.code === 'auth/network-request-failed') {
@@ -357,7 +463,7 @@ export const signInWithFacebook = async () => {
             success: false,
             error: errorMessage,
             code: error.code,
-            method: 'redirect-failed'
+            method: 'popup-failed'
         };
     }
 };
