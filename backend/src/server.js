@@ -145,25 +145,6 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// ✅ FIX: Set security headers for Firebase auth popups
-app.use((req, res, next) => {
-  // Cross-Origin-Opener-Policy: same-origin-allow-popups
-  // This allows popups (Firebase auth) while maintaining COOP security
-  // IMPORTANT: This must be set on responses so popups can communicate back
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-  
-  // Cross-Origin-Embedder-Policy: allow cross-origin resources  
-  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
-  
-  // Cross-Origin-Resource-Policy: allow cross-origin access
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  
-  // Referrer policy for cross-origin auth
-  res.setHeader('Referrer-Policy', 'no-referrer-when-downgrade');
-  
-  next();
-});
-
 // Parse Cookie header (no new lib) so auth can read tokens from cookies for mobile/credential requests.
 // Split only on first '=' so values containing '=' (e.g. JWT base64 padding) are preserved.
 app.use((req, res, next) => {
