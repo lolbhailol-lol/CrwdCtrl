@@ -127,6 +127,8 @@ export default function CompetitionRegistration() {
             // ✅ CRITICAL: Support both single-step and multi-step forms
             const formSchema = getFormSchema(data.registration);
             console.log(`📝 Form schema: ${formSchema.length} fields (${isMultiStepForm(data.registration) ? 'multi-step' : 'single-step'})`);
+            console.log('📋 BGMI DEBUG - Form schema details:', formSchema.map(f => ({ label: f.label, type: f.type, id: f.id, fieldName: f.fieldName })));
+            console.log('📋 BGMI DEBUG - Full formSchema:', formSchema);
             
             if (formSchema.length > 0) {
                 formSchema.forEach(field => {
