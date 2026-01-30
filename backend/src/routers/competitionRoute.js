@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const Competition = require('../model/competition_model');
 const {
     registerForCompetition,
     getAllRegistrations,
@@ -24,6 +25,63 @@ const upload = multer({
         } else {
             cb(new Error('Only JPEG, PNG, JPG, and GIF files are allowed'), false);
         }
+    }
+});
+
+// Competition search endpoint
+router.get('/search', async (req, res) => {
+    try {
+        const { query, festType, location, limit = 10 } = req.query;
+        
+        // Build search criteria
+        const searchCriteria = {
+            isApproved: true // Only show approved competitions
+        };
+        
+        if (query && query.trim()) {
+            const searchRegex = new RegExp(query.trim(), 'i');
+            searchCriteria.$or = [
+                { name: searchRegex },
+                { description: searchRegex },
+                { competitionType: searchRegex },
+                { subtitle: searchRegex }
+            ];
+        }
+        
+        // Find competitions and populate fest data
+        const competitions = await Competition.find(searchCriteria)
+            .populate('fest', 'festName collegeName venue festType')
+            .limit(parseInt(limit))
+            .sort({ createdAt: -1 });
+        
+        // Transform data for frontend
+        const transformedCompetitions = competitions.map(comp => ({
+            _id: comp._id,
+            competitionName: comp.name,
+            name: comp.name,
+            description: comp.description,
+            competitionType: comp.competitionType,
+            category: comp.competitionType,
+            venue: comp.venue,
+            location: comp.venue,
+            image: comp.coverImage,
+            coverImage: comp.coverImage,
+            festName: comp.fest?.festName,
+            organizingBody: comp.fest?.collegeName,
+            collegeName: comp.fest?.collegeName,
+            competitionDate: comp.dateTime,
+            startDate: comp.createdAt,
+            endDate: comp.createdAt
+        }));
+        
+        res.json(transformedCompetitions);
+    } catch (error) {
+        console.error('Competition search error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to search competitions',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
 

@@ -28,6 +28,110 @@ const transformFestData = (fest) => ({
 });
 
 /**
+ * Transform backend competition data to match frontend expectations
+ * @param {Object} competition - Backend competition object
+ * @returns {Object} Transformed competition object
+ */
+const transformCompetitionData = (competition) => ({
+    id: competition._id,
+    title: competition.competitionName || competition.name,
+    festival_name: competition.competitionName || competition.name,
+    organizing_body: competition.festName || competition.organizingBody || 'Competition',
+    subtitle: `${competition.competitionDate || 'Date TBA'} • ${competition.venue || 'Venue TBA'}`,
+    location: competition.venue || competition.location || 'Location TBA',
+    description: competition.description,
+    category: competition.category || competition.competitionType || 'competition',
+    type: competition.competitionType || 'competition',
+    tags: competition.tags || [],
+    image: competition.image || competition.coverImage,
+    startDate: competition.startDate,
+    endDate: competition.endDate,
+    resultType: 'competition'
+});
+
+/**
+ * Search competitions using the backend API
+ * @param {string} query - Search query string
+ * @param {Object} filters - Optional filters
+ * @returns {Promise<Array>} Array of matching competitions
+ */
+export const searchCompetitions = async (query, filters = {}) => {
+    try {
+        console.log('🔍 searchCompetitions called with:', query);
+        
+        const searchParams = new URLSearchParams();
+        
+        if (query && query.trim()) {
+            searchParams.append('query', query.trim());
+        }
+        
+        // Add optional filters
+        if (filters.festType) {
+            searchParams.append('festType', filters.festType);
+        }
+        if (filters.location) {
+            searchParams.append('location', filters.location);
+        }
+
+        const url = `${API_BASE_URL}/competitions/search?${searchParams.toString()}`;
+        console.log('🔍 Competition search URL:', url);
+        
+        const response = await fetch(url);
+        console.log('🔍 Competition response status:', response.status);
+        
+        if (!response.ok) {
+            console.warn('Competition search endpoint not available:', response.status);
+            return [];
+        }
+        
+        const competitions = await response.json();
+        console.log('🔍 Raw competitions:', competitions.length);
+        
+        // Transform backend data to match frontend expectations
+        const transformed = competitions.map(transformCompetitionData);
+        console.log('🔍 Transformed competitions:', transformed.length);
+        
+        return transformed;
+    } catch (error) {
+        console.error('Error searching competitions:', error);
+        return [];
+    }
+};
+
+/**
+ * Search both fests and competitions
+ * @param {string} query - Search query string
+ * @param {Object} filters - Optional filters
+ * @returns {Promise<Object>} Object containing fests and competitions arrays
+ */
+export const searchAll = async (query, filters = {}) => {
+    try {
+        console.log('🔍 searchAll called with:', query);
+        
+        // Search both fests and competitions in parallel
+        const [fests, competitions] = await Promise.all([
+            searchFests(query, filters),
+            searchCompetitions(query, filters)
+        ]);
+
+        console.log('🔍 searchAll results - fests:', fests.length, 'competitions:', competitions.length);
+
+        return {
+            fests,
+            competitions,
+            total: fests.length + competitions.length
+        };
+    } catch (error) {
+        console.error('Error in combined search:', error);
+        return {
+            fests: [],
+            competitions: [],
+            total: 0
+        };
+    }
+};
+
+/**
  * Search fests using the backend API
  * @param {string} query - Search query string
  * @param {Object} filters - Optional filters (festType, location, startDate, endDate)
@@ -134,6 +238,8 @@ export const getUpcomingFests = async (limit = 5) => {
 
 export default {
     searchFests,
+    searchCompetitions,
+    searchAll,
     getAllPublicFests,
     getUpcomingFests
 };

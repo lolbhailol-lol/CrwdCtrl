@@ -16,7 +16,7 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { handleImageError, generateFallbackImage } from '../../utils/imageUtils';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../utils/imageImports';
-import { searchFests } from '../../services/searchService';
+import { searchFests, searchAll } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlRegister from './register';
@@ -904,11 +904,26 @@ const Dashboard = () => {
             if (searchQuery.trim().length >= 2) {
                 setIsSearching(true);
                 try {
-                    const results = await searchFests(searchQuery);
-                    setSearchResults(results.slice(0, 6)); // Limit to 6 results for better UX
+                    console.log('🔍 Dashboard mobile search for:', searchQuery);
+                    const results = await searchAll(searchQuery);
+                    console.log('🔍 Dashboard search results received:', {
+                        fests: results.fests.length,
+                        competitions: results.competitions.length,
+                        total: results.total
+                    });
+                    
+                    // Combine fests and competitions, limit to 6 total results
+                    const combinedResults = [
+                        ...results.fests.map(fest => ({ ...fest, resultType: 'fest' })),
+                        ...results.competitions.map(comp => ({ ...comp, resultType: 'competition' }))
+                    ].slice(0, 6);
+                    
+                    console.log('🔍 Dashboard final combined results:', combinedResults.length, 'types:', combinedResults.map(r => r.resultType));
+                    
+                    setSearchResults(combinedResults);
                     setIsSearchDropdownOpen(true);
                 } catch (error) {
-                    console.error('Search error:', error);
+                    console.error('Dashboard search error:', error);
                     setSearchResults([]);
                     setIsSearchDropdownOpen(false);
                 } finally {
@@ -942,9 +957,20 @@ const Dashboard = () => {
 
     // Handle search result click
     const handleSearchResultClick = (event) => {
+        console.log('🔍 Dashboard search result clicked:', event.resultType, event.id);
         setSearchQuery('');
         setIsSearchDropdownOpen(false);
-        navigate(`/view-details/${event.id}`);
+        
+        // Navigate based on result type
+        if (event.resultType === 'competition') {
+            // Navigate to competition details page
+            console.log('🔍 Navigating to competition:', `/competitions-view-details/${event.id}`);
+            navigate(`/competitions-view-details/${event.id}`);
+        } else {
+            // Navigate to fest details page
+            console.log('🔍 Navigating to fest:', `/view-details/${event.id}`);
+            navigate(`/view-details/${event.id}`);
+        }
     };
 
     // Helper function to get city name from coordinates (for major Indian cities)
@@ -1321,26 +1347,31 @@ const Dashboard = () => {
                         <div className="flex items-center">
                             {/* Search Bar */}
                             <div className="flex-1 relative" ref={searchRef}>
-                                {searchQuery ? (
-                                    <X
-                                        onClick={() => setSearchQuery("")}
-                                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 cursor-pointer"
-                                    />
-                                ) : (
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                )}
-
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 
                                 <input
                                     type="text"
                                     placeholder="Search events, colleges..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/30 ${isDark
+                                    className={`w-full pl-10 pr-10 py-2.5 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/30 ${isDark
                                         ? 'bg-[#0E0E0F] text-white placeholder-gray-400 focus:border-cyan-400'
                                         : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500 focus:border-cyan-400'
                                         }`}
                                 />
+                                
+                                {/* Right side icons container - Fixed position */}
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                    {searchQuery && !isSearching && (
+                                        <X
+                                            onClick={() => setSearchQuery("")}
+                                            className="w-4 h-4 text-gray-400 cursor-pointer hover:text-gray-600 transition-colors"
+                                        />
+                                    )}
+                                    {isSearching && (
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-500"></div>
+                                    )}
+                                </div>
                                 
                                 {/* Search Results Dropdown */}
                                 {isSearchDropdownOpen && (
@@ -1359,29 +1390,60 @@ const Dashboard = () => {
                                                         className={`w-full px-4 py-3 text-left hover:bg-opacity-50 transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}
                                                     >
                                                         <div className="flex items-center space-x-3">
-                                                            <img
-                                                                src={getImageUrl(event.image)}
-                                                                alt={event.title}
-                                                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                                                                onError={(e) => {
-                                                                    handleImageErrorWithFallback(e, 40, 40, '#6366f1', event.title);
-                                                                }}
-                                                            />
+                                                            <div className={`w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold ${
+                                                                event.resultType === 'competition'
+                                                                    ? 'bg-orange-100 text-orange-600'
+                                                                    : event.category === 'cultural'
+                                                                        ? 'bg-purple-100 text-purple-600'
+                                                                        : event.category === 'tech' || event.type === 'technical'
+                                                                            ? 'bg-blue-100 text-blue-600'
+                                                                            : event.category === 'sports'
+                                                                                ? 'bg-green-100 text-green-600'
+                                                                                : 'bg-gray-100 text-gray-600'
+                                                                }`}>
+                                                                {event.resultType === 'competition' ? 'C' : (event.title ? event.title.charAt(0) : 'F')}
+                                                            </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <h4 className={`font-medium text-sm truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                                    {event.title}
-                                                                </h4>
+                                                                <div className="flex items-center space-x-2">
+                                                                    <h4 className={`font-medium text-sm truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                        {event.title || event.festival_name}
+                                                                    </h4>
+                                                                    {event.resultType === 'competition' && (
+                                                                        <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-600 rounded-full flex-shrink-0">
+                                                                            Competition
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <p className={`text-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                                    {event.organizing_body}
+                                                                    {event.organizing_body || event.subtitle}
+                                                                </p>
+                                                                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                                    {event.location}
                                                                 </p>
                                                             </div>
                                                         </div>
                                                     </button>
                                                 ))}
+                                                
+                                                {/* Show more results hint */}
+                                                {searchQuery.trim() && (
+                                                    <div className={`px-4 py-2 text-center border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                                                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                            Showing {searchResults.length} results for "{searchQuery}"
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : searchQuery.trim().length >= 2 ? (
+                                            <div className="p-4 text-center">
+                                                <Search className={`w-8 h-8 mx-auto mb-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+                                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                    No fests or competitions found for "{searchQuery}"
+                                                </p>
                                             </div>
                                         ) : (
                                             <div className="p-4 text-center">
-                                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>No events found</p>
+                                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Type to search events...</p>
                                             </div>
                                         )}
                                     </div>
