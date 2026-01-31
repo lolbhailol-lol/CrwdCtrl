@@ -193,7 +193,17 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
         } catch (error) {
             console.error('❌ [REGISTER] Google auth error:', error);
-            setErrors({ general: error.message || 'Google sign-in failed. Please try again.' });
+            
+            if (error.message.includes('in-app-browser')) {
+                setErrors({ 
+                    general: error.message,
+                    showOpenInBrowser: true,
+                    errorDetails: error.errorDetails || null,
+                    openInBrowser: error.openInBrowser || null
+                });
+            } else {
+                setErrors({ general: error.message || 'Google sign-in failed. Please try again.' });
+            }
             setIsLoading(false);
         }
     };
@@ -234,7 +244,17 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
         } catch (error) {
             console.error('❌ [REGISTER] Facebook auth error:', error);
-            setErrors({ general: error.message || 'Facebook sign-in failed. Please try again.' });
+            
+            if (error.message.includes('in-app-browser')) {
+                setErrors({ 
+                    general: error.message,
+                    showOpenInBrowser: true,
+                    errorDetails: error.errorDetails || null,
+                    openInBrowser: error.openInBrowser || null
+                });
+            } else {
+                setErrors({ general: error.message || 'Facebook sign-in failed. Please try again.' });
+            }
             setIsLoading(false);
         }
     };
@@ -280,8 +300,63 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                     <form onSubmit={showSocialFields ? handleSocialAuthCompletion : handleRegister} className="space-y-4">
                         {/* Error Message */}
                         {errors.general && (
-                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-                                <span className="block sm:inline">{errors.general}</span>
+                            <div className={`border rounded-lg p-4 ${errors.showOpenInBrowser ? 'bg-amber-50 border-amber-200' : 'bg-red-100 border-red-400'}`}>
+                                {errors.showOpenInBrowser ? (
+                                    <div className="space-y-3">
+                                        {/* Enhanced Error Message */}
+                                        {errors.errorDetails ? (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-2xl">{errors.errorDetails.icon}</span>
+                                                    <h3 className="font-semibold text-amber-800">{errors.errorDetails.title}</h3>
+                                                </div>
+                                                <p className="text-amber-700 text-sm">{errors.errorDetails.suggestion}</p>
+                                                <div className="bg-amber-100 rounded p-3 mt-2">
+                                                    <p className="text-xs text-amber-800 font-medium mb-1">How to open in your browser:</p>
+                                                    <p className="text-xs text-amber-700">{errors.errorDetails.instructions}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-amber-700 text-sm">{errors.general}</p>
+                                        )}
+                                        
+                                        {/* Open in Browser Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (errors.openInBrowser && typeof errors.openInBrowser === 'function') {
+                                                    errors.openInBrowser();
+                                                } else {
+                                                    const currentUrl = window.location.href;
+                                                    window.open(currentUrl, '_blank');
+                                                }
+                                            }}
+                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
+                                        >
+                                            <span>🌐</span>
+                                            <span>Open in Browser</span>
+                                        </button>
+                                        
+                                        {/* Alternative: Continue with Email */}
+                                        <div className="text-center">
+                                            <p className="text-xs text-gray-500 mb-2">Or continue without social login:</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setErrors({});
+                                                    setShowSocialFields(false);
+                                                    setSocialAuthData(null);
+                                                    setAuthProvider('');
+                                                }}
+                                                className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"
+                                            >
+                                                Use Email & Password Instead
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <span className="block sm:inline text-red-700">{errors.general}</span>
+                                )}
                             </div>
                         )}
 
