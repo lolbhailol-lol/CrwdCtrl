@@ -141,7 +141,9 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             if (error.message.includes('in-app-browser')) {
                 setErrors({ 
                     general: error.message,
-                    showOpenInBrowser: true
+                    showOpenInBrowser: true,
+                    errorDetails: error.errorDetails || null,
+                    openInBrowser: error.openInBrowser || null
                 });
             } else if (error.message.includes('unauthorized-domain')) {
                 errorMessage = 'This domain is not authorized for Google Sign-In. Please contact support.';
@@ -196,7 +198,9 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             if (error.message.includes('in-app-browser')) {
                 setErrors({ 
                     general: error.message,
-                    showOpenInBrowser: true
+                    showOpenInBrowser: true,
+                    errorDetails: error.errorDetails || null,
+                    openInBrowser: error.openInBrowser || null
                 });
             } else {
                 setErrors({ general: error.message || errorMessage });
@@ -259,23 +263,66 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         )}
 
                         {errors.general && errors.showOpenInBrowser && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const currentUrl = window.location.href;
-                                    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                                        window.open(`googlechrome://${currentUrl}`, '_blank') || 
-                                        window.open(`firefox://open-url?url=${encodeURIComponent(currentUrl)}`, '_blank') ||
-                                        window.open(currentUrl, '_blank');
-                                    } else {
-                                        window.open(`intent://${currentUrl.replace(/https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`, '_blank') ||
-                                        window.open(currentUrl, '_blank');
-                                    }
-                                }}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors"
-                            >
-                                Open in Browser
-                            </button>
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                                {/* Enhanced Error Message */}
+                                {errors.errorDetails ? (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-2xl">{errors.errorDetails.icon}</span>
+                                            <h3 className="font-semibold text-amber-800">{errors.errorDetails.title}</h3>
+                                        </div>
+                                        <p className="text-amber-700 text-sm">{errors.errorDetails.suggestion}</p>
+                                        <div className="bg-amber-100 rounded p-3 mt-2">
+                                            <p className="text-xs text-amber-800 font-medium mb-1">How to open in your browser:</p>
+                                            <p className="text-xs text-amber-700">{errors.errorDetails.instructions}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-amber-700 text-sm">{errors.general}</p>
+                                )}
+                                
+                                {/* Open in Browser Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (errors.openInBrowser && typeof errors.openInBrowser === 'function') {
+                                            // Use the enhanced openInBrowser function
+                                            errors.openInBrowser();
+                                        } else {
+                                            // Fallback to the old method
+                                            const currentUrl = window.location.href;
+                                            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                                                window.open(`googlechrome://${currentUrl}`, '_blank') || 
+                                                window.open(`firefox://open-url?url=${encodeURIComponent(currentUrl)}`, '_blank') ||
+                                                window.open(currentUrl, '_blank');
+                                            } else {
+                                                window.open(`intent://${currentUrl.replace(/https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`, '_blank') ||
+                                                window.open(currentUrl, '_blank');
+                                            }
+                                        }
+                                    }}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
+                                >
+                                    <span>🌐</span>
+                                    <span>Open in Browser</span>
+                                </button>
+                                
+                                {/* Alternative: Continue with Email */}
+                                <div className="text-center">
+                                    <p className="text-xs text-gray-500 mb-2">Or continue without social login:</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setErrors({});
+                                            // Focus on email input
+                                            document.querySelector('input[type="email"]')?.focus();
+                                        }}
+                                        className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"
+                                    >
+                                        Use Email & Password Instead
+                                    </button>
+                                </div>
+                            </div>
                         )}
 
                         {/* Email Input */}

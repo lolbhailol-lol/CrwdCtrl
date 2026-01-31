@@ -178,32 +178,152 @@ const retryWithBackoff = async (fn, maxRetries = 3, baseDelay = 1000) => {
     }
 };
 
-// ✅ ENHANCED IN-APP BROWSER DETECTION
-const isInAppBrowser = () => {
+// ✅ ENHANCED IN-APP BROWSER DETECTION WITH PLATFORM-SPECIFIC MESSAGING
+const detectInAppBrowser = () => {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
     
-    // Detect in-app browsers that have authentication issues
-    const inAppBrowsers = [
-        /Instagram/i,
-        /FBAN|FBAV/i,        // Facebook app
-        /WhatsApp/i,
-        /Line/i,
-        /Telegram/i,
-        /Twitter/i,
-        /LinkedIn/i,
-        /Snapchat/i,
-        /TikTok/i,
-        /WeChat/i,
-        /QQ/i
-    ];
-    
-    const isInApp = inAppBrowsers.some(regex => regex.test(userAgent));
-    
-    if (isInApp) {
-        console.log('🚨 In-app browser detected:', userAgent.substring(0, 100));
+    // Detect specific platforms for targeted messaging
+    if (/Instagram/i.test(userAgent)) {
+        return {
+            platform: 'Instagram',
+            detected: true,
+            icon: '📷',
+            instructions: 'Tap the ⋯ menu (three dots) at the top right, then tap "Open in Chrome" or "Open in Browser"'
+        };
     }
     
-    return isInApp;
+    if (/FBAN|FBAV/i.test(userAgent)) {
+        return {
+            platform: 'Facebook',
+            detected: true,
+            icon: '📘',
+            instructions: 'Tap "Open in Browser" at the bottom of the screen, or tap the ⋯ menu and select "Open in Chrome"'
+        };
+    }
+    
+    if (/Twitter/i.test(userAgent)) {
+        return {
+            platform: 'Twitter',
+            detected: true,
+            icon: '🐦',
+            instructions: 'Tap the share button, then tap "Open in Browser" or "Open in Chrome"'
+        };
+    }
+    
+    if (/LinkedIn/i.test(userAgent)) {
+        return {
+            platform: 'LinkedIn',
+            detected: true,
+            icon: '💼',
+            instructions: 'Tap the ⋯ menu at the top right, then tap "Open in external browser"'
+        };
+    }
+    
+    if (/WhatsApp/i.test(userAgent)) {
+        return {
+            platform: 'WhatsApp',
+            detected: true,
+            icon: '💬',
+            instructions: 'Tap the ⋯ menu at the top right, then tap "Open in Browser"'
+        };
+    }
+    
+    if (/TikTok/i.test(userAgent)) {
+        return {
+            platform: 'TikTok',
+            detected: true,
+            icon: '🎵',
+            instructions: 'Tap the ⋯ menu at the top right, then tap "Open in Browser"'
+        };
+    }
+    
+    if (/Snapchat/i.test(userAgent)) {
+        return {
+            platform: 'Snapchat',
+            detected: true,
+            icon: '👻',
+            instructions: 'Tap the ⋯ menu, then tap "Open in Browser"'
+        };
+    }
+    
+    // Generic in-app browser detection
+    const genericInAppBrowsers = [
+        /Line/i,
+        /Telegram/i,
+        /WeChat/i,
+        /QQ/i,
+        /wv|WebView/i
+    ];
+    
+    const isGenericInApp = genericInAppBrowsers.some(regex => regex.test(userAgent));
+    
+    if (isGenericInApp) {
+        return {
+            platform: 'In-App Browser',
+            detected: true,
+            icon: '🌐',
+            instructions: 'Look for a menu button (⋯ or ⚙️) and tap "Open in Browser" or "Open in Chrome"'
+        };
+    }
+    
+    return {
+        platform: null,
+        detected: false,
+        icon: null,
+        instructions: null
+    };
+};
+
+// ✅ GENERATE PLATFORM-SPECIFIC ERROR MESSAGE
+const generateInAppBrowserMessage = (browserInfo, authProvider = 'Google') => {
+    const { platform, icon, instructions } = browserInfo;
+    
+    return {
+        title: `${icon} ${platform} Browser Detected`,
+        message: `${authProvider} sign-in doesn't work properly in ${platform}'s built-in browser.`,
+        instructions: instructions,
+        suggestion: `For the best experience, please open this page in your default browser (Chrome, Safari, etc.).`
+    };
+};
+
+// ✅ OPEN IN BROWSER FUNCTIONALITY
+const openInDefaultBrowser = () => {
+    try {
+        // Method 1: Try to open in new window/tab (works on most platforms)
+        const newWindow = window.open(window.location.href, '_blank', 'noopener,noreferrer');
+        
+        // Method 2: If popup blocked, try location.href
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            // Fallback: Replace current location (forces external browser on some platforms)
+            window.location.href = window.location.href;
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Failed to open in browser:', error);
+        
+        // Method 3: Last resort - copy URL to clipboard
+        try {
+            navigator.clipboard.writeText(window.location.href);
+            alert('URL copied to clipboard! Please paste it in your browser.');
+        } catch (clipboardError) {
+            console.error('Clipboard access failed:', clipboardError);
+            alert(`Please copy this URL and open it in your browser:\n\n${window.location.href}`);
+        }
+        
+        return false;
+    }
+};
+
+// ✅ LEGACY FUNCTION FOR BACKWARD COMPATIBILITY
+const isInAppBrowser = () => {
+    const browserInfo = detectInAppBrowser();
+    
+    if (browserInfo.detected) {
+        console.log(`🚨 ${browserInfo.platform} browser detected:`, navigator.userAgent.substring(0, 100));
+    }
+    
+    return browserInfo.detected;
 };
 
 // ✅ POPUP-FIRST GOOGLE SIGN-IN FOR ALL DEVICES (WITH MOBILE FIX)
@@ -268,15 +388,27 @@ export const signInWithGoogle = async () => {
         // Continue with popup authentication
     }
 
-    // ✅ STEP 2: Handle in-app browsers with warning
+    // ✅ STEP 2: Handle in-app browsers with enhanced messaging
     if (isInApp) {
-        console.log('🚨 In-app browser detected - authentication may not work properly');
+        const browserInfo = detectInAppBrowser();
+        const errorInfo = generateInAppBrowserMessage(browserInfo, 'Google');
+        
+        console.log(`🚨 ${browserInfo.platform} browser detected - authentication may not work properly`);
+        
         return {
             success: false,
-            error: 'Please open this page in Chrome, Safari, or your default browser for Google sign-in to work properly.',
+            error: errorInfo.message,
+            errorDetails: {
+                title: errorInfo.title,
+                instructions: errorInfo.instructions,
+                suggestion: errorInfo.suggestion,
+                platform: browserInfo.platform,
+                icon: browserInfo.icon
+            },
             code: 'auth/in-app-browser',
             method: 'in-app-browser-blocked',
-            showOpenInBrowser: true
+            showOpenInBrowser: true,
+            openInBrowser: openInDefaultBrowser
         };
     }
 
@@ -384,15 +516,27 @@ export const signInWithFacebook = async () => {
         isIOS: browser.isIOS
     });
 
-    // ✅ Handle in-app browsers with warning
+    // ✅ Handle in-app browsers with enhanced messaging
     if (isInApp) {
-        console.log('🚨 In-app browser detected for Facebook - authentication may not work properly');
+        const browserInfo = detectInAppBrowser();
+        const errorInfo = generateInAppBrowserMessage(browserInfo, 'Facebook');
+        
+        console.log(`🚨 ${browserInfo.platform} browser detected for Facebook - authentication may not work properly`);
+        
         return {
             success: false,
-            error: 'Please open this page in Chrome, Safari, or your default browser for Facebook sign-in to work properly.',
+            error: errorInfo.message,
+            errorDetails: {
+                title: errorInfo.title,
+                instructions: errorInfo.instructions,
+                suggestion: errorInfo.suggestion,
+                platform: browserInfo.platform,
+                icon: browserInfo.icon
+            },
             code: 'auth/in-app-browser',
             method: 'in-app-browser-blocked',
-            showOpenInBrowser: true
+            showOpenInBrowser: true,
+            openInBrowser: openInDefaultBrowser
         };
     }
 
