@@ -1046,8 +1046,9 @@ export default function CompetitionRegistration() {
             console.log('✅ Registration successful:', result);
             
             setSuccess(true);
+            // ✅ FIXED: Redirect to registered events page (same as fest registration)
             setTimeout(() => {
-                navigate(`/competitions-view-details/${competitionId}`);
+                navigate('/registered-fest');
             }, 2000);
 
         } catch (err) {

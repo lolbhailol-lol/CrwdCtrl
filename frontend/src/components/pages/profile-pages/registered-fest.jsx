@@ -5,7 +5,7 @@ import Footer from '../../Footer';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { ArrowLeft } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 
@@ -16,6 +16,7 @@ function RegisteredFest() {
     const { isDark } = useDarkMode();
     const { isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -300,40 +301,51 @@ function RegisteredFest() {
             }`}>
             <div className={`transition-all duration-300`}>
 
-                <main className="p-6 lg:p-8 pb-32 md:pb-8">
+                <main className="p-4 sm:p-6 lg:p-8">
                     {/* Header with Back Button */}
-                    <div className="flex items-center mb-6 md:mb-8">
-                        <h1 className={`text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'
+                    <div className="flex items-center gap-3 mb-6 md:mb-8">
+                        <button
+                            onClick={handleGoBack}
+                            className={`p-2 rounded-lg transition-colors ${
+                                isDark 
+                                    ? 'hover:bg-gray-800 text-gray-300 hover:text-white' 
+                                    : 'hover:bg-gray-200 text-gray-700 hover:text-gray-900'
+                            }`}
+                            title="Go back"
+                        >
+                            <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </button>
+                        <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold ${isDark ? 'text-white' : 'text-gray-900'
                             }`}>
-                            Events
+                            My Registrations
                         </h1>
                     </div>
 
                     {/* Registered Events */}
                     <div className={`max-w-6xl mx-auto ${isDark ? 'bg-[#0a0a0a]' : 'bg-[#F5F6FA]'
-                        } rounded-lg p-4 md:p-8`}>
-                        <div className={`flex gap-4 md:gap-8 mb-6 md:mb-8 border-b ${isDark ? 'border-[#0E0E0F]' : 'border-gray-200'
+                        } rounded-lg p-3 sm:p-4 md:p-8`}>
+                        <div className={`flex gap-2 sm:gap-4 md:gap-8 mb-4 sm:mb-6 md:mb-8 border-b ${isDark ? 'border-[#0E0E0F]' : 'border-gray-200'
                             }`}>
-                            <div className="pb-3 px-2 font-semibold text-base md:text-lg text-blue-600 border-b-2 border-blue-600">
-                                <span>Registered Events</span>
+                            <div className="pb-2 sm:pb-3 px-2 font-semibold text-sm sm:text-base md:text-lg text-blue-600 border-b-2 border-blue-600">
+                                <span>Registered</span>
                                 <span className="ml-1">({allFests.length})</span>
                             </div>
                         </div>
 
                         {/* Events List */}
                         {allFests.length > 0 ? (
-                            <div className="space-y-4">
+                            <div className="space-y-3 sm:space-y-4">
                                 {allFests.map((item) => (
                                     <div
                                         key={item.id}
-                                        className={`flex items-center p-4 rounded-lg border transition-all duration-300 hover:shadow-md ${
+                                        className={`flex flex-col sm:flex-row items-start sm:items-center p-3 sm:p-4 rounded-lg border transition-all duration-300 hover:shadow-md ${
                                             isDark 
                                                 ? 'bg-[#1B1C1E] border-gray-700 hover:border-gray-600' 
                                                 : 'bg-white border-gray-200 hover:border-gray-300'
                                         }`}
                                     >
                                         {/* Event Image */}
-                                        <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden mr-4">
+                                        <div className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden mb-3 sm:mb-0 sm:mr-4">
                                             {item.image ? (
                                                 <img
                                                     src={getImageUrl(item.image)}
@@ -345,21 +357,21 @@ function RegisteredFest() {
                                                 />
                                             ) : (
                                                 <div className={`w-full h-full ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-100 to-gray-200'} flex items-center justify-center`}>
-                                                    <span className={`text-2xl ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>🎉</span>
+                                                    <span className={`text-xl sm:text-2xl`}>🎉</span>
                                                 </div>
                                             )}
                                         </div>
 
                                         {/* Event Details */}
-                                        <div className="flex-grow min-w-0">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-grow min-w-0 mr-4">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <h3 className={`text-lg font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        <div className="flex-grow min-w-0 w-full">
+                                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                                                <div className="flex-grow min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        <h3 className={`text-base sm:text-lg font-semibold line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                                             {item.name}
                                                         </h3>
                                                         {item.isCompetition && (
-                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full flex-shrink-0 ${
                                                                 isDark 
                                                                     ? 'bg-purple-900 text-purple-300' 
                                                                     : 'bg-purple-100 text-purple-800'
@@ -369,11 +381,11 @@ function RegisteredFest() {
                                                         )}
                                                     </div>
                                                     {item.isCompetition && item.festName && (
-                                                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>
+                                                        <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
                                                             🏆 Part of {item.festName}
                                                         </p>
                                                     )}
-                                                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                                                    <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                                                         {item.date && (
                                                             <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                                                 📅 {item.date}
@@ -396,15 +408,14 @@ function RegisteredFest() {
                                         </div>
 
                                         {/* Action Buttons */}
-                                        <div className="flex-shrink-0 flex items-center gap-2 ml-4">
-                               
+                                        <div className="flex-shrink-0 flex items-center gap-2 mt-3 sm:mt-0 sm:ml-4 w-full sm:w-auto">
                                             {/* View Details Button */}
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleViewDetails(item);
                                                 }}
-                                                className="bg-cyan-500 hover:bg-cyan-600 text-white font-medium text-sm px-4 py-2 rounded-lg transition"
+                                                className="flex-1 sm:flex-none bg-cyan-500 hover:bg-cyan-600 text-white font-medium text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap"
                                             >
                                                 View Details
                                             </button>

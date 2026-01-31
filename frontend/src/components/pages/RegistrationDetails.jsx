@@ -104,36 +104,36 @@ export default function RegistrationDetails() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'} py-4 sm:py-8`}>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6 sm:mb-8">
+        <div className="flex items-center gap-2 sm:gap-4 mb-6 sm:mb-8">
           <button
             onClick={() => navigate('/registered-fest')}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
               isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
             }`}
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
-          <div>
-            <h1 className={`text-2xl sm:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          <div className="min-w-0 flex-1">
+            <h1 className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               Registration Confirmed
             </h1>
-            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
+            <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-0.5`}>
               {isCompetitionRegistration ? 'Competition Registration' : 'Fest Registration'}
             </p>
           </div>
         </div>
 
         {/* Success Banner */}
-        <div className={`${isDark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'} border rounded-lg p-4 mb-6`}>
-          <div className="flex items-center gap-3">
-            <CheckCircle className="w-6 h-6 text-green-500" />
-            <div>
-              <h3 className={`font-semibold ${isDark ? 'text-green-400' : 'text-green-800'}`}>
+        <div className={`${isDark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'} border rounded-lg p-3 sm:p-4 mb-4 sm:mb-6`}>
+          <div className="flex items-start gap-2 sm:gap-3">
+            <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 flex-shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <h3 className={`text-sm sm:text-base font-semibold ${isDark ? 'text-green-400' : 'text-green-800'}`}>
                 Registration Successful!
               </h3>
-              <p className={`text-sm ${isDark ? 'text-green-300' : 'text-green-700'}`}>
+              <p className={`text-xs sm:text-sm ${isDark ? 'text-green-300' : 'text-green-700'} mt-0.5`}>
                 Your registration for {eventName} has been confirmed.
               </p>
             </div>
@@ -141,40 +141,40 @@ export default function RegistrationDetails() {
         </div>
 
         {/* Event Information */}
-        <div className={`${isDark ? 'bg-[#2A2B2D]' : 'bg-white'} rounded-xl p-6 mb-6 shadow-sm`}>
-          <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
+        <div className={`${isDark ? 'bg-[#2A2B2D]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
+          <h2 className={`text-lg sm:text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
             Event Information
           </h2>
           
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3 sm:gap-4">
             {eventImage && (
               <img
                 src={eventImage}
                 alt={eventName}
-                className="w-20 h-20 rounded-lg object-cover"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover flex-shrink-0"
                 onError={(e) => {
                   e.target.style.display = 'none';
                 }}
               />
             )}
-            <div className="flex-1">
-              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
+            <div className="flex-1 min-w-0">
+              <h3 className={`text-base sm:text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2 line-clamp-2`}>
                 {eventName}
               </h3>
               
-              <div className="space-y-2 text-sm">
+              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                 {registration.fest?.collegeName && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-gray-500" />
-                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <MapPin className="w-4 h-4 flex-shrink-0" />
+                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
                       {registration.fest.collegeName}
                     </span>
                   </div>
                 )}
                 
                 {registration.fest?.festDate && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-500" />
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Calendar className="w-4 h-4 flex-shrink-0" />
                     <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
                       {registration.fest.festDate}
                     </span>
@@ -187,13 +187,13 @@ export default function RegistrationDetails() {
         </div>
 
         {/* Registration Details */}
-        <div className={`${isDark ? 'bg-[#2A2B2D]' : 'bg-white'} rounded-xl p-6 shadow-sm`}>
-          <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-6`}>
+        <div className={`${isDark ? 'bg-[#2A2B2D]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm`}>
+          <h2 className={`text-lg sm:text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4 sm:mb-6`}>
             Registration Details
           </h2>
 
           {registration.fest?.registration?.formSchema && (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {registration.fest.registration.formSchema.map((field, index) => {
                 const value = registration.responses?.[field.fieldName];
                 const renderedValue = renderFieldValue(field, value);
