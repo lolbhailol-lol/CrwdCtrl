@@ -289,7 +289,7 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
-    const { isAuthenticated, isAuthProcessing } = useAuth();
+    const { isAuthenticated, isAuthProcessing, isLoading, isRedirectProcessing } = useAuth();
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [error, setError] = useState(null);
@@ -2282,15 +2282,15 @@ const Dashboard = () => {
                 </footer>
             </div>
 
-            {/* Login Modal - Don't show while auth is processing */}
-            {showLogin && !isAuthProcessing && (
+            {/* Login Modal - Don't show while auth is processing or loading */}
+            {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
                 <div className="fixed inset-0 z-50">
                     <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
                 </div>
             )}
 
-            {/* Register Modal - Don't show while auth is processing */}
-            {showRegister && !isAuthProcessing && (
+            {/* Register Modal - Don't show while auth is processing or loading */}
+            {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
                 <div className="fixed inset-0 z-50">
                     <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
                 </div>

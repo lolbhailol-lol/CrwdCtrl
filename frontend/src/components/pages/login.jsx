@@ -210,7 +210,14 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         console.log('🚀 Starting unified Google authentication...');
         
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        console.log('📱 Device detected:', isMobile ? 'Mobile' : 'Desktop');
+        console.log('📱 Device detected:', isMobile ? 'Mobile (will use redirect)' : 'Desktop (will use redirect)');
+        
+        // ✅ Show user what's happening on mobile
+        if (isMobile) {
+            setErrors({ 
+                general: 'Redirecting to Google Sign-In... (Please wait)' 
+            });
+        }
 
         const maxAttempts = 3;
         const retryDelay = 1500;
@@ -218,30 +225,34 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 console.log(`🔄 Google auth attempt ${attempt}/${maxAttempts}...`);
+                console.log('📱 Mobile?', isMobile, '| Will use redirect flow...');
                 
                 const result = await signInWithGoogle();
                 console.log('📊 Google auth result:', { 
                     success: result.success, 
                     method: result.method,
+                    redirectInitiated: result.redirectInitiated,
                     error: result.error,
                     code: result.code,
                     hasUser: !!result.user,
                     attempt
                 });
 
-                // Handle success
-                if (result.success && result.user) {
-                    console.log('✅ Google authentication successful:', result.user.email);
-                    await processSuccessfulAuth(result.user);
-                    return;
-                }
-
-                // Handle redirect case
+                // ✅ Handle redirect case (mobile)
                 if (result.redirectInitiated) {
-                    console.log('🔄 Redirect initiated, waiting for completion...');
+                    console.log('🔄 Redirect initiated - browser will now redirect to Google...');
                     setErrors({ 
                         general: result.message || 'Redirecting to Google... Please wait.' 
                     });
+                    setIsLoading(false);
+                    // Don't return - let redirect happen
+                    return;
+                }
+
+                // Handle success (popup, rare on mobile)
+                if (result.success && result.user) {
+                    console.log('✅ Google authentication successful:', result.user.email);
+                    await processSuccessfulAuth(result.user);
                     return;
                 }
 
@@ -254,6 +265,15 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         setErrors({ 
                             general: result.error,
                             showOpenInBrowser: true
+                        });
+                        setIsLoading(false);
+                        return;
+                    }
+                    
+                    // Special case: Unauthorized domain
+                    if (result.code === 'auth/unauthorized-domain') {
+                        setErrors({ 
+                            general: '❌ This domain is not authorized for Google Sign-In. Please contact support.' 
                         });
                         setIsLoading(false);
                         return;

@@ -196,7 +196,7 @@ function App() {
 
   const AppContent = () => {
     const location = useLocation();
-    const { isAuthProcessing, isLoading, isAuthenticated } = useAuth();
+    const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
     const isAdminRoute = location.pathname.startsWith('/admin');
 
     // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
@@ -212,7 +212,8 @@ function App() {
     }, [isAuthenticated, showLogin, showRegister]);
 
     // ✅ CRITICAL FIX: Show auth loading page when processing OAuth redirect OR during initial loading
-    if (isAuthProcessing || isLoading) {
+    // This prevents modal from showing during redirect
+    if (isAuthProcessing || isLoading || isRedirectProcessing) {
       return <AuthLoadingPage />;
     }
 
@@ -287,15 +288,15 @@ function App() {
           />
         )}
 
-        {/* Login Modal - Don't show while auth is processing */}
-        {showLogin && !isAuthProcessing && (
+        {/* Login Modal - Don't show while auth is processing or loading */}
+        {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
           <div className="fixed inset-0 z-50">
             <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
           </div>
         )}
 
-        {/* Register Modal - Don't show while auth is processing */}
-        {showRegister && !isAuthProcessing && (
+        {/* Register Modal - Don't show while auth is processing or loading */}
+        {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
           <div className="fixed inset-0 z-50">
             <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
           </div>
