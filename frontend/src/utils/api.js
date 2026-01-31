@@ -1,5 +1,6 @@
 // API utility functions for CrwdCtrl frontend
 import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
+import { storage } from './storage.js';
 
 /**
  * Base API configuration and utilities
@@ -482,36 +483,15 @@ class ApiClient {
     }
 
     /**
-     * ✅ Get authentication token from localStorage with mobile fallback
+     * ✅ Get authentication token using unified storage
      */
     getAuthToken() {
         try {
-            // ✅ FIX 14: TRY LOCALSTORAGE FIRST
-            if (this.isStorageAvailable('localStorage')) {
-                const token = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
-                if (token) {
-                    console.log('✅ Token retrieved from localStorage');
-                    return token;
-                }
+            const token = storage.getItem(AUTH_CONFIG.TOKEN_KEY);
+            if (token) {
+                console.log('✅ Token retrieved from storage');
             }
-            
-            // ✅ FIX 15: FALLBACK TO SESSION STORAGE
-            if (this.isStorageAvailable('sessionStorage')) {
-                const token = sessionStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
-                if (token) {
-                    console.log('⚠️ Token retrieved from sessionStorage (localStorage unavailable)');
-                    return token;
-                }
-            }
-            
-            // ✅ FIX 16: FALLBACK TO MEMORY TOKEN (if set)
-            if (window._crwdctrl_auth_token) {
-                console.log('⚠️ Token retrieved from memory (storage unavailable)');
-                return window._crwdctrl_auth_token;
-            }
-            
-            console.log('ℹ️ No token found in any storage');
-            return null;
+            return token;
         } catch (error) {
             console.error('❌ Error accessing token storage:', error);
             return null;
@@ -519,49 +499,28 @@ class ApiClient {
     }
 
     /**
-     * ✅ Set authentication token with mobile-aware storage
+     * ✅ Set authentication token using unified storage
      */
     setAuthToken(token) {
         try {
-            // ✅ TRY LOCALSTORAGE
-            if (this.isStorageAvailable('localStorage')) {
-                localStorage.setItem(AUTH_CONFIG.TOKEN_KEY, token);
-                console.log('✅ Token stored in localStorage');
-                return true;
+            const success = storage.setItem(AUTH_CONFIG.TOKEN_KEY, token);
+            if (success) {
+                console.log('✅ Token stored successfully');
             }
-            
-            // ✅ FALLBACK TO SESSION STORAGE
-            if (this.isStorageAvailable('sessionStorage')) {
-                sessionStorage.setItem(AUTH_CONFIG.TOKEN_KEY, token);
-                console.log('⚠️ Token stored in sessionStorage (localStorage unavailable)');
-                return true;
-            }
-            
-            // ✅ FALLBACK TO MEMORY
-            window._crwdctrl_auth_token = token;
-            console.warn('⚠️ Token stored in memory (storage unavailable - will be lost on refresh)');
-            return true;
+            return success;
         } catch (error) {
             console.error('❌ Error setting token in storage:', error);
-            // Still set in memory as last resort
-            window._crwdctrl_auth_token = token;
             return false;
         }
     }
 
     /**
-     * ✅ Remove authentication token from all storage
+     * ✅ Remove authentication token using unified storage
      */
     removeAuthToken() {
         try {
-            if (this.isStorageAvailable('localStorage')) {
-                localStorage.removeItem(AUTH_CONFIG.TOKEN_KEY);
-            }
-            if (this.isStorageAvailable('sessionStorage')) {
-                sessionStorage.removeItem(AUTH_CONFIG.TOKEN_KEY);
-            }
-            window._crwdctrl_auth_token = null;
-            console.log('✅ Token removed from all storage');
+            storage.removeItem(AUTH_CONFIG.TOKEN_KEY);
+            console.log('✅ Token removed from storage');
         } catch (error) {
             console.error('❌ Error removing token from storage:', error);
         }

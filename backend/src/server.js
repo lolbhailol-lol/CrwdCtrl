@@ -5,6 +5,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const compression = require("compression");
+const axios = require("axios"); // ✅ FIX: Use axios for Railway keep-alive (already installed)
 const connectDB = require("./config/db");
 
 const userRoutes = require("./routers/userroute");
@@ -302,35 +303,112 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// ✅ RAILWAY KEEP-ALIVE MECHANISM
-// Self-ping every 10 minutes to prevent Railway cold starts
-if (process.env.NODE_ENV === 'production' && process.env.RAILWAY_ENVIRONMENT) {
-  console.log('🚂 Railway environment detected - enabling keep-alive mechanism');
+// ✅ RAILWAY KEEP-ALIVE MECHANISM (FIXED)
+// Self-ping every 4 minutes to prevent Railway cold starts
+// Railway Trial plan sleeps services after 5-10 minutes of inactivity
+if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT) {
+  console.log('🚂 Railway environment detected - initializing keep-alive mechanism');
   
-  const KEEP_ALIVE_INTERVAL = 10 * 60 * 1000; // 10 minutes
-  const RAILWAY_URL = process.env.RAILWAY_PUBLIC_DOMAIN || 
-                     process.env.RAILWAY_STATIC_URL || 
-                     'https://prolific-learning-production-13aa.up.railway.app';
+  // ✅ FIX: Reduced to 4 minutes (240 seconds) to prevent sleep
+  // Railway Trial plan sleeps after 5-10 minutes, so 4 minutes keeps it awake
+  const KEEP_ALIVE_INTERVAL = 4 * 60 * 1000; // 4 minutes (240 seconds)
   
-  setInterval(async () => {
-    try {
-      console.log('🔄 Railway keep-alive ping...');
-      const response = await fetch(`${RAILWAY_URL}/api/health`, {
-        method: 'GET',
-        timeout: 5000
-      });
-      
-      if (response.ok) {
-        console.log('✅ Railway keep-alive successful');
-      } else {
-        console.warn('⚠️ Railway keep-alive returned:', response.status);
+  // ✅ FIX: Get Railway URL from environment variables
+  // Railway may not auto-set these, so we allow manual configuration
+  const getRailwayUrl = () => {
+    // Check in order of preference:
+    
+    // 1. RAILWAY_KEEP_ALIVE_URL (manual override - user can set this)
+    if (process.env.RAILWAY_KEEP_ALIVE_URL) {
+      const url = process.env.RAILWAY_KEEP_ALIVE_URL.trim();
+      // Ensure it has protocol
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        return `https://${url}`;
       }
-    } catch (error) {
-      console.warn('⚠️ Railway keep-alive failed:', error.message);
+      return url;
     }
-  }, KEEP_ALIVE_INTERVAL);
+    
+    // 2. RAILWAY_PUBLIC_DOMAIN (Railway auto-sets this if available)
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      const domain = process.env.RAILWAY_PUBLIC_DOMAIN.trim();
+      // Remove protocol if present, then add https
+      const cleanDomain = domain.replace(/^https?:\/\//, '');
+      return `https://${cleanDomain}`;
+    }
+    
+    // 3. RAILWAY_STATIC_URL (alternative Railway URL)
+    if (process.env.RAILWAY_STATIC_URL) {
+      return process.env.RAILWAY_STATIC_URL.trim();
+    }
+    
+    // 4. RAILWAY_SERVICE_URL (internal service URL)
+    if (process.env.RAILWAY_SERVICE_URL) {
+      return process.env.RAILWAY_SERVICE_URL.trim();
+    }
+    
+    // 5. No URL found - disable keep-alive
+    console.warn('⚠️ Railway environment detected but no public domain found');
+    console.warn('⚠️ Keep-alive disabled - Railway will use built-in health checks instead');
+    console.warn('ℹ️ To enable keep-alive, set RAILWAY_KEEP_ALIVE_URL in Railway environment variables');
+    console.warn('ℹ️ Get your Railway URL from: Railway Dashboard → Your Service → Settings → Domains');
+    return null;
+  };
   
-  console.log(`✅ Railway keep-alive scheduled every ${KEEP_ALIVE_INTERVAL / 60000} minutes`);
+  const RAILWAY_URL = getRailwayUrl();
+  
+  // Only enable keep-alive if we have a valid URL
+  if (RAILWAY_URL) {
+    console.log(`🚂 Railway URL for keep-alive: ${RAILWAY_URL}`);
+    
+    // ✅ FIX: Start keep-alive immediately, then repeat
+    const performKeepAlive = async () => {
+      try {
+        console.log(`🔄 [${new Date().toISOString()}] Railway keep-alive ping to ${RAILWAY_URL}/api/health...`);
+        
+        // ✅ FIX: Use axios with proper timeout (already installed)
+        const response = await axios.get(`${RAILWAY_URL}/api/health`, {
+          timeout: 10000, // 10 second timeout
+          headers: {
+            'User-Agent': 'Railway-KeepAlive/1.0'
+          },
+          validateStatus: (status) => status < 500 // Don't throw on 4xx, only 5xx
+        });
+        
+        if (response.status === 200) {
+          const data = response.data || {};
+          console.log(`✅ Railway keep-alive successful - Uptime: ${data.uptime || 'unknown'}s, Status: ${data.status || 'OK'}`);
+        } else {
+          console.warn(`⚠️ Railway keep-alive returned status: ${response.status}`);
+        }
+      } catch (error) {
+        if (error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN') {
+          // DNS resolution failed - URL might be wrong or service can't resolve it
+          console.warn(`⚠️ Railway keep-alive DNS error: ${error.message}`);
+          console.warn('⚠️ This usually means the Railway URL is incorrect or the service cannot resolve its own domain');
+          console.warn('⚠️ Railway will use built-in health checks instead - this is OK');
+        } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+          console.warn('⚠️ Railway keep-alive timeout (10s)');
+        } else if (error.response) {
+          console.warn(`⚠️ Railway keep-alive returned status: ${error.response.status}`);
+        } else {
+          console.warn(`⚠️ Railway keep-alive failed: ${error.message}`);
+        }
+      }
+    };
+    
+    // Perform first keep-alive after 30 seconds (give server time to start)
+    setTimeout(() => {
+      performKeepAlive();
+    }, 30000);
+    
+    // Then repeat every 4 minutes
+    setInterval(performKeepAlive, KEEP_ALIVE_INTERVAL);
+    
+    console.log(`✅ Railway keep-alive scheduled every ${KEEP_ALIVE_INTERVAL / 60000} minutes (starting in 30s)`);
+  } else {
+    console.log('ℹ️ Railway keep-alive disabled - Railway will use built-in health checks');
+    console.log('ℹ️ To enable keep-alive, set RAILWAY_PUBLIC_DOMAIN in Railway environment variables');
+  }
 }
 
 // ✅ RAILWAY COLD START DETECTION

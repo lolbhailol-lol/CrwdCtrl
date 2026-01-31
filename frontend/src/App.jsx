@@ -60,7 +60,6 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
   const shouldHideMobileBottomNav = location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
-    location.pathname === '/registered-fest' ||
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/view-details') ||
     location.pathname.startsWith('/competitions-view-details') ||

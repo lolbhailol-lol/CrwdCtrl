@@ -3,9 +3,9 @@ import { Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useNavigate } from 'react-router-dom';
-import { authAPI, handleApiError } from '../../utils/api';
-import { processSocialAuthUser, handleSocialAuthError, validateSocialAuthResult } from '../../utils/socialAuth';
-import { registerWithEmail, signInWithGoogle, signInWithFacebook } from '../../firebase';
+import { authService } from '../../services/authService';
+import { signInWithGoogle, signInWithFacebook } from '../../firebase';
+import { processSocialAuthUser } from '../../utils/socialAuth';
 
 export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -26,6 +26,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
 
+    // Email/Password Registration Handler
     const handleRegister = async (e) => {
         e.preventDefault();
         setErrors({});
@@ -51,57 +52,37 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
         }
 
         try {
-            // Firebase registration (NO verification handling)
-            const firebaseResult = await registerWithEmail(email, password);
+            console.log('🔐 [REGISTER] Starting email/password registration...');
+            
+            const result = await authService.registerWithEmail(name, email, phone, password);
 
-            if (!firebaseResult.success) {
-                setErrors({ general: firebaseResult.error });
-                setIsLoading(false);
-                return;
-            }
+            if (result.success) {
+                console.log('✅ [REGISTER] Registration successful');
+                
+                // Update AuthContext
+                login({
+                    ...result.user,
+                    token: result.token
+                }, result.firebaseUser);
 
-            // Backend registration
-            const userData = {
-                name: name.trim(),
-                email: email.trim(),
-                phoneNumber: phone.trim(),
-                password: password,
-                role: 'student',
-                firebaseUid: firebaseResult.user.uid,
-                isVerified: true
-            };
-
-            const data = await authAPI.register(userData);
-
-            if (!data || !data.data || !data.data.user || !data.data.token) {
-                setErrors({ general: 'Invalid response from server. Please try again.' });
-                setIsLoading(false);
-                return;
-            }
-
-            // Auto login directly
-            login(
-                {
-                    ...data.data.user,
-                    token: data.data.token
-                },
-                firebaseResult.user
-            );
-
-            // Direct redirect (NO verification page)
-            if (isModal && onClose) {
-                onClose();
+                // Direct redirect
+                if (isModal && onClose) {
+                    onClose();
+                } else {
+                    navigate('/');
+                }
             } else {
-                navigate('/');
+                setErrors({ general: 'Registration failed. Please try again.' });
             }
-
         } catch (error) {
-            setErrors({ general: handleApiError(error) });
+            console.error('❌ [REGISTER] Registration error:', error);
+            setErrors({ general: error.message || 'Registration failed. Please try again.' });
         } finally {
             setIsLoading(false);
         }
     };
 
+    // Social Auth Completion Handler (for Google/Facebook registration)
     const handleSocialAuthCompletion = async (e) => {
         e.preventDefault();
         setErrors({});
@@ -137,35 +118,30 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                 return;
             }
 
-            const completeAuthData = {
-                ...socialAuthData,
-                phoneNumber: phone.trim(),
-                dateOfBirth: dateOfBirth,
-                isVerified: true
-            };
+            console.log('🔐 [REGISTER] Completing social registration...');
+            
+            const result = await authService.completeSocialRegistration(socialAuthData, phone, dateOfBirth);
 
-            const data = await authAPI.socialAuth(completeAuthData);
+            if (result.success) {
+                console.log('✅ [REGISTER] Social registration successful');
+                
+                // Update AuthContext
+                login({
+                    ...result.user,
+                    token: result.token
+                });
 
-            if (!data || !data.data || !data.data.user || !data.data.token) {
-                setErrors({ general: 'Invalid response from server. Please try again.' });
-                setIsLoading(false);
-                return;
-            }
-
-            login({
-                ...data.data.user,
-                token: data.data.token
-            });
-
-            if (isModal && onClose) {
-                onClose();
+                if (isModal && onClose) {
+                    onClose();
+                } else {
+                    navigate('/');
+                }
             } else {
-                navigate('/');
+                setErrors({ general: 'Registration failed. Please try again.' });
             }
-
         } catch (error) {
-            console.error(`${authProvider} authentication completion error:`, error);
-            setErrors({ general: handleApiError(error) });
+            console.error(`❌ [REGISTER] ${authProvider} registration error:`, error);
+            setErrors({ general: error.message || 'Registration failed. Please try again.' });
         } finally {
             setIsLoading(false);
         }
@@ -180,107 +156,86 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
         }
     };
 
+    // Google Social Auth Handler (for registration)
     const handleGoogleAuth = async () => {
         setIsLoading(true);
         setErrors({});
-        
-        // ✅ MOBILE FIX: Add retry logic for mobile devices
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const maxAttempts = isMobile ? 3 : 1;
-        
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                console.log(`📍 Google auth attempt ${attempt}/${maxAttempts}...`);
-                const result = await signInWithGoogle();
-                
-                if (!result || !result.success || !validateSocialAuthResult(result)) {
-                    const errorMsg = result?.error || 'Google authentication failed. Please try again.';
-                    
-                    if (attempt < maxAttempts && isMobile) {
-                        console.log(`⏳ Mobile retry in 1 second (attempt ${attempt}/${maxAttempts})...`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        continue;
-                    }
-                    
-                    setErrors({ general: errorMsg });
-                    setIsLoading(false);
-                    return;
-                }
-                
-                const { user } = result;
-                const processedSocialAuthData = processSocialAuthUser(user, 'google');
-                setSocialAuthData(processedSocialAuthData);
-                setAuthProvider('Google');
-                setName(user.displayName || '');
-                setEmail(user.email || '');
-                setShowSocialFields(true);
+
+        try {
+            console.log('🚀 [REGISTER] Starting Google authentication...');
+            
+            const result = await signInWithGoogle();
+
+            // Handle redirect case (mobile)
+            if (result.redirectInitiated) {
+                console.log('🔄 [REGISTER] Redirect initiated - browser will redirect to Google...');
+                setErrors({ 
+                    general: result.message || 'Redirecting to Google... Please wait.' 
+                });
                 setIsLoading(false);
-                return; // Exit after successful authentication
-                
-            } catch (error) {
-                console.error(`❌ Google auth error (attempt ${attempt}/${maxAttempts}):`, error);
-                
-                if (attempt < maxAttempts && isMobile) {
-                    console.log(`⏳ Mobile retry in 1 second (error: ${error.message})...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    continue;
-                }
-                
-                setErrors({ general: handleSocialAuthError(error, 'Google') });
-                setIsLoading(false);
+                return;
             }
+
+            if (!result.success || !result.user) {
+                setErrors({ general: result.error || 'Google authentication failed. Please try again.' });
+                setIsLoading(false);
+                return;
+            }
+
+            // Process social auth data and show additional fields
+            const processedSocialAuthData = processSocialAuthUser(result.user, 'google');
+            setSocialAuthData(processedSocialAuthData);
+            setAuthProvider('Google');
+            setName(result.user.displayName || '');
+            setEmail(result.user.email || '');
+            setShowSocialFields(true);
+            setIsLoading(false);
+
+        } catch (error) {
+            console.error('❌ [REGISTER] Google auth error:', error);
+            setErrors({ general: error.message || 'Google sign-in failed. Please try again.' });
+            setIsLoading(false);
         }
     };
 
+    // Facebook Social Auth Handler (for registration)
     const handleFacebookAuth = async () => {
         setIsLoading(true);
         setErrors({});
-        
-        // ✅ MOBILE FIX: Add retry logic for mobile devices
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const maxAttempts = isMobile ? 3 : 1;
-        
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                console.log(`📍 Facebook auth attempt ${attempt}/${maxAttempts}...`);
-                const result = await signInWithFacebook();
-                
-                if (!result || !result.success || !validateSocialAuthResult(result)) {
-                    const errorMsg = result?.error || 'Facebook authentication failed. Please try again.';
-                    
-                    if (attempt < maxAttempts && isMobile) {
-                        console.log(`⏳ Mobile retry in 1 second (attempt ${attempt}/${maxAttempts})...`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        continue;
-                    }
-                    
-                    setErrors({ general: errorMsg });
-                    setIsLoading(false);
-                    return;
-                }
-                
-                const { user } = result;
-                const processedSocialAuthData = processSocialAuthUser(user, 'facebook');
-                setSocialAuthData(processedSocialAuthData);
-                setAuthProvider('Facebook');
-                setName(user.displayName || '');
-                setEmail(user.email || '');
-                setShowSocialFields(true);
-                setIsLoading(false);
-                return; // Exit after successful authentication
-                
-            } catch (error) {
-                console.error(`❌ Facebook auth error (attempt ${attempt}/${maxAttempts}):`, error);
-                
-                if (attempt < maxAttempts && isMobile) {
-                    console.log(`⏳ Mobile retry in 1 second (error: ${error.message})...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    continue;
-                }
-                
-                setErrors({ general: handleSocialAuthError(error, 'Facebook') });
-                setIsLoading(false);
+
+        try {
+            console.log('🚀 [REGISTER] Starting Facebook authentication...');
+            
+            const result = await signInWithFacebook();
+
+            // Handle redirect case (mobile)
+            if (result.redirectInitiated) {
+                console.log('🔄 [REGISTER] Redirect initiated - browser will redirect to Facebook...');
+                setErrors({ 
+                    general: result.message || 'Redirecting to Facebook... Please wait.' 
+                });
+                return;
             }
+
+            if (!result.success || !result.user) {
+                setErrors({ general: result.error || 'Facebook authentication failed. Please try again.' });
+                setIsLoading(false);
+                return;
+            }
+
+            // Process social auth data and show additional fields
+            const processedSocialAuthData = processSocialAuthUser(result.user, 'facebook');
+            setSocialAuthData(processedSocialAuthData);
+            setAuthProvider('Facebook');
+            setName(result.user.displayName || '');
+            setEmail(result.user.email || '');
+            setShowSocialFields(true);
+            setIsLoading(false);
+
+        } catch (error) {
+            console.error('❌ [REGISTER] Facebook auth error:', error);
+            setErrors({ general: error.message || 'Facebook sign-in failed. Please try again.' });
+            setIsLoading(false);
         }
     };
 

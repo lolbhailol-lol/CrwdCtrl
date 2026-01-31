@@ -3,9 +3,8 @@ import { Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { authAPI, handleApiError } from '../../utils/api';
-import { processSocialAuthUser } from '../../utils/socialAuth';
-import { signInWithGoogle, signInWithFacebook } from '../../firebase';
+import { authService } from '../../services/authService';
+import { storage } from '../../utils/storage';
 
 export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +24,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     // Redirect admin if already logged in (when visiting /login page directly)
     useEffect(() => {
         if (!isModal && location.pathname === '/login') {
-            const adminToken = localStorage.getItem('admin_token');
+            const adminToken = storage.getItem('admin_token');
             if (adminToken) {
                 navigate('/admin', { replace: true });
             }
@@ -42,6 +41,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         }
     }, [errors]);
 
+    // Email/Password Login Handler
     const handleLogin = async (e) => {
         e.preventDefault();
         setErrors({});
@@ -53,141 +53,37 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             return;
         }
 
-        // Check network connectivity
-        if (!navigator.onLine) {
-            setErrors({ general: 'No internet connection. Please check your network and try again.' });
-            setIsLoading(false);
-            return;
-        }
-
-        // Try admin login first
         try {
-            console.log('🔐 [ADMIN LOGIN] Attempting with:', { email: emailOrPhone.trim() });
-            const adminData = await authAPI.adminLogin({
-                email: emailOrPhone.trim(),
-                password
-            });
-
-            console.log('🔐 [ADMIN LOGIN] Full response:', JSON.stringify(adminData, null, 2));
-            console.log('🔐 [ADMIN LOGIN] Response keys:', Object.keys(adminData || {}));
-
-            const accessToken = adminData?.accessToken || adminData?.token;
-            const refreshToken = adminData?.refreshToken;
-
-            console.log('🔐 [ADMIN LOGIN] Extracted tokens:', { 
-                token: accessToken?.substring(0, 20) + '...', 
-                hasToken: !!accessToken, 
-                hasRefreshToken: !!refreshToken 
-            });
-
-            if (accessToken) {
-                localStorage.setItem('admin_token', accessToken);
-                if (refreshToken) {
-                    localStorage.setItem('admin_refresh_token', refreshToken);
-                }
-                
-                console.log('✅ [ADMIN LOGIN] SUCCESS - Redirecting to /admin');
-                
-                if (isModal && onClose) {
-                    onClose();
-                }
-                
-                navigate('/admin', { replace: true });
-                setIsLoading(false);
-                return;
-            } else {
-                console.warn('⚠️ [ADMIN LOGIN] No access token in response');
-            }
-        } catch (adminError) {
-            console.error('🔴 [ADMIN LOGIN] Error caught:', {
-                status: adminError?.status,
-                message: adminError?.message,
-                data: adminError?.data
-            });
+            console.log('🔐 [LOGIN] Starting email/password login...');
             
-            if (adminError?.status === 401 || adminError?.data?.message === 'Invalid admin credentials') {
-                console.log('ℹ️ [ADMIN LOGIN] Got 401 - Not admin, attempting backend user login...');
-            } else if (adminError?.status === 0 || adminError?.message?.includes('Failed to fetch')) {
-                console.error('🔴 [ADMIN LOGIN] Network error:', adminError);
-                setErrors({ general: 'Network error. Please check your connection and try again.' });
-                setIsLoading(false);
-                return;
+            const result = await authService.loginWithEmail(emailOrPhone.trim(), password);
+
+            if (result.success) {
+                if (result.isAdmin) {
+                    // Admin login - redirect to admin dashboard
+                    console.log('✅ [LOGIN] Admin login successful');
+                    if (isModal && onClose) {
+                        onClose();
+                    }
+                    navigate('/admin', { replace: true });
+                } else {
+                    // User login - update AuthContext and close modal
+                    console.log('✅ [LOGIN] User login successful');
+                    login({
+                        ...result.user,
+                        token: result.token
+                    });
+                    
+                    if (isModal && onClose) {
+                        onClose();
+                    }
+                }
             } else {
-                console.error('🔴 [ADMIN LOGIN] Server error:', adminError);
-                setErrors({ general: adminError?.message || 'Login failed. Please try again.' });
-                setIsLoading(false);
-                return;
+                setErrors({ general: 'Login failed. Please try again.' });
             }
-        }
-
-        // Try backend user login
-        try {
-            console.log('👤 Attempting backend user login with:', { email: emailOrPhone.trim() });
-            const response = await authAPI.login({
-                email: emailOrPhone.trim(),
-                password
-            });
-
-            console.log('👤 Backend login response:', response);
-
-            if (!response?.success) {
-                console.error('❌ Backend login not successful:', response);
-                setErrors({ general: response?.message || 'Login failed.' });
-                setIsLoading(false);
-                return;
-            }
-
-            const userData = response?.data?.user;
-            const userToken = response?.data?.token;
-
-            console.log('👤 Extracted credentials:', { 
-                hasUser: !!userData, 
-                hasToken: !!userToken,
-                userName: userData?.name 
-            });
-
-            if (!userData || !userToken) {
-                console.error('❌ Missing user data or token from response');
-                setErrors({ general: 'Login failed. Invalid response from server.' });
-                setIsLoading(false);
-                return;
-            }
-
-            // Store user token and update AuthContext
-            login({
-                ...userData,
-                token: userToken
-            });
-            
-            console.log('✅ Backend user login successful');
-
-            if (isModal && onClose) {
-                onClose();
-            }
-
-            return;
-
         } catch (error) {
-            console.error('❌ Backend user login error:', error);
-            console.error('Error details:', { 
-                status: error?.status, 
-                message: error?.message,
-                data: error?.data 
-            });
-            
-            if (error?.status === 0 || error?.message?.includes('Failed to fetch')) {
-                console.log('❌ Network error during login');
-                setErrors({ general: 'Network error. Please check your internet connection and try again.' });
-            } else if (error?.status === 401) {
-                console.log('❌ Invalid credentials for user login');
-                setErrors({ general: 'Invalid email/password. Please try again.' });
-            } else if (error?.status === 400) {
-                console.log('❌ Bad request - validation error');
-                setErrors({ general: error?.data?.message || 'Please check your input and try again.' });
-            } else {
-                console.error('❌ Backend error:', error?.message);
-                setErrors({ general: handleApiError(error) || 'Login failed. Please try again.' });
-            }
+            console.error('❌ [LOGIN] Login error:', error);
+            setErrors({ general: error.message || 'Login failed. Please try again.' });
         } finally {
             setIsLoading(false);
         }
@@ -202,346 +98,111 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         }
     };
 
-    // ✅ UNIFIED GOOGLE AUTHENTICATION - Works for both mobile and desktop
+    // Google Social Login Handler
     const handleGoogleAuth = async () => {
         setIsLoading(true);
         setErrors({});
 
-        console.log('🚀 Starting unified Google authentication...');
-        
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        console.log('📱 Device detected:', isMobile ? 'Mobile (will use redirect)' : 'Desktop (will use redirect)');
-        
-        // ✅ Show user what's happening on mobile
-        if (isMobile) {
-            setErrors({ 
-                general: 'Redirecting to Google Sign-In... (Please wait)' 
-            });
-        }
-
-        const maxAttempts = 3;
-        const retryDelay = 1500;
-        
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                console.log(`🔄 Google auth attempt ${attempt}/${maxAttempts}...`);
-                console.log('📱 Mobile?', isMobile, '| Will use redirect flow...');
-                
-                const result = await signInWithGoogle();
-                console.log('📊 Google auth result:', { 
-                    success: result.success, 
-                    method: result.method,
-                    redirectInitiated: result.redirectInitiated,
-                    error: result.error,
-                    code: result.code,
-                    hasUser: !!result.user,
-                    attempt
-                });
-
-                // ✅ Handle redirect case (mobile)
-                if (result.redirectInitiated) {
-                    console.log('🔄 Redirect initiated - browser will now redirect to Google...');
-                    setErrors({ 
-                        general: result.message || 'Redirecting to Google... Please wait.' 
-                    });
-                    setIsLoading(false);
-                    // Don't return - let redirect happen
-                    return;
-                }
-
-                // Handle success (popup, rare on mobile)
-                if (result.success && result.user) {
-                    console.log('✅ Google authentication successful:', result.user.email);
-                    await processSuccessfulAuth(result.user);
-                    return;
-                }
-
-                // Handle failure cases
-                if (!result.success) {
-                    console.error('❌ Google auth failed:', result.error);
-                    
-                    // Special case: In-app browser warning
-                    if (result.code === 'auth/in-app-browser' && result.showOpenInBrowser) {
-                        setErrors({ 
-                            general: result.error,
-                            showOpenInBrowser: true
-                        });
-                        setIsLoading(false);
-                        return;
-                    }
-                    
-                    // Special case: Unauthorized domain
-                    if (result.code === 'auth/unauthorized-domain') {
-                        setErrors({ 
-                            general: '❌ This domain is not authorized for Google Sign-In. Please contact support.' 
-                        });
-                        setIsLoading(false);
-                        return;
-                    }
-                    
-                    // Determine if we should retry
-                    const retryableErrors = [
-                        'auth/popup-blocked',
-                        'auth/popup-closed-by-user',
-                        'auth/network-request-failed',
-                        'auth/cancelled-popup-request'
-                    ];
-                    
-                    if (attempt < maxAttempts && retryableErrors.includes(result.code)) {
-                        console.log(`⏳ Retrying in ${retryDelay}ms (${result.code})...`);
-                        await new Promise(resolve => setTimeout(resolve, retryDelay));
-                        continue;
-                    }
-                    
-                    setErrors({ general: result.error });
-                    setIsLoading(false);
-                    return;
-                }
-
-                // Handle missing user data
-                if (!result.user) {
-                    console.error('❌ No user data received');
-                    
-                    if (attempt < maxAttempts) {
-                        console.log(`⏳ Retrying for missing user data in ${retryDelay}ms...`);
-                        await new Promise(resolve => setTimeout(resolve, retryDelay));
-                        continue;
-                    }
-                    
-                    setErrors({ general: 'Authentication failed. Please try again.' });
-                    setIsLoading(false);
-                    return;
-                }
-
-            } catch (error) {
-                console.error(`❌ Google auth error (attempt ${attempt}/${maxAttempts}):`, error);
-                
-                const retryableErrors = [
-                    'auth/popup-blocked',
-                    'auth/popup-closed-by-user',
-                    'auth/cancelled-popup-request',
-                    'auth/network-request-failed'
-                ];
-                
-                const shouldRetry = attempt < maxAttempts && (
-                    retryableErrors.includes(error.code) ||
-                    error.name === 'AbortError' ||
-                    error.message?.includes('network') ||
-                    error.message?.includes('fetch')
-                );
-                
-                if (shouldRetry) {
-                    console.log(`⏳ Retrying after error in ${retryDelay}ms (${error.code || error.message})...`);
-                    await new Promise(resolve => setTimeout(resolve, retryDelay));
-                    continue;
-                }
-                
-                let errorMessage = 'Google sign-in failed. Please try again.';
-                
-                if (error.code === 'auth/popup-blocked') {
-                    errorMessage = 'Popup was blocked. Please allow popups and try again.';
-                } else if (error.code === 'auth/popup-closed-by-user') {
-                    errorMessage = 'Sign-in was cancelled. Please try again.';
-                } else if (error.code === 'auth/network-request-failed' || error.message?.includes('network')) {
-                    errorMessage = 'Network error. Please check your connection and try again.';
-                } else if (error.code === 'auth/unauthorized-domain') {
-                    errorMessage = 'This domain is not authorized. Please contact support.';
-                }
-                
-                setErrors({ general: errorMessage });
-                break;
-            }
-        }
-        
-        setIsLoading(false);
-    };
-
-    // Process successful authentication
-    const processSuccessfulAuth = async (user) => {
         try {
-            console.log('🔄 Processing successful authentication...');
+            console.log('🚀 [LOGIN] Starting Google authentication...');
             
-            const socialAuthData = processSocialAuthUser(user, 'google');
-            socialAuthData.isVerified = true;
+            const result = await authService.loginWithGoogle();
 
-            try {
-                console.log('🔄 Syncing with backend...');
-                const data = await authAPI.socialAuth(socialAuthData);
-                console.log('✅ Backend sync successful');
+            // Handle redirect case (mobile)
+            if (result.redirectInitiated) {
+                console.log('🔄 [LOGIN] Redirect initiated - browser will redirect to Google...');
+                setErrors({ 
+                    general: result.message || 'Redirecting to Google... Please wait.' 
+                });
+                setIsLoading(false);
+                return;
+            }
 
-                login({
-                    ...data.data.user,
-                    token: data.data.token
-                }, user);
-
-            } catch (backendError) {
-                console.error('❌ Backend sync failed:', backendError);
+            if (result.success) {
+                console.log('✅ [LOGIN] Google login successful');
                 
-                if (backendError.status === 0 || 
-                    backendError.networkError || 
-                    backendError.message?.includes('fetch')) {
-                    
-                    console.log('🔄 Using Firebase-only fallback...');
-                    
-                    const fallbackUser = {
-                        _id: user.uid,
-                        name: user.displayName || 'Google User',
-                        email: user.email,
-                        role: 'student',
-                        isVerified: true,
-                        provider: 'google',
-                        profilePic: user.photoURL
-                    };
-                    
-                    const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
-                    
-                    login({
-                        ...fallbackUser,
-                        token: fallbackToken
-                    }, user);
-                    
-                    console.log('✅ Fallback authentication successful');
-                } else {
-                    throw backendError;
-                }
-            }
+                // Update AuthContext
+                login({
+                    ...result.user,
+                    token: result.token
+                }, result.firebaseUser);
 
-            console.log('✅ Authentication complete');
-            if (isModal && onClose) {
-                onClose();
+                if (isModal && onClose) {
+                    onClose();
+                }
+            } else {
+                setErrors({ general: result.error || 'Google sign-in failed. Please try again.' });
             }
-            
         } catch (error) {
-            console.error('❌ Auth processing failed:', error);
-            setErrors({ 
-                general: 'Authentication failed. Please try again or contact support.' 
-            });
+            console.error('❌ [LOGIN] Google auth error:', error);
+            
+            let errorMessage = 'Google sign-in failed. Please try again.';
+            
+            if (error.message.includes('in-app-browser')) {
+                setErrors({ 
+                    general: error.message,
+                    showOpenInBrowser: true
+                });
+            } else if (error.message.includes('unauthorized-domain')) {
+                errorMessage = 'This domain is not authorized for Google Sign-In. Please contact support.';
+                setErrors({ general: errorMessage });
+            } else {
+                setErrors({ general: error.message || errorMessage });
+            }
         } finally {
             setIsLoading(false);
         }
     };
 
+    // Facebook Social Login Handler
     const handleFacebookAuth = async () => {
         setIsLoading(true);
         setErrors({});
 
-        console.log('🚀 Starting popup-first Facebook authentication...');
-
         try {
-            const result = await signInWithFacebook();
-            console.log('📊 Facebook auth result:', { 
-                success: result.success, 
-                method: result.method,
-                redirectInitiated: result.redirectInitiated 
-            });
+            console.log('🚀 [LOGIN] Starting Facebook authentication...');
+            
+            const result = await authService.loginWithFacebook();
 
-            if (!result.success) {
-                console.error('❌ Facebook auth failed:', result.error);
-                
-                if (result.code === 'auth/in-app-browser' && result.showOpenInBrowser) {
-                    setErrors({ 
-                        general: result.error,
-                        showOpenInBrowser: true
-                    });
-                } else {
-                    setErrors({ general: result.error });
-                }
-                setIsLoading(false);
-                return;
-            }
-
+            // Handle redirect case (mobile)
             if (result.redirectInitiated) {
-                console.log('🔄 Facebook redirect fallback initiated - page will reload automatically...');
+                console.log('🔄 [LOGIN] Redirect initiated - browser will redirect to Facebook...');
                 setErrors({ 
-                    general: result.message || 'Popup blocked. Redirecting to Facebook... Please wait.' 
+                    general: result.message || 'Redirecting to Facebook... Please wait.' 
                 });
                 return;
             }
 
-            if (!result.user) {
-                console.error('❌ No user data in Facebook result');
-                setErrors({ general: 'Facebook authentication failed. Please try again.' });
-                setIsLoading(false);
-                return;
-            }
-
-            const { user } = result;
-            console.log('✅ Facebook user authenticated via popup:', user.email);
-
-            const socialAuthData = processSocialAuthUser(user, 'facebook');
-            socialAuthData.isVerified = true;
-
-            try {
-                console.log('🔄 Syncing Facebook user with backend...');
-                const data = await authAPI.socialAuth(socialAuthData);
-                console.log('✅ Facebook backend sync successful');
-
-                login({
-                    ...data.data.user,
-                    token: data.data.token
-                }, user);
-
-            } catch (backendError) {
-                console.error('❌ Facebook backend social auth failed:', backendError);
+            if (result.success) {
+                console.log('✅ [LOGIN] Facebook login successful');
                 
-                if (backendError.status === 0 || backendError.networkError) {
-                    console.log('🔄 Network error detected, using Facebook Firebase-only fallback...');
-                    
-                    const fallbackUser = {
-                        _id: user.uid,
-                        name: user.displayName || 'Facebook User',
-                        email: user.email,
-                        role: 'student',
-                        isVerified: true,
-                        provider: 'facebook',
-                        profilePic: user.photoURL
-                    };
-                    
-                    const fallbackToken = `firebase_${user.uid}_${Date.now()}`;
-                    
-                    login({
-                        ...fallbackUser,
-                        token: fallbackToken
-                    }, user);
-                    
-                    console.log('✅ Facebook fallback authentication successful');
-                } else {
-                    setErrors({ 
-                        general: 'Facebook authentication failed. Please try again or contact support.' 
-                    });
-                    setIsLoading(false);
-                    return;
-                }
-            }
+                // Update AuthContext
+                login({
+                    ...result.user,
+                    token: result.token
+                }, result.firebaseUser);
 
-            console.log('✅ Facebook authentication complete, navigating...');
-            if (isModal && onClose) {
-                onClose();
+                if (isModal && onClose) {
+                    onClose();
+                }
+            } else {
+                setErrors({ general: result.error || 'Facebook sign-in failed. Please try again.' });
             }
         } catch (error) {
-            console.error('❌ Facebook authentication error:', error);
+            console.error('❌ [LOGIN] Facebook auth error:', error);
             
             let errorMessage = 'Facebook sign-in failed. Please try again.';
             
-            if (error.code === 'auth/popup-closed-by-user') {
-                errorMessage = 'Sign-in was cancelled. Please try again.';
-            } else if (error.code === 'auth/popup-blocked') {
-                errorMessage = 'Popup was blocked. Please allow popups for this site or try again.';
-            } else if (error.code === 'auth/network-request-failed') {
-                errorMessage = 'Network error. Please check your connection and try again.';
-            } else if (error.code === 'auth/unauthorized-domain') {
-                errorMessage = 'This domain is not authorized for Facebook sign-in. Please contact support.';
-            } else if (error.code === 'auth/operation-not-allowed') {
-                errorMessage = 'Facebook sign-in is not enabled. Please contact support to enable Facebook authentication.';
-            } else if (error.message && error.message.includes('network')) {
-                errorMessage = 'Network error. Please check your connection and try again.';
+            if (error.message.includes('in-app-browser')) {
+                setErrors({ 
+                    general: error.message,
+                    showOpenInBrowser: true
+                });
+            } else {
+                setErrors({ general: error.message || errorMessage });
             }
-            
-            setErrors({ general: errorMessage });
         } finally {
-            if (!errors.general || !errors.general.includes('Redirecting')) {
-                setIsLoading(false);
-            }
+            setIsLoading(false);
         }
     };
 
