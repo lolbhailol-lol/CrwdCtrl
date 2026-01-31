@@ -306,8 +306,19 @@ const socialAuth = async (req, res) => {
             isVerified
         } = req.body;
 
+        // ✅ FIX 12: LOG SOCIAL AUTH REQUEST WITH MOBILE DEBUG INFO
+        console.log('🔐 [SOCIAL AUTH] Request received:', {
+            provider,
+            email,
+            hasName: !!name,
+            userAgent: req.headers['user-agent']?.substring(0, 100),
+            origin: req.headers.origin || 'unknown',
+            contentType: req.headers['content-type']
+        });
+
         // Validate required fields
         if (!name || !provider || !providerId) {
+            console.error('❌ [SOCIAL AUTH] Missing required fields:', { name, provider, providerId });
             return res.status(400).json({
                 success: false,
                 message: 'Name, provider, and providerId are required',
@@ -317,6 +328,7 @@ const socialAuth = async (req, res) => {
         // Validate provider
         const validProviders = ['google', 'facebook', 'twitter'];
         if (!validProviders.includes(provider.toLowerCase())) {
+            console.error('❌ [SOCIAL AUTH] Invalid provider:', provider);
             return res.status(400).json({
                 success: false,
                 message: 'Invalid authentication provider',
@@ -392,6 +404,12 @@ const socialAuth = async (req, res) => {
             // Remove password from response
             const userResponse = existingUser.toObject();
             delete userResponse.password;
+
+            console.log('✅ [SOCIAL AUTH] Existing user found and logged in:', {
+                userId: existingUser._id,
+                provider,
+                hasToken: !!token
+            });
 
             return res.status(200).json({
                 success: true,

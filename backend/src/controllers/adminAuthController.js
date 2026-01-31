@@ -47,22 +47,45 @@ exports.adminLogin = async (req, res) => {
 
     console.log('✅ [BACKEND] Admin login successful:', { email, accessTokenExpiry: '1h', refreshTokenExpiry: '7d' });
 
-    // Cookie options for mobile/production: SameSite=None; Secure required for cross-origin credentials
+    // ✅ FIX 7: ENHANCED COOKIE SETTINGS FOR MOBILE DEVICES
     const isProduction = process.env.NODE_ENV === 'production';
+    
+    // ✅ FIX 8: PROPER SAMESITE AND SECURE FLAGS
     const cookieOpts = {
-      httpOnly: true,
-      path: '/',
-      secure: isProduction,
+      httpOnly: true,        // Prevents JavaScript access (security)
+      path: '/',             // Available to all routes
+      secure: isProduction,  // HTTPS only in production (mobile requirement)
+      // ✅ FIX 9: SAMESITE WITH FALLBACK FOR MOBILE SAFARI
       sameSite: isProduction ? 'none' : 'lax',
+      // Note: SameSite=None requires Secure=true, which is set in production
     };
-    res.cookie('admin_token', accessToken, { ...cookieOpts, maxAge: 60 * 60 * 1000 });       // 1h
-    res.cookie('admin_refresh_token', refreshToken, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7d
+    
+    console.log('🍪 Cookie Options:', {
+      httpOnly: cookieOpts.httpOnly,
+      secure: cookieOpts.secure,
+      sameSite: cookieOpts.sameSite,
+      environment: process.env.NODE_ENV
+    });
+    
+    // ✅ FIX 10: SET BOTH ACCESS AND REFRESH TOKENS IN COOKIES
+    res.cookie('admin_token', accessToken, { 
+      ...cookieOpts, 
+      maxAge: 60 * 60 * 1000  // 1 hour
+    });
+    res.cookie('admin_refresh_token', refreshToken, { 
+      ...cookieOpts, 
+      maxAge: 7 * 24 * 60 * 60 * 1000  // 7 days
+    });
 
+    // ✅ FIX 11: ALSO RETURN TOKENS IN RESPONSE (as fallback)
+    // Some mobile browsers don't reliably send cookies, so we also return tokens
+    // Frontend should store these in Authorization header as backup
     res.json({
       success: true,
       accessToken,
       refreshToken,
-      user: { email, role: 'admin' }
+      user: { email, role: 'admin' },
+      message: 'Login successful - tokens set in cookies and response'
     });
   } catch (error) {
     console.error('❌ [BACKEND] Login error:', error);

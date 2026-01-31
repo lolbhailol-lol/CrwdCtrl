@@ -47,33 +47,43 @@ connectDB().catch(err => {
 });
 
 // ----------------------
-// CORS CONFIG
+// ✅ ENHANCED CORS CONFIG FOR MOBILE
 // ----------------------
 const corsOrigins = [
+  // ✅ Railway Production
+  "https://prolific-learning-production-13aa.up.railway.app",
+  
+  // Local Development
   "http://localhost:5173",
   "http://localhost:5174", 
-  "http://localhost:5175", // Added for current frontend port
+  "http://localhost:5175",
   "http://localhost:3000",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
-  "http://127.0.0.1:5175", // Added for current frontend port
+  "http://127.0.0.1:5175",
+  
+  // Vercel Deployments
   "https://fest-buzzz-z-mvp.vercel.app",
-  "https://www.crwdctrl.in",
-  "https://crwdctrl.in",
   "https://crwdctrl-mvp.vercel.app",
   "https://crwdctrl.vercel.app",
-  // Google Cloud Run domain
-  "https://crwdctrl-730576782394.asia-south2.run.app",
-  // Additional Vercel domains
   "https://crwdctrl-mvp-git-main-your-username.vercel.app",
   "https://crwdctrl-mvp-git-main.vercel.app",
-  // Firebase hosting domains
+  
+  // Custom Domain
+  "https://www.crwdctrl.in",
+  "https://crwdctrl.in",
+  
+  // Cloud Run (legacy)
+  "https://crwdctrl-730576782394.asia-south2.run.app",
+  
+  // Firebase Hosting
   "https://crwdctrl.firebaseapp.com",
   "https://crwdctrl.web.app",
-  // Mobile app support
-  "capacitor://localhost", // Add for mobile apps using Capacitor
-  "ionic://localhost",     // Add for Ionic apps
-  "http://localhost"       // Add for mobile emulators
+  
+  // Mobile App Frameworks
+  "capacitor://localhost",
+  "ionic://localhost",
+  "http://localhost"
 ];
 
 console.log("✅ CORS Allowed Origins:", corsOrigins);
@@ -81,8 +91,9 @@ console.log("✅ CORS Allowed Origins:", corsOrigins);
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
+      // ✅ FIX 1: ALLOW REQUESTS WITH NO ORIGIN (mobile apps, Postman)
       if (!origin) {
+        console.log('✅ Request with no origin allowed (mobile app or native)');
         return callback(null, true);
       }
       
@@ -113,14 +124,13 @@ app.use(
       }
       
       console.warn("⚠️ CORS request from unauthorized origin:", origin);
-      console.warn("   Allowed origins:", corsOrigins);
       
-      // TEMPORARY: Allow all origins for debugging
-      console.log('🔧 TEMPORARY: Allowing all origins for debugging');
+      // TEMPORARY: Allow all origins for debugging (remove in production)
+      console.log('🔧 TEMPORARY: Allowing all origins for mobile debugging');
       return callback(null, true);
     },
-    credentials: true, // Required for cookie/credential requests (mobile + cross-origin)
-    optionsSuccessStatus: 200, // Some mobile clients expect 200 for preflight
+    credentials: true, // ✅ FIX 2: REQUIRED FOR MOBILE CREDENTIAL REQUESTS
+    optionsSuccessStatus: 200, // ✅ FIX 3: SOME MOBILE CLIENTS EXPECT 200 FOR PREFLIGHT
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: [
       "Content-Type", 
@@ -130,16 +140,42 @@ app.use(
       "Pragma",
       "Origin",
       "Accept",
-      "Expires" // Add Expires header for cache busting
+      "Expires"
     ],
     exposedHeaders: [
       "Content-Length", 
       "Content-Range",
       "X-Total-Count"
     ],
-    maxAge: 86400, // Cache preflight for 24 hours
+    maxAge: 86400, // ✅ FIX 4: CACHE PREFLIGHT FOR 24 HOURS (but see below for Vary header)
   })
 );
+
+// ✅ FIX 5: ADD CRITICAL CORS HEADERS FOR MOBILE DEVICES
+app.use((req, res, next) => {
+  // ✅ PROPER VARY HEADER TO BUST CORS PREFLIGHT CACHE ON DIFFERENT ORIGINS
+  res.set('Vary', 'Origin, Access-Control-Request-Headers, Access-Control-Request-Method');
+  
+  // ✅ ENSURE CORS CREDENTIALS HEADER IS SENT
+  res.set('Access-Control-Allow-Credentials', 'true');
+  
+  // ✅ ENSURE ALL REQUIRED HEADERS ARE EXPOSED TO FRONTEND
+  res.set('Access-Control-Expose-Headers', [
+    'Content-Length',
+    'Content-Range',
+    'X-Total-Count',
+    'X-Auth-Token',
+    'Authorization'
+  ].join(', '));
+  
+  // ✅ FIX 6: CACHE CONTROL FOR CORS RESPONSES
+  // Prevent mobile proxy from caching CORS responses
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate, public');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  
+  next();
+});
 
 // JSON middleware with increased limits for file uploads
 app.use(express.json({ limit: "50mb" }));

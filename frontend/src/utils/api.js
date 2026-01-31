@@ -3,19 +3,91 @@ import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
 
 /**
  * Base API configuration and utilities
+ * ✅ ENHANCED FOR MOBILE: CORS, HTTPS, Headers, Storage, Network Detection
  */
 class ApiClient {
     constructor() {
-        // Use Vite environment variables for API base URL; enforce HTTPS in production
-        let base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-        if (import.meta.env.PROD && base.startsWith('http://')) {
-            base = base.replace(/^http:\/\//, 'https://');
+        // ✅ FIX 1: PROPER API BASE URL RESOLUTION FOR MOBILE
+        const rawBase = import.meta.env.VITE_API_BASE_URL;
+        
+        // Critical: Don't use localhost fallback on mobile
+        if (!rawBase) {
+            console.error('❌ CRITICAL: VITE_API_BASE_URL environment variable is not set!');
+            console.warn('⚠️ API Base URL not configured. Auth will fail on mobile devices.');
+            // Still set a base, but mark that it's misconfigured
+            this.baseURL = 'http://localhost:8080/api';
+            this.isMisconfigured = true;
+        } else {
+            let base = rawBase;
+            
+            // ✅ FIX 2: ENFORCE HTTPS IN PRODUCTION (required for mixed-content blocking on mobile)
+            if (import.meta.env.PROD && base.startsWith('http://')) {
+                base = base.replace(/^http:\/\//, 'https://');
+                console.log('🔒 Production mode: enforced HTTPS for API');
+            }
+            
+            // ✅ FIX 3: VALIDATE API URL FORMAT
+            try {
+                new URL(base);
+                this.baseURL = base;
+                this.isMisconfigured = false;
+            } catch (error) {
+                console.error('❌ Invalid API Base URL:', base, error);
+                this.baseURL = base;
+                this.isMisconfigured = true;
+            }
         }
-        this.baseURL = base;
+        
+        console.log('📍 Configured API Base URL:', this.baseURL);
+        console.log('📍 API Configuration Healthy:', !this.isMisconfigured);
+        
         this.timeout = API_CONFIG.TIMEOUT;
+        
+        // ✅ FIX 4: ENHANCED HEADERS FOR MOBILE NETWORKS
+        // Added headers to prevent proxy interference and CORS issues
         this.defaultHeaders = {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',  // Helps with mobile proxies
+            'Cache-Control': 'no-cache',            // Prevent mobile proxy caching
+            'Pragma': 'no-cache'                    // Additional cache prevention
         };
+        
+        // ✅ FIX 5: NETWORK STATUS TRACKING
+        this.isOnline = navigator.onLine;
+        this.setupNetworkStatusListener();
+    }
+    
+    /**
+     * ✅ NEW: Setup network status listener for mobile
+     */
+    setupNetworkStatusListener() {
+        window.addEventListener('online', () => {
+            this.isOnline = true;
+            console.log('🟢 Network: ONLINE');
+        });
+        window.addEventListener('offline', () => {
+            this.isOnline = false;
+            console.log('🔴 Network: OFFLINE');
+        });
+    }
+    
+    /**
+     * ✅ NEW: Check if device is online before making requests
+     */
+    checkNetworkStatus() {
+        if (!navigator.onLine) {
+            console.error('🔴 No internet connection - request will fail');
+            throw new ApiError(
+                'No internet connection. Please check your network and try again.',
+                0,
+                { 
+                    networkError: true, 
+                    offline: true 
+                }
+            );
+        }
+        return true;
     }
 
     /**
@@ -112,9 +184,16 @@ class ApiClient {
     }
 
     /**
-     * ✅ ENHANCED RETRY MECHANISM WITH RAILWAY COLD START SUPPORT
+     * ✅ ENHANCED RETRY MECHANISM WITH MOBILE NETWORK ERROR DETECTION
      */
     async requestWithRetry(url, config, maxRetries = 3) {
+        // ✅ FIX 6: CHECK NETWORK STATUS BEFORE ATTEMPTING REQUEST
+        try {
+            this.checkNetworkStatus();
+        } catch (error) {
+            throw error;
+        }
+        
         let lastError;
         
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -125,23 +204,33 @@ class ApiClient {
 
                 config.signal = controller.signal;
                 if (config.credentials === undefined) config.credentials = 'include';
-
+                
+                // ✅ FIX 7: LOG ALL REQUEST HEADERS FOR DEBUGGING MOBILE ISSUES
                 console.log(`📤 API Request (attempt ${attempt + 1}/${maxRetries + 1}):`, {
                     method: config.method,
                     url: url,
                     timeout: timeout,
+                    headers: config.headers,
+                    credentials: config.credentials,
                     isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-                    connection: navigator.connection?.effectiveType || 'unknown'
+                    connection: navigator.connection?.effectiveType || 'unknown',
+                    online: navigator.onLine
                 });
 
                 const response = await fetch(url, config);
                 clearTimeout(timeoutId);
 
+                // ✅ FIX 8: LOG ALL RESPONSE HEADERS FOR DEBUGGING MOBILE CORS
                 console.log('📥 API Response:', {
                     status: response.status,
                     statusText: response.statusText,
                     ok: response.ok,
-                    attempt: attempt + 1
+                    attempt: attempt + 1,
+                    corsHeaders: {
+                        'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                        'Access-Control-Allow-Credentials': response.headers.get('Access-Control-Allow-Credentials'),
+                        'Content-Type': response.headers.get('Content-Type')
+                    }
                 });
 
                 // Handle non-JSON responses
@@ -175,21 +264,39 @@ class ApiClient {
             } catch (error) {
                 lastError = error;
                 
+                // ✅ FIX 9: ENHANCED MOBILE NETWORK ERROR DETECTION
+                const errorMessage = error.message || '';
+                const isCorsError = errorMessage.includes('CORS') || errorMessage.includes('cross-origin');
+                const isNetworkError = errorMessage.includes('Failed to fetch') || 
+                                     errorMessage.includes('NetworkError') ||
+                                     errorMessage.includes('fetch');
+                const isTimeoutError = error.name === 'AbortError';
+                
+                console.error('🔴 Request Error Details:', {
+                    attempt: attempt + 1,
+                    errorName: error.name,
+                    errorMessage: error.message,
+                    isCorsError,
+                    isNetworkError,
+                    isTimeoutError,
+                    url
+                });
+                
                 // Handle timeout errors
-                if (error.name === 'AbortError') {
-                    console.error(`⏰ API Request Timeout (attempt ${attempt + 1}):`, url);
+                if (isTimeoutError) {
+                    console.error(`⏰ API Request Timeout (attempt ${attempt + 1}): ${timeout}ms`);
                     
                     // Don't retry on timeout for the last attempt
                     if (attempt === maxRetries) {
                         throw new ApiError(
-                            'Request timeout. Please check your internet connection and try again.',
+                            'Request timeout. Your connection is slow. Please check your internet and try again.',
                             408,
                             { networkError: true, timeout: true }
                         );
                     }
                     
                     // Wait before retry with exponential backoff
-                    const delay = Math.min(Math.pow(2, attempt) * 1000, 10000); // Max 10s delay
+                    const delay = Math.min(Math.pow(2, attempt) * 1000, 10000);
                     console.log(`⏳ Waiting ${delay}ms before retry...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                     continue;
@@ -215,12 +322,24 @@ class ApiClient {
                     throw error;
                 }
 
-                // Handle network errors
+                // ✅ FIX 10: SPECIFIC MOBILE NETWORK ERROR MESSAGES
                 console.error(`🌐 Network Error (attempt ${attempt + 1}):`, {
                     message: error.message,
                     name: error.name,
-                    url: url
+                    url: url,
+                    isCorsError,
+                    isNetworkError
                 });
+
+                // CORS errors should be reported immediately (not retried)
+                if (isCorsError) {
+                    console.error('❌ CORS Error detected - likely misconfigured API URL or domain not authorized');
+                    throw new ApiError(
+                        'Unable to connect to server. CORS error detected. Check API configuration.',
+                        0,
+                        { networkError: true, corsError: true, originalError: error }
+                    );
+                }
 
                 // Retry on network errors
                 if (attempt < maxRetries) {
@@ -231,11 +350,9 @@ class ApiClient {
                 }
 
                 // Final attempt failed - throw appropriate error
-                if (error.message.includes('Failed to fetch') || 
-                    error.message.includes('NetworkError') ||
-                    error.message.includes('fetch')) {
+                if (isNetworkError) {
                     throw new ApiError(
-                        'Unable to connect to server. Please check your internet connection and try again.',
+                        'Unable to connect to server. Please check your internet connection and API configuration.',
                         0,
                         { originalError: error, networkError: true }
                     );
@@ -254,13 +371,18 @@ class ApiClient {
     }
 
     /**
-     * ✅ ENHANCED REQUEST METHOD WITH RAILWAY COLD START OPTIMIZATIONS
+     * ✅ ENHANCED REQUEST METHOD WITH MOBILE FIXES
      */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
         console.log('📍 API URL being called:', url);
         console.log('📍 Base URL:', this.baseURL);
         console.log('📍 Endpoint:', endpoint);
+        
+        // ✅ FIX 11: WARN IF API IS MISCONFIGURED
+        if (this.isMisconfigured) {
+            console.warn('⚠️ API Configuration Issue: VITE_API_BASE_URL not properly configured');
+        }
 
         // ✅ RAILWAY COLD START DETECTION (for first request)
         const coldStartInfo = await this.detectAndHandleColdStart(url);
@@ -278,9 +400,10 @@ class ApiClient {
         const token = this.getAuthToken();
         if (token && !config.headers.Authorization) {
             config.headers.Authorization = `Bearer ${token}`;
+            console.log('🔐 Authorization header added');
         }
 
-        // Required for cookies/credentials on cross-origin (mobile + production)
+        // ✅ FIX 12: ENSURE CREDENTIALS ARE SENT FOR MOBILE/CROSS-ORIGIN
         config.credentials = 'include';
 
         // Handle request body
@@ -288,7 +411,7 @@ class ApiClient {
             config.body = JSON.stringify(config.body);
         }
 
-        // ✅ USE ENHANCED RETRY MECHANISM WITH RAILWAY SUPPORT
+        // ✅ USE ENHANCED RETRY MECHANISM WITH MOBILE ERROR DETECTION
         const maxRetries = coldStartInfo.isColdStart ? 4 : 3; // Extra retry for cold starts
         return this.requestWithRetry(url, config, maxRetries);
     }
@@ -332,7 +455,7 @@ class ApiClient {
     }
 
     /**
-     * PATCH request
+     * ✅ PATCH request
      */
     async patch(endpoint, body = {}) {
         return this.request(endpoint, {
@@ -342,36 +465,105 @@ class ApiClient {
     }
 
     /**
-     * Get authentication token from localStorage
+     * ✅ FIX 13: CHECK IF STORAGE IS AVAILABLE (mobile private mode fix)
+     */
+    isStorageAvailable(type = 'localStorage') {
+        try {
+            const storage = window[type];
+            const test = '__storage_test__';
+            storage.setItem(test, test);
+            storage.removeItem(test);
+            console.log(`✅ ${type} is available`);
+            return true;
+        } catch (error) {
+            console.warn(`⚠️ ${type} not available (private mode or quota exceeded):`, error.message);
+            return false;
+        }
+    }
+
+    /**
+     * ✅ Get authentication token from localStorage with mobile fallback
      */
     getAuthToken() {
         try {
-            return localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+            // ✅ FIX 14: TRY LOCALSTORAGE FIRST
+            if (this.isStorageAvailable('localStorage')) {
+                const token = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+                if (token) {
+                    console.log('✅ Token retrieved from localStorage');
+                    return token;
+                }
+            }
+            
+            // ✅ FIX 15: FALLBACK TO SESSION STORAGE
+            if (this.isStorageAvailable('sessionStorage')) {
+                const token = sessionStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+                if (token) {
+                    console.log('⚠️ Token retrieved from sessionStorage (localStorage unavailable)');
+                    return token;
+                }
+            }
+            
+            // ✅ FIX 16: FALLBACK TO MEMORY TOKEN (if set)
+            if (window._crwdctrl_auth_token) {
+                console.log('⚠️ Token retrieved from memory (storage unavailable)');
+                return window._crwdctrl_auth_token;
+            }
+            
+            console.log('ℹ️ No token found in any storage');
+            return null;
         } catch (error) {
-            console.error('Error accessing localStorage:', error);
+            console.error('❌ Error accessing token storage:', error);
             return null;
         }
     }
 
     /**
-     * Set authentication token in localStorage
+     * ✅ Set authentication token with mobile-aware storage
      */
     setAuthToken(token) {
         try {
-            localStorage.setItem(AUTH_CONFIG.TOKEN_KEY, token);
+            // ✅ TRY LOCALSTORAGE
+            if (this.isStorageAvailable('localStorage')) {
+                localStorage.setItem(AUTH_CONFIG.TOKEN_KEY, token);
+                console.log('✅ Token stored in localStorage');
+                return true;
+            }
+            
+            // ✅ FALLBACK TO SESSION STORAGE
+            if (this.isStorageAvailable('sessionStorage')) {
+                sessionStorage.setItem(AUTH_CONFIG.TOKEN_KEY, token);
+                console.log('⚠️ Token stored in sessionStorage (localStorage unavailable)');
+                return true;
+            }
+            
+            // ✅ FALLBACK TO MEMORY
+            window._crwdctrl_auth_token = token;
+            console.warn('⚠️ Token stored in memory (storage unavailable - will be lost on refresh)');
+            return true;
         } catch (error) {
-            console.error('Error setting token in localStorage:', error);
+            console.error('❌ Error setting token in storage:', error);
+            // Still set in memory as last resort
+            window._crwdctrl_auth_token = token;
+            return false;
         }
     }
 
     /**
-     * Remove authentication token from localStorage
+     * ✅ Remove authentication token from all storage
      */
     removeAuthToken() {
         try {
-            localStorage.removeItem(AUTH_CONFIG.TOKEN_KEY);
+            if (this.isStorageAvailable('localStorage')) {
+                localStorage.removeItem(AUTH_CONFIG.TOKEN_KEY);
+            }
+            if (this.isStorageAvailable('sessionStorage')) {
+                sessionStorage.removeItem(AUTH_CONFIG.TOKEN_KEY);
+            }
+            window._crwdctrl_auth_token = null;
+            console.log('✅ Token removed from all storage');
         } catch (error) {
-            console.error('Error removing token from localStorage:', error);
+            console.error('❌ Error removing token from storage:', error);
         }
     }
 }
