@@ -651,10 +651,165 @@ const generateOrganizerNotificationEmailHTML = (userName, userEmail, festName, c
     `;
 };
 
+// Send login confirmation email
+const sendLoginConfirmationEmail = async (userData) => {
+    try {
+        console.log('🔐 Starting login confirmation email process for:', userData.email);
+
+        if (!userData.email) {
+            console.error('❌ Cannot send login confirmation email: email is missing');
+            throw new Error('User email is required to send login confirmation email');
+        }
+
+        const transporter = createTransporter();
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
+            to: userData.email,
+            subject: '✅ Login Confirmed - CrwdCtrl Account',
+            html: generateLoginConfirmationEmailHTML(userData)
+        };
+
+        console.log('📤 Sending login confirmation email...');
+        console.log('   From:', mailOptions.from);
+        console.log('   To:', mailOptions.to);
+        
+        const info = await transporter.sendMail(mailOptions);
+        console.log('✅ Login confirmation email sent successfully!');
+        console.log('   Message ID:', info.messageId);
+        
+        return { success: true, messageId: info.messageId };
+    } catch (error) {
+        console.error('❌ Login confirmation email sending failed!');
+        console.error('   Error:', error.message);
+        // Don't throw - don't block login if email fails
+        return { success: false, error: error.message };
+    }
+};
+
+// Generate HTML for login confirmation email
+const generateLoginConfirmationEmailHTML = (userData) => {
+    const loginTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                line-height: 1.6; 
+                color: #333; 
+                margin: 0; 
+                padding: 0;
+                background-color: #f5f5f5;
+            }
+            .container { 
+                max-width: 600px; 
+                margin: 20px auto; 
+                background: white;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+            .header { 
+                background: linear-gradient(135deg, #053780, #0ECCEE); 
+                color: white; 
+                padding: 30px 20px; 
+                text-align: center;
+            }
+            .header h1 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: bold;
+            }
+            .content { 
+                padding: 30px 20px;
+            }
+            .success-badge {
+                display: inline-block;
+                background: #10b981;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-weight: 600;
+                margin-bottom: 20px;
+            }
+            .info-box {
+                background: #f0f9ff;
+                border-left: 4px solid #0ECCEE;
+                padding: 15px;
+                margin: 20px 0;
+                border-radius: 4px;
+            }
+            .info-box p {
+                margin: 8px 0;
+                color: #333;
+            }
+            .label {
+                font-weight: 600;
+                color: #053780;
+            }
+            .footer {
+                background: #f8f9fa;
+                padding: 20px;
+                text-align: center;
+                border-top: 1px solid #e9ecef;
+            }
+            .footer p {
+                margin: 8px 0;
+                color: #666;
+                font-size: 13px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>✅ Login Successful!</h1>
+            </div>
+            
+            <div class="content">
+                <p class="greeting">Hi <strong>${userData.name || 'User'}</strong>,</p>
+                
+                <p>Your account has been accessed successfully. This is a security confirmation that you recently logged into your CrwdCtrl account.</p>
+                
+                <div class="info-box">
+                    <p><span class="label">📧 Account Email:</span></p>
+                    <p>${userData.email}</p>
+                    
+                    <p style="margin-top: 15px;"><span class="label">🕐 Login Time:</span></p>
+                    <p>${loginTime} (IST)</p>
+                    
+                    <p style="margin-top: 15px;"><span class="label">📱 Account Status:</span></p>
+                    <p><strong style="color: #10b981;">✓ Active</strong></p>
+                </div>
+                
+                <p style="color: #666; font-size: 14px; margin-top: 25px;">
+                    If you did not log in to your account, please <a href="mailto:${process.env.ADMIN_EMAIL || 'support@crwdctrl.com'}" style="color: #0ECCEE; text-decoration: none;">contact our support team</a> immediately.
+                </p>
+                
+                <p style="margin-top: 20px; color: #888; font-size: 13px;">
+                    Stay safe and enjoy exploring amazing fests on CrwdCtrl! 🎉
+                </p>
+            </div>
+            
+            <div class="footer">
+                <p style="margin-bottom: 15px;"><strong>Team CrwdCtrl</strong></p>
+                <p>This is an automated security notification email</p>
+                <p style="margin-top: 10px; color: #999;">© ${new Date().getFullYear()} CrwdCtrl. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+};
+
 module.exports = {
     // Generalized functions (ACTIVE)
     sendWelcomeEmail,
     sendRegistrationThankYouEmail,
     sendRegistrationConfirmationEmail,
-    sendOrganizerNotificationEmail
+    sendOrganizerNotificationEmail,
+    sendLoginConfirmationEmail
 };

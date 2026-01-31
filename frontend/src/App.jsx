@@ -209,7 +209,7 @@ function App() {
         console.log('✅ User authenticated, closing register modal');
         setShowRegister(false);
       }
-    }, [isAuthenticated, showLogin, showRegister]);
+    }, [isAuthenticated]);
 
     // ✅ CRITICAL FIX: Show auth loading page when processing OAuth redirect OR during initial loading
     // This prevents modal from showing during redirect

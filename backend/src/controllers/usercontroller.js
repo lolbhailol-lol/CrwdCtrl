@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require("../model/usermodel");
-const { sendWelcomeEmail } = require('../services/emailService');
+const { sendWelcomeEmail, sendLoginConfirmationEmail } = require('../services/emailService');
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -245,6 +245,21 @@ const login = async (req, res) => {
             sameSite: isProduction ? 'none' : 'lax',
         };
         res.cookie('crwdctrl_token', token, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7d
+
+        // Send login confirmation email asynchronously (don't block the response)
+        if (user.email) {
+            const emailData = {
+                name: user.name,
+                email: user.email,
+                isVerified: user.isVerified
+            };
+            
+            // Send email without awaiting - don't block login response
+            sendLoginConfirmationEmail(emailData).catch(error => {
+                console.error('⚠️ Failed to send login confirmation email:', error.message);
+                // Don't affect the login response if email fails
+            });
+        }
 
         res.status(200).json({
             success: true,
