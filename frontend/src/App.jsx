@@ -287,15 +287,15 @@ function App() {
           />
         )}
 
-        {/* Login Modal */}
-        {showLogin && (
+        {/* Login Modal - Don't show while auth is processing */}
+        {showLogin && !isAuthProcessing && (
           <div className="fixed inset-0 z-50">
             <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
           </div>
         )}
 
-        {/* Register Modal */}
-        {showRegister && (
+        {/* Register Modal - Don't show while auth is processing */}
+        {showRegister && !isAuthProcessing && (
           <div className="fixed inset-0 z-50">
             <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
           </div>
