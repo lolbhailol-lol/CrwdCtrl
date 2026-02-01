@@ -64,7 +64,9 @@ function EventPage() {
                 console.log('ViewDetails - API URL:', `${API_BASE_URL}/fests/competitions/${competitionId}/public`);
                 
                 // Try to fetch competition data from backend
-                const response = await axios.get(`/fests/competitions/${competitionId}/public`);
+                // Add cache busting timestamp to ensure fresh data
+                const timestamp = Date.now();
+                const response = await axios.get(`/fests/competitions/${competitionId}/public?t=${timestamp}`);
                 console.log('ViewDetails - API Response Status:', response.status);
                 console.log('ViewDetails - API Response Data:', response.data);
                 
@@ -176,6 +178,98 @@ function EventPage() {
 
         fetchCompetitionData();
     }, [competitionId, navigate, location.state]);
+
+    // 🔄 Listen for admin updates and refetch data
+    useEffect(() => {
+        const handleAdminUpdate = () => {
+            // Only refetch if we have a competitionId
+            if (competitionId) {
+                console.log('🔄 Admin update detected - refetching competition details');
+                // Refetch the competition data with cache busting
+                const fetchUpdatedData = async () => {
+                    try {
+                        const timestamp = Date.now();
+                        const response = await axios.get(`/fests/competitions/${competitionId}/public?t=${timestamp}`);
+                        const compData = response.data;
+
+                        if (compData) {
+                            const transformedData = {
+                                id: compData._id || compData.id,
+                                title: compData.name,
+                                subtitle: compData.subtitle || compData.description,
+                                date: compData.dateTime,
+                                time: '',
+                                venue: compData.venue || 'TBD',
+                                entryFee: compData.registrationFee || 'Free',
+                                prize: compData.prizePool || 'TBD',
+                                image: compData.coverImage,
+                                contact: compData.contact || { phone: '', instagram: '', email: '' },
+                                description: compData.description,
+                                commonRules: compData.commonRules || [],
+                                commonRulesMessage: compData.commonRulesMessage || '',
+                                registrationLink: compData.registrationLink || '',
+                                registrationType: compData.registrationType || 'fest',
+                                registration: compData.registration || { status: 'not_started' },
+                                legacyRegistration: compData.legacyRegistration || { status: 'NOT_STARTED' },
+                                fest: compData.fest || null,
+                                festId: compData.fest?._id || null,
+                                rounds: {
+                                    description: compData.rounds?.[0]?.description || 'Competition details will be updated soon.',
+                                    list: compData.rounds?.map(r => r.title || r.description) || [],
+                                    round1: compData.rounds?.[0] ? {
+                                        title: compData.rounds[0].title || 'Round 1',
+                                        rules: compData.rounds[0].rules || [],
+                                        roundRulesMessage: compData.rounds[0].roundRulesMessage || '',
+                                        description: compData.rounds[0].description || '',
+                                        dateTime: compData.rounds[0].dateTime,
+                                        venue: compData.rounds[0].venue
+                                    } : { title: 'Round 1', rules: [], roundRulesMessage: '', description: '' },
+                                    round2: compData.rounds?.[1] ? {
+                                        title: compData.rounds[1].title || 'Round 2',
+                                        rules: compData.rounds[1].rules || [],
+                                        roundRulesMessage: compData.rounds[1].roundRulesMessage || '',
+                                        description: compData.rounds[1].description || '',
+                                        dateTime: compData.rounds[1].dateTime,
+                                        venue: compData.rounds[1].venue
+                                    } : null,
+                                    round3: compData.rounds?.[2] ? {
+                                        title: compData.rounds[2].title || 'Final Round',
+                                        rules: compData.rounds[2].rules || [],
+                                        roundRulesMessage: compData.rounds[2].roundRulesMessage || '',
+                                        description: compData.rounds[2].description || '',
+                                        dateTime: compData.rounds[2].dateTime,
+                                        venue: compData.rounds[2].venue
+                                    } : null
+                                }
+                            };
+                            setCompetitionData(transformedData);
+                            console.log('✅ Competition data updated from admin changes');
+                        }
+                    } catch (err) {
+                        console.error('Error refetching updated competition data:', err);
+                    }
+                };
+                fetchUpdatedData();
+            }
+        };
+
+        // Listen for custom admin update event (same-tab)
+        window.addEventListener('admin_fest_updated', handleAdminUpdate);
+
+        // Also listen for storage events (cross-tab updates)
+        const handleStorageChange = (e) => {
+            if (e.key === 'admin_data_updated') {
+                console.log('🔄 Admin update detected (cross-tab) - refetching competition details');
+                handleAdminUpdate({ detail: {} });
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            window.removeEventListener('admin_fest_updated', handleAdminUpdate);
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, [competitionId]);
 
     // Check for login modal parameter
     useEffect(() => {

@@ -34,7 +34,9 @@ const CompetitionListPage = () => {
                 setError(null);
 
                 // Fetch event data with populated competitions (same as main page)
-                const eventResponse = await axios.get(`/fests/${eventId}/public`);
+                // Add cache busting timestamp to ensure fresh data
+                const timestamp = Date.now();
+                const eventResponse = await axios.get(`/fests/${eventId}/public?t=${timestamp}`);
                 const festData = eventResponse.data;
 
                 if (!festData) {
@@ -118,6 +120,98 @@ const CompetitionListPage = () => {
 
         fetchData();
     }, [eventId, navigate]);
+
+    // 🔄 Listen for admin updates and refetch data
+    useEffect(() => {
+        const handleAdminUpdate = (e) => {
+            // Only refetch if the updated fest is the one we're viewing
+            if (!e.detail?.festId || e.detail?.festId === eventId) {
+                console.log('🔄 Admin update detected for current fest - refetching competitions list');
+                // Refetch the event data with cache busting
+                const fetchUpdatedData = async () => {
+                    try {
+                        const timestamp = Date.now();
+                        const eventResponse = await axios.get(`/fests/${eventId}/public?t=${timestamp}`);
+                        const festData = eventResponse.data;
+
+                        if (festData) {
+                            const transformedEventData = {
+                                id: festData._id || festData.id,
+                                title: festData.festName,
+                                subtitle: festData.collegeName,
+                                festival_name: festData.festName,
+                                organizing_body: festData.collegeName,
+                                type: festData.festType,
+                                description: festData.description,
+                                dateTime: festData.festDate,
+                                venue: festData.venue,
+                                image: festData.coverImage,
+                                heroImage: festData.coverImage
+                            };
+
+                            setEventData(transformedEventData);
+
+                            // Process competitions
+                            if (festData.competitions && Array.isArray(festData.competitions) && festData.competitions.length > 0) {
+                                const groupedCompetitions = {};
+                                festData.competitions.forEach(comp => {
+                                    const category = comp.competitionType?.toUpperCase() || 'OTHER';
+                                    if (!groupedCompetitions[category]) {
+                                        groupedCompetitions[category] = [];
+                                    }
+                                    groupedCompetitions[category].push({
+                                        id: comp._id,
+                                        name: comp.name,
+                                        title: comp.name,
+                                        subtitle: comp.subtitle || comp.description,
+                                        image: comp.coverImage,
+                                        fee: comp.registrationFee || 'Free',
+                                        prize: comp.prizePool || 'TBD',
+                                        description: comp.description,
+                                        dateTime: comp.dateTime,
+                                        venue: comp.venue,
+                                        rules: comp.commonRules || [],
+                                        commonRulesMessage: comp.commonRulesMessage || '',
+                                        rounds: comp.rounds || [],
+                                        contact: comp.contact,
+                                        prizePool: comp.prizePool,
+                                        registrationFee: comp.registrationFee,
+                                        competitionType: comp.competitionType,
+                                        coverImage: comp.coverImage,
+                                        gallery: comp.gallery,
+                                        commonRules: comp.commonRules
+                                    });
+                                });
+                                setCompetitions(groupedCompetitions);
+                            } else {
+                                setCompetitions({});
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error refetching updated competition data:', err);
+                    }
+                };
+                fetchUpdatedData();
+            }
+        };
+
+        // Listen for custom admin update event (same-tab)
+        window.addEventListener('admin_fest_updated', handleAdminUpdate);
+
+        // Also listen for storage events (cross-tab updates)
+        const handleStorageChange = (e) => {
+            if (e.key === 'admin_data_updated') {
+                console.log('🔄 Admin update detected (cross-tab) - refetching competitions list');
+                handleAdminUpdate({ detail: { festId: eventId } });
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            window.removeEventListener('admin_fest_updated', handleAdminUpdate);
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, [eventId]);
 
     // Get available tabs from competitions data
     const availableTabs = Object.keys(competitions || {});
