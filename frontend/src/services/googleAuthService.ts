@@ -1,6 +1,5 @@
 import {
   GoogleAuthProvider,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   onAuthStateChanged,
@@ -56,37 +55,27 @@ export const googleAuthService = {
     }
   },
 
+  // ✅ ALWAYS use redirect - popup is unreliable on real mobile devices
   signIn: async (): Promise<any> => {
     try {
       const instagram = isInstagramBrowser();
       const mobile = isMobileDevice();
 
-      logOAuth('SignIn', { instagram, mobile });
+      logOAuth('SignIn', { instagram, mobile, method: 'redirect-always' });
 
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
 
-      if (instagram || mobile) {
-        logOAuth('SignIn', { method: 'redirect' });
-        sessionStorage.setItem('oauth_intent', 'google-signin');
-        sessionStorage.setItem('oauth_timestamp', Date.now().toString());
-        await signInWithRedirect(auth, provider);
-        return;
-      }
-
-      logOAuth('SignIn', { method: 'popup' });
-      const result = await signInWithPopup(auth, provider);
-      return result;
+      // ✅ ALWAYS use redirect for ALL devices
+      // Popup fails on real mobile devices (auth/popup-closed-by-user)
+      sessionStorage.setItem('oauth_intent', 'google-signin');
+      sessionStorage.setItem('oauth_timestamp', Date.now().toString());
+      await signInWithRedirect(auth, provider);
+      return; // Browser redirects to Google
     } catch (error: any) {
       logOAuthError('SignIn', error);
 
-      if (error.code === 'auth/popup-blocked') {
-        throw new Error('Popup was blocked. Please allow popups for this site.');
-      }
-      if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Sign-in cancelled.');
-      }
       if (error.code === 'auth/network-request-failed') {
         throw new Error('Network error. Please check your connection.');
       }
