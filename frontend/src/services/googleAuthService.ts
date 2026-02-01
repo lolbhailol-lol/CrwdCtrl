@@ -5,66 +5,97 @@ import {
   getRedirectResult,
   onAuthStateChanged,
   User,
+  AuthError,
 } from 'firebase/auth';
 import { auth } from '../config/firebaseConfig';
 
 const isInstagramBrowser = (): boolean => {
   const ua = navigator.userAgent.toLowerCase();
-  return ua.includes('instagram') || ua.includes('fban') || ua.includes('fbav');
+  return (
+    ua.includes('instagram') ||
+    ua.includes('fban') ||
+    ua.includes('fbav') ||
+    ua.includes('fb4a') ||
+    ua.includes('messenger')
+  );
 };
 
 const isMobileDevice = (): boolean => {
   const ua = navigator.userAgent.toLowerCase();
   const mobile = /android|iphone|ipad|ipod/i.test(ua);
-  const hasTouch = navigator.maxTouchPoints > 0 || ('ontouchstart' in window);
+  const hasTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
   return mobile && hasTouch;
 };
 
+const logOAuth = (context: string, data: Record<string, any>): void => {
+  console.log(`[OAuth/${context}]`, {
+    timestamp: new Date().toISOString(),
+    ...data,
+  });
+};
+
+const logOAuthError = (context: string, error: any): void => {
+  console.error(`[OAuth/${context}]`, {
+    message: error?.message,
+    code: error?.code,
+    timestamp: new Date().toISOString(),
+  });
+};
+
 export const googleAuthService = {
-  initializeRedirectResult: async () => {
+  initializeRedirectResult: async (): Promise<any> => {
     try {
       const result = await getRedirectResult(auth);
       if (result) {
-        console.log('[OAuth] Redirect result found:', result.user.email);
+        logOAuth('RedirectResult', { email: result.user.email });
       }
       return result;
-    } catch (error) {
-      console.error('[OAuth] Redirect error:', error);
+    } catch (error: any) {
+      logOAuthError('RedirectResult', error);
       throw error;
     }
   },
 
-  signIn: async () => {
+  signIn: async (): Promise<any> => {
     try {
       const instagram = isInstagramBrowser();
       const mobile = isMobileDevice();
+
+      logOAuth('SignIn', { instagram, mobile });
 
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
 
       if (instagram || mobile) {
+        logOAuth('SignIn', { method: 'redirect' });
+        sessionStorage.setItem('oauth_intent', 'google-signin');
+        sessionStorage.setItem('oauth_timestamp', Date.now().toString());
         await signInWithRedirect(auth, provider);
         return;
       }
 
+      logOAuth('SignIn', { method: 'popup' });
       const result = await signInWithPopup(auth, provider);
       return result;
     } catch (error: any) {
-      console.error('[OAuth] Sign-in error:', error.message);
+      logOAuthError('SignIn', error);
 
       if (error.code === 'auth/popup-blocked') {
-        throw new Error('Popup was blocked');
+        throw new Error('Popup was blocked. Please allow popups for this site.');
       }
       if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Sign-in cancelled');
+        throw new Error('Sign-in cancelled.');
+      }
+      if (error.code === 'auth/network-request-failed') {
+        throw new Error('Network error. Please check your connection.');
       }
 
       throw new Error(error.message || 'Sign-in failed');
     }
   },
 
-  signOut: async () => {
+  signOut: async (): Promise<void> => {
     await auth.signOut();
   },
 
@@ -72,7 +103,7 @@ export const googleAuthService = {
     return auth.currentUser;
   },
 
-  onAuthStateChange: (callback: (user: User | null) => void) => {
+  onAuthStateChange: (callback: (user: User | null) => void): (() => void) => {
     return onAuthStateChanged(auth, callback);
   },
 

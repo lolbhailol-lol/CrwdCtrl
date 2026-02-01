@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
@@ -6,7 +6,12 @@ const isMobileDevice = (): boolean => {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 };
 
-const apiClient = axios.create({
+const isInstagramBrowser = (): boolean => {
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('instagram') || ua.includes('fban') || ua.includes('fbav');
+};
+
+const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
   withCredentials: true,
@@ -14,11 +19,20 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+  let token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+
+  if (!token && isInstagramBrowser()) {
+    token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken');
+  }
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  config.headers['X-Client-Type'] = isMobileDevice() ? 'mobile' : 'desktop';
+  config.headers['X-Client-Type'] = isInstagramBrowser()
+    ? 'instagram'
+    : isMobileDevice()
+    ? 'mobile'
+    : 'desktop';
   return config;
 });
 
@@ -57,13 +71,13 @@ export const authService = {
       }
 
       return response.data;
-    } catch (error) {
-      console.error('[Login] Error:', error);
+    } catch (error: any) {
+      console.error('[Login] Error:', error.message);
       throw error;
     }
   },
 
-  logout: async () => {
+  logout: async (): Promise<void> => {
     try {
       await apiClient.post('/auth/logout');
     } catch (error) {

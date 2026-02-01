@@ -7,7 +7,7 @@ const router = express.Router();
 
 const isInstagramBrowser = (req) => {
   const ua = (req.headers['user-agent'] || '').toLowerCase();
-  return ua.includes('instagram') || ua.includes('fban') || ua.includes('fbav');
+  return ua.includes('instagram') || ua.includes('fban') || ua.includes('fbav') || ua.includes('fb4a');
 };
 
 // Login Route
@@ -72,7 +72,6 @@ router.post('/google-signin', async (req, res) => {
       return res.status(400).json({ message: 'ID token required', status: 400 });
     }
 
-    // Verify Firebase token
     let decodedToken;
     if (firebaseInitialized) {
       try {
@@ -82,11 +81,9 @@ router.post('/google-signin', async (req, res) => {
         return res.status(401).json({ message: 'Invalid ID token', status: 401 });
       }
     } else {
-      // Fallback if Firebase not available
       decodedToken = { email, uid: 'unknown' };
     }
 
-    // Find or create user
     const User = require('../models/User');
     let user = await User.findOne({ email: decodedToken.email });
 
@@ -103,7 +100,6 @@ router.post('/google-signin', async (req, res) => {
       await user.save();
     }
 
-    // Generate tokens
     const token = jwt.sign(
       { id: user._id, email: user.email, provider: 'google' },
       process.env.JWT_SECRET,
@@ -116,9 +112,16 @@ router.post('/google-signin', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    // Instagram needs special cookie handling
+    // For Instagram: use more permissive cookie settings
     const cookieOpts = isInstagram
-      ? { ...setCookieOptions, sameSite: 'none', secure: true }
+      ? {
+          httpOnly: false, // Instagram WebView may need access
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          domain: process.env.COOKIE_DOMAIN || 'localhost',
+          path: '/',
+        }
       : setCookieOptions;
 
     res.cookie('authToken', token, cookieOpts);
@@ -126,6 +129,7 @@ router.post('/google-signin', async (req, res) => {
 
     console.log(`[Auth/GoogleSignIn] Success: ${user.email}`);
 
+    // Always return token in body (critical for Instagram)
     res.status(200).json({
       success: true,
       token,

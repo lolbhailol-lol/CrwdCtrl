@@ -2,17 +2,20 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import googleAuthService from '../services/googleAuthService';
 
-export const GoogleSignInButton: React.FC = () => {
+const GoogleSignInButton: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleSignIn = async () => {
+  const handleSignIn = async (): Promise<void> => {
     if (loading) return;
     setLoading(true);
     setError('');
 
     try {
+      const isInstagram = googleAuthService.isInstagram();
+      console.log('[GoogleSignIn] Starting sign-in');
+
       const result = await googleAuthService.signIn();
 
       if (result) {
@@ -21,7 +24,7 @@ export const GoogleSignInButton: React.FC = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Client-Type': googleAuthService.isMobile() ? 'mobile' : 'desktop',
+            'X-Client-Type': isInstagram ? 'instagram' : 'mobile',
           },
           credentials: 'include',
           body: JSON.stringify({
@@ -34,15 +37,15 @@ export const GoogleSignInButton: React.FC = () => {
         if (!response.ok) throw new Error('Backend auth failed');
 
         const data = await response.json();
-        if (googleAuthService.isInstagram() && data.token) {
+        if (isInstagram && data.token) {
           sessionStorage.setItem('authToken', data.token);
         }
 
         navigate('/dashboard', { replace: true });
       }
     } catch (err: any) {
-      setError(err.message || 'Sign-in failed');
-    } finally {
+      const errorMessage = err.message || 'Sign-in failed';
+      setError(errorMessage);
       setLoading(false);
     }
   };
