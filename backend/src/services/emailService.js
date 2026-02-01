@@ -26,13 +26,22 @@ const createTransporter = () => {
     }
 
     console.log('✅ Email transporter configured with:', process.env.EMAIL_USER);
-    return nodemailer.createTransport({
+    console.log('📧 Creating Gmail SMTP transporter...');
+    console.log('📋 Password length:', process.env.EMAIL_PASS.length, '(should be 19 with spaces)');
+    console.log('📋 Password contains spaces:', process.env.EMAIL_PASS.includes(' '));
+    
+    const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS
-        }
+        },
+        connectionUrl: 'smtps://smtp.gmail.com',
+        connectionTimeout: 5 * 60 * 1000, // 5 minutes timeout
+        socketTimeout: 5 * 60 * 1000 // 5 minutes socket timeout
     });
+    console.log('✅ Gmail SMTP transporter created successfully');
+    return transporter;
 };
 
 // Send welcome email to new users
@@ -661,8 +670,6 @@ const sendLoginConfirmationEmail = async (userData) => {
             throw new Error('User email is required to send login confirmation email');
         }
 
-        const transporter = createTransporter();
-
         const mailOptions = {
             from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
             to: userData.email,
@@ -673,15 +680,38 @@ const sendLoginConfirmationEmail = async (userData) => {
         console.log('📤 Sending login confirmation email...');
         console.log('   From:', mailOptions.from);
         console.log('   To:', mailOptions.to);
+        console.log('   Subject:', mailOptions.subject);
         
-        const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Login confirmation email sent successfully!');
-        console.log('   Message ID:', info.messageId);
+        // Retry logic for connection timeout
+        let lastError;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                console.log(`   📨 Attempt ${attempt}/3...`);
+                const transporter = createTransporter();
+                const info = await transporter.sendMail(mailOptions);
+                console.log('✅ Login confirmation email sent successfully!');
+                console.log('   Message ID:', info.messageId);
+                console.log('   Response:', info.response);
+                console.log('   Accepted:', info.accepted);
+                return { success: true, messageId: info.messageId };
+            } catch (attemptError) {
+                lastError = attemptError;
+                if (attempt < 3 && (attemptError.message.includes('timeout') || attemptError.message.includes('ETIMEDOUT'))) {
+                    console.warn(`   ⏱️ Timeout on attempt ${attempt}, retrying...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Wait 1-3 seconds
+                } else {
+                    throw attemptError;
+                }
+            }
+        }
+        throw lastError;
         
-        return { success: true, messageId: info.messageId };
     } catch (error) {
         console.error('❌ Login confirmation email sending failed!');
-        console.error('   Error:', error.message);
+        console.error('   Error name:', error.name);
+        console.error('   Error message:', error.message);
+        console.error('   Error code:', error.code);
+        console.error('   Full error:', error);
         // Don't throw - don't block login if email fails
         return { success: false, error: error.message };
     }
