@@ -29,47 +29,74 @@ function TechFestPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Fetch technical fests from backend API
+    // Function to fetch tech fests
+    const fetchTechFests = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            // Add cache busting parameter to ensure fresh data
+            const response = await axios.get(`/fests/all?t=${Date.now()}`);
+            const data = response.data;
+            const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+            
+            // Filter for technical fests only and exclude last year hits
+            const techFests = festsList.filter(fest => 
+                fest.festType === 'technical' && fest.status !== 'lastyearhit'
+            );
+            
+            // Transform data to match expected structure
+            const transformedFests = techFests.map(fest => ({
+                id: fest._id || fest.id,
+                title: fest.festName,
+                subtitle: `${fest.festDate} • ${fest.collegeName}`,
+                image: fest.coverImage,
+                type: 'Tech Fest',
+                venue: fest.venue,
+                dateTime: fest.festDate,
+                description: fest.description,
+                status: fest.status,
+                trending: false
+            }));
+            
+            setFests(transformedFests);
+        } catch (err) {
+            console.error('Error fetching tech fests:', err);
+            setError('Failed to load tech fests');
+            setFests([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch tech fests on component mount
     useEffect(() => {
-        const fetchTechFests = async () => {
-            try {
-                setLoading(true);
-                setError(null);
-                
-                const response = await axios.get('/fests/all');
-                const data = response.data;
-                const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-                
-                // Filter for technical fests only and exclude last year hits
-                const techFests = festsList.filter(fest => 
-                    fest.festType === 'technical' && fest.status !== 'lastyearhit'
-                );
-                
-                // Transform data to match expected structure
-                const transformedFests = techFests.map(fest => ({
-                    id: fest._id || fest.id,
-                    title: fest.festName,
-                    subtitle: `${fest.festDate} • ${fest.collegeName}`,
-                    image: fest.coverImage,
-                    type: 'Tech Fest',
-                    venue: fest.venue,
-                    dateTime: fest.festDate,
-                    description: fest.description,
-                    status: fest.status,
-                    trending: false
-                }));
-                
-                setFests(transformedFests);
-            } catch (err) {
-                console.error('Error fetching tech fests:', err);
-                setError('Failed to load tech fests');
-                setFests([]);
-            } finally {
-                setLoading(false);
-            }
+        fetchTechFests();
+    }, []);
+
+    // 🔄 Listen for admin updates and refetch data
+    useEffect(() => {
+        const handleAdminUpdate = () => {
+            console.log('🔄 Admin update detected - refetching tech fests');
+            fetchTechFests();
         };
 
-        fetchTechFests();
+        // Listen for custom event from admin
+        window.addEventListener('admin_fest_updated', handleAdminUpdate);
+
+        // Also listen for localStorage changes (cross-tab updates)
+        const handleStorageChange = (e) => {
+            if (e.key === 'admin_data_updated') {
+                console.log('🔄 Admin update detected (cross-tab) - refetching tech fests');
+                fetchTechFests();
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            window.removeEventListener('admin_fest_updated', handleAdminUpdate);
+            window.removeEventListener('storage', handleStorageChange);
+        };
     }, []);
 
     // Check for login modal parameter

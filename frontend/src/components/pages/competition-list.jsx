@@ -202,13 +202,6 @@ const CompetitionListPage = () => {
                         return null;
                     }
 
-                    // Check if competition has all required details for "View details" button (same as desktop)
-                    const hasCompleteDetails = comp.venue && 
-                                             ((comp.rules && comp.rules.length > 0) || (comp.commonRulesMessage && comp.commonRulesMessage.trim())) && 
-                                             (comp.rounds && comp.rounds.length > 0);
-
-
-
                     return (
                         <div
                             key={idx}
@@ -240,15 +233,13 @@ const CompetitionListPage = () => {
                                         </p>
                                     </div>
 
-                                    {/* Only show View details button when competition has complete details */}
-                                    {hasCompleteDetails && (
-                                        <button
-                                            onClick={() => handleCompetitionClick(comp)}
-                                            className="self-start bg-[#00C2CB] text-black text-sm font-semibold px-6 py-2 rounded-full hover:from-cyan-500 hover:to-cyan-600 transition-all mt-2"
-                                        >
-                                            View details
-                                        </button>
-                                    )}
+                                    {/* Always show View details button for competitions */}
+                                    <button
+                                        onClick={() => handleCompetitionClick(comp)}
+                                        className="self-start bg-[#00C2CB] text-black text-sm font-semibold px-6 py-2 rounded-full hover:from-cyan-500 hover:to-cyan-600 transition-all mt-2"
+                                    >
+                                        View details
+                                    </button>
                                 </div>
                             </div>
                         </div>

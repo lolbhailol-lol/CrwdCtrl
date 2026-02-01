@@ -339,11 +339,29 @@ router.put(
         // Fetch the competition again to verify
         const finalCompetition = await Competition.findById(competitionId);
         
+        // ✅ Clear caches after competition update
+        try {
+          const { clearAllCaches } = require('../controllers/festOrganizerController');
+          clearAllCaches();
+          console.log('✅ Cleared all caches after competition update');
+        } catch (cacheError) {
+          console.warn('⚠️ Could not clear caches:', cacheError.message);
+        }
+        
         res.json({
           message: 'Competition updated successfully',
           competition: finalCompetition
         });
       } else {
+        // ✅ Clear caches after competition update
+        try {
+          const { clearAllCaches } = require('../controllers/festOrganizerController');
+          clearAllCaches();
+          console.log('✅ Cleared all caches after competition update');
+        } catch (cacheError) {
+          console.warn('⚠️ Could not clear caches:', cacheError.message);
+        }
+        
         res.json({
           message: 'Competition updated successfully',
           competition: savedCompetition
@@ -396,6 +414,15 @@ router.delete(
       
       // Delete the competition
       await Competition.findByIdAndDelete(competitionId);
+      
+      // ✅ Clear caches after competition deletion
+      try {
+        const { clearAllCaches } = require('../controllers/festOrganizerController');
+        clearAllCaches();
+        console.log('✅ Cleared all caches after competition deletion');
+      } catch (cacheError) {
+        console.warn('⚠️ Could not clear caches:', cacheError.message);
+      }
       
       res.json({
         message: 'Competition deleted successfully'

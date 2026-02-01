@@ -536,6 +536,16 @@ exports.createCompetition = async (req, res) => {
       { new: true }
     );
 
+    // ✅ CRITICAL: Clear all caches so new competition shows on website immediately
+    clearFestsCache();
+    try {
+      const { clearAllCaches } = require('./festOrganizerController');
+      clearAllCaches();
+      console.log('✅ Cleared all caches after competition creation');
+    } catch (cacheError) {
+      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+    }
+
     res.status(201).json({
       message: 'Competition created successfully',
       competition: savedCompetition

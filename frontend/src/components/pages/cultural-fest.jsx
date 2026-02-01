@@ -30,47 +30,74 @@ function CulturalFestPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Fetch cultural fests from backend API
+    // Function to fetch cultural fests
+    const fetchCulturalFests = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            // Add cache busting parameter to ensure fresh data
+            const response = await axios.get(`/fests/all?t=${Date.now()}`);
+            const data = response.data;
+            const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+            
+            // Filter for cultural fests only and exclude last year hits
+            const culturalFests = festsList.filter(fest => 
+                fest.festType === 'cultural' && fest.status !== 'lastyearhit'
+            );
+            
+            // Transform data to match expected structure
+            const transformedFests = culturalFests.map(fest => ({
+                id: fest._id || fest.id,
+                title: fest.festName,
+                subtitle: `${fest.festDate} • ${fest.collegeName}`,
+                image: fest.coverImage,
+                type: 'Cultural Fest',
+                venue: fest.venue,
+                dateTime: fest.festDate,
+                description: fest.description,
+                status: fest.status,
+                trending: false
+            }));
+            
+            setFests(transformedFests);
+        } catch (err) {
+            console.error('Error fetching cultural fests:', err);
+            setError('Failed to load cultural fests');
+            setFests([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch cultural fests on component mount
     useEffect(() => {
-        const fetchCulturalFests = async () => {
-            try {
-                setLoading(true);
-                setError(null);
-                
-                const response = await axios.get('/fests/all');
-                const data = response.data;
-                const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-                
-                // Filter for cultural fests only and exclude last year hits
-                const culturalFests = festsList.filter(fest => 
-                    fest.festType === 'cultural' && fest.status !== 'lastyearhit'
-                );
-                
-                // Transform data to match expected structure
-                const transformedFests = culturalFests.map(fest => ({
-                    id: fest._id || fest.id,
-                    title: fest.festName,
-                    subtitle: `${fest.festDate} • ${fest.collegeName}`,
-                    image: fest.coverImage,
-                    type: 'Cultural Fest',
-                    venue: fest.venue,
-                    dateTime: fest.festDate,
-                    description: fest.description,
-                    status: fest.status,
-                    trending: false
-                }));
-                
-                setFests(transformedFests);
-            } catch (err) {
-                console.error('Error fetching cultural fests:', err);
-                setError('Failed to load cultural fests');
-                setFests([]);
-            } finally {
-                setLoading(false);
-            }
+        fetchCulturalFests();
+    }, []);
+
+    // 🔄 Listen for admin updates and refetch data
+    useEffect(() => {
+        const handleAdminUpdate = () => {
+            console.log('🔄 Admin update detected - refetching cultural fests');
+            fetchCulturalFests();
         };
 
-        fetchCulturalFests();
+        // Listen for custom event from admin
+        window.addEventListener('admin_fest_updated', handleAdminUpdate);
+
+        // Also listen for localStorage changes (cross-tab updates)
+        const handleStorageChange = (e) => {
+            if (e.key === 'admin_data_updated') {
+                console.log('🔄 Admin update detected (cross-tab) - refetching cultural fests');
+                fetchCulturalFests();
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            window.removeEventListener('admin_fest_updated', handleAdminUpdate);
+            window.removeEventListener('storage', handleStorageChange);
+        };
     }, []);
 
     // Check for login modal parameter

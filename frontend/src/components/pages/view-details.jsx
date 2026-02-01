@@ -64,6 +64,8 @@ function EventDetailsPage() {
         console.log('ViewDetails - Contacts in API Response:', response.data.contacts);
         console.log('ViewDetails - Artists Heading in API Response:', response.data.artistsHeading);
         console.log('ViewDetails - Competitions Heading in API Response:', response.data.competitionsHeading);
+        console.log('🔍 ViewDetails - Competitions in API Response:', response.data.competitions);
+        console.log('🔍 ViewDetails - Competitions count:', response.data.competitions?.length || 0);
         const festData = response.data;
 
         // Debug: Check if registrationLink exists in the response
@@ -187,7 +189,111 @@ function EventDetailsPage() {
     fetchEventData();
   }, [eventId, navigate]);
 
-  // Check for login modal parameter
+  // 🔄 Listen for admin updates and refetch data
+  useEffect(() => {
+    const handleAdminUpdate = (e) => {
+      // Only refetch if the updated fest is the one we're viewing
+      if (!e.detail?.festId || e.detail?.festId === eventId) {
+        console.log('🔄 Admin update detected for current fest - refetching details');
+        // Refetch the event data with cache busting
+        const fetchUpdatedData = async () => {
+          try {
+            const timestamp = Date.now();
+            const response = await axios.get(`/fests/${eventId}/public?t=${timestamp}`);
+            if (response.data && (response.data._id || response.data.id)) {
+              const festData = response.data;
+              const transformedData = {
+                id: festData._id || festData.id,
+                title: festData.festName || 'Untitled Event',
+                subtitle: festData.collegeName || 'Unknown College',
+                festival_name: festData.festName || 'Untitled Event',
+                organizing_body: festData.collegeName || 'Unknown College',
+                type: festData.festType || 'cultural',
+                category: festData.festType || 'cultural',
+                description: festData.description || 'No description available',
+                overview: festData.description || 'No description available',
+                dateTime: festData.festDate || 'Date TBA',
+                date: festData.festDate || 'Date TBA',
+                venue: festData.venue || 'Venue TBA',
+                location: festData.venue || 'Venue TBA',
+                image: festData.coverImage || '/placeholder-image.jpg',
+                heroImage: festData.coverImage || '/placeholder-image.jpg',
+                galleryImages: festData.galleryImages || [],
+                ticketPrice: festData.ticketPrice || 'Free',
+                status: festData.status || 'upcoming',
+                registrationLink: festData.registrationLink || '',
+                registration: {
+                  mode: festData.registration?.mode || 'NOT_STARTED',
+                  externalLink: festData.registration?.externalLink || '',
+                  formSchema: festData.registration?.formSchema || []
+                },
+                artists: festData.artists || [],
+                artistsHeading: festData.artistsHeading || "Artists You'll Love",
+                contacts: festData.contacts || [],
+                sponsors: festData.sponsors || [],
+                competitions: {},
+                competitionsHeading: festData.competitionsHeading || "Competitions",
+                theme: festData.festType === 'cultural' ? 'Cultural Festival' :
+                       festData.festType === 'technical' ? 'Technical Festival' :
+                       festData.festType === 'sports' ? 'Sports Festival' : 'Festival'
+              };
+              
+              if (festData.competitions && Array.isArray(festData.competitions) && festData.competitions.length > 0) {
+                const groupedCompetitions = {};
+                festData.competitions.forEach(comp => {
+                  const category = comp.competitionType?.toUpperCase() || 'OTHER';
+                  if (!groupedCompetitions[category]) {
+                    groupedCompetitions[category] = [];
+                  }
+                  groupedCompetitions[category].push({
+                    id: comp._id,
+                    name: comp.name,
+                    title: comp.name,
+                    subtitle: comp.subtitle || comp.description,
+                    image: comp.coverImage,
+                    fee: comp.registrationFee || 'Free',
+                    prize: comp.prizePool || 'TBD',
+                    description: comp.description,
+                    dateTime: comp.dateTime,
+                    venue: comp.venue,
+                    rules: comp.commonRules || [],
+                    commonRulesMessage: comp.commonRulesMessage || '',
+                    rounds: comp.rounds || [],
+                    contact: comp.contact
+                  });
+                });
+                transformedData.competitions = groupedCompetitions;
+              }
+              
+              setEventData(transformedData);
+              setCurrentHeroImage(transformedData.heroImage || transformedData.image);
+              console.log('✅ Event data updated with new admin changes');
+            }
+          } catch (err) {
+            console.error('Error refetching updated event data:', err);
+          }
+        };
+        fetchUpdatedData();
+      }
+    };
+
+    // Listen for custom event from admin
+    window.addEventListener('admin_fest_updated', handleAdminUpdate);
+
+    // Also listen for localStorage changes (cross-tab updates)
+    const handleStorageChange = (e) => {
+      if (e.key === 'admin_data_updated') {
+        console.log('🔄 Admin update detected (cross-tab) - refetching event details');
+        handleAdminUpdate({ detail: { festId: eventId } });
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('admin_fest_updated', handleAdminUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [eventId]);
   useEffect(() => {
     if (searchParams.get('showLogin') === 'true') {
       setShowLogin(true);
@@ -316,54 +422,48 @@ function EventDetailsPage() {
         subtitle: competition.subtitle || 'Competition Event',
         category: 'Cultural',
         subcategory: competition.subtitle || 'Event',
-        date: eventData?.date || 'TBA',
+        date: eventData?.date || competition.dateTime || 'TBA',
         time: eventData?.time || 'TBA',
-        venue: eventData?.venue || eventData?.location || 'TBA',
+        venue: competition.venue || eventData?.venue || eventData?.location || 'TBA',
         image: getImageUrl(competition.image) || '/default-image.jpg',
-        description: `Join the ${competition.name} competition and showcase your talent!`,
-        registrationFee: `₹${competition.fee || 'TBA'}`,
-        entryFee: `₹${competition.fee || 'TBA'}`,
-        prizePool: `₹${competition.prize || 'TBA'}`,
-        prize: `₹${competition.prize || 'TBA'}`,
+        description: competition.description || `Join the ${competition.name} competition and showcase your talent!`,
+        registrationFee: competition.fee || 'TBA',
+        entryFee: competition.fee || 'TBA',
+        prizePool: competition.prize || 'TBA',
+        prize: competition.prize || 'TBA',
         teamSize: 'TBA',
         duration: 'TBA',
-        contact: eventData?.contact || {
+        contact: competition.contact || eventData?.contact || {
           email: 'info@fest.edu.in',
           phone: 'TBA',
           instagram: 'TBA'
         },
-        rules: [
-          'All participants must carry valid ID proof',
-          'Participants must report 30 minutes before the event',
-          'Judges\' decisions are final and binding',
-          'Use of unfair means will lead to disqualification'
-        ],
-        commonRules: eventData?.common_rules || [],
+        rules: competition.rules || [],
+        commonRules: competition.rules || eventData?.common_rules || [],
+        commonRulesMessage: competition.commonRulesMessage || '',
+        rounds: competition.rounds || [],
         prizes: {
-          first: `₹${competition.prize || 'TBA'}`,
+          first: competition.prize || 'TBA',
           second: 'TBA',
           third: 'TBA'
-        },
-        rounds: {
-          description: `The ${competition.name} competition will be conducted as per fest guidelines.`,
-          list: ['Registration', 'Event'],
-          round1: {
-            title: 'Registration',
-            rules: ['Complete registration process', 'Submit required documents', 'Pay registration fee']
-          },
-          round2: {
-            title: 'Main Event',
-            rules: ['Follow event guidelines', 'Adhere to time limits', 'Maintain discipline']
-          }
         },
         organizer: eventData?.organizing_body || 'Event Organizer',
         festival: festName,
         registrationDeadline: eventData?.registration_deadline || 'TBA',
         status: 'Open',
-        fest: festName // Add fest identifier
+        
+        // ✅ CRITICAL: Pass fest registration data for the Register Now button
+        registrationType: 'fest',
+        fest: {
+          _id: eventData?.id,
+          festName: festName,
+          registration: eventData?.registration || { mode: 'NOT_STARTED' }
+        },
+        registration: eventData?.registration || { mode: 'NOT_STARTED' }
       };
 
       console.log('Navigating with full competition data:', fullCompetitionData);
+      console.log('Fest registration mode:', fullCompetitionData.fest?.registration?.mode);
 
       // Navigate to competition details page with competition ID in URL
       navigate(`/competitions-view-details/${competition.id}`, {
@@ -475,9 +575,6 @@ function EventDetailsPage() {
                 </div>
 
                 {/* Competitions */}
-                {(() => {
-                  return null;
-                })()}
                 {availableTabs.length > 0 && (
                   <div ref={eventsRef} className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
                     <h2 className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -506,11 +603,6 @@ function EventDetailsPage() {
                     <div className={`${eventData.competitions[activeTab]?.length > 4 ? 'max-h-96 overflow-y-auto pr-2' : ''}`} style={{ scrollbarWidth: 'thin' }}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {eventData.competitions[activeTab]?.map((comp, idx) => {
-                          // Check if competition has all required details for "View details" button
-                          const hasCompleteDetails = comp.venue && 
-                                                   ((comp.rules && comp.rules.length > 0) || (comp.commonRulesMessage && comp.commonRulesMessage.trim())) && 
-                                                   (comp.rounds && comp.rounds.length > 0);
-                          
                           return (
                             <div key={idx} className={`${isDark ? 'bg-[#0a0a0a] hover:bg-gray-600' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300 h-full flex flex-col`}>
                               <div className="flex space-x-4 flex-1">
@@ -536,15 +628,13 @@ function EventDetailsPage() {
                                   </div>
                                 </div>
                               </div>
-                              {/* Only show View details button when competition has complete details */}
-                              {hasCompleteDetails && eventData.status !== 'coming_soon' && eventData.status !== 'Registration Not Started' && !isPersona && !isSaksham && (
-                                <button
-                                  onClick={() => handleCompetitionRegister(comp)}
-                                  className="w-full mt-3 bg-cyan-400 hover:bg-cyan-500 text-gray-900 font-semibold py-2 rounded-lg transition"
-                                >
-                                  View details
-                                </button>
-                              )}
+                              {/* Always show View details button for competitions */}
+                              <button
+                                onClick={() => handleCompetitionRegister(comp)}
+                                className="w-full mt-3 bg-cyan-400 hover:bg-cyan-500 text-gray-900 font-semibold py-2 rounded-lg transition"
+                              >
+                                View details
+                              </button>
                             </div>
                           );
                         })}
@@ -993,11 +1083,6 @@ function EventDetailsPage() {
               <div className="overflow-x-auto md:overflow-visible scrollbar-hide">
                 <div className="flex space-x-4">
                   {eventData.competitions[activeTab]?.slice(0, 3).map((comp, idx) => {
-                    // Check if competition has all required details for "View details" button
-                    const hasCompleteDetails = comp.venue && 
-                                             ((comp.rules && comp.rules.length > 0) || (comp.commonRulesMessage && comp.commonRulesMessage.trim())) && 
-                                             (comp.rounds && comp.rounds.length > 0);
-                    
                     return (
                       <div key={idx} className={`min-w-[250px] ${isDark ? 'bg-[#1B1C1E] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300`}>
                         <img
@@ -1015,15 +1100,13 @@ function EventDetailsPage() {
                           Fee: ₹{typeof comp.fee === 'object' ? JSON.stringify(comp.fee) : comp.fee || 'TBA'}
                         </p>
 
-                        {/* Only show View details button when competition has complete details */}
-                        {hasCompleteDetails && eventData.status !== 'coming_soon' && eventData.status !== 'Registration Not Started' && !isPersona && !isSaksham && (
-                          <button
-                            onClick={() => handleCompetitionRegister(comp)}
-                            className="w-full bg-cyan-400 hover:bg-cyan-500 text-gray-900 font-semibold py-2 rounded-lg text-sm transition"
-                          >
-                            View details
-                          </button>
-                        )}
+                        {/* Always show View details button for competitions */}
+                        <button
+                          onClick={() => handleCompetitionRegister(comp)}
+                          className="w-full bg-cyan-400 hover:bg-cyan-500 text-gray-900 font-semibold py-2 rounded-lg text-sm transition"
+                        >
+                          View details
+                        </button>
                       </div>
                     );
                   })}

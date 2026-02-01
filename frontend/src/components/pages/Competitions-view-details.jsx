@@ -317,29 +317,24 @@ function EventPage() {
         const registrationType = eventData?.registrationType || 'fest';
         const registrationStatus = eventData?.registration?.status || 'not_started';
         
+        // ✅ CRITICAL: Also check registration from passedEventData (from navigation state)
+        const festRegistrationFromState = passedEventData?.registration || eventData?.registration;
+        const festRegistrationMode = eventData?.fest?.registration?.mode || 
+                                     festRegistrationFromState?.mode || 
+                                     eventData?.registration?.mode;
+        
         console.log('🔍 Registration check:', { 
             registrationType, 
-            registrationStatus, 
+            registrationStatus,
+            festRegistrationMode,
             eventData: eventData,
             festData: eventData?.fest,
-            festRegistration: eventData?.fest?.registration
+            festRegistration: eventData?.fest?.registration,
+            passedEventData: passedEventData
         });
         
         if (registrationType === 'fest') {
-            // Check fest registration mode with better error handling
-            const festRegistrationMode = eventData?.fest?.registration?.mode;
-            
-            // If fest registration data is missing, show loading state
-            if (!eventData?.fest?.registration) {
-                console.warn('⚠️ Fest registration data is missing, showing loading state');
-                return {
-                    isAvailable: false,
-                    buttonText: 'Loading...',
-                    isDisabled: true
-                };
-            }
-            
-            // Default to NOT_STARTED if mode is undefined
+            // ✅ Use mode from multiple sources
             const mode = festRegistrationMode || 'NOT_STARTED';
             console.log('🎯 Fest registration mode:', mode);
             
@@ -389,12 +384,20 @@ function EventPage() {
         const registrationType = eventData?.registrationType || 'fest';
         const registrationStatus = eventData?.registration?.status || 'not_started';
         
+        // ✅ Get registration data from multiple sources
+        const festRegistrationFromState = passedEventData?.registration || eventData?.registration;
+        const festRegistrationMode = eventData?.fest?.registration?.mode || 
+                                     festRegistrationFromState?.mode || 
+                                     eventData?.registration?.mode;
+        
         console.log('🎯 Registration attempt:', { 
             registrationType, 
-            registrationStatus, 
+            registrationStatus,
+            festRegistrationMode,
             eventData: eventData,
             registrationConfig: eventData?.registration,
-            festRegistration: eventData?.fest?.registration
+            festRegistration: eventData?.fest?.registration,
+            passedEventData: passedEventData
         });
         
         // Check if custom form is properly configured
@@ -406,22 +409,16 @@ function EventPage() {
         
         if (registrationType === 'fest') {
             console.log('📋 Using fest registration system');
-            // Competition uses fest registration - check fest's registration mode
-            const festRegistrationMode = eventData?.fest?.registration?.mode;
             
-            // Better error handling for missing fest registration data
-            if (!eventData?.fest?.registration) {
-                console.error('❌ Fest registration data is missing');
-                alert('Registration configuration is not available. Please contact the organizers or try refreshing the page.');
-                return;
-            }
-            
+            // ✅ Use mode from multiple sources
             const mode = festRegistrationMode || 'NOT_STARTED';
             console.log('🎯 Fest registration mode:', mode);
             
             if (mode === 'EXTERNAL_LINK') {
                 // Use fest's external registration link
-                const externalLink = eventData?.fest?.registration?.externalLink;
+                const externalLink = eventData?.fest?.registration?.externalLink || 
+                                     festRegistrationFromState?.externalLink ||
+                                     eventData?.registration?.externalLink;
                 if (externalLink && externalLink.trim() !== '') {
                     window.open(externalLink, '_blank');
                 } else {
@@ -429,7 +426,7 @@ function EventPage() {
                 }
             } else if (mode === 'INTERNAL_FORM') {
                 // ✅ CRITICAL: Navigate to internal registration form
-                const festId = eventData?.fest?._id || eventData?.festId || eventData?.fest?.id;
+                const festId = eventData?.fest?._id || passedEventData?.id || eventData?.festId || eventData?.fest?.id;
                 const competitionId = eventData?.id;
                 
                 console.log('🚀 Navigating to internal form:', { festId, competitionId });
@@ -451,11 +448,15 @@ function EventPage() {
             }
         } else if (registrationType === 'custom') {
             console.log('🏆 Using custom competition registration system');
+            console.log('📊 eventData.id:', eventData?.id);
+            console.log('📊 eventData._id:', eventData?._id);
             // Competition has its own registration system
             if (registrationStatus === 'internal_form') {
                 console.log('📝 Redirecting to custom internal form');
+                const competitionIdForReg = eventData?.id || eventData?._id;
+                console.log('🚀 Navigating to:', `/competition-registration/${competitionIdForReg}`);
                 // Navigate to competition-specific registration page
-                navigate(`/competition-registration/${eventData.id}`);
+                navigate(`/competition-registration/${competitionIdForReg}`);
             } else if (registrationStatus === 'external_link') {
                 console.log('🔗 Opening external link');
                 // Open external link
@@ -715,14 +716,14 @@ function EventPage() {
                             <div className="px-4 py-4">
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
-                                    <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    <div className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                         <div 
                                             className="whitespace-pre-wrap"
                                             style={{ whiteSpace: 'pre-wrap' }}
                                         >
                                             {eventData?.rounds?.description || 'Competition details will be updated soon.'}
                                         </div>
-                                    </p>
+                                    </div>
 
                                     {/* Mobile Round Tabs - Dynamic based on available rounds */}
                                     {(eventData?.rounds?.round2 || eventData?.rounds?.round3) && !festName?.toLowerCase().includes('symbi') && (
@@ -1119,6 +1120,15 @@ function EventPage() {
 
                                     <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition Title'}</h1>
                                     <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData?.subtitle || 'Competition Subtitle'}</p>
+
+                                    {/* DEBUG: Registration Info - Remove after testing */}
+                                    <div className="bg-yellow-100 text-black p-2 rounded mb-2 text-xs">
+                                        <p>DEBUG: registrationInfo.buttonText = {registrationInfo.buttonText}</p>
+                                        <p>DEBUG: registrationInfo.isDisabled = {String(registrationInfo.isDisabled)}</p>
+                                        <p>DEBUG: passedEventData?.registration?.mode = {passedEventData?.registration?.mode || 'undefined'}</p>
+                                        <p>DEBUG: eventData?.registration?.mode = {eventData?.registration?.mode || 'undefined'}</p>
+                                        <p>DEBUG: eventData?.fest?.registration?.mode = {eventData?.fest?.registration?.mode || 'undefined'}</p>
+                                    </div>
 
                                     <div className="space-y-2 mb-4">
                                         <div className="flex items-center gap-2 text-blue-600">
