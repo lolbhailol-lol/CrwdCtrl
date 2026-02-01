@@ -7,6 +7,7 @@ import Navbar from '../Navbar';
 import ProfileSidebar from '../ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
+import { useAuth } from '../../context/AuthContext';
 import FestCard from '../FestCard';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
@@ -19,6 +20,7 @@ console.log('🔧 tech-fest - API_BASE_URL:', API_BASE_URL);
 
 function TechFestPage() {
     const { toggleFavorite, isFavorite } = useFavorites();
+    const { isAuthenticated } = useAuth();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
@@ -105,6 +107,20 @@ function TechFestPage() {
             setShowLogin(true);
         }
     }, [searchParams]);
+
+    // ✅ CRITICAL FIX: Auto-close login/register modal when user becomes authenticated
+    // This is essential for phone login which uses redirect-based authentication
+    useEffect(() => {
+        if (isAuthenticated && showLogin) {
+            console.log('✅ User authenticated, closing login modal in tech-fest');
+            setShowLogin(false);
+            setSearchParams({});
+        }
+        if (isAuthenticated && showRegister) {
+            console.log('✅ User authenticated, closing register modal in tech-fest');
+            setShowRegister(false);
+        }
+    }, [isAuthenticated, showLogin, showRegister, setSearchParams]);
 
     // Handle login modal close
     const handleCloseLogin = () => {

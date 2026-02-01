@@ -56,7 +56,9 @@ export default function FestRegistration() {
       if (!localToken || !localUser) {
         console.log('❌ No authentication data found, redirecting to login');
         setError('Please log in to register for events');
-        setTimeout(() => navigate('/login'), 2000);
+        // Save current URL for redirect after login
+        sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
+        setTimeout(() => navigate('/login', { replace: true }), 2000);
         return;
       }
 
@@ -1327,7 +1329,9 @@ export default function FestRegistration() {
         // Clear invalid tokens
         localStorage.removeItem('crwdctrl_token');
         localStorage.removeItem('crwdctrl_user');
-        setTimeout(() => navigate('/login'), 2000);
+        // Save current URL for redirect after login
+        sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
+        setTimeout(() => navigate('/login', { replace: true }), 2000);
       } else if (err.message.includes('registration') && err.message.includes('not available')) {
         setError('Registration is currently not available for this event. Please contact the organizers.');
       } else if (err.message.includes('required')) {

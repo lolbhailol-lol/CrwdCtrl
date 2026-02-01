@@ -21,6 +21,26 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const isModal = !!onClose;
     const isAdminLogin = location.pathname === '/admin/login';
 
+    // Get the intended destination after login
+    // Priority: 1) location.state.from, 2) sessionStorage redirect, 3) home
+    const getRedirectDestination = () => {
+        // Check if passed via router state
+        if (location.state?.from?.pathname) {
+            console.log('📍 [LOGIN] Redirect from router state:', location.state.from.pathname);
+            return location.state.from.pathname;
+        }
+        // Check sessionStorage for redirect URL (set before navigating to login)
+        const savedRedirect = sessionStorage.getItem('auth_redirect_url');
+        if (savedRedirect) {
+            console.log('📍 [LOGIN] Redirect from sessionStorage:', savedRedirect);
+            sessionStorage.removeItem('auth_redirect_url');
+            return savedRedirect;
+        }
+        // Default to home
+        console.log('📍 [LOGIN] No redirect found, going to home');
+        return '/';
+    };
+
     // Redirect admin if already logged in (when visiting /login page directly)
     useEffect(() => {
         if (!isModal && location.pathname === '/login') {
@@ -76,6 +96,11 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                     
                     if (isModal && onClose) {
                         onClose();
+                    } else {
+                        // Not a modal - navigate to intended destination
+                        const destination = getRedirectDestination();
+                        console.log('🔐 [LOGIN] Not a modal - navigating to:', destination);
+                        navigate(destination, { replace: true });
                     }
                 }
             } else {
@@ -122,13 +147,22 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 console.log('✅ [LOGIN] Google login successful');
                 
                 // Update AuthContext
+                console.log('🔐 [LOGIN] Calling AuthContext login()...');
                 login({
                     ...result.user,
                     token: result.token
                 }, result.firebaseUser);
+                console.log('🔐 [LOGIN] AuthContext login() completed');
 
                 if (isModal && onClose) {
+                    console.log('🔐 [LOGIN] Calling onClose() to close modal...');
                     onClose();
+                    console.log('🔐 [LOGIN] onClose() called');
+                } else {
+                    // Not a modal - navigate to intended destination
+                    const destination = getRedirectDestination();
+                    console.log('🔐 [LOGIN] Not a modal - navigating to:', destination);
+                    navigate(destination, { replace: true });
                 }
             } else {
                 setErrors({ general: result.error || 'Google sign-in failed. Please try again.' });
@@ -186,6 +220,11 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
                 if (isModal && onClose) {
                     onClose();
+                } else {
+                    // Not a modal - navigate to intended destination
+                    const destination = getRedirectDestination();
+                    console.log('🔐 [LOGIN] Not a modal - navigating to:', destination);
+                    navigate(destination, { replace: true });
                 }
             } else {
                 setErrors({ general: result.error || 'Facebook sign-in failed. Please try again.' });

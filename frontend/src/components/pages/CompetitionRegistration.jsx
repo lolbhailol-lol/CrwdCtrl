@@ -158,7 +158,9 @@ export default function CompetitionRegistration() {
             
             if (!isAuthenticated && !localToken) {
                 setError('Please log in to register for competitions');
-                setTimeout(() => navigate('/login'), 2000);
+                // Save current URL for redirect after login
+                sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
+                setTimeout(() => navigate('/login', { replace: true }), 2000);
                 return;
             }
 
@@ -1060,7 +1062,9 @@ export default function CompetitionRegistration() {
                 // Clear invalid tokens
                 localStorage.removeItem('crwdctrl_token');
                 localStorage.removeItem('crwdctrl_user');
-                setTimeout(() => navigate('/login'), 2000);
+                // Save current URL for redirect after login
+                sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
+                setTimeout(() => navigate('/login', { replace: true }), 2000);
             } else if (err.message.includes('not configured') || err.message.includes('form field')) {
                 setError('❌ This competition\'s registration form is not properly configured. Please contact the organizer to set up the registration form.');
             } else if (err.message.includes('required')) {

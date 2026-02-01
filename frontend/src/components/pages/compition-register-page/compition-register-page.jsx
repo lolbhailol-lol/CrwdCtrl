@@ -4,6 +4,7 @@ import Navbar from '../../Navbar';
 import Footer from '../../Footer';
 import ProfileSidebar from '../../ProfileSidebar';
 import { useDarkMode } from '../../../context/DarkModeContext';
+import { useAuth } from '../../../context/AuthContext';
 import { ArrowLeft, CheckCircle, Upload, X, Calendar, MapPin, Trophy, Users } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
@@ -13,6 +14,7 @@ import paymentQRImage from '../../../assets/payment-qr/image.png';
 
 function CompetitionRegisterPage() {
     const { isDark } = useDarkMode();
+    const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -113,6 +115,20 @@ function CompetitionRegisterPage() {
             setShowLogin(true);
         }
     }, [searchParams]);
+
+    // ✅ CRITICAL FIX: Auto-close login/register modal when user becomes authenticated
+    // This is essential for phone login which uses redirect-based authentication
+    useEffect(() => {
+        if (isAuthenticated && showLogin) {
+            console.log('✅ User authenticated, closing login modal in competition-register-page');
+            setShowLogin(false);
+            setSearchParams({});
+        }
+        if (isAuthenticated && showRegister) {
+            console.log('✅ User authenticated, closing register modal in competition-register-page');
+            setShowRegister(false);
+        }
+    }, [isAuthenticated, showLogin, showRegister, setSearchParams]);
 
     // Handle login modal close
     const handleCloseLogin = () => {

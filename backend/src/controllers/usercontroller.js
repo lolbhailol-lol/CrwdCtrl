@@ -426,6 +426,20 @@ const socialAuth = async (req, res) => {
                 hasToken: !!token
             });
 
+            // Send login confirmation email for existing social auth users
+            if (existingUser.email) {
+                const emailData = {
+                    name: existingUser.name,
+                    email: existingUser.email,
+                    isVerified: existingUser.isVerified
+                };
+                
+                // Send email without awaiting - don't block login response
+                sendLoginConfirmationEmail(emailData).catch(error => {
+                    console.error('⚠️ Failed to send login confirmation email (social auth):', error.message);
+                });
+            }
+
             return res.status(200).json({
                 success: true,
                 message: 'Login successful',
@@ -479,6 +493,20 @@ const socialAuth = async (req, res) => {
                 // Remove password from response
                 const userResponse = existingUser.toObject();
                 delete userResponse.password;
+
+                // Send login confirmation email for linked accounts
+                if (existingUser.email) {
+                    const emailData = {
+                        name: existingUser.name,
+                        email: existingUser.email,
+                        isVerified: existingUser.isVerified
+                    };
+                    
+                    // Send email without awaiting - don't block login response
+                    sendLoginConfirmationEmail(emailData).catch(error => {
+                        console.error('⚠️ Failed to send login confirmation email (linked account):', error.message);
+                    });
+                }
 
                 return res.status(200).json({
                     success: true,

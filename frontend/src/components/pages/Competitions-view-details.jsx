@@ -279,6 +279,25 @@ function EventPage() {
         }
     }, [location.search]);
 
+    // ✅ CRITICAL FIX: Auto-close login/register modal when user becomes authenticated
+    // This is essential for phone login which uses redirect-based authentication
+    useEffect(() => {
+        console.log('🔄 [VIEW-DETAILS] Auth state check:', { isAuthenticated, showLogin, showRegister });
+        
+        if (isAuthenticated && showLogin) {
+            console.log('✅ [VIEW-DETAILS] User authenticated, closing login modal');
+            setShowLogin(false);
+            // Clear URL parameters
+            const url = new URL(window.location);
+            url.searchParams.delete('showLogin');
+            window.history.replaceState({}, '', url);
+        }
+        if (isAuthenticated && showRegister) {
+            console.log('✅ [VIEW-DETAILS] User authenticated, closing register modal');
+            setShowRegister(false);
+        }
+    }, [isAuthenticated, showLogin, showRegister]);
+
     // Loading state
     if (loading) {
         return (
