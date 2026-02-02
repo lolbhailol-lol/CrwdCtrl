@@ -37,6 +37,11 @@ const registrationSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Allow multiple registrations per user per fest - no unique index
+// ✅ PREVENT DUPLICATE REGISTRATIONS: Unique compound index
+// A user can only register once per competition per fest
+registrationSchema.index(
+  { fest: 1, user: 1, competitionId: 1 }, 
+  { unique: true, sparse: true }
+);
 
 module.exports = mongoose.model('Registration', registrationSchema);

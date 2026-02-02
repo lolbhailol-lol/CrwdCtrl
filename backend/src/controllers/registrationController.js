@@ -299,6 +299,22 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     console.log('👤 User found:', { name: user.name, email: user.email });
 
+    // ✅ CHECK FOR EXISTING REGISTRATION - Prevent duplicates
+    const existingRegistration = await Registration.findOne({
+      fest: competition.fest._id,
+      user: userId,
+      competitionId: competition._id
+    });
+
+    if (existingRegistration) {
+      console.log('⚠️ User already registered for this competition:', existingRegistration._id);
+      return res.status(400).json({
+        error: 'You have already registered for this competition',
+        existingRegistrationId: existingRegistration._id,
+        registeredAt: existingRegistration.submittedAt
+      });
+    }
+
     // Create registration record
     const registration = new Registration({
       fest: competition.fest._id,

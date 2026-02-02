@@ -179,15 +179,49 @@ class AuthService {
 
         } catch (error) {
             console.error('❌ [AUTH] Google login error:', error);
+            console.error('❌ [AUTH] Error details:', {
+                message: error?.message,
+                code: error?.code,
+                name: error?.name,
+                isInAppBrowser: error?.isInAppBrowser,
+                showOpenInBrowser: error?.showOpenInBrowser
+            });
+            
+            // Check if this is an in-app browser error (from firebase.js)
+            if (error?.isInAppBrowser || error?.showOpenInBrowser) {
+                const enhancedError = new Error(error.error || error.message || 'Google sign-in is not supported in this browser. Please open in Chrome or Safari.');
+                enhancedError.isInAppBrowser = true;
+                enhancedError.showOpenInBrowser = true;
+                enhancedError.errorDetails = error.errorDetails;
+                enhancedError.appName = error.appName;
+                enhancedError.openInBrowserUrl = error.openInBrowserUrl;
+                throw enhancedError;
+            }
             
             let errorMessage = 'Google sign-in failed. Please try again.';
             
-            if (error.message.includes('No internet')) {
-                errorMessage = error.message;
-            } else if (error.message.includes('Network') || error.message.includes('fetch')) {
+            // Check for empty error objects (common in Instagram browser)
+            const errorStr = error?.message || '';
+            const isEmptyError = !errorStr || errorStr === '[object Object]' || (typeof error === 'object' && Object.keys(error).length === 0);
+            
+            if (isEmptyError) {
+                // Likely an in-app browser blocking OAuth silently
+                const ua = navigator.userAgent || '';
+                const isInAppBrowser = /Instagram|FBAN|FBAV|TikTok|WhatsApp/i.test(ua);
+                if (isInAppBrowser) {
+                    const enhancedError = new Error('Google Sign-In is blocked in this browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".');
+                    enhancedError.isInAppBrowser = true;
+                    enhancedError.showOpenInBrowser = true;
+                    throw enhancedError;
+                }
+            }
+            
+            if (errorStr.includes('No internet')) {
+                errorMessage = errorStr;
+            } else if (errorStr.includes('Network') || errorStr.includes('fetch')) {
                 errorMessage = 'Network error. Please check your internet connection and try again.';
-            } else if (error.message) {
-                errorMessage = error.message;
+            } else if (errorStr) {
+                errorMessage = errorStr;
             }
 
             throw new Error(errorMessage);

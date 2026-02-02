@@ -351,41 +351,26 @@ export const signInWithGoogle = async () => {
         viewport: `${window.innerWidth}x${window.innerHeight}`
     });
 
-    // ✅ STEP 1: Check for existing redirect result first (cleanup from any previous redirects)
-    // This must be done with proper error handling for mobile
-    try {
-        console.log('🔍 Checking for existing redirect result...');
-        let redirectResult = null;
-        
+    // ✅ STEP 1: Quick check for redirect result (only if we initiated a redirect)
+    const hasRecentRedirect = sessionStorage.getItem('auth_redirect_type') === 'google';
+    if (hasRecentRedirect) {
         try {
-            redirectResult = await getRedirectResult(auth);
-        } catch (redirectCheckError) {
-            // On some mobile browsers, getRedirectResult can throw temporarily
-            // Wait a bit and retry once if it fails
-            console.log('⚠️ First redirect check failed, retrying after 500ms:', redirectCheckError.code);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            try {
-                redirectResult = await getRedirectResult(auth);
-            } catch (retryError) {
-                console.log('⚠️ Second redirect check also failed, continuing:', retryError.code);
+            const redirectResult = await getRedirectResult(auth);
+            if (redirectResult?.user) {
+                console.log('✅ Completing redirect authentication');
+                sessionStorage.removeItem('auth_redirect_type');
+                return {
+                    success: true,
+                    user: redirectResult.user,
+                    credential: redirectResult.credential,
+                    needsVerification: false,
+                    method: 'redirect-result'
+                };
             }
+        } catch (error) {
+            // Ignore - proceed with popup
         }
-        
-        if (redirectResult && redirectResult.user) {
-            console.log('✅ Found existing redirect result - completing authentication');
-            return {
-                success: true,
-                user: redirectResult.user,
-                credential: redirectResult.credential,
-                needsVerification: false,
-                method: 'redirect-result'
-            };
-        }
-        console.log('ℹ️ No existing redirect result found');
-    } catch (error) {
-        console.log('⚠️ Error checking redirect result:', error.code);
-        // Continue with popup authentication
+        sessionStorage.removeItem('auth_redirect_type');
     }
 
     // ✅ STEP 2: Handle in-app browsers with enhanced messaging
@@ -416,18 +401,7 @@ export const signInWithGoogle = async () => {
     console.log('🖥️ Attempting popup authentication (works on mobile + desktop)...');
     
     try {
-        // ✅ MOBILE FIX: Use longer timeout and better retry strategy for mobile
-        const maxRetries = isMobile ? 3 : 2;
-        const baseDelay = isMobile ? 1500 : 1000; // Longer delay between retries on mobile
-        
-        const result = await retryWithBackoff(async () => {
-            return await Promise.race([
-                signInWithPopup(auth, googleProvider),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('POPUP_TIMEOUT')), timeout)
-                )
-            ]);
-        }, maxRetries, baseDelay);
+                const result = await signInWithPopup(auth, googleProvider);
 
         console.log('✅ Popup authentication successful');
         return {
@@ -453,6 +427,7 @@ export const signInWithGoogle = async () => {
             console.log('🔄 Popup blocked/failed, trying redirect fallback...');
             
             try {
+                sessionStorage.setItem('auth_redirect_type', 'google');
                 await signInWithRedirect(auth, googleProvider);
                 return {
                     success: true,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -19,12 +19,26 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const [showSocialFields, setShowSocialFields] = useState(false);
     const [socialAuthData, setSocialAuthData] = useState(null);
     const [authProvider, setAuthProvider] = useState('');
-    const { login } = useAuth();
+    const { login, isAuthenticated, user } = useAuth();
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
 
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
+
+    // ✅ FIX: Redirect if user is already logged in
+    useEffect(() => {
+        if (isAuthenticated && user) {
+            console.log('✅ [REGISTER] User already logged in, redirecting...');
+            if (isModal && onClose) {
+                // Close the modal if user is already authenticated
+                onClose();
+            } else {
+                // Navigate to home if not a modal
+                navigate('/', { replace: true });
+            }
+        }
+    }, [isAuthenticated, user, isModal, onClose, navigate]);
 
     // Email/Password Registration Handler
     const handleRegister = async (e) => {
@@ -193,16 +207,48 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
         } catch (error) {
             console.error('❌ [REGISTER] Google auth error:', error);
+            console.error('❌ [REGISTER] Error details:', {
+                message: error?.message,
+                isInAppBrowser: error?.isInAppBrowser,
+                showOpenInBrowser: error?.showOpenInBrowser
+            });
             
-            if (error.message.includes('in-app-browser')) {
+            const errorStr = error?.message || '';
+            
+            // Check for in-app browser error (Instagram, Facebook, TikTok, etc.)
+            if (error?.isInAppBrowser || error?.showOpenInBrowser || errorStr.includes('in-app-browser') || errorStr.includes('Open in Chrome') || errorStr.includes('Open in Safari')) {
                 setErrors({ 
-                    general: error.message,
+                    general: errorStr || 'Google Sign-In is blocked in this browser. Please open in Chrome or Safari.',
                     showOpenInBrowser: true,
-                    errorDetails: error.errorDetails || null,
-                    openInBrowser: error.openInBrowser || null
+                    errorDetails: error?.errorDetails || {
+                        icon: '📱',
+                        title: 'Browser Limitation',
+                        suggestion: 'Google Sign-In requires a full browser',
+                        instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser" or "Open in Chrome/Safari"'
+                    },
+                    openInBrowser: error?.openInBrowserUrl || window.location.href
                 });
+            } else if (!errorStr || errorStr === '[object Object]') {
+                // Empty error - likely in-app browser blocking silently
+                const ua = navigator.userAgent || '';
+                const isInApp = /Instagram|FBAN|FBAV|TikTok|WhatsApp/i.test(ua);
+                if (isInApp) {
+                    setErrors({ 
+                        general: 'Google Sign-In is blocked in this browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".',
+                        showOpenInBrowser: true,
+                        errorDetails: {
+                            icon: '📱',
+                            title: 'Browser Limitation',
+                            suggestion: 'Google Sign-In requires a full browser',
+                            instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser"'
+                        },
+                        openInBrowser: window.location.href
+                    });
+                } else {
+                    setErrors({ general: errorStr || 'Google sign-in failed. Please try again.' });
+                }
             } else {
-                setErrors({ general: error.message || 'Google sign-in failed. Please try again.' });
+                setErrors({ general: errorStr || 'Google sign-in failed. Please try again.' });
             }
             setIsLoading(false);
         }

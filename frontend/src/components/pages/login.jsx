@@ -12,7 +12,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState({});
-    const { login } = useAuth();
+    const { login, isAuthenticated, user } = useAuth();
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
     const location = useLocation();
@@ -40,6 +40,31 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         console.log('📍 [LOGIN] No redirect found, going to home');
         return '/';
     };
+
+    // ✅ FIX: Redirect if user is already logged in (regular user)
+    useEffect(() => {
+        if (isAuthenticated && user && !isAdminLogin) {
+            console.log('✅ [LOGIN] User already logged in, redirecting...');
+            if (isModal && onClose) {
+                // Close the modal if user is already authenticated
+                onClose();
+            } else {
+                // Navigate to home or intended destination if not a modal
+                // Check for intended destination
+                let destination = '/';
+                if (location.state?.from?.pathname) {
+                    destination = location.state.from.pathname;
+                } else {
+                    const savedRedirect = sessionStorage.getItem('auth_redirect_url');
+                    if (savedRedirect) {
+                        destination = savedRedirect;
+                        sessionStorage.removeItem('auth_redirect_url');
+                    }
+                }
+                navigate(destination, { replace: true });
+            }
+        }
+    }, [isAuthenticated, user, isModal, onClose, navigate, isAdminLogin, location.state]);
 
     // Redirect admin if already logged in (when visiting /login page directly)
     useEffect(() => {
@@ -169,21 +194,53 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             }
         } catch (error) {
             console.error('❌ [LOGIN] Google auth error:', error);
+            console.error('❌ [LOGIN] Error details:', {
+                message: error?.message,
+                isInAppBrowser: error?.isInAppBrowser,
+                showOpenInBrowser: error?.showOpenInBrowser,
+                errorDetails: error?.errorDetails
+            });
             
             let errorMessage = 'Google sign-in failed. Please try again.';
+            const errorStr = error?.message || '';
             
-            if (error.message.includes('in-app-browser')) {
+            // Check for in-app browser error (Instagram, Facebook, TikTok, etc.)
+            if (error?.isInAppBrowser || error?.showOpenInBrowser || errorStr.includes('in-app-browser') || errorStr.includes('Open in Chrome') || errorStr.includes('Open in Safari')) {
                 setErrors({ 
-                    general: error.message,
+                    general: errorStr || 'Google Sign-In is blocked in this browser. Please open in Chrome or Safari.',
                     showOpenInBrowser: true,
-                    errorDetails: error.errorDetails || null,
-                    openInBrowser: error.openInBrowser || null
+                    errorDetails: error?.errorDetails || {
+                        icon: '📱',
+                        title: 'Browser Limitation',
+                        suggestion: 'Google Sign-In requires a full browser',
+                        instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser" or "Open in Chrome/Safari"'
+                    },
+                    openInBrowser: error?.openInBrowserUrl || window.location.href
                 });
-            } else if (error.message.includes('unauthorized-domain')) {
+            } else if (errorStr.includes('unauthorized-domain')) {
                 errorMessage = 'This domain is not authorized for Google Sign-In. Please contact support.';
                 setErrors({ general: errorMessage });
+            } else if (!errorStr || errorStr === '[object Object]') {
+                // Empty error - likely in-app browser blocking silently
+                const ua = navigator.userAgent || '';
+                const isInApp = /Instagram|FBAN|FBAV|TikTok|WhatsApp/i.test(ua);
+                if (isInApp) {
+                    setErrors({ 
+                        general: 'Google Sign-In is blocked in this browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".',
+                        showOpenInBrowser: true,
+                        errorDetails: {
+                            icon: '📱',
+                            title: 'Browser Limitation',
+                            suggestion: 'Google Sign-In requires a full browser',
+                            instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser"'
+                        },
+                        openInBrowser: window.location.href
+                    });
+                } else {
+                    setErrors({ general: errorMessage });
+                }
             } else {
-                setErrors({ general: error.message || errorMessage });
+                setErrors({ general: errorStr || errorMessage });
             }
         } finally {
             setIsLoading(false);

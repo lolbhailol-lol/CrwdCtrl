@@ -63,6 +63,13 @@ export const googleAuthService = {
 
       logOAuth('SignIn', { instagram, mobile, method: 'redirect-always' });
 
+      // ✅ CRITICAL: Instagram's browser blocks OAuth completely
+      // Show user a helpful message BEFORE attempting redirect
+      if (instagram) {
+        console.log('🚨 Instagram browser detected - authentication may not work properly');
+        console.log('🚨 Instagram WebView blocks third-party cookies required for Google Sign-In');
+      }
+
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
@@ -71,10 +78,32 @@ export const googleAuthService = {
       // Popup fails on real mobile devices (auth/popup-closed-by-user)
       sessionStorage.setItem('oauth_intent', 'google-signin');
       sessionStorage.setItem('oauth_timestamp', Date.now().toString());
+      
+      if (instagram) {
+        sessionStorage.setItem('auth_in_app_browser', 'true');
+      }
+      
       await signInWithRedirect(auth, provider);
       return; // Browser redirects to Google
     } catch (error: any) {
       logOAuthError('SignIn', error);
+
+      const errorMessage = error?.message || error?.code || '';
+      const isEmptyError = !errorMessage || errorMessage === '[object Object]' || (typeof error === 'object' && Object.keys(error).length === 0);
+
+      // Detect if this is an in-app browser issue
+      if (isInstagramBrowser() || isEmptyError) {
+        const ua = navigator.userAgent || '';
+        const isInApp = /Instagram|FBAN|FBAV|TikTok|WhatsApp/i.test(ua);
+        
+        if (isInApp || isEmptyError) {
+          const enhancedError: any = new Error('Google Sign-In is blocked in this browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".');
+          enhancedError.isInAppBrowser = true;
+          enhancedError.showOpenInBrowser = true;
+          enhancedError.code = 'auth/in-app-browser-blocked';
+          throw enhancedError;
+        }
+      }
 
       if (error.code === 'auth/network-request-failed') {
         throw new Error('Network error. Please check your connection.');
