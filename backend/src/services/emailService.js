@@ -1,6 +1,63 @@
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-// Email configuration
+// ✅ RESEND API CLIENT (HTTP-based, works on Railway/cloud platforms)
+// SMTP is blocked on most cloud platforms - use Resend API instead
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+// Check if Resend is available
+const useResend = () => {
+    if (resend && process.env.RESEND_API_KEY) {
+        console.log('📧 Using Resend API for email delivery');
+        return true;
+    }
+    console.log('⚠️ Resend API key not configured, falling back to SMTP (may fail on cloud)');
+    return false;
+};
+
+// ✅ RESEND EMAIL SENDER (HTTP-based - works on Railway!)
+const sendWithResend = async (mailOptions) => {
+    if (!resend) {
+        throw new Error('Resend API key not configured');
+    }
+    
+    console.log('📧 Sending email via Resend API...');
+    console.log('   To:', mailOptions.to);
+    console.log('   Subject:', mailOptions.subject);
+    
+    const { data, error } = await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL || 'CrwdCtrl <noreply@crwdctrl.in>',
+        to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
+        subject: mailOptions.subject,
+        html: mailOptions.html,
+        text: mailOptions.text || undefined
+    });
+    
+    if (error) {
+        console.error('❌ Resend API error:', error);
+        throw new Error(error.message || 'Resend API failed');
+    }
+    
+    console.log('✅ Email sent via Resend! ID:', data.id);
+    return { success: true, messageId: data.id };
+};
+
+// ✅ UNIVERSAL EMAIL SENDER - Uses Resend (HTTP) first, SMTP as fallback
+const sendEmail = async (mailOptions) => {
+    // Try Resend first (works on Railway/cloud platforms)
+    if (useResend()) {
+        return await sendWithResend(mailOptions);
+    }
+    
+    // Fallback to SMTP (for local development)
+    console.log('📧 Falling back to SMTP...');
+    const transporter = createTransporter();
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Email sent via SMTP! ID:', info.messageId);
+    return { success: true, messageId: info.messageId };
+};
+
+// Email configuration (SMTP fallback for local development)
 const createTransporter = () => {
     // Check if email credentials are properly configured
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -9,8 +66,8 @@ const createTransporter = () => {
         console.warn('⚠️ EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
         console.warn('⚠️ EMAIL_PASS:', process.env.EMAIL_PASS ? 'SET' : 'NOT SET');
         
-        // In production, throw error instead of silently failing
-        if (process.env.NODE_ENV === 'production') {
+        // In production without Resend, throw error
+        if (process.env.NODE_ENV === 'production' && !useResend()) {
             throw new Error('Email credentials not configured in production environment');
         }
         
@@ -63,8 +120,6 @@ const sendWelcomeEmail = async (userData) => {
             throw new Error('User email is required to send welcome email');
         }
 
-        const transporter = createTransporter();
-
         const mailOptions = {
             from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
             to: userData.email,
@@ -76,13 +131,11 @@ const sendWelcomeEmail = async (userData) => {
         console.log('   From:', mailOptions.from);
         console.log('   To:', mailOptions.to);
         console.log('   Subject:', mailOptions.subject);
-        
-        const info = await transporter.sendMail(mailOptions);
+
+        // ✅ Use universal email sender (Resend API or SMTP fallback)
+        const result = await sendEmail(mailOptions);
         console.log('✅ Welcome email sent successfully!');
-        console.log('   Message ID:', info.messageId);
-        console.log('   Response:', info.response);
-        
-        return { success: true, messageId: info.messageId };
+        return result;
     } catch (error) {
         console.error('❌ Welcome email sending failed!');
         console.error('   Error name:', error.name);
@@ -95,7 +148,7 @@ const sendWelcomeEmail = async (userData) => {
 // Generate HTML content for welcome email
 const generateWelcomeEmailHTML = (userData) => {
     return `
-    <!DOCTYPE html>
+    <!DOCTYPE html>>
     <html>
     <head>
         <style>
@@ -188,8 +241,6 @@ const generateWelcomeEmailHTML = (userData) => {
 const sendRegistrationThankYouEmail = async (userEmail, userName, festName) => {
     try {
         console.log('📧 Sending thank you email to:', userEmail);
-        
-        const transporter = createTransporter();
 
         const mailOptions = {
             from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
@@ -198,9 +249,9 @@ const sendRegistrationThankYouEmail = async (userEmail, userName, festName) => {
             html: generateThankYouEmailHTML(userName, festName)
         };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Thank you email sent successfully:', info.messageId);
-        return { success: true, messageId: info.messageId };
+        const result = await sendEmail(mailOptions);
+        console.log('✅ Thank you email sent successfully:', result.messageId);
+        return result;
     } catch (error) {
         console.error('❌ Thank you email sending failed:', error);
         // Don't throw error - email failure shouldn't break registration
@@ -212,8 +263,6 @@ const sendRegistrationThankYouEmail = async (userEmail, userName, festName) => {
 const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, competitionName, registrationId, submissionDate) => {
     try {
         console.log('📧 Sending confirmation email to:', userEmail);
-        
-        const transporter = createTransporter();
 
         const mailOptions = {
             from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
@@ -222,9 +271,9 @@ const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, 
             html: generateConfirmationEmailHTML(userName, festName, competitionName, registrationId, submissionDate)
         };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Confirmation email sent successfully:', info.messageId);
-        return { success: true, messageId: info.messageId };
+        const result = await sendEmail(mailOptions);
+        console.log('✅ Confirmation email sent successfully:', result.messageId);
+        return result;
     } catch (error) {
         console.error('❌ Confirmation email sending failed:', error);
         // Don't throw error - email failure shouldn't break registration
@@ -482,8 +531,6 @@ const generateConfirmationEmailHTML = (userName, festName, competitionName, regi
 const sendOrganizerNotificationEmail = async (organizerEmail, userName, userEmail, festName, competitionName, registrationId, submissionDate) => {
     try {
         console.log('📧 Sending organizer notification email to:', organizerEmail);
-        
-        const transporter = createTransporter();
 
         const mailOptions = {
             from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
@@ -492,9 +539,9 @@ const sendOrganizerNotificationEmail = async (organizerEmail, userName, userEmai
             html: generateOrganizerNotificationEmailHTML(userName, userEmail, festName, competitionName, registrationId, submissionDate)
         };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Organizer notification email sent successfully:', info.messageId);
-        return { success: true, messageId: info.messageId };
+        const result = await sendEmail(mailOptions);
+        console.log('✅ Organizer notification email sent successfully:', result.messageId);
+        return result;
     } catch (error) {
         console.error('❌ Organizer notification email sending failed:', error);
         // Don't throw error - email failure shouldn't break registration
@@ -690,29 +737,10 @@ const sendLoginConfirmationEmail = async (userData) => {
         console.log('   To:', mailOptions.to);
         console.log('   Subject:', mailOptions.subject);
         
-        // Retry logic for connection timeout
-        let lastError;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                console.log(`   📨 Attempt ${attempt}/3...`);
-                const transporter = createTransporter();
-                const info = await transporter.sendMail(mailOptions);
-                console.log('✅ Login confirmation email sent successfully!');
-                console.log('   Message ID:', info.messageId);
-                console.log('   Response:', info.response);
-                console.log('   Accepted:', info.accepted);
-                return { success: true, messageId: info.messageId };
-            } catch (attemptError) {
-                lastError = attemptError;
-                if (attempt < 3 && (attemptError.message.includes('timeout') || attemptError.message.includes('ETIMEDOUT'))) {
-                    console.warn(`   ⏱️ Timeout on attempt ${attempt}, retrying...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Wait 1-3 seconds
-                } else {
-                    throw attemptError;
-                }
-            }
-        }
-        throw lastError;
+        // ✅ Use universal email sender (Resend API or SMTP fallback)
+        const result = await sendEmail(mailOptions);
+        console.log('✅ Login confirmation email sent successfully!');
+        return result;
         
     } catch (error) {
         console.error('❌ Login confirmation email sending failed!');
