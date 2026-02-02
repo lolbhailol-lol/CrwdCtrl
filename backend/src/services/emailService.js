@@ -30,17 +30,25 @@ const createTransporter = () => {
     console.log('📋 Password length:', process.env.EMAIL_PASS.length, '(should be 19 with spaces)');
     console.log('📋 Password contains spaces:', process.env.EMAIL_PASS.includes(' '));
     
+    // ✅ Use port 587 with STARTTLS - more reliable on cloud platforms (Railway, etc.)
+    // Port 465 (SSL) is often blocked by cloud providers
     const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false, // Use STARTTLS (upgrades to TLS)
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS
         },
-        connectionUrl: 'smtps://smtp.gmail.com',
-        connectionTimeout: 5 * 60 * 1000, // 5 minutes timeout
-        socketTimeout: 5 * 60 * 1000 // 5 minutes socket timeout
+        tls: {
+            rejectUnauthorized: false, // Accept self-signed certs (needed for some cloud environments)
+            minVersion: 'TLSv1.2'
+        },
+        connectionTimeout: 30000, // 30 seconds
+        greetingTimeout: 30000,
+        socketTimeout: 60000 // 60 seconds for actual send
     });
-    console.log('✅ Gmail SMTP transporter created successfully');
+    console.log('✅ Gmail SMTP transporter created (port 587 STARTTLS)');
     return transporter;
 };
 
