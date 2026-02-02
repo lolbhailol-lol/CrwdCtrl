@@ -26,7 +26,8 @@ const sendWithResend = async (mailOptions) => {
     console.log('   Subject:', mailOptions.subject);
     
     const { data, error } = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'CrwdCtrl <noreply@crwdctrl.in>',
+        from: process.env.RESEND_FROM_EMAIL || 'CrwdCtrl <onboarding@resend.dev>',
+        reply_to: process.env.RESEND_REPLY_TO || 'team.crwdctrl@gmail.com',
         to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
         subject: mailOptions.subject,
         html: mailOptions.html,
