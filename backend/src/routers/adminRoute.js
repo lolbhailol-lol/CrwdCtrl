@@ -44,13 +44,19 @@ router.get('/stats', adminAuth, async (req, res) => {
 });
 
 // ===== FEST PRIORITY MANAGEMENT (must come BEFORE generic :id routes) =====
-router.put('/fests/:id/priority', adminAuth, adminFestCtrl.updateFestPriority);
+router.put('/fests/:id/priority', (req, res, next) => {
+  console.log('🔴 Priority route matched! ID:', req.params.id);
+  next();
+}, adminAuth, adminFestCtrl.updateFestPriority);
 router.post('/fests/reorder', adminAuth, adminFestCtrl.reorderFests);
 
 // ===== FEST CRUD =====
 router.post('/fests', adminAuth, adminFestCtrl.createFest);
 router.get('/fests', adminAuth, adminFestCtrl.getAllFests);
-router.put('/fests/:id', adminAuth, adminFestCtrl.updateFest);
+router.put('/fests/:id', (req, res, next) => {
+  console.log('🟡 Generic PUT route matched! ID:', req.params.id);
+  next();
+}, adminAuth, adminFestCtrl.updateFest);
 router.delete('/fests/:id', adminAuth, adminFestCtrl.deleteFest);
 
 // ===== COMPETITION (ONLY CREATE FOR NOW) =====

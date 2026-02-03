@@ -580,12 +580,19 @@ exports.createCompetition = async (req, res) => {
    UPDATE FEST PRIORITY
 ========================= */
 exports.updateFestPriority = async (req, res) => {
+  console.log('🎯 updateFestPriority called');
+  console.log('📍 Params:', req.params);
+  console.log('📦 Body:', req.body);
+  
   try {
     const { id } = req.params;
     const { priority } = req.body;
 
+    console.log(`🔍 Processing priority update for fest ID: ${id}, priority: ${priority}`);
+
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log('❌ Invalid ObjectId format');
       return res.status(400).json({
         message: 'Invalid fest ID format'
       });
