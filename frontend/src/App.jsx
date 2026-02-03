@@ -17,6 +17,7 @@ import LoadingBar from './components/LoadingBar'
 import AdminStatsCard from './components/admin/AdminStatsCard'
 import Competiton_Modal from './components/admin/Competition_Modal'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
+import ErrorBoundary from './components/ErrorBoundary'
 
 import './App.css'
 
@@ -227,52 +228,54 @@ function App() {
 
         <div className={isAdminRoute ? '' : 'lg:ml-20'}>
           <div className={isAdminRoute ? '' : 'lg:pt-20'}>
-            <Suspense fallback={<LoadingBar />}>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/login" element={<CrwdCtrlLogin />} />
-                <Route path="/admin/login" element={<CrwdCtrlLogin />} />
-                <Route path="/register" element={<CrwdCtrlRegister />} />
-                <Route path="/verify-email" element={<EmailVerification />} />
-                <Route path="/cultural-fest" element={<CulturalFestPage />} />
-                <Route path="/tech-fest" element={<TechFestPage />} />
-                <Route path="/sports-fest" element={<SportsFestPage />} />
-                <Route path="/favorites" element={<FavoritesPage />} />
-                <Route path="/view-details/:eventId" element={<ViewDetailsPage />} />
-                <Route path="/view-details" element={<ViewDetailsPage />} />
-                <Route path="/competitions-view-details/:competitionId" element={<CompetitionsViewDetails />} />
-                <Route path="/competitions-view-details" element={<CompetitionsViewDetails />} />
-                <Route path="/competition-list/:eventId" element={<CompetitionListPage />} />
-                <Route path="/competition-register" element={<CompetitionRegisterPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/edit-profile" element={<EditProfile />} />
-                <Route path="/registered-fest" element={<RegisteredFest />} />
-                <Route path="/help-center" element={<HelpCenter />} />
-                <Route path="/list-your-fest" element={<ListYourFest />} />
-                <Route path="/notifications" element={<NotificationsPanel />} />
-                <Route path="/connection-status" element={<ConnectionStatus />} />
-                <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
-                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                <Route path="/contact-us" element={<ContactUs />} />
-                <Route path="/fest/:festId/register" element={<FestRegistration />} />
-                <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
-                <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
-                <Route
-                  path="/admin"
-                  element={
-                    <AdminProtectedRoute>
-                      <AdminLayout />
-                    </AdminProtectedRoute>
-                  }
-                >
-                  <Route index element={<AdminDashboardPage />} />
-                  <Route path="fests" element={<FestsPage />} />
-                  <Route path="competitions" element={<CompetitionsPage />} />
-                  <Route path="registrations" element={<RegistrationsPage />} />
-                </Route>
+            <ErrorBoundary>
+              <Suspense fallback={<LoadingBar />}>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/login" element={<CrwdCtrlLogin />} />
+                  <Route path="/admin/login" element={<CrwdCtrlLogin />} />
+                  <Route path="/register" element={<CrwdCtrlRegister />} />
+                  <Route path="/verify-email" element={<EmailVerification />} />
+                  <Route path="/cultural-fest" element={<CulturalFestPage />} />
+                  <Route path="/tech-fest" element={<TechFestPage />} />
+                  <Route path="/sports-fest" element={<SportsFestPage />} />
+                  <Route path="/favorites" element={<FavoritesPage />} />
+                  <Route path="/view-details/:eventId" element={<ViewDetailsPage />} />
+                  <Route path="/view-details" element={<ViewDetailsPage />} />
+                  <Route path="/competitions-view-details/:competitionId" element={<CompetitionsViewDetails />} />
+                  <Route path="/competitions-view-details" element={<CompetitionsViewDetails />} />
+                  <Route path="/competition-list/:eventId" element={<CompetitionListPage />} />
+                  <Route path="/competition-register" element={<CompetitionRegisterPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/edit-profile" element={<EditProfile />} />
+                  <Route path="/registered-fest" element={<RegisteredFest />} />
+                  <Route path="/help-center" element={<HelpCenter />} />
+                  <Route path="/list-your-fest" element={<ListYourFest />} />
+                  <Route path="/notifications" element={<NotificationsPanel />} />
+                  <Route path="/connection-status" element={<ConnectionStatus />} />
+                  <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/contact-us" element={<ContactUs />} />
+                  <Route path="/fest/:festId/register" element={<FestRegistration />} />
+                  <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
+                  <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
+                  <Route
+                    path="/admin"
+                    element={
+                      <AdminProtectedRoute>
+                        <AdminLayout />
+                      </AdminProtectedRoute>
+                    }
+                  >
+                    <Route index element={<AdminDashboardPage />} />
+                    <Route path="fests" element={<FestsPage />} />
+                    <Route path="competitions" element={<CompetitionsPage />} />
+                    <Route path="registrations" element={<RegistrationsPage />} />
+                  </Route>
 
-              </Routes>
-            </Suspense>
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </div>
 

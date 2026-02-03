@@ -340,6 +340,16 @@ function EventDetailsPage() {
     setShowRegister(false);
   };
 
+  // Handle back navigation
+  const handleBackClick = () => {
+    // Try to go back in history, or navigate to home if no history
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
+
   // Switch from login to register
   const handleSwitchToRegister = () => {
     setShowLogin(false);
