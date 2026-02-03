@@ -1,0 +1,40 @@
+name: Keep Railway Backend Alive
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Railway Backend
+        run: |
+          echo "🔄 Pinging Railway backend to keep it alive..."
+          
+          # Ping the health endpoint
+          response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            "https://prolific-learning-production-13aa.up.railway.app/api/health" \
+            -H "User-Agent: GitHub-Actions-KeepAlive/1.0")
+          
+          echo "Health check response: $response"
+          
+          # Also ping the keep-alive endpoint
+          response2=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            "https://prolific-learning-production-13aa.up.railway.app/api/keep-alive" \
+            -H "User-Agent: GitHub-Actions-KeepAlive/1.0")
+          
+          echo "Keep-alive response: $response2"
+          
+          if [ "$response" = "200" ] || [ "$response2" = "200" ]; then
+            echo "✅ Backend is alive!"
+          else
+            echo "⚠️ Backend may be starting up (cold start). Responses: $response, $response2"
+            # Don't fail the job - cold starts are expected
+          fi
+          
+      - name: Log timestamp
+        run: |
+          echo "Ping completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
