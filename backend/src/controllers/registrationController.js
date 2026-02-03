@@ -386,7 +386,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
           } catch (emailError) {
             console.error('❌ Confirmation email error:', emailError);
           }
-        }, 1500); // 1.5s delay to avoid Resend rate limit (2 req/sec)
+        }, 2000); // 2s delay to avoid Resend rate limit (2 req/sec)
 
         // STEP 3: Send organizer notification email if configured (async, non-blocking)
         // Check both confirmationEmail (competition model) and organizerEmail (fest model) for flexibility
@@ -425,7 +425,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
             } catch (orgEmailError) {
               console.error('❌ Organizer notification email error:', orgEmailError);
             }
-          }, 3000); // 3s delay to avoid Resend rate limit (2 req/sec)
+          }, 5000); // 5s delay to avoid Resend rate limit (2 req/sec)
         } else {
           console.log('⚠️ No organizer email configured - skipping organizer notification');
         }
