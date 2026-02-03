@@ -45,6 +45,7 @@ const competitionSchema = new mongoose.Schema(
       'technical',
       'girls',
       'boys',
+      'mixed',
       'other',
     ],
     required: true,
