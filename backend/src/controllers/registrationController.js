@@ -388,12 +388,24 @@ const submitCustomCompetitionRegistration = async (req, res) => {
         }, 500);
 
         // STEP 3: Send organizer notification email if configured (async, non-blocking)
-        if (competition.registration.confirmationEmail) {
+        // Check both confirmationEmail (competition model) and organizerEmail (fest model) for flexibility
+        const organizerEmail = competition.registration.confirmationEmail || 
+                               competition.registration.organizerEmail ||
+                               competition.fest?.registration?.organizerEmail;
+        
+        console.log('📧 Organizer email check:', {
+          confirmationEmail: competition.registration.confirmationEmail,
+          organizerEmail: competition.registration.organizerEmail,
+          festOrganizerEmail: competition.fest?.registration?.organizerEmail,
+          finalEmail: organizerEmail
+        });
+        
+        if (organizerEmail) {
           setTimeout(async () => {
             try {
-              console.log('📧 Sending organizer notification email (async)...');
+              console.log('📧 Sending organizer notification email to:', organizerEmail);
               await sendOrganizerNotificationEmail(
-                competition.registration.confirmationEmail,
+                organizerEmail,
                 user.name,
                 user.email,
                 competition.name,
@@ -413,6 +425,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
               console.error('❌ Organizer notification email error:', orgEmailError);
             }
           }, 1000);
+        } else {
+          console.log('⚠️ No organizer email configured - skipping organizer notification');
         }
 
         // STEP 4: Add to Google Sheets (async, non-blocking)
