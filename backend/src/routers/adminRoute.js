@@ -43,15 +43,15 @@ router.get('/stats', adminAuth, async (req, res) => {
   }
 });
 
+// ===== FEST PRIORITY MANAGEMENT (must come BEFORE generic :id routes) =====
+router.put('/fests/:id/priority', adminAuth, adminFestCtrl.updateFestPriority);
+router.post('/fests/reorder', adminAuth, adminFestCtrl.reorderFests);
+
 // ===== FEST CRUD =====
 router.post('/fests', adminAuth, adminFestCtrl.createFest);
 router.get('/fests', adminAuth, adminFestCtrl.getAllFests);
 router.put('/fests/:id', adminAuth, adminFestCtrl.updateFest);
 router.delete('/fests/:id', adminAuth, adminFestCtrl.deleteFest);
-
-// ===== FEST PRIORITY MANAGEMENT =====
-router.put('/fests/:id/priority', adminAuth, adminFestCtrl.updateFestPriority);
-router.post('/fests/reorder', adminAuth, adminFestCtrl.reorderFests);
 
 // ===== COMPETITION (ONLY CREATE FOR NOW) =====
 router.post(
