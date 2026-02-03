@@ -600,27 +600,42 @@ exports.updateFestPriority = async (req, res) => {
 
     // Validate priority
     if (priority === undefined || priority === null) {
+      console.log('❌ Priority is missing');
       return res.status(400).json({
         message: 'Priority is required'
       });
     }
 
     const priorityNum = parseInt(priority);
+    console.log(`🔢 Parsed priority: ${priorityNum}`);
+    
     if (isNaN(priorityNum) || priorityNum < 1 || priorityNum > 999) {
+      console.log('❌ Priority out of range');
       return res.status(400).json({
         message: 'Priority must be a number between 1 and 999'
       });
     }
 
-    // Find and update the fest
+    // Find the fest
+    console.log('🔍 Looking up fest in database...');
     const fest = await FestOrganizer.findById(id);
     if (!fest) {
+      console.log('❌ Fest not found');
       return res.status(404).json({ message: 'Fest not found' });
     }
+    console.log(`✅ Found fest: ${fest.festName}`);
 
     // Update priority
+    console.log(`📝 Updating priority from ${fest.priority} to ${priorityNum}`);
     fest.priority = priorityNum;
-    await fest.save();
+    
+    try {
+      await fest.save();
+      console.log('✅ Fest saved successfully');
+    } catch (saveError) {
+      console.error('❌ Error saving fest:', saveError);
+      return res.status(500).json({ message: 'Failed to save fest: ' + saveError.message });
+    }
 
     // Clear cache when priority is updated
     clearFestsCache();
@@ -634,6 +649,7 @@ exports.updateFestPriority = async (req, res) => {
       console.warn('⚠️ Could not clear public cache:', cacheError.message);
     }
 
+    console.log('✅ Priority update complete, sending response');
     res.status(200).json({
       message: 'Fest priority updated successfully',
       fest: {
@@ -644,8 +660,9 @@ exports.updateFestPriority = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error updating fest priority:', error);
-    res.status(500).json({ message: 'Failed to update fest priority' });
+    console.error('❌ Error updating fest priority:', error.message);
+    console.error('❌ Full error:', error);
+    res.status(500).json({ message: 'Failed to update fest priority: ' + error.message });
   }
 };
 
