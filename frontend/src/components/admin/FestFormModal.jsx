@@ -1138,10 +1138,60 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('📡 Response headers:', response.headers);
 
     // Debug: Check what we actually received
-    const responseText = await response.text();
+    let responseText = await response.text();
     console.log('📡 Raw response:', responseText);
 
-    if (!response.ok) {
+    // ✅ FIX: Handle token expiration with auto-refresh and retry
+    if (response.status === 401) {
+      console.warn('⚠️ Token expired, attempting refresh...');
+      const refreshToken = localStorage.getItem('admin_refresh_token');
+      
+      if (refreshToken) {
+        try {
+          const newToken = await refreshAdminToken(refreshToken);
+          console.log('🔄 Retrying request with new token...');
+          
+          // Retry the request with new token
+          const retryResponse = await fetch(url, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${newToken}`,
+            },
+            body: JSON.stringify(payload),
+          });
+          
+          console.log('📡 Retry response status:', retryResponse.status);
+          responseText = await retryResponse.text();
+          
+          if (!retryResponse.ok) {
+            let err;
+            try {
+              err = JSON.parse(responseText);
+            } catch (parseError) {
+              throw new Error(`HTTP ${retryResponse.status}: ${responseText.substring(0, 200)}`);
+            }
+            throw new Error(err.message || `Failed to save fest (${retryResponse.status})`);
+          }
+          
+          // Success! Continue processing below with retryResponse text
+          console.log('✅ Retry successful!');
+        } catch (refreshErr) {
+          console.error('❌ Token refresh failed:', refreshErr.message);
+          setError('Session expired. Please log in again.');
+          setTimeout(() => {
+            window.location.href = '/admin/login';
+          }, 1500);
+          return;
+        }
+      } else {
+        setError('Session expired. Please log in again.');
+        setTimeout(() => {
+          window.location.href = '/admin/login';
+        }, 1500);
+        return;
+      }
+    } else if (!response.ok) {
       let err;
       try {
         err = JSON.parse(responseText);

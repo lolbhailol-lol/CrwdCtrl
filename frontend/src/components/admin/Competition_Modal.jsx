@@ -415,6 +415,37 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
   );
 }
 
+// Helper to refresh admin token
+async function refreshAdminToken() {
+  const refreshToken = localStorage.getItem('admin_refresh_token');
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+  
+  console.log('🔄 Attempting admin token refresh...');
+  const response = await fetch(`${API_BASE_URL}/admin/refresh-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('❌ Token refresh failed:', errorData);
+    throw new Error(errorData.message || 'Token refresh failed');
+  }
+  
+  const data = await response.json();
+  console.log('✅ Token refreshed successfully');
+  
+  localStorage.setItem('admin_token', data.accessToken);
+  if (data.refreshToken) {
+    localStorage.setItem('admin_refresh_token', data.refreshToken);
+  }
+  
+  return data.accessToken;
+}
+
 // Competition Form Component with Multi-Step Wizard
 function CompetitionForm({ fest, competition, onClose, onSaved }) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -1328,8 +1359,81 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       console.log('Frontend - Response headers:', [...response.headers.entries()]);
 
       // Get response text first to debug
-      const responseText = await response.text();
+      let responseText = await response.text();
       console.log('Frontend - Raw response:', responseText.substring(0, 500));
+
+      // ✅ FIX: Handle token expiration with auto-refresh and retry
+      if (response.status === 401) {
+        console.warn('⚠️ Token expired, attempting refresh...');
+        try {
+          const newToken = await refreshAdminToken();
+          console.log('🔄 Retrying request with new token...');
+          
+          // Retry the request with new token
+          const retryResponse = await fetch(url, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${newToken}`,
+            },
+            body: JSON.stringify(payload),
+            credentials: 'include',
+            mode: 'cors',
+          });
+          
+          console.log('Frontend - Retry response status:', retryResponse.status);
+          responseText = await retryResponse.text();
+          
+          if (!retryResponse.ok) {
+            let err;
+            try {
+              err = JSON.parse(responseText);
+            } catch (parseError) {
+              throw new Error(`HTTP ${retryResponse.status}: ${responseText.substring(0, 200)}`);
+            }
+            throw new Error(err.message || `Failed to save competition (${retryResponse.status})`);
+          }
+          
+          // Success on retry - continue with the result
+          let result;
+          try {
+            result = JSON.parse(responseText);
+          } catch (parseError) {
+            throw new Error('Invalid response from server');
+          }
+          
+          // Clear caches and dispatch events (same as success path below)
+          console.log('🔄 Clearing caches for competition update...');
+          localStorage.removeItem('crwdctrl_fests_cache');
+          localStorage.removeItem('crwdctrl_fests_timestamp');
+          localStorage.removeItem('crwdctrl_fest_details_cache');
+          
+          if ('caches' in window) {
+            try {
+              const cacheNames = await caches.keys();
+              await Promise.all(cacheNames.map(name => caches.delete(name)));
+            } catch (cacheError) {
+              console.warn('⚠️ Could not clear service worker caches:', cacheError);
+            }
+          }
+          
+          window.dispatchEvent(new CustomEvent('admin_fest_updated', {
+            detail: { festId: fest._id, competitionId: result._id, timestamp: Date.now() }
+          }));
+          
+          onSaved();
+          return;
+        } catch (refreshErr) {
+          console.error('❌ Token refresh failed:', refreshErr.message);
+          localStorage.removeItem('admin_token');
+          localStorage.removeItem('admin_refresh_token');
+          setError('Session expired. Please log in again.');
+          setTimeout(() => {
+            window.location.href = '/admin/login';
+          }, 1500);
+          return;
+        }
+      }
 
       if (!response.ok) {
         let err;
