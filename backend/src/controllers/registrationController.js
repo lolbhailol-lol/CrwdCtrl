@@ -345,9 +345,10 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     });
 
     // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
+    // Email queue in emailService.js handles rate limiting automatically
     setImmediate(async () => {
       try {
-        // STEP 1: Send thank you email (async, non-blocking)
+        // STEP 1: Send thank you email (queued automatically for rate limiting)
         try {
           console.log('📧 Sending thank you email (async)...');
           await sendRegistrationThankYouEmail(
@@ -360,35 +361,32 @@ const submitCustomCompetitionRegistration = async (req, res) => {
           console.error('❌ Thank you email error:', emailError);
         }
 
-        // STEP 2: Send confirmation email (async, non-blocking)
-        // Delay 1.5s to avoid Resend rate limit (2 req/sec)
-        setTimeout(async () => {
-          try {
-            console.log('📧 Sending confirmation email (async)...');
-            const submissionDate = new Date().toLocaleString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-            
-            await sendRegistrationConfirmationEmail(
-              user.email,
-              user.name,
-              competition.fest.festName || competition.name,
-              competition.name,
-              registrationId,
-              submissionDate
-            );
-            console.log('✅ Confirmation email sent successfully');
-          } catch (emailError) {
-            console.error('❌ Confirmation email error:', emailError);
-          }
-        }, 2000); // 2s delay to avoid Resend rate limit (2 req/sec)
+        // STEP 2: Send confirmation email (queued automatically for rate limiting)
+        try {
+          console.log('📧 Sending confirmation email (async)...');
+          const submissionDate = new Date().toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          
+          await sendRegistrationConfirmationEmail(
+            user.email,
+            user.name,
+            competition.fest.festName || competition.name,
+            competition.name,
+            registrationId,
+            submissionDate
+          );
+          console.log('✅ Confirmation email sent successfully');
+        } catch (emailError) {
+          console.error('❌ Confirmation email error:', emailError);
+        }
 
-        // STEP 3: Send organizer notification email if configured (async, non-blocking)
+        // STEP 3: Send organizer notification email if configured (queued automatically)
         // Check both confirmationEmail (competition model) and organizerEmail (fest model) for flexibility
         const organizerEmail = competition.registration.confirmationEmail || 
                                competition.registration.organizerEmail ||
@@ -402,30 +400,28 @@ const submitCustomCompetitionRegistration = async (req, res) => {
         });
         
         if (organizerEmail) {
-          setTimeout(async () => {
-            try {
-              console.log('📧 Sending organizer notification email to:', organizerEmail);
-              await sendOrganizerNotificationEmail(
-                organizerEmail,
-                user.name,
-                user.email,
-                competition.name,
-                competition.name,
-                registrationId,
-                new Date().toLocaleString('en-IN', {
-                  timeZone: 'Asia/Kolkata',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
-              );
-              console.log('✅ Organizer notification email sent successfully');
-            } catch (orgEmailError) {
-              console.error('❌ Organizer notification email error:', orgEmailError);
-            }
-          }, 5000); // 5s delay to avoid Resend rate limit (2 req/sec)
+          try {
+            console.log('📧 Sending organizer notification email to:', organizerEmail);
+            await sendOrganizerNotificationEmail(
+              organizerEmail,
+              user.name,
+              user.email,
+              competition.name,
+              competition.name,
+              registrationId,
+              new Date().toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+            );
+            console.log('✅ Organizer notification email sent successfully');
+          } catch (orgEmailError) {
+            console.error('❌ Organizer notification email error:', orgEmailError);
+          }
         } else {
           console.log('⚠️ No organizer email configured - skipping organizer notification');
         }

@@ -1,6 +1,52 @@
 const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
 
+// ============================================
+// 📧 EMAIL QUEUE SYSTEM - Prevents Rate Limiting
+// ============================================
+// Resend has a 2 requests/second limit. This queue ensures
+// emails are sent sequentially with proper delays.
+
+const emailQueue = [];
+let isProcessingQueue = false;
+const EMAIL_DELAY_MS = 600; // 600ms between emails = ~1.6 emails/sec (under 2/sec limit)
+
+// Add email to queue and process
+const queueEmail = (emailFn) => {
+    return new Promise((resolve, reject) => {
+        emailQueue.push({ emailFn, resolve, reject });
+        processEmailQueue();
+    });
+};
+
+// Process emails one at a time with delays
+const processEmailQueue = async () => {
+    if (isProcessingQueue || emailQueue.length === 0) {
+        return;
+    }
+    
+    isProcessingQueue = true;
+    
+    while (emailQueue.length > 0) {
+        const { emailFn, resolve, reject } = emailQueue.shift();
+        
+        try {
+            const result = await emailFn();
+            resolve(result);
+        } catch (error) {
+            console.error('❌ Queued email failed:', error.message);
+            reject(error);
+        }
+        
+        // Wait before sending next email to respect rate limit
+        if (emailQueue.length > 0) {
+            await new Promise(r => setTimeout(r, EMAIL_DELAY_MS));
+        }
+    }
+    
+    isProcessingQueue = false;
+};
+
 // ✅ RESEND API CLIENT (HTTP-based, works on Railway/cloud platforms)
 // SMTP is blocked on most cloud platforms - use Resend API instead
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -43,19 +89,22 @@ const sendWithResend = async (mailOptions) => {
     return { success: true, messageId: data.id };
 };
 
-// ✅ UNIVERSAL EMAIL SENDER - Uses Resend (HTTP) first, SMTP as fallback
+// ✅ UNIVERSAL EMAIL SENDER - Uses queue to prevent rate limiting
 const sendEmail = async (mailOptions) => {
-    // Try Resend first (works on Railway/cloud platforms)
-    if (useResend()) {
-        return await sendWithResend(mailOptions);
-    }
-    
-    // Fallback to SMTP (for local development)
-    console.log('📧 Falling back to SMTP...');
-    const transporter = createTransporter();
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Email sent via SMTP! ID:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    // Queue the email to prevent rate limiting
+    return queueEmail(async () => {
+        // Try Resend first (works on Railway/cloud platforms)
+        if (useResend()) {
+            return await sendWithResend(mailOptions);
+        }
+        
+        // Fallback to SMTP (for local development)
+        console.log('📧 Falling back to SMTP...');
+        const transporter = createTransporter();
+        const info = await transporter.sendMail(mailOptions);
+        console.log('✅ Email sent via SMTP! ID:', info.messageId);
+        return { success: true, messageId: info.messageId };
+    });
 };
 
 // Email configuration (SMTP fallback for local development)
