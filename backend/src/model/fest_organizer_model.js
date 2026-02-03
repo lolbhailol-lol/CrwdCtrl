@@ -114,13 +114,17 @@ const festOrganizerSchema = new mongoose.Schema(
             'text',
             'email',
             'number',
+            'tel',
+            'phone',
             'textarea',
             'select',
             'radio',
             'checkbox',
             'date',
             'file',
-            'image'
+            'image',
+            'url',
+            'password'
           ]
         },
         required: Boolean,
@@ -156,13 +160,17 @@ const festOrganizerSchema = new mongoose.Schema(
                 'text',
                 'email',
                 'number',
+                'tel',
+                'phone',
                 'textarea',
                 'select',
                 'radio',
                 'checkbox',
                 'date',
                 'file',
-                'image'
+                'image',
+                'url',
+                'password'
               ]
             },
             required: Boolean,
