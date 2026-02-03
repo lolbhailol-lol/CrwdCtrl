@@ -1501,7 +1501,21 @@ const Dashboard = () => {
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={3} />
                                 ) : festError ? (
-                                    <div className="text-center py-12 text-red-500">{festError}</div>
+                                    <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'}`}>
+                                        <div className="text-4xl mb-3">📡</div>
+                                        <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                                            Unable to load events
+                                        </p>
+                                        <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            {festError.includes('cached') ? festError : 'Server is waking up. Please wait a moment.'}
+                                        </p>
+                                        <button 
+                                            onClick={forceRefreshData}
+                                            className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
+                                        >
+                                            Try Again
+                                        </button>
+                                    </div>
                                 ) : ongoingEvents.length > 0 ? (
                                     <>
                                         {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
@@ -1720,8 +1734,22 @@ const Dashboard = () => {
                             <div className="relative">
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={3} />
-                                ) : festError ? (
-                                    <div className="text-center py-12 text-red-500">{festError}</div>
+                                ) : festError && beyondCampusEvents.length === 0 ? (
+                                    <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'}`}>
+                                        <div className="text-4xl mb-3">📡</div>
+                                        <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                                            Unable to load events
+                                        </p>
+                                        <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            {festError.includes('cached') ? festError : 'Server is waking up. Please wait a moment.'}
+                                        </p>
+                                        <button 
+                                            onClick={forceRefreshData}
+                                            className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
+                                        >
+                                            Try Again
+                                        </button>
+                                    </div>
                                 ) : (
                                     <>
                                         {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
@@ -1983,8 +2011,22 @@ const Dashboard = () => {
                             <div className="relative">
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={4} />
-                                ) : festError ? (
-                                    <div className="text-center py-12 text-red-500">{festError}</div>
+                                ) : festError && upcomingEvents.length === 0 ? (
+                                    <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'}`}>
+                                        <div className="text-4xl mb-3">📡</div>
+                                        <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                                            Unable to load events
+                                        </p>
+                                        <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            {festError.includes('cached') ? festError : 'Server is waking up. Please wait a moment.'}
+                                        </p>
+                                        <button 
+                                            onClick={forceRefreshData}
+                                            className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
+                                        >
+                                            Try Again
+                                        </button>
+                                    </div>
                                 ) : upcomingEvents.length > 0 ? (
                                     <>
                                         {/* Left Scroll Button - Only show if scrolled and more than 3 items */}

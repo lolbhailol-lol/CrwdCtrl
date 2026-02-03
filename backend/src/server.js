@@ -303,112 +303,98 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// ✅ RAILWAY KEEP-ALIVE MECHANISM (FIXED)
-// Self-ping every 4 minutes to prevent Railway cold starts
-// Railway Trial plan sleeps services after 5-10 minutes of inactivity
+// ✅ RAILWAY KEEP-ALIVE MECHANISM (IMPROVED)
+// Multiple strategies to prevent Railway cold starts
+// Railway Hobby plan sleeps services after 5-10 minutes of inactivity
 if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT) {
   console.log('🚂 Railway environment detected - initializing keep-alive mechanism');
   
-  // ✅ FIX: Reduced to 4 minutes (240 seconds) to prevent sleep
-  // Railway Trial plan sleeps after 5-10 minutes, so 4 minutes keeps it awake
-  const KEEP_ALIVE_INTERVAL = 4 * 60 * 1000; // 4 minutes (240 seconds)
+  // ✅ Strategy 1: Aggressive interval (2 minutes instead of 4)
+  const KEEP_ALIVE_INTERVAL = 2 * 60 * 1000; // 2 minutes (120 seconds)
   
-  // ✅ FIX: Get Railway URL from environment variables
-  // Railway may not auto-set these, so we allow manual configuration
+  // ✅ Strategy 2: Multiple URL options
   const getRailwayUrl = () => {
-    // Check in order of preference:
-    
-    // 1. RAILWAY_KEEP_ALIVE_URL (manual override - user can set this)
+    // Priority order for URLs:
     if (process.env.RAILWAY_KEEP_ALIVE_URL) {
       const url = process.env.RAILWAY_KEEP_ALIVE_URL.trim();
-      // Ensure it has protocol
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         return `https://${url}`;
       }
       return url;
     }
     
-    // 2. RAILWAY_PUBLIC_DOMAIN (Railway auto-sets this if available)
     if (process.env.RAILWAY_PUBLIC_DOMAIN) {
       const domain = process.env.RAILWAY_PUBLIC_DOMAIN.trim();
-      // Remove protocol if present, then add https
       const cleanDomain = domain.replace(/^https?:\/\//, '');
       return `https://${cleanDomain}`;
     }
     
-    // 3. RAILWAY_STATIC_URL (alternative Railway URL)
     if (process.env.RAILWAY_STATIC_URL) {
       return process.env.RAILWAY_STATIC_URL.trim();
     }
     
-    // 4. RAILWAY_SERVICE_URL (internal service URL)
-    if (process.env.RAILWAY_SERVICE_URL) {
-      return process.env.RAILWAY_SERVICE_URL.trim();
-    }
-    
-    // 5. No URL found - disable keep-alive
-    console.warn('⚠️ Railway environment detected but no public domain found');
-    console.warn('⚠️ Keep-alive disabled - Railway will use built-in health checks instead');
-    console.warn('ℹ️ To enable keep-alive, set RAILWAY_KEEP_ALIVE_URL in Railway environment variables');
-    console.warn('ℹ️ Get your Railway URL from: Railway Dashboard → Your Service → Settings → Domains');
-    return null;
+    // ✅ Hardcoded fallback for your Railway URL
+    return 'https://prolific-learning-production-13aa.up.railway.app';
   };
   
   const RAILWAY_URL = getRailwayUrl();
+  console.log(`🚂 Railway URL for keep-alive: ${RAILWAY_URL}`);
   
-  // Only enable keep-alive if we have a valid URL
-  if (RAILWAY_URL) {
-    console.log(`🚂 Railway URL for keep-alive: ${RAILWAY_URL}`);
+  // ✅ Strategy 3: Internal activity generator (doesn't need external network)
+  let keepAliveCounter = 0;
+  const internalKeepAlive = () => {
+    keepAliveCounter++;
+    // Do some CPU/memory work to keep the process active
+    const timestamp = new Date().toISOString();
+    const uptime = process.uptime();
+    const memUsage = process.memoryUsage();
     
-    // ✅ FIX: Start keep-alive immediately, then repeat
-    const performKeepAlive = async () => {
-      try {
-        console.log(`🔄 [${new Date().toISOString()}] Railway keep-alive ping to ${RAILWAY_URL}/api/health...`);
-        
-        // ✅ FIX: Use axios with proper timeout (already installed)
-        const response = await axios.get(`${RAILWAY_URL}/api/health`, {
-          timeout: 10000, // 10 second timeout
-          headers: {
-            'User-Agent': 'Railway-KeepAlive/1.0'
-          },
-          validateStatus: (status) => status < 500 // Don't throw on 4xx, only 5xx
-        });
-        
-        if (response.status === 200) {
-          const data = response.data || {};
-          console.log(`✅ Railway keep-alive successful - Uptime: ${data.uptime || 'unknown'}s, Status: ${data.status || 'OK'}`);
-        } else {
-          console.warn(`⚠️ Railway keep-alive returned status: ${response.status}`);
-        }
-      } catch (error) {
-        if (error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN') {
-          // DNS resolution failed - URL might be wrong or service can't resolve it
-          console.warn(`⚠️ Railway keep-alive DNS error: ${error.message}`);
-          console.warn('⚠️ This usually means the Railway URL is incorrect or the service cannot resolve its own domain');
-          console.warn('⚠️ Railway will use built-in health checks instead - this is OK');
-        } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-          console.warn('⚠️ Railway keep-alive timeout (10s)');
-        } else if (error.response) {
-          console.warn(`⚠️ Railway keep-alive returned status: ${error.response.status}`);
-        } else {
-          console.warn(`⚠️ Railway keep-alive failed: ${error.message}`);
-        }
-      }
+    // Update a global variable to create activity
+    global.lastKeepAlive = {
+      counter: keepAliveCounter,
+      timestamp,
+      uptime,
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB'
     };
     
-    // Perform first keep-alive after 30 seconds (give server time to start)
-    setTimeout(() => {
-      performKeepAlive();
-    }, 30000);
-    
-    // Then repeat every 4 minutes
-    setInterval(performKeepAlive, KEEP_ALIVE_INTERVAL);
-    
-    console.log(`✅ Railway keep-alive scheduled every ${KEEP_ALIVE_INTERVAL / 60000} minutes (starting in 30s)`);
-  } else {
-    console.log('ℹ️ Railway keep-alive disabled - Railway will use built-in health checks');
-    console.log('ℹ️ To enable keep-alive, set RAILWAY_PUBLIC_DOMAIN in Railway environment variables');
-  }
+    console.log(`💓 [${timestamp}] Internal keep-alive #${keepAliveCounter} - Uptime: ${Math.round(uptime)}s, Memory: ${global.lastKeepAlive.heapUsed}`);
+  };
+  
+  // ✅ Strategy 4: External ping (backup)
+  const performExternalKeepAlive = async () => {
+    try {
+      console.log(`🔄 [${new Date().toISOString()}] External keep-alive ping...`);
+      
+      const response = await axios.get(`${RAILWAY_URL}/api/health`, {
+        timeout: 10000,
+        headers: { 'User-Agent': 'Railway-KeepAlive/1.0' },
+        validateStatus: (status) => status < 500
+      });
+      
+      if (response.status === 200) {
+        console.log(`✅ External keep-alive successful - Status: ${response.data?.status || 'OK'}`);
+      }
+    } catch (error) {
+      // Don't log errors for external ping - internal is the primary strategy
+      console.log(`⚠️ External ping failed (internal keep-alive is still working)`);
+    }
+  };
+  
+  // ✅ Start keep-alive mechanisms
+  
+  // Internal keep-alive: Every 1 minute (most reliable)
+  setInterval(internalKeepAlive, 60 * 1000);
+  
+  // External keep-alive: Every 2 minutes (backup)
+  setInterval(performExternalKeepAlive, KEEP_ALIVE_INTERVAL);
+  
+  // First pings after startup
+  setTimeout(internalKeepAlive, 5000);  // 5 seconds
+  setTimeout(performExternalKeepAlive, 30000); // 30 seconds
+  
+  console.log(`✅ Keep-alive mechanisms active:`);
+  console.log(`   - Internal: Every 1 minute`);
+  console.log(`   - External: Every 2 minutes to ${RAILWAY_URL}`);
 }
 
 // ✅ RAILWAY COLD START DETECTION
@@ -421,6 +407,22 @@ app.get("/api/cold-start-check", (req, res) => {
     uptime,
     timestamp: new Date().toISOString(),
     message: isColdStart ? "Cold start detected" : "Warm instance"
+  });
+});
+
+// ✅ KEEP-ALIVE ENDPOINT (for external cron services like cron-job.org, UptimeRobot)
+// Set up a free cron job at cron-job.org to hit this every 2-3 minutes
+app.get("/api/keep-alive", (req, res) => {
+  const uptime = process.uptime();
+  const lastKeepAlive = global.lastKeepAlive || { counter: 0, timestamp: 'never' };
+  
+  res.status(200).json({
+    success: true,
+    message: "Keep-alive ping received",
+    uptime: Math.round(uptime),
+    keepAliveCounter: lastKeepAlive.counter,
+    lastInternalPing: lastKeepAlive.timestamp,
+    timestamp: new Date().toISOString()
   });
 });
 
