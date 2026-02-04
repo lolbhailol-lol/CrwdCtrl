@@ -435,65 +435,77 @@ export default function FestRegistration() {
         // Group field type - allows multiple entries with sub-fields
         const groupEntries = Array.isArray(value) ? value : [];
         
-        const addGroupEntry = () => {
-          const newEntry = {};
-          field.subFields?.forEach(subField => {
-            newEntry[subField.fieldName] = '';
-          });
-          onFieldChange(fieldId, [...groupEntries, newEntry]);
-        };
-        
-        const removeGroupEntry = (entryIndex) => {
-          const newEntries = groupEntries.filter((_, i) => i !== entryIndex);
-          onFieldChange(fieldId, newEntries);
-        };
-        
-        const updateGroupEntry = (entryIndex, subFieldName, subValue) => {
-          const newEntries = [...groupEntries];
-          newEntries[entryIndex] = {
-            ...newEntries[entryIndex],
-            [subFieldName]: subValue
-          };
-          onFieldChange(fieldId, newEntries);
-        };
-        
         return (
           <div className="space-y-4">
             {groupEntries.map((entry, entryIndex) => (
-              <div key={entryIndex} className="bg-[#1B1C1E] p-4 rounded-lg border border-gray-600">
+              <div key={`group-entry-${fieldId}-${entryIndex}`} className="bg-[#1B1C1E] p-4 rounded-lg border border-gray-600">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-[#0ECCEE]">Entry {entryIndex + 1}</span>
                   <button
                     type="button"
-                    onClick={() => removeGroupEntry(entryIndex)}
+                    onClick={() => {
+                      // Remove entry inline
+                      const newEntries = groupEntries.filter((_, i) => i !== entryIndex);
+                      onFieldChange(fieldId, newEntries);
+                    }}
                     className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1"
                   >
                     <span>×</span> Remove
                   </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {field.subFields?.map((subField, subIndex) => (
-                    <div key={subIndex}>
-                      <label className="block text-xs text-gray-400 mb-1">
-                        {subField.label}
-                        {subField.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <input
-                        type={subField.type || 'text'}
-                        placeholder={subField.placeholder}
-                        value={entry[subField.fieldName] || ''}
-                        onChange={(e) => updateGroupEntry(entryIndex, subField.fieldName, e.target.value)}
-                        required={subField.required}
-                        className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-white text-sm"
-                      />
-                    </div>
-                  ))}
+                  {field.subFields?.map((subField, subIndex) => {
+                    // Use subField.fieldName if available, otherwise fall back to label-based name or index
+                    const actualFieldName = subField.fieldName || subField.label?.replace(/\s+/g, '_').toLowerCase() || `subfield_${subIndex}`;
+                    const subFieldKey = `${fieldId}-${entryIndex}-${actualFieldName}-${subIndex}`;
+                    const subFieldValue = entry?.[actualFieldName] ?? '';
+                    
+                    return (
+                      <div key={subFieldKey}>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          {subField.label}
+                          {subField.required && <span className="text-red-400 ml-1">*</span>}
+                        </label>
+                        <input
+                          id={subFieldKey}
+                          name={subFieldKey}
+                          type={subField.type || 'text'}
+                          placeholder={subField.placeholder}
+                          value={subFieldValue}
+                          onChange={(e) => {
+                            const newValue = e.target.value;
+                            // Update entry inline with proper cloning
+                            const newEntries = groupEntries.map((ent, idx) => {
+                              if (idx === entryIndex) {
+                                return {
+                                  ...ent,
+                                  [actualFieldName]: newValue
+                                };
+                              }
+                              return { ...ent };
+                            });
+                            onFieldChange(fieldId, newEntries);
+                          }}
+                          required={subField.required}
+                          className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-white text-sm"
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
             <button
               type="button"
-              onClick={addGroupEntry}
+              onClick={() => {
+                // Add entry inline with proper field names
+                const newEntry = {};
+                field.subFields?.forEach((subField, subIndex) => {
+                  const actualFieldName = subField.fieldName || subField.label?.replace(/\s+/g, '_').toLowerCase() || `subfield_${subIndex}`;
+                  newEntry[actualFieldName] = '';
+                });
+                onFieldChange(fieldId, [...groupEntries, newEntry]);
+              }}
               className="w-full py-2 px-4 border-2 border-dashed border-gray-600 hover:border-[#0ECCEE] rounded-lg text-gray-400 hover:text-[#0ECCEE] transition-colors text-sm flex items-center justify-center gap-2"
             >
               <span>+</span> Add {field.label || 'Entry'}

@@ -172,10 +172,37 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
           rowData.push('');
           console.log('⚠️ File field empty or no URL:', { label: field.label, fieldId: matchedFieldId, value: fieldValue });
         }
+      } else if (field.type === 'group') {
+        // ✅ NEW: Handle group field type - format array of objects as readable string
+        if (Array.isArray(fieldValue) && fieldValue.length > 0) {
+          // Format each entry as a readable string
+          const formattedEntries = fieldValue.map((entry, idx) => {
+            if (typeof entry === 'object' && entry !== null) {
+              // Get the sub-field values and format them
+              const entryParts = Object.entries(entry)
+                .filter(([key, val]) => val !== '' && val !== null && val !== undefined)
+                .map(([key, val]) => `${key}: ${val}`)
+                .join(', ');
+              return `[Entry ${idx + 1}: ${entryParts}]`;
+            }
+            return String(entry);
+          });
+          rowData.push(formattedEntries.join(' | '));
+          console.log('✅ Group field added:', { label: field.label, entries: fieldValue.length });
+        } else {
+          rowData.push('');
+          console.log('⚠️ Group field empty:', { label: field.label });
+        }
       } else {
         // For other fields: show actual value or empty string
         if (Array.isArray(fieldValue)) {
-          rowData.push(fieldValue.join(', '));
+          // Check if it's an array of objects (shouldn't normally happen for non-group fields)
+          if (fieldValue.length > 0 && typeof fieldValue[0] === 'object') {
+            // Convert array of objects to JSON string
+            rowData.push(JSON.stringify(fieldValue));
+          } else {
+            rowData.push(fieldValue.join(', '));
+          }
         } else {
           rowData.push(fieldValue ?? '');
         }
@@ -436,8 +463,27 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
           }
         }
         
-        if (Array.isArray(value)) {
-          rowData.push(value.join(', '));
+        // ✅ Handle group field type - array of objects
+        if (field.type === 'group' && Array.isArray(value) && value.length > 0) {
+          // Format each entry as a readable string
+          const formattedEntries = value.map((entry, idx) => {
+            if (typeof entry === 'object' && entry !== null) {
+              const entryParts = Object.entries(entry)
+                .filter(([key, val]) => val !== '' && val !== null && val !== undefined)
+                .map(([key, val]) => `${key}: ${val}`)
+                .join(', ');
+              return `[Entry ${idx + 1}: ${entryParts}]`;
+            }
+            return String(entry);
+          });
+          rowData.push(formattedEntries.join(' | '));
+        } else if (Array.isArray(value)) {
+          // Check if it's an array of objects (shouldn't normally happen for non-group fields)
+          if (value.length > 0 && typeof value[0] === 'object') {
+            rowData.push(JSON.stringify(value));
+          } else {
+            rowData.push(value.join(', '));
+          }
         } else {
           rowData.push(value ?? '');
         }
