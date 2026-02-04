@@ -175,6 +175,116 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
           ))}
         </div>
       )}
+
+      {/* Sub-fields for group type */}
+      {field.type === 'group' && (
+        <div className="space-y-3 mt-3 border-t border-gray-600 pt-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-[#0ECCEE]">Sub-fields in this group</label>
+            <button
+              type="button"
+              onClick={() => {
+                const subFields = field.subFields || [];
+                const newSubField = {
+                  id: `sub_${Date.now()}`,
+                  label: '',
+                  fieldName: '',
+                  type: 'text',
+                  placeholder: '',
+                  required: false
+                };
+                handleInputChange('subFields', [...subFields, newSubField]);
+              }}
+              className="px-2 py-1 bg-[#0ECCEE] text-black rounded text-xs hover:bg-[#0ECCEE]/80 transition-colors"
+            >
+              + Add Sub-field
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">Users can add multiple entries with these sub-fields</p>
+          {field.subFields?.map((subField, subIndex) => (
+            <div key={subField.id || subIndex} className="bg-[#1B1C1E] p-3 rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">Sub-field {subIndex + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newSubFields = field.subFields.filter((_, i) => i !== subIndex);
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Sub-field Label"
+                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={subField.label || ''}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], label: e.target.value };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Field Name"
+                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={subField.fieldName || ''}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], fieldName: e.target.value.replace(/\s+/g, '_').toLowerCase() };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                />
+                <select
+                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={subField.type || 'text'}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], type: e.target.value };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                >
+                  <option value="text">Text</option>
+                  <option value="email">Email</option>
+                  <option value="tel">Phone</option>
+                  <option value="number">Number</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Placeholder"
+                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={subField.placeholder || ''}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], placeholder: e.target.value };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                />
+              </div>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={subField.required || false}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], required: e.target.checked };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                  className="w-3 h-3 text-[#0ECCEE] bg-[#1B1C1E] border-gray-600 rounded"
+                />
+                <span className="text-xs">Required</span>
+              </label>
+            </div>
+          ))}
+          {(!field.subFields || field.subFields.length === 0) && (
+            <p className="text-xs text-gray-500 italic">No sub-fields added yet. Click "+ Add Sub-field" to start.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -229,6 +339,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
           <option value="date">Date</option>
           <option value="file">File Upload</option>
           <option value="image">Image Upload</option>
+          <option value="group">Field Group (Multiple Sub-fields)</option>
         </select>
         <input
           type="text"
@@ -282,6 +393,116 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Sub-fields for group type */}
+      {field.type === 'group' && (
+        <div className="space-y-3 mt-3 border-t border-gray-600 pt-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-[#0ECCEE]">Sub-fields in this group</label>
+            <button
+              type="button"
+              onClick={() => {
+                const subFields = field.subFields || [];
+                const newSubField = {
+                  id: `sub_${Date.now()}`,
+                  label: '',
+                  fieldName: '',
+                  type: 'text',
+                  placeholder: '',
+                  required: false
+                };
+                handleInputChange('subFields', [...subFields, newSubField]);
+              }}
+              className="px-2 py-1 bg-[#0ECCEE] text-black rounded text-xs hover:bg-[#0ECCEE]/80 transition-colors"
+            >
+              + Add Sub-field
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">Users can add multiple entries with these sub-fields</p>
+          {field.subFields?.map((subField, subIndex) => (
+            <div key={subField.id || subIndex} className="bg-[#1B1C1E] p-3 rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">Sub-field {subIndex + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newSubFields = field.subFields.filter((_, i) => i !== subIndex);
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Sub-field Label"
+                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={subField.label || ''}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], label: e.target.value };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Field Name"
+                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={subField.fieldName || ''}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], fieldName: e.target.value.replace(/\s+/g, '_').toLowerCase() };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                />
+                <select
+                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={subField.type || 'text'}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], type: e.target.value };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                >
+                  <option value="text">Text</option>
+                  <option value="email">Email</option>
+                  <option value="tel">Phone</option>
+                  <option value="number">Number</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Placeholder"
+                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={subField.placeholder || ''}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], placeholder: e.target.value };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                />
+              </div>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={subField.required || false}
+                  onChange={(e) => {
+                    const newSubFields = [...field.subFields];
+                    newSubFields[subIndex] = { ...newSubFields[subIndex], required: e.target.checked };
+                    handleInputChange('subFields', newSubFields);
+                  }}
+                  className="w-3 h-3 text-[#0ECCEE] bg-[#1B1C1E] border-gray-600 rounded"
+                />
+                <span className="text-xs">Required</span>
+              </label>
+            </div>
+          ))}
+          {(!field.subFields || field.subFields.length === 0) && (
+            <p className="text-xs text-gray-500 italic">No sub-fields added yet. Click "+ Add Sub-field" to start.</p>
+          )}
         </div>
       )}
     </div>

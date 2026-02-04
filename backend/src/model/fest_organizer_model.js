@@ -124,12 +124,27 @@ const festOrganizerSchema = new mongoose.Schema(
             'file',
             'image',
             'url',
-            'password'
+            'password',
+            'group' // ✅ NEW: Field group type for multiple sub-fields
           ]
         },
         required: Boolean,
         options: [String], // for select, radio, checkbox
-        placeholder: String
+        placeholder: String,
+        // ✅ NEW: Sub-fields for group type
+        subFields: [
+          {
+            id: String,
+            label: String,
+            fieldName: String,
+            type: {
+              type: String,
+              enum: ['text', 'email', 'number', 'tel', 'phone']
+            },
+            required: Boolean,
+            placeholder: String
+          }
+        ]
       }
     ],
     // ✅ NEW: Multi-step form configuration
@@ -170,12 +185,27 @@ const festOrganizerSchema = new mongoose.Schema(
                 'file',
                 'image',
                 'url',
-                'password'
+                'password',
+                'group' // ✅ NEW: Field group type for multiple sub-fields
               ]
             },
             required: Boolean,
             options: [String], // for select, radio, checkbox
-            placeholder: String
+            placeholder: String,
+            // ✅ NEW: Sub-fields for group type
+            subFields: [
+              {
+                id: String,
+                label: String,
+                fieldName: String,
+                type: {
+                  type: String,
+                  enum: ['text', 'email', 'number', 'tel', 'phone']
+                },
+                required: Boolean,
+                placeholder: String
+              }
+            ]
           }
         ]
       }
