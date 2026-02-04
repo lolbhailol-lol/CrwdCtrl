@@ -9,7 +9,7 @@ const { Resend } = require('resend');
 
 const emailQueue = [];
 let isProcessingQueue = false;
-const EMAIL_DELAY_MS = 600; // 600ms between emails = ~1.6 emails/sec (under 2/sec limit)
+const EMAIL_DELAY_MS = 1000; // 1000ms (1 second) between emails = 1 email/sec (safely under 2/sec limit)
 
 // Add email to queue and process
 const queueEmail = (emailFn) => {
@@ -39,9 +39,8 @@ const processEmailQueue = async () => {
         }
         
         // Wait before sending next email to respect rate limit
-        if (emailQueue.length > 0) {
-            await new Promise(r => setTimeout(r, EMAIL_DELAY_MS));
-        }
+        // Always wait, even after the last email, to prevent rapid subsequent calls
+        await new Promise(r => setTimeout(r, EMAIL_DELAY_MS));
     }
     
     isProcessingQueue = false;
