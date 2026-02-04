@@ -1339,14 +1339,14 @@ function EventPage() {
                                 {/* Competition Rounds */}
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
                                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
-                                    <p className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    <div className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                         <div 
                                             className="whitespace-pre-wrap"
                                             style={{ whiteSpace: 'pre-wrap' }}
                                         >
                                             {eventData?.rounds?.description || 'Competition details will be updated soon.'}
                                         </div>
-                                    </p>
+                                    </div>
 
                                     {/* Desktop Round Tabs - Dynamic based on available rounds */}
                                     {(eventData?.rounds?.round2 || eventData?.rounds?.round3) && !festName?.toLowerCase().includes('symbi') && (
