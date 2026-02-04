@@ -16,7 +16,7 @@ const competitionRoutes = require("./routers/competitionRoute");
 const adminRoutes = require("./routers/adminRoute");
 const registrationRoutes = require("./routers/registrationRoute");
 
-console.log('🚀 Starting FestBuzzZ Backend Server...');
+console.log('🚀 Starting Crwdctrl Backend Server...');
 console.log('📍 Node Environment:', process.env.NODE_ENV || 'development');
 console.log('🔧 Port Configuration:', process.env.PORT || 8080);
 
@@ -45,6 +45,56 @@ const app = express();
 connectDB().catch(err => {
   console.error('❌ Failed to connect to MongoDB:', err.message);
   // Don't exit immediately, let the server start for health checks
+});
+
+// ----------------------
+// ✅ CRITICAL: CORS HEADERS BEFORE ANYTHING ELSE
+// This ensures CORS headers are sent even if something else fails
+// ----------------------
+const PRODUCTION_ORIGINS = [
+  'https://www.crwdctrl.in',
+  'https://crwdctrl.in',
+  'https://crwdctrl.vercel.app',
+  'https://crwdctrl.firebaseapp.com',
+  'https://crwdctrl.web.app',
+  'https://prolific-learning-production-13aa.up.railway.app'
+];
+
+// ✅ FIRST MIDDLEWARE: Handle CORS headers for ALL requests
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  
+  // Always set CORS headers for known origins or allow all for debugging
+  if (origin) {
+    const isAllowed = PRODUCTION_ORIGINS.includes(origin) || 
+                      origin.includes('localhost') || 
+                      origin.includes('127.0.0.1') ||
+                      origin.includes('vercel.app') ||
+                      origin.includes('firebaseapp.com') ||
+                      origin.includes('web.app');
+    
+    if (isAllowed) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      // Allow all origins in production for now (debugging)
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      console.log('⚠️ CORS: Allowing unknown origin for debugging:', origin);
+    }
+  }
+  
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma, Origin, Accept, Expires, X-Client-Type');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, X-Total-Count, X-Auth-Token, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight OPTIONS requests IMMEDIATELY
+  if (req.method === 'OPTIONS') {
+    console.log('✅ Preflight OPTIONS handled for:', req.path, 'from:', origin);
+    return res.status(200).end();
+  }
+  
+  next();
 });
 
 // ----------------------
@@ -472,6 +522,13 @@ app.get("/api/cors-test", (req, res) => {
 
 // 404 Handler
 app.use((req, res) => {
+  // ✅ CRITICAL: Ensure CORS headers are sent even on 404
+  const origin = req.get('origin');
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  
   res.status(404).json({
     success: false,
     message: "Route not found",
@@ -493,6 +550,13 @@ app.use((err, req, res, next) => {
   });
   
   console.error('   Stack:', err.stack);
+  
+  // ✅ CRITICAL: Ensure CORS headers are sent even on errors
+  const origin = req.get('origin');
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
   
   res.status(err.status || 500).json({
     success: false,
