@@ -96,7 +96,10 @@ function EventPage() {
                         
                         // NEW: Add registration configuration fields
                         registrationType: compData.registrationType || 'fest',
-                        registration: compData.registration || { status: 'not_started' },
+                        // ✅ FIX: For fest-type registrations, use fest's registration mode
+                        registration: compData.registrationType === 'fest' || !compData.registrationType
+                            ? (compData.fest?.registration || compData.registration || { mode: 'NOT_STARTED' })
+                            : (compData.registration || { status: 'not_started' }),
                         legacyRegistration: compData.legacyRegistration || { status: 'NOT_STARTED' },
                         
                         // Add fest data for registration
@@ -1233,15 +1236,6 @@ function EventPage() {
 
                                     <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition Title'}</h1>
                                     <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData?.subtitle || 'Competition Subtitle'}</p>
-
-                                    {/* DEBUG: Registration Info - Remove after testing */}
-                                    <div className="bg-yellow-100 text-black p-2 rounded mb-2 text-xs">
-                                        <p>DEBUG: registrationInfo.buttonText = {registrationInfo.buttonText}</p>
-                                        <p>DEBUG: registrationInfo.isDisabled = {String(registrationInfo.isDisabled)}</p>
-                                        <p>DEBUG: passedEventData?.registration?.mode = {passedEventData?.registration?.mode || 'undefined'}</p>
-                                        <p>DEBUG: eventData?.registration?.mode = {eventData?.registration?.mode || 'undefined'}</p>
-                                        <p>DEBUG: eventData?.fest?.registration?.mode = {eventData?.fest?.registration?.mode || 'undefined'}</p>
-                                    </div>
 
                                     <div className="space-y-2 mb-4">
                                         <div className="flex items-center gap-2 text-blue-600">
