@@ -41,6 +41,7 @@ console.log('✅ Mongoose models registered');
 
 const app = express();
 
+// ✅ DEPLOYMENT TRIGGER: 2026-02-04 17:35 IST - CORS fix deployment
 // Connect DB with better error handling
 connectDB().catch(err => {
   console.error('❌ Failed to connect to MongoDB:', err.message);
