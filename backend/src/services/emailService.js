@@ -5,21 +5,23 @@ const { Resend } = require('resend');
 // 📧 EMAIL QUEUE SYSTEM - Prevents Rate Limiting
 // ============================================
 // Resend has a 2 requests/second limit. This queue ensures
-// emails are sent sequentially with proper delays.
+// emails are sent sequentially with proper delays and retries.
 
 const emailQueue = [];
 let isProcessingQueue = false;
-const EMAIL_DELAY_MS = 1000; // 1000ms (1 second) between emails = 1 email/sec (safely under 2/sec limit)
+const EMAIL_DELAY_MS = 1500; // 1500ms (1.5 seconds) between emails - safe margin for 2/sec limit
+const MAX_RETRIES = 3;
+const RATE_LIMIT_BACKOFF_MS = 2000; // Extra wait time when rate limited
 
 // Add email to queue and process
 const queueEmail = (emailFn) => {
     return new Promise((resolve, reject) => {
-        emailQueue.push({ emailFn, resolve, reject });
+        emailQueue.push({ emailFn, resolve, reject, retries: 0 });
         processEmailQueue();
     });
 };
 
-// Process emails one at a time with delays
+// Process emails one at a time with delays and retries
 const processEmailQueue = async () => {
     if (isProcessingQueue || emailQueue.length === 0) {
         return;
@@ -28,14 +30,26 @@ const processEmailQueue = async () => {
     isProcessingQueue = true;
     
     while (emailQueue.length > 0) {
-        const { emailFn, resolve, reject } = emailQueue.shift();
+        const item = emailQueue.shift();
+        const { emailFn, resolve, reject, retries } = item;
         
         try {
             const result = await emailFn();
             resolve(result);
         } catch (error) {
-            console.error('❌ Queued email failed:', error.message);
-            reject(error);
+            const isRateLimited = error.message?.includes('rate') || 
+                                  error.message?.includes('429') ||
+                                  error.message?.includes('Too many');
+            
+            if (isRateLimited && retries < MAX_RETRIES) {
+                // Rate limited - add back to queue with increased retry count
+                console.log(`⏳ Rate limited, retry ${retries + 1}/${MAX_RETRIES} after ${RATE_LIMIT_BACKOFF_MS * (retries + 1)}ms...`);
+                await new Promise(r => setTimeout(r, RATE_LIMIT_BACKOFF_MS * (retries + 1)));
+                emailQueue.unshift({ emailFn, resolve, reject, retries: retries + 1 });
+            } else {
+                console.error('❌ Queued email failed:', error.message);
+                reject(error);
+            }
         }
         
         // Wait before sending next email to respect rate limit
@@ -69,6 +83,8 @@ const sendWithResend = async (mailOptions) => {
     console.log('📧 Sending email via Resend API...');
     console.log('   To:', mailOptions.to);
     console.log('   Subject:', mailOptions.subject);
+    console.log('   Queue status: length=' + emailQueue.length + ', processing=' + isProcessingQueue);
+    console.log('   Timestamp:', new Date().toISOString());
     
     const { data, error } = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || 'CrwdCtrl <onboarding@resend.dev>',
@@ -81,6 +97,7 @@ const sendWithResend = async (mailOptions) => {
     
     if (error) {
         console.error('❌ Resend API error:', error);
+        console.error('   Error details:', JSON.stringify(error, null, 2));
         throw new Error(error.message || 'Resend API failed');
     }
     
