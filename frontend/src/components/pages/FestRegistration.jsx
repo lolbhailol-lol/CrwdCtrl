@@ -1608,7 +1608,7 @@ export default function FestRegistration() {
           {fest?.registration?.whatsappCommunityLink && (
             <div className={`rounded-lg p-4 mb-6 border ${isDark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-300'}`}>
               <p className={`text-sm mb-3 ${isDark ? 'text-green-400' : 'text-green-700'}`}>
-                Join our WhatsApp community to stay updated!
+                Join to know about the event updates, timings and schedule
               </p>
               <a
                 href={fest.registration.whatsappCommunityLink}
@@ -1984,7 +1984,7 @@ export default function FestRegistration() {
                       Join Our WhatsApp Community
                     </h4>
                     <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      Stay updated with event details, announcements, and connect with other participants!
+                      Join to know about the event updates, timings and schedule
                     </p>
                     <a
                       href={fest.registration.whatsappCommunityLink}

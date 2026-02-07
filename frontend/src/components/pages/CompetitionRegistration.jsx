@@ -1138,7 +1138,7 @@ export default function CompetitionRegistration() {
                     {competition?.registration?.whatsappGroupLink && (
                         <div className="bg-green-900/20 border border-green-800 rounded-lg p-4 mb-4">
                             <p className="text-sm text-green-400 mb-3">
-                                Join our WhatsApp group to stay updated!
+                                Join to know about the competition updates, timings and schedule
                             </p>
                             <a
                                 href={competition.registration.whatsappGroupLink}
