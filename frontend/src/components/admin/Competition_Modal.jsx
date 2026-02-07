@@ -463,6 +463,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       status: 'not_started', // 'not_started', 'external_link', 'internal_form', 'registration_closed'
       externalUrl: '',
       googleSheetsUrl: '',
+      whatsappGroupLink: '',
       formType: 'SINGLE_STEP', // SINGLE_STEP | MULTI_STEP
       formSchema: [], // For single step forms
       steps: [], // For multi-step forms
@@ -541,6 +542,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
             status: competition.registration?.status || 'not_started',
             externalUrl: competition.registration?.externalUrl || '',
             googleSheetsUrl: competition.registration?.googleSheetsUrl || '',
+            whatsappGroupLink: competition.registration?.whatsappGroupLink || '',
             formType: competition.registration?.formType || 'SINGLE_STEP',
             formSchema: Array.isArray(competition.registration?.formSchema) ? competition.registration.formSchema.map(field => ({
               ...field,
@@ -1335,6 +1337,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       })));
       console.log('Frontend - QR Code in payload:', payload.registration?.qrCode);
       console.log('Frontend - QR Code Message in payload:', payload.registration?.qrCodeMessage);
+      console.log('Frontend - WhatsApp Group Link in payload:', payload.registration?.whatsappGroupLink);
 
       const method = competition ? 'PUT' : 'POST';
       const url = competition
@@ -2240,6 +2243,25 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                               })}
                             />
                             <p className="text-xs text-gray-400">This message will be displayed with the QR code</p>
+                          </div>
+
+                          {/* WhatsApp Group Link */}
+                          <div className="space-y-2">
+                            <label className="block text-sm font-medium mb-2">WhatsApp Group Link (Optional)</label>
+                            <input
+                              type="url"
+                              placeholder="https://chat.whatsapp.com/... (optional - for participants to join)"
+                              className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                              value={form.registration?.whatsappGroupLink || ''}
+                              onChange={(e) => setForm({
+                                ...form,
+                                registration: {
+                                  ...form.registration,
+                                  whatsappGroupLink: e.target.value
+                                }
+                              })}
+                            />
+                            <p className="text-xs text-gray-400">Share a WhatsApp group link for participants to join after registration</p>
                           </div>
                         </div>
 

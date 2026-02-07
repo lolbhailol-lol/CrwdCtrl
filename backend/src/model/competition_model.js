@@ -127,6 +127,10 @@ const competitionSchema = new mongoose.Schema(
         return this.registrationType === 'custom' && this.registration?.status === 'external_link';
       }
     },
+    whatsappGroupLink: {
+      type: String,
+      default: ''
+    },
     formType: {
       type: String,
       enum: ['SINGLE_STEP', 'MULTI_STEP'],
