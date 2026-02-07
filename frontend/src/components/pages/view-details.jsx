@@ -542,7 +542,7 @@ function EventDetailsPage() {
       <div className="hidden xl:block">
         <div className={`transition-all duration-300`}>
           {/* Content */}
-          <div className="max-w-9xl mx-auto px-2  py-4 ml-3">
+          <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4">
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-8">
               {/* Left Column - Event Details */}
               <div className="xl:col-span-2 space-y-4 sm:space-y-6">

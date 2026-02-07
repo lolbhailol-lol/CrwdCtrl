@@ -9,6 +9,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useAuth } from '../../context/AuthContext';
 import FestCard from '../FestCard';
+import Footer from '../Footer';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
 import axios from 'axios';
@@ -282,6 +283,11 @@ function TechFestPage() {
                         )}
                     </div>
                 </main>
+
+                {/* Footer - Hidden on mobile */}
+                <div className={`hidden md:block mt-16 transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
+                    <Footer />
+                </div>
             </div>
 
             {/* Profile Sidebar */}

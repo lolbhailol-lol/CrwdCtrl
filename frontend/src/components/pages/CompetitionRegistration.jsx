@@ -9,7 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 export default function CompetitionRegistration() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
-    const { isAuthenticated, isLoading: authLoading, token } = useAuth();
+    const { isAuthenticated, isLoading: authLoading, token, isAuthProcessing, isRedirectProcessing } = useAuth();
     
     const [competition, setCompetition] = useState(null);
     const [formData, setFormData] = useState({});
@@ -151,31 +151,32 @@ export default function CompetitionRegistration() {
     // ✅ MAIN: Initialize registration and fetch competition details
     useEffect(() => {
         const initializeRegistration = async () => {
-            // Wait for auth context to fully load
-            if (authLoading) {
+            console.log('🔄 CompReg: Initializing registration...', {
+                authLoading, isAuthenticated, isAuthProcessing, isRedirectProcessing,
+                hasToken: !!token,
+                hasLocalToken: !!localStorage.getItem('crwdctrl_token')
+            });
+
+            // ✅ CRITICAL: Wait for ALL auth processes to finish
+            if (authLoading || isAuthProcessing || isRedirectProcessing) {
+                console.log('⏳ CompReg: Auth still loading, waiting...');
                 return;
             }
 
-            // Check authentication with fallback to localStorage
+            // ✅ FIX: Check AuthContext FIRST, then fallback to localStorage
             const localToken = localStorage.getItem('crwdctrl_token');
+            const hasAuth = isAuthenticated || !!token || !!localToken;
             
-            if (!isAuthenticated && !localToken) {
+            if (!hasAuth) {
+                console.log('❌ CompReg: No authentication data found, redirecting to login');
                 setError('Please log in to register for competitions');
-                // Save current URL for redirect after login
                 sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
                 setTimeout(() => navigate('/login', { replace: true }), 2000);
                 return;
             }
 
-            // If we have a local token but context isn't authenticated yet, give it more time
-            if (!isAuthenticated && localToken) {
-                setTimeout(() => {
-                    proceedWithRegistration();
-                }, 1000);
-                return;
-            }
-
             // User is authenticated, proceed with registration
+            console.log('✅ CompReg: Authentication confirmed, proceeding');
             proceedWithRegistration();
         };
 
@@ -184,7 +185,7 @@ export default function CompetitionRegistration() {
         };
 
         initializeRegistration();
-    }, [competitionId, isAuthenticated, authLoading, navigate, token, fetchCompetitionDetails]);
+    }, [competitionId, isAuthenticated, authLoading, isAuthProcessing, isRedirectProcessing, navigate, token, fetchCompetitionDetails]);
 
     useEffect(() => {
         if (error) {
@@ -553,7 +554,7 @@ export default function CompetitionRegistration() {
             const response = await fetch(`${API_BASE_URL}/users/upload/image`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`
+                    'Authorization': `Bearer ${token || localStorage.getItem('crwdctrl_token')}`
                 },
                 body: formData,
                 credentials: 'include',
@@ -1008,7 +1009,7 @@ export default function CompetitionRegistration() {
             const response = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/custom`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`,
+                    'Authorization': `Bearer ${token || localStorage.getItem('crwdctrl_token')}`,
                     // Don't set Content-Type for FormData - browser will set it with boundary
                 },
                 body: submissionFormData,
@@ -1122,9 +1123,6 @@ export default function CompetitionRegistration() {
                     <p className="text-sm text-gray-500 mb-4">
                         You will receive a confirmation email shortly with your registration details.
                     </p>
-                    
-
-                    
                     <button
                         onClick={() => navigate(`/competitions-view-details/${competitionId}`)}
                         className="px-6 py-2.5 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
@@ -1137,8 +1135,8 @@ export default function CompetitionRegistration() {
     }
 
     return (
-        <div className="min-h-screen bg-[#1B1C1E] py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-[#1B1C1E] py-2 sm:py-4 pb-24 md:pb-12">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
                 <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
                     <button
@@ -1551,7 +1549,7 @@ export default function CompetitionRegistration() {
                 })()}
 
                         {/* Submit Button */}
-                        <div className="flex gap-3 pt-2 pb-44 md:pb-32">
+                        <div className="flex gap-3 pt-2 pb-8 md:pb-4">
                             {/* Back Button */}
                             <button
                                 type="button"

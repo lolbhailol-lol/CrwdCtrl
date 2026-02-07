@@ -288,7 +288,8 @@ const CompetitionListPage = () => {
             </div>
 
             {/* Competition List */}
-            <div className="p-4 space-y-4">
+            <div className="p-4 max-w-7xl mx-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {competitions[activeTab]?.map((comp, idx) => {
                     // Safety check for comp object
                     if (!comp || typeof comp !== 'object') {
@@ -339,6 +340,7 @@ const CompetitionListPage = () => {
                         </div>
                     );
                 })}
+                </div>
 
                 {/* Empty state */}
                 {(!competitions[activeTab] || competitions[activeTab].length === 0) && (

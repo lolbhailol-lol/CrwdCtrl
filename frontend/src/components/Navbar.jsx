@@ -438,7 +438,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
     };
 
     return (
-        <header className={`fixed top-0 left-20 right-0 z-50 mx-2 lg:mx-5 pt-4 px-4 lg:px-8 py-4 rounded-b-2xl backdrop-blur-md transition-all duration-300 ${isDark
+        <header className={`fixed top-0 left-20 right-0 z-50 mx-2 lg:mx-4 pt-4 px-4 lg:px-6 py-4 rounded-b-2xl backdrop-blur-md transition-all duration-300 ${isDark
             ? 'bg-[#0a0a0a] '
             : 'bg-[#F5F6FA]'
             }`} style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>

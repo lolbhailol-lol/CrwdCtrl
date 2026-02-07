@@ -2367,6 +2367,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   </div>
                 </div>
               </div>
+
             </div>
           )}
 

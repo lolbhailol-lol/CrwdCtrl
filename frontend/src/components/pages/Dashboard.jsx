@@ -1473,7 +1473,7 @@ const Dashboard = () => {
                 </div>
 
                 <main className="flex-1 overflow-y-auto">
-                    <div className="px-4 py-5 sm:p-6 md:p-8 lg:px-12 lg:py-12 max-w-[1440px] mx-auto">
+                    <div className="px-4 py-5 sm:p-6 md:p-8 lg:px-10 lg:py-10 max-w-[1400px] mx-auto">
                         {/* Categories Section - Hidden on laptop/desktop, visible on mobile */}
                         <section className="mb-6 sm:mb-8 lg:hidden">
                             <h2 className={`text-2xl sm:text-3xl lg:text-2xl font-bold mb-4 sm:mb-6 tracking-tight ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -1516,7 +1516,7 @@ const Dashboard = () => {
                             </h2>
 
                             {/* Unified Mobile and Desktop: Horizontal scrollable cards */}
-                            <div className="relative">
+                            <div className="relative lg:px-2">
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={3} />
                                 ) : festError ? (
@@ -1588,7 +1588,8 @@ const Dashboard = () => {
                                                 onClick={() => navigate(`/view-details/${event.id}`)}
                                                 className={`min-w-[290px] w-[290px]
                                                             sm:min-w-[300px] sm:w-[300px]
-                                                            lg:min-w-[340px] lg:w-[340px]
+                                                            lg:min-w-[350px] lg:w-[350px]
+                                                            xl:min-w-[380px] xl:w-[380px]
                                                             rounded-2xl overflow-hidden cursor-pointer group flex-shrink-0 snap-start
                                                             transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
                                                             ${isDark 
@@ -1597,7 +1598,7 @@ const Dashboard = () => {
                                                             }`}
                                             >
                                                 {/* Image */}
-                                                <div className="relative h-[200px] overflow-hidden">
+                                                <div className="relative h-[200px] lg:h-[220px] overflow-hidden">
                                                     <img
                                                         src={getImageUrl(event.image)}
                                                         alt={event.title}
@@ -1750,7 +1751,7 @@ const Dashboard = () => {
                                 Beyond Campus
                             </h2>
 
-                            <div className="relative">
+                            <div className="relative lg:px-2">
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={3} />
                                 ) : festError && beyondCampusEvents.length === 0 ? (
@@ -1822,7 +1823,8 @@ const Dashboard = () => {
                                                 onClick={() => navigate(`/view-details/${event.id}`)}
                                                 className={`min-w-[290px] w-[290px]
                                                             sm:min-w-[300px] sm:w-[300px]
-                                                            lg:min-w-[340px] lg:w-[340px]
+                                                            lg:min-w-[350px] lg:w-[350px]
+                                                            xl:min-w-[380px] xl:w-[380px]
                                                             rounded-2xl overflow-hidden cursor-pointer group flex-shrink-0 snap-start
                                                             transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
                                                             ${isDark 
@@ -1831,7 +1833,7 @@ const Dashboard = () => {
                                                             }`}
                                             >
                                                 {/* Image */}
-                                                <div className="relative h-[200px] overflow-hidden">
+                                                <div className="relative h-[200px] lg:h-[220px] overflow-hidden">
                                                     <img
                                                         src={getImageUrl(event.image)}
                                                         alt={event.title}
@@ -2027,7 +2029,7 @@ const Dashboard = () => {
                             </h2>
 
                             {/* Coming Soon Events – Horizontal scroll (same format) */}
-                            <div className="relative">
+                            <div className="relative lg:px-2">
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={4} />
                                 ) : festError && upcomingEvents.length === 0 ? (
@@ -2099,7 +2101,8 @@ const Dashboard = () => {
                                                 onClick={() => navigate(`/view-details/${event.id}`)}
                                                 className={`min-w-[290px] w-[290px]
                                                             sm:min-w-[300px] sm:w-[300px]
-                                                            lg:min-w-[340px] lg:w-[340px]
+                                                            lg:min-w-[350px] lg:w-[350px]
+                                                            xl:min-w-[380px] xl:w-[380px]
                                                             rounded-2xl overflow-hidden cursor-pointer group flex-shrink-0 snap-start
                                                             transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
                                                             ${isDark 
@@ -2108,7 +2111,7 @@ const Dashboard = () => {
                                                             }`}
                                             >
                                                 {/* Image */}
-                                                <div className="relative h-[200px] overflow-hidden">
+                                                <div className="relative h-[200px] lg:h-[220px] overflow-hidden">
                                                     <img
                                                         src={getImageUrl(event.image)}
                                                         alt={event.title}
@@ -2238,7 +2241,7 @@ const Dashboard = () => {
                     </div>
                 </main>
 
-                <footer className={`w-full py-6 sm:py-8 md:py-12 mt-8 sm:mt-12 md:mt-24 lg:mt-28 ${isDark
+                <footer className={`w-full py-6 sm:py-8 md:py-12 mt-8 sm:mt-12 md:mt-16 lg:mt-20 ${isDark
                     ? 'bg-[#0a0a0a] border-gray-700'
                     : 'bg-[#F5F6FA] border-gray-200'
                     }`}>

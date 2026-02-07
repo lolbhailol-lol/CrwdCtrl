@@ -739,19 +739,9 @@ function EventPage() {
     };
 
     return (
-        <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-[#F5F6FA]'}`}>
-            {/* Desktop Sidebar - Hidden on mobile and when viewport is too narrow */}
-            <div className="hidden lg:block">
-                <Sidebar onProfileToggle={() => setIsProfileOpen(!isProfileOpen)} />
-            </div>
+        <div className={`min-h-screen flex flex-col transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-[#F5F6FA]'}`}>
 
-            <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
-                {/* Desktop Navbar - Hidden on mobile and when viewport is too narrow */}
-                <div className="hidden lg:block">
-                    <Navbar setIsProfileOpen={setIsProfileOpen} />
-                </div>
-
-                <main className={`flex-1 pb-40 sm:pb-32 lg:pb-16 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
+            <main className={`flex-1 pb-24 sm:pb-16 lg:pb-8 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
                     <div className="max-w-7xl mx-auto">
                         {/* Mobile/Narrow Layout */}
                         <div className="block lg:hidden pb-24">
@@ -1478,15 +1468,6 @@ function EventPage() {
                 <div className="hidden lg:block">
                     <Footer />
                 </div>
-            </div>
-
-            {/* Profile Sidebar */}
-            <ProfileSidebar
-                isOpen={isProfileOpen}
-                onClose={() => setIsProfileOpen(false)}
-                onShowLogin={() => setShowLogin(true)}
-                onShowRegister={() => setShowRegister(true)}
-            />
 
             {/* Mobile Fixed Bottom Register Button - Only show on narrow screens */}
             <button

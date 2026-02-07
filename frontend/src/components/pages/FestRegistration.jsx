@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useDarkMode } from '../../context/DarkModeContext';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -11,7 +12,8 @@ export default function FestRegistration() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const competitionId = searchParams.get('competition');
-  const { isAuthenticated, isLoading: authLoading, token: authToken } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, token: authToken, isAuthProcessing, isRedirectProcessing } = useAuth();
+  const { isDark } = useDarkMode();
   
   const [fest, setFest] = useState(null);
   const [competition, setCompetition] = useState(null);
@@ -43,17 +45,27 @@ export default function FestRegistration() {
       console.log('🔄 Initializing registration...', { 
         authLoading, 
         isAuthenticated, 
+        isAuthProcessing,
+        isRedirectProcessing,
         hasToken: !!authToken,
         hasLocalToken: !!localStorage.getItem('crwdctrl_token'),
         hasLocalUser: !!localStorage.getItem('crwdctrl_user')
       });
 
-      // ✅ CRITICAL FIX: Don't wait for auth context if we have localStorage data
+      // ✅ CRITICAL: Wait for ALL auth processes to finish before making decisions
+      // authLoading = initial load, isAuthProcessing = Firebase restoring session, isRedirectProcessing = OAuth redirect
+      if (authLoading || isAuthProcessing || isRedirectProcessing) {
+        console.log('⏳ Auth still loading, waiting...', { authLoading, isAuthProcessing, isRedirectProcessing });
+        return;
+      }
+
+      // ✅ FIX: Check AuthContext FIRST, then fallback to localStorage
       const localToken = localStorage.getItem('crwdctrl_token');
       const localUser = localStorage.getItem('crwdctrl_user');
+      const hasAuth = isAuthenticated || !!authToken || !!localToken;
       
-      // If no authentication data at all, redirect to login
-      if (!localToken || !localUser) {
+      // If no authentication data at all (neither context nor localStorage), redirect to login
+      if (!hasAuth) {
         console.log('❌ No authentication data found, redirecting to login');
         setError('Please log in to register for events');
         // Save current URL for redirect after login
@@ -62,9 +74,12 @@ export default function FestRegistration() {
         return;
       }
 
-      // ✅ PERFORMANCE: Proceed immediately if we have localStorage data
-      // Don't wait for auth context to load
-      console.log('✅ Authentication data found in localStorage, proceeding with registration');
+      // ✅ User is authenticated via context or localStorage, proceed
+      console.log('✅ Authentication confirmed, proceeding with registration', {
+        viaContext: isAuthenticated,
+        viaToken: !!authToken,
+        viaLocalStorage: !!localToken
+      });
       proceedWithRegistration();
     };
 
@@ -79,7 +94,7 @@ export default function FestRegistration() {
 
     initializeRegistration();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [festId, competitionId]);
+  }, [festId, competitionId, authLoading, isAuthenticated, isAuthProcessing, isRedirectProcessing]);
 
   useEffect(() => {
     if (error) {
@@ -266,7 +281,7 @@ export default function FestRegistration() {
   const renderFormField = (field, fieldId, currentData, onFieldChange) => {
     return (
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-white mb-1.5">
+        <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {field.label}
           {field.required && <span className="text-red-400 ml-1">*</span>}
         </label>
@@ -295,7 +310,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm transition-colors"
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
           />
         );
       
@@ -309,7 +324,7 @@ export default function FestRegistration() {
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
             rows={3}
-            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm resize-none transition-colors"
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm resize-none transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
           />
         );
       
@@ -321,7 +336,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm transition-colors"
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
           >
             <option value="">Select an option</option>
             {field.options?.map((option, index) => (
@@ -334,7 +349,7 @@ export default function FestRegistration() {
         return (
           <div className="space-y-2">
             {field.options?.map((option, index) => (
-              <label key={index} className="flex items-center space-x-3 cursor-pointer p-2 rounded-lg border border-gray-600 hover:border-gray-500 hover:bg-gray-800/30 transition-colors">
+              <label key={index} className={`flex items-center space-x-3 cursor-pointer p-2 rounded-lg border transition-colors ${isDark ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-800/30' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-100'}`}>
                 <input
                   type="radio"
                   name={fieldId}
@@ -342,9 +357,9 @@ export default function FestRegistration() {
                   checked={value === option}
                   onChange={(e) => onFieldChange(fieldId, e.target.value)}
                   required={field.required}
-                  className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-600 focus:ring-[#0ECCEE] focus:ring-2"
+                  className={`w-4 h-4 text-[#0ECCEE] focus:ring-[#0ECCEE] focus:ring-2 ${isDark ? 'bg-[#2A2B2D] border-gray-600' : 'bg-white border-gray-300'}`}
                 />
-                <span className="text-sm text-white">{option}</span>
+                <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{option}</span>
               </label>
             ))}
           </div>
@@ -356,7 +371,7 @@ export default function FestRegistration() {
             {field.options?.map((option, index) => {
               const isChecked = Array.isArray(value) ? value.includes(option) : false;
               return (
-                <label key={index} className="flex items-center space-x-3 cursor-pointer p-2 rounded-lg border border-gray-600 hover:border-gray-500 hover:bg-gray-800/30 transition-colors">
+                <label key={index} className={`flex items-center space-x-3 cursor-pointer p-2 rounded-lg border transition-colors ${isDark ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-800/30' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-100'}`}>
                   <input
                     type="checkbox"
                     value={option}
@@ -369,9 +384,9 @@ export default function FestRegistration() {
                         onFieldChange(fieldId, currentValues.filter(v => v !== option));
                       }
                     }}
-                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-600 rounded focus:ring-[#0ECCEE] focus:ring-2"
+                    className={`w-4 h-4 text-[#0ECCEE] rounded focus:ring-[#0ECCEE] focus:ring-2 ${isDark ? 'bg-[#2A2B2D] border-gray-600' : 'bg-white border-gray-300'}`}
                   />
-                  <span className="text-sm text-white">{option}</span>
+                  <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{option}</span>
                 </label>
               );
             })}
@@ -393,7 +408,7 @@ export default function FestRegistration() {
             value={sanitizedValue}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm transition-colors"
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
           />
         );
       }
@@ -415,7 +430,7 @@ export default function FestRegistration() {
                 }
               }}
               required={field.required}
-              className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#0ECCEE] file:text-black hover:file:bg-[#0ECCEE]/80 transition-colors"
+              className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#0ECCEE] file:text-black hover:file:bg-[#0ECCEE]/80 transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
             />
             {uploadingFiles[fieldId] && (
               <div className="flex items-center gap-2 text-sm text-blue-400">
@@ -438,7 +453,7 @@ export default function FestRegistration() {
         return (
           <div className="space-y-4">
             {groupEntries.map((entry, entryIndex) => (
-              <div key={`group-entry-${fieldId}-${entryIndex}`} className="bg-[#1B1C1E] p-4 rounded-lg border border-gray-600">
+              <div key={`group-entry-${fieldId}-${entryIndex}`} className={`p-4 rounded-lg border ${isDark ? 'bg-[#1B1C1E] border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-[#0ECCEE]">Entry {entryIndex + 1}</span>
                   <button
@@ -462,7 +477,7 @@ export default function FestRegistration() {
                     
                     return (
                       <div key={subFieldKey}>
-                        <label className="block text-xs text-gray-400 mb-1">
+                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                           {subField.label}
                           {subField.required && <span className="text-red-400 ml-1">*</span>}
                         </label>
@@ -487,7 +502,7 @@ export default function FestRegistration() {
                             onFieldChange(fieldId, newEntries);
                           }}
                           required={subField.required}
-                          className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-white text-sm"
+                          className={`w-full px-3 py-2 rounded-lg border focus:border-[#0ECCEE] focus:outline-none text-sm ${isDark ? 'bg-[#2A2B2D] border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                         />
                       </div>
                     );
@@ -506,7 +521,7 @@ export default function FestRegistration() {
                 });
                 onFieldChange(fieldId, [...groupEntries, newEntry]);
               }}
-              className="w-full py-2 px-4 border-2 border-dashed border-gray-600 hover:border-[#0ECCEE] rounded-lg text-gray-400 hover:text-[#0ECCEE] transition-colors text-sm flex items-center justify-center gap-2"
+              className={`w-full py-2 px-4 border-2 border-dashed hover:border-[#0ECCEE] rounded-lg hover:text-[#0ECCEE] transition-colors text-sm flex items-center justify-center gap-2 ${isDark ? 'border-gray-600 text-gray-400' : 'border-gray-300 text-gray-500'}`}
             >
               <span>+</span> Add {field.label || 'Entry'}
             </button>
@@ -526,7 +541,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className="w-full px-3 py-2.5 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white placeholder-gray-400 text-sm transition-colors"
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
           />
         );
     }
@@ -875,7 +890,7 @@ export default function FestRegistration() {
       const response = await fetch(`${API_BASE_URL}/users/upload/image`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('crwdctrl_token')}`
+          'Authorization': `Bearer ${authToken || localStorage.getItem('crwdctrl_token')}`
           // Don't set Content-Type - let browser set it with boundary for FormData
         },
         body: formData,
@@ -998,8 +1013,8 @@ export default function FestRegistration() {
 
     try {
       setSubmissionProgress('Validating authentication...');
-      // ✅ CRITICAL: Use localStorage token directly, don't rely on context
-      const token = localStorage.getItem('crwdctrl_token');
+      // ✅ FIX: Use authToken from context FIRST, fallback to localStorage
+      const token = authToken || localStorage.getItem('crwdctrl_token');
       const user = localStorage.getItem('crwdctrl_user');
       
       // ✅ NEW: Get all form data once at the beginning (single-step or combined multi-step)
@@ -1008,10 +1023,11 @@ export default function FestRegistration() {
       console.log('🔑 Auth check for submission:', { 
         hasToken: !!token, 
         hasUser: !!user,
+        tokenSource: authToken ? 'context' : 'localStorage',
         tokenLength: token?.length 
       });
       
-      if (!token || !user) {
+      if (!token) {
         throw new Error('Authentication required. Please log in again.');
       }
 
@@ -1442,18 +1458,17 @@ export default function FestRegistration() {
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
-        <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
       </div>
     );
   }
 
   if (!fest) {
     return (
-      <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">Fest Not Found</h1>
-          <p className="text-gray-400 mb-6">The requested fest could not be found or may have been removed.</p>
+          <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Fest Not Found</h1>
+          <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>The requested fest could not be found or may have been removed.</p>
           <button
             onClick={() => navigate('/')}
             className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
@@ -1468,23 +1483,23 @@ export default function FestRegistration() {
   // ✅ CRITICAL: Better registration mode validation with detailed error messages
   if (!isCompetitionRegistration && fest.registration?.mode !== 'INTERNAL_FORM') {
     return (
-      <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
         <div className="text-center max-w-md mx-auto p-6">
-          <h1 className="text-2xl font-bold text-white mb-4">Registration Not Available</h1>
-          <p className="text-gray-400 mb-4">
+          <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Registration Not Available</h1>
+          <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             This fest does not accept internal form registrations.
           </p>
-          <div className="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-6">
-            <p className="text-yellow-300 text-sm">
+          <div className={`rounded-lg p-4 mb-6 border ${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-300'}`}>
+            <p className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
               Current registration mode: <span className="font-mono">{fest.registration?.mode || 'NOT_SET'}</span>
             </p>
-            <p className="text-yellow-300 text-sm mt-1">
+            <p className={`text-sm mt-1 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
               Expected mode: <span className="font-mono">INTERNAL_FORM</span>
             </p>
           </div>
           {fest.registration?.mode === 'EXTERNAL_LINK' && fest.registration?.externalLink && (
             <div className="mb-6">
-              <p className="text-gray-400 mb-3">Registration is available via external link:</p>
+              <p className={`mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration is available via external link:</p>
               <a
                 href={fest.registration.externalLink}
                 target="_blank"
@@ -1510,17 +1525,17 @@ export default function FestRegistration() {
   if (isCompetitionRegistration) {
     if (competition?.registrationType === 'fest' && fest.registration?.mode !== 'INTERNAL_FORM') {
       return (
-        <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
+        <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
           <div className="text-center max-w-md mx-auto p-6">
-            <h1 className="text-2xl font-bold text-white mb-4">Competition Registration Not Available</h1>
-            <p className="text-gray-400 mb-4">
+            <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Registration Not Available</h1>
+            <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               This competition uses fest registration, but the fest does not accept internal form registrations.
             </p>
-            <div className="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-6">
-              <p className="text-yellow-300 text-sm">
+            <div className={`rounded-lg p-4 mb-6 border ${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-300'}`}>
+              <p className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
                 Fest registration mode: <span className="font-mono">{fest.registration?.mode || 'NOT_SET'}</span>
               </p>
-              <p className="text-yellow-300 text-sm mt-1">
+              <p className={`text-sm mt-1 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
                 Expected mode: <span className="font-mono">INTERNAL_FORM</span>
               </p>
             </div>
@@ -1537,17 +1552,17 @@ export default function FestRegistration() {
     
     if (competition?.registrationType === 'custom' && competition?.registration?.status !== 'internal_form') {
       return (
-        <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
+        <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
           <div className="text-center max-w-md mx-auto p-6">
-            <h1 className="text-2xl font-bold text-white mb-4">Competition Registration Not Available</h1>
-            <p className="text-gray-400 mb-4">
+            <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Registration Not Available</h1>
+            <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               This competition has custom registration, but internal form registration is not enabled.
             </p>
-            <div className="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 mb-6">
-              <p className="text-yellow-300 text-sm">
+            <div className={`rounded-lg p-4 mb-6 border ${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-300'}`}>
+              <p className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
                 Competition registration status: <span className="font-mono">{competition?.registration?.status || 'NOT_SET'}</span>
               </p>
-              <p className="text-yellow-300 text-sm mt-1">
+              <p className={`text-sm mt-1 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
                 Expected status: <span className="font-mono">internal_form</span>
               </p>
             </div>
@@ -1567,16 +1582,16 @@ export default function FestRegistration() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center px-4">
+      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
         <div className="text-center max-w-md mx-auto p-8">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
-          <h1 className="text-3xl font-bold text-white mb-4">🎉 Registration Successful!</h1>
-          <p className="text-gray-400 mb-6">
+          <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>🎉 Registration Successful!</h1>
+          <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             Your registration for <span className="text-[#0ECCEE] font-semibold">
               {isCompetitionRegistration ? competition?.name : fest.festName}
             </span> has been submitted successfully.
           </p>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
             You will be redirected to your registered events shortly...
           </p>
 
@@ -1592,21 +1607,21 @@ export default function FestRegistration() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1B1C1E] py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20">
+    <div className={`min-h-screen py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0 mt-1"
+            className={`p-2 rounded-lg transition-colors flex-shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
           >
-            <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <ArrowLeft className={`w-5 h-5 sm:w-6 sm:h-6 ${isDark ? 'text-white' : 'text-gray-900'}`} />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white leading-tight">
+            <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
               Register for {isCompetitionRegistration ? competition?.name : fest.festName}
             </h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               {isCompetitionRegistration 
                 ? `${competition?.name} - ${fest.festName} (${fest.collegeName})`
                 : fest.collegeName
@@ -1617,7 +1632,7 @@ export default function FestRegistration() {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-900/20 border border-red-800 rounded-lg p-3 text-red-400 mb-4 text-sm">
+          <div className={`rounded-lg p-3 mb-4 text-sm border ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>
             {error}
           </div>
         )}
@@ -1625,18 +1640,18 @@ export default function FestRegistration() {
 
 
         {/* Registration Form */}
-        <div className="bg-[#2A2B2D] rounded-xl p-4 sm:p-6">
+        <div className={`rounded-xl p-4 sm:p-6 ${isDark ? 'bg-[#2A2B2D]' : 'bg-white shadow-sm'}`}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Form Instructions */}
             {fest.registration.formInstructions && (
-              <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3 sm:p-4">
+              <div className={`rounded-lg p-3 sm:p-4 border ${isDark ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-300'}`}>
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center mt-0.5">
                     <span className="text-white text-xs font-bold">i</span>
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-blue-300 mb-1">Instructions</h3>
-                    <div className="text-sm text-blue-100 whitespace-pre-wrap">
+                    <h3 className={`text-base font-semibold mb-1 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>Instructions</h3>
+                    <div className={`text-sm whitespace-pre-wrap ${isDark ? 'text-blue-100' : 'text-blue-600'}`}>
                       {fest.registration.formInstructions}
                     </div>
                   </div>
@@ -1646,16 +1661,16 @@ export default function FestRegistration() {
 
             {/* ✅ NEW: Multi-Step Progress Indicator */}
             {isMultiStepForm() && (
-              <div className="bg-[#1B1C1E] rounded-lg p-4 mb-4">
+              <div className={`rounded-lg p-4 mb-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-white">Progress</h3>
+                  <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
                   <div className="text-right">
-                    <span className="text-xs text-gray-400">Step {currentStep} of {getTotalSteps()}</span>
+                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {currentStep} of {getTotalSteps()}</span>
                   </div>
                 </div>
                 
                 {/* Progress Bar */}
-                <div className="w-full bg-gray-700 rounded-full h-2 mb-3">
+                <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                   <div 
                     className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(currentStep / getTotalSteps()) * 100}%` }}
@@ -1672,11 +1687,11 @@ export default function FestRegistration() {
                           ? 'bg-[#0ECCEE] text-black' 
                           : completedSteps.has(step.stepNumber)
                             ? 'bg-green-600 text-white'
-                            : 'bg-gray-600 text-gray-300'
+                            : isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-300 text-gray-600'
                       }`}>
                         {completedSteps.has(step.stepNumber) ? '✓' : step.stepNumber}
                       </div>
-                      <span className="text-xs text-gray-400 mt-1 text-center max-w-16 truncate">
+                      <span className={`text-xs mt-1 text-center max-w-16 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {step.stepTitle}
                       </span>
                     </div>
@@ -1690,11 +1705,11 @@ export default function FestRegistration() {
                           ? 'bg-[#0ECCEE] text-black' 
                           : completedSteps.has(fest.registration.steps.length + 1)
                             ? 'bg-green-600 text-white'
-                            : 'bg-gray-600 text-gray-300'
+                            : isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-300 text-gray-600'
                       }`}>
                         {completedSteps.has(fest.registration.steps.length + 1) ? '✓' : '💳'}
                       </div>
-                      <span className="text-xs text-gray-400 mt-1 text-center max-w-16">
+                      <span className={`text-xs mt-1 text-center max-w-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         Payment
                       </span>
                     </div>
@@ -1705,16 +1720,16 @@ export default function FestRegistration() {
 
             {/* ✅ NEW: Current Step Title and Description */}
             {isMultiStepForm() && (
-              <div className="bg-[#1B1C1E] rounded-lg p-4">
+              <div className={`rounded-lg p-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
                 {/* Step title and description */}
                 {currentStep <= fest.registration.steps.length ? (
                   // Regular form step
                   <>
-                    <h3 className="text-lg font-semibold text-white mb-2">
+                    <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepTitle}
                     </h3>
                     {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription && (
-                      <p className="text-sm text-gray-400 mb-4">
+                      <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription}
                       </p>
                     )}
@@ -1722,10 +1737,10 @@ export default function FestRegistration() {
                 ) : (
                   // Payment step
                   <>
-                    <h3 className="text-lg font-semibold text-white mb-2">
+                    <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       Payment
                     </h3>
-                    <p className="text-sm text-gray-400 mb-4">
+                    <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       Complete your payment to finalize your registration
                     </p>
                   </>
@@ -1759,8 +1774,8 @@ export default function FestRegistration() {
 
             {/* ✅ EXISTING: Single Step Form Fields */}
             {!isMultiStepForm() && (
-              <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4">
-                <h3 className="text-base font-semibold text-white mb-3 border-b border-gray-700 pb-2">Registration Details</h3>
+              <div className={`rounded-lg p-3 sm:p-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
+                <h3 className={`text-base font-semibold mb-3 pb-2 border-b ${isDark ? 'text-white border-gray-700' : 'text-gray-900 border-gray-200'}`}>Registration Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                   {(() => {
                     const formFields = fest.registration.formSchema;
@@ -1786,9 +1801,9 @@ export default function FestRegistration() {
               !isMultiStepForm() || 
               (isMultiStepForm() && currentStep > fest.registration.steps.length)
             ) && (
-              <div className="bg-[#1B1C1E] rounded-lg p-3 sm:p-4 border-2 border-yellow-600/30">
-                <div className="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
-                  <h3 className="text-base font-semibold text-white">Payment Information</h3>
+              <div className={`rounded-lg p-3 sm:p-4 border-2 ${isDark ? 'bg-[#1B1C1E] border-yellow-600/30' : 'bg-gray-50 border-yellow-400/50'}`}>
+                <div className={`flex items-center justify-between mb-3 pb-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <h3 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Information</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-center">
                   <div className="flex justify-center">
@@ -1799,7 +1814,7 @@ export default function FestRegistration() {
                     />
                   </div>
                   <div className="text-center md:text-left">
-                    <div className="text-sm text-gray-300">
+                    <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                       {fest.registration.paymentQRMessage ? (
                         <div className="whitespace-pre-wrap">{fest.registration.paymentQRMessage}</div>
                       ) : (
@@ -1810,8 +1825,8 @@ export default function FestRegistration() {
                 </div>
 
                 {/* ✅ NEW: Payment Receipt Upload Section */}
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <div className={`mt-4 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     <Upload className="w-4 h-4" />
                     Upload Payment Receipt <span className="text-red-400">*</span>
                   </h4>
@@ -1824,7 +1839,7 @@ export default function FestRegistration() {
                           className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
                             uploadingReceipt 
                               ? 'border-blue-400 bg-blue-900/20' 
-                              : 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70'
+                              : isDark ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70' : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
                           }`}
                         >
                           <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -1835,11 +1850,11 @@ export default function FestRegistration() {
                               </>
                             ) : (
                               <>
-                                <Upload className="w-8 h-8 mb-2 text-gray-400" />
-                                <p className="mb-2 text-sm text-gray-300">
+                                <Upload className={`w-8 h-8 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                <p className={`mb-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                   <span className="font-semibold">Click to upload</span> payment receipt
                                 </p>
-                                <p className="text-xs text-gray-400">PNG, JPG or PDF (Max 5MB)</p>
+                                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>PNG, JPG or PDF (Max 5MB)</p>
                               </>
                             )}
                           </div>
@@ -1861,7 +1876,7 @@ export default function FestRegistration() {
                       </div>
                       
                       {receiptError && (
-                        <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-2">
+                        <div className={`text-sm rounded-lg p-2 border ${isDark ? 'text-red-400 bg-red-900/20 border-red-800' : 'text-red-600 bg-red-50 border-red-300'}`}>
                           {receiptError}
                         </div>
                       )}
@@ -1872,7 +1887,7 @@ export default function FestRegistration() {
                         <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-sm text-green-400 font-medium">Payment receipt uploaded successfully</p>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             {paymentReceipt?.name} ({(paymentReceipt?.size / 1024 / 1024).toFixed(2)}MB)
                           </p>
                         </div>
@@ -1883,7 +1898,7 @@ export default function FestRegistration() {
                             setPaymentReceipt(null);
                             setReceiptError('');
                           }}
-                          className="text-gray-400 hover:text-white text-sm underline"
+                          className={`text-sm underline ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
                         >
                           Change
                         </button>
@@ -1895,7 +1910,7 @@ export default function FestRegistration() {
                           <img 
                             src={paymentReceiptUrl} 
                             alt="Payment receipt preview" 
-                            className="max-w-full max-h-32 object-contain rounded-lg border border-gray-600"
+                            className={`max-w-full max-h-32 object-contain rounded-lg border ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                           />
                         </div>
                       )}
@@ -1904,8 +1919,8 @@ export default function FestRegistration() {
                   
                   {/* ✅ NEW: Transaction ID Input - Always Visible Below Upload */}
                   {paymentReceiptUrl && (
-                    <div className="mt-4 pt-4 border-t border-gray-700">
-                      <label className="block text-sm font-semibold text-white mb-2">
+                    <div className={`mt-4 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         Transaction ID <span className="text-red-400">*</span>
                       </label>
                       <input
@@ -1913,13 +1928,13 @@ export default function FestRegistration() {
                         value={transactionId}
                         onChange={(e) => setTransactionId(e.target.value)}
                         placeholder="Enter transaction ID from payment (e.g., UPI ref, bank ref, etc.)"
-                        className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]"
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE] ${isDark ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`}
                       />
-                      <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
+                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>This helps us verify your payment</p>
                     </div>
                   )}
                   
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     Please upload a clear image or PDF of your payment receipt/screenshot after completing the payment.
                   </p>
                 </div>
@@ -1932,7 +1947,7 @@ export default function FestRegistration() {
               <button
                 type="button"
                 onClick={isMultiStepForm() && currentStep > 1 ? handleStepBack : () => navigate(-1)}
-                className="px-4 sm:px-6 py-2.5 rounded-lg border border-gray-700 text-white hover:bg-gray-800 transition-colors text-sm sm:text-base"
+                className={`px-4 sm:px-6 py-2.5 rounded-lg border transition-colors text-sm sm:text-base ${isDark ? 'border-gray-700 text-white hover:bg-gray-800' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
                 disabled={submitting}
               >
                 {isMultiStepForm() && currentStep > 1 ? 'Previous Step' : 'Cancel'}
@@ -1953,7 +1968,7 @@ export default function FestRegistration() {
                     {/* Progress indicator */}
                     {submissionProgress && (
                       <div className="w-full mt-2">
-                        <div className="bg-gray-700 rounded-full h-1.5">
+                        <div className={`rounded-full h-1.5 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                           <div 
                             className="bg-[#0ECCEE] h-1.5 rounded-full transition-all duration-500 ease-out"
                             style={{

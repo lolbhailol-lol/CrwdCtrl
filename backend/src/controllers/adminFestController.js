@@ -447,7 +447,7 @@ exports.createCompetition = async (req, res) => {
       contact,
       registration,
       registrationType,  // NEW: 'fest' or 'custom'
-      legacyRegistration // NEW: for backward compatibility
+      legacyRegistration, // NEW: for backward compatibility
     } = req.body;
 
     // ✅ Enhanced validation with detailed error messages
