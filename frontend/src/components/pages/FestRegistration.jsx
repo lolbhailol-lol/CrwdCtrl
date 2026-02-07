@@ -540,8 +540,9 @@ export default function FestRegistration() {
       // Add cache busting parameter to ensure fresh data
       const cacheBuster = Date.now();
       const response = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
-        credentials: 'include',
-        mode: 'cors'
+        credentials: 'omit', // ✅ iOS/Safari fix - no credentials for public API
+        mode: 'cors',
+        headers: { 'Accept': 'application/json' }
       });
       if (!response.ok) {
         throw new Error('Failed to fetch fest details');
@@ -604,8 +605,9 @@ export default function FestRegistration() {
       
       // Fetch competition details first
       const competitionResponse = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`, {
-        credentials: 'include',
-        mode: 'cors'
+        credentials: 'omit', // ✅ iOS/Safari fix - no credentials for public API
+        mode: 'cors',
+        headers: { 'Accept': 'application/json' }
       });
       if (!competitionResponse.ok) {
         throw new Error('Failed to fetch competition details');
@@ -621,8 +623,9 @@ export default function FestRegistration() {
       // Fetch fest details
       const cacheBuster = Date.now();
       const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
-        credentials: 'include',
-        mode: 'cors'
+        credentials: 'omit', // ✅ iOS/Safari fix - no credentials for public API
+        mode: 'cors',
+        headers: { 'Accept': 'application/json' }
       });
       if (!festResponse.ok) {
         throw new Error('Failed to fetch fest details');

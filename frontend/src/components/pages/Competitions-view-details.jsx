@@ -20,6 +20,10 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 axios.defaults.baseURL = API_BASE_URL;
 
+// ✅ FIX FOR iOS/SAFARI: Configure axios defaults for cross-origin requests
+axios.defaults.withCredentials = false;
+axios.defaults.headers.common['Accept'] = 'application/json';
+
 function EventPage() {
     const { competitionId } = useParams();
     const navigate = useNavigate();

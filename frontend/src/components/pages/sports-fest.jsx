@@ -17,6 +17,11 @@ import axios from 'axios';
 // Configure axios base URL - Use Vite environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 axios.defaults.baseURL = API_BASE_URL;
+
+// ✅ FIX FOR iOS/SAFARI: Configure axios defaults for cross-origin requests
+axios.defaults.withCredentials = false;
+axios.defaults.headers.common['Accept'] = 'application/json';
+
 console.log('🔧 sports-fest - API_BASE_URL:', API_BASE_URL);
 
 function SportsFestPage() {
@@ -37,8 +42,21 @@ function SportsFestPage() {
             setLoading(true);
             setError(null);
             
+            // ✅ iOS/Safari compatibility - longer timeout
+            const userAgent = navigator.userAgent || '';
+            const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+            const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
+            const timeout = (isIOS || isSafari) ? 20000 : 10000;
+            
             // Add cache busting parameter to ensure fresh data
-            const response = await axios.get(`/fests/all?t=${Date.now()}`);
+            const response = await axios.get(`/fests/all?t=${Date.now()}`, {
+                timeout: timeout,
+                withCredentials: false,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
             const data = response.data;
             const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
             

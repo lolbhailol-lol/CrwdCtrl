@@ -21,6 +21,10 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 axios.defaults.baseURL = API_BASE_URL;
 
+// ✅ FIX FOR iOS/SAFARI: Configure axios defaults for cross-origin requests
+axios.defaults.withCredentials = false;
+axios.defaults.headers.common['Accept'] = 'application/json';
+
 function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { isAuthenticated } = useAuth();
@@ -56,10 +60,23 @@ function EventDetailsPage() {
         
         console.log('ViewDetails - Fetching event data for ID:', eventId);
         
+        // ✅ iOS/Safari compatibility - longer timeout
+        const userAgent = navigator.userAgent || '';
+        const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+        const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
+        const timeout = (isIOS || isSafari) ? 20000 : 10000;
+        
         // Fetch from public fests API - this already includes populated competitions
         // Add cache busting timestamp to ensure fresh data
         const timestamp = Date.now();
-        const response = await axios.get(`/fests/${eventId}/public?t=${timestamp}`);
+        const response = await axios.get(`/fests/${eventId}/public?t=${timestamp}`, {
+          timeout: timeout,
+          withCredentials: false,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
         console.log('ViewDetails - API Response:', response.data);
         console.log('ViewDetails - Contacts in API Response:', response.data.contacts);
         console.log('ViewDetails - Artists Heading in API Response:', response.data.artistsHeading);

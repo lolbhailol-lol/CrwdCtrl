@@ -6,6 +6,41 @@
 // Get the API base URL from environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
+// ✅ iOS/Safari compatibility - detect device type
+const getIsIOSOrSafari = () => {
+    const userAgent = navigator.userAgent || '';
+    return /iPhone|iPad|iPod/i.test(userAgent) || 
+           (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent));
+};
+
+// ✅ iOS-compatible fetch with proper headers
+const fetchWithIOSFix = async (url, options = {}) => {
+    const isIOS = getIsIOSOrSafari();
+    const timeout = isIOS ? 20000 : 10000;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                ...options.headers
+            },
+            // ✅ Don't send credentials for public API calls (fixes iOS CORS issues)
+            credentials: 'omit'
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
+
 /**
  * Transform backend fest data to match frontend expectations
  * @param {Object} fest - Backend fest object
@@ -76,7 +111,8 @@ export const searchCompetitions = async (query, filters = {}) => {
         const url = `${API_BASE_URL}/competitions/search?${searchParams.toString()}`;
         console.log('🔍 Competition search URL:', url);
         
-        const response = await fetch(url);
+        // ✅ Use iOS-compatible fetch
+        const response = await fetchWithIOSFix(url);
         console.log('🔍 Competition response status:', response.status);
         
         if (!response.ok) {
@@ -160,7 +196,8 @@ export const searchFests = async (query, filters = {}) => {
         }
 
         const url = `${API_BASE_URL}/fests/search?${searchParams.toString()}`;
-        const response = await fetch(url);
+        // ✅ Use iOS-compatible fetch
+        const response = await fetchWithIOSFix(url);
         
         if (!response.ok) {
             throw new Error(`Search failed: ${response.status} ${response.statusText}`);
@@ -192,7 +229,8 @@ export const getAllPublicFests = async (options = {}) => {
         if (options.search) searchParams.append('search', options.search);
         if (options.sortBy) searchParams.append('sortBy', options.sortBy);
 
-        const response = await fetch(`${API_BASE_URL}/fests/all?${searchParams.toString()}`);
+        // ✅ Use iOS-compatible fetch
+        const response = await fetchWithIOSFix(`${API_BASE_URL}/fests/all?${searchParams.toString()}`);
         
         if (!response.ok) {
             throw new Error(`Failed to fetch fests: ${response.status} ${response.statusText}`);
@@ -220,7 +258,8 @@ export const getAllPublicFests = async (options = {}) => {
  */
 export const getUpcomingFests = async (limit = 5) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/fests/upcoming?limit=${limit}`);
+        // ✅ Use iOS-compatible fetch
+        const response = await fetchWithIOSFix(`${API_BASE_URL}/fests/upcoming?limit=${limit}`);
         
         if (!response.ok) {
             throw new Error(`Failed to fetch upcoming fests: ${response.status} ${response.statusText}`);

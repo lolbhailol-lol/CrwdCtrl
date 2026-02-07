@@ -27,13 +27,17 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 axios.defaults.baseURL = API_BASE_URL;
 
+// ✅ FIX FOR iOS/SAFARI: Configure axios defaults for cross-origin requests
+axios.defaults.withCredentials = false; // Don't send cookies for public API calls (fixes iOS issues)
+axios.defaults.headers.common['Accept'] = 'application/json';
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+
 console.log('🔧 Dashboard API Configuration:', {
     VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
     API_BASE_URL: API_BASE_URL,
     NODE_ENV: import.meta.env.NODE_ENV,
     MODE: import.meta.env.MODE
 });
-axios.defaults.baseURL = API_BASE_URL;
 
 // ✅ Frontend caching system for better Cloud Run performance
 const CACHE_KEYS = {
@@ -495,14 +499,29 @@ const Dashboard = () => {
                 console.log('🔄 Fetching fresh fests data from API');
                 const fetchStartTime = performance.now();
                 
-                // Use environment-specific timeout
+                // Use environment-specific timeout - longer for iOS
+                const userAgent = navigator.userAgent || '';
+                const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+                const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
+                const defaultTimeout = (isIOS || isSafari) ? 20000 : 10000; // Longer timeout for iOS/Safari
                 const timeout = import.meta.env.VITE_API_TIMEOUT ? 
-                    parseInt(import.meta.env.VITE_API_TIMEOUT) : 10000;
+                    parseInt(import.meta.env.VITE_API_TIMEOUT) : defaultTimeout;
                 
                 // Add cache busting to ensure fresh data
                 const cacheBuster = Date.now();
+                
+                if (isIOS || isSafari) {
+                    console.log('📱 iOS/Safari detected - using fetch API for better compatibility');
+                }
+                
                 const response = await axios.get(`/fests/all?_cb=${cacheBuster}&priority_check=1`, {
-                    timeout: timeout
+                    timeout: timeout,
+                    // ✅ iOS/Safari CORS fix - don't send credentials for public API
+                    withCredentials: false,
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
                 const fetchEndTime = performance.now();

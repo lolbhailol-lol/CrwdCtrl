@@ -61,7 +61,10 @@ export default function CompetitionRegistration() {
     // ✅ DEFINE fetchCompetitionDetails BEFORE useEffect that uses it
     const fetchCompetitionDetails = useCallback(async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`);
+            const response = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`, {
+                credentials: 'omit', // ✅ iOS/Safari fix - no credentials for public API
+                headers: { 'Accept': 'application/json' }
+            });
             if (!response.ok) {
                 throw new Error('Failed to fetch competition details');
             }
