@@ -74,6 +74,7 @@ export default function CompetitionRegistration() {
             console.log('📝 Registration status:', data.registration?.status);
             console.log('🎯 QR Code:', data.registration?.qrCode);
             console.log('💬 QR Code Message:', data.registration?.qrCodeMessage);
+            console.log('📋 Full registration object:', data.registration);
             console.log('📱 WhatsApp Group Link:', data.registration?.whatsappGroupLink);
             console.log('📋 Full registration object:', data.registration);
             console.log('🔄 Form type:', data.registration?.formType);
@@ -1154,30 +1155,7 @@ export default function CompetitionRegistration() {
                         </div>
                     )}
                     
-                    <button
-                        onClick={() => navigate(`/competitions-view-details/${competitionId}`)}
-                        className="px-6 py-2.5 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
-                    >
-                        Back to Competition
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="min-h-screen bg-[#1B1C1E] py-2 sm:py-4 pb-24 md:pb-12">
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0 mt-1"
-                    >
-                        <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                    </button>
-                    <div className="min-w-0 flex-1">
-                        <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white leading-tight">
+text-2xl font-bold text-white leading-tight">
                             Register for {competition?.name}
                         </h1>
                         <p className="text-sm text-gray-400 mt-0.5">
