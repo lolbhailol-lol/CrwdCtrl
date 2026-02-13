@@ -1154,8 +1154,29 @@ export default function CompetitionRegistration() {
                             </a>
                         </div>
                     )}
-                    
-text-2xl font-bold text-white leading-tight">
+
+                    <button
+                        onClick={() => navigate('/')}
+                        className="w-full px-4 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Main registration form
+    return (
+        <div className="min-h-screen bg-[#1B1C1E] px-4 py-6 pb-24 sm:pb-8">
+            <div className="max-w-3xl mx-auto">
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-6">
+                    <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-white leading-tight">
                             Register for {competition?.name}
                         </h1>
                         <p className="text-sm text-gray-400 mt-0.5">

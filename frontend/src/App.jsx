@@ -110,6 +110,14 @@ function App() {
   const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
+    // ✅ Pre-emptive backend wake-up ping during splash screen
+    const wakeBackend = () => {
+      const api = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+      fetch(`${api}/health`, { method: 'GET', mode: 'cors', credentials: 'omit' })
+        .then(r => console.log('✅ Backend wake-up:', r.ok ? 'OK' : r.status))
+        .catch(() => console.log('⏳ Backend warming up...'));
+    };
+
     // Check if this is a page refresh by checking if performance.navigation exists
     // and its type or checking if sessionStorage has our flag
     const checkIfPageRefresh = () => {
@@ -152,14 +160,16 @@ function App() {
     setIsPageRefresh(isRefresh);
 
     if (isRefresh) {
-      // Show loading for page refresh
+      // Show loading for page refresh & wake backend simultaneously
+      wakeBackend();
       const timer = setTimeout(() => {
         setIsInitialLoading(false);
       }, 2000); // 2 second minimum loading time
 
       return () => clearTimeout(timer);
     } else {
-      // No loading for navigation or auth redirects
+      // No loading for navigation or auth redirects, but still wake backend
+      wakeBackend();
       setIsInitialLoading(false);
     }
   }, []);
