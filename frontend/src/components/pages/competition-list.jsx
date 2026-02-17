@@ -4,11 +4,36 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../utils/imageImports';
-import axios from 'axios';
-
-// Configure axios base URL - HARDCODED FOR PRODUCTION FIX
+// ✅ FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-axios.defaults.baseURL = API_BASE_URL;
+
+const fetchJSON = async (endpoint, options = {}) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const timeout = options.timeout || 20000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'omit',
+            mode: 'cors',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return { data };
+    } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+            const error = new Error('Request timeout');
+            error.code = 'ECONNABORTED';
+            throw error;
+        }
+        throw err;
+    }
+};
 
 const CompetitionListPage = () => {
     const { isDark } = useDarkMode();
@@ -36,7 +61,7 @@ const CompetitionListPage = () => {
                 // Fetch event data with populated competitions (same as main page)
                 // Add cache busting timestamp to ensure fresh data
                 const timestamp = Date.now();
-                const eventResponse = await axios.get(`/fests/${eventId}/public?t=${timestamp}`);
+                const eventResponse = await fetchJSON(`/fests/${eventId}/public?t=${timestamp}`);
                 const festData = eventResponse.data;
 
                 if (!festData) {
@@ -131,7 +156,7 @@ const CompetitionListPage = () => {
                 const fetchUpdatedData = async () => {
                     try {
                         const timestamp = Date.now();
-                        const eventResponse = await axios.get(`/fests/${eventId}/public?t=${timestamp}`);
+                        const eventResponse = await fetchJSON(`/fests/${eventId}/public?t=${timestamp}`);
                         const festData = eventResponse.data;
 
                         if (festData) {

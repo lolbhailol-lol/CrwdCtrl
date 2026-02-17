@@ -15,15 +15,32 @@ import { getImageUrl, aarohanLogoImg } from '../../utils/imageImports';
 import carnivalSymbios from '../../data/real-data/symbi-images/carnival-symbios.jpg';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
-import axios from 'axios';
-
-// Configure axios base URL - HARDCODED FOR PRODUCTION FIX
+// ✅ FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-axios.defaults.baseURL = API_BASE_URL;
 
-// ✅ FIX FOR iOS/SAFARI: Configure axios defaults for cross-origin requests
-axios.defaults.withCredentials = false;
-axios.defaults.headers.common['Accept'] = 'application/json';
+const fetchJSON = async (endpoint, options = {}) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const timeout = options.timeout || 20000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'omit',
+            mode: 'cors',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return { data };
+    } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') { const e = new Error('Request timeout'); e.code = 'ECONNABORTED'; throw e; }
+        throw err;
+    }
+};
 
 function EventDetailsPage() {
   const { isDark } = useDarkMode();
@@ -69,13 +86,8 @@ function EventDetailsPage() {
         // Fetch from public fests API - this already includes populated competitions
         // Add cache busting timestamp to ensure fresh data
         const timestamp = Date.now();
-        const response = await axios.get(`/fests/${eventId}/public?t=${timestamp}`, {
-          timeout: timeout,
-          withCredentials: false,
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
+        const response = await fetchJSON(`/fests/${eventId}/public?t=${timestamp}`, {
+          timeout: timeout
         });
         console.log('ViewDetails - API Response:', response.data);
         console.log('ViewDetails - Contacts in API Response:', response.data.contacts);
@@ -216,7 +228,7 @@ function EventDetailsPage() {
         const fetchUpdatedData = async () => {
           try {
             const timestamp = Date.now();
-            const response = await axios.get(`/fests/${eventId}/public?t=${timestamp}`);
+            const response = await fetchJSON(`/fests/${eventId}/public?t=${timestamp}`);
             if (response.data && (response.data._id || response.data.id)) {
               const festData = response.data;
               const transformedData = {

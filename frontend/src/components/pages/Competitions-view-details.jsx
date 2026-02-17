@@ -14,15 +14,32 @@ import Footer from '../Footer';
 import { getImageUrl } from '../../utils/imageImports.js';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
-import axios from 'axios';
-
-// Configure axios base URL - HARDCODED FOR PRODUCTION FIX
+// ✅ FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-axios.defaults.baseURL = API_BASE_URL;
 
-// ✅ FIX FOR iOS/SAFARI: Configure axios defaults for cross-origin requests
-axios.defaults.withCredentials = false;
-axios.defaults.headers.common['Accept'] = 'application/json';
+const fetchJSON = async (endpoint, options = {}) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const timeout = options.timeout || 20000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'omit',
+            mode: 'cors',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return { data };
+    } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') { const e = new Error('Request timeout'); e.code = 'ECONNABORTED'; throw e; }
+        throw err;
+    }
+};
 
 function EventPage() {
     const { competitionId } = useParams();
@@ -70,8 +87,8 @@ function EventPage() {
                 // Try to fetch competition data from backend
                 // Add cache busting timestamp to ensure fresh data
                 const timestamp = Date.now();
-                const response = await axios.get(`/fests/competitions/${competitionId}/public?t=${timestamp}`);
-                console.log('ViewDetails - API Response Status:', response.status);
+                const response = await fetchJSON(`/fests/competitions/${competitionId}/public?t=${timestamp}`);
+                console.log('ViewDetails - API Response Status: OK');
                 console.log('ViewDetails - API Response Data:', response.data);
                 
                 const compData = response.data;
@@ -196,7 +213,7 @@ function EventPage() {
                 const fetchUpdatedData = async () => {
                     try {
                         const timestamp = Date.now();
-                        const response = await axios.get(`/fests/competitions/${competitionId}/public?t=${timestamp}`);
+                        const response = await fetchJSON(`/fests/competitions/${competitionId}/public?t=${timestamp}`);
                         const compData = response.data;
 
                         if (compData) {

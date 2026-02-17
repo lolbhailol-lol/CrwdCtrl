@@ -21,23 +21,49 @@ import CrwdCtrlLogin from './login';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlRegister from './register';
 import LoadingSkeleton from '../LoadingSkeleton';
-import axios from 'axios';
-
-// Configure axios base URL - Use Vite environment variables
+// ✅ FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-axios.defaults.baseURL = API_BASE_URL;
-
-// ✅ FIX FOR iOS/SAFARI: Configure axios defaults for cross-origin requests
-axios.defaults.withCredentials = false; // Don't send cookies for public API calls (fixes iOS issues)
-axios.defaults.headers.common['Accept'] = 'application/json';
-axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 console.log('🔧 Dashboard API Configuration:', {
     VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
     API_BASE_URL: API_BASE_URL,
-    NODE_ENV: import.meta.env.NODE_ENV,
     MODE: import.meta.env.MODE
 });
+
+// ✅ Fetch helper that works reliably on all mobile browsers
+const fetchJSON = async (endpoint, options = {}) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const timeout = options.timeout || 30000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'omit',
+            mode: 'cors',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal,
+            ...options,
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return { data, headers: Object.fromEntries(response.headers.entries()) };
+    } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+            const error = new Error('Request timeout');
+            error.code = 'ECONNABORTED';
+            throw error;
+        }
+        if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+            const error = new Error('Network Error');
+            error.code = 'ERR_NETWORK';
+            throw error;
+        }
+        throw err;
+    }
+};
 
 // ✅ Frontend caching system for better Cloud Run performance
 const CACHE_KEYS = {
@@ -340,7 +366,7 @@ const Dashboard = () => {
         const fetchFreshData = async () => {
             try {
                 const cacheBuster = Date.now();
-                const response = await axios.get(`/fests/all?_cb=${cacheBuster}&force_refresh=1`, {
+                const response = await fetchJSON(`/fests/all?_cb=${cacheBuster}&force_refresh=1`, {
                     timeout: 15000
                 });
                 
@@ -511,17 +537,12 @@ const Dashboard = () => {
                 const cacheBuster = Date.now();
                 
                 if (isIOS || isSafari) {
-                    console.log('📱 iOS/Safari detected - using fetch API for better compatibility');
+                    console.log('📱 iOS/Safari detected - extended timeout applied');
                 }
                 
-                const response = await axios.get(`/fests/all?_cb=${cacheBuster}&priority_check=1`, {
-                    timeout: timeout,
-                    // ✅ iOS/Safari CORS fix - don't send credentials for public API
-                    withCredentials: false,
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    }
+                // ✅ FIX: Use native fetch instead of axios (fixes ERR_NETWORK on mobile)
+                const response = await fetchJSON(`/fests/all?_cb=${cacheBuster}&priority_check=1`, {
+                    timeout: timeout
                 });
                 
                 const fetchEndTime = performance.now();
@@ -625,7 +646,7 @@ const Dashboard = () => {
                 if (age > CACHE_DURATION * 0.8 && age < CACHE_DURATION) {
                     console.log('🔥 Warming cache with fresh data');
                     // Silently fetch fresh data in background
-                    axios.get('/fests/all', { timeout: 5000 })
+                    fetchJSON('/fests/all', { timeout: 5000 })
                         .then(response => {
                             const data = response.data;
                             const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
