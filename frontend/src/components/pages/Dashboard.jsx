@@ -65,13 +65,56 @@ const fetchJSON = async (endpoint, options = {}) => {
     }
 };
 
+// ✅ Auto-retry error component — automatically retries after 5 seconds
+const AutoRetryError = React.memo(({ isDark, onRetry }) => {
+    const [countdown, setCountdown] = useState(5);
+    const [isRetrying, setIsRetrying] = useState(false);
+
+    useEffect(() => {
+        if (isRetrying) return;
+        if (countdown <= 0) {
+            setIsRetrying(true);
+            onRetry();
+            return;
+        }
+        const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+        return () => clearTimeout(timer);
+    }, [countdown, isRetrying, onRetry]);
+
+    return (
+        <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'}`}>
+            <div className="text-4xl mb-3">{isRetrying ? '⏳' : '📡'}</div>
+            <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                {isRetrying ? 'Loading events...' : 'Connecting to server...'}
+            </p>
+            <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {isRetrying
+                    ? 'Please wait while we connect to the server'
+                    : `Retrying automatically in ${countdown}s...`}
+            </p>
+            {isRetrying ? (
+                <div className="flex justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-500"></div>
+                </div>
+            ) : (
+                <button
+                    onClick={() => { setIsRetrying(true); onRetry(); }}
+                    className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
+                >
+                    Try Now
+                </button>
+            )}
+        </div>
+    );
+});
+
 // ✅ Frontend caching system for better Cloud Run performance
 const CACHE_KEYS = {
     FESTS_LIST: 'crwdctrl_fests_cache',
     FESTS_TIMESTAMP: 'crwdctrl_fests_timestamp'
 };
 
-const CACHE_DURATION = 2 * 60 * 1000; // Reduced to 2 minutes cache duration
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes cache duration (covers Railway sleep cycle)
 
 // Helper functions for localStorage caching
 const getCachedData = (key) => {
@@ -356,14 +399,15 @@ const Dashboard = () => {
     const [lastYearShowLeftArrow, setLastYearShowLeftArrow] = useState(false);
     const [lastYearShowRightArrow, setLastYearShowRightArrow] = useState(true);
 
-    // Function to force refresh data (clear cache and fetch fresh)
+    // Function to force refresh data (clear cache and fetch fresh) — retries for cold starts
     const forceRefreshData = useCallback(() => {
         console.log('🔄 Force refreshing dashboard data...');
         clearCache();
         setIsFestsLoading(true);
+        setFestError(null);
         
-        // Force fetch fresh data
-        const fetchFreshData = async () => {
+        const fetchFreshData = async (attempt = 0) => {
+            const maxAttempts = 8;
             try {
                 const cacheBuster = Date.now();
                 const response = await fetchJSON(`/fests/all?_cb=${cacheBuster}&force_refresh=1`, {
@@ -376,17 +420,22 @@ const Dashboard = () => {
                 setFests(festsList);
                 setFestError(null);
                 
-                // Cache the fresh data
                 if (festsList.length > 0) {
                     setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
                 }
                 
+                setIsFestsLoading(false);
                 console.log('✅ Dashboard data refreshed successfully');
             } catch (error) {
-                console.error('❌ Failed to refresh dashboard data:', error);
-                setFestError('Failed to refresh data. Please try again.');
-            } finally {
-                setIsFestsLoading(false);
+                console.error(`❌ Refresh attempt ${attempt + 1}/${maxAttempts} failed:`, error.message);
+                if (attempt < maxAttempts - 1) {
+                    const delay = Math.min(2000 + attempt * 1500, 8000);
+                    console.log(`🔄 Retrying in ${delay}ms...`);
+                    setTimeout(() => fetchFreshData(attempt + 1), delay);
+                } else {
+                    setFestError('Unable to load events. Please check your connection and try again.');
+                    setIsFestsLoading(false);
+                }
             }
         };
         
@@ -501,126 +550,80 @@ const Dashboard = () => {
         setShowRegister(false);
     };
 
-    // Fetch fests from backend API with enhanced caching and retry logic
+    // Fetch fests from backend API — starts immediately, retries aggressively for Railway cold starts
     useEffect(() => {
-        const fetchFests = async (retryCount = 0) => {
-            const maxRetries = 3;
-            const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
+        let cancelled = false;
+
+        const fetchFests = async () => {
+            const maxRetries = 10; // Enough retries to cover a full Railway cold start (~60s)
             
-            try {
-                setIsFestsLoading(true);
-                
-                // ✅ Check cache first for better Cloud Run performance
+            // ✅ Show cached data immediately while fetching fresh
+            const cachedFests = getCachedData(CACHE_KEYS.FESTS_LIST);
+            if (cachedFests && Array.isArray(cachedFests) && cachedFests.length > 0) {
+                console.log('⚡ Showing cached fests while fetching fresh data');
+                setFests(cachedFests);
+                setIsFestsLoading(false);
+                // If cache is still fresh, skip the network fetch entirely
                 if (isCacheValid()) {
-                    const cachedFests = getCachedData(CACHE_KEYS.FESTS_LIST);
-                    if (cachedFests && Array.isArray(cachedFests)) {
-                        console.log('⚡ Using cached fests data');
-                        setFests(cachedFests);
-                        setFestError(null);
-                        setIsFestsLoading(false);
-                        return; // Exit early with cached data
-                    }
-                }
-                
-                console.log('🔄 Fetching fresh fests data from API');
-                const fetchStartTime = performance.now();
-                
-                // Use environment-specific timeout - longer for iOS
-                const userAgent = navigator.userAgent || '';
-                const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-                const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
-                const defaultTimeout = (isIOS || isSafari) ? 20000 : 10000; // Longer timeout for iOS/Safari
-                const timeout = import.meta.env.VITE_API_TIMEOUT ? 
-                    parseInt(import.meta.env.VITE_API_TIMEOUT) : defaultTimeout;
-                
-                // Add cache busting to ensure fresh data
-                const cacheBuster = Date.now();
-                
-                if (isIOS || isSafari) {
-                    console.log('📱 iOS/Safari detected - extended timeout applied');
-                }
-                
-                // ✅ FIX: Use native fetch instead of axios (fixes ERR_NETWORK on mobile)
-                const response = await fetchJSON(`/fests/all?_cb=${cacheBuster}&priority_check=1`, {
-                    timeout: timeout
-                });
-                
-                const fetchEndTime = performance.now();
-                const fetchDuration = Math.round(fetchEndTime - fetchStartTime);
-                console.log(`📊 API fetch completed in ${fetchDuration}ms`);
-                
-                const data = response.data;
-                const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-                
-                // ✅ Cache the fresh data
-                if (festsList.length > 0) {
-                    setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
-                }
-                
-                setFests(festsList);
-                setFestError(null);
-                
-                // Log cache status from server
-                if (response.headers['x-cache']) {
-                    console.log(`📊 Server cache status: ${response.headers['x-cache']}`);
-                }
-                
-            } catch (err) {
-                console.error('Dashboard - Error fetching fests:', err);
-                
-                // ✅ Try to use stale cache as fallback
-                const staleCachedFests = getCachedData(CACHE_KEYS.FESTS_LIST);
-                if (staleCachedFests && Array.isArray(staleCachedFests) && staleCachedFests.length > 0) {
-                    console.log('📦 Using stale cached data as fallback');
-                    setFests(staleCachedFests);
-                    setFestError('Using cached data - some information may be outdated');
-                    setIsFestsLoading(false);
+                    console.log('⚡ Cache is fresh, skipping network fetch');
+                    setFestError(null);
                     return;
                 }
-                
-                // More aggressive retry for Cloud Run cold starts and CORS issues
-                const shouldRetry = retryCount < maxRetries && (
-                    err.code === 'ECONNABORTED' || // Timeout
-                    err.code === 'ERR_NETWORK' || // Network error
-                    err.code === 'NETWORK_ERROR' || // Network error variant
-                    err.code === 'ERR_FAILED' || // Failed request
-                    !err.response || // No response from server
-                    (err.response?.status >= 500 && err.response?.status < 600) || // Server errors
-                    err.response?.status === 502 || // Bad Gateway
-                    err.response?.status === 503 || // Service Unavailable
-                    err.response?.status === 504 || // Gateway Timeout
-                    err.message?.includes('CORS') // CORS errors
-                );
-                
-                if (shouldRetry) {
-                    console.log(`🔄 Retrying fetch (${retryCount + 1}/${maxRetries}) in ${retryDelay}ms`);
-                    setTimeout(() => {
-                        fetchFests(retryCount + 1);
-                    }, retryDelay);
-                } else {
-                    const isProduction = import.meta.env.VITE_APP_ENVIRONMENT === 'production';
-                    const errorMessage = err.message?.includes('CORS') 
-                        ? 'Connection issue detected. Please try refreshing the page.'
-                        : isProduction 
-                            ? 'Unable to load events. Please try refreshing the page.'
-                            : 'Unable to load events. Please check your connection and try again.';
-                    setFestError(errorMessage);
-                    setFests([]);
+            }
+
+            // Determine timeout based on device
+            const userAgent = navigator.userAgent || '';
+            const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+            const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
+            const timeout = import.meta.env.VITE_API_TIMEOUT
+                ? parseInt(import.meta.env.VITE_API_TIMEOUT)
+                : (isIOS || isSafari) ? 20000 : 15000;
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                if (cancelled) return;
+                try {
+                    console.log(`🔄 Fetching fests (attempt ${attempt + 1}/${maxRetries})`);
+                    const cacheBuster = Date.now();
+                    const response = await fetchJSON(`/fests/all?_cb=${cacheBuster}&priority_check=1`, { timeout });
+                    
+                    if (cancelled) return;
+                    const data = response.data;
+                    const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+                    
+                    if (festsList.length > 0) {
+                        setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
+                    }
+                    
+                    setFests(festsList);
+                    setFestError(null);
                     setIsFestsLoading(false);
-                }
-            } finally {
-                if (retryCount === 0 || retryCount >= maxRetries) {
-                    setIsFestsLoading(false);
+                    console.log(`✅ Fests loaded successfully (${festsList.length} fests)`);
+                    return; // Success — exit
+                } catch (err) {
+                    console.warn(`⏳ Fetch attempt ${attempt + 1} failed: ${err.message}`);
+                    if (attempt < maxRetries - 1) {
+                        // Wait longer between each retry: 3s, 4s, 5s, 6s... capped at 8s
+                        const delay = Math.min(3000 + attempt * 1000, 8000);
+                        await new Promise(r => setTimeout(r, delay));
+                    }
                 }
             }
+
+            // All retries exhausted
+            if (cancelled) return;
+            if (!cachedFests || cachedFests.length === 0) {
+                setFestError('Unable to load events. Please check your connection and try again.');
+                setFests([]);
+            } else {
+                // We already showed cached data above, just note it's stale
+                setFestError(null);
+            }
+            setIsFestsLoading(false);
         };
 
-        // Delay initial request to allow page to settle
-        const timer = setTimeout(() => {
-            fetchFests();
-        }, 300);
+        fetchFests();
 
-        return () => clearTimeout(timer);
+        return () => { cancelled = true; };
     }, []);
 
     // ✅ Cache cleanup and management
@@ -840,21 +843,22 @@ const Dashboard = () => {
     }, [fests]);
 
     // Filter events by status and sort by priority within each section
-    const ongoingEvents = useMemo(() => 
-        transformedFests
-            .filter(f => f.status === 'ongoing')
-            .sort((a, b) => {
-                // Sort by priority first (1 = highest priority), then by creation date
-                const priorityA = a.priority || 999;
-                const priorityB = b.priority || 999;
-                if (priorityA !== priorityB) {
-                    return priorityA - priorityB;
-                }
-                // If same priority, sort by date (newest first)
-                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            }), 
-        [transformedFests]
-    );
+    // ✅ FIX: If no fests have status 'ongoing', fall back to showing 'upcoming' fests
+    //    so the Ongoing section isn't empty (status is set manually by admin)
+    const ongoingEvents = useMemo(() => {
+        const sortByPriority = (a, b) => {
+            const priorityA = a.priority || 999;
+            const priorityB = b.priority || 999;
+            if (priorityA !== priorityB) return priorityA - priorityB;
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        };
+        const strictly = transformedFests.filter(f => f.status === 'ongoing');
+        if (strictly.length > 0) return strictly.sort(sortByPriority);
+        // Fallback: show upcoming fests in the Ongoing section so it's not empty
+        return transformedFests
+            .filter(f => f.status === 'upcoming' || f.status === 'ongoing')
+            .sort(sortByPriority);
+    }, [transformedFests]);
     
     const beyondCampusEvents = useMemo(() => 
         transformedFests
@@ -1540,22 +1544,11 @@ const Dashboard = () => {
                             <div className="relative lg:px-2">
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={3} />
-                                ) : festError ? (
-                                    <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'}`}>
-                                        <div className="text-4xl mb-3">📡</div>
-                                        <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                                            Unable to load events
-                                        </p>
-                                        <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            {festError.includes('cached') ? festError : 'Server is waking up. Please wait a moment.'}
-                                        </p>
-                                        <button 
-                                            onClick={forceRefreshData}
-                                            className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
-                                        >
-                                            Try Again
-                                        </button>
-                                    </div>
+                                ) : festError && ongoingEvents.length === 0 ? (
+                                    <AutoRetryError
+                                        isDark={isDark}
+                                        onRetry={forceRefreshData}
+                                    />
                                 ) : ongoingEvents.length > 0 ? (
                                     <>
                                         {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
@@ -1776,21 +1769,10 @@ const Dashboard = () => {
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={3} />
                                 ) : festError && beyondCampusEvents.length === 0 ? (
-                                    <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'}`}>
-                                        <div className="text-4xl mb-3">📡</div>
-                                        <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                                            Unable to load events
-                                        </p>
-                                        <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            {festError.includes('cached') ? festError : 'Server is waking up. Please wait a moment.'}
-                                        </p>
-                                        <button 
-                                            onClick={forceRefreshData}
-                                            className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
-                                        >
-                                            Try Again
-                                        </button>
-                                    </div>
+                                    <AutoRetryError
+                                        isDark={isDark}
+                                        onRetry={forceRefreshData}
+                                    />
                                 ) : (
                                     <>
                                         {/* Left Scroll Button - Only show if scrolled and more than 3 items */}
@@ -2054,21 +2036,10 @@ const Dashboard = () => {
                                 {isFestsLoading ? (
                                     <LoadingSkeleton count={4} />
                                 ) : festError && upcomingEvents.length === 0 ? (
-                                    <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'}`}>
-                                        <div className="text-4xl mb-3">📡</div>
-                                        <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                                            Unable to load events
-                                        </p>
-                                        <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            {festError.includes('cached') ? festError : 'Server is waking up. Please wait a moment.'}
-                                        </p>
-                                        <button 
-                                            onClick={forceRefreshData}
-                                            className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
-                                        >
-                                            Try Again
-                                        </button>
-                                    </div>
+                                    <AutoRetryError
+                                        isDark={isDark}
+                                        onRetry={forceRefreshData}
+                                    />
                                 ) : upcomingEvents.length > 0 ? (
                                     <>
                                         {/* Left Scroll Button - Only show if scrolled and more than 3 items */}

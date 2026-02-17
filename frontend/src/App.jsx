@@ -110,13 +110,35 @@ function App() {
   const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
-    // ✅ Pre-emptive backend wake-up ping during splash screen
-    const wakeBackend = () => {
+    // ✅ Pre-emptive backend wake-up with retries (Railway cold starts take 15-30s)
+    const wakeBackend = async () => {
       const api = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-      fetch(`${api}/health`, { method: 'GET', mode: 'cors', credentials: 'omit' })
-        .then(r => console.log('✅ Backend wake-up:', r.ok ? 'OK' : r.status))
-        .catch(() => console.log('⏳ Backend warming up...'));
+      const maxAttempts = 8;
+      for (let i = 0; i < maxAttempts; i++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const r = await fetch(`${api}/health`, { method: 'GET', mode: 'cors', credentials: 'omit', signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (r.ok) {
+            console.log('✅ Backend is ready');
+            window.__backendReady = true;
+            window.dispatchEvent(new Event('backendReady'));
+            return;
+          }
+        } catch (e) {
+          console.log(`⏳ Backend warming up... (attempt ${i + 1}/${maxAttempts})`);
+        }
+        // Wait longer between retries: 2s, 3s, 4s, 5s...
+        await new Promise(r => setTimeout(r, Math.min(2000 + i * 1000, 6000)));
+      }
+      // Even if all retries failed, let pages try anyway
+      console.log('⚠️ Backend wake-up retries exhausted, pages will retry independently');
+      window.__backendReady = true;
+      window.dispatchEvent(new Event('backendReady'));
     };
+
+    wakeBackend();
 
     // Check if this is a page refresh by checking if performance.navigation exists
     // and its type or checking if sessionStorage has our flag
