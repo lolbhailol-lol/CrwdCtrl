@@ -1,6 +1,7 @@
 {
-  "installCommand": "npm install --include=dev",
-  "buildCommand": "npm run build",
+  "installCommand": "cd frontend && npm install --include=dev",
+  "buildCommand": "cd frontend && npx vite build --mode production",
+  "outputDirectory": "frontend/dist",
   "env": {
     "VITE_API_BASE_URL": "https://prolific-learning-production-13aa.up.railway.app/api",
     "VITE_API_TIMEOUT": "45000",

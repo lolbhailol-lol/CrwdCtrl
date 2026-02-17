@@ -353,6 +353,8 @@ function CompetitionRegisterPage() {
             const response = await fetch(fullURL, {
                 method: 'POST',
                 body: submitData,
+                credentials: 'omit', // ✅ FIX: Public registration - no cookies needed, avoids CORS preflight issues on mobile
+                mode: 'cors', // ✅ FIX: Explicitly set CORS mode for cross-origin mobile requests
                 // Don't set Content-Type header - let the browser set it for FormData
             });
 

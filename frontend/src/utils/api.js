@@ -135,53 +135,17 @@ class ApiClient {
 
     /**
      * ✅ RAILWAY COLD START DETECTION AND HANDLING
+     * Non-blocking: only checks once on app init (via wakeBackend in App.jsx)
+     * Does NOT block individual API requests
      */
     async detectAndHandleColdStart(url) {
-        const isProduction = import.meta.env.PROD;
-        const isRailway = import.meta.env.VITE_ENABLE_RAILWAY_OPTIMIZATIONS === 'true';
-        
-        if (!isProduction || !isRailway) {
-            return { isColdStart: false };
-        }
-        
-        try {
-            console.log('🚂 Checking for Railway cold start...');
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // Quick check
-            
-            const response = await fetch(`${this.baseURL}/cold-start-check`, {
-                method: 'GET',
-                signal: controller.signal,
-                credentials: 'include'
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (response.ok) {
-                const data = await response.json();
-                console.log('🚂 Cold start check result:', data);
-                
-                if (data.isColdStart) {
-                    console.log('❄️ Railway cold start detected - using extended timeouts');
-                    return { 
-                        isColdStart: true, 
-                        uptime: data.uptime,
-                        message: 'Server is warming up, please wait...' 
-                    };
-                }
-            }
-            
-            return { isColdStart: false };
-            
-        } catch (error) {
-            console.warn('⚠️ Cold start detection failed:', error.message);
-            // Assume cold start if detection fails
-            return { 
-                isColdStart: true, 
-                message: 'Connecting to server...' 
-            };
-        }
+        // ✅ FIX: Never block individual requests with cold-start detection
+        // The wake-up ping in App.jsx already handles cold starts.
+        // This was causing "backend off" on mobile because:
+        // 1. Every request made an extra fetch to /cold-start-check
+        // 2. On slow mobile networks, this often timed out
+        // 3. The catch block assumed cold start, adding unnecessary delays
+        return { isColdStart: false };
     }
 
     /**
@@ -206,33 +170,15 @@ class ApiClient {
                 config.signal = controller.signal;
                 if (config.credentials === undefined) config.credentials = 'include';
                 
-                // ✅ FIX 7: LOG ALL REQUEST HEADERS FOR DEBUGGING MOBILE ISSUES
-                console.log(`📤 API Request (attempt ${attempt + 1}/${maxRetries + 1}):`, {
-                    method: config.method,
-                    url: url,
-                    timeout: timeout,
-                    headers: config.headers,
-                    credentials: config.credentials,
-                    isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-                    connection: navigator.connection?.effectiveType || 'unknown',
-                    online: navigator.onLine
-                });
+                // Log only on first attempt or retries to reduce mobile overhead
+                if (attempt === 0) {
+                    console.log(`📤 API Request: ${config.method} ${url}`);
+                } else {
+                    console.log(`🔄 API Retry ${attempt + 1}/${maxRetries + 1}: ${url}`);
+                }
 
                 const response = await fetch(url, config);
                 clearTimeout(timeoutId);
-
-                // ✅ FIX 8: LOG ALL RESPONSE HEADERS FOR DEBUGGING MOBILE CORS
-                console.log('📥 API Response:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    ok: response.ok,
-                    attempt: attempt + 1,
-                    corsHeaders: {
-                        'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
-                        'Access-Control-Allow-Credentials': response.headers.get('Access-Control-Allow-Credentials'),
-                        'Content-Type': response.headers.get('Content-Type')
-                    }
-                });
 
                 // Handle non-JSON responses
                 const contentType = response.headers.get('content-type');
@@ -376,19 +322,11 @@ class ApiClient {
      */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
-        console.log('📍 API URL being called:', url);
-        console.log('📍 Base URL:', this.baseURL);
-        console.log('📍 Endpoint:', endpoint);
+        console.log('📍 API Request:', endpoint);
         
         // ✅ FIX 11: WARN IF API IS MISCONFIGURED
         if (this.isMisconfigured) {
             console.warn('⚠️ API Configuration Issue: VITE_API_BASE_URL not properly configured');
-        }
-
-        // ✅ RAILWAY COLD START DETECTION (for first request)
-        const coldStartInfo = await this.detectAndHandleColdStart(url);
-        if (coldStartInfo.isColdStart) {
-            console.log('❄️ Railway cold start detected, adjusting strategy...');
         }
 
         const config = {
@@ -401,7 +339,6 @@ class ApiClient {
         const token = this.getAuthToken();
         if (token && !config.headers.Authorization) {
             config.headers.Authorization = `Bearer ${token}`;
-            console.log('🔐 Authorization header added');
         }
 
         // ✅ FIX 12: ENSURE CREDENTIALS ARE SENT FOR MOBILE/CROSS-ORIGIN
@@ -413,7 +350,7 @@ class ApiClient {
         }
 
         // ✅ USE ENHANCED RETRY MECHANISM WITH MOBILE ERROR DETECTION
-        const maxRetries = coldStartInfo.isColdStart ? 4 : 3; // Extra retry for cold starts
+        const maxRetries = 3;
         return this.requestWithRetry(url, config, maxRetries);
     }
 
