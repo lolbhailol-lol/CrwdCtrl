@@ -1,17 +1,17 @@
 const nodemailer = require('nodemailer');
-const { Resend } = require('resend');
+const Brevo = require('@getbrevo/brevo');
 
 // ============================================
 // 📧 EMAIL QUEUE SYSTEM - Prevents Rate Limiting
 // ============================================
-// Resend has a 2 requests/second limit. This queue ensures
-// emails are sent sequentially with proper delays and retries.
+// Brevo free tier allows 300 emails/day.
+// This queue ensures emails are sent sequentially with proper delays and retries.
 
 const emailQueue = [];
 let isProcessingQueue = false;
-const EMAIL_DELAY_MS = 1500; // 1500ms (1.5 seconds) between emails - safe margin for 2/sec limit
+const EMAIL_DELAY_MS = 1000; // 1s between emails
 const MAX_RETRIES = 3;
-const RATE_LIMIT_BACKOFF_MS = 2000; // Extra wait time when rate limited
+const RATE_LIMIT_BACKOFF_MS = 2000;
 
 // Add email to queue and process
 const queueEmail = (emailFn) => {
@@ -60,58 +60,70 @@ const processEmailQueue = async () => {
     isProcessingQueue = false;
 };
 
-// ✅ RESEND API CLIENT (HTTP-based, works on Railway/cloud platforms)
-// SMTP is blocked on most cloud platforms - use Resend API instead
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+// ✅ BREVO API CLIENT (HTTP-based, works on Railway/cloud platforms)
+// Free tier: 300 emails/day forever, no trial expiry
+let brevoApiInstance = null;
+if (process.env.BREVO_API_KEY) {
+    brevoApiInstance = new Brevo.TransactionalEmailsApi();
+    brevoApiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+}
 
-// Check if Resend is available
-const useResend = () => {
-    if (resend && process.env.RESEND_API_KEY) {
-        console.log('📧 Using Resend API for email delivery');
+// Check if Brevo is available
+const useBrevo = () => {
+    if (brevoApiInstance && process.env.BREVO_API_KEY) {
+        console.log('📧 Using Brevo API for email delivery');
         return true;
     }
-    console.log('⚠️ Resend API key not configured, falling back to SMTP (may fail on cloud)');
+    console.log('⚠️ Brevo API key not configured, falling back to SMTP (may fail on cloud)');
     return false;
 };
 
-// ✅ RESEND EMAIL SENDER (HTTP-based - works on Railway!)
-const sendWithResend = async (mailOptions) => {
-    if (!resend) {
-        throw new Error('Resend API key not configured');
+// ✅ BREVO EMAIL SENDER (HTTP-based - works on Railway!)
+const sendWithBrevo = async (mailOptions) => {
+    if (!brevoApiInstance) {
+        throw new Error('Brevo API key not configured');
     }
     
-    console.log('📧 Sending email via Resend API...');
+    console.log('📧 Sending email via Brevo API...');
     console.log('   To:', mailOptions.to);
     console.log('   Subject:', mailOptions.subject);
-    console.log('   Queue status: length=' + emailQueue.length + ', processing=' + isProcessingQueue);
     console.log('   Timestamp:', new Date().toISOString());
     
-    const { data, error } = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'CrwdCtrl <onboarding@resend.dev>',
-        reply_to: process.env.RESEND_REPLY_TO || 'team.crwdctrl@gmail.com',
-        to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
-        subject: mailOptions.subject,
-        html: mailOptions.html,
-        text: mailOptions.text || undefined
-    });
-    
-    if (error) {
-        console.error('❌ Resend API error:', error);
-        console.error('   Error details:', JSON.stringify(error, null, 2));
-        throw new Error(error.message || 'Resend API failed');
+    const sendSmtpEmail = new Brevo.SendSmtpEmail();
+    sendSmtpEmail.sender = {
+        name: process.env.BREVO_SENDER_NAME || 'CrwdCtrl',
+        email: process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || 'noreply@crwdctrl.in'
+    };
+    sendSmtpEmail.to = Array.isArray(mailOptions.to)
+        ? mailOptions.to.map(email => ({ email }))
+        : [{ email: mailOptions.to }];
+    sendSmtpEmail.subject = mailOptions.subject;
+    sendSmtpEmail.htmlContent = mailOptions.html;
+    if (mailOptions.text) {
+        sendSmtpEmail.textContent = mailOptions.text;
     }
+    sendSmtpEmail.replyTo = {
+        email: process.env.BREVO_REPLY_TO || 'team.crwdctrl@gmail.com'
+    };
     
-    console.log('✅ Email sent via Resend! ID:', data.id);
-    return { success: true, messageId: data.id };
+    try {
+        const data = await brevoApiInstance.sendTransacEmail(sendSmtpEmail);
+        console.log('✅ Email sent via Brevo! MessageId:', data?.body?.messageId || data?.messageId || 'OK');
+        return { success: true, messageId: data?.body?.messageId || data?.messageId || 'brevo-ok' };
+    } catch (error) {
+        const errMsg = error?.body?.message || error?.message || 'Brevo API failed';
+        console.error('❌ Brevo API error:', errMsg);
+        throw new Error(errMsg);
+    }
 };
 
 // ✅ UNIVERSAL EMAIL SENDER - Uses queue to prevent rate limiting
 const sendEmail = async (mailOptions) => {
     // Queue the email to prevent rate limiting
     return queueEmail(async () => {
-        // Try Resend first (works on Railway/cloud platforms)
-        if (useResend()) {
-            return await sendWithResend(mailOptions);
+        // Try Brevo first (works on Railway/cloud platforms, 300 emails/day free forever)
+        if (useBrevo()) {
+            return await sendWithBrevo(mailOptions);
         }
         
         // Fallback to SMTP (for local development)
@@ -132,8 +144,8 @@ const createTransporter = () => {
         console.warn('⚠️ EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
         console.warn('⚠️ EMAIL_PASS:', process.env.EMAIL_PASS ? 'SET' : 'NOT SET');
         
-        // In production without Resend, throw error
-        if (process.env.NODE_ENV === 'production' && !useResend()) {
+        // In production without Brevo, throw error
+        if (process.env.NODE_ENV === 'production' && !useBrevo()) {
             throw new Error('Email credentials not configured in production environment');
         }
         
