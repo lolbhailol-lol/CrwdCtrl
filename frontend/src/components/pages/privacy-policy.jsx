@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
     const navigate = useNavigate();
 
     const privacyData = {
-        last_updated: "2025-11-01",
+        last_updated: "2026-02-19",
         introduction: {
             purpose: "Explains how Crwdctrl collects, uses, stores, and protects user data.",
             scope: [
@@ -101,6 +101,22 @@ export default function PrivacyPolicy() {
                 "Not retrospective",
                 "May limit services"
             ]
+        },
+        advertising_and_cookies: {
+            description: "We use Google AdSense to display advertisements on our platform. Google AdSense is a third-party advertising service provided by Google LLC.",
+            cookies_usage: [
+                "Google uses cookies to serve ads based on your prior visits to this website or other websites",
+                "Google's use of advertising cookies enables it and its partners to serve ads based on your visit to CrwdCtrl and/or other sites on the Internet",
+                "Third-party vendors, including Google, use cookies to serve ads based on your interests",
+                "We may also use analytics cookies to understand how visitors interact with our platform"
+            ],
+            user_choices: [
+                "You may opt out of personalized advertising by visiting Google Ads Settings (adssettings.google.com)",
+                "You can opt out of third-party vendor cookies by visiting the Network Advertising Initiative opt-out page (optout.networkadvertising.org)",
+                "You can manage cookie preferences through your browser settings",
+                "Disabling cookies may affect your experience on certain parts of the platform"
+            ],
+            third_party_links: "Our platform may contain links to other websites. We are not responsible for the privacy practices of third-party sites."
         },
         contact: {
             website: "https://www.crwdctrl.in",
@@ -401,6 +417,54 @@ export default function PrivacyPolicy() {
                                 </p>
                             </div>
                         ))}
+                    </div>
+                </div>
+
+                {/* Advertising & Cookies */}
+                <div className={`${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border rounded-lg p-6 mb-6`}>
+                    <div className="flex items-center gap-3 mb-4">
+                        <Globe className="w-6 h-6 text-yellow-500" />
+                        <h2 className="text-lg font-semibold">Advertising & Cookies</h2>
+                    </div>
+
+                    <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} mb-4`}>
+                        {privacyData.advertising_and_cookies.description}
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h3 className="font-medium mb-3">How Cookies Are Used</h3>
+                            <div className="space-y-2">
+                                {privacyData.advertising_and_cookies.cookies_usage.map((item, index) => (
+                                    <div key={index} className="flex items-start gap-2">
+                                        <div className="w-2 h-2 bg-yellow-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            {item}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="font-medium mb-3">Your Choices</h3>
+                            <div className="space-y-2">
+                                {privacyData.advertising_and_cookies.user_choices.map((item, index) => (
+                                    <div key={index} className="flex items-start gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                                        <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            {item}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className={`${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'} border rounded-lg p-3 mt-4`}>
+                        <p className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-800'}`}>
+                            <strong>Third-Party Links:</strong> {privacyData.advertising_and_cookies.third_party_links}
+                        </p>
                     </div>
                 </div>
 

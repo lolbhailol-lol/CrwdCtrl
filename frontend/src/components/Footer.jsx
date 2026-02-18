@@ -49,6 +49,12 @@ export default function Footer() {
             >
               Contact Us
             </Link>
+            <Link
+              to="/about"
+              className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors text-sm`}
+            >
+              About Us
+            </Link>
           </div>
         </div>
 
@@ -104,6 +110,16 @@ export default function Footer() {
                 className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors`}
               >
                 Contact Us
+              </Link>
+            </div>
+
+            {/* About Us */}
+            <div>
+              <Link
+                to="/about"
+                className={`${isDark ? 'text-white' : 'text-gray-900'} font-medium hover:text-blue-600 cursor-pointer transition-colors`}
+              >
+                About Us
               </Link>
             </div>
           </div>
