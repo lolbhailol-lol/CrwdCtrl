@@ -20,6 +20,22 @@ console.log('🚀 Starting Crwdctrl Backend Server...');
 console.log('📍 Node Environment:', process.env.NODE_ENV || 'development');
 console.log('🔧 Port Configuration:', process.env.PORT || 8080);
 
+// ✅ STARTUP VALIDATION: Check critical environment variables
+const requiredEnvVars = { MONGODB_URI: process.env.MONGODB_URI, JWT_SECRET: process.env.JWT_SECRET };
+const missingVars = Object.entries(requiredEnvVars).filter(([, v]) => !v).map(([k]) => k);
+if (missingVars.length > 0) {
+  console.error('❌ CRITICAL: Missing required environment variables:', missingVars.join(', '));
+  console.error('❌ Create a .env file in the backend directory. See .env.example for reference.');
+  if (!process.env.MONGODB_URI) {
+    console.error('❌ MONGODB_URI is required for database connection. Social auth WILL FAIL without it.');
+  }
+  if (!process.env.JWT_SECRET) {
+    console.warn('⚠️ JWT_SECRET not set — using insecure default. Set it in production!');
+  }
+} else {
+  console.log('✅ All critical environment variables are set');
+}
+
 // ✅ RAILWAY ENVIRONMENT DETECTION
 if (process.env.RAILWAY_ENVIRONMENT) {
   console.log('🚂 Railway deployment detected');
@@ -220,11 +236,13 @@ app.use((req, res, next) => {
     'Authorization'
   ].join(', '));
   
-  // ✅ FIX 6: CACHE CONTROL FOR CORS RESPONSES
-  // Prevent mobile proxy from caching CORS responses
-  res.set('Cache-Control', 'no-cache, no-store, must-revalidate, public');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
+  // ✅ FIX: Only set no-cache on non-GET or authenticated requests
+  // GET requests for public data can be cached (helps mobile performance)
+  if (req.method !== 'GET' || req.headers.authorization) {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
   
   next();
 });
@@ -273,22 +291,22 @@ app.use((req, res, next) => {
     if (req.path.includes('/uploads/') || req.path.includes('/images/')) {
       res.set('Cache-Control', 'public, max-age=3600'); // 1 hour
     }
-    // Cache API responses for 5 minutes
+    // Cache public API responses for 5 minutes (helps mobile reload speed)
     else if (req.path.startsWith('/api/fests') && !req.path.includes('/admin/')) {
       res.set('Cache-Control', 'public, max-age=300'); // 5 minutes
     }
+    // Cache health/public endpoints briefly (avoids repeated mobile preflight)
+    else if (req.path === '/api/health' || req.path.includes('/public')) {
+      res.set('Cache-Control', 'public, max-age=60'); // 1 minute
+    }
   }
   
-  // Add compression hint
-  res.set('Vary', 'Accept-Encoding');
+  // ✅ FIX: Single Vary header (was duplicated, causing mobile caching issues)
+  res.set('Vary', 'Origin, Accept-Encoding, Access-Control-Request-Headers, Access-Control-Request-Method');
   
   // Fix Cross-Origin-Opener-Policy for Firebase OAuth (required for social login)
   res.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
-  
-  // Additional OAuth compatibility headers
-  res.set('Access-Control-Allow-Credentials', 'true');
-  res.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
   
   // Security headers
   res.set('X-Content-Type-Options', 'nosniff');

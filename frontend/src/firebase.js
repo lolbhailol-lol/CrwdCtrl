@@ -5,7 +5,6 @@ import {
     getAuth,
     GoogleAuthProvider,
     FacebookAuthProvider,
-    signInWithPopup,
     signInWithRedirect,
     getRedirectResult,
     createUserWithEmailAndPassword,
@@ -29,13 +28,13 @@ const VITE_FIREBASE_APP_ID="1:420309062914:web:73bb8e49df575f90dd9e1b"
 const VITE_FIREBASE_MEASUREMENT_ID="G-V080C13RPJ"
 
 const firebaseConfig = {
-    apiKey: VITE_FIREBASE_API_KEY ,
-    authDomain: VITE_FIREBASE_AUTH_DOMAIN ,
-    projectId: VITE_FIREBASE_PROJECT_ID ,
-    storageBucket: VITE_FIREBASE_STORAGE_BUCKET ,
-    messagingSenderId: VITE_FIREBASE_MESSAGING_SENDER_ID ,
-    appId: VITE_FIREBASE_APP_ID ,
-    measurementId: VITE_FIREBASE_MEASUREMENT_ID
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID ,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID 
 };
 
 // Initialize Firebase
@@ -56,8 +55,14 @@ const initializePersistence = async () => {
     }
 };
 
-// Initialize persistence immediately
-initializePersistence();
+// Create a promise that resolves when Firebase is fully initialized
+export const firebaseReady = initializePersistence().then(() => {
+    console.log('✅ Firebase initialization complete');
+    return true;
+}).catch(error => {
+    console.error('⚠️ Firebase initialization issue:', error);
+    return false;
+});
 
 // Initialize providers with optimal settings
 const googleProvider = new GoogleAuthProvider();
@@ -79,33 +84,46 @@ googleProvider.addScope('email');
 googleProvider.addScope('profile');
 facebookProvider.addScope('email');
 
-// ✅ PRODUCTION-READY MOBILE DETECTION
+// ✅ PRODUCTION-READY MOBILE DETECTION (ENHANCED FOR REAL DEVICES)
 const isMobileDevice = () => {
-    // Primary: User Agent detection
+    // Primary: User Agent detection (most reliable for real mobile devices)
     const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
-    const mobileRegex = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Windows Phone|webOS|Mobile Safari/i;
+    
+    // Comprehensive mobile regex patterns
+    const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Windows Phone|Mobile|mobile|CriOS|FxiOS|SamsungBrowser|UCBrowser|MiuiBrowser|Mobile Safari/i;
     const isMobileUA = mobileRegex.test(userAgent);
     
-    // Secondary: Screen size and touch detection
-    const isSmallScreen = window.innerWidth <= 768;
+    // Specific device detection
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+    const isAndroid = /Android/.test(userAgent);
+    const isChromeOnAndroid = /Chrome/.test(userAgent) && /Android/.test(userAgent);
+    const isSafariOnIOS = /Safari/.test(userAgent) && isIOS && !/CriOS|FxiOS/.test(userAgent);
+    
+    // Secondary: Screen size check (fallback, not primary)
+    const isSmallScreen = window.innerWidth <= 768 || window.screen.width <= 768;
+    
+    // Touch capability (not primary, but helps)
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     
-    // Specific device detection
-    const isIOS = /iPad|iPhone|iPod/.test(userAgent);
-    const isAndroid = /Android/.test(userAgent);
+    // ✅ CRITICAL: Don't rely on DevTools mobile emulation checks
+    // DevTools mobile view does NOT reflect real mobile browser behavior
+    // Real mobile browsers have fundamentally different popup/redirect handling
     
-    // Final determination: prioritize UA, fallback to screen + touch
-    const isMobile = isMobileUA || isIOS || isAndroid || (isSmallScreen && isTouchDevice);
+    // Final determination: UA detection is most reliable
+    const isMobile = isMobileUA || isIOS || isAndroid;
     
-    console.log('📱 Device detection:', {
-        userAgent: userAgent.substring(0, 50) + '...',
+    console.log('📱 Mobile Detection (ENHANCED):', {
+        userAgent: userAgent.substring(0, 80) + '...',
         isMobileUA,
-        isSmallScreen,
-        isTouchDevice,
         isIOS,
         isAndroid,
-        finalResult: isMobile,
-        screenSize: `${window.innerWidth}x${window.innerHeight}`
+        isChromeOnAndroid,
+        isSafariOnIOS,
+        isSmallScreen,
+        isTouchDevice,
+        screenSize: `${window.innerWidth}x${window.innerHeight}`,
+        screenAvail: `${window.screen.availWidth}x${window.screen.availHeight}`,
+        finalResult: isMobile
     });
     
     return isMobile;
@@ -152,183 +170,37 @@ const getAuthTimeout = () => {
     return baseTimeout;
 };
 
-// ✅ RETRY MECHANISM WITH EXPONENTIAL BACKOFF
-const retryWithBackoff = async (fn, maxRetries = 3, baseDelay = 1000) => {
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            return await fn();
-        } catch (error) {
-            // Don't retry certain errors
-            const nonRetryableErrors = [
-                'auth/popup-blocked',
-                'auth/unauthorized-domain',
-                'auth/operation-not-allowed',
-                'auth/user-disabled',
-                'auth/account-exists-with-different-credential'
-            ];
-            
-            if (nonRetryableErrors.includes(error.code) || i === maxRetries - 1) {
-                throw error;
-            }
-            
-            const delay = baseDelay * Math.pow(2, i);
-            console.log(`🔄 Retry attempt ${i + 1} after ${delay}ms for error:`, error.code);
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-};
-
-// ✅ ENHANCED IN-APP BROWSER DETECTION WITH PLATFORM-SPECIFIC MESSAGING
-const detectInAppBrowser = () => {
+// ✅ ENHANCED IN-APP BROWSER DETECTION
+const isInAppBrowser = () => {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
     
-    // Detect specific platforms for targeted messaging
-    if (/Instagram/i.test(userAgent)) {
-        return {
-            platform: 'Instagram',
-            detected: true,
-            icon: '📷',
-            instructions: 'Tap the ⋯ menu (three dots) at the top right, then tap "Open in Chrome" or "Open in Browser"'
-        };
-    }
-    
-    if (/FBAN|FBAV/i.test(userAgent)) {
-        return {
-            platform: 'Facebook',
-            detected: true,
-            icon: '📘',
-            instructions: 'Tap "Open in Browser" at the bottom of the screen, or tap the ⋯ menu and select "Open in Chrome"'
-        };
-    }
-    
-    if (/Twitter/i.test(userAgent)) {
-        return {
-            platform: 'Twitter',
-            detected: true,
-            icon: '🐦',
-            instructions: 'Tap the share button, then tap "Open in Browser" or "Open in Chrome"'
-        };
-    }
-    
-    if (/LinkedIn/i.test(userAgent)) {
-        return {
-            platform: 'LinkedIn',
-            detected: true,
-            icon: '💼',
-            instructions: 'Tap the ⋯ menu at the top right, then tap "Open in external browser"'
-        };
-    }
-    
-    if (/WhatsApp/i.test(userAgent)) {
-        return {
-            platform: 'WhatsApp',
-            detected: true,
-            icon: '💬',
-            instructions: 'Tap the ⋯ menu at the top right, then tap "Open in Browser"'
-        };
-    }
-    
-    if (/TikTok/i.test(userAgent)) {
-        return {
-            platform: 'TikTok',
-            detected: true,
-            icon: '🎵',
-            instructions: 'Tap the ⋯ menu at the top right, then tap "Open in Browser"'
-        };
-    }
-    
-    if (/Snapchat/i.test(userAgent)) {
-        return {
-            platform: 'Snapchat',
-            detected: true,
-            icon: '👻',
-            instructions: 'Tap the ⋯ menu, then tap "Open in Browser"'
-        };
-    }
-    
-    // Generic in-app browser detection
-    const genericInAppBrowsers = [
+    // Detect in-app browsers that have authentication issues
+    const inAppBrowsers = [
+        /Instagram/i,
+        /FBAN|FBAV/i,        // Facebook app
+        /WhatsApp/i,
         /Line/i,
         /Telegram/i,
+        /Twitter/i,
+        /LinkedIn/i,
+        /Snapchat/i,
+        /TikTok/i,
         /WeChat/i,
-        /QQ/i,
-        /wv|WebView/i
+        /QQ/i
     ];
     
-    const isGenericInApp = genericInAppBrowsers.some(regex => regex.test(userAgent));
+    const isInApp = inAppBrowsers.some(regex => regex.test(userAgent));
     
-    if (isGenericInApp) {
-        return {
-            platform: 'In-App Browser',
-            detected: true,
-            icon: '🌐',
-            instructions: 'Look for a menu button (⋯ or ⚙️) and tap "Open in Browser" or "Open in Chrome"'
-        };
+    if (isInApp) {
+        console.log('🚨 In-app browser detected:', userAgent.substring(0, 100));
     }
     
-    return {
-        platform: null,
-        detected: false,
-        icon: null,
-        instructions: null
-    };
-};
-
-// ✅ GENERATE PLATFORM-SPECIFIC ERROR MESSAGE
-const generateInAppBrowserMessage = (browserInfo, authProvider = 'Google') => {
-    const { platform, icon, instructions } = browserInfo;
-    
-    return {
-        title: `${icon} ${platform} Browser Detected`,
-        message: `${authProvider} sign-in doesn't work properly in ${platform}'s built-in browser.`,
-        instructions: instructions,
-        suggestion: `For the best experience, please open this page in your default browser (Chrome, Safari, etc.).`
-    };
-};
-
-// ✅ OPEN IN BROWSER FUNCTIONALITY
-const openInDefaultBrowser = () => {
-    try {
-        // Method 1: Try to open in new window/tab (works on most platforms)
-        const newWindow = window.open(window.location.href, '_blank', 'noopener,noreferrer');
-        
-        // Method 2: If popup blocked, try location.href
-        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-            // Fallback: Replace current location (forces external browser on some platforms)
-            window.location.href = window.location.href;
-        }
-        
-        return true;
-    } catch (error) {
-        console.error('Failed to open in browser:', error);
-        
-        // Method 3: Last resort - copy URL to clipboard
-        try {
-            navigator.clipboard.writeText(window.location.href);
-            alert('URL copied to clipboard! Please paste it in your browser.');
-        } catch (clipboardError) {
-            console.error('Clipboard access failed:', clipboardError);
-            alert(`Please copy this URL and open it in your browser:\n\n${window.location.href}`);
-        }
-        
-        return false;
-    }
-};
-
-// ✅ LEGACY FUNCTION FOR BACKWARD COMPATIBILITY
-const isInAppBrowser = () => {
-    const browserInfo = detectInAppBrowser();
-    
-    if (browserInfo.detected) {
-        console.log(`🚨 ${browserInfo.platform} browser detected:`, navigator.userAgent.substring(0, 100));
-    }
-    
-    return browserInfo.detected;
+    return isInApp;
 };
 
 // ✅ POPUP-FIRST GOOGLE SIGN-IN FOR ALL DEVICES (WITH MOBILE FIX)
 export const signInWithGoogle = async () => {
-    console.log('🚀 Starting popup-first Google authentication...');
+    console.log('🚀 Starting Google authentication...');
     
     // Ensure persistence is set before any auth operations
     await initializePersistence();
@@ -351,221 +223,304 @@ export const signInWithGoogle = async () => {
         viewport: `${window.innerWidth}x${window.innerHeight}`
     });
 
-    // ✅ STEP 1: Quick check for redirect result (only if we initiated a redirect)
-    const hasRecentRedirect = sessionStorage.getItem('auth_redirect_type') === 'google';
-    if (hasRecentRedirect) {
-        try {
-            const redirectResult = await getRedirectResult(auth);
-            if (redirectResult?.user) {
-                console.log('✅ Completing redirect authentication');
-                sessionStorage.removeItem('auth_redirect_type');
-                return {
-                    success: true,
-                    user: redirectResult.user,
-                    credential: redirectResult.credential,
-                    needsVerification: false,
-                    method: 'redirect-result'
-                };
-            }
-        } catch (error) {
-            // Ignore - proceed with popup
-        }
-        sessionStorage.removeItem('auth_redirect_type');
-    }
-
-    // ✅ STEP 2: Handle in-app browsers with enhanced messaging
-    if (isInApp) {
-        const browserInfo = detectInAppBrowser();
-        const errorInfo = generateInAppBrowserMessage(browserInfo, 'Google');
-        
-        console.log(`🚨 ${browserInfo.platform} browser detected - authentication may not work properly`);
-        
-        return {
-            success: false,
-            error: errorInfo.message,
-            errorDetails: {
-                title: errorInfo.title,
-                instructions: errorInfo.instructions,
-                suggestion: errorInfo.suggestion,
-                platform: browserInfo.platform,
-                icon: browserInfo.icon
-            },
-            code: 'auth/in-app-browser',
-            method: 'in-app-browser-blocked',
-            showOpenInBrowser: true,
-            openInBrowser: openInDefaultBrowser
-        };
-    }
-
-    // ✅ STEP 3: TRY POPUP FIRST ON ALL DEVICES (Mobile + Desktop)
-    console.log('🖥️ Attempting popup authentication (works on mobile + desktop)...');
-    
+    // ✅ STEP 1: Check for existing redirect result first (cleanup from any previous redirects)
+    // This must be done with proper error handling for mobile
     try {
-                const result = await signInWithPopup(auth, googleProvider);
-
-        console.log('✅ Popup authentication successful');
-        return {
-            success: true,
-            user: result.user,
-            credential: result.credential,
-            needsVerification: false,
-            method: 'popup'
-        };
-    } catch (error) {
-        console.log('⚠️ Popup authentication failed:', error.code || error.message);
+        console.log('🔍 Checking for existing redirect result...');
+        let redirectResult = null;
         
-        // ✅ STEP 4: FALLBACK TO REDIRECT ONLY IF POPUP IS BLOCKED/TIMEOUT
-        const shouldFallbackToRedirect = (
-            error.code === 'auth/popup-blocked' || 
-            error.code === 'auth/popup-closed-by-user' ||
-            error.code === 'auth/cancelled-popup-request' ||
-            error.message === 'POPUP_TIMEOUT' ||
-            error.code === 'auth/web-storage-unsupported'
-        );
-        
-        if (shouldFallbackToRedirect) {
-            console.log('🔄 Popup blocked/failed, trying redirect fallback...');
+        try {
+            redirectResult = await getRedirectResult(auth);
+        } catch (redirectCheckError) {
+            // On some mobile browsers, getRedirectResult can throw temporarily
+            // Wait a bit and retry once if it fails
+            console.log('⚠️ First redirect check failed, retrying after 500ms:', redirectCheckError.code);
+            await new Promise(resolve => setTimeout(resolve, 500));
             
             try {
-                sessionStorage.setItem('auth_redirect_type', 'google');
-                await signInWithRedirect(auth, googleProvider);
-                return {
-                    success: true,
-                    user: null,
-                    credential: null,
-                    needsVerification: false,
-                    method: 'redirect-fallback',
-                    redirectInitiated: true,
-                    message: 'Popup blocked. Redirecting to Google sign-in...'
-                };
-            } catch (redirectError) {
-                console.error('❌ Redirect fallback also failed:', redirectError);
-                
-                return {
-                    success: false,
-                    error: 'Google sign-in failed. Please try again or contact support.',
-                    code: redirectError.code,
-                    method: 'all-failed'
-                };
+                redirectResult = await getRedirectResult(auth);
+            } catch (retryError) {
+                console.log('⚠️ Second redirect check also failed, continuing:', retryError.code);
             }
         }
         
-        // Handle other popup errors (don't fallback to redirect)
-        let errorMessage = 'Google sign-in failed. Please try again.';
-        
-        if (error.code === 'auth/network-request-failed') {
-            errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (error.code === 'auth/unauthorized-domain') {
-            errorMessage = 'This website is not authorized for Google sign-in. Please contact support.';
-        } else if (error.code === 'auth/operation-not-allowed') {
-            errorMessage = 'Google sign-in is not enabled. Please contact support.';
-        } else if (error.code === 'auth/user-disabled') {
-            errorMessage = 'Your account has been disabled. Please contact support.';
-        } else if (error.code === 'auth/account-exists-with-different-credential') {
-            errorMessage = 'An account already exists with this email using a different sign-in method. Please try signing in with your original method.';
+        if (redirectResult && redirectResult.user) {
+            console.log('✅ Found existing redirect result - completing authentication');
+            return {
+                success: true,
+                user: redirectResult.user,
+                credential: redirectResult.credential,
+                needsVerification: false,
+                method: 'redirect-result'
+            };
         }
+        console.log('ℹ️ No existing redirect result found');
+    } catch (error) {
+        console.log('⚠️ Error checking redirect result:', error.code);
+        // Continue with authentication
+    }
 
+    // ✅ STEP 2: Handle in-app browsers (Instagram, Facebook, etc.)
+    // In-app browsers have SEVERE limitations with OAuth:
+    // - Instagram WebView blocks third-party cookies
+    // - Google Sign-In requires cookies for state management
+    // - signInWithRedirect often fails silently or throws empty errors
+    // SOLUTION: Show user a clear message to open in a real browser
+    if (isInApp) {
+        console.log('🚨 IN-APP BROWSER DETECTED (Instagram, Facebook, etc.)');
+        console.log('🚨 Instagram browser detected - authentication may not work properly');
+        
+        // Detect specific in-app browser for better messaging
+        const userAgent = navigator.userAgent || '';
+        const isInstagram = /Instagram/i.test(userAgent);
+        const isFacebook = /FBAN|FBAV/i.test(userAgent);
+        const isTikTok = /TikTok/i.test(userAgent);
+        
+        let appName = 'this app';
+        if (isInstagram) appName = 'Instagram';
+        else if (isFacebook) appName = 'Facebook';
+        else if (isTikTok) appName = 'TikTok';
+        
+        // Generate "Open in Browser" URL for user
+        const currentUrl = window.location.href;
+        const openInBrowserUrl = currentUrl;
+        
+        try {
+            // Store return URL and mark as in-app browser auth attempt
+            sessionStorage.setItem('auth_redirect_url', window.location.href);
+            sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+            sessionStorage.setItem('auth_redirect_type', 'google');
+            sessionStorage.setItem('auth_in_app_browser', 'true');
+            
+            console.log('➡️ Attempting Google redirect flow for in-app browser (may fail)...');
+            
+            // Set a timeout to detect if redirect failed silently
+            const redirectTimeout = setTimeout(() => {
+                console.log('⚠️ Redirect did not happen within 3 seconds - likely blocked');
+            }, 3000);
+            
+            await signInWithRedirect(auth, googleProvider);
+            
+            clearTimeout(redirectTimeout);
+            
+            // This typically won't execute - browser will redirect
+            return {
+                success: true,
+                user: null,
+                credential: null,
+                needsVerification: false,
+                method: 'in-app-redirect',
+                redirectInitiated: true,
+                message: 'Redirecting to Google sign-in...'
+            };
+        } catch (inAppError) {
+            console.error('❌ In-app browser redirect failed:', inAppError);
+            console.error('❌ Error details:', {
+                message: inAppError?.message,
+                code: inAppError?.code,
+                name: inAppError?.name,
+                stack: inAppError?.stack
+            });
+            
+            // If redirect fails in in-app browser, show helpful message
+            // This catches both explicit errors AND silent failures (empty Error objects)
+            const errorMessage = inAppError?.message || inAppError?.code || '';
+            const isEmptyError = !errorMessage || errorMessage === '[object Object]';
+            
+            return {
+                success: false,
+                error: isEmptyError 
+                    ? `Google Sign-In doesn't work in ${appName}'s browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".`
+                    : `Google sign-in had an issue in ${appName}. Try: 1) Tap ⋮ menu → "Open in Chrome/Safari", or 2) Copy the link and open in your browser.`,
+                code: inAppError?.code || 'auth/in-app-browser-blocked',
+                method: 'in-app-redirect-failed',
+                showOpenInBrowser: true,
+                isInAppBrowser: true,
+                appName: appName,
+                openInBrowserUrl: openInBrowserUrl,
+                errorDetails: {
+                    icon: '📱',
+                    title: `${appName} Browser Limitation`,
+                    suggestion: `Google Sign-In is blocked in ${appName}'s browser`,
+                    instructions: 'Tap the ⋮ or ⋯ menu at the top and select "Open in Browser" or "Open in Chrome/Safari"',
+                    copyUrl: openInBrowserUrl
+                }
+            };
+        }
+    }
+
+    // ✅ STEP 3: MOBILE VS DESKTOP AUTHENTICATION STRATEGY
+    // 
+    // WHY POPUP FAILS ON REAL MOBILE DEVICES:
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 1. Mobile browsers aggressively block popups to prevent spam
+    // 2. Even when popup opens, it loses connection to the parent window
+    // 3. Cross-origin postMessage communication is unreliable on mobile
+    // 4. iOS Safari closes popups when the app goes to background
+    // 5. Android WebView has inconsistent popup handling
+    // 6. The OAuth callback can't communicate back to the original page
+    //
+    // WHY REDIRECT WORKS ON MOBILE:
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 1. Uses native browser navigation (same tab, no popup)
+    // 2. Firebase stores OAuth state in sessionStorage before redirect
+    // 3. After Google auth, browser redirects BACK to your app
+    // 4. getRedirectResult() retrieves the user from stored state
+    // 5. Works reliably on ALL mobile browsers
+    //
+    // NOTE: Chrome DevTools mobile emulation does NOT reflect real mobile behavior!
+    // DevTools emulation uses desktop popup logic, masking the real issue.
+    
+    if (isMobile) {
+        console.log('📱 MOBILE DEVICE DETECTED - Using REDIRECT flow');
+        console.log('📱 Reason: Popup OAuth is unreliable on real mobile browsers');
+        console.log('📱 The popup loses connection to parent window on mobile');
+        
+        try {
+            // Store return URL for after auth completes
+            sessionStorage.setItem('auth_redirect_url', window.location.href);
+            sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+            sessionStorage.setItem('auth_redirect_type', 'google');
+            
+            console.log('➡️ Initiating Google redirect flow for mobile...');
+            await signInWithRedirect(auth, googleProvider);
+            
+            // This return typically won't execute - browser will redirect to Google
+            return {
+                success: true,
+                user: null,
+                credential: null,
+                needsVerification: false,
+                method: 'mobile-redirect',
+                redirectInitiated: true,
+                message: 'Redirecting to Google sign-in...'
+            };
+        } catch (redirectError) {
+            console.error('❌ Mobile Google redirect failed:', redirectError);
+            return {
+                success: false,
+                error: getGoogleAuthErrorMessage(redirectError),
+                code: redirectError.code,
+                method: 'mobile-redirect-failed'
+            };
+        }
+    }
+    
+    // ✅ DESKTOP: Also use redirect for consistency and to avoid COOP warnings
+    console.log('🖥️ DESKTOP DEVICE - Using REDIRECT flow for consistency');
+    
+    try {
+        sessionStorage.setItem('auth_redirect_url', window.location.href);
+        sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+        sessionStorage.setItem('auth_redirect_type', 'google');
+        
+        console.log('➡️ Initiating Google redirect flow (desktop)...');
+        await signInWithRedirect(auth, googleProvider);
+        
+        return {
+            success: true,
+            user: null,
+            credential: null,
+            needsVerification: false,
+            method: 'desktop-redirect',
+            redirectInitiated: true,
+            message: 'Redirecting to Google sign-in...'
+        };
+    } catch (redirectError) {
+        console.error('❌ Desktop Google redirect failed:', redirectError);
         return {
             success: false,
-            error: errorMessage,
-            code: error.code,
-            method: 'popup-failed'
+            error: getGoogleAuthErrorMessage(redirectError),
+            code: redirectError.code,
+            method: 'desktop-redirect-failed'
         };
     }
 };
 
-// ✅ POPUP-FIRST FACEBOOK SIGN-IN FOR ALL DEVICES
+// ✅ HELPER: Get human-readable error messages for Google Auth
+const getGoogleAuthErrorMessage = (error) => {
+    const errorMessages = {
+        'auth/network-request-failed': 'Network error. Please check your internet connection and try again.',
+        'auth/unauthorized-domain': '❌ DOMAIN NOT AUTHORIZED: Add your domain to Firebase Console → Authentication → Settings → Authorized domains',
+        'auth/operation-not-allowed': 'Google sign-in is not enabled in Firebase Console. Please contact support.',
+        'auth/user-disabled': 'Your account has been disabled. Please contact support.',
+        'auth/account-exists-with-different-credential': 'An account already exists with this email using a different sign-in method.',
+        'auth/popup-blocked': 'Popup was blocked. Please allow popups or try again.',
+        'auth/cancelled-popup-request': 'Sign-in was cancelled. Please try again.',
+        'auth/popup-closed-by-user': 'Sign-in popup was closed. Please try again.'
+    };
+    
+    return errorMessages[error.code] || `Google sign-in failed: ${error.message || 'Please try again.'}`;
+};
+
+// ✅ REDIRECT-FIRST FACEBOOK SIGN-IN (AVOIDS COOP WARNINGS)
 export const signInWithFacebook = async () => {
-    console.log('🚀 Starting popup-first Facebook authentication...');
+    console.log('🚀 Starting Facebook authentication...');
     
     // Ensure persistence is set before any auth operations
     await initializePersistence();
     
-    const isMobile = isMobileDevice();
-    const browser = getBrowserInfo();
     const isInApp = isInAppBrowser();
     
-    console.log('📱 Facebook sign-in device info:', {
-        isMobile,
-        isInApp,
-        isIOS: browser.isIOS
-    });
-
-    // ✅ Handle in-app browsers with enhanced messaging
+    // ✅ Handle in-app browsers - try redirect flow (it may work)
     if (isInApp) {
-        const browserInfo = detectInAppBrowser();
-        const errorInfo = generateInAppBrowserMessage(browserInfo, 'Facebook');
+        console.log('📱 IN-APP BROWSER DETECTED - Attempting redirect-based Facebook OAuth');
         
-        console.log(`🚨 ${browserInfo.platform} browser detected for Facebook - authentication may not work properly`);
-        
-        return {
-            success: false,
-            error: errorInfo.message,
-            errorDetails: {
-                title: errorInfo.title,
-                instructions: errorInfo.instructions,
-                suggestion: errorInfo.suggestion,
-                platform: browserInfo.platform,
-                icon: browserInfo.icon
-            },
-            code: 'auth/in-app-browser',
-            method: 'in-app-browser-blocked',
-            showOpenInBrowser: true,
-            openInBrowser: openInDefaultBrowser
-        };
+        try {
+            sessionStorage.setItem('auth_redirect_url', window.location.href);
+            sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+            sessionStorage.setItem('auth_redirect_type', 'facebook');
+            sessionStorage.setItem('auth_in_app_browser', 'true');
+            
+            console.log('➡️ Initiating Facebook redirect flow for in-app browser...');
+            await signInWithRedirect(auth, facebookProvider);
+            
+            return {
+                success: true,
+                user: null,
+                credential: null,
+                needsVerification: false,
+                method: 'in-app-redirect',
+                redirectInitiated: true,
+                message: 'Redirecting to Facebook sign-in...'
+            };
+        } catch (inAppError) {
+            console.error('❌ In-app browser Facebook redirect failed:', inAppError);
+            
+            return {
+                success: false,
+                error: 'Facebook sign-in had an issue in this browser. Try opening this page in Chrome or Safari.',
+                code: inAppError.code || 'auth/in-app-browser-failed',
+                method: 'in-app-redirect-failed',
+                showOpenInBrowser: true,
+                errorDetails: {
+                    icon: '📱',
+                    title: 'In-App Browser Detected',
+                    suggestion: 'For the best experience, open this page in Chrome or Safari',
+                    instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser"'
+                }
+            };
+        }
     }
 
-    // ✅ TRY POPUP FIRST ON ALL DEVICES (Mobile + Desktop)
+    // ✅ USE REDIRECT-FIRST APPROACH (AVOIDS COOP WARNINGS & WORKS EVERYWHERE)
+    console.log('🔄 Using redirect-first Facebook authentication...');
+    
     try {
-        console.log('🖥️ Attempting Facebook popup authentication...');
-        const result = await signInWithPopup(auth, facebookProvider);
-        
-        console.log('✅ Facebook popup sign-in successful');
+        await signInWithRedirect(auth, facebookProvider);
         return {
             success: true,
-            user: result.user,
-            credential: result.credential,
+            user: null,
+            credential: null,
             needsVerification: false,
-            method: 'popup'
+            method: 'redirect-first',
+            redirectInitiated: true,
+            message: 'Redirecting to Facebook sign-in...'
         };
     } catch (error) {
-        console.error('❌ Facebook popup sign-in error:', error);
+        console.error('❌ Facebook redirect failed:', error);
 
-        // ✅ FALLBACK TO REDIRECT ONLY IF POPUP IS BLOCKED
-        const shouldFallbackToRedirect = (
-            error.code === 'auth/popup-blocked' || 
-            error.code === 'auth/popup-closed-by-user' ||
-            error.code === 'auth/cancelled-popup-request' ||
-            error.code === 'auth/web-storage-unsupported'
-        );
-
-        if (shouldFallbackToRedirect) {
-            console.log('🔄 Facebook popup blocked - trying redirect fallback...');
-            
-            try {
-                await signInWithRedirect(auth, facebookProvider);
-                return {
-                    success: true,
-                    user: null,
-                    credential: null,
-                    needsVerification: false,
-                    method: 'redirect-fallback',
-                    redirectInitiated: true,
-                    message: 'Popup blocked. Redirecting to Facebook sign-in...'
-                };
-            } catch (redirectError) {
-                console.error('❌ Facebook redirect fallback failed:', redirectError);
-                
-                return {
-                    success: false,
-                    error: 'Facebook sign-in failed. Please try again or use email login.',
-                    code: redirectError.code,
-                    method: 'all-failed'
-                };
-            }
-        }
-
-        // Handle other specific errors (don't fallback to redirect)
+        // Handle specific errors
         let errorMessage = 'Facebook sign-in failed. Please try again.';
 
         if (error.code === 'auth/network-request-failed') {
@@ -582,7 +537,7 @@ export const signInWithFacebook = async () => {
             success: false,
             error: errorMessage,
             code: error.code,
-            method: 'popup-failed'
+            method: 'redirect-failed'
         };
     }
 };
@@ -756,20 +711,137 @@ export const getCurrentUser = () => {
     return auth.currentUser;
 };
 
-// ✅ CRITICAL: Handle redirect result for mobile authentication - MUST RUN FIRST
+// ✅ CRITICAL: Handle redirect result for mobile authentication - MUST RUN FIRST ON PAGE LOAD
+// This function is called by AuthContext on app initialization to check if user is returning
+// from a Google/Facebook OAuth redirect. On mobile, this is the ONLY way to get the auth result.
 export const handleRedirectResult = async () => {
-    console.log('🔍 Processing redirect result...');
+    console.log('🔍 Processing redirect result (CRITICAL for mobile OAuth)...');
+    
+    // Check if we have a pending redirect
+    const redirectType = sessionStorage.getItem('auth_redirect_type');
+    const redirectTimestamp = sessionStorage.getItem('auth_redirect_timestamp');
+    const redirectUrl = sessionStorage.getItem('auth_redirect_url');
+    const wasInAppBrowser = sessionStorage.getItem('auth_in_app_browser');
+    
+    console.log('📋 Redirect context:', {
+        redirectType,
+        redirectTimestamp,
+        redirectUrl,
+        wasInAppBrowser,
+        currentUser: auth.currentUser ? auth.currentUser.email : 'none',
+        timeSinceRedirect: redirectTimestamp ? `${(Date.now() - parseInt(redirectTimestamp)) / 1000}s ago` : 'N/A'
+    });
+    
+    // ✅ MOBILE FIX: If we have a pending redirect and auth.currentUser already exists,
+    // use it immediately (Firebase restored the session from cache)
+    if (redirectType && redirectTimestamp && auth.currentUser) {
+        const timeSinceRedirect = Date.now() - parseInt(redirectTimestamp);
+        if (timeSinceRedirect < 300000) { // Within 5 minutes
+            console.log('✅ FAST PATH: auth.currentUser already exists after redirect!');
+            console.log('👤 User:', auth.currentUser.email);
+            
+            // Clear redirect markers
+            sessionStorage.removeItem('auth_redirect_type');
+            sessionStorage.removeItem('auth_redirect_timestamp');
+            sessionStorage.removeItem('auth_redirect_url');
+            sessionStorage.removeItem('auth_in_app_browser');
+            
+            return {
+                success: true,
+                user: auth.currentUser,
+                credential: null,
+                providerId: auth.currentUser.providerData?.[0]?.providerId || redirectType,
+                needsVerification: false,
+                isNewUser: false,
+                method: 'auth-current-user-fast'
+            };
+        }
+    }
     
     try {
-        // ✅ CRITICAL: This must run before any other Firebase auth operations
-        const result = await getRedirectResult(auth);
+        // ✅ CRITICAL: getRedirectResult() must run FIRST before any other Firebase auth operations
+        // This retrieves the OAuth result that Firebase stored in sessionStorage during redirect
+        console.log('⏳ Calling getRedirectResult(auth)...');
+        
+        let result = null;
+        const isInApp = isInAppBrowser();
+        const isMobile = isMobileDevice();
+        
+        // ✅ ENHANCED: More retries for real mobile devices (5 attempts)
+        const maxRetries = (isInApp || wasInAppBrowser) ? 5 : (isMobile ? 5 : 3);
+        
+        // ✅ MOBILE & IN-APP BROWSER FIX: Retry mechanism for slow/unreliable connections
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`📱 Attempt ${attempt}/${maxRetries} to get redirect result...`);
+                
+                // ✅ MOBILE FIX: Wait before each attempt on mobile
+                // Real mobile browsers often need time to restore state
+                if (isMobile) {
+                    const waitTime = attempt === 1 ? 500 : 300 * attempt;
+                    console.log(`⏳ Mobile: waiting ${waitTime}ms before attempt...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
+                
+                result = await getRedirectResult(auth);
+                
+                if (result && result.user) {
+                    console.log(`✅ Got result on attempt ${attempt}`);
+                    break;
+                }
+                
+                // ✅ Also check auth.currentUser as backup (sometimes redirect result is null but user is set)
+                if (!result?.user && auth.currentUser && redirectType) {
+                    console.log('📱 No redirect result but auth.currentUser exists!');
+                    const timeSinceRedirect = redirectTimestamp ? (Date.now() - parseInt(redirectTimestamp)) : Infinity;
+                    if (timeSinceRedirect < 300000) { // Within 5 minutes
+                        console.log('✅ Using auth.currentUser as redirect result (mobile fallback)');
+                        result = { user: auth.currentUser, credential: null };
+                        break;
+                    }
+                }
+                
+                // ✅ If no result yet and we have a pending redirect, wait and retry
+                if (!result?.user && redirectType && attempt < maxRetries) {
+                    console.log(`⏳ No result yet, will retry... (attempt ${attempt}/${maxRetries})`);
+                }
+            } catch (attemptError) {
+                console.warn(`⚠️ Attempt ${attempt} failed:`, attemptError.code, attemptError.message);
+                
+                if (attempt < maxRetries) {
+                    // ✅ Progressive backoff: wait longer on each retry
+                    const baseWait = isMobile ? 1000 : 500;
+                    const waitTime = baseWait * attempt;
+                    console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                } else {
+                    // On last attempt, check auth.currentUser before giving up
+                    if (auth.currentUser && redirectType) {
+                        console.log('✅ Last resort: using auth.currentUser');
+                        result = { user: auth.currentUser, credential: null };
+                    } else {
+                        throw attemptError;
+                    }
+                }
+            }
+        }
         
         if (result && result.user) {
-            console.log('✅ Redirect result found:', {
+            console.log('✅ REDIRECT RESULT FOUND - User authenticated successfully!');
+            console.log('👤 User details:', {
                 email: result.user.email,
                 uid: result.user.uid,
-                provider: result.providerId || result.user.providerData?.[0]?.providerId
+                displayName: result.user.displayName,
+                provider: result.providerId || result.user.providerData?.[0]?.providerId,
+                isNewUser: result._tokenResponse?.isNewUser || false,
+                wasInAppBrowser: wasInAppBrowser === 'true'
             });
+            
+            // Clear ALL redirect markers including in-app browser flag
+            sessionStorage.removeItem('auth_redirect_type');
+            sessionStorage.removeItem('auth_redirect_timestamp');
+            sessionStorage.removeItem('auth_redirect_url');
+            sessionStorage.removeItem('auth_in_app_browser');
             
             return {
                 success: true,
@@ -778,14 +850,58 @@ export const handleRedirectResult = async () => {
                 providerId: result.providerId || result.user.providerData?.[0]?.providerId,
                 needsVerification: false,
                 isNewUser: result._tokenResponse?.isNewUser || false,
-                method: 'redirect-result'
+                method: wasInAppBrowser === 'true' ? 'in-app-redirect-result' : 'redirect-result'
             };
         } else {
-            console.log('ℹ️ No redirect result found (normal for non-redirect flows)');
-            return null; // No redirect result - this is normal
+            console.log('ℹ️ No redirect result found');
+            
+            // If we had a pending redirect but no result, it might have expired or failed
+            if (redirectType && redirectTimestamp) {
+                const elapsed = Date.now() - parseInt(redirectTimestamp);
+                if (elapsed > 300000) { // 5 minutes
+                    console.warn('⚠️ Redirect seems to have timed out (>5 min)');
+                    sessionStorage.removeItem('auth_redirect_type');
+                    sessionStorage.removeItem('auth_redirect_timestamp');
+                    sessionStorage.removeItem('auth_redirect_url');
+                    sessionStorage.removeItem('auth_in_app_browser');
+                }
+            }
+            
+            return null; // No redirect result - this is normal for fresh page loads
         }
     } catch (error) {
         console.error('❌ Redirect result error:', error);
+        console.error('Error details:', {
+            code: error.code,
+            message: error.message,
+            name: error.name
+        });
+        
+        // ✅ LAST RESORT: Check if auth.currentUser exists despite the error
+        if (auth.currentUser && redirectType) {
+            console.log('✅ Error occurred but auth.currentUser exists - using it');
+            
+            sessionStorage.removeItem('auth_redirect_type');
+            sessionStorage.removeItem('auth_redirect_timestamp');
+            sessionStorage.removeItem('auth_redirect_url');
+            sessionStorage.removeItem('auth_in_app_browser');
+            
+            return {
+                success: true,
+                user: auth.currentUser,
+                credential: null,
+                providerId: auth.currentUser.providerData?.[0]?.providerId || redirectType,
+                needsVerification: false,
+                isNewUser: false,
+                method: 'auth-current-user-fallback'
+            };
+        }
+        
+        // Clear ALL redirect markers on error
+        sessionStorage.removeItem('auth_redirect_type');
+        sessionStorage.removeItem('auth_redirect_timestamp');
+        sessionStorage.removeItem('auth_redirect_url');
+        sessionStorage.removeItem('auth_in_app_browser');
         
         let errorMessage = 'Authentication failed after redirect. Please try again.';
         
@@ -797,6 +913,8 @@ export const handleRedirectResult = async () => {
             errorMessage = 'This domain is not authorized for authentication. Please contact support.';
         } else if (error.code === 'auth/network-request-failed') {
             errorMessage = 'Network error during authentication. Please check your connection and try again.';
+        } else if (error.code === 'auth/invalid-credential') {
+            errorMessage = 'Invalid authentication credential. Please try signing in again.';
         }
         
         return {
@@ -807,5 +925,8 @@ export const handleRedirectResult = async () => {
         };
     }
 };
+
+// ✅ Export mobile detection for use in other modules
+export { isMobileDevice };
 
 export { auth, app, analytics, signOut };
