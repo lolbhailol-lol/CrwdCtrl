@@ -10,9 +10,10 @@ import { authAPI } from '../utils/api';
 import { storage } from '../utils/storage';
 import { signInWithGoogle, signInWithFacebook, registerWithEmail, loginWithEmail } from '../firebase';
 import { processSocialAuthUser } from '../utils/socialAuth';
+import { AUTH_CONFIG, API_CONFIG } from '../config/env.js';
 
-// Storage keys
-const TOKEN_KEY = 'crwdctrl_token';
+// ✅ FIX: Use config token keys to avoid dev/prod mismatch
+const TOKEN_KEY = AUTH_CONFIG.TOKEN_KEY || 'crwdctrl_token';
 const USER_KEY = 'crwdctrl_user';
 const ADMIN_TOKEN_KEY = 'admin_token';
 const ADMIN_REFRESH_TOKEN_KEY = 'admin_refresh_token';
@@ -388,6 +389,15 @@ class AuthService {
             this.checkNetworkStatus();
 
             console.log('🔐 [AUTH] Completing social registration...');
+            console.log('🔐 [AUTH] API Base URL:', API_CONFIG.BASE_URL);
+            console.log('🔐 [AUTH] Social auth data:', {
+                name: socialAuthData?.name,
+                email: socialAuthData?.email,
+                provider: socialAuthData?.provider,
+                hasProviderId: !!socialAuthData?.providerId,
+                phone: phone,
+                dateOfBirth: dateOfBirth
+            });
 
             const completeAuthData = {
                 ...socialAuthData,
@@ -396,10 +406,47 @@ class AuthService {
                 isVerified: true
             };
 
+            // ✅ FIX: Pre-flight health check to give better error messages
+            try {
+                const healthUrl = API_CONFIG.BASE_URL.replace(/\/api$/, '') + '/api/health';
+                console.log('🏥 [AUTH] Checking backend health:', healthUrl);
+                const healthCheck = await fetch(healthUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    signal: AbortSignal.timeout(10000)
+                });
+                if (!healthCheck.ok) {
+                    console.error('❌ [AUTH] Backend health check failed:', healthCheck.status);
+                    throw new Error(`Backend server returned ${healthCheck.status}. The server may be starting up — please try again in 30 seconds.`);
+                }
+                console.log('✅ [AUTH] Backend is reachable');
+            } catch (healthError) {
+                if (healthError.message.includes('Backend server returned')) {
+                    throw healthError;
+                }
+                console.error('❌ [AUTH] Backend unreachable:', healthError.message);
+                // Provide specific diagnosis
+                const apiUrl = API_CONFIG.BASE_URL;
+                if (apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')) {
+                    throw new Error(
+                        `Cannot connect to backend server at ${apiUrl}. ` +
+                        'Please make sure the backend is running (cd backend && npm start). ' +
+                        'Check that VITE_API_BASE_URL matches your backend server address.'
+                    );
+                } else {
+                    throw new Error(
+                        `Cannot connect to backend server at ${apiUrl}. ` +
+                        'The server may be experiencing a cold start — please wait 30 seconds and try again. ' +
+                        'If the problem persists, verify that VITE_API_BASE_URL is correct and the backend is deployed.'
+                    );
+                }
+            }
+
             const backendResponse = await authAPI.socialAuth(completeAuthData);
 
             if (!backendResponse?.success || !backendResponse?.data?.user || !backendResponse?.data?.token) {
-                throw new Error(backendResponse?.message || 'Backend registration failed');
+                console.error('❌ [AUTH] Backend response invalid:', backendResponse);
+                throw new Error(backendResponse?.message || 'Backend registration failed. Server returned an unexpected response.');
             }
 
             // Store user data and token
@@ -418,15 +465,27 @@ class AuthService {
 
         } catch (error) {
             console.error('❌ [AUTH] Social registration error:', error);
+            console.error('❌ [AUTH] Error details:', {
+                message: error.message,
+                name: error.name,
+                status: error.status,
+                stack: error.stack?.substring(0, 300)
+            });
             
             let errorMessage = 'Registration failed. Please try again.';
             
             if (error.message.includes('No internet')) {
                 errorMessage = error.message;
+            } else if (error.message.includes('Cannot connect to backend')) {
+                errorMessage = error.message;
+            } else if (error.message.includes('Backend server returned')) {
+                errorMessage = error.message;
             } else if (error.message.includes('already exists')) {
                 errorMessage = 'An account with this email or phone number already exists. Please try logging in instead.';
-            } else if (error.message.includes('Network') || error.message.includes('fetch')) {
-                errorMessage = 'Network error. Please check your internet connection and try again.';
+            } else if (error.message.includes('Unable to connect')) {
+                errorMessage = `Server connection failed. API URL: ${API_CONFIG.BASE_URL}. Please verify the backend is running and VITE_API_BASE_URL is correct.`;
+            } else if (error.message.includes('Network') || error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+                errorMessage = `Network error connecting to ${API_CONFIG.BASE_URL}. Please check: 1) Backend server is running, 2) VITE_API_BASE_URL is correct, 3) CORS is enabled on the backend.`;
             } else if (error.message) {
                 errorMessage = error.message;
             }

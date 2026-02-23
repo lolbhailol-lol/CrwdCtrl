@@ -28,6 +28,9 @@ app.get('/api/health', (req, res) => {
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 
+// ✅ FIX: Mount user routes (required for /api/users/social-auth, /api/users/register, etc.)
+app.use('/api/users', require('./src/routers/userroute'));
+
 // ...existing routes...
 
 // 404 handler

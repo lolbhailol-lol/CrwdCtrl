@@ -589,11 +589,42 @@ const socialAuth = async (req, res) => {
             },
         });
     } catch (error) {
-        console.error('Social authentication error:', error);
-        res.status(500).json({
+        console.error('❌ Social authentication error:', error);
+        console.error('❌ Social auth error details:', {
+            message: error.message,
+            name: error.name,
+            code: error.code,
+            stack: error.stack?.substring(0, 500),
+            requestBody: {
+                provider: req.body?.provider,
+                email: req.body?.email,
+                hasName: !!req.body?.name,
+                hasProviderId: !!req.body?.providerId,
+                hasPhone: !!req.body?.phoneNumber,
+                hasDOB: !!req.body?.dateOfBirth
+            }
+        });
+
+        // Provide specific error messages for common issues
+        let errorMessage = 'Internal server error during social authentication';
+        let statusCode = 500;
+
+        if (error.code === 11000) {
+            // MongoDB duplicate key error
+            const field = Object.keys(error.keyPattern || {})[0] || 'field';
+            errorMessage = `An account with this ${field} already exists. Please try logging in instead.`;
+            statusCode = 400;
+        } else if (error.name === 'ValidationError') {
+            errorMessage = `Validation error: ${Object.values(error.errors || {}).map(e => e.message).join(', ')}`;
+            statusCode = 400;
+        } else if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+            errorMessage = 'Database connection error. Please try again in a moment.';
+        }
+
+        res.status(statusCode).json({
             success: false,
-            message: 'Internal server error',
-            error: error.message,
+            message: errorMessage,
+            error: process.env.NODE_ENV !== 'production' ? error.message : undefined,
         });
     }
 };
