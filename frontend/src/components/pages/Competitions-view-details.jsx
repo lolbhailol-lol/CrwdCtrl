@@ -758,10 +758,10 @@ function EventPage() {
     return (
         <div className={`min-h-screen flex flex-col transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-[#F5F6FA]'}`}>
 
-            <main className={`flex-1 pb-24 sm:pb-16 lg:pb-8 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
+            <main className={`flex-1 pb-8 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
                     <div className="max-w-7xl mx-auto">
-                        {/* Mobile/Narrow Layout */}
-                        <div className="block lg:hidden pb-24">
+                        {/* Mobile/Narrow Layout - Only visible below 768px */}
+                        <div className="block md:hidden">
                             {/* Mobile Back Button */}
                             <div className="px-4 pt-4 pb-2">
                                 <button
@@ -818,6 +818,92 @@ function EventPage() {
                                         <span className="text-sm">{eventData?.venue || 'TBD'}</span>
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* Mobile Registration Button - Inside container */}
+                            <div className="px-4 py-4">
+                                <div className="flex gap-2 relative">
+                                    <button
+                                        onClick={handleRegister}
+                                        disabled={isRegistered || registrationInfo.isDisabled}
+                                        className={`flex-1 py-3 px-4 rounded-full font-semibold transition ${isRegistered
+                                            ? 'bg-green-500 text-white cursor-not-allowed'
+                                            : registrationInfo.isDisabled
+                                            ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
+                                            : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
+                                            }`}
+                                        title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
+                                    >
+                                        {isRegistered ? (
+                                            <span className="flex items-center justify-center gap-2">
+                                                <Check className="w-4 h-4" />
+                                                Registered
+                                            </span>
+                                        ) : (
+                                            registrationInfo.buttonText
+                                        )}
+                                    </button>
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setShowShareMenu(!showShareMenu)}
+                                            className={`w-12 h-12 rounded-full flex items-center justify-center transition ${isDark ? 'bg-dark-700 hover:bg-dark-600' : 'bg-gray-100 hover:bg-gray-200'
+                                                }`}
+                                        >
+                                            <img src={ShareIcon} alt="Share" className="w-5 h-5" />
+                                        </button>
+
+                                        {showShareMenu && (
+                                            <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-dark-700' : 'bg-white'
+                                                } border ${isDark ? 'border-dark-600' : 'border-gray-200'}`}>
+                                                <div className="py-2">
+                                                    <button
+                                                        onClick={() => handleShare('whatsapp')}
+                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
+                                                            }`}
+                                                    >
+                                                        Share on WhatsApp
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleShare('facebook')}
+                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
+                                                            }`}
+                                                    >
+                                                        Share on Facebook
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleShare('twitter')}
+                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
+                                                            }`}
+                                                    >
+                                                        Share on Twitter
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleShare('copy')}
+                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
+                                                            }`}
+                                                    >
+                                                        Copy Link
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Warning: Form Not Configured */}
+                                {registrationInfo.notConfigured && (
+                                    <div className={`mt-4 p-4 rounded-lg border ${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
+                                        <div className="flex items-start gap-3">
+                                            <span className="text-yellow-500 text-lg">⚠️</span>
+                                            <div>
+                                                <p className={`font-semibold ${isDark ? 'text-yellow-300' : 'text-yellow-800'}`}>Registration Form Not Ready</p>
+                                                <p className={`text-sm mt-1 ${isDark ? 'text-yellow-200/80' : 'text-yellow-700'}`}>
+                                                    This competition's registration form hasn't been set up yet. Please contact the organizers to complete the configuration.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             
                             {/* Mobile Prize Pool Highlight Card */}
@@ -1087,12 +1173,12 @@ function EventPage() {
                             </div>
                         </div>
 
-                        {/* Desktop Layout - Properly Aligned */}
-                        <div className="hidden lg:grid lg:grid-cols-2 gap-8 p-6">
+                        {/* Desktop/Laptop Layout - Visible at 768px and above */}
+                        <div className="hidden md:flex md:flex-row gap-8 p-6">
                             {/* Left Column - Image and Rules */}
-                            <div className="space-y-6">
+                            <div className="w-1/2 flex-shrink-0 space-y-6">
                                 {/* Event Image Card */}
-                                <div className="bg-[#F5F6FA] rounded-2xl overflow-hidden relative">
+                                <div className="bg-[#F5F6FA] rounded-2xl overflow-hidden">
                                     <img
                                         src={getImageUrl(eventData?.image) || '/default-image.jpg'}
                                         alt={eventData?.title || 'Competition'}
@@ -1105,7 +1191,7 @@ function EventPage() {
                                     />
                                 </div>
 
-                                <div className='space-y-6'>
+                                <div className="space-y-6">
                                     {/* Desktop Prize Pool Highlight Card */}
                                     {eventData?.prize && (
                                         <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
@@ -1235,7 +1321,7 @@ function EventPage() {
                             </div>
 
                             {/* Right Column - Event Details */}
-                            <div className="space-y-6">
+                            <div className="w-1/2 flex-shrink-0 space-y-6">
                                 {/* Event Header Card */}
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6 relative`}>
                                     {showRegistrationSuccess && (
@@ -1481,32 +1567,8 @@ function EventPage() {
                     </div>
                 </main>
 
-                {/* Footer - Hidden on mobile due to sticky button */}
-                <div className="hidden lg:block">
-                    <Footer />
-                </div>
-
-            {/* Mobile Fixed Bottom Register Button - Only show on narrow screens */}
-            <button
-                onClick={handleRegister}
-                disabled={isRegistered || registrationInfo.isDisabled}
-                className={`lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 w-11/12 py-3 px-4 rounded-full font-semibold transition z-50 ${isRegistered
-                    ? 'bg-green-500 text-white cursor-not-allowed'
-                    : registrationInfo.isDisabled
-                    ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
-                    : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
-                    }`}
-                title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
-            >
-                {isRegistered ? (
-                    <span className="flex items-center justify-center gap-2">
-                        <Check className="w-4 h-4" />
-                        Registered
-                    </span>
-                ) : (
-                    registrationInfo.buttonText
-                )}
-            </button>
+                {/* Footer */}
+                <Footer />
 
             {/* Login Modal */}
             {showLogin && (

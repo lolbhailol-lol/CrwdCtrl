@@ -550,14 +550,14 @@ function EventDetailsPage() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} transition-colors duration-300`}>
-      {/* Desktop Version - Show when viewport is wide enough (1280px+) */}
-      <div className="hidden xl:block">
+      {/* Desktop Version - Show at 768px and above */}
+      <div className="hidden md:block">
         <div className={`transition-all duration-300`}>
           {/* Content */}
           <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
               {/* Left Column - Event Details */}
-              <div className="xl:col-span-2 space-y-4 sm:space-y-6">
+              <div className="md:col-span-2 space-y-4 sm:space-y-6">
                 {/* Hero Image */}
                 <div className="relative rounded-2xl overflow-hidden">
                   <img
@@ -933,8 +933,8 @@ function EventDetailsPage() {
         </div>
       </div>
 
-      {/* Mobile/Tablet Version - Show when viewport is narrow */}
-      <div className="xl:hidden pb-24">
+      {/* Mobile Version - Show below 768px */}
+      <div className="md:hidden">
         {/* Mobile Content */}
         <div>
           {/* Header Icons */}
@@ -1229,26 +1229,30 @@ function EventDetailsPage() {
             </div>
           )}
 
-          {/* Fixed Register Button - Only show on mobile/tablet */}
-          <button
-            onClick={handleRegister}
-            disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
-            className={`xl:hidden fixed bottom-4 left-1/2 -translate-x-1/2 w-11/12 font-semibold py-3 rounded-xl transition z-50 ${
-              eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
-                ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
-                : isRegistered(eventData.id)
-                ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
-          }`}
-          >
-            {eventData?.registration?.mode === 'NOT_STARTED'
-              ? 'Registrations Not Started'
-              : eventData?.registration?.mode === 'CLOSED'
-              ? 'Registration Closed'
-              : isRegistered(eventData.id) 
-              ? '✓ Registered' 
-              : 'Register Now'}
-          </button>
+          {/* Mobile Register Button - Inside content flow */}
+          <div className="px-4 py-4 mb-6">
+            <button
+              onClick={handleRegister}
+              disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
+              className={`w-full font-semibold py-3 rounded-xl transition ${eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
+                  ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
+                  : isRegistered(eventData.id)
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
+            }`}
+            >
+              {eventData?.registration?.mode === 'NOT_STARTED'
+                ? 'Registrations Not Started'
+                : eventData?.registration?.mode === 'CLOSED'
+                ? 'Registration Closed'
+                : isRegistered(eventData.id) 
+                ? '✓ Registered' 
+                : 'Register Now'}
+            </button>
+          </div>
+
+          {/* Footer */}
+          <Footer />
         </div>
       </div>
 

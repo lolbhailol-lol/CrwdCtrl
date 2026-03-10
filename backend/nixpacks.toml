@@ -1,5 +1,6 @@
 # Nixpacks configuration for Railway deployment
 # https://nixpacks.com/docs/configuration/file
+# Updated: Force rebuild
 
 [phases.build]
 # No environment variables needed at build time
@@ -7,6 +8,7 @@
 
 [phases.setup]
 nixPkgs = ["nodejs_20"]
+aptPkgs = ["libatomic1"]
 
 [start]
 cmd = "npm start"
