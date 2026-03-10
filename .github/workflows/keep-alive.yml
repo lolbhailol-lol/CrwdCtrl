@@ -16,14 +16,14 @@ jobs:
           
           # Ping the health endpoint
           response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            "https://prolific-learning-production-13aa.up.railway.app/api/health" \
+            "https://crwdctrl-production.up.railway.app/api/health" \
             -H "User-Agent: GitHub-Actions-KeepAlive/1.0")
           
           echo "Health check response: $response"
           
           # Also ping the keep-alive endpoint
           response2=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            "https://prolific-learning-production-13aa.up.railway.app/api/keep-alive" \
+            "https://crwdctrl-production.up.railway.app/api/keep-alive" \
             -H "User-Agent: GitHub-Actions-KeepAlive/1.0")
           
           echo "Keep-alive response: $response2"

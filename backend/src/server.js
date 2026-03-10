@@ -74,7 +74,7 @@ const PRODUCTION_ORIGINS = [
   'https://crwdctrl.vercel.app',
   'https://crwdctrl.firebaseapp.com',
   'https://crwdctrl.web.app',
-  'https://prolific-learning-production-13aa.up.railway.app'
+  'https://crwdctrl-production.up.railway.app'
 ];
 
 // ✅ FIRST MIDDLEWARE: Handle CORS headers for ALL requests
@@ -119,7 +119,7 @@ app.use((req, res, next) => {
 // ----------------------
 const corsOrigins = [
   // ✅ Railway Production
-  "https://prolific-learning-production-13aa.up.railway.app",
+  "https://crwdctrl-production.up.railway.app",
   
   // Local Development
   "http://localhost:5173",
@@ -403,7 +403,7 @@ if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT) {
     }
     
     // ✅ Hardcoded fallback for your Railway URL
-    return 'https://prolific-learning-production-13aa.up.railway.app';
+    return 'https://crwdctrl-production.up.railway.app';
   };
   
   const RAILWAY_URL = getRailwayUrl();
