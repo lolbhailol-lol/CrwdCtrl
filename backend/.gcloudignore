@@ -1,8 +1,0 @@
-# This file specifies files that should NOT be uploaded to Cloud Run
-node_modules/
-.git
-.gitignore
-README.md
-test-*.js
-.env.local
-.env.*.local

@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChange, handleRedirectResult, signOut, auth, firebaseReady } from '../firebase';
 import { authAPI } from '../utils/api';
 import { processSocialAuthUser } from '../utils/socialAuth';
@@ -556,3 +556,13 @@ export const AuthProvider = ({ children }) => {
         </AuthContext.Provider>
     );
 };
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};
+
+export default AuthContext;

@@ -1,298 +1,201 @@
-
 # CrwdCtrl
-=======
-# 🎉 CrwdCtrl - Complete Festival Management Platform
 
-CrwdCtrl is a comprehensive digital platform that bridges the gap between festival organizers and participants, enabling seamless event discovery, registration, and management across educational institutions.
+A full-stack festival management platform connecting organizers and participants for seamless event discovery, registration, and management across educational institutions.
 
-## 🚀 Tech Stack & Architecture
+## Tech Stack
 
-### Frontend Stack
-- **React 19.1.1** - Modern UI library with latest features
-- **Vite 7.1.7** - Ultra-fast build tool and development server
-- **TypeScript Support** - Type-safe development environment
-- **ESLint** - Code quality and consistency enforcement
-- **Modern ES Modules** - Latest JavaScript standards
+### Frontend
+- **React 19** with Vite
+- **Tailwind CSS 4** for styling
+- **React Router 7** for navigation
+- **Firebase** for Google authentication
+- **TypeScript** support
 
-### Backend Stack
-- **Node.js** - JavaScript runtime for server-side development
-- **Express.js 5.1.0** - Fast, minimal web framework
-- **MongoDB** - NoSQL database for flexible data storage
-- **Mongoose 8.19.3** - MongoDB ODM for data modeling and validation
+### Backend
+- **Node.js** with **Express 5**
+- **MongoDB** with **Mongoose 8**
+- **JWT** + **bcryptjs** for authentication
+- **Firebase Admin SDK** for social auth verification
+- **Cloudinary** for media uploads
+- **Nodemailer** / **Brevo** for email delivery
 
-### Authentication & Security
-- **JWT (JSON Web Tokens)** - Stateless authentication system
-- **bcryptjs** - Password hashing and security
-- **Custom Auth Middleware** - Route protection and user verification
+### Deployment
+- **Backend**: [Railway](https://railway.app) (Nixpacks)
+- **Frontend**: [Vercel](https://vercel.com)
+- **Database**: MongoDB Atlas
 
-### Cloud & External Services
-- **Firebase 12.5.0** - Real-time database and cloud functions
-- **Firebase Admin SDK** - Server-side Firebase operations
-- **Axios** - HTTP client for external API integrations
+## Project Structure
 
-### Development Tools
-- **Nodemon** - Auto-restart development server
-- **dotenv** - Environment variable management
-- **ESLint** - Code linting and formatting
-
-## 🎯 Core Features & Implementations
-
-### 👤 User Management System
-- **Multi-role Authentication**: Students, Festival Organizers
-- **Secure Registration/Login**: Email and phone-based authentication
-- **Profile Management**: Comprehensive user profiles with college details
-- **JWT-based Sessions**: Stateless authentication for scalability
-
-### 🎪 Festival Management
-- **CRUD Operations**: Complete festival lifecycle management
-- **Multi-category Support**: Cultural, Technical, Sports, Management events
-- **Event & Competition Management**: Nested event structures within festivals
-- **Rich Media Support**: Image galleries and promotional content
-- **Location & Date Management**: Comprehensive scheduling system
-
-### 📱 Student Features
-- **Festival Discovery**: Browse and search festivals by category/location
-- **Registration System**: Easy signup for festivals, events, and competitions
-- **Personal Dashboard**: Track registered events and participation history
-- **College Integration**: Link profiles with educational institutions
-
-### 📊 Data Management
-- **MongoDB Collections**:
-  - Users (Base user information)
-  - Students (Extended student profiles)
-  - FestOrganizers (Festival and event data)
-- **Relationship Modeling**: Proper data relationships with population queries
-- **Indexing**: Optimized database queries for performance
-
-## 🏗️ Project Architecture
-
-### Backend Structure
 ```
-backend/src/
-├── server.js              # Application entry point & Express setup
-├── config/db.js          # MongoDB connection configuration
-├── controllers/           # Business logic & request handling
-│   ├── userController.js       # User auth & profile management
-│   ├── studentController.js    # Student-specific operations  
-│   └── festOrganizerController.js # Festival management
-├── models/               # Database schemas & data models
-│   ├── usermodel.js           # Base user schema
-│   ├── student&participant.js # Student profile schema
-│   └── fest_organizer_model.js # Festival data schema
-├── routes/               # API endpoint definitions
-│   ├── userroute.js          # User authentication routes
-│   ├── studentroute.js       # Student dashboard routes
-│   ├── festOrganizerRoute.js # Festival management routes
-│   └── publicFestRoute.js    # Public festival discovery
-├── middleware/           # Custom middleware functions
-│   └── authmiddleware.js     # JWT authentication middleware
-└── service/              # External service integrations (Future)
+CrwdCtrl/
+├── railway.json                    # Railway deployment config
+├── backend/
+│   ├── package.json
+│   ├── scripts/
+│   │   └── cleanup-duplicate-registrations.js
+│   └── src/
+│       ├── server.js               # Entry point & Express setup
+│       ├── config/
+│       │   └── db.js               # MongoDB connection
+│       ├── controllers/
+│       │   ├── usercontroller.js          # Auth & profile
+│       │   ├── studentController.js       # Student operations
+│       │   ├── festOrganizerController.js # Festival CRUD
+│       │   ├── competitionController.js   # Competition management
+│       │   ├── registrationController.js  # Registration handling
+│       │   ├── adminAuthController.js     # Admin authentication
+│       │   ├── adminFestController.js     # Admin fest management
+│       │   └── uploadController.js        # File uploads
+│       ├── model/
+│       │   ├── usermodel.js                    # Base user schema
+│       │   ├── student&participant.js           # Student profile
+│       │   ├── fest_organizer_model.js          # Festival data
+│       │   ├── event_model.js                   # Event schema
+│       │   ├── competition_model.js             # Competition schema
+│       │   ├── competition_registration_model.js
+│       │   └── registration_model.js            # Registration schema
+│       ├── routers/
+│       │   ├── userroute.js            # Auth routes
+│       │   ├── studentroute.js         # Student routes
+│       │   ├── festOrganizerRoute.js   # Organizer routes
+│       │   ├── publicFestRoute.js      # Public discovery
+│       │   ├── competitionRoute.js     # Competition routes
+│       │   ├── registrationRoute.js    # Registration routes
+│       │   └── adminRoute.js           # Admin routes
+│       ├── middleware/
+│       │   ├── authmiddleware.js       # JWT auth
+│       │   └── adminAuth.js            # Admin auth
+│       ├── services/
+│       │   ├── emailService.js         # Email delivery
+│       │   ├── cloudinaryService.js    # Image uploads
+│       │   └── googleSheetsService.js  # Sheets integration
+│       └── utils/
+│           └── fileUpload.js           # Multer config
+└── frontend/
+    ├── package.json
+    ├── index.html
+    ├── vite.config.js
+    ├── tailwind.config.js
+    ├── vercel.json                 # Vercel deployment config
+    └── src/
+        ├── main.jsx                # App entry point
+        ├── App.jsx / App.tsx       # Root component & routing
+        ├── firebase.js             # Firebase client config
+        ├── config/
+        │   ├── env.js              # Environment helpers
+        │   └── firebaseConfig.ts   # Firebase config
+        ├── context/
+        │   ├── AuthContext.jsx          # Auth state
+        │   ├── DarkModeContext.jsx      # Theme toggle
+        │   ├── FavoritesContext.jsx     # Saved events
+        │   ├── NotificationsContext.jsx # Notifications
+        │   └── RegisteredEventsContext.jsx
+        ├── services/
+        │   ├── apiService.js       # API client
+        │   ├── authService.js/.ts  # Auth API calls
+        │   ├── googleAuthService.ts
+        │   └── searchService.js    # Search API
+        ├── hooks/
+        │   └── useEnv.js           # Env variable hook
+        ├── components/
+        │   ├── Navbar.jsx
+        │   ├── Footer.jsx
+        │   ├── EventCard.jsx/.tsx
+        │   ├── FestCard.jsx
+        │   ├── ProtectedRoute.tsx
+        │   ├── ErrorBoundary.jsx
+        │   ├── admin/              # Admin dashboard components
+        │   └── pages/              # Page-level components
+        ├── pages/
+        │   ├── LoginPage.js/.tsx
+        │   ├── DashboardPage.tsx
+        │   ├── EventsPage.tsx
+        │   ├── EventDetailsPage.tsx
+        │   └── EventRegistrationPage.tsx
+        ├── data/                   # Static data
+        ├── assets/                 # Images & static files
+        └── utils/                  # Utility functions
 ```
 
-### Frontend Structure
-```
-frontend/src/
-├── main.jsx              # React application entry point
-├── App.jsx               # Main application component
-├── assets/               # Static assets and images
-└── components/           # Reusable React components (Future)
-```
+## Features
 
-## 🔧 Setup & Installation
+- **Multi-role auth** — Students, Organizers, Admins (JWT + Firebase Google sign-in)
+- **Festival CRUD** — Create, manage, and publish festivals with events & competitions
+- **Public discovery** — Browse, search, and filter fests by category (Cultural, Tech, Sports)
+- **Registration system** — Register for fests, events, and competitions with capacity tracking
+- **Admin dashboard** — Manage all fests, registrations, and competitions
+- **Media uploads** — Cloudinary-powered image uploads for festivals
+- **Email notifications** — Registration confirmations via Nodemailer/Brevo
+- **Dark mode** — Theme toggle across the app
+- **Responsive UI** — Mobile-first with Tailwind CSS
+
+## Setup
 
 ### Prerequisites
-- **Node.js** (v16 or higher)
-- **MongoDB** (Local or Atlas)
-- **npm** or **yarn** package manager
+- Node.js >= 18
+- MongoDB (local or Atlas)
 
-### Backend Setup
+### Backend
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Install dependencies
 npm install
-
-# Create environment file
-cp .env.example .env
-# Edit .env with your configuration
-
-# Start development server
-npm run dev
-
-# Start production server
-npm start
+cp .env.example .env   # Edit with your credentials
+npm run dev             # Development (nodemon)
+npm start               # Production
 ```
 
-### Frontend Setup
+### Frontend
 ```bash
-# Navigate to frontend directory
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
+npm run dev             # Vite dev server
+npm run build           # Production build
 ```
 
-## 🌐 Environment Configuration
+### Environment Variables
 
-### Backend Environment Variables (.env)
+**Backend** (`.env`):
 ```env
-# Database Configuration
-MONGODB_URI=mongodb://localhost:27017/crwdctrl
-# or for MongoDB Atlas: mongodb+srv://username:password@cluster.mongodb.net/crwdctrl
-
-# Authentication
-JWT_SECRET=your_super_secure_jwt_secret_key_here
-JWT_EXPIRES_IN=24h
-
-# Server Configuration
-PORT=3000
+MONGODB_URI=mongodb+srv://...
+JWT_SECRET=your_secret
+PORT=8080
 NODE_ENV=development
-
-# Firebase Configuration (Optional)
-FIREBASE_PROJECT_ID=your_firebase_project_id
-FIREBASE_PRIVATE_KEY=your_firebase_private_key
-FIREBASE_CLIENT_EMAIL=your_firebase_client_email
-
-# External API Keys (Future Integration)
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
+FIREBASE_PROJECT_ID=...
+FIREBASE_PRIVATE_KEY=...
+FIREBASE_CLIENT_EMAIL=...
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
 ```
 
-## 📋 API Endpoints Overview
-
-### Authentication Routes
-- `POST /api/users/register` - User registration
-- `POST /api/users/login` - User authentication
-- `GET /api/users/profile` - Get user profile
-- `PUT /api/users/profile` - Update user profile
-
-### Student Routes (Protected)
-- `POST /api/students/profile` - Create/update student profile
-- `GET /api/students/profile` - Get student profile
-- `GET /api/students/registered-fests` - Get registered festivals
-- `POST /api/students/register-fest/:festId` - Register for festival
-
-### Festival Organizer Routes (Protected)
-- `POST /api/fest-organizer/create` - Create new festival
-- `GET /api/fest-organizer/my-fests` - Get organizer's festivals
-- `PUT /api/fest-organizer/update/:festId` - Update festival
-- `DELETE /api/fest-organizer/delete/:festId` - Delete festival
-- `POST /api/fest-organizer/add-event` - Add event to festival
-- `POST /api/fest-organizer/add-competition` - Add competition
-
-### Public Routes
-- `GET /api/public/fests` - Browse all festivals
-- `GET /api/public/fests/search` - Search festivals
-- `GET /api/public/fests/:festId` - Get festival details
-- `GET /api/public/fests/category/:type` - Get festivals by category
-
-## 🔒 Security Implementation
-
-### Authentication Flow
-1. **User Registration**: Password hashing with bcryptjs
-2. **JWT Token Generation**: Secure token creation with expiration
-3. **Middleware Protection**: Route-level authentication checks
-4. **Role-based Access**: Different permissions for students and organizers
-
-### Data Validation
-- **Mongoose Schemas**: Server-side data validation
-- **Input Sanitization**: Protection against malicious input
-- **MongoDB Indexing**: Optimized queries and unique constraints
-
-## 🚀 Key Features In Detail
-
-### Festival Discovery System
-- **Advanced Search**: Filter by category, location, date, college
-- **Public API**: Unauthenticated access for festival browsing
-- **Rich Metadata**: Detailed festival information with galleries
-- **Real-time Updates**: Dynamic content updates
-
-### Registration Management
-- **Nested Registration**: Festivals → Events → Competitions hierarchy
-- **Capacity Management**: Limited seats with automatic updates
-- **Registration Tracking**: Complete audit trail of user registrations
-- **Notification System**: Ready for email/SMS integration
-
-### Analytics & Reporting
-- **Registration Statistics**: Track participation across events
-- **Popular Events**: Data-driven insights for organizers
-- **Performance Metrics**: Festival success measurement
-- **Export Capabilities**: Data export for external analysis
-
-## 🔄 Development Workflow
-
-### Backend Development
-```bash
-# Install dependencies
-npm install
-
-# Start development server with auto-reload
-npm run dev
-
-# Run in production mode
-npm start
+**Frontend** (`.env`):
+```env
+VITE_API_BASE_URL=http://localhost:8080/api
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
 ```
 
-### Frontend Development
-```bash
-# Start Vite development server
-npm run dev
+## API Routes
 
-# Build production bundle
-npm run build
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/users/register` | — | Register user |
+| POST | `/api/users/login` | — | Login |
+| GET | `/api/users/profile` | JWT | Get profile |
+| GET | `/api/public/fests` | — | Browse festivals |
+| GET | `/api/public/fests/search` | — | Search festivals |
+| GET | `/api/public/fests/:festId` | — | Festival details |
+| POST | `/api/students/profile` | JWT | Create student profile |
+| GET | `/api/students/registered-fests` | JWT | My registrations |
+| POST | `/api/fest-organizer/create` | JWT | Create festival |
+| PUT | `/api/fest-organizer/update/:festId` | JWT | Update festival |
+| DELETE | `/api/fest-organizer/delete/:festId` | JWT | Delete festival |
+| POST | `/api/registrations/register` | JWT | Register for event |
+| GET | `/api/competitions/:festId` | — | List competitions |
+| GET | `/api/admin/*` | Admin | Admin endpoints |
 
-# Preview production build
-npm run preview
+## License
 
-# Lint code
-npm run lint
-```
-
-## 📦 Deployment Strategy
-
-### Backend Deployment
-- **Platform**: Heroku, DigitalOcean, or AWS EC2
-- **Database**: MongoDB Atlas for production
-- **Environment**: Production environment variables
-- **Process Management**: PM2 for Node.js process management
-
-### Frontend Deployment
-- **Platform**: Vercel, Netlify, or AWS S3 + CloudFront
-- **Build Process**: Optimized Vite production build
-- **CDN**: Global content delivery for performance
-
-## 🔮 Future Enhancements
-
-### Phase 2 Features
-- **Payment Integration**: Razorpay/Stripe for paid events
-- **Real-time Chat**: WebSocket-based communication
-- **Push Notifications**: PWA with notification support
-- **Mobile App**: React Native implementation
-- **Advanced Analytics**: Dashboard with charts and insights
-
-### Technical Improvements
-- **Microservices**: Service decomposition for scalability
-- **Caching**: Redis implementation for performance
-- **File Upload**: Cloudinary integration for media management
-- **Testing**: Comprehensive test suite with Jest
-- **CI/CD**: Automated deployment pipelines
-
-## 📞 Support & Documentation
-
-- **API Documentation**: See [API_DOCUMENTATION.md](./backend/API_DOCUMENTATION.md)
-- **MVP Requirements**: [CRWDCTRL (MVP).pdf](./CRWDCTRL%20(MVP).pdf)
-- **Issues**: GitHub Issues for bug reports and feature requests
-- **Contributing**: Fork, feature branch, and pull request workflow
-
-## 📄 License
-
-This project is part of the CrwdCtrl platform - All rights reserved.
+All rights reserved.
 

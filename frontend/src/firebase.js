@@ -5,6 +5,7 @@ import {
     getAuth,
     GoogleAuthProvider,
     FacebookAuthProvider,
+    signInWithPopup,
     signInWithRedirect,
     getRedirectResult,
     createUserWithEmailAndPassword,
@@ -406,33 +407,68 @@ export const signInWithGoogle = async () => {
         }
     }
     
-    // ✅ DESKTOP: Also use redirect for consistency and to avoid COOP warnings
-    console.log('🖥️ DESKTOP DEVICE - Using REDIRECT flow for consistency');
+    // ✅ DESKTOP: Use POPUP flow (signInWithRedirect is broken on modern browsers
+    // due to third-party cookie blocking in Chrome 115+, Safari 17+, Firefox 120+)
+    console.log('🖥️ DESKTOP DEVICE - Using POPUP flow');
     
     try {
-        sessionStorage.setItem('auth_redirect_url', window.location.href);
-        sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
-        sessionStorage.setItem('auth_redirect_type', 'google');
+        console.log('➡️ Opening Google sign-in popup (desktop)...');
+        const result = await signInWithPopup(auth, googleProvider);
         
-        console.log('➡️ Initiating Google redirect flow (desktop)...');
-        await signInWithRedirect(auth, googleProvider);
+        if (result && result.user) {
+            console.log('✅ Google popup sign-in successful:', result.user.email);
+            return {
+                success: true,
+                user: result.user,
+                credential: result.credential || null,
+                needsVerification: false,
+                method: 'desktop-popup'
+            };
+        }
         
-        return {
-            success: true,
-            user: null,
-            credential: null,
-            needsVerification: false,
-            method: 'desktop-redirect',
-            redirectInitiated: true,
-            message: 'Redirecting to Google sign-in...'
-        };
-    } catch (redirectError) {
-        console.error('❌ Desktop Google redirect failed:', redirectError);
         return {
             success: false,
-            error: getGoogleAuthErrorMessage(redirectError),
-            code: redirectError.code,
-            method: 'desktop-redirect-failed'
+            error: 'Google sign-in popup returned no user.',
+            method: 'desktop-popup-no-user'
+        };
+    } catch (popupError) {
+        console.error('❌ Desktop Google popup failed:', popupError);
+        
+        // If popup is blocked, fall back to redirect
+        if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+            console.log('🔄 Popup blocked/closed, falling back to redirect flow...');
+            try {
+                sessionStorage.setItem('auth_redirect_url', window.location.href);
+                sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+                sessionStorage.setItem('auth_redirect_type', 'google');
+                
+                await signInWithRedirect(auth, googleProvider);
+                
+                return {
+                    success: true,
+                    user: null,
+                    credential: null,
+                    needsVerification: false,
+                    method: 'desktop-redirect-fallback',
+                    redirectInitiated: true,
+                    message: 'Redirecting to Google sign-in...'
+                };
+            } catch (redirectError) {
+                console.error('❌ Redirect fallback also failed:', redirectError);
+                return {
+                    success: false,
+                    error: getGoogleAuthErrorMessage(redirectError),
+                    code: redirectError.code,
+                    method: 'desktop-redirect-fallback-failed'
+                };
+            }
+        }
+        
+        return {
+            success: false,
+            error: getGoogleAuthErrorMessage(popupError),
+            code: popupError.code,
+            method: 'desktop-popup-failed'
         };
     }
 };
@@ -503,8 +539,45 @@ export const signInWithFacebook = async () => {
         }
     }
 
-    // ✅ USE REDIRECT-FIRST APPROACH (AVOIDS COOP WARNINGS & WORKS EVERYWHERE)
-    console.log('🔄 Using redirect-first Facebook authentication...');
+    // ✅ DESKTOP: Use POPUP for Facebook (redirect is broken on modern browsers)
+    // Mobile still uses redirect (handled above)
+    const isMobileFb = isMobileDevice();
+    
+    if (!isMobileFb) {
+        console.log('🖥️ Using popup-first Facebook authentication (desktop)...');
+        try {
+            const result = await signInWithPopup(auth, facebookProvider);
+            if (result && result.user) {
+                console.log('✅ Facebook popup sign-in successful:', result.user.email);
+                return {
+                    success: true,
+                    user: result.user,
+                    credential: result.credential || null,
+                    needsVerification: false,
+                    method: 'desktop-popup'
+                };
+            }
+            return {
+                success: false,
+                error: 'Facebook sign-in popup returned no user.',
+                method: 'desktop-popup-no-user'
+            };
+        } catch (popupError) {
+            console.error('❌ Facebook popup failed:', popupError);
+            if (popupError.code !== 'auth/popup-blocked' && popupError.code !== 'auth/popup-closed-by-user') {
+                // Not a popup-blocked error, return the error
+                let errorMessage = 'Facebook sign-in failed. Please try again.';
+                if (popupError.code === 'auth/account-exists-with-different-credential') {
+                    errorMessage = 'An account already exists with this email. Please use your original sign-in method.';
+                }
+                return { success: false, error: errorMessage, code: popupError.code, method: 'desktop-popup-failed' };
+            }
+            console.log('🔄 Popup blocked, falling back to redirect...');
+            // Fall through to redirect below
+        }
+    }
+    
+    console.log('🔄 Using redirect Facebook authentication...');
     
     try {
         await signInWithRedirect(auth, facebookProvider);

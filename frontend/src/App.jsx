@@ -18,6 +18,7 @@ import AdminStatsCard from './components/admin/AdminStatsCard'
 import Competiton_Modal from './components/admin/Competition_Modal'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
+import AdSenseLoader from './components/AdSense'
 
 import './App.css'
 
@@ -348,6 +349,7 @@ function App() {
           <RegisteredEventsProvider>
             <NotificationsProvider>
               <Router>
+                <AdSenseLoader />
                 <AppContent />
               </Router>
             </NotificationsProvider>
