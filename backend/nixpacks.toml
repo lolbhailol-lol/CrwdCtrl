@@ -1,0 +1,12 @@
+# Nixpacks configuration for Railway deployment
+# https://nixpacks.com/docs/configuration/file
+
+[phases.build]
+# No environment variables needed at build time
+# All env vars are only used at runtime
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[start]
+cmd = "npm start"

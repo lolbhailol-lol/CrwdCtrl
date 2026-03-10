@@ -43,6 +43,7 @@ const competitionSchema = new mongoose.Schema(
       'marketing',
       'marathon',
       'technical',
+      'photography',
       'girls',
       'boys',
       'mixed',
