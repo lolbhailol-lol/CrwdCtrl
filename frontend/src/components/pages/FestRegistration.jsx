@@ -1641,6 +1641,7 @@ export default function FestRegistration() {
   if (loading || authLoading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
       </div>
     );
   }
