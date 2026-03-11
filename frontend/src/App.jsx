@@ -14,8 +14,6 @@ import ProfileSidebar from './components/ProfileSidebar'
 import AppLoadingPage from './components/AppLoadingPage'
 import AuthLoadingPage from './components/AuthLoadingPage'
 import LoadingBar from './components/LoadingBar'
-import AdminStatsCard from './components/admin/AdminStatsCard'
-import Competiton_Modal from './components/admin/Competition_Modal'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
@@ -188,7 +186,7 @@ function App() {
       wakeBackend();
       const timer = setTimeout(() => {
         setIsInitialLoading(false);
-      }, 800); // Quick logo flash then show website
+      }, 200); // Quick logo flash then show website
 
       return () => clearTimeout(timer);
     } else {
