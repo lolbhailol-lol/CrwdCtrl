@@ -1424,6 +1424,16 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
             detail: { festId: fest._id, competitionId: result._id, timestamp: Date.now() }
           }));
           
+          // Clear server-side cache
+          try {
+            const t = localStorage.getItem('admin_token');
+            await fetch(`${API_BASE_URL}/admin/clear-cache`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${t}` },
+              credentials: 'include',
+            });
+          } catch (_) {}
+          
           onSaved();
           return;
         } catch (refreshErr) {
@@ -1514,6 +1524,19 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       
       // 4. Also use localStorage for cross-tab notifications
       localStorage.setItem('admin_data_updated', Date.now().toString());
+
+      // 5. Clear server-side cache so production website updates instantly
+      try {
+        const token = localStorage.getItem('admin_token');
+        await fetch(`${API_BASE_URL}/admin/clear-cache`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+        });
+        console.log('✅ Server cache cleared');
+      } catch (cacheErr) {
+        console.warn('⚠️ Could not clear server cache:', cacheErr);
+      }
 
       await new Promise(resolve => setTimeout(resolve, 500));
       onSaved();

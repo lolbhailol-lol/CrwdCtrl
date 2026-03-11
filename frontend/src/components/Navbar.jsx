@@ -3,11 +3,13 @@ import { Search, Bell, MapPin, Sun, Moon, Menu, Clock, Calendar, X, User, Naviga
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { searchFests, searchAll } from '../services/searchService';
 
 const Navbar = ({ setIsProfileOpen = () => { } }) => {
     const { isDark } = useDarkMode();
     const { user, isAuthenticated } = useAuth();
+    const { notifications, unreadCount, markAsRead } = useNotifications();
     const navigate = useNavigate();
     const location = useLocation();
     const [_searchParams, _setSearchParams] = useSearchParams();
@@ -38,9 +40,6 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
     const [isSearching, setIsSearching] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const searchRef = useRef(null);
-
-    // Sample notification data
-    const notifications = [];
 
     // Get user's location on component mount
     useEffect(() => {
@@ -726,10 +725,10 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                     : 'text-gray-600 hover:text-[#007BFF] hover:bg-[#007BFF]/5'
                                 } ${isNotificationOpen ? (isDark ? 'bg-gray-800/60 text-[#007BFF]' : 'bg-[#007BFF]/5 text-[#007BFF]') : ''}`}>
                             <Bell className="w-4 lg:w-5 h-4 lg:h-5" />
-                            {notifications.filter(n => n.unread).length > 0 && (
+                            {unreadCount > 0 && (
                                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#00C9A7] rounded-full border-2 border-white flex items-center justify-center">
                                     <span className="text-xs font-bold text-white">
-                                        {notifications.filter(n => n.unread).length}
+                                        {unreadCount}
                                     </span>
                                 </div>
                             )}
@@ -770,7 +769,11 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                                     : 'border-gray-100 hover:bg-gray-50'
                                                     } ${notification.unread ? (isDark ? 'bg-gray-700/30' : 'bg-blue-50/50') : ''}`}
                                                 onClick={() => {
-                                                    // Handle notification click
+                                                    // Handle notification click — mark as read and navigate
+                                                    markAsRead(notification.id);
+                                                    if (notification.link) {
+                                                        navigate(notification.link);
+                                                    }
                                                     setIsNotificationOpen(false);
                                                 }}
                                             >

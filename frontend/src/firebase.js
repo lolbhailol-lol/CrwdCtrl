@@ -18,6 +18,7 @@ import {
     browserLocalPersistence
     // connectAuthEmulator - Not used currently
 } from "firebase/auth";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 // Your web app's Firebase configuration
 const VITE_FIREBASE_API_KEY="AIzaSyDoyaNIB6GPi4mfn9Wi1YT5rL3o_A-3N9A"
@@ -42,6 +43,63 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
+
+// ===== FIREBASE CLOUD MESSAGING (Push Notifications) =====
+let messaging = null;
+try {
+    // FCM only works in browsers that support service workers
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+        messaging = getMessaging(app);
+        console.log('✅ Firebase Messaging initialized');
+    }
+} catch (err) {
+    console.warn('⚠️ Firebase Messaging not available:', err.message);
+}
+
+/**
+ * Request notification permission and get FCM token.
+ * Returns the token string or null.
+ */
+export const requestNotificationPermission = async () => {
+    try {
+        if (!messaging) {
+            console.warn('⚠️ Firebase Messaging not initialized');
+            return null;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.log('🔕 Notification permission denied');
+            return null;
+        }
+
+        // Register the service worker
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+
+        // Get the FCM token (uses VAPID key if set in env, otherwise auto-generated)
+        const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || undefined;
+        const fcmToken = await getToken(messaging, {
+            vapidKey,
+            serviceWorkerRegistration: registration,
+        });
+
+        console.log('🔔 FCM Token obtained:', fcmToken ? 'yes' : 'no');
+        return fcmToken;
+    } catch (error) {
+        console.error('❌ Error getting FCM token:', error);
+        return null;
+    }
+};
+
+/**
+ * Listen for foreground messages.
+ * @param {function} callback - Called with the message payload.
+ * @returns {function} Unsubscribe function.
+ */
+export const onForegroundMessage = (callback) => {
+    if (!messaging) return () => {};
+    return onMessage(messaging, callback);
+};
 
 // ✅ CRITICAL: Set Firebase persistence to LOCAL (survives browser restarts)
 // Note: setPersistence must be called before any auth operations

@@ -17,6 +17,8 @@ import LoadingBar from './components/LoadingBar'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
+import PWAInstallPrompt from './components/PWAInstallPrompt'
+import RouteTracker from './components/RouteTracker'
 
 import './App.css'
 
@@ -52,6 +54,9 @@ const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDash
 const FestsPage = React.lazy(() => import('./components/admin/FestsPage'))
 const CompetitionsPage = React.lazy(() => import('./components/admin/CompetitionsPage'))
 const RegistrationsPage = React.lazy(() => import('./components/admin/RegistrationsPage'))
+const AnalyticsDashboardPage = React.lazy(() => import('./components/admin/AnalyticsDashboardPage'))
+const CheckinScannerPage = React.lazy(() => import('./components/admin/CheckinScannerPage'))
+const QRTicketPage = React.lazy(() => import('./components/pages/QRTicketPage'))
 
 // Component to conditionally render MobileBottomNav
 function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick }) {
@@ -292,6 +297,7 @@ function App() {
                   <Route path="/fest/:festId/register" element={<FestRegistration />} />
                   <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
                   <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
+                  <Route path="/qr-ticket/:registrationId" element={<QRTicketPage />} />
                   <Route
                     path="/admin"
                     element={
@@ -304,6 +310,8 @@ function App() {
                     <Route path="fests" element={<FestsPage />} />
                     <Route path="competitions" element={<CompetitionsPage />} />
                     <Route path="registrations" element={<RegistrationsPage />} />
+                    <Route path="analytics" element={<AnalyticsDashboardPage />} />
+                    <Route path="checkin" element={<CheckinScannerPage />} />
                   </Route>
 
                 </Routes>
@@ -347,7 +355,9 @@ function App() {
           <RegisteredEventsProvider>
             <NotificationsProvider>
               <Router>
+                <RouteTracker />
                 <AdSenseLoader />
+                <PWAInstallPrompt />
                 <AppContent />
               </Router>
             </NotificationsProvider>

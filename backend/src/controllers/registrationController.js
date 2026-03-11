@@ -4,6 +4,8 @@ const User = require('../model/usermodel');
 const { appendToGoogleSheets, testGoogleSheetsConnection } = require('../services/googleSheetsService');
 const { uploadToCloudinary } = require('../services/cloudinaryService');
 const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOrganizerNotificationEmail } = require('../services/emailService');
+const { createNotification } = require('./notificationController');
+const { sendPushNotification } = require('../services/pushService');
 const multer = require('multer');
 
 // Configure multer for file uploads
@@ -348,6 +350,30 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     // Email queue in emailService.js handles rate limiting automatically
     setImmediate(async () => {
       try {
+        // STEP 0: Create in-app notification + push
+        try {
+          await createNotification({
+            userId,
+            title: 'Registration Confirmed!',
+            message: `You've successfully registered for ${competition.name}.`,
+            type: 'registration',
+            link: `/registration-details/${registration._id}`,
+            metadata: {
+              competitionId: competition._id,
+              festId: competition.fest?._id,
+              registrationId: registration._id,
+            },
+          });
+          sendPushNotification(userId, {
+            title: 'Registration Confirmed!',
+            body: `You've registered for ${competition.name}`,
+            link: `/registration-details/${registration._id}`,
+            type: 'registration',
+          }).catch(() => {});
+        } catch (notifErr) {
+          console.error('❌ Notification creation error:', notifErr.message);
+        }
+
         // STEP 1: Send thank you email (queued automatically for rate limiting)
         try {
           console.log('📧 Sending thank you email (async)...');
@@ -779,6 +805,30 @@ const submitCompetitionRegistration = async (req, res) => {
     // This allows the response to be sent immediately while emails sync in background
     setImmediate(async () => {
       try {
+        // STEP 0: Create in-app notification + push
+        try {
+          await createNotification({
+            userId,
+            title: 'Registration Successful!',
+            message: `You've registered for ${competition.name} at ${fest.festName}.`,
+            type: 'registration',
+            link: `/registration-details/${registration._id}`,
+            metadata: {
+              festId: fest._id,
+              competitionId: competition._id,
+              registrationId: registration._id,
+            },
+          });
+          sendPushNotification(userId, {
+            title: 'Registration Successful!',
+            body: `You've registered for ${competition.name} at ${fest.festName}`,
+            link: `/registration-details/${registration._id}`,
+            type: 'registration',
+          }).catch(() => {});
+        } catch (notifErr) {
+          console.error('❌ Notification creation error:', notifErr.message);
+        }
+
         // STEP 1: Send thank you email (async, non-blocking)
         try {
           console.log('📧 Sending thank you email for competition (async)...');
@@ -1173,6 +1223,29 @@ const submitRegistration = async (req, res) => {
     // This allows the response to be sent immediately while emails and Google Sheets sync in background
     setImmediate(async () => {
       try {
+        // STEP 0: Create in-app notification + push
+        try {
+          await createNotification({
+            userId,
+            title: 'Registration Submitted!',
+            message: `Your registration for ${fest.festName} has been submitted successfully.`,
+            type: 'registration',
+            link: `/registration-details/${registration._id}`,
+            metadata: {
+              festId: fest._id,
+              registrationId: registration._id,
+            },
+          });
+          sendPushNotification(userId, {
+            title: 'Registration Submitted!',
+            body: `Your registration for ${fest.festName} has been submitted`,
+            link: `/registration-details/${registration._id}`,
+            type: 'registration',
+          }).catch(() => {});
+        } catch (notifErr) {
+          console.error('❌ Notification creation error:', notifErr.message);
+        }
+
         // FIRST: Process file uploads in background (don't block the response)
         console.log('📁 Starting background file uploads...');
         

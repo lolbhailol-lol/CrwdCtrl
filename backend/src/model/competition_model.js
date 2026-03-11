@@ -53,6 +53,28 @@ const competitionSchema = new mongoose.Schema(
     required: true,
   },
 
+  category: {
+    type: String,
+    enum: [
+      'DANCE',
+      'MUSIC',
+      'THEATRE',
+      'ART',
+      'SPORTS',
+      'ACADEMIC',
+      'GAMING',
+      'QUIZ',
+      'CULTURAL',
+      'TECHNICAL',
+      'PHOTOGRAPHY',
+      'GIRLS',
+      'BOYS',
+      'MIXED',
+      'OTHER',
+    ],
+    default: 'OTHER',
+  },
+
   description: {
     type: String,
     required: true,

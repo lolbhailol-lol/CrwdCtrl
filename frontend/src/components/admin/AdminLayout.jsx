@@ -7,7 +7,9 @@ import {
   LogOut, 
   Menu, 
   X,
-  FileText
+  FileText,
+  BarChart3,
+  QrCode
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -21,10 +23,12 @@ export default function AdminLayout() {
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin-dashboard' },
-    { icon: Calendar, label: 'Fests', path: '/admin-dashboard/fests' },
-    { icon: Trophy, label: 'Competitions', path: '/admin-dashboard/competitions' },
-    { icon: FileText, label: 'Registrations', path: '/admin-dashboard/registrations' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
+    { icon: Calendar, label: 'Fests', path: '/admin/fests' },
+    { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
+    { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
+    { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
+    { icon: QrCode, label: 'Check-in', path: '/admin/checkin' },
   ];
 
   return (

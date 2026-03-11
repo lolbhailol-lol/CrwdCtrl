@@ -1,10 +1,80 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['icon-192x192.png', 'icon-512x512.png'],
+      manifest: {
+        name: 'CrwdCtrl — Discover College Fests',
+        short_name: 'CrwdCtrl',
+        description: 'Discover and register for college fests, competitions, and events near you.',
+        theme_color: '#007BFF',
+        background_color: '#0E0E0F',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          {
+            src: '/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: '/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: '/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        // Don't precache the firebase messaging sw
+        navigateFallbackDenylist: [/^\/firebase-messaging-sw\.js$/],
+        runtimeCaching: [
+          {
+            // Cache API responses (NetworkFirst)
+            urlPattern: /^https?:\/\/.*\/api\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
+              networkTimeoutSeconds: 10,
+            },
+          },
+          {
+            // Cache images (CacheFirst)
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'image-cache',
+              expiration: { maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
+          {
+            // Cache Google Fonts
+            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: { maxEntries: 20, maxAgeSeconds: 365 * 24 * 60 * 60 },
+            },
+          },
+        ],
+      },
+    }),
+  ],
 
   // Define which environment variables to expose to the client
   define: {

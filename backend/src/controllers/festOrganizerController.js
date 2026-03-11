@@ -22,17 +22,17 @@ const cache = {
     fests: {
         data: new Map(), // Use Map for better performance
         timestamp: 0,
-        duration: 2 * 60 * 1000 // Reduced to 2 minutes cache for fests list
+        duration: 30 * 1000 // 30 seconds cache for fests list
     },
     festDetails: {
         data: new Map(), // Individual fest details cache
         timestamp: 0,
-        duration: 15 * 60 * 1000 // 15 minutes cache for individual fests
+        duration: 60 * 1000 // 1 minute cache for individual fests
     },
     competitions: {
         data: new Map(),
         timestamp: 0,
-        duration: 10 * 60 * 1000 // 10 minutes cache for competitions
+        duration: 60 * 1000 // 1 minute cache for competitions
     }
 };
 
@@ -354,7 +354,7 @@ exports.getFestById = async (req, res) => {
 
         // Add cache headers with environment-appropriate cache time
         const isProduction = process.env.NODE_ENV === 'production';
-        const cacheMaxAge = isProduction ? 60 : 30; // Reduced cache time: 1 minute in prod, 30 seconds in dev
+        const cacheMaxAge = isProduction ? 30 : 10; // 30s prod, 10s dev
         
         res.set({
             'Cache-Control': `public, max-age=${cacheMaxAge}, must-revalidate`,
@@ -413,7 +413,7 @@ exports.getAllFests = async (req, res) => {
             console.log('⚡ Returning cached fests data');
             // Add cache headers for client-side caching
             res.set({
-                'Cache-Control': 'public, max-age=300', // 5 minutes client cache
+                'Cache-Control': 'public, max-age=30', // 30 seconds client cache
                 'X-Cache': 'HIT'
             });
             return res.status(200).json(cachedData);
@@ -473,7 +473,7 @@ exports.getAllFests = async (req, res) => {
 
         // Add cache headers
         res.set({
-            'Cache-Control': 'public, max-age=300', // 5 minutes client cache
+            'Cache-Control': 'public, max-age=30', // 30 seconds client cache
             'X-Cache': 'MISS'
         });
 

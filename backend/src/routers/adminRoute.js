@@ -17,6 +17,19 @@ router.get('/health', (req, res) => {
   });
 });
 
+// ===== CLEAR ALL CACHES (call after admin saves) =====
+router.post('/clear-cache', adminAuth, (req, res) => {
+  try {
+    const { clearAllCaches } = require('../controllers/festOrganizerController');
+    clearAllCaches();
+    console.log('🗑️ Admin triggered cache clear');
+    res.json({ success: true, message: 'All caches cleared' });
+  } catch (error) {
+    console.error('Cache clear error:', error);
+    res.status(500).json({ success: false, message: 'Failed to clear cache' });
+  }
+});
+
 // ===== ADMIN LOGIN =====
 router.post('/login', adminAuthCtrl.adminLogin);
 

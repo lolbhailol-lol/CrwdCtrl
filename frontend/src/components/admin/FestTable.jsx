@@ -7,6 +7,21 @@ import CompetitionModal from './Competition_Modal';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 console.log('🔧 FestTable - API_BASE_URL:', API_BASE_URL);
 
+// Helper to clear server-side cache after admin operations
+const clearServerCache = async () => {
+  try {
+    const token = localStorage.getItem('admin_token');
+    await fetch(`${API_BASE_URL}/admin/clear-cache`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
+    });
+    console.log('✅ Server cache cleared');
+  } catch (err) {
+    console.warn('⚠️ Could not clear server cache:', err);
+  }
+};
+
 // Simple drag and drop implementation
 const useDragAndDrop = (items, onReorder) => {
   const [draggedItem, setDraggedItem] = useState(null);
@@ -129,6 +144,7 @@ export default function FestTable() {
         // Notify other tabs/windows that admin data was updated
         localStorage.setItem('admin_data_updated', Date.now().toString());
         setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+        await clearServerCache();
       } else {
         const error = await response.json();
         alert(`Failed to update priority: ${error.message}`);
@@ -169,6 +185,7 @@ export default function FestTable() {
         Authorization: `Bearer ${localStorage.getItem('admin_token')}`
       }
     });
+    await clearServerCache();
     fetchFests();
   };
 
@@ -215,6 +232,7 @@ export default function FestTable() {
         // Notify other tabs/windows that admin data was updated
         localStorage.setItem('admin_data_updated', Date.now().toString());
         setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+        await clearServerCache();
       } else {
         console.error('Failed to reorder fests');
       }

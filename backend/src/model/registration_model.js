@@ -31,6 +31,27 @@ const registrationSchema = new mongoose.Schema({
     default: 'pending'
   },
 
+  // QR Code check-in fields
+  qrCodeData: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  checkedIn: {
+    type: Boolean,
+    default: false,
+  },
+  checkedInAt: {
+    type: Date,
+    default: null,
+  },
+
+  // Reminder tracking
+  reminderSent: {
+    type: Boolean,
+    default: false,
+  },
+
   submittedAt: {
     type: Date,
     default: Date.now

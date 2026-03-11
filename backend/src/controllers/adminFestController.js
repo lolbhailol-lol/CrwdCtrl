@@ -432,6 +432,7 @@ exports.createCompetition = async (req, res) => {
       name,
       subtitle,
       competitionType,
+      category,
       description,
       prizePool,
       dateTime,          // UI string
@@ -487,6 +488,7 @@ exports.createCompetition = async (req, res) => {
       name,
       subtitle,
       competitionType: competitionType || 'other',
+      category: category || 'OTHER',
       description,
       prizePool,
       dateTime: dateTime || 'To Be Announced', // Use dateTime field from model

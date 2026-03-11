@@ -52,6 +52,20 @@ const userSchema = new mongoose.Schema(
     // Firebase Authentication UID (for email verification)
     firebaseUid: { type: String, sparse: true, unique: true },
 
+    // FCM Push Notification tokens
+    fcmTokens: [{
+      token: { type: String },
+      device: { type: String, default: 'web' },
+      createdAt: { type: Date, default: Date.now },
+    }],
+
+    // Notification preferences
+    notificationPreferences: {
+      emailReminders: { type: Boolean, default: true },
+      pushReminders: { type: Boolean, default: true },
+      registrationAlerts: { type: Boolean, default: true },
+    },
+
     // Social Authentication fields
     socialAuth: {
       provider: {

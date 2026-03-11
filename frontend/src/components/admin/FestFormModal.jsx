@@ -1715,6 +1715,19 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     // 4. Also use localStorage for cross-tab notifications
     localStorage.setItem('admin_data_updated', Date.now().toString());
 
+    // 5. Clear server-side cache so production website updates instantly
+    try {
+      const token = localStorage.getItem('admin_token');
+      await fetch(`${API_BASE_URL}/admin/clear-cache`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      });
+      console.log('✅ Server cache cleared');
+    } catch (cacheErr) {
+      console.warn('⚠️ Could not clear server cache:', cacheErr);
+    }
+
     // Force a small delay to ensure backend has processed the changes
     await new Promise(resolve => setTimeout(resolve, 500));
 

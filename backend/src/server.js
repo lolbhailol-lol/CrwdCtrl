@@ -15,6 +15,9 @@ const publicFestRoutes = require("./routers/publicFestRoute");
 const competitionRoutes = require("./routers/competitionRoute");
 const adminRoutes = require("./routers/adminRoute");
 const registrationRoutes = require("./routers/registrationRoute");
+const notificationRoutes = require("./routers/notificationRoute");
+const analyticsRoutes = require("./routers/analyticsRoute");
+const qrRoutes = require("./routers/qrRoute");
 
 console.log('🚀 Starting Crwdctrl Backend Server...');
 console.log('📍 Node Environment:', process.env.NODE_ENV || 'development');
@@ -53,13 +56,19 @@ require("./model/event_model");
 require("./model/competition_model");
 require("./model/competition_registration_model");
 require("./model/registration_model");
+require("./model/notification_model");
+require("./model/analytics_model");
 console.log('✅ Mongoose models registered');
 
 const app = express();
 
 // ✅ DEPLOYMENT TRIGGER: 2026-02-04 17:35 IST - CORS fix deployment
 // Connect DB with better error handling
-connectDB().catch(err => {
+connectDB().then(() => {
+  // Initialize reminder service after DB is connected
+  const { initReminderCron } = require('./services/reminderService');
+  initReminderCron();
+}).catch(err => {
   console.error('❌ Failed to connect to MongoDB:', err.message);
   // Don't exit immediately, let the server start for health checks
 });
@@ -348,6 +357,9 @@ app.use("/api/fests", publicFestRoutes);
 app.use("/api/competitions", competitionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/registrations', registrationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/qr', qrRoutes);
 
 
 // Root route

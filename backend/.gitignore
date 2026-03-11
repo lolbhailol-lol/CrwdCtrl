@@ -155,3 +155,5 @@ public/uploads/
 
 # Session files
 sessions/
+# Firebase service account key
+firebase-service-account.json
