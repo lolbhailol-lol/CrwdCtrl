@@ -193,6 +193,11 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
           rowData.push('');
           console.log('⚠️ Group field empty:', { label: field.label });
         }
+      } else if (field.type === 'category_competition_selector' && typeof fieldValue === 'object' && fieldValue !== null) {
+        // ✅ Handle category_competition_selector - format as "Category - Competition"
+        const formatted = `${fieldValue.category || ''} - ${fieldValue.competition || ''}`;
+        rowData.push(formatted);
+        console.log('✅ Category-Competition field added:', { label: field.label, category: fieldValue.category, competition: fieldValue.competition });
       } else {
         // For other fields: show actual value or empty string
         if (Array.isArray(fieldValue)) {
@@ -203,6 +208,9 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
           } else {
             rowData.push(fieldValue.join(', '));
           }
+        } else if (typeof fieldValue === 'object' && fieldValue !== null) {
+          // Handle any other object types - convert to readable string
+          rowData.push(JSON.stringify(fieldValue));
         } else {
           rowData.push(fieldValue ?? '');
         }
@@ -477,6 +485,10 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
             return String(entry);
           });
           rowData.push(formattedEntries.join(' | '));
+        } else if (field.type === 'category_competition_selector' && typeof value === 'object' && value !== null) {
+          // ✅ Handle category_competition_selector - format as "Category: X, Competition: Y"
+          const formatted = `${value.category || ''} - ${value.competition || ''}`;
+          rowData.push(formatted);
         } else if (Array.isArray(value)) {
           // Check if it's an array of objects (shouldn't normally happen for non-group fields)
           if (value.length > 0 && typeof value[0] === 'object') {
@@ -484,6 +496,9 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
           } else {
             rowData.push(value.join(', '));
           }
+        } else if (typeof value === 'object' && value !== null) {
+          // Handle any other object types - convert to readable string
+          rowData.push(JSON.stringify(value));
         } else {
           rowData.push(value ?? '');
         }

@@ -188,7 +188,7 @@ function App() {
       wakeBackend();
       const timer = setTimeout(() => {
         setIsInitialLoading(false);
-      }, 2000); // 2 second minimum loading time
+      }, 800); // Quick logo flash then show website
 
       return () => clearTimeout(timer);
     } else {

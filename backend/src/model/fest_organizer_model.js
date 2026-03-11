@@ -125,12 +125,20 @@ const festOrganizerSchema = new mongoose.Schema(
             'image',
             'url',
             'password',
-            'group' // ✅ NEW: Field group type for multiple sub-fields
+            'group', // ✅ NEW: Field group type for multiple sub-fields
+            'category_competition_selector' // ✅ NEW: Cascading category → competition selector
           ]
         },
         required: Boolean,
         options: [String], // for select, radio, checkbox
         placeholder: String,
+        // ✅ NEW: Category options for category_competition_selector type
+        categoryOptions: [
+          {
+            categoryName: String,
+            competitions: [String]
+          }
+        ],
         // ✅ NEW: Sub-fields for group type
         subFields: [
           {
@@ -139,10 +147,11 @@ const festOrganizerSchema = new mongoose.Schema(
             fieldName: String,
             type: {
               type: String,
-              enum: ['text', 'email', 'number', 'tel', 'phone']
+              enum: ['text', 'email', 'number', 'tel', 'phone', 'select', 'competition_dropdown']
             },
             required: Boolean,
-            placeholder: String
+            placeholder: String,
+            options: [String]
           }
         ]
       }
@@ -186,12 +195,20 @@ const festOrganizerSchema = new mongoose.Schema(
                 'image',
                 'url',
                 'password',
-                'group' // ✅ NEW: Field group type for multiple sub-fields
+                'group', // ✅ NEW: Field group type for multiple sub-fields
+                'category_competition_selector' // ✅ NEW: Cascading category → competition selector
               ]
             },
             required: Boolean,
             options: [String], // for select, radio, checkbox
             placeholder: String,
+            // ✅ NEW: Category options for category_competition_selector type
+            categoryOptions: [
+              {
+                categoryName: String,
+                competitions: [String]
+              }
+            ],
             // ✅ NEW: Sub-fields for group type
             subFields: [
               {
@@ -200,10 +217,11 @@ const festOrganizerSchema = new mongoose.Schema(
                 fieldName: String,
                 type: {
                   type: String,
-                  enum: ['text', 'email', 'number', 'tel', 'phone']
+                  enum: ['text', 'email', 'number', 'tel', 'phone', 'select', 'competition_dropdown']
                 },
                 required: Boolean,
-                placeholder: String
+                placeholder: String,
+                options: [String]
               }
             ]
           }

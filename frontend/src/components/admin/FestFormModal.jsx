@@ -120,6 +120,8 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
           <option value="date">Date</option>
           <option value="file">File Upload</option>
           <option value="image">Image Upload</option>
+          <option value="group">Field Group (Multiple Sub-fields)</option>
+          <option value="category_competition_selector">Category & Competition Selector</option>
         </select>
         <input
           type="text"
@@ -129,6 +131,105 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
           onChange={(e) => handleInputChange('placeholder', e.target.value)}
         />
       </div>
+
+      {/* Category & Competition Selector Configuration */}
+      {field.type === 'category_competition_selector' && (
+        <div className="space-y-3 mt-3 border-t border-gray-600 pt-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-[#0ECCEE]">Categories & Competitions</label>
+            <button
+              type="button"
+              onClick={() => {
+                const categories = field.categoryOptions || [];
+                handleInputChange('categoryOptions', [...categories, { categoryName: '', competitions: [''] }]);
+              }}
+              className="px-2 py-1 bg-[#0ECCEE] text-black rounded text-xs hover:bg-[#0ECCEE]/80 transition-colors"
+            >
+              + Add Category
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">Define categories and their competitions. Users will first select a category, then a competition.</p>
+          
+          {field.categoryOptions?.map((category, catIndex) => (
+            <div key={catIndex} className="bg-[#1B1C1E] p-3 rounded-lg space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Category Name (e.g., Technical)"
+                  className="flex-1 px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={category.categoryName || ''}
+                  onChange={(e) => {
+                    const newCategories = [...(field.categoryOptions || [])];
+                    newCategories[catIndex] = { ...newCategories[catIndex], categoryName: e.target.value };
+                    handleInputChange('categoryOptions', newCategories);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newCategories = field.categoryOptions.filter((_, i) => i !== catIndex);
+                    handleInputChange('categoryOptions', newCategories);
+                  }}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              
+              <div className="pl-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">Competitions in this category:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newCategories = [...(field.categoryOptions || [])];
+                      const comps = newCategories[catIndex].competitions || [];
+                      newCategories[catIndex] = { ...newCategories[catIndex], competitions: [...comps, ''] };
+                      handleInputChange('categoryOptions', newCategories);
+                    }}
+                    className="text-xs text-[#0ECCEE] hover:text-[#0ECCEE]/80"
+                  >
+                    + Add Competition
+                  </button>
+                </div>
+                {category.competitions?.map((comp, compIndex) => (
+                  <div key={compIndex} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder={`Competition ${compIndex + 1}`}
+                      className="flex-1 px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                      value={comp || ''}
+                      onChange={(e) => {
+                        const newCategories = [...(field.categoryOptions || [])];
+                        const newComps = [...(newCategories[catIndex].competitions || [])];
+                        newComps[compIndex] = e.target.value;
+                        newCategories[catIndex] = { ...newCategories[catIndex], competitions: newComps };
+                        handleInputChange('categoryOptions', newCategories);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newCategories = [...(field.categoryOptions || [])];
+                        const newComps = newCategories[catIndex].competitions.filter((_, i) => i !== compIndex);
+                        newCategories[catIndex] = { ...newCategories[catIndex], competitions: newComps };
+                        handleInputChange('categoryOptions', newCategories);
+                      }}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          
+          {(!field.categoryOptions || field.categoryOptions.length === 0) && (
+            <p className="text-xs text-gray-500 italic">No categories added yet. Click "+ Add Category" to start.</p>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center space-x-3">
         <label className="flex items-center space-x-2 cursor-pointer">
@@ -191,7 +292,8 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                   fieldName: '',
                   type: 'text',
                   placeholder: '',
-                  required: false
+                  required: false,
+                  options: []
                 };
                 handleInputChange('subFields', [...subFields, newSubField]);
               }}
@@ -252,6 +354,8 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                   <option value="email">Email</option>
                   <option value="tel">Phone</option>
                   <option value="number">Number</option>
+                  <option value="select">Dropdown (Custom Options)</option>
+                  <option value="competition_dropdown">Competition Dropdown</option>
                 </select>
                 <input
                   type="text"
@@ -265,6 +369,27 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                   }}
                 />
               </div>
+              {/* Custom options for select type */}
+              {subField.type === 'select' && (
+                <div className="mt-2">
+                  <label className="text-xs text-gray-400 block mb-1">Options (comma separated)</label>
+                  <input
+                    type="text"
+                    placeholder="Option 1, Option 2, Option 3"
+                    className="w-full px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                    value={subField.options?.join(', ') || ''}
+                    onChange={(e) => {
+                      const newSubFields = [...field.subFields];
+                      const options = e.target.value.split(',').map(opt => opt.trim()).filter(opt => opt);
+                      newSubFields[subIndex] = { ...newSubFields[subIndex], options };
+                      handleInputChange('subFields', newSubFields);
+                    }}
+                  />
+                </div>
+              )}
+              {subField.type === 'competition_dropdown' && (
+                <p className="text-xs text-green-400 mt-1">This will show all competitions from this fest as dropdown options</p>
+              )}
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -340,6 +465,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
           <option value="file">File Upload</option>
           <option value="image">Image Upload</option>
           <option value="group">Field Group (Multiple Sub-fields)</option>
+          <option value="category_competition_selector">Category & Competition Selector</option>
         </select>
         <input
           type="text"
@@ -349,6 +475,105 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
           onChange={(e) => handleInputChange('placeholder', e.target.value)}
         />
       </div>
+
+      {/* Category & Competition Selector Configuration */}
+      {field.type === 'category_competition_selector' && (
+        <div className="space-y-3 mt-3 border-t border-gray-600 pt-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-[#0ECCEE]">Categories & Competitions</label>
+            <button
+              type="button"
+              onClick={() => {
+                const categories = field.categoryOptions || [];
+                handleInputChange('categoryOptions', [...categories, { categoryName: '', competitions: [''] }]);
+              }}
+              className="px-2 py-1 bg-[#0ECCEE] text-black rounded text-xs hover:bg-[#0ECCEE]/80 transition-colors"
+            >
+              + Add Category
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">Define categories and their competitions. Users will first select a category, then a competition.</p>
+          
+          {field.categoryOptions?.map((category, catIndex) => (
+            <div key={catIndex} className="bg-[#1B1C1E] p-3 rounded-lg space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Category Name (e.g., Technical)"
+                  className="flex-1 px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  value={category.categoryName || ''}
+                  onChange={(e) => {
+                    const newCategories = [...(field.categoryOptions || [])];
+                    newCategories[catIndex] = { ...newCategories[catIndex], categoryName: e.target.value };
+                    handleInputChange('categoryOptions', newCategories);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newCategories = field.categoryOptions.filter((_, i) => i !== catIndex);
+                    handleInputChange('categoryOptions', newCategories);
+                  }}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              
+              <div className="pl-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">Competitions in this category:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newCategories = [...(field.categoryOptions || [])];
+                      const comps = newCategories[catIndex].competitions || [];
+                      newCategories[catIndex] = { ...newCategories[catIndex], competitions: [...comps, ''] };
+                      handleInputChange('categoryOptions', newCategories);
+                    }}
+                    className="text-xs text-[#0ECCEE] hover:text-[#0ECCEE]/80"
+                  >
+                    + Add Competition
+                  </button>
+                </div>
+                {category.competitions?.map((comp, compIndex) => (
+                  <div key={compIndex} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder={`Competition ${compIndex + 1}`}
+                      className="flex-1 px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                      value={comp || ''}
+                      onChange={(e) => {
+                        const newCategories = [...(field.categoryOptions || [])];
+                        const newComps = [...(newCategories[catIndex].competitions || [])];
+                        newComps[compIndex] = e.target.value;
+                        newCategories[catIndex] = { ...newCategories[catIndex], competitions: newComps };
+                        handleInputChange('categoryOptions', newCategories);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newCategories = [...(field.categoryOptions || [])];
+                        const newComps = newCategories[catIndex].competitions.filter((_, i) => i !== compIndex);
+                        newCategories[catIndex] = { ...newCategories[catIndex], competitions: newComps };
+                        handleInputChange('categoryOptions', newCategories);
+                      }}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          
+          {(!field.categoryOptions || field.categoryOptions.length === 0) && (
+            <p className="text-xs text-gray-500 italic">No categories added yet. Click "+ Add Category" to start.</p>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center space-x-3">
         <label className="flex items-center space-x-2 cursor-pointer">
@@ -411,7 +636,8 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                   fieldName: '',
                   type: 'text',
                   placeholder: '',
-                  required: false
+                  required: false,
+                  options: []
                 };
                 handleInputChange('subFields', [...subFields, newSubField]);
               }}
@@ -472,6 +698,8 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                   <option value="email">Email</option>
                   <option value="tel">Phone</option>
                   <option value="number">Number</option>
+                  <option value="select">Dropdown (Custom Options)</option>
+                  <option value="competition_dropdown">Competition Dropdown</option>
                 </select>
                 <input
                   type="text"
@@ -485,6 +713,27 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                   }}
                 />
               </div>
+              {/* Custom options for select type */}
+              {subField.type === 'select' && (
+                <div className="mt-2">
+                  <label className="text-xs text-gray-400 block mb-1">Options (comma separated)</label>
+                  <input
+                    type="text"
+                    placeholder="Option 1, Option 2, Option 3"
+                    className="w-full px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                    value={subField.options?.join(', ') || ''}
+                    onChange={(e) => {
+                      const newSubFields = [...field.subFields];
+                      const options = e.target.value.split(',').map(opt => opt.trim()).filter(opt => opt);
+                      newSubFields[subIndex] = { ...newSubFields[subIndex], options };
+                      handleInputChange('subFields', newSubFields);
+                    }}
+                  />
+                </div>
+              )}
+              {subField.type === 'competition_dropdown' && (
+                <p className="text-xs text-green-400 mt-1">This will show all competitions from this fest as dropdown options</p>
+              )}
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"

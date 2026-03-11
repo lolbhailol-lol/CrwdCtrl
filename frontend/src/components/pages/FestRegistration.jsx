@@ -475,6 +475,65 @@ export default function FestRegistration() {
                     const subFieldKey = `${fieldId}-${entryIndex}-${actualFieldName}-${subIndex}`;
                     const subFieldValue = entry?.[actualFieldName] ?? '';
                     
+                    // Handle select/dropdown type for subfields
+                    if (subField.type === 'select' || subField.type === 'competition_dropdown') {
+                      // Get options - either from competitions or from subField.options
+                      let selectOptions = [];
+                      if (subField.optionsSource === 'competitions' || subField.type === 'competition_dropdown') {
+                        // Get competitions from fest data
+                        const allCompetitions = [];
+                        if (fest?.competitions) {
+                          Object.values(fest.competitions).forEach(categoryComps => {
+                            if (Array.isArray(categoryComps)) {
+                              allCompetitions.push(...categoryComps);
+                            }
+                          });
+                        }
+                        selectOptions = allCompetitions.map(comp => ({
+                          value: comp._id || comp.id,
+                          label: comp.name || comp.title
+                        }));
+                      } else if (subField.options) {
+                        selectOptions = subField.options.map(opt => 
+                          typeof opt === 'string' ? { value: opt, label: opt } : opt
+                        );
+                      }
+                      
+                      return (
+                        <div key={subFieldKey}>
+                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {subField.label}
+                            {subField.required && <span className="text-red-400 ml-1">*</span>}
+                          </label>
+                          <select
+                            id={subFieldKey}
+                            name={subFieldKey}
+                            value={subFieldValue}
+                            onChange={(e) => {
+                              const newValue = e.target.value;
+                              const newEntries = groupEntries.map((ent, idx) => {
+                                if (idx === entryIndex) {
+                                  return {
+                                    ...ent,
+                                    [actualFieldName]: newValue
+                                  };
+                                }
+                                return { ...ent };
+                              });
+                              onFieldChange(fieldId, newEntries);
+                            }}
+                            required={subField.required}
+                            className={`w-full px-3 py-2 rounded-lg border focus:border-[#0ECCEE] focus:outline-none text-sm ${isDark ? 'bg-[#2A2B2D] border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                          >
+                            <option value="">{subField.placeholder || `Select ${subField.label}`}</option>
+                            {selectOptions.map((opt, optIdx) => (
+                              <option key={optIdx} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    }
+                    
                     return (
                       <div key={subFieldKey}>
                         <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -530,6 +589,87 @@ export default function FestRegistration() {
             )}
           </div>
         );
+      
+      case 'category_competition_selector': {
+        // Cascading selector: first select category, then competition from that category
+        const currentValue = typeof value === 'object' ? value : { category: '', competition: '' };
+        
+        // Use manually defined categoryOptions from the field configuration
+        const categoryOptions = field.categoryOptions || [];
+        
+        const selectedCategory = currentValue.category || '';
+        const selectedCategoryData = categoryOptions.find(cat => cat.categoryName === selectedCategory);
+        const competitionsInCategory = selectedCategoryData?.competitions || [];
+        
+        return (
+          <div className="space-y-4">
+            {/* Category Selection */}
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Select Category
+                {field.required && <span className="text-red-400 ml-1">*</span>}
+              </label>
+              <select
+                id={`${fieldId}-category`}
+                name={`${fieldId}-category`}
+                value={selectedCategory}
+                onChange={(e) => {
+                  // When category changes, reset competition selection
+                  onFieldChange(fieldId, { category: e.target.value, competition: '' });
+                }}
+                required={field.required}
+                className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+              >
+                <option value="">-- Select a Category --</option>
+                {categoryOptions.map((cat, index) => (
+                  <option key={index} value={cat.categoryName}>
+                    {cat.categoryName} ({cat.competitions?.length || 0})
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Competition Selection - only show if category is selected */}
+            {selectedCategory && competitionsInCategory.length > 0 && (
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Select Competition
+                  {field.required && <span className="text-red-400 ml-1">*</span>}
+                </label>
+                <select
+                  id={`${fieldId}-competition`}
+                  name={`${fieldId}-competition`}
+                  value={currentValue.competition || ''}
+                  onChange={(e) => {
+                    onFieldChange(fieldId, { ...currentValue, competition: e.target.value });
+                  }}
+                  required={field.required}
+                  className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+                >
+                  <option value="">-- Select a Competition --</option>
+                  {competitionsInCategory.map((comp, index) => (
+                    <option key={index} value={comp}>
+                      {comp}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {selectedCategory && competitionsInCategory.length === 0 && (
+              <p className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                No competitions available in this category.
+              </p>
+            )}
+            
+            {categoryOptions.length === 0 && (
+              <p className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                No categories configured. Please contact the administrator.
+              </p>
+            )}
+          </div>
+        );
+      }
       
       default:
         return (
@@ -596,11 +736,17 @@ export default function FestRegistration() {
         data.registration.formSchema.forEach(field => {
           const fieldId = generateFieldId(field);
           console.log('🔧 Initializing field:', { fieldId, type: field.type, label: field.label });
-          // Initialize file/image fields as null, others as empty string/array
+          // Initialize fields based on type
           if (field.type === 'file' || field.type === 'image') {
             initialData[fieldId] = null;
+          } else if (field.type === 'checkbox') {
+            initialData[fieldId] = [];
+          } else if (field.type === 'category_competition_selector') {
+            initialData[fieldId] = { category: '', competition: '' };
+          } else if (field.type === 'group') {
+            initialData[fieldId] = [];
           } else {
-            initialData[fieldId] = field.type === 'checkbox' ? [] : '';
+            initialData[fieldId] = '';
           }
         });
       }
@@ -688,11 +834,17 @@ export default function FestRegistration() {
         festData.registration.formSchema.forEach(field => {
           const fieldId = generateFieldId(field);
           console.log('🔧 Initializing field:', { fieldId, type: field.type, label: field.label });
-          // Initialize file/image fields as null, others as empty string/array
+          // Initialize fields based on type
           if (field.type === 'file' || field.type === 'image') {
             initialData[fieldId] = null;
+          } else if (field.type === 'checkbox') {
+            initialData[fieldId] = [];
+          } else if (field.type === 'category_competition_selector') {
+            initialData[fieldId] = { category: '', competition: '' };
+          } else if (field.type === 'group') {
+            initialData[fieldId] = [];
           } else {
-            initialData[fieldId] = field.type === 'checkbox' ? [] : '';
+            initialData[fieldId] = '';
           }
         });
       }
@@ -966,6 +1118,16 @@ export default function FestRegistration() {
               setError(`${field.label} is required - please upload a file`);
               return;
             }
+          } else if (field.type === 'category_competition_selector') {
+            if (!value || typeof value !== 'object' || !value.category || !value.competition) {
+              setError(`${field.label} is required - please select both category and competition`);
+              return;
+            }
+          } else if (field.type === 'group') {
+            if (!value || !Array.isArray(value) || value.length === 0) {
+              setError(`${field.label} is required - please add at least one entry`);
+              return;
+            }
           } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
             setError(`${field.label} is required`);
             return;
@@ -983,6 +1145,16 @@ export default function FestRegistration() {
         if (field.type === 'file' || field.type === 'image') {
           if (!value || !value.ready || !formData[`${fieldId}_file`]) {
             setError(`${field.label} is required - please upload a file`);
+            return;
+          }
+        } else if (field.type === 'category_competition_selector') {
+          if (!value || typeof value !== 'object' || !value.category || !value.competition) {
+            setError(`${field.label} is required - please select both category and competition`);
+            return;
+          }
+        } else if (field.type === 'group') {
+          if (!value || !Array.isArray(value) || value.length === 0) {
+            setError(`${field.label} is required - please add at least one entry`);
             return;
           }
         } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
@@ -1117,6 +1289,16 @@ export default function FestRegistration() {
               allFormDataKeys: Object.keys(allFormData)
             });
             throw new Error(`${field.label} is required - please upload a file`);
+          }
+        } else if (field.type === 'category_competition_selector') {
+          // For category_competition_selector, check both category AND competition are selected
+          if (!value || typeof value !== 'object' || !value.category || !value.competition) {
+            throw new Error(`${field.label} is required - please select both category and competition`);
+          }
+        } else if (field.type === 'group') {
+          // For group fields, check if at least one entry exists
+          if (!value || !Array.isArray(value) || value.length === 0) {
+            throw new Error(`${field.label} is required - please add at least one entry`);
           }
         } else {
           // For other fields, check if value exists and is not empty

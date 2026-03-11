@@ -820,8 +820,8 @@ function EventPage() {
                                 </div>
                             </div>
 
-                            {/* Mobile Registration Button - Inside container */}
-                            <div className="px-4 py-4">
+                            {/* Mobile Registration Button - Hidden, using fixed footer instead */}
+                            <div className="hidden px-4 py-4">
                                 <div className="flex gap-2 relative">
                                     <button
                                         onClick={handleRegister}
@@ -1567,8 +1567,32 @@ function EventPage() {
                     </div>
                 </main>
 
+                {/* Spacer for fixed mobile footer */}
+                <div className="md:hidden h-20"></div>
+
                 {/* Footer */}
                 <Footer />
+
+            {/* Fixed Mobile/Tablet Register Button Footer */}
+            <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden px-4 py-3 ${isDark ? 'bg-[#0F1014] border-t border-gray-700' : 'bg-white border-t border-gray-200'}`}>
+                <button
+                    onClick={handleRegister}
+                    disabled={isRegistered || registrationInfo.isDisabled}
+                    className={`w-full font-semibold py-3 rounded-xl transition ${
+                        registrationInfo.isDisabled
+                            ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
+                            : isRegistered
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
+                    }`}
+                >
+                    {isRegistered ? (
+                        <>
+                            <span className="mr-1">✓</span> Registered
+                        </>
+                    ) : registrationInfo.buttonText}
+                </button>
+            </div>
 
             {/* Login Modal */}
             {showLogin && (

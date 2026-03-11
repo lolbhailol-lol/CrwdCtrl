@@ -1,10 +1,8 @@
 import React from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
 import MainLogo from '../assets/logo01_.svg';
-import DarkModeLogo from '../assets/loading-image/dark-mode-logo.svg';
-import LightModeLogo from '../assets/loading-image/light-mode.svg';
 
-const AppLoadingPage = ({ showPoweredBy = true }) => {
+const AppLoadingPage = () => {
     const { isDark } = useDarkMode();
 
     return (
@@ -21,20 +19,7 @@ const AppLoadingPage = ({ showPoweredBy = true }) => {
                     />
                 </div>
 
-                {showPoweredBy && (
-                    <div className="flex items-center justify-center space-x-2 -mt-16">
-                        <span className={`text-sm ${
-                            isDark ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                            Powered by
-                        </span>
-                        <img 
-                            src={isDark ? LightModeLogo : DarkModeLogo}
-                            alt="DevHub"
-                            className="h-3 w-auto"
-                        />
-                    </div>
-                )}
+
             </div>
         </div>
     );
