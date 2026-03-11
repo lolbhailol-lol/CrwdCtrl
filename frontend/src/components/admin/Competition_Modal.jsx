@@ -1674,6 +1674,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     <option value="art">Art</option>
                     <option value="theater">Theater</option>
                     <option value="cultural">Cultural</option>
+                    <option value="informals">Informals</option>
                     <option value="business">Business</option>
                     <option value="esports">Esports</option>
                     <option value="management">Management</option>
@@ -2547,7 +2548,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
 
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium mb-2">Round Name *</label>
+                          <label className="block text-sm font-medium mb-2">Round Name</label>
                           <input
                             type="text"
                             placeholder="e.g., Elimination Round, Final Round"

@@ -10,29 +10,51 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 const fetchJSON = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
     const timeout = options.timeout || 20000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    try {
-        const response = await fetch(url, {
-            method: 'GET',
-            credentials: 'omit',
-            mode: 'cors',
-            headers: { 'Accept': 'application/json' },
-            signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        return { data };
-    } catch (err) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-            const error = new Error('Request timeout');
-            error.code = 'ECONNABORTED';
-            throw error;
+    const maxRetries = options.retries || 3;
+    
+    const attemptFetch = async (retryCount = 0) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'omit',
+                mode: 'cors',
+                headers: { 'Accept': 'application/json' },
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            return { data };
+        } catch (err) {
+            clearTimeout(timeoutId);
+            
+            // Retry on network errors (not on 404, 400, etc.)
+            const isNetworkError = err.name === 'AbortError' || 
+                                   err.name === 'TypeError' || 
+                                   err.message.includes('Failed to fetch') ||
+                                   err.message.includes('Network');
+            
+            if (isNetworkError && retryCount < maxRetries) {
+                console.log(`🔄 Retry ${retryCount + 1}/${maxRetries} for ${endpoint}`);
+                // Exponential backoff: 1s, 2s, 4s
+                await new Promise(r => setTimeout(r, Math.pow(2, retryCount) * 1000));
+                return attemptFetch(retryCount + 1);
+            }
+            
+            if (err.name === 'AbortError') { 
+                const e = new Error('Request timeout'); 
+                e.code = 'ECONNABORTED'; 
+                e.isNetworkError = true;
+                throw e; 
+            }
+            err.isNetworkError = isNetworkError;
+            throw err;
         }
-        throw err;
-    }
+    };
+    
+    return attemptFetch();
 };
 
 const CompetitionListPage = () => {
@@ -270,14 +292,36 @@ const CompetitionListPage = () => {
     if (error || !eventData) {
         return (
             <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
-                <div className="text-center">
+                <div className="text-center max-w-md mx-auto p-6">
+                    <div className="mb-6">
+                        <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? 'bg-red-900/20' : 'bg-red-100'}`}>
+                            <svg className={`w-8 h-8 ${isDark ? 'text-red-400' : 'text-red-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        </div>
+                    </div>
                     <h2 className="text-2xl font-bold mb-4">{error || 'Event not found'}</h2>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-600 transition"
-                    >
-                        Go to Dashboard
-                    </button>
+                    <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mb-6`}>
+                        Unable to load competitions. Please check your connection.
+                    </p>
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="w-full bg-cyan-500 text-white px-6 py-3 rounded-lg hover:bg-cyan-600 transition font-medium"
+                        >
+                            Try Again
+                        </button>
+                        <button
+                            onClick={() => navigate('/')}
+                            className={`w-full px-6 py-3 rounded-lg transition font-medium ${
+                                isDark 
+                                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            Go to Dashboard
+                        </button>
+                    </div>
                 </div>
             </div>
         );

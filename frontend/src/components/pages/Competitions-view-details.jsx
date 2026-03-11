@@ -20,25 +20,51 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 const fetchJSON = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
     const timeout = options.timeout || 20000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    try {
-        const response = await fetch(url, {
-            method: 'GET',
-            credentials: 'omit',
-            mode: 'cors',
-            headers: { 'Accept': 'application/json' },
-            signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        return { data };
-    } catch (err) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') { const e = new Error('Request timeout'); e.code = 'ECONNABORTED'; throw e; }
-        throw err;
-    }
+    const maxRetries = options.retries || 3;
+    
+    const attemptFetch = async (retryCount = 0) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'omit',
+                mode: 'cors',
+                headers: { 'Accept': 'application/json' },
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            return { data };
+        } catch (err) {
+            clearTimeout(timeoutId);
+            
+            // Retry on network errors (not on 404, 400, etc.)
+            const isNetworkError = err.name === 'AbortError' || 
+                                   err.name === 'TypeError' || 
+                                   err.message.includes('Failed to fetch') ||
+                                   err.message.includes('Network');
+            
+            if (isNetworkError && retryCount < maxRetries) {
+                console.log(`🔄 Retry ${retryCount + 1}/${maxRetries} for ${endpoint}`);
+                // Exponential backoff: 1s, 2s, 4s
+                await new Promise(r => setTimeout(r, Math.pow(2, retryCount) * 1000));
+                return attemptFetch(retryCount + 1);
+            }
+            
+            if (err.name === 'AbortError') { 
+                const e = new Error('Request timeout'); 
+                e.code = 'ECONNABORTED'; 
+                e.isNetworkError = true;
+                throw e; 
+            }
+            err.isNetworkError = isNetworkError;
+            throw err;
+        }
+    };
+    
+    return attemptFetch();
 };
 
 function EventPage() {
@@ -127,21 +153,16 @@ function EventPage() {
                         fest: compData.fest || null,
                         festId: compData.fest?._id || null,
                         rounds: {
-                            description: compData.rounds?.[0]?.description || 'Competition details will be updated soon.',
+                            description: compData.rounds?.[0]?.description || '',
                             list: compData.rounds?.map(r => r.title || r.description) || [],
                             round1: compData.rounds?.[0] ? {
-                                title: compData.rounds[0].title || 'Round 1',
+                                title: compData.rounds[0].title || '',
                                 rules: compData.rounds[0].rules || [],
-                                roundRulesMessage: compData.rounds[0].roundRulesMessage || '', // NEW: message field
+                                roundRulesMessage: compData.rounds[0].roundRulesMessage || '',
                                 description: compData.rounds[0].description || '',
                                 dateTime: compData.rounds[0].dateTime,
                                 venue: compData.rounds[0].venue
-                            } : {
-                                title: 'Round 1',
-                                rules: [],
-                                roundRulesMessage: '', // NEW: message field
-                                description: ''
-                            },
+                            } : null,
                             round2: compData.rounds?.[1] ? {
                                 title: compData.rounds[1].title || 'Round 2',
                                 rules: compData.rounds[1].rules || [],
@@ -238,16 +259,16 @@ function EventPage() {
                                 fest: compData.fest || null,
                                 festId: compData.fest?._id || null,
                                 rounds: {
-                                    description: compData.rounds?.[0]?.description || 'Competition details will be updated soon.',
+                                    description: compData.rounds?.[0]?.description || '',
                                     list: compData.rounds?.map(r => r.title || r.description) || [],
                                     round1: compData.rounds?.[0] ? {
-                                        title: compData.rounds[0].title || 'Round 1',
+                                        title: compData.rounds[0].title || '',
                                         rules: compData.rounds[0].rules || [],
                                         roundRulesMessage: compData.rounds[0].roundRulesMessage || '',
                                         description: compData.rounds[0].description || '',
                                         dateTime: compData.rounds[0].dateTime,
                                         venue: compData.rounds[0].venue
-                                    } : { title: 'Round 1', rules: [], roundRulesMessage: '', description: '' },
+                                    } : null,
                                     round2: compData.rounds?.[1] ? {
                                         title: compData.rounds[1].title || 'Round 2',
                                         rules: compData.rounds[1].rules || [],
@@ -925,18 +946,21 @@ function EventPage() {
                                     </div>
                                 </div>
                             )}
-                            {/* Mobile Competition Rounds */}
+                            {/* Mobile Competition Rounds - Only show if rounds exist */}
+                            {(eventData?.rounds?.round1 || eventData?.rounds?.round2 || eventData?.rounds?.round3) && (
                             <div className="px-4 py-4">
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
+                                    {eventData?.rounds?.description && (
                                     <div className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                         <div 
                                             className="whitespace-pre-wrap"
                                             style={{ whiteSpace: 'pre-wrap' }}
                                         >
-                                            {eventData?.rounds?.description || 'Competition details will be updated soon.'}
+                                            {eventData.rounds.description}
                                         </div>
                                     </div>
+                                    )}
 
                                     {/* Mobile Round Tabs - Dynamic based on available rounds */}
                                     {(eventData?.rounds?.round2 || eventData?.rounds?.round3) && !festName?.toLowerCase().includes('symbi') && (
@@ -977,13 +1001,16 @@ function EventPage() {
                                         </div>
                                     )}
 
-                                    {/* Mobile Round Content */}
+                                    {/* Mobile Round Content - Only show if rounds exist */}
+                                    {(eventData?.rounds?.round1 || eventData?.rounds?.round2 || eventData?.rounds?.round3) && (
                                     <div className="space-y-4">
-                                        {activeRound === 'round1' ? (
+                                        {activeRound === 'round1' && eventData?.rounds?.round1 ? (
                                             <>
+                                                {eventData?.rounds?.round1?.title && (
                                                 <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {eventData?.rounds?.round1?.title || 'Round 1'}
+                                                    {eventData.rounds.round1.title}
                                                 </h3>
+                                                )}
 
                                                 {eventData?.rounds?.round1?.offline && (
                                                     <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
@@ -1057,8 +1084,10 @@ function EventPage() {
                                             </>
                                         ) : null}
                                     </div>
+                                    )}
                                 </div>
                             </div>
+                            )}
 
                             {/* Mobile Common Rules */}
                             <div className="px-4 py-4">
@@ -1433,17 +1462,20 @@ function EventPage() {
                                     )}
                                 </div>
 
-                                {/* Competition Rounds */}
+                                {/* Competition Rounds - Only show if rounds exist */}
+                                {(eventData?.rounds?.round1 || eventData?.rounds?.round2 || eventData?.rounds?.round3) && (
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
                                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
+                                    {eventData?.rounds?.description && (
                                     <div className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                         <div 
                                             className="whitespace-pre-wrap"
                                             style={{ whiteSpace: 'pre-wrap' }}
                                         >
-                                            {eventData?.rounds?.description || 'Competition details will be updated soon.'}
+                                            {eventData.rounds.description}
                                         </div>
                                     </div>
+                                    )}
 
                                     {/* Desktop Round Tabs - Dynamic based on available rounds */}
                                     {(eventData?.rounds?.round2 || eventData?.rounds?.round3) && !festName?.toLowerCase().includes('symbi') && (
@@ -1483,11 +1515,13 @@ function EventPage() {
                                     )}
 
                                     <div className="space-y-4">
-                                        {activeRound === 'round1' ? (
+                                        {activeRound === 'round1' && eventData?.rounds?.round1 ? (
                                             <>
+                                                {eventData?.rounds?.round1?.title && (
                                                 <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {eventData?.rounds?.round1?.title || 'Round 1'}
+                                                    {eventData.rounds.round1.title}
                                                 </h3>
+                                                )}
 
                                                 {eventData?.rounds?.round1?.offline && (
                                                     <div className="mb-4">
@@ -1562,6 +1596,7 @@ function EventPage() {
                                         ) : null}
                                     </div>
                                 </div>
+                                )}
                             </div>
                         </div>
                     </div>

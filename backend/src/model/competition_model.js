@@ -33,6 +33,7 @@ const competitionSchema = new mongoose.Schema(
       'art',
       'theater',
       'cultural',
+      'informals',
       'business',
       'esports',
       'management',
