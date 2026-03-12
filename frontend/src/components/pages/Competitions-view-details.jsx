@@ -71,7 +71,7 @@ function EventPage() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const [activeRound, setActiveRound] = useState('round1');
+    const [activeRound, setActiveRound] = useState(0);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
@@ -155,30 +155,16 @@ function EventPage() {
                         rounds: {
                             description: compData.rounds?.[0]?.description || '',
                             list: compData.rounds?.map(r => r.title || r.description) || [],
-                            round1: compData.rounds?.[0] ? {
-                                title: compData.rounds[0].title || '',
-                                rules: compData.rounds[0].rules || [],
-                                roundRulesMessage: compData.rounds[0].roundRulesMessage || '',
-                                description: compData.rounds[0].description || '',
-                                dateTime: compData.rounds[0].dateTime,
-                                venue: compData.rounds[0].venue
-                            } : null,
-                            round2: compData.rounds?.[1] ? {
-                                title: compData.rounds[1].title || 'Round 2',
-                                rules: compData.rounds[1].rules || [],
-                                roundRulesMessage: compData.rounds[1].roundRulesMessage || '', // NEW: message field
-                                description: compData.rounds[1].description || '',
-                                dateTime: compData.rounds[1].dateTime,
-                                venue: compData.rounds[1].venue
-                            } : null,
-                            round3: compData.rounds?.[2] ? {
-                                title: compData.rounds[2].title || 'Final Round',
-                                rules: compData.rounds[2].rules || [],
-                                roundRulesMessage: compData.rounds[2].roundRulesMessage || '', // NEW: message field
-                                description: compData.rounds[2].description || '',
-                                dateTime: compData.rounds[2].dateTime,
-                                venue: compData.rounds[2].venue
-                            } : null
+                            roundsList: (compData.rounds || []).map((r, i) => ({
+                                title: r.title || `Round ${i + 1}`,
+                                rules: r.rules || [],
+                                roundRulesMessage: r.roundRulesMessage || '',
+                                description: r.description || '',
+                                dateTime: r.dateTime,
+                                venue: r.venue,
+                                offline: r.offline || null,
+                                online: r.online || null
+                            }))
                         }
                     };
 
@@ -261,30 +247,16 @@ function EventPage() {
                                 rounds: {
                                     description: compData.rounds?.[0]?.description || '',
                                     list: compData.rounds?.map(r => r.title || r.description) || [],
-                                    round1: compData.rounds?.[0] ? {
-                                        title: compData.rounds[0].title || '',
-                                        rules: compData.rounds[0].rules || [],
-                                        roundRulesMessage: compData.rounds[0].roundRulesMessage || '',
-                                        description: compData.rounds[0].description || '',
-                                        dateTime: compData.rounds[0].dateTime,
-                                        venue: compData.rounds[0].venue
-                                    } : null,
-                                    round2: compData.rounds?.[1] ? {
-                                        title: compData.rounds[1].title || 'Round 2',
-                                        rules: compData.rounds[1].rules || [],
-                                        roundRulesMessage: compData.rounds[1].roundRulesMessage || '',
-                                        description: compData.rounds[1].description || '',
-                                        dateTime: compData.rounds[1].dateTime,
-                                        venue: compData.rounds[1].venue
-                                    } : null,
-                                    round3: compData.rounds?.[2] ? {
-                                        title: compData.rounds[2].title || 'Final Round',
-                                        rules: compData.rounds[2].rules || [],
-                                        roundRulesMessage: compData.rounds[2].roundRulesMessage || '',
-                                        description: compData.rounds[2].description || '',
-                                        dateTime: compData.rounds[2].dateTime,
-                                        venue: compData.rounds[2].venue
-                                    } : null
+                                    roundsList: (compData.rounds || []).map((r, i) => ({
+                                        title: r.title || `Round ${i + 1}`,
+                                        rules: r.rules || [],
+                                        roundRulesMessage: r.roundRulesMessage || '',
+                                        description: r.description || '',
+                                        dateTime: r.dateTime,
+                                        venue: r.venue,
+                                        offline: r.offline || null,
+                                        online: r.online || null
+                                    }))
                                 }
                             };
                             setCompetitionData(transformedData);
@@ -947,7 +919,7 @@ function EventPage() {
                                 </div>
                             )}
                             {/* Mobile Competition Rounds - Only show if rounds exist */}
-                            {(eventData?.rounds?.round1 || eventData?.rounds?.round2 || eventData?.rounds?.round3) && (
+                            {eventData?.rounds?.roundsList?.length > 0 && (
                             <div className="px-4 py-4">
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
@@ -963,128 +935,81 @@ function EventPage() {
                                     )}
 
                                     {/* Mobile Round Tabs - Dynamic based on available rounds */}
-                                    {(eventData?.rounds?.round2 || eventData?.rounds?.round3) && !festName?.toLowerCase().includes('symbi') && (
-                                        <div className={`grid gap-2 mb-4 mt-4 ${eventData?.rounds?.round3 ? 'grid-cols-3' :
-                                            eventData?.rounds?.round2 ? 'grid-cols-2' : 'grid-cols-1'
-                                            }`}>
-                                            <button
-                                                onClick={() => setActiveRound('round1')}
-                                                className={`py-3 px-3 rounded-lg font-medium transition text-sm ${activeRound === 'round1'
-                                                    ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-blue-50 text-black'}`
-                                                    : `${isDark ? 'bg-dark-700 text-gray-300' : 'bg-gray-100 text-black'}`
-                                                    }`}
-                                            >
-                                                Round 1
-                                            </button>
-                                            {eventData?.rounds?.round2 && (
+                                    {eventData.rounds.roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
+                                        <div className={`grid gap-2 mb-4 mt-4`} style={{ gridTemplateColumns: `repeat(${Math.min(eventData.rounds.roundsList.length, 5)}, 1fr)` }}>
+                                            {eventData.rounds.roundsList.map((round, idx) => (
                                                 <button
-                                                    onClick={() => setActiveRound('round2')}
-                                                    className={`py-3 px-3 rounded-lg font-medium transition text-sm ${activeRound === 'round2'
+                                                    key={idx}
+                                                    onClick={() => setActiveRound(idx)}
+                                                    className={`py-3 px-3 rounded-lg font-medium transition text-sm ${activeRound === idx
                                                         ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-blue-50 text-black'}`
                                                         : `${isDark ? 'bg-dark-700 text-gray-300' : 'bg-gray-100 text-black'}`
                                                         }`}
                                                 >
-                                                    Round 2
+                                                    Round {idx + 1}
                                                 </button>
-                                            )}
-                                            {eventData?.rounds?.round3 && (
-                                                <button
-                                                    onClick={() => setActiveRound('round3')}
-                                                    className={`py-3 px-3 rounded-lg font-medium transition text-sm ${activeRound === 'round3'
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-blue-50 text-black'}`
-                                                        : `${isDark ? 'bg-dark-700 text-gray-300' : 'bg-gray-100 text-black'}`
-                                                        }`}
-                                                >
-                                                    Round 3
-                                                </button>
-                                            )}
+                                            ))}
                                         </div>
                                     )}
 
-                                    {/* Mobile Round Content - Only show if rounds exist */}
-                                    {(eventData?.rounds?.round1 || eventData?.rounds?.round2 || eventData?.rounds?.round3) && (
+                                    {/* Mobile Round Content */}
                                     <div className="space-y-4">
-                                        {activeRound === 'round1' && eventData?.rounds?.round1 ? (
-                                            <>
-                                                {eventData?.rounds?.round1?.title && (
-                                                <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {eventData.rounds.round1.title}
-                                                </h3>
-                                                )}
-
-                                                {eventData?.rounds?.round1?.offline && (
-                                                    <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                        <p className={`font-semibold mb-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                            {eventData?.rounds?.round1?.offline?.title || 'Offline Round'}
+                                        {(() => {
+                                            const round = eventData.rounds.roundsList[activeRound];
+                                            if (!round) return null;
+                                            return (
+                                                <>
+                                                    {round.description?.trim() && (
+                                                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                            {round.description}
                                                         </p>
-                                                        <RulesList
-                                                            rules={eventData?.rounds?.round1?.offline?.rules}
-                                                            ruleKey={`mobile-round1-offline-${eventData?.id}`}
-                                                            maxItems={5}
-                                                        />
-                                                    </div>
-                                                )}
+                                                    )}
 
-                                                {eventData?.rounds?.round1?.online && (
-                                                    <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                        <p className={`font-semibold mb-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                            {eventData?.rounds?.round1?.online?.title || 'Online Round'}
-                                                        </p>
-                                                        <RulesList
-                                                            rules={eventData?.rounds?.round1?.online?.rules}
-                                                            ruleKey={`mobile-round1-online-${eventData?.id}`}
-                                                            maxItems={5}
-                                                        />
-                                                    </div>
-                                                )}
+                                                    {round.title && (
+                                                        <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {round.title}
+                                                        </h3>
+                                                    )}
 
-                                                {!eventData?.rounds?.round1?.offline && !eventData?.rounds?.round1?.online && eventData?.rounds?.round1?.rules && (
-                                                    <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                        <RulesList
-                                                            rules={getRoundRules(eventData?.rounds?.round1)}
-                                                            ruleKey={`mobile-round1-${eventData?.id}`}
-                                                            maxItems={5}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </>
-                                        ) : activeRound === 'round2' ? (
-                                            <>
-                                                <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {eventData?.rounds?.round2?.title || 'Round 2'}
-                                                </h3>
+                                                    {round.offline && (
+                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
+                                                            <p className={`font-semibold mb-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                                                                {round.offline.title || 'Offline Round'}
+                                                            </p>
+                                                            <RulesList
+                                                                rules={round.offline.rules}
+                                                                ruleKey={`mobile-round${activeRound}-offline-${eventData?.id}`}
+                                                                maxItems={5}
+                                                            />
+                                                        </div>
+                                                    )}
 
-                                                <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                    <RulesList
-                                                        rules={getRoundRules(eventData?.rounds?.round2)}
-                                                        ruleKey={`mobile-round2-${eventData?.id}`}
-                                                        maxItems={5}
-                                                    />
-                                                </div>
-                                            </>
-                                        ) : activeRound === 'round3' && eventData?.rounds?.round3 ? (
-                                            <>
-                                                {(eventData?.rounds?.round3?.description && eventData.rounds.round3.description.trim()) ? (
-                                                    <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                        {eventData.rounds.round3.description}
-                                                    </p>
-                                                ) : null}
+                                                    {round.online && (
+                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
+                                                            <p className={`font-semibold mb-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                                                                {round.online.title || 'Online Round'}
+                                                            </p>
+                                                            <RulesList
+                                                                rules={round.online.rules}
+                                                                ruleKey={`mobile-round${activeRound}-online-${eventData?.id}`}
+                                                                maxItems={5}
+                                                            />
+                                                        </div>
+                                                    )}
 
-                                                <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {eventData.rounds.round3.title || 'Round 3'}
-                                                </h3>
-
-                                                <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                    <RulesList
-                                                        rules={getRoundRules(eventData?.rounds?.round3)}
-                                                        ruleKey={`mobile-round3-${eventData?.id}`}
-                                                        maxItems={5}
-                                                    />
-                                                </div>
-                                            </>
-                                        ) : null}
+                                                    {!round.offline && !round.online && round.rules && (
+                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
+                                                            <RulesList
+                                                                rules={getRoundRules(round)}
+                                                                ruleKey={`mobile-round${activeRound}-${eventData?.id}`}
+                                                                maxItems={5}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
-                                    )}
                                 </div>
                             </div>
                             )}
@@ -1463,7 +1388,7 @@ function EventPage() {
                                 </div>
 
                                 {/* Competition Rounds - Only show if rounds exist */}
-                                {(eventData?.rounds?.round1 || eventData?.rounds?.round2 || eventData?.rounds?.round3) && (
+                                {eventData?.rounds?.roundsList?.length > 0 && (
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
                                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
                                     {eventData?.rounds?.description && (
@@ -1478,122 +1403,77 @@ function EventPage() {
                                     )}
 
                                     {/* Desktop Round Tabs - Dynamic based on available rounds */}
-                                    {(eventData?.rounds?.round2 || eventData?.rounds?.round3) && !festName?.toLowerCase().includes('symbi') && (
-                                        <div className={`flex gap-2 mb-6 ${eventData?.rounds?.round3 ? 'grid grid-cols-3' : 'flex'}`}>
-                                            <button
-                                                onClick={() => setActiveRound('round1')}
-                                                className={`flex-1 py-2 px-4 rounded-2xl font-medium transition ${activeRound === 'round1'
-                                                    ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-[#F5F6FA] text-black'}`
-                                                    : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#F5F6FA] text-black'}`
-                                                    }`}
-                                            >
-                                                Round 1
-                                            </button>
-                                            {eventData?.rounds?.round2 && (
+                                    {eventData.rounds.roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
+                                        <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: `repeat(${Math.min(eventData.rounds.roundsList.length, 5)}, 1fr)` }}>
+                                            {eventData.rounds.roundsList.map((round, idx) => (
                                                 <button
-                                                    onClick={() => setActiveRound('round2')}
-                                                    className={`flex-1 py-2 px-4 rounded-2xl font-medium transition ${activeRound === 'round2'
+                                                    key={idx}
+                                                    onClick={() => setActiveRound(idx)}
+                                                    className={`flex-1 py-2 px-4 rounded-2xl font-medium transition ${activeRound === idx
                                                         ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-[#F5F6FA] text-black'}`
                                                         : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#F5F6FA] text-black'}`
                                                         }`}
                                                 >
-                                                    Round 2
+                                                    Round {idx + 1}
                                                 </button>
-                                            )}
-                                            {eventData?.rounds?.round3 && (
-                                                <button
-                                                    onClick={() => setActiveRound('round3')}
-                                                    className={`flex-1 py-2 px-4 rounded-2xl font-medium transition ${activeRound === 'round3'
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-[#F5F6FA] text-black'}`
-                                                        : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#F5F6FA] text-black'}`
-                                                        }`}
-                                                >
-                                                    Round 3
-                                                </button>
-                                            )}
+                                            ))}
                                         </div>
                                     )}
 
                                     <div className="space-y-4">
-                                        {activeRound === 'round1' && eventData?.rounds?.round1 ? (
-                                            <>
-                                                {eventData?.rounds?.round1?.title && (
-                                                <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {eventData.rounds.round1.title}
-                                                </h3>
-                                                )}
-
-                                                {eventData?.rounds?.round1?.offline && (
-                                                    <div className="mb-4">
-                                                        <p className={`font-semibold mb-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                            {eventData.rounds.round1.offline.title || 'Offline Round'}
+                                        {(() => {
+                                            const round = eventData.rounds.roundsList[activeRound];
+                                            if (!round) return null;
+                                            return (
+                                                <>
+                                                    {round.description?.trim() && (
+                                                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                            {round.description}
                                                         </p>
+                                                    )}
+
+                                                    {round.title && (
+                                                        <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {round.title}
+                                                        </h3>
+                                                    )}
+
+                                                    {round.offline && (
+                                                        <div className="mb-4">
+                                                            <p className={`font-semibold mb-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                                                                {round.offline.title || 'Offline Round'}
+                                                            </p>
+                                                            <RulesList
+                                                                rules={round.offline.rules}
+                                                                ruleKey={`desktop-round${activeRound}-offline-${eventData?.id}`}
+                                                                maxItems={5}
+                                                            />
+                                                        </div>
+                                                    )}
+
+                                                    {round.online && (
+                                                        <div className="mb-4">
+                                                            <p className={`font-semibold mb-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                                                                {round.online.title || 'Online Round'}
+                                                            </p>
+                                                            <RulesList
+                                                                rules={round.online.rules}
+                                                                ruleKey={`desktop-round${activeRound}-online-${eventData?.id}`}
+                                                                maxItems={5}
+                                                            />
+                                                        </div>
+                                                    )}
+
+                                                    {!round.offline && !round.online && round.rules && (
                                                         <RulesList
-                                                            rules={eventData.rounds.round1.offline.rules}
-                                                            ruleKey={`desktop-round1-offline-${eventData?.id}`}
+                                                            rules={getRoundRules(round)}
+                                                            ruleKey={`desktop-round${activeRound}-${eventData?.id}`}
                                                             maxItems={5}
                                                         />
-                                                    </div>
-                                                )}
-
-                                                {eventData?.rounds?.round1?.online && (
-                                                    <div className="mb-4">
-                                                        <p className={`font-semibold mb-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                            {eventData.rounds.round1.online.title || 'Online Round'}
-                                                        </p>
-                                                        <RulesList
-                                                            rules={eventData.rounds.round1.online.rules}
-                                                            ruleKey={`desktop-round1-online-${eventData?.id}`}
-                                                            maxItems={5}
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                {!eventData?.rounds?.round1?.offline && !eventData?.rounds?.round1?.online && eventData?.rounds?.round1?.rules && (
-                                                    <RulesList
-                                                        rules={getRoundRules(eventData?.rounds?.round1)}
-                                                        ruleKey={`desktop-round1-${eventData?.id}`}
-                                                        maxItems={5}
-                                                    />
-                                                )}
-                                            </>
-                                        ) : activeRound === 'round2' ? (
-                                            <>
-                                                {(eventData?.rounds?.round2?.description && eventData.rounds.round2.description.trim()) ? (
-                                                    <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                        {eventData.rounds.round2.description}
-                                                    </p>
-                                                ) : null}
-
-                                                <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {eventData?.rounds?.round2?.title || 'Round 2'}
-                                                </h3>
-
-                                                <RulesList
-                                                    rules={getRoundRules(eventData?.rounds?.round2)}
-                                                    ruleKey={`desktop-round2-${eventData?.id}`}
-                                                    maxItems={5}
-                                                />
-                                            </>
-                                        ) : activeRound === 'round3' && eventData?.rounds?.round3 ? (
-                                            <>
-                                                {(eventData?.rounds?.round3?.description && eventData.rounds.round3.description.trim()) ? (
-                                                    <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                        {eventData.rounds.round3.description}
-                                                    </p>
-                                                ) : null}
-
-                                                <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {eventData.rounds.round3.title || 'Round 3'}
-                                                </h3>
-
-                                                <RulesList
-                                                    rules={getRoundRules(eventData?.rounds?.round3)}
-                                                    ruleKey={`desktop-round3-${eventData?.id}`}
-                                                    maxItems={5}
-                                                />
-                                            </>
-                                        ) : null}
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                                 )}
