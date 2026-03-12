@@ -431,36 +431,72 @@ export const signInWithGoogle = async () => {
     // DevTools emulation uses desktop popup logic, masking the real issue.
     
     if (isMobile) {
-        console.log('📱 MOBILE DEVICE DETECTED - Using REDIRECT flow');
-        console.log('📱 Reason: Popup OAuth is unreliable on real mobile browsers');
-        console.log('📱 The popup loses connection to parent window on mobile');
+        console.log('📱 MOBILE DEVICE - Using POPUP flow (signInWithRedirect broken on Chrome 115+/Safari 17+ due to cookie policies)');
         
         try {
-            // Store return URL for after auth completes
-            sessionStorage.setItem('auth_redirect_url', window.location.href);
-            sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
-            sessionStorage.setItem('auth_redirect_type', 'google');
+            const result = await signInWithPopup(auth, googleProvider);
             
-            console.log('➡️ Initiating Google redirect flow for mobile...');
-            await signInWithRedirect(auth, googleProvider);
-            
-            // This return typically won't execute - browser will redirect to Google
-            return {
-                success: true,
-                user: null,
-                credential: null,
-                needsVerification: false,
-                method: 'mobile-redirect',
-                redirectInitiated: true,
-                message: 'Redirecting to Google sign-in...'
-            };
-        } catch (redirectError) {
-            console.error('❌ Mobile Google redirect failed:', redirectError);
+            if (result && result.user) {
+                console.log('✅ Mobile Google popup sign-in successful:', result.user.email);
+                return {
+                    success: true,
+                    user: result.user,
+                    credential: result.credential || null,
+                    needsVerification: false,
+                    method: 'mobile-popup'
+                };
+            }
             return {
                 success: false,
-                error: getGoogleAuthErrorMessage(redirectError),
-                code: redirectError.code,
-                method: 'mobile-redirect-failed'
+                error: 'Google sign-in returned no user.',
+                method: 'mobile-popup-no-user'
+            };
+        } catch (popupError) {
+            console.error('❌ Mobile Google popup failed:', popupError);
+            
+            // Popup blocked by browser - fall back to redirect
+            if (popupError.code === 'auth/popup-blocked') {
+                console.log('🔄 Mobile popup blocked, falling back to redirect...');
+                try {
+                    sessionStorage.setItem('auth_redirect_url', window.location.href);
+                    sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+                    sessionStorage.setItem('auth_redirect_type', 'google');
+                    
+                    await signInWithRedirect(auth, googleProvider);
+                    return {
+                        success: true,
+                        user: null,
+                        credential: null,
+                        needsVerification: false,
+                        method: 'mobile-redirect-fallback',
+                        redirectInitiated: true,
+                        message: 'Redirecting to Google sign-in...'
+                    };
+                } catch (redirectError) {
+                    return {
+                        success: false,
+                        error: getGoogleAuthErrorMessage(redirectError),
+                        code: redirectError.code,
+                        method: 'mobile-redirect-fallback-failed'
+                    };
+                }
+            }
+            
+            // User cancelled — not an error
+            if (popupError.code === 'auth/popup-closed-by-user' || popupError.code === 'auth/cancelled-popup-request') {
+                return {
+                    success: false,
+                    error: 'Sign-in was cancelled. Please try again.',
+                    code: popupError.code,
+                    method: 'mobile-popup-cancelled'
+                };
+            }
+            
+            return {
+                success: false,
+                error: getGoogleAuthErrorMessage(popupError),
+                code: popupError.code,
+                method: 'mobile-popup-failed'
             };
         }
     }
@@ -635,40 +671,78 @@ export const signInWithFacebook = async () => {
         }
     }
     
-    console.log('🔄 Using redirect Facebook authentication...');
+    // Mobile: Use popup (signInWithRedirect broken on Chrome 115+/Safari 17+ due to cookie policies)
+    console.log('📱 Mobile Facebook - Using POPUP flow...');
     
     try {
-        await signInWithRedirect(auth, facebookProvider);
-        return {
-            success: true,
-            user: null,
-            credential: null,
-            needsVerification: false,
-            method: 'redirect-first',
-            redirectInitiated: true,
-            message: 'Redirecting to Facebook sign-in...'
-        };
-    } catch (error) {
-        console.error('❌ Facebook redirect failed:', error);
-
-        // Handle specific errors
-        let errorMessage = 'Facebook sign-in failed. Please try again.';
-
-        if (error.code === 'auth/network-request-failed') {
-            errorMessage = 'Network error. Please check your connection and try again.';
-        } else if (error.code === 'auth/account-exists-with-different-credential') {
-            errorMessage = 'An account already exists with this email. Please use your original sign-in method.';
-        } else if (error.code === 'auth/unauthorized-domain') {
-            errorMessage = 'This domain is not authorized for Facebook sign-in. Please contact support.';
-        } else if (error.code === 'auth/operation-not-allowed') {
-            errorMessage = 'Facebook sign-in is not enabled. Please contact support to enable Facebook authentication.';
+        const result = await signInWithPopup(auth, facebookProvider);
+        if (result && result.user) {
+            console.log('✅ Mobile Facebook popup sign-in successful:', result.user.email);
+            return {
+                success: true,
+                user: result.user,
+                credential: result.credential || null,
+                needsVerification: false,
+                method: 'mobile-popup'
+            };
         }
-
+        return {
+            success: false,
+            error: 'Facebook sign-in returned no user.',
+            method: 'mobile-popup-no-user'
+        };
+    } catch (popupError) {
+        console.error('❌ Mobile Facebook popup failed:', popupError);
+        
+        // Popup blocked - fall back to redirect
+        if (popupError.code === 'auth/popup-blocked') {
+            console.log('🔄 Mobile popup blocked, falling back to redirect...');
+            try {
+                sessionStorage.setItem('auth_redirect_url', window.location.href);
+                sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+                sessionStorage.setItem('auth_redirect_type', 'facebook');
+                
+                await signInWithRedirect(auth, facebookProvider);
+                return {
+                    success: true,
+                    user: null,
+                    credential: null,
+                    needsVerification: false,
+                    method: 'mobile-redirect-fallback',
+                    redirectInitiated: true,
+                    message: 'Redirecting to Facebook sign-in...'
+                };
+            } catch (redirectError) {
+                return {
+                    success: false,
+                    error: redirectError.message || 'Facebook sign-in failed. Please try again.',
+                    code: redirectError.code,
+                    method: 'mobile-redirect-fallback-failed'
+                };
+            }
+        }
+        
+        // User cancelled — not an error
+        if (popupError.code === 'auth/popup-closed-by-user' || popupError.code === 'auth/cancelled-popup-request') {
+            return {
+                success: false,
+                error: 'Sign-in was cancelled. Please try again.',
+                code: popupError.code,
+                method: 'mobile-popup-cancelled'
+            };
+        }
+        
+        let errorMessage = 'Facebook sign-in failed. Please try again.';
+        if (popupError.code === 'auth/account-exists-with-different-credential') {
+            errorMessage = 'An account already exists with this email. Please use your original sign-in method.';
+        } else if (popupError.code === 'auth/network-request-failed') {
+            errorMessage = 'Network error. Please check your connection and try again.';
+        }
         return {
             success: false,
             error: errorMessage,
-            code: error.code,
-            method: 'redirect-failed'
+            code: popupError.code,
+            method: 'mobile-popup-failed'
         };
     }
 };
