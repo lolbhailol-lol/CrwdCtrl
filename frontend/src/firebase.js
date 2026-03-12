@@ -103,14 +103,45 @@ export const onForegroundMessage = (callback) => {
 
 // ✅ CRITICAL: Set Firebase persistence to LOCAL (survives browser restarts)
 // Note: setPersistence must be called before any auth operations
+let persistenceInitialized = false;
+let persistencePromise = null;
+
 const initializePersistence = async () => {
-    try {
-        await setPersistence(auth, browserLocalPersistence);
-        console.log('✅ Firebase persistence set to LOCAL');
+    if (persistenceInitialized) {
         return true;
+    }
+
+    if (persistencePromise) {
+        return persistencePromise;
+    }
+
+    try {
+        persistencePromise = setPersistence(auth, browserLocalPersistence)
+            .then(() => {
+                persistenceInitialized = true;
+                console.log('✅ Firebase persistence set to LOCAL');
+                return true;
+            })
+            .catch((error) => {
+                console.error('❌ Failed to set Firebase persistence:', error);
+                return false;
+            })
+            .finally(() => {
+                if (!persistenceInitialized) {
+                    persistencePromise = null;
+                }
+            });
+
+        return persistencePromise;
     } catch (error) {
         console.error('❌ Failed to set Firebase persistence:', error);
         return false;
+    }
+};
+
+const ensurePersistenceStarted = () => {
+    if (!persistenceInitialized && !persistencePromise) {
+        void initializePersistence();
     }
 };
 
@@ -261,8 +292,9 @@ const isInAppBrowser = () => {
 export const signInWithGoogle = async () => {
     console.log('🚀 Starting Google authentication...');
     
-    // Ensure persistence is set before any auth operations
-    await initializePersistence();
+    // Keep popup launches tied to the original tap; mobile browsers can block them
+    // if we await other async work before opening the auth window.
+    ensurePersistenceStarted();
     
     const browser = getBrowserInfo();
     const isMobile = isMobileDevice();
@@ -282,44 +314,7 @@ export const signInWithGoogle = async () => {
         viewport: `${window.innerWidth}x${window.innerHeight}`
     });
 
-    // ✅ STEP 1: Check for existing redirect result first (cleanup from any previous redirects)
-    // This must be done with proper error handling for mobile
-    try {
-        console.log('🔍 Checking for existing redirect result...');
-        let redirectResult = null;
-        
-        try {
-            redirectResult = await getRedirectResult(auth);
-        } catch (redirectCheckError) {
-            // On some mobile browsers, getRedirectResult can throw temporarily
-            // Wait a bit and retry once if it fails
-            console.log('⚠️ First redirect check failed, retrying after 500ms:', redirectCheckError.code);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            try {
-                redirectResult = await getRedirectResult(auth);
-            } catch (retryError) {
-                console.log('⚠️ Second redirect check also failed, continuing:', retryError.code);
-            }
-        }
-        
-        if (redirectResult && redirectResult.user) {
-            console.log('✅ Found existing redirect result - completing authentication');
-            return {
-                success: true,
-                user: redirectResult.user,
-                credential: redirectResult.credential,
-                needsVerification: false,
-                method: 'redirect-result'
-            };
-        }
-        console.log('ℹ️ No existing redirect result found');
-    } catch (error) {
-        console.log('⚠️ Error checking redirect result:', error.code);
-        // Continue with authentication
-    }
-
-    // ✅ STEP 2: Handle in-app browsers (Instagram, Facebook, etc.)
+    // ✅ STEP 1: Handle in-app browsers (Instagram, Facebook, etc.)
     // In-app browsers have SEVERE limitations with OAuth:
     // - Instagram WebView blocks third-party cookies
     // - Google Sign-In requires cookies for state management
@@ -408,7 +403,7 @@ export const signInWithGoogle = async () => {
         }
     }
 
-    // ✅ STEP 3: MOBILE VS DESKTOP AUTHENTICATION STRATEGY
+    // ✅ STEP 2: MOBILE VS DESKTOP AUTHENTICATION STRATEGY
     // 
     // WHY POPUP FAILS ON REAL MOBILE DEVICES:
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -587,8 +582,8 @@ const getGoogleAuthErrorMessage = (error) => {
 export const signInWithFacebook = async () => {
     console.log('🚀 Starting Facebook authentication...');
     
-    // Ensure persistence is set before any auth operations
-    await initializePersistence();
+    // Keep popup launches tied to the original tap event.
+    ensurePersistenceStarted();
     
     const isInApp = isInAppBrowser();
     
