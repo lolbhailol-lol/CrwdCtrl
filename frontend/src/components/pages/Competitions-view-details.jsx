@@ -27,10 +27,14 @@ const fetchJSON = async (endpoint, options = {}) => {
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         try {
             const response = await fetch(url, {
-                method: 'GET',
-                credentials: 'omit',
-                mode: 'cors',
-                headers: { 'Accept': 'application/json' },
+                method: options.method || 'GET',
+                credentials: options.credentials || 'omit',
+                mode: options.mode || 'cors',
+                headers: {
+                    'Accept': 'application/json',
+                    ...(options.headers || {})
+                },
+                body: options.body ? JSON.stringify(options.body) : undefined,
                 signal: controller.signal,
             });
             clearTimeout(timeoutId);
@@ -67,6 +71,249 @@ const fetchJSON = async (endpoint, options = {}) => {
     return attemptFetch();
 };
 
+/**
+ * Sanitize round description to remove duplicated content blocks.
+ * Admin panel sometimes stores the same content twice: once formatted (with newlines)
+ * and once as a flat text block appended at the end.
+ * This function detects and removes such duplication generically.
+ */
+const sanitizeRoundDescription = (rawDesc) => {
+    if (!rawDesc) return '';
+
+    // Normalize line breaks
+    let desc = rawDesc.replace(/\r\n/g, '\n').replace(/<br\s*\/?\s*>/gi, '\n');
+
+    // Remove the known duplicated metadata paragraph that can appear between
+    // "Submission Deadline" and the "Rules" heading.
+    const deadlineMatch = /Submission\s+Deadline\s*[:\-]?/i.exec(desc);
+    if (deadlineMatch) {
+        const afterDeadlineIndex = deadlineMatch.index + deadlineMatch[0].length;
+        const afterDeadlineText = desc.substring(afterDeadlineIndex);
+        const duplicateMetadataMatch = /No\.?\s*of\s*Participants\s*:.*?Participation\s*Type\s*:.*?No\.?\s*of\s*Rounds\s*:/is.exec(afterDeadlineText);
+
+        if (duplicateMetadataMatch) {
+            const duplicateStart = afterDeadlineIndex + duplicateMetadataMatch.index;
+            const rulesHeadingMatch = /(?:^|\n)\s*Rules(?:\s*(?:&|and)\s*(?:Regulations|Guidelines))?\s*:?(?=\s|$)/im.exec(desc.substring(duplicateStart));
+
+            if (rulesHeadingMatch) {
+                const rulesStart = duplicateStart + rulesHeadingMatch.index;
+                const beforeDuplicate = desc.substring(0, duplicateStart).trimEnd();
+                const rulesSection = desc.substring(rulesStart).trimStart();
+                desc = `${beforeDuplicate}\n\n${rulesSection}`.trim();
+            }
+        }
+    }
+
+    // Remove any repeated metadata block (participants/type/rounds) that appears again later.
+    // We remove from the second metadata start up to the next Rules heading (or end of text).
+    const metadataStartPattern = /No\.?\s*of\s*Participants\s*[:\-]/i;
+    const firstMetadataIndex = desc.search(metadataStartPattern);
+    if (firstMetadataIndex !== -1) {
+        const searchFrom = firstMetadataIndex + 1;
+        const secondMetadataMatch = metadataStartPattern.exec(desc.substring(searchFrom));
+
+        if (secondMetadataMatch) {
+            const secondMetadataIndex = searchFrom + secondMetadataMatch.index;
+            const afterSecond = desc.substring(secondMetadataIndex);
+            const rulesAfterSecond = /\bRules(?:\s*(?:&|and)\s*(?:Regulations|Guidelines))?\b\s*:?/i.exec(afterSecond);
+
+            if (rulesAfterSecond) {
+                const rulesStart = secondMetadataIndex + rulesAfterSecond.index;
+                const beforeDuplicate = desc.substring(0, secondMetadataIndex).trimEnd();
+                const rulesSection = desc.substring(rulesStart).trimStart();
+                desc = `${beforeDuplicate}\n\n${rulesSection}`.trim();
+            } else {
+                desc = desc.substring(0, secondMetadataIndex).trimEnd();
+            }
+        }
+    }
+
+    // Remove an appended duplicate section when the same heading repeats near the tail
+    // (e.g. "GUIDELINES ... JUDGING CRITERIA ..." repeated as one flattened paragraph).
+    const trimRepeatedTrailingSection = (text, headerRegex) => {
+        const normalize = (value) => value.toLowerCase().replace(/\s+/g, ' ').trim();
+        const cutIfTailRepeatsEarlier = (source, startIndex, headerLengthToSkip = 0) => {
+            if (startIndex < Math.floor(source.length * 0.4)) return source;
+
+            const earlier = normalize(source.substring(0, startIndex));
+            const trailing = normalize(source.substring(startIndex + headerLengthToSkip));
+            if (trailing.length < 50) return source;
+
+            const probe = trailing.substring(0, Math.min(200, trailing.length));
+            if (probe.length >= 50 && earlier.includes(probe)) {
+                return source.substring(0, startIndex).trimEnd();
+            }
+            return source;
+        };
+
+        const matcher = new RegExp(
+            headerRegex.source,
+            headerRegex.flags.includes('g') ? headerRegex.flags : `${headerRegex.flags}g`
+        );
+        const firstMatch = matcher.exec(text);
+        if (!firstMatch) return text;
+
+        const secondMatch = matcher.exec(text);
+        if (secondMatch) {
+            const trimmedFromSecond = cutIfTailRepeatsEarlier(text, secondMatch.index, 0);
+            if (trimmedFromSecond !== text) return trimmedFromSecond;
+        }
+
+        // Fallback: single header occurrence near the end where only the heading is duplicated
+        // but the original block earlier has no heading (common in flattened admin content).
+        return cutIfTailRepeatsEarlier(text, firstMatch.index, firstMatch[0].length);
+    };
+
+    desc = trimRepeatedTrailingSection(desc, /\bGUIDELINES\b/gi);
+    desc = trimRepeatedTrailingSection(desc, /\bJUDGING\s+CRITERIA\b/gi);
+
+    // Strategy 1: Find repeated section headers (e.g. GUIDELINES, JUDGING CRITERIA, No. of Participants, etc.)
+    const lines = desc.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    // Build a list of "significant" lines
+    const significantLines = [];
+    for (const line of lines) {
+        const isSignificant = line.length >= 5 && (
+            /^[A-Z\s]{4,}$/.test(line) ||           // ALL CAPS header
+            /^\d+\.\s/.test(line) ||                 // Numbered item
+            /^[A-Z][^.]*:/.test(line) ||             // Key: Value
+            /^(GUIDELINES|JUDGING|RULES|CRITERIA|SUBMISSION|No\.|Participation|General|Time\s+Limit)/i.test(line)
+        );
+        if (isSignificant) significantLines.push(line);
+    }
+
+    // Look for duplicate significant lines anywhere in the text
+    // Normalize text for comparison by removing all whitespace and case
+    const flatDesc = desc.toLowerCase().replace(/\s+/g, '');
+    
+    for (const sigLine of significantLines) {
+        const sigFlat = sigLine.toLowerCase().replace(/\s+/g, '');
+        const firstIdx = flatDesc.indexOf(sigFlat);
+        if (firstIdx === -1) continue;
+        
+        const secondIdx = flatDesc.indexOf(sigFlat, firstIdx + sigFlat.length);
+        if (secondIdx !== -1) {
+            // Found a duplicate in flattened comparison. 
+            // Now find the character position in the ORIGINAL desc string to cut.
+            // We search for the sigLine's words starting from the second half.
+            const sigWords = sigLine.split(/\s+/).filter(w => w.length > 1);
+            if (sigWords.length > 0) {
+                const searchStart = Math.floor(desc.length / 3); // Start search from after the first block
+                const regexStr = sigWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+                const secondMatch = new RegExp(regexStr, 'i').exec(desc.substring(searchStart));
+                if (secondMatch) {
+                    desc = desc.substring(0, searchStart + secondMatch.index).trim();
+                    break;
+                }
+            }
+        }
+    }
+
+    // Strategy 2: Check for flattened-repeat tail (robust version)
+    const halfLen = Math.floor(desc.length / 2);
+    if (halfLen > 50) {
+        const firstPart = desc.substring(0, halfLen);
+        const firstPartFlat = firstPart.replace(/\s+/g, '').toLowerCase();
+        
+        // Check if various portions of the front appear flattened at the back
+        const checkPoints = [0, 20, 50];
+        const checkLen = 60;
+        
+        for (const start of checkPoints) {
+            if (firstPartFlat.length < start + checkLen) continue;
+            const prefix = firstPartFlat.substring(start, start + checkLen);
+            const descLowerEndFlat = desc.substring(halfLen).toLowerCase().replace(/\s+/g, '');
+            const matchPos = descLowerEndFlat.indexOf(prefix);
+            
+            if (matchPos !== -1) {
+                // If we found a flattened match, we need to find where that match starts in the original desc
+                // We'll look for first 3 significant words of that prefix in the original text
+                const words = firstPart.substring(start).split(/\s+/).filter(w => w.length > 2).slice(0, 3);
+                if (words.length >= 2) {
+                    const regex = new RegExp(words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'), 'i');
+                    const secondMatch = regex.exec(desc.substring(halfLen));
+                    if (secondMatch) {
+                        desc = desc.substring(0, halfLen + secondMatch.index).trim();
+                        return desc;
+                    }
+                }
+            }
+        }
+    }
+
+    return desc.trim();
+};
+
+const sanitizeRulesArray = (rules) => {
+    if (!Array.isArray(rules)) return [];
+
+    return rules
+        .map((rule) => (typeof rule === 'string' ? sanitizeRoundDescription(rule).trim() : ''))
+        .filter((rule) => rule.length > 0);
+};
+
+const buildCompetitionData = (compData, options = {}) => {
+    if (!compData) return null;
+
+    const useFestRegistrationFallback = options.useFestRegistrationFallback ?? true;
+    const roundsSource = Array.isArray(compData.rounds) ? compData.rounds : [];
+    const roundsObject = !Array.isArray(compData.rounds) && compData.rounds ? compData.rounds : null;
+    const roundsListSource = Array.isArray(roundsObject?.roundsList) ? roundsObject.roundsList : roundsSource;
+
+    return {
+        id: compData._id || compData.id,
+        title: compData.name || compData.title || 'Competition',
+        subtitle: sanitizeRoundDescription(compData.subtitle || compData.description || ''),
+        date: compData.dateTime || compData.date || '',
+        time: compData.time || '',
+        venue: compData.venue || 'TBD',
+        entryFee: compData.registrationFee || compData.entryFee || 'Free',
+        prize: compData.prizePool || compData.prize || 'TBD',
+        image: compData.coverImage || compData.image,
+        contact: compData.contact || { phone: '', instagram: '', email: '' },
+        description: sanitizeRoundDescription(compData.description || ''),
+        commonRules: sanitizeRulesArray(compData.commonRules || compData.rules || []),
+        commonRulesMessage: sanitizeRoundDescription(compData.commonRulesMessage || ''),
+        registrationLink: compData.registrationLink || '',
+
+        registrationType: compData.registrationType || 'fest',
+        registration: useFestRegistrationFallback && (compData.registrationType === 'fest' || !compData.registrationType)
+            ? (compData.fest?.registration || compData.registration || { mode: 'NOT_STARTED' })
+            : (compData.registration || { status: 'not_started' }),
+        legacyRegistration: compData.legacyRegistration || { status: 'NOT_STARTED' },
+
+        fest: compData.fest || null,
+        festId: compData.fest?._id || compData.festId || null,
+
+        rounds: {
+            description: sanitizeRoundDescription(roundsObject?.description || roundsSource?.[0]?.description || ''),
+            list: Array.isArray(roundsObject?.list)
+                ? roundsObject.list
+                : roundsSource.map((round) => round?.title || round?.description).filter(Boolean),
+            roundsList: (roundsListSource || []).map((round, i) => ({
+                title: round?.title || `Round ${i + 1}`,
+                rules: sanitizeRulesArray(round?.rules || []),
+                roundRulesMessage: sanitizeRoundDescription(round?.roundRulesMessage || ''),
+                description: sanitizeRoundDescription(round?.description || ''),
+                dateTime: round?.dateTime || '',
+                venue: round?.venue || '',
+                offline: round?.offline
+                    ? {
+                        ...round.offline,
+                        rules: sanitizeRulesArray(round.offline.rules || [])
+                    }
+                    : null,
+                online: round?.online
+                    ? {
+                        ...round.online,
+                        rules: sanitizeRulesArray(round.online.rules || [])
+                    }
+                    : null
+            }))
+        }
+    };
+};
+
 function EventPage() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
@@ -93,7 +340,7 @@ function EventPage() {
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition) {
                     console.log('Using competition data from navigation state:', stateCompetition);
-                    setCompetitionData(stateCompetition);
+                    setCompetitionData(buildCompetitionData(stateCompetition));
                     setLoading(false);
                     return;
                 }
@@ -111,9 +358,15 @@ function EventPage() {
                 console.log('ViewDetails - API URL:', `${API_BASE_URL}/fests/competitions/${competitionId}/public`);
                 
                 // Try to fetch competition data from backend
-                // Add cache busting timestamp to ensure fresh data
+                // Force fresh data by bypassing browser cache and PWA service worker cache
                 const timestamp = Date.now();
-                const response = await fetchJSON(`/fests/competitions/${competitionId}/public?t=${timestamp}`);
+                const response = await fetchJSON(`/fests/competitions/${competitionId}/public?t=${timestamp}`, {
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
                 console.log('ViewDetails - API Response Status: OK');
                 console.log('ViewDetails - API Response Data:', response.data);
                 
@@ -124,51 +377,7 @@ function EventPage() {
                 console.log('🔍 Full registration object:', compData.registration);
 
                 if (compData) {
-                    // Transform backend competition data to match expected structure
-                    const transformedData = {
-                        id: compData._id || compData.id,
-                        title: compData.name,
-                        subtitle: compData.subtitle || compData.description,
-                        date: compData.dateTime,
-                        time: '',
-                        venue: compData.venue || 'TBD',
-                        entryFee: compData.registrationFee || 'Free',
-                        prize: compData.prizePool || 'TBD',
-                        image: compData.coverImage,
-                        contact: compData.contact || { phone: '', instagram: '', email: '' },
-                        description: compData.description,
-                        commonRules: compData.commonRules || [],
-                        commonRulesMessage: compData.commonRulesMessage || '', // NEW: message field
-                        registrationLink: compData.registrationLink || '',
-                        
-                        // NEW: Add registration configuration fields
-                        registrationType: compData.registrationType || 'fest',
-                        // ✅ FIX: For fest-type registrations, use fest's registration mode
-                        registration: compData.registrationType === 'fest' || !compData.registrationType
-                            ? (compData.fest?.registration || compData.registration || { mode: 'NOT_STARTED' })
-                            : (compData.registration || { status: 'not_started' }),
-                        legacyRegistration: compData.legacyRegistration || { status: 'NOT_STARTED' },
-                        
-                        // Add fest data for registration
-                        fest: compData.fest || null,
-                        festId: compData.fest?._id || null,
-                        rounds: {
-                            description: compData.rounds?.[0]?.description || '',
-                            list: compData.rounds?.map(r => r.title || r.description) || [],
-                            roundsList: (compData.rounds || []).map((r, i) => ({
-                                title: r.title || `Round ${i + 1}`,
-                                rules: r.rules || [],
-                                roundRulesMessage: r.roundRulesMessage || '',
-                                description: r.description || '',
-                                dateTime: r.dateTime,
-                                venue: r.venue,
-                                offline: r.offline || null,
-                                online: r.online || null
-                            }))
-                        }
-                    };
-
-                    setCompetitionData(transformedData);
+                    setCompetitionData(buildCompetitionData(compData, { useFestRegistrationFallback: true }));
                 } else {
                     setError('Competition not found');
                 }
@@ -197,7 +406,7 @@ function EventPage() {
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition) {
                     console.log('API failed, using competition data from navigation state:', stateCompetition);
-                    setCompetitionData(stateCompetition);
+                    setCompetitionData(buildCompetitionData(stateCompetition));
                 } else {
                     setError(errorMessage);
                     console.log('No fallback data available, showing error:', errorMessage);
@@ -224,43 +433,8 @@ function EventPage() {
                         const compData = response.data;
 
                         if (compData) {
-                            const transformedData = {
-                                id: compData._id || compData.id,
-                                title: compData.name,
-                                subtitle: compData.subtitle || compData.description,
-                                date: compData.dateTime,
-                                time: '',
-                                venue: compData.venue || 'TBD',
-                                entryFee: compData.registrationFee || 'Free',
-                                prize: compData.prizePool || 'TBD',
-                                image: compData.coverImage,
-                                contact: compData.contact || { phone: '', instagram: '', email: '' },
-                                description: compData.description,
-                                commonRules: compData.commonRules || [],
-                                commonRulesMessage: compData.commonRulesMessage || '',
-                                registrationLink: compData.registrationLink || '',
-                                registrationType: compData.registrationType || 'fest',
-                                registration: compData.registration || { status: 'not_started' },
-                                legacyRegistration: compData.legacyRegistration || { status: 'NOT_STARTED' },
-                                fest: compData.fest || null,
-                                festId: compData.fest?._id || null,
-                                rounds: {
-                                    description: compData.rounds?.[0]?.description || '',
-                                    list: compData.rounds?.map(r => r.title || r.description) || [],
-                                    roundsList: (compData.rounds || []).map((r, i) => ({
-                                        title: r.title || `Round ${i + 1}`,
-                                        rules: r.rules || [],
-                                        roundRulesMessage: r.roundRulesMessage || '',
-                                        description: r.description || '',
-                                        dateTime: r.dateTime,
-                                        venue: r.venue,
-                                        offline: r.offline || null,
-                                        online: r.online || null
-                                    }))
-                                }
-                            };
-                            setCompetitionData(transformedData);
-                            console.log('✅ Competition data updated from admin changes');
+                            setCompetitionData(buildCompetitionData(compData, { useFestRegistrationFallback: true }));
+                            console.log('Competition data updated from admin changes');
                         }
                     } catch (err) {
                         console.error('Error refetching updated competition data:', err);
@@ -384,10 +558,10 @@ function EventPage() {
         // Display priority: show message field if present, otherwise show individual rules
         if (eventData?.commonRulesMessage && eventData.commonRulesMessage.trim()) {
             // Return message field content as a single item for display
-            return [eventData.commonRulesMessage];
+            return [sanitizeRoundDescription(eventData.commonRulesMessage)];
         }
         // Use commonRules array
-        return eventData?.commonRules || [];
+        return sanitizeRulesArray(eventData?.commonRules || []);
     };
 
     // Function to get round rules
@@ -397,11 +571,11 @@ function EventPage() {
         // Display priority: show message field if present, otherwise show individual rules
         if (roundData.roundRulesMessage && roundData.roundRulesMessage.trim()) {
             // Return message field content as a single item for display
-            return [roundData.roundRulesMessage];
+            return [sanitizeRoundDescription(roundData.roundRulesMessage)];
         }
         
         // Use rules array
-        return roundData.rules || [];
+        return sanitizeRulesArray(roundData.rules || []);
     };
 
     const commonRules = getCommonRules();
@@ -623,20 +797,23 @@ function EventPage() {
     // Component for rendering rules with read more functionality
     const RulesList = ({ rules, ruleKey, maxItems = 5 }) => {
         const isExpanded = expandedRules[ruleKey];
+        const normalizedRules = (rules || [])
+            .map((rule) => (typeof rule === 'string' ? sanitizeRoundDescription(rule).trim() : ''))
+            .filter((rule) => rule.length > 0);
         
         // Check if this is a message field (single item with line breaks)
-        const isMessageField = rules && rules.length === 1 && rules[0] && rules[0].includes('\n');
+        const isMessageField = normalizedRules.length === 1 && normalizedRules[0].includes('\n');
         
         // For message fields, check character length; for rule arrays, check item count
         const shouldTruncate = isMessageField 
-            ? rules[0].length > 300  // Truncate if message is longer than 300 characters
-            : rules && rules.length > maxItems;
+            ? normalizedRules[0].length > 300  // Truncate if message is longer than 300 characters
+            : normalizedRules.length > maxItems;
             
         const displayRules = shouldTruncate && !isExpanded 
             ? (isMessageField 
-                ? [rules[0].substring(0, 300) + '...'] 
-                : rules.slice(0, maxItems))
-            : rules;
+                ? [normalizedRules[0].substring(0, 300) + '...'] 
+                : normalizedRules.slice(0, maxItems))
+            : normalizedRules;
 
         const toggleExpanded = () => {
             setExpandedRules(prev => ({
@@ -681,7 +858,7 @@ function EventPage() {
                             ? 'Read Less' 
                             : (isMessageField 
                                 ? 'Read More' 
-                                : `Show More (${rules.length - maxItems} more rules)`)}
+                                : `Show More (${normalizedRules.length - maxItems} more rules)`)}
                     </button>
                 )}
             </div>
@@ -923,16 +1100,20 @@ function EventPage() {
                             <div className="px-4 py-4">
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
-                                    {eventData?.rounds?.description && (
-                                    <div className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                        <div 
-                                            className="whitespace-pre-wrap"
-                                            style={{ whiteSpace: 'pre-wrap' }}
-                                        >
-                                            {eventData.rounds.description}
-                                        </div>
-                                    </div>
-                                    )}
+                                    {eventData?.rounds?.description && (() => {
+                                        const desc = sanitizeRoundDescription(eventData.rounds.description);
+
+                                        return (
+                                            <div className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                <div 
+                                                    className="whitespace-pre-wrap"
+                                                    style={{ whiteSpace: 'pre-wrap' }}
+                                                >
+                                                    {desc}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Mobile Round Tabs - Dynamic based on available rounds */}
                                     {eventData.rounds.roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
@@ -957,11 +1138,22 @@ function EventPage() {
                                         {(() => {
                                             const round = eventData.rounds.roundsList[activeRound];
                                             if (!round) return null;
+
+                                            const cleanedRoundDescription = sanitizeRoundDescription(round.description || '');
+                                            const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
+                                            const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
+                                            const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
+                                            const isDuplicateOfOverview =
+                                                normalizedRoundDescription.length > 40 &&
+                                                normalizedOverviewDescription.length > 40 &&
+                                                (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
+                                                    normalizedRoundDescription.includes(normalizedOverviewDescription));
+
                                             return (
                                                 <>
-                                                    {round.description?.trim() && (
+                                                    {cleanedRoundDescription && !isDuplicateOfOverview && (
                                                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                            {round.description}
+                                                            {cleanedRoundDescription}
                                                         </p>
                                                     )}
 
@@ -1391,16 +1583,20 @@ function EventPage() {
                                 {eventData?.rounds?.roundsList?.length > 0 && (
                                 <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
                                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
-                                    {eventData?.rounds?.description && (
-                                    <div className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                        <div 
-                                            className="whitespace-pre-wrap"
-                                            style={{ whiteSpace: 'pre-wrap' }}
-                                        >
-                                            {eventData.rounds.description}
-                                        </div>
-                                    </div>
-                                    )}
+                                    {eventData?.rounds?.description && (() => {
+                                        const desc = sanitizeRoundDescription(eventData.rounds.description);
+
+                                        return (
+                                            <div className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                <div 
+                                                    className="whitespace-pre-wrap"
+                                                    style={{ whiteSpace: 'pre-wrap' }}
+                                                >
+                                                    {desc}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Desktop Round Tabs - Dynamic based on available rounds */}
                                     {eventData.rounds.roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
@@ -1424,11 +1620,22 @@ function EventPage() {
                                         {(() => {
                                             const round = eventData.rounds.roundsList[activeRound];
                                             if (!round) return null;
+
+                                            const cleanedRoundDescription = sanitizeRoundDescription(round.description || '');
+                                            const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
+                                            const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
+                                            const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
+                                            const isDuplicateOfOverview =
+                                                normalizedRoundDescription.length > 40 &&
+                                                normalizedOverviewDescription.length > 40 &&
+                                                (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
+                                                    normalizedRoundDescription.includes(normalizedOverviewDescription));
+
                                             return (
                                                 <>
-                                                    {round.description?.trim() && (
+                                                    {cleanedRoundDescription && !isDuplicateOfOverview && (
                                                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                            {round.description}
+                                                            {cleanedRoundDescription}
                                                         </p>
                                                     )}
 
@@ -1527,3 +1734,5 @@ function EventPage() {
 }
 
 export default EventPage;
+
+
