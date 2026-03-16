@@ -2,6 +2,9 @@
   "plugins": {
     "vercel": {
       "enabled": true
+    },
+    "huggingface-skills": {
+      "enabled": true
     }
   }
 }

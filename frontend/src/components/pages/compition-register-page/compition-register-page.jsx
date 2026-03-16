@@ -1073,7 +1073,6 @@ function CompetitionRegisterPage() {
                                             </div>
                                             <p className={`text-xs text-center mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                                 Scan this QR code with your preferred payment app and upload the screenshot below
-                                                <div className='text-sm py-1 font-bold text-gray-700'>Tanupawar709@okhdfcbank</div>
                                             </p>
                                         </div>
 

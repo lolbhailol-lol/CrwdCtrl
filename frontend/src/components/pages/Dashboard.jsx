@@ -1048,6 +1048,38 @@ const Dashboard = () => {
             return;
         }
 
+        // Ask for explicit consent before attempting geolocation access.
+        if (!currentLocation.hasPermission) {
+            const shouldRequestLocation = window.confirm(
+                'Allow CrwdCtrl to access your location to show nearby events?'
+            );
+
+            if (!shouldRequestLocation) {
+                setCurrentLocation(prev => ({
+                    ...prev,
+                    isDetecting: false,
+                    hasPermission: false
+                }));
+                return;
+            }
+
+            if (navigator.permissions?.query) {
+                try {
+                    const permissionState = await navigator.permissions.query({ name: 'geolocation' });
+                    if (permissionState.state === 'denied') {
+                        setCurrentLocation(prev => ({
+                            ...prev,
+                            isDetecting: false,
+                            hasPermission: false
+                        }));
+                        return;
+                    }
+                } catch (permissionError) {
+                    console.log('⚠️ Dashboard - Could not verify geolocation permission state:', permissionError);
+                }
+            }
+        }
+
         setCurrentLocation(prev => ({ ...prev, isDetecting: true }));
 
         const options = {

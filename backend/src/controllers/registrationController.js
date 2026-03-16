@@ -1513,8 +1513,8 @@ const getUserRegistrations = async (req, res) => {
     console.log('📋 Fetching registrations for user:', userId);
 
     const registrations = await Registration.find({ user: userId })
-      .populate('fest', 'festName collegeName festDate venue status coverImage registration')
-      .populate('competitionId', 'name description coverImage')
+      .populate('fest', 'festName collegeName festDate venue status coverImage registration ticketPrice')
+      .populate('competitionId', 'name description coverImage registrationFee')
       .sort({ submittedAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);

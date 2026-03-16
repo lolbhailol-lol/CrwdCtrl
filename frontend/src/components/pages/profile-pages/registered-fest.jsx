@@ -94,7 +94,9 @@ function RegisteredFest() {
                             status: reg.fest?.status || 'upcoming',
                             registrationStatus: reg.status,
                             registrationType: 'internal',
-                            isCompetition: true
+                            isCompetition: true,
+                            paymentAmount: reg.competitionId?.registrationFee || reg.fest?.ticketPrice || 'N/A',
+                            registeredAt: reg.submittedAt
                         };
                         console.log('🏆 Competition registration found:', competitionName, 'ID:', reg._id);
                         return competitionCard;
@@ -111,7 +113,9 @@ function RegisteredFest() {
                             status: reg.fest?.status || 'upcoming',
                             registrationStatus: reg.status,
                             registrationType: 'internal',
-                            isCompetition: false
+                            isCompetition: false,
+                            paymentAmount: reg.fest?.ticketPrice || 'N/A',
+                            registeredAt: reg.submittedAt
                         };
                         console.log('🎪 Fest registration found:', festCard.name, 'ID:', reg._id);
                         return festCard;

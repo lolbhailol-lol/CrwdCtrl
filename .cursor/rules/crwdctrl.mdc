@@ -1,0 +1,16 @@
+---
+description: 
+alwaysApply: true
+---
+
+Project: CrwdCtrl
+
+CrwdCtrl is a community and event discovery platform where users can find college fests, running clubs, gym communities, meetups and student events.
+
+Guidelines:
+- Always prioritize clean, modular and reusable code.
+- Use responsive layouts optimized for mobile and laptop screens.
+- Avoid unnecessary refactoring unless required.
+- When suggesting code changes, modify only the required files instead of rewriting the whole project.
+- Prefer improving existing components rather than creating new duplicates.
+- Maintain consistent UI spacing, modern card layouts and simple navigation.

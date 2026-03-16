@@ -200,6 +200,40 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
             return;
         }
 
+        // Ask for explicit consent before attempting geolocation access.
+        if (!currentLocation.hasPermission) {
+            const shouldRequestLocation = window.confirm(
+                'Allow CrwdCtrl to access your location to show nearby events?'
+            );
+
+            if (!shouldRequestLocation) {
+                console.log('🚫 User cancelled location request before browser prompt');
+                setCurrentLocation(prev => ({
+                    ...prev,
+                    isDetecting: false,
+                    hasPermission: false
+                }));
+                return;
+            }
+
+            if (navigator.permissions?.query) {
+                try {
+                    const permissionState = await navigator.permissions.query({ name: 'geolocation' });
+                    if (permissionState.state === 'denied') {
+                        console.log('🚫 Location permission is blocked at browser level');
+                        setCurrentLocation(prev => ({
+                            ...prev,
+                            isDetecting: false,
+                            hasPermission: false
+                        }));
+                        return;
+                    }
+                } catch (permissionError) {
+                    console.log('⚠️ Could not verify geolocation permission state:', permissionError);
+                }
+            }
+        }
+
         console.log('🌍 Geolocation API is available');
         setCurrentLocation(prev => ({ ...prev, isDetecting: true }));
 
