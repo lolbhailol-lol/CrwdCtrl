@@ -85,50 +85,23 @@ export const AuthProvider = ({ children }) => {
                             console.log('✅ Session restored from Firebase user');
                             
                         } catch (backendError) {
-                            console.error('❌ Backend sync failed, using Firebase-only session:', backendError);
+                            console.error('❌ Backend sync failed:', backendError.message);
+                            console.log('⚠️ User is Firebase-authenticated but backend sync failed');
                             
-                            // Fallback: Create Firebase-only session
-                            const fallbackUser = {
-                                _id: firebaseUser.uid,
-                                name: firebaseUser.displayName || `${provider} User`,
-                                email: firebaseUser.email,
-                                role: 'student',
-                                isVerified: true,
-                                provider: provider,
-                                profilePic: firebaseUser.photoURL,
-                                token: `firebase_${firebaseUser.uid}_${Date.now()}`
-                            };
-                            
-                            setUser(fallbackUser);
-                            setToken(fallbackUser.token);
-                            
-                            // Store in localStorage
-                            localStorage.setItem('crwdctrl_user', JSON.stringify(fallbackUser));
-                            localStorage.setItem('crwdctrl_token', fallbackUser.token);
-                            
-                            console.log('✅ Fallback session created from Firebase user');
+                            // ✅ FIX: Do NOT create fallback token - invalid tokens cause jwt malformed errors
+                            console.log('🔐 Clearing tokens to force proper backend authentication');
+                            setUser(null);
+                            setToken(null);
+                            localStorage.removeItem('crwdctrl_user');
+                            localStorage.removeItem('crwdctrl_token');
                         }
                     } else {
-                        // For email users, create a basic session
-                        const emailUser = {
-                            _id: firebaseUser.uid,
-                            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-                            email: firebaseUser.email,
-                            role: 'student',
-                            isVerified: firebaseUser.emailVerified,
-                            provider: 'email',
-                            profilePic: firebaseUser.photoURL,
-                            token: `firebase_email_${firebaseUser.uid}_${Date.now()}`
-                        };
-                        
-                        setUser(emailUser);
-                        setToken(emailUser.token);
-                        
-                        // Store in localStorage
-                        localStorage.setItem('crwdctrl_user', JSON.stringify(emailUser));
-                        localStorage.setItem('crwdctrl_token', emailUser.token);
-                        
-                        console.log('✅ Email session created from Firebase user');
+                        // For email users, require backend authentication
+                        console.log('ℹ️ Email user needs proper backend authentication');
+                        setUser(null);
+                        setToken(null);
+                        localStorage.removeItem('crwdctrl_user');
+                        localStorage.removeItem('crwdctrl_token');
                     }
                 } catch (error) {
                     console.error('❌ Error restoring session from Firebase user:', error);
@@ -230,30 +203,16 @@ export const AuthProvider = ({ children }) => {
                         console.log('✅ Redirect session created successfully');
                         
                     } catch (backendError) {
-                        console.error('❌ Backend sync failed for redirect:', backendError);
+                        console.error('❌ Backend sync failed for redirect:', backendError.message);
                         
-                        // Fallback: Create Firebase-only session
-                        const fallbackUser = {
-                            _id: result.user.uid,
-                            name: result.user.displayName || `${provider} User`,
-                            email: result.user.email,
-                            role: 'student',
-                            isVerified: true,
-                            provider: provider,
-                            profilePic: result.user.photoURL,
-                            token: `firebase_${result.user.uid}_${Date.now()}`
-                        };
-                        
-                        setUser(fallbackUser);
-                        setToken(fallbackUser.token);
-                        setFirebaseUser(result.user);
-                        setIsEmailVerified(result.user.emailVerified || false);
-                        
-                        // Store in localStorage
-                        localStorage.setItem('crwdctrl_user', JSON.stringify(fallbackUser));
-                        localStorage.setItem('crwdctrl_token', fallbackUser.token);
-                        
-                        console.log('✅ Redirect fallback session created');
+                        // ✅ FIX: Do NOT create fallback token - clear auth instead
+                        console.log('🔐 Clearing tokens - user needs to re-authenticate with backend');
+                        setUser(null);
+                        setToken(null);
+                        setFirebaseUser(null);
+                        setIsEmailVerified(false);
+                        localStorage.removeItem('crwdctrl_user');
+                        localStorage.removeItem('crwdctrl_token');
                     }
                     
                     // Clean up URL - remove redirect markers
@@ -332,18 +291,26 @@ export const AuthProvider = ({ children }) => {
 
                     console.log('📦 Session check:', {
                         hasUser: !!savedUser,
-                        hasToken: !!savedToken
+                        hasToken: !!savedToken,
+                        isFirebaseToken: savedToken?.startsWith('firebase_')
                     });
 
                     if (savedUser && savedToken) {
-                        try {
-                            const parsedUser = JSON.parse(savedUser);
-                            setUser(parsedUser);
-                            setToken(savedToken);
-                            console.log('✅ Session restored from localStorage:', parsedUser.email);
-                        } catch (error) {
-                            console.error('❌ Error parsing saved user data:', error);
+                        // ✅ FIX: Reject Firebase fallback tokens - they cause jwt malformed errors
+                        if (savedToken.startsWith('firebase_')) {
+                            console.warn('⚠️ Found invalid Firebase fallback token in localStorage');
+                            console.log('🔐 Clearing invalid token - user needs to re-authenticate');
                             clearLocalSession();
+                        } else {
+                            try {
+                                const parsedUser = JSON.parse(savedUser);
+                                setUser(parsedUser);
+                                setToken(savedToken);
+                                console.log('✅ Session restored from localStorage:', parsedUser.email);
+                            } catch (error) {
+                                console.error('❌ Error parsing saved user data:', error);
+                                clearLocalSession();
+                            }
                         }
                     } else {
                         console.log('📭 No existing session found - user will need to login');
