@@ -3,10 +3,10 @@
   "build": {
     "builder": "NIXPACKS",
     "nixpacksConfigPath": "backend/nixpacks.toml",
-    "buildCommand": "cd backend && npm install"
+    "buildCommand": "npm install"
   },
   "deploy": {
-    "startCommand": "cd backend && npm start",
+    "startCommand": "npm start",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
