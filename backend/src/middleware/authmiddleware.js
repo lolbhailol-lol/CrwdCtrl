@@ -3,25 +3,23 @@ const User = require('../model/usermodel');
 
 const authenticateToken = async (req, res, next) => {
     try {
-        // Accept token from cookie (mobile/credentials) or Authorization header
-        const tokenFromCookie = req.cookies?.crwdctrl_token;
         const authHeader = req.headers.authorization;
-        const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-        const token = tokenFromCookie || tokenFromHeader;
 
-        if (!token) {
-            console.log('❌ User auth: No authorization header or cookie');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('❌ User auth: No authorization header or invalid format');
             return res.status(401).json({
                 success: false,
                 message: 'Access token is required',
                 debug: {
                     hasAuthHeader: !!authHeader,
-                    hasCookie: !!tokenFromCookie
+                    headerFormat: authHeader ? authHeader.substring(0, 20) + '...' : 'none'
                 }
             });
         }
 
-        if (!token.trim()) {
+        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+        if (!token) {
             console.log('❌ User auth: Empty token');
             return res.status(401).json({
                 success: false,
@@ -29,45 +27,11 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
-        // ✅ FIX: Check if token is a Firebase fallback token (not a real JWT)
-        if (token.startsWith('firebase_')) {
-            console.error('❌ User auth: Firebase fallback token detected - user needs to re-authenticate');
-            console.log('🔐 Token:', token.substring(0, 50) + '...');
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid session. Please log in again.',
-                debug: { reason: 'firebase_fallback_token' }
-            });
-        }
-
         console.log('🔍 User auth: Validating token...');
-        console.log('🔑 Token preview:', token.substring(0, 40) + '...');
 
         // Verify the token
         const secret = process.env.JWT_SECRET || 'your-secret-key';
-        
-        let decoded;
-        try {
-            decoded = jwt.verify(token, secret);
-        } catch (jwtError) {
-            console.error('❌ User auth JWT error:', jwtError.name, '-', jwtError.message);
-            console.log('📋 Token details:', {
-                length: token.length,
-                prefix: token.substring(0, 20),
-                containsDots: (token.match(/\./g) || []).length,
-                startsWithFirebase: token.startsWith('firebase_')
-            });
-            
-            // Provide better error message
-            if (jwtError.name === 'JsonWebTokenError') {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Invalid token. Please log in again.',
-                    debug: { error: jwtError.message }
-                });
-            }
-            throw jwtError; // Re-throw other errors
-        }
+        const decoded = jwt.verify(token, secret);
 
         console.log('🔍 User auth: Token decoded:', { 
             userId: decoded.userId, 

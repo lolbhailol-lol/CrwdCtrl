@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require("../model/usermodel");
-const { sendWelcomeEmail, sendLoginConfirmationEmail } = require('../services/emailService');
+const { sendWelcomeEmail } = require('../services/emailService');
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -149,16 +149,6 @@ const register = async (req, res) => {
             });
         }
 
-        // Set auth cookie on register so mobile/credentials work (same options as login)
-        const isProduction = process.env.NODE_ENV === 'production';
-        const cookieOpts = {
-            httpOnly: true,
-            path: '/',
-            secure: isProduction,
-            sameSite: isProduction ? 'none' : 'lax',
-        };
-        res.cookie('crwdctrl_token', token, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 });
-
         res.status(201).json({
             success: true,
             message: 'User registered successfully',
@@ -236,31 +226,6 @@ const login = async (req, res) => {
         const userResponse = user.toObject();
         delete userResponse.password;
 
-        // Cookie for mobile/production so credentials are sent; SameSite=None; Secure for cross-origin
-        const isProduction = process.env.NODE_ENV === 'production';
-        const cookieOpts = {
-            httpOnly: true,
-            path: '/',
-            secure: isProduction,
-            sameSite: isProduction ? 'none' : 'lax',
-        };
-        res.cookie('crwdctrl_token', token, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7d
-
-        // Send login confirmation email asynchronously (don't block the response)
-        if (user.email) {
-            const emailData = {
-                name: user.name,
-                email: user.email,
-                isVerified: user.isVerified
-            };
-            
-            // Send email without awaiting - don't block login response
-            sendLoginConfirmationEmail(emailData).catch(error => {
-                console.error('⚠️ Failed to send login confirmation email:', error.message);
-                // Don't affect the login response if email fails
-            });
-        }
-
         res.status(200).json({
             success: true,
             message: 'Login successful',
@@ -321,19 +286,8 @@ const socialAuth = async (req, res) => {
             isVerified
         } = req.body;
 
-        // ✅ FIX 12: LOG SOCIAL AUTH REQUEST WITH MOBILE DEBUG INFO
-        console.log('🔐 [SOCIAL AUTH] Request received:', {
-            provider,
-            email,
-            hasName: !!name,
-            userAgent: req.headers['user-agent']?.substring(0, 100),
-            origin: req.headers.origin || 'unknown',
-            contentType: req.headers['content-type']
-        });
-
         // Validate required fields
         if (!name || !provider || !providerId) {
-            console.error('❌ [SOCIAL AUTH] Missing required fields:', { name, provider, providerId });
             return res.status(400).json({
                 success: false,
                 message: 'Name, provider, and providerId are required',
@@ -343,7 +297,6 @@ const socialAuth = async (req, res) => {
         // Validate provider
         const validProviders = ['google', 'facebook', 'twitter'];
         if (!validProviders.includes(provider.toLowerCase())) {
-            console.error('❌ [SOCIAL AUTH] Invalid provider:', provider);
             return res.status(400).json({
                 success: false,
                 message: 'Invalid authentication provider',
@@ -420,26 +373,6 @@ const socialAuth = async (req, res) => {
             const userResponse = existingUser.toObject();
             delete userResponse.password;
 
-            console.log('✅ [SOCIAL AUTH] Existing user found and logged in:', {
-                userId: existingUser._id,
-                provider,
-                hasToken: !!token
-            });
-
-            // Send login confirmation email for existing social auth users
-            if (existingUser.email) {
-                const emailData = {
-                    name: existingUser.name,
-                    email: existingUser.email,
-                    isVerified: existingUser.isVerified
-                };
-                
-                // Send email without awaiting - don't block login response
-                sendLoginConfirmationEmail(emailData).catch(error => {
-                    console.error('⚠️ Failed to send login confirmation email (social auth):', error.message);
-                });
-            }
-
             return res.status(200).json({
                 success: true,
                 message: 'Login successful',
@@ -493,20 +426,6 @@ const socialAuth = async (req, res) => {
                 // Remove password from response
                 const userResponse = existingUser.toObject();
                 delete userResponse.password;
-
-                // Send login confirmation email for linked accounts
-                if (existingUser.email) {
-                    const emailData = {
-                        name: existingUser.name,
-                        email: existingUser.email,
-                        isVerified: existingUser.isVerified
-                    };
-                    
-                    // Send email without awaiting - don't block login response
-                    sendLoginConfirmationEmail(emailData).catch(error => {
-                        console.error('⚠️ Failed to send login confirmation email (linked account):', error.message);
-                    });
-                }
 
                 return res.status(200).json({
                     success: true,
@@ -589,41 +508,10 @@ const socialAuth = async (req, res) => {
             },
         });
     } catch (error) {
-        console.error('❌ Social authentication error:', error);
-        console.error('❌ Social auth error details:', {
-            message: error.message,
-            name: error.name,
-            code: error.code,
-            stack: error.stack?.substring(0, 500),
-            requestBody: {
-                provider: req.body?.provider,
-                email: req.body?.email,
-                hasName: !!req.body?.name,
-                hasProviderId: !!req.body?.providerId,
-                hasPhone: !!req.body?.phoneNumber,
-                hasDOB: !!req.body?.dateOfBirth
-            }
-        });
-
-        // Provide specific error messages for common issues
-        let errorMessage = 'Internal server error during social authentication';
-        let statusCode = 500;
-
-        if (error.code === 11000) {
-            // MongoDB duplicate key error
-            const field = Object.keys(error.keyPattern || {})[0] || 'field';
-            errorMessage = `An account with this ${field} already exists. Please try logging in instead.`;
-            statusCode = 400;
-        } else if (error.name === 'ValidationError') {
-            errorMessage = `Validation error: ${Object.values(error.errors || {}).map(e => e.message).join(', ')}`;
-            statusCode = 400;
-        } else if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
-            errorMessage = 'Database connection error. Please try again in a moment.';
-        }
-
-        res.status(statusCode).json({
+        console.error('Social authentication error:', error);
+        res.status(500).json({
             success: false,
-            message: errorMessage,
+            message: 'Internal server error',
             error: process.env.NODE_ENV !== 'production' ? error.message : undefined,
         });
     }
