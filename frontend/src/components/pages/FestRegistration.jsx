@@ -1007,6 +1007,19 @@ export default function FestRegistration() {
     setReceiptError('');
 
     try {
+      // ✅ FIX: Ensure we have a valid token BEFORE making the request
+      const validToken = authToken || localStorage.getItem('crwdctrl_token');
+      console.log('🔑 Auth token check for payment receipt upload:', {
+        hasContextToken: !!authToken,
+        hasStorageToken: !!localStorage.getItem('crwdctrl_token'),
+        finalToken: validToken ? validToken.substring(0, 20) + '...' : 'NONE',
+        tokenLength: validToken?.length
+      });
+      
+      if (!validToken) {
+        throw new Error('Authentication required. Please log in again to upload files.');
+      }
+
       // Validate file type
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
       if (!allowedTypes.includes(file.type)) {
@@ -1039,10 +1052,11 @@ export default function FestRegistration() {
       const formData = new FormData();
       formData.append('image', processedFile);
 
+      console.log('📤 Sending payment receipt upload with valid token...');
       const response = await fetch(`${API_BASE_URL}/users/upload/image`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authToken || localStorage.getItem('crwdctrl_token')}`
+          'Authorization': `Bearer ${validToken}`
           // Don't set Content-Type - let browser set it with boundary for FormData
         },
         body: formData,
@@ -1523,7 +1537,19 @@ export default function FestRegistration() {
 
       console.log('🌐 Making fetch request to:', endpoint);
       console.log('📤 FormData size:', submissionFormData.size || 'unknown');
-      console.log('🔑 Authorization header present:', !!token);
+      
+      // ✅ FIX: Ensure we have a valid token before submission
+      const submitToken = token || localStorage.getItem('crwdctrl_token');
+      console.log('🔑 Authorization header check:', {
+        hasContextToken: !!token,
+        hasStorageToken: !!localStorage.getItem('crwdctrl_token'),
+        finalToken: submitToken ? submitToken.substring(0, 20) + '...' : 'NONE',
+        tokenLength: submitToken?.length
+      });
+      
+      if (!submitToken) {
+        throw new Error('Authentication required. Please log in again to submit your registration.');
+      }
 
       // ✅ PRODUCTION FIX: Show user that submission is in progress (don't timeout on their end)
       setSubmissionProgress('Submitting registration to server... (instant response)');
@@ -1531,7 +1557,7 @@ export default function FestRegistration() {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${submitToken}`,
           // Don't set Content-Type for FormData - browser will set it with boundary
         },
         body: submissionFormData,

@@ -525,6 +525,19 @@ export default function CompetitionRegistration() {
         setReceiptError('');
 
         try {
+            // ✅ FIX: Ensure we have a valid token BEFORE making the request
+            const authToken = token || localStorage.getItem('crwdctrl_token');
+            console.log('🔑 Auth token check for upload:', {
+                hasContextToken: !!token,
+                hasStorageToken: !!localStorage.getItem('crwdctrl_token'),
+                finalToken: authToken ? authToken.substring(0, 20) + '...' : 'NONE',
+                tokenLength: authToken?.length
+            });
+            
+            if (!authToken) {
+                throw new Error('Authentication required. Please log in again to upload files.');
+            }
+
             // Validate file type
             const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
             if (!allowedTypes.includes(file.type)) {
@@ -553,10 +566,11 @@ export default function CompetitionRegistration() {
             const formData = new FormData();
             formData.append('image', processedFile);
 
+            console.log('📤 Sending upload request with auth token...');
             const response = await fetch(`${API_BASE_URL}/users/upload/image`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token || localStorage.getItem('crwdctrl_token')}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: formData,
                 credentials: 'include',
@@ -1008,10 +1022,23 @@ export default function CompetitionRegistration() {
             console.log(`⏱️ Request timeout: ${(baseTimeout / 1000).toFixed(0)}s`);
             console.log('🌐 Making fetch request to:', `${API_BASE_URL}/registrations/competitions/${competitionId}/custom`);
 
+            // ✅ FIX: Ensure we have a valid token before submission
+            const submitToken = token || localStorage.getItem('crwdctrl_token');
+            console.log('🔑 Auth token check for form submission:', {
+                hasContextToken: !!token,
+                hasStorageToken: !!localStorage.getItem('crwdctrl_token'),
+                finalToken: submitToken ? submitToken.substring(0, 20) + '...' : 'NONE',
+                tokenLength: submitToken?.length
+            });
+            
+            if (!submitToken) {
+                throw new Error('Authentication required. Please log in again to submit your registration.');
+            }
+
             const response = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/custom`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token || localStorage.getItem('crwdctrl_token')}`,
+                    'Authorization': `Bearer ${submitToken}`,
                     // Don't set Content-Type for FormData - browser will set it with boundary
                 },
                 body: submissionFormData,
