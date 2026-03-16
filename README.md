@@ -5,19 +5,20 @@ A full-stack festival management platform connecting organizers and participants
 ## Tech Stack
 
 ### Frontend
-- **React 19** with Vite
-- **Tailwind CSS 4** for styling
-- **React Router 7** for navigation
-- **Firebase** for Google authentication
-- **TypeScript** support
+- **React** + **Vite**
+- **Tailwind CSS** for styling
+- **React Router** for navigation
+- **Axios** for API calls
+- **Firebase** for Google authentication (client)
+- **PWA** support (`vite-plugin-pwa`)
 
 ### Backend
-- **Node.js** with **Express 5**
-- **MongoDB** with **Mongoose 8**
+- **Node.js** + **Express**
+- **MongoDB** + **Mongoose**
 - **JWT** + **bcryptjs** for authentication
-- **Firebase Admin SDK** for social auth verification
+- **Firebase Admin SDK** for social auth verification (server)
 - **Cloudinary** for media uploads
-- **Nodemailer** / **Brevo** for email delivery
+- **Nodemailer** / **Brevo** (and/or Resend) for email delivery
 
 ### Deployment
 - **Backend**: [Railway](https://railway.app) (Nixpacks)
@@ -139,9 +140,9 @@ CrwdCtrl/
 ```bash
 cd backend
 npm install
-cp .env.example .env   # Edit with your credentials
-npm run dev             # Development (nodemon)
-npm start               # Production
+cp .env.example .env       # create your local env file
+npm run dev                # Development (nodemon)
+npm start                  # Production
 ```
 
 ### Frontend
@@ -154,27 +155,39 @@ npm run build           # Production build
 
 ### Environment Variables
 
-**Backend** (`.env`):
-```env
-MONGODB_URI=mongodb+srv://...
-JWT_SECRET=your_secret
-PORT=8080
-NODE_ENV=development
-FIREBASE_PROJECT_ID=...
-FIREBASE_PRIVATE_KEY=...
-FIREBASE_CLIENT_EMAIL=...
-CLOUDINARY_CLOUD_NAME=...
-CLOUDINARY_API_KEY=...
-CLOUDINARY_API_SECRET=...
-```
+**Backend**:
+- Use `backend/.env.example` as the template.
+- Create `backend/.env` locally (do **not** commit it).
+- Default port is `8080` (see `backend/src/server.js`).
 
-**Frontend** (`.env`):
-```env
-VITE_API_BASE_URL=http://localhost:8080/api
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-```
+**Frontend**:
+- This repo includes environment presets:
+  - `frontend/.env.development`
+  - `frontend/.env.production`
+  - `frontend/.env.domain`
+- The frontend expects an API base like:
+  - `VITE_API_BASE_URL=http://localhost:8080/api` (local)
+
+### Useful URLs (local)
+- **Frontend**: `http://localhost:5173`
+- **Backend health**: `http://localhost:8080/api/health`
+
+## Scripts
+
+### Backend (`backend/package.json`)
+- `npm run dev`: start with nodemon
+- `npm start`: start with node
+- `npm run health`: checks `GET /api/health`
+
+### Frontend (`frontend/package.json`)
+- `npm run dev`: Vite dev server
+- `npm run build`: production build
+- `npm run preview`: preview build locally
+- `npm run build:domain`: Windows-only helper that copies `.env.domain` → `.env` then builds
+
+## Deployment notes
+- **Vercel (frontend)**: set `VITE_API_BASE_URL` to your deployed backend base (ending in `/api`).
+- **Railway / Cloud Run (backend)**: ensure `PORT` is provided by the platform (defaults to `8080` locally).
 
 ## API Routes
 

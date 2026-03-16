@@ -1,16 +1,38 @@
-# React + Vite
+# CrwdCtrl Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the React + Vite frontend for **CrwdCtrl**.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## React Compiler
+## Environment
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+This repo includes preset env files:
+- `.env.development`
+- `.env.production`
+- `.env.domain`
 
-## Expanding the ESLint configuration
+The app expects `VITE_API_BASE_URL` to point at the backend API base (ending in `/api`), for example:
+- `http://localhost:8080/api`
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Build
+
+```bash
+npm run build
+npm run preview
+```
+
+For domain builds on Windows:
+
+```bash
+npm run build:domain
+```
+
+## More docs
+
+See the root `README.md` for full-stack setup, backend instructions, and deployment notes.
