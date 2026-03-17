@@ -2091,7 +2091,7 @@ export default function FestRegistration() {
                   </h4>
                   
                   {!paymentReceiptUrl ? (
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-w-xs mx-auto">
                       <div className="flex items-center justify-center w-full">
                         <label 
                           htmlFor="payment-receipt-upload"
@@ -2106,13 +2106,13 @@ export default function FestRegistration() {
                               handlePaymentReceiptUpload(file);
                             }
                           }} 
-                          className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                          className={`flex flex-col items-center justify-center w-full h-20 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
                             uploadingReceipt 
                               ? 'border-blue-400 bg-blue-900/20' 
                               : isDark ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70' : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
                           }`}
                         >
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <div className="flex flex-col items-center justify-center py-2">
                             {uploadingReceipt ? (
                               <>
                                 <Loader className="w-8 h-8 mb-2 text-blue-400 animate-spin" />
@@ -2204,9 +2204,6 @@ export default function FestRegistration() {
                     </div>
                   )}
                   
-                  <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Please upload a clear image or PDF of your payment receipt/screenshot after completing the payment.
-                  </p>
                 </div>
               </div>
             )}
