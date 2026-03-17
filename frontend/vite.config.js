@@ -9,6 +9,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      // We'll register the SW in `src/main.jsx` to control update behavior.
+      injectRegister: null,
       registerType: 'autoUpdate',
       includeAssets: ['icon-192x192.png', 'icon-512x512.png'],
       manifest: {
@@ -40,6 +42,10 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Ensure new builds activate quickly and old caches are removed.
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         // Don't precache the firebase messaging sw
         navigateFallbackDenylist: [/^\/firebase-messaging-sw\.js$/],
         runtimeCaching: [

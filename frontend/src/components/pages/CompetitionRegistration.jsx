@@ -1346,7 +1346,6 @@ export default function CompetitionRegistration() {
                                 </div>
                             </div>
                         </div>
-                        </div>
                     </div>
                 )}
 
@@ -1424,7 +1423,6 @@ export default function CompetitionRegistration() {
                                     </ol>
                                 </div>
                             </div>
-                        </div>
                         </div>
 
                         {/* Upload & Transaction Section */}
