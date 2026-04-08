@@ -68,57 +68,52 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
     ];
 
     const handleNavClick = (path, itemId) => {
-        if (itemId === 'profile') {
-            if (!isAuthenticated) {
-                // If not authenticated, show login modal or navigate to login
-                if (onShowLogin) {
-                    onShowLogin();
-                } else {
-                    // Fallback to URL parameter method
-                    const url = new URL(window.location);
-                    url.searchParams.set('showLogin', 'true');
-                    window.history.pushState({}, '', url);
-                    window.location.reload();
-                }
-            } else if (onProfileClick) {
-                // If authenticated and there's a profile click handler, use it (for opening profile sidebar)
-                onProfileClick();
-            } else {
-                // Fallback to navigation
-                navigate(path);
-            }
-        } else {
-            // For non-profile items, check if there's a custom navigation handler
-            if (onNavigate) {
-                onNavigate(path);
-            } else {
-                navigate(path);
+    if (itemId === 'profile') {
+        if (!isAuthenticated) {
+            if (onShowLogin) {
+                onShowLogin();
+                return;
             }
         }
-    };
 
+        // ALWAYS navigate for active state
+       navigate(path);
+
+        // Optional sidebar open
+        if (onProfileClick) {
+            onProfileClick();
+        }
+
+    } else {
+        navigate(path);
+
+        if (onNavigate) {
+            onNavigate(path);
+        }
+    }
+};
     return (
         <>
             {/* Mobile Bottom Navigation - Only visible on small screens */}
-            <div 
-                id="mobile-bottom-nav-main"
-                className="fixed bottom-0 left-0 right-0 z-[9999] md:hidden mobile-bottom-nav"
-                style={{
-                    paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
-                    paddingLeft: 'env(safe-area-inset-left)',
-                    paddingRight: 'env(safe-area-inset-right)'
-                }}
-            >
-                <div className={`rounded-3xl mx-4 my-2 transition-all duration-300 mb-2 border border-gray-600/50 backdrop-blur-md ${isDark
-                    ? 'bg-[#0a0a0a]/95'
-                    : 'bg-[#F5F6FA]/95 border-gray-200'
-                    }`}
+          <div 
+  className="fixed inset-x-0 z-[9999] md:hidden mobile-bottom-nav"
+  style={{
+    bottom: 0,
+    paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
+    WebkitTransform: 'translate3d(0,0,0)',
+    transform: 'translate3d(0,0,0)'
+  }}
+>
+               <div className={`rounded-3xl mx-4 mb-0 transition-all duration-300 border border-gray-600/50 backdrop-blur-md ${isDark
+    ? 'bg-[#0a0a0a]/95'
+    : 'bg-[#F5F6FA]/95 border-gray-200'
+    }`}
                     style={{
                         // iOS Safari specific fixes
                         WebkitBackdropFilter: 'blur(12px)',
                         backdropFilter: 'blur(12px)',
-                        WebkitTransform: 'translateZ(0)',
-                        transform: 'translateZ(0)',
+                        WebkitTransform: 'translate3d(0,0,0)',
+                        transform: 'translate3d(0,0,0)',
                         WebkitBackfaceVisibility: 'hidden',
                         backfaceVisibility: 'hidden'
                     }}

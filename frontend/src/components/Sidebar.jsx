@@ -56,12 +56,12 @@ const Sidebar = () => {
 
             {/* Sidebar */}
             <div
-                className={`fixed left-0 top-1 bottom-1 w-16 lg:w-20 rounded-tr-[40px] rounded-br-[40px] 
-    ${isDark ? 'bg-[#0a0a0a] ' : 'bg-[#F5F6FA]'} 
-    border-[1px] ${isDark ? 'border-blue-500' : 'border-[#86C4C4]'}
-    flex flex-col items-center py-6 z-50 backdrop-blur-md transition-transform duration-300 
-    ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-  `}
+               className={`fixed left-0 top-0 bottom-0 w-16 lg:w-20 rounded-tr-[40px] rounded-br-[40px] 
+${isDark ? 'bg-[#0a0a0a]' : 'bg-[#F5F6FA]'} 
+border-[1px] ${isDark ? 'border-blue-500' : 'border-[#86C4C4]'}
+flex flex-col items-center py-6 z-50 backdrop-blur-md transition-transform duration-300 
+${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+`}
             >
 
                 {/* Mobile Close Button */}
