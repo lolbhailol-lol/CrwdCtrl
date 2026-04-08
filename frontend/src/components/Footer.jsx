@@ -13,7 +13,10 @@ export default function Footer() {
         <div className="md:hidden">
           {/* Brand Section - Mobile */}
           <div className="text-center mb-6">
-            <h2 className="text-xl font-bold text-blue-600 mb-4">CrwdCtrl</h2>
+            <h2 className="text-xl font-bold text-blue-600 mb-1">CrwdCtrl</h2>
+            <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Fests, clubs &amp; meetups near you
+            </p>
 
             <div className="mb-6">
               <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} font-medium mb-3 text-sm`}>Follow us on</p>
@@ -62,9 +65,11 @@ export default function Footer() {
         <div className="hidden md:flex flex-wrap items-start justify-between gap-8 mb-8">
           {/* Brand Section with Theme Toggle */}
           <div className="flex flex-col">
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex flex-col gap-1 mb-6">
               <h2 className="text-2xl font-bold text-blue-600">CrwdCtrl</h2>
-
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Fests, clubs &amp; meetups near you
+              </p>
             </div>
 
             <div>
@@ -128,7 +133,7 @@ export default function Footer() {
         {/* Bottom Text */}
         <div className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} pt-4 md:pt-6`}>
           <p className={`text-xs md:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} leading-relaxed text-center md:text-left`}>
-            By accessing this page, you confirm that you have read, understood, and agreed to CrwdCtrl's Terms of Service, Privacy Policy, Cookie Policy, and Content Guidelines. CrwdCtrl All rights reserved.
+            By accessing this page, you confirm that you have read, understood, and agreed to CrwdCtrl's Terms of Service, Privacy Policy, Cookie Policy, and Content Guidelines. © 2026 CrwdCtrl. All rights reserved.
           </p>
         </div>
       </div>
