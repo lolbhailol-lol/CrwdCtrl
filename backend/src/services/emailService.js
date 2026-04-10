@@ -1,5 +1,12 @@
 const nodemailer = require('nodemailer');
 const Brevo = require('@getbrevo/brevo');
+const { Resend } = require('resend');
+
+// Initialize Resend
+let resendInstance = null;
+if (process.env.RESEND_API_KEY) {
+    resendInstance = new Resend(process.env.RESEND_API_KEY);
+}
 
 // ============================================
 // 📧 EMAIL QUEUE SYSTEM - Prevents Rate Limiting
@@ -26,21 +33,21 @@ const processEmailQueue = async () => {
     if (isProcessingQueue || emailQueue.length === 0) {
         return;
     }
-    
+
     isProcessingQueue = true;
-    
+
     while (emailQueue.length > 0) {
         const item = emailQueue.shift();
         const { emailFn, resolve, reject, retries } = item;
-        
+
         try {
             const result = await emailFn();
             resolve(result);
         } catch (error) {
-            const isRateLimited = error.message?.includes('rate') || 
-                                  error.message?.includes('429') ||
-                                  error.message?.includes('Too many');
-            
+            const isRateLimited = error.message?.includes('rate') ||
+                error.message?.includes('429') ||
+                error.message?.includes('Too many');
+
             if (isRateLimited && retries < MAX_RETRIES) {
                 // Rate limited - add back to queue with increased retry count
                 console.log(`⏳ Rate limited, retry ${retries + 1}/${MAX_RETRIES} after ${RATE_LIMIT_BACKOFF_MS * (retries + 1)}ms...`);
@@ -51,12 +58,12 @@ const processEmailQueue = async () => {
                 reject(error);
             }
         }
-        
+
         // Wait before sending next email to respect rate limit
         // Always wait, even after the last email, to prevent rapid subsequent calls
         await new Promise(r => setTimeout(r, EMAIL_DELAY_MS));
     }
-    
+
     isProcessingQueue = false;
 };
 
@@ -83,16 +90,16 @@ const sendWithBrevo = async (mailOptions) => {
     if (!brevoApiInstance) {
         throw new Error('Brevo API key not configured');
     }
-    
+
     console.log('📧 Sending email via Brevo API...');
     console.log('   To:', mailOptions.to);
     console.log('   Subject:', mailOptions.subject);
     console.log('   Timestamp:', new Date().toISOString());
-    
+
     const sendSmtpEmail = new Brevo.SendSmtpEmail();
     sendSmtpEmail.sender = {
-        name: process.env.BREVO_SENDER_NAME || 'CrwdCtrl',
-        email: process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || 'noreply@crwdctrl.in'
+        name: 'CrwdCtrl',
+        email: mailOptions.from || process.env.BREVO_SENDER_EMAIL || 'onboarding@crwdctrl.in'
     };
     sendSmtpEmail.to = Array.isArray(mailOptions.to)
         ? mailOptions.to.map(email => ({ email }))
@@ -105,7 +112,7 @@ const sendWithBrevo = async (mailOptions) => {
     sendSmtpEmail.replyTo = {
         email: process.env.BREVO_REPLY_TO || 'team.crwdctrl@gmail.com'
     };
-    
+
     try {
         const data = await brevoApiInstance.sendTransacEmail(sendSmtpEmail);
         console.log('✅ Email sent via Brevo! MessageId:', data?.body?.messageId || data?.messageId || 'OK');
@@ -119,20 +126,103 @@ const sendWithBrevo = async (mailOptions) => {
 
 // ✅ UNIVERSAL EMAIL SENDER - Uses queue to prevent rate limiting
 const sendEmail = async (mailOptions) => {
-    // Queue the email to prevent rate limiting
     return queueEmail(async () => {
-        // Try Brevo first (works on Railway/cloud platforms, 300 emails/day free forever)
+        // PRIORITY 1: RESEND
+        if (process.env.RESEND_API_KEY && resendInstance) {
+            try {
+                return await sendWithResend(mailOptions);
+            } catch (error) {
+                console.warn('🔄 Resend failed or Domain mismatch, falling back to Brevo...');
+            }
+        }
+
+        // PRIORITY 2: BREVO
         if (useBrevo()) {
             return await sendWithBrevo(mailOptions);
         }
-        
-        // Fallback to SMTP (for local development)
-        console.log('📧 Falling back to SMTP...');
+
+        // PRIORITY 3: GMAIL/SMTP
         const transporter = createTransporter();
         const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Email sent via SMTP! ID:', info.messageId);
         return { success: true, messageId: info.messageId };
     });
+};
+
+// ✅ NEW: BROADCAST FUNCTION
+const sendEventBroadcast = async (userList, eventDetails) => {
+    console.log(`📢 Starting broadcast for event: ${eventDetails.name}`);
+
+    // Determine subject prefix based on whether it's an update or new event
+    const isUpdate = eventDetails.name.includes('UPDATED');
+    const subjectPrefix = isUpdate ? '🚨 Event Update:' : '🚀 New Tech Event:';
+
+    // Process in chunks of 50 to prevent memory spikes
+    const BATCH_SIZE = 50;
+    const results = { success: 0, failed: 0 };
+
+    for (let i = 0; i < userList.length; i += BATCH_SIZE) {
+        const batch = userList.slice(i, i + BATCH_SIZE);
+
+        const batchPromises = batch.map(user => {
+            const mailOptions = {
+                // We pass the verified domain here to ensure Resend success
+                from: 'CrwdCtrl <onboarding@crwdctrl.in>',
+                to: user.email,
+                subject: `${subjectPrefix} ${eventDetails.name}!`,
+                html: generateEventEmailHTML(user.name, eventDetails)
+            };
+
+            // This pushes the email into your existing Queue/Resend logic
+            return sendEmail(mailOptions)
+                .then(() => results.success++)
+                .catch(() => results.failed++);
+        });
+
+        // Wait for this batch to be queued before starting the next
+        await Promise.all(batchPromises);
+        console.log(`⏳ Batched ${i + batch.length}/${userList.length} users...`);
+    }
+
+    console.log(`✅ Broadcast complete! Success: ${results.success}, Failed: ${results.failed}`);
+    return results;
+};
+
+// ✅ HTML Generator for Broadcasts
+const generateEventEmailHTML = (userName, event) => {
+    const isUpdate = event.name.includes('UPDATED');
+    const headerColor = isUpdate ? '#e11d48' : '#053780'; // Red for updates, Blue for new
+    const cleanName = event.name.replace('UPDATED: ', '');
+
+    return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, ${headerColor}, #0ECCEE); padding: 30px; text-align: center; color: white;">
+            <h1 style="margin: 0; font-size: 24px;">${isUpdate ? 'Important Update! 🚨' : 'New Event Alert! 🚀'}</h1>
+        </div>
+        <div style="padding: 30px; color: #333; line-height: 1.6;">
+            <p style="font-size: 16px;">Hi <b>${userName}</b>,</p>
+            <p style="font-size: 16px;">${isUpdate ? 'There has been a change to an event you might be interested in:' : 'A new event has just been posted on <b>CrwdCtrl</b>:'}</p>
+            
+            <div style="background: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 5px solid #0ECCEE; margin: 20px 0;">
+                <h2 style="margin: 0 0 10px 0; color: #053780; font-size: 20px;">${cleanName}</h2>
+                <p style="margin: 5px 0; font-size: 15px;">🗓 <b>Date:</b> ${event.date}</p>
+                <p style="margin: 5px 0; font-size: 15px;">📍 <b>Venue:</b> ${event.location}</p>
+            </div>
+
+            <p style="text-align: center; margin-top: 30px;">
+                <a href="https://crwdctrl.in/fests/${event.id}" 
+                   style="background: #053780; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                   View Event Details
+                </a>
+            </p>
+            
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="font-size: 12px; color: #777; text-align: center;">
+                You received this because you enabled email reminders on CrwdCtrl. 
+                Manage your preferences in your profile settings.
+            </p>
+        </div>
+    </div>
+    `;
 };
 
 // Email configuration (SMTP fallback for local development)
@@ -143,12 +233,12 @@ const createTransporter = () => {
         console.warn('⚠️ Emails will NOT be sent in production. Please configure environment variables.');
         console.warn('⚠️ EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
         console.warn('⚠️ EMAIL_PASS:', process.env.EMAIL_PASS ? 'SET' : 'NOT SET');
-        
+
         // In production without Brevo, throw error
         if (process.env.NODE_ENV === 'production' && !useBrevo()) {
             throw new Error('Email credentials not configured in production environment');
         }
-        
+
         console.log('📧 Using test email account (development only)');
         return nodemailer.createTransport({
             host: 'smtp.ethereal.email',
@@ -164,7 +254,7 @@ const createTransporter = () => {
     console.log('📧 Creating Gmail SMTP transporter...');
     console.log('📋 Password length:', process.env.EMAIL_PASS.length, '(should be 19 with spaces)');
     console.log('📋 Password contains spaces:', process.env.EMAIL_PASS.includes(' '));
-    
+
     // ✅ Use port 587 with STARTTLS - more reliable on cloud platforms (Railway, etc.)
     // Port 465 (SSL) is often blocked by cloud providers
     const transporter = nodemailer.createTransport({
@@ -187,38 +277,56 @@ const createTransporter = () => {
     return transporter;
 };
 
-// Send welcome email to new users
-const sendWelcomeEmail = async (userData) => {
-    try {
-        console.log('🎉 Starting welcome email process for:', userData.email);
-        console.log('📋 User data:', { name: userData.name, email: userData.email, isVerified: userData.isVerified });
+const sendWithResend = async (mailOptions) => {
+    if (!resendInstance) throw new Error('Resend API key not configured');
+    console.log('💎 [RESEND] Attempting delivery...');
 
-        if (!userData.email) {
-            console.error('❌ Cannot send welcome email: email is missing');
-            throw new Error('User email is required to send welcome email');
+    try {
+        const { data, error } = await resendInstance.emails.send({
+            // Change from hardcoded string to mailOptions.from
+            from: mailOptions.from || 'CrwdCtrl <onboarding@crwdctrl.in>',
+            to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
+            subject: mailOptions.subject,
+            html: mailOptions.html,
+            text: mailOptions.text,
+            reply_to: 'team.crwdctrl@gmail.com'
+        });
+
+        if (error) throw error;
+        console.log('✅ [RESEND] Success! ID:', data.id);
+        return { success: true, messageId: data.id };
+    } catch (error) {
+        console.error('❌ [RESEND] API Error:', error.message);
+        throw error;
+    }
+};
+
+const sendWelcomeEmail = async (userData) => {
+    console.log("🚀🚀🚀 RESEND FUNCTION DEFINITELY HIT 🚀🚀🚀");
+    try {
+        console.log('🔥 [RESEND ONLY] Sending welcome email to:', userData.email);
+
+        if (!process.env.RESEND_API_KEY || !resendInstance) {
+            throw new Error('Resend not configured');
         }
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
-            to: userData.email,
-            subject: '🎉 Welcome to CrwdCtrl - Let\'s Explore Amazing Fests!',
+        const { data, error } = await resendInstance.emails.send({
+            from: 'CrwdCtrl <onboarding@crwdctrl.in>', // ✅ IMPORTANT
+            to: [userData.email],
+            subject: "🎉 Welcome to CrwdCtrl - Let's Explore Amazing Fests!",
             html: generateWelcomeEmailHTML(userData)
-        };
+        });
 
-        console.log('📤 Sending welcome email...');
-        console.log('   From:', mailOptions.from);
-        console.log('   To:', mailOptions.to);
-        console.log('   Subject:', mailOptions.subject);
+        if (error) {
+            console.error('❌ Resend error:', error);
+            throw new Error(error.message);
+        }
 
-        // ✅ Use universal email sender (Resend API or SMTP fallback)
-        const result = await sendEmail(mailOptions);
-        console.log('✅ Welcome email sent successfully!');
-        return result;
+        console.log('✅ Welcome email sent via RESEND!', data.id);
+        return data;
+
     } catch (error) {
-        console.error('❌ Welcome email sending failed!');
-        console.error('   Error name:', error.name);
-        console.error('   Error message:', error.message);
-        console.error('   Full error:', error);
+        console.error('❌ Welcome email failed:', error.message);
         throw error;
     }
 };
@@ -814,12 +922,12 @@ const sendLoginConfirmationEmail = async (userData) => {
         console.log('   From:', mailOptions.from);
         console.log('   To:', mailOptions.to);
         console.log('   Subject:', mailOptions.subject);
-        
+
         // ✅ Use universal email sender (Resend API or SMTP fallback)
         const result = await sendEmail(mailOptions);
         console.log('✅ Login confirmation email sent successfully!');
         return result;
-        
+
     } catch (error) {
         console.error('❌ Login confirmation email sending failed!');
         console.error('   Error name:', error.name);
@@ -834,7 +942,7 @@ const sendLoginConfirmationEmail = async (userData) => {
 // Generate HTML for login confirmation email
 const generateLoginConfirmationEmailHTML = (userData) => {
     const loginTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    
+
     return `
     <!DOCTYPE html>
     <html>
@@ -955,5 +1063,6 @@ module.exports = {
     sendRegistrationThankYouEmail,
     sendRegistrationConfirmationEmail,
     sendOrganizerNotificationEmail,
-    sendLoginConfirmationEmail
+    sendLoginConfirmationEmail,
+    sendEventBroadcast
 };

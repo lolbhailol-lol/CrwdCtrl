@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Competition = require('../model/competition_model');
+const User = require('../model/usermodel'); // Check if your file is userModel.js or user.js
+const { sendEventBroadcast } = require('../services/emailService');
 
 // ✅ In-memory cache for fests (same as in festOrganizerController)
 const festsCache = {
@@ -14,6 +16,36 @@ const clearFestsCache = () => {
     festsCache.data = null;
     festsCache.timestamp = 0;
     console.log('🗑️ Admin: Fests cache cleared');
+};
+
+// In adminFestController.js
+exports.triggerEventAnnouncement = async (req, res) => {
+    try {
+        const { eventName, eventDate, eventLocation, eventId } = req.body;
+
+        // Respect the user's settings: 
+        // 1. Must be verified
+        // 2. Must have emailReminders enabled in their model
+        const users = await User.find({ 
+            isVerified: true, 
+            'notificationPreferences.emailReminders': true 
+        }, 'name email');
+
+        if (!users.length) {
+            return res.status(404).json({ message: "No eligible users found." });
+        }
+
+        sendEventBroadcast(users, {
+            name: eventName,
+            date: eventDate,
+            location: eventLocation,
+            id: eventId
+        });
+
+        res.status(200).json({ success: true, count: users.length });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 };
 
 // Admin-specific fest controllers (no organizer requirement)
@@ -52,62 +84,26 @@ exports.createFest = async (req, res) => {
       registration
     } = req.body;
 
-    console.log('📋 Extracted fields:', {
-      festName,
-      collegeName,
-      festType,
-      venue,
-      description,
-      registrationMode: registration?.mode,
-      coverImage,
-      galleryImagesCount: galleryImages?.length || 0
-    });
-
-    if (
-      !festName ||
-      !collegeName ||
-      !festType ||
-      !venue ||
-      !description
-    ) {
+    // 1. Validation
+    if (!festName || !collegeName || !festType || !venue || !description) {
       console.error('❌ Required fields missing');
-      return res.status(400).json({
-        message: 'Required fields missing'
-      });
+      return res.status(400).json({ message: 'Required fields missing' });
     }
 
-    // Auto-set coverImage to first gallery image if not provided
+    // 2. Auto-set coverImage logic
     let finalCoverImage = coverImage;
     if (!finalCoverImage && galleryImages && galleryImages.length > 0) {
       finalCoverImage = galleryImages[0];
-      console.log('🖼️ Auto-setting coverImage to first gallery image:', finalCoverImage);
     }
 
-    console.log('✅ Creating new fest...');
-    console.log('🔍 DEBUG - Multi-step form validation (create):');
-    if (registration?.formType === 'MULTI_STEP') {
-      console.log('  - Creating multi-step form: YES');
-      console.log('  - Steps count:', registration.steps?.length || 0);
-      if (registration.steps?.length > 0) {
-        registration.steps.forEach((step, index) => {
-          console.log(`    Create Step ${index + 1}:`, {
-            stepNumber: step.stepNumber,
-            stepTitle: step.stepTitle,
-            fieldsCount: step.fields?.length || 0
-          });
-        });
-      }
-    } else {
-      console.log('  - Creating multi-step form: NO (formType:', registration?.formType, ')');
-    }
-
+    // 3. Initialize Model
     const fest = new FestOrganizer({
       organizer: null,
       festName,
       subtitle,
       collegeName,
       festType,
-      festDate,              // ✅ single date field
+      festDate,
       venue,
       ticketPrice,
       description,
@@ -129,36 +125,54 @@ exports.createFest = async (req, res) => {
         formInstructions: '',
         formSchema: []
       },
-      isApproved: true       // ✅ IMPORTANT
+      isApproved: true
     });
 
-    console.log('💾 Saving fest to database...');
-    console.log('🔍 DEBUG - Fest object before save:');
-    console.log('  - artistsHeading:', fest.artistsHeading);
-    console.log('  - competitionsHeading:', fest.competitionsHeading);
-    console.log('  - contacts:', fest.contacts);
+    // 4. Save to Database
     await fest.save();
     console.log('✅ Fest saved successfully:', fest._id);
-    console.log('🔍 DEBUG - Fest object after save:');
-    console.log('  - artistsHeading:', fest.artistsHeading);
-    console.log('  - competitionsHeading:', fest.competitionsHeading);
-    console.log('  - contacts:', fest.contacts);
 
-    // Clear cache when new fest is created
+    // 5. Cache Management
     clearFestsCache();
-    
-    // ✅ Also clear public cache for consistency
     try {
       const { clearAllCaches } = require('./festOrganizerController');
       clearAllCaches();
-      console.log('✅ Cleared both admin and public caches after fest creation');
     } catch (cacheError) {
-      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+      console.warn('⚠️ Cache clear failed:', cacheError.message);
     }
 
+    // 6. Return Success Response Immediately
     res.status(201).json({
       message: 'Fest created successfully',
       fest
+    });
+
+    // 7. BACKGROUND TASK: Send Broadcast Emails to all users
+    setImmediate(async () => {
+      try {
+        console.log('📢 Starting auto-broadcast for new fest...');
+        
+        // Fetch all verified users who have opted into email reminders
+        const users = await User.find({ 
+          isVerified: true, 
+          'notificationPreferences.emailReminders': true 
+        }, 'name email');
+
+        if (users.length > 0) {
+          // sendEventBroadcast is imported from emailService at the top of your file
+          await sendEventBroadcast(users, {
+            name: fest.festName,
+            date: fest.festDate,
+            location: fest.venue,
+            id: fest._id
+          });
+          console.log(`✅ Auto-broadcast completed for ${users.length} users.`);
+        } else {
+          console.log('ℹ️ No eligible users found for broadcast.');
+        }
+      } catch (broadcastErr) {
+        console.error('❌ Auto-broadcast background error:', broadcastErr.message);
+      }
     });
 
   } catch (error) {
@@ -233,61 +247,27 @@ exports.updateFest = async (req, res) => {
       return res.status(400).json({ message: 'Invalid fest ID' });
     }
 
-    // Get the current fest to check existing data
+    // 1. Get the current fest to compare changes (for broadcast logic)
     const existingFest = await FestOrganizer.findById(id);
     if (!existingFest) {
       console.error('❌ Fest not found:', id);
       return res.status(404).json({ message: 'Fest not found' });
     }
 
-    // Prepare update data
+    // 2. Prepare update data
     const updateData = { ...req.body };
 
-    // Auto-set coverImage logic
+    // 3. Auto-set coverImage logic
     const { coverImage, galleryImages } = req.body;
-    
-    // If no coverImage is provided but galleryImages exist, use first gallery image
     if (!coverImage && galleryImages && galleryImages.length > 0) {
       updateData.coverImage = galleryImages[0];
-      console.log('🖼️ Auto-setting coverImage to first gallery image:', galleryImages[0]);
-    }
-    // If coverImage is empty string but galleryImages exist, use first gallery image
-    else if (coverImage === '' && galleryImages && galleryImages.length > 0) {
+    } else if (coverImage === '' && galleryImages && galleryImages.length > 0) {
       updateData.coverImage = galleryImages[0];
-      console.log('🖼️ Replacing empty coverImage with first gallery image:', galleryImages[0]);
-    }
-    // If galleryImages are updated and current coverImage is not in the new gallery, update it
-    else if (galleryImages && galleryImages.length > 0 && existingFest.coverImage && !galleryImages.includes(existingFest.coverImage)) {
+    } else if (galleryImages && galleryImages.length > 0 && existingFest.coverImage && !galleryImages.includes(existingFest.coverImage)) {
       updateData.coverImage = galleryImages[0];
-      console.log('🖼️ Current coverImage not in new gallery, updating to first gallery image:', galleryImages[0]);
     }
 
-    console.log('💾 Updating fest in database...');
-    console.log('🔍 DEBUG - Update data:');
-    console.log('  - artistsHeading:', updateData.artistsHeading);
-    console.log('  - competitionsHeading:', updateData.competitionsHeading);
-    console.log('  - contacts:', updateData.contacts);
-    console.log('  - registration:', updateData.registration);
-    console.log('  - registration.formType:', updateData.registration?.formType);
-    console.log('  - registration.formSchema:', updateData.registration?.formSchema);
-    console.log('  - registration.steps:', updateData.registration?.steps);
-    console.log('🔍 DEBUG - Multi-step form validation (backend):');
-    if (updateData.registration?.formType === 'MULTI_STEP') {
-      console.log('  - Backend received multi-step form: YES');
-      console.log('  - Steps count:', updateData.registration.steps?.length || 0);
-      if (updateData.registration.steps?.length > 0) {
-        updateData.registration.steps.forEach((step, index) => {
-          console.log(`    Backend Step ${index + 1}:`, {
-            stepNumber: step.stepNumber,
-            stepTitle: step.stepTitle,
-            fieldsCount: step.fields?.length || 0
-          });
-        });
-      }
-    } else {
-      console.log('  - Backend received multi-step form: NO (formType:', updateData.registration?.formType, ')');
-    }
-    
+    // 4. Update the database
     const fest = await FestOrganizer.findByIdAndUpdate(
       id,
       updateData,
@@ -295,78 +275,57 @@ exports.updateFest = async (req, res) => {
     );
 
     console.log('✅ Fest updated successfully:', fest._id);
-    console.log('🔍 DEBUG - Updated fest object:');
-    console.log('  - artistsHeading:', fest.artistsHeading);
-    console.log('  - competitionsHeading:', fest.competitionsHeading);
-    console.log('  - contacts:', fest.contacts);
-    console.log('  - registration:', fest.registration);
-    console.log('  - registration.formType:', fest.registration?.formType);
-    console.log('  - registration.formSchema:', fest.registration?.formSchema);
-    console.log('  - registration.steps:', fest.registration?.steps);
-    
-    // ✅ CRITICAL: Verify data was actually saved AND re-fetch to confirm
-    const verifyFest = await FestOrganizer.findById(id).lean();
-    console.log('✅ VERIFICATION FETCH - Data persisted to database:');
-    console.log('  - artistsHeading in DB:', verifyFest.artistsHeading);
-    console.log('  - competitionsHeading in DB:', verifyFest.competitionsHeading);
-    console.log('  - contacts in DB:', verifyFest.contacts);
-    console.log('  - registration.formType in DB:', verifyFest.registration?.formType);
-    console.log('  - registration in DB:', verifyFest.registration);
-    
-    if (!verifyFest.artistsHeading) {
-      console.error('❌ ERROR: artistsHeading not persisted!');
-    }
-    if (!verifyFest.competitionsHeading) {
-      console.error('❌ ERROR: competitionsHeading not persisted!');
-    }
-    
-    console.log('🔍 DEBUG - Multi-step form after save:');
-    if (fest.registration?.formType === 'MULTI_STEP') {
-      console.log('  - Saved as multi-step form: YES');
-      console.log('  - Saved steps count:', fest.registration.steps?.length || 0);
-      if (fest.registration.steps?.length > 0) {
-        fest.registration.steps.forEach((step, index) => {
-          console.log(`    Saved Step ${index + 1}:`, {
-            stepNumber: step.stepNumber,
-            stepTitle: step.stepTitle,
-            fieldsCount: step.fields?.length || 0
-          });
-        });
-      }
-    } else {
-      console.log('  - Saved as multi-step form: NO (formType:', fest.registration?.formType, ')');
-    }
 
-    // ✅ CRITICAL: Clear ALL caches to ensure fresh data is fetched everywhere
-    console.log('🧹 Starting cache cleanup for updated fest:', id);
-    
-    // Clear admin cache
+    // 5. CACHE MANAGEMENT
     clearFestsCache();
-    console.log('✅ Cleared admin fest cache');
-    
-    // Clear public cache by forcing a reload
     try {
-      // Import the cache clearing function
       const festController = require('./festOrganizerController');
       if (typeof festController.clearAllCaches === 'function') {
         festController.clearAllCaches();
         console.log('✅ Cleared public fest cache');
-      } else {
-        console.warn('⚠️ clearAllCaches not found as function');
       }
     } catch (cacheError) {
-      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+      console.warn('⚠️ Cache clearing warning:', cacheError.message);
     }
 
-    // ✅ NEW: Add timestamp to response to help with cache busting
-    const responseData = {
+    // 6. Return response immediately to Admin
+    res.json({
       message: 'Fest updated successfully',
       fest,
       timestamp: Date.now(),
       cacheCleared: true
-    };
+    });
 
-    res.json(responseData);
+    // 7. BACKGROUND TASK: Notify users if Date or Venue changed
+    // We check existingFest (before update) vs updateData (from request)
+    const dateChanged = existingFest.festDate !== updateData.festDate;
+    const venueChanged = existingFest.venue !== updateData.venue;
+
+    if (dateChanged || venueChanged) {
+      setImmediate(async () => {
+        try {
+          console.log('📢 Critical update detected (Date/Venue). Triggering broadcast...');
+          
+          const users = await User.find({ 
+            isVerified: true, 
+            'notificationPreferences.emailReminders': true 
+          }, 'name email');
+
+          if (users.length > 0) {
+            // sendEventBroadcast imported from emailService
+            await sendEventBroadcast(users, {
+              name: `UPDATED: ${fest.festName}`,
+              date: fest.festDate,
+              location: fest.venue,
+              id: fest._id
+            });
+            console.log(`✅ Update notification sent to ${users.length} users.`);
+          }
+        } catch (broadcastErr) {
+          console.error('❌ Update broadcast error:', broadcastErr.message);
+        }
+      });
+    }
 
   } catch (error) {
     console.error('💥 Admin update fest error:', error);
