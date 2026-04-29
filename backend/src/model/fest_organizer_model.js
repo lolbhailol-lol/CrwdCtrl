@@ -44,7 +44,12 @@ const festOrganizerSchema = new mongoose.Schema(
   },
 
   ticketPrice: {
-    type: String,
+    type: String, // display label e.g. "₹300"
+  },
+
+  feeAmount: {
+    type: Number,
+    default: 0, // numeric INR amount for Razorpay; 0 = free
   },
 
   description: {

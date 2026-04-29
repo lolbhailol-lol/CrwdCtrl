@@ -125,7 +125,12 @@ const competitionSchema = new mongoose.Schema(
   ],
 
   registrationFee: {
-    type: String, // "Free" or "₹200"
+    type: String, // "Free" or "₹200" — display label
+  },
+
+  feeAmount: {
+    type: Number,
+    default: 0, // numeric INR amount for Razorpay; 0 means free
   },
 
   registrationLink: {

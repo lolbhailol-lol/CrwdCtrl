@@ -16,6 +16,12 @@ const FestOrganizer = require('../model/fest_organizer_model');
 const User = require('../model/usermodel');
 const Event = require('../model/event_model');
 const Competition = require('../model/competition_model');
+const { parseTicketPrice } = require('../utils/platformFee');
+
+const getCompetitionBaseFee = (registrationFee, feeAmount) => {
+    const numericFeeAmount = parseTicketPrice(feeAmount);
+    return numericFeeAmount || parseTicketPrice(registrationFee);
+};
 
 // ✅ Enhanced in-memory cache system for better Cloud Run performance
 const cache = {
@@ -867,6 +873,7 @@ exports.createCompetition = async (req, res) => {
             minTeamSize,
             maxTeamSize,
             registrationFee,
+            feeAmount,
             prizePool,
             prizes,
             rules,
@@ -942,6 +949,7 @@ exports.createCompetition = async (req, res) => {
             minTeamSize: minSize,
             maxTeamSize: maxSize,
             registrationFee: registrationFee || 0,
+            feeAmount: getCompetitionBaseFee(registrationFee, feeAmount),
             prizePool: prizePool || 0,
             prizes: prizes || [],
             rules: rules || [],
@@ -1097,6 +1105,13 @@ exports.updateCompetition = async (req, res) => {
                 competition[key] = req.body[key];
             }
         });
+
+        if (req.body.registrationFee !== undefined || req.body.feeAmount !== undefined) {
+            competition.feeAmount = getCompetitionBaseFee(
+                req.body.registrationFee ?? competition.registrationFee,
+                req.body.feeAmount ?? competition.feeAmount
+            );
+        }
 
         await competition.save();
 

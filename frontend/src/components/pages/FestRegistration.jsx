@@ -3,6 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { openRazorpayCheckout } from '../../utils/useRazorpay';
+import { parseTicketPrice } from '../../utils/platformFee';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -12,11 +14,13 @@ export default function FestRegistration() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const competitionId = searchParams.get('competition');
-  const { isAuthenticated, isLoading: authLoading, token: authToken, isAuthProcessing, isRedirectProcessing } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, token: authToken, isAuthProcessing, isRedirectProcessing, user: authUser } = useAuth();
+
   const { isDark } = useDarkMode();
   
   const [fest, setFest] = useState(null);
   const [competition, setCompetition] = useState(null);
+  const [priceBreakdown, setPriceBreakdown] = useState(null);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -24,17 +28,15 @@ export default function FestRegistration() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState({});
-  // ✅ NEW: Payment receipt upload state
-  const [paymentReceipt, setPaymentReceipt] = useState(null);
-  const [paymentReceiptUrl, setPaymentReceiptUrl] = useState('');
-  const [uploadingReceipt, setUploadingReceipt] = useState(false);
-  const [receiptError, setReceiptError] = useState('');
-  // ✅ NEW: Transaction ID state
-  const [transactionId, setTransactionId] = useState('');
+  // Razorpay verified payment fields
+  const [razorpayPaymentFields, setRazorpayPaymentFields] = useState(null);
   // ✅ NEW: Multi-step form state
   const [currentStep, setCurrentStep] = useState(1);
   const [stepData, setStepData] = useState({});
   const [completedSteps, setCompletedSteps] = useState(new Set());
+  // Razorpay direct payment state
+  const [razorpayLoading, setRazorpayLoading] = useState(false);
+  const [razorpayError, setRazorpayError] = useState('');
 
   const isCompetitionRegistration = !!competitionId;
 
@@ -131,13 +133,6 @@ export default function FestRegistration() {
       return fest?.registration?.formSchema || [];
     }
     
-    // ✅ NEW: If this is the payment step (last step with QR), return empty fields
-    const baseSteps = fest.registration.steps.length;
-    const isPaymentStep = fest.registration.paymentQR && currentStep > baseSteps;
-    
-    if (isPaymentStep) {
-      return []; // Payment step has no form fields
-    }
     
     const step = fest.registration.steps.find(s => s.stepNumber === currentStep);
     return step?.fields || [];
@@ -146,11 +141,7 @@ export default function FestRegistration() {
   const getTotalSteps = () => {
     if (!isMultiStepForm()) return 1;
     
-    // ✅ NEW: Add +1 for dedicated payment step if QR is configured
-    const baseSteps = fest.registration.steps.length;
-    const hasPaymentStep = fest.registration.paymentQR;
-    
-    return hasPaymentStep ? baseSteps + 1 : baseSteps;
+    return fest.registration.steps.length;
   };
 
   const getCurrentStepData = () => {
@@ -689,6 +680,22 @@ export default function FestRegistration() {
 
 
 
+  const fetchPaymentQuote = async (payload) => {
+    const token = authToken || localStorage.getItem('crwdctrl_token');
+    const quoteRes = await fetch(`${API_BASE_URL}/payment/quote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+
+    if (!quoteRes.ok) {
+      const quoteErr = await quoteRes.json().catch(() => ({}));
+      throw new Error(quoteErr.message || 'Failed to calculate payment amount');
+    }
+
+    return quoteRes.json();
+  };
+
   const fetchFestDetails = async () => {
     try {
       console.log('📡 Fetching fest details for:', festId);
@@ -707,15 +714,22 @@ export default function FestRegistration() {
       console.log('🔍 DEBUG - Raw registration data:', data.registration);
       console.log('🔍 DEBUG - Raw steps data:', data.registration?.steps);
       
-      // ✅ CRITICAL: Validate registration mode immediately
-      if (data.registration?.mode !== 'INTERNAL_FORM') {
-        console.error('❌ Invalid registration mode:', data.registration?.mode);
-        setError(`Registration is not available. Mode: ${data.registration?.mode || 'NOT_SET'}`);
-        setLoading(false);
-        return;
+      // If the fest has a Razorpay feeAmount, skip mode validation — payment replaces the form
+      if (!data.feeAmount || data.feeAmount <= 0) {
+        if (data.registration?.mode !== 'INTERNAL_FORM') {
+          console.error('❌ Invalid registration mode:', data.registration?.mode);
+          setError(`Registration is not available. Mode: ${data.registration?.mode || 'NOT_SET'}`);
+          setLoading(false);
+          return;
+        }
       }
-      
+
       setFest(data);
+      if (data.feeAmount > 0) {
+        setPriceBreakdown(await fetchPaymentQuote({ festId }));
+      } else {
+        setPriceBreakdown(null);
+      }
       
       console.log('🔍 DEBUG - Fest registration data loaded:', {
         mode: data.registration?.mode,
@@ -816,6 +830,18 @@ export default function FestRegistration() {
       }
       
       setFest(festData);
+      const competitionBaseFee = parseTicketPrice(competitionData.feeAmount) || parseTicketPrice(competitionData.registrationFee);
+      const pricedRegistrationId = isCompetitionRegistration && competitionBaseFee > 0
+        ? { competitionId }
+        : festData.feeAmount > 0
+          ? { festId }
+          : null;
+
+      if (pricedRegistrationId) {
+        setPriceBreakdown(await fetchPaymentQuote(pricedRegistrationId));
+      } else {
+        setPriceBreakdown(null);
+      }
       console.log('🔍 DEBUG - Competition fest registration data loaded:', {
         mode: festData.registration?.mode,
         formType: festData.registration?.formType,
@@ -996,109 +1022,6 @@ export default function FestRegistration() {
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = URL.createObjectURL(file);
     });
-  };
-
-  // ✅ NEW: Payment receipt upload function
-  const handlePaymentReceiptUpload = async (file) => {
-    if (!file) return;
-
-    console.log('💳 Starting payment receipt upload:', file.name);
-    setUploadingReceipt(true);
-    setReceiptError('');
-
-    try {
-      // ✅ FIX: Ensure we have a valid token BEFORE making the request
-      const validToken = authToken || localStorage.getItem('crwdctrl_token');
-      console.log('🔑 Auth token check for payment receipt upload:', {
-        hasContextToken: !!authToken,
-        hasStorageToken: !!localStorage.getItem('crwdctrl_token'),
-        finalToken: validToken ? validToken.substring(0, 20) + '...' : 'NONE',
-        tokenLength: validToken?.length
-      });
-      
-      if (!validToken) {
-        throw new Error('Authentication required. Please log in again to upload files.');
-      }
-
-      // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-      if (!allowedTypes.includes(file.type)) {
-        throw new Error('Please upload a valid image (JPG, PNG) or PDF file');
-      }
-
-      // Validate file size (5MB limit)
-      const maxSize = 5 * 1024 * 1024; // 5MB
-      if (file.size > maxSize) {
-        throw new Error('File size must be less than 5MB');
-      }
-
-      // Compress image if it's an image file
-      let processedFile = file;
-      if (file.type.startsWith('image/')) {
-        try {
-          processedFile = await compressImage(file);
-          console.log('🗜️ Receipt image compressed:', {
-            original: file.size,
-            compressed: processedFile.size,
-            reduction: Math.round((1 - processedFile.size / file.size) * 100) + '%'
-          });
-        } catch (compressionError) {
-          console.warn('⚠️ Image compression failed, using original:', compressionError);
-          processedFile = file;
-        }
-      }
-
-      // Upload to backend
-      const formData = new FormData();
-      formData.append('image', processedFile);
-
-      console.log('📤 Sending payment receipt upload with valid token...');
-      const response = await fetch(`${API_BASE_URL}/users/upload/image`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${validToken}`
-          // Don't set Content-Type - let browser set it with boundary for FormData
-        },
-        body: formData,
-        credentials: 'include', // ✅ FIX: Include cookies for production
-        mode: 'cors' // ✅ FIX: Enable CORS for production
-      });
-
-      console.log('📤 Upload response status:', response.status);
-      console.log('📤 Upload response headers:', {
-        contentType: response.headers.get('content-type'),
-        status: response.status,
-        statusText: response.statusText
-      });
-
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch {
-          // Error handled - continue
-          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
-        }
-        throw new Error(errorData.message || 'Failed to upload receipt');
-      }
-
-      const result = await response.json();
-      const uploadedUrl = result.url || result.imageUrl;
-
-      if (!uploadedUrl) {
-        throw new Error('Upload successful but no URL returned');
-      }
-
-      setPaymentReceiptUrl(uploadedUrl);
-      setPaymentReceipt(processedFile);
-      console.log('✅ Payment receipt uploaded successfully:', uploadedUrl);
-
-    } catch (error) {
-      console.error('❌ Payment receipt upload error:', error);
-      setReceiptError(error.message || 'Failed to upload payment receipt');
-    } finally {
-      setUploadingReceipt(false);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -1324,30 +1247,44 @@ export default function FestRegistration() {
 
       console.log('✅ All required fields validated');
 
-      // ✅ NEW: Validate payment receipt only on the final payment step
-      const totalSteps = getTotalSteps();
-      const hasPaymentQR = fest.registration.paymentQR;
-      const isOnPaymentStep = isMultiStepForm() && hasPaymentQR && currentStep === totalSteps;
-      
-      console.log('💳 Payment validation check:', {
-        hasPaymentQR,
-        totalSteps,
-        currentStep,
-        isOnPaymentStep,
-        hasPaymentReceiptUrl: !!paymentReceiptUrl,
-        hasTransactionId: !!transactionId.trim()
-      });
-      
-      // Only require payment receipt and transaction ID on the final payment step
-      if (isOnPaymentStep) {
-        if (!paymentReceiptUrl) {
-          console.error('❌ Payment receipt missing on payment step');
-          throw new Error('Payment receipt is required. Please upload your payment proof after scanning the QR code.');
-        }
-        if (!transactionId.trim()) {
-          console.error('❌ Transaction ID missing on payment step');
-          throw new Error('Transaction ID is required. Please enter your payment reference number.');
-        }
+      // Razorpay: open checkout if competition/fest has a fee and payment not yet done
+      const effectiveFeeAmount = priceBreakdown?.ticketPrice || (isCompetitionRegistration ? (parseTicketPrice(competition?.feeAmount) || parseTicketPrice(competition?.registrationFee)) : (fest.feeAmount || 0));
+      let verifiedPaymentFields = razorpayPaymentFields;
+      if (effectiveFeeAmount > 0 && !verifiedPaymentFields) {
+        setSubmissionProgress('Opening payment gateway...');
+        const tok = authToken || localStorage.getItem('crwdctrl_token');
+
+        const orderNotes = isCompetitionRegistration ? { competitionId } : { festId };
+        const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+          body: JSON.stringify(orderNotes),
+        });
+        if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
+        const orderData = await orderRes.json();
+
+        const { openRazorpayCheckout } = await import('../../utils/useRazorpay');
+        const paymentDescription = isCompetitionRegistration
+          ? `Register: ${competition?.name || fest.festName}`
+          : `Register: ${fest.festName}`;
+        const paymentResponse = await openRazorpayCheckout({
+          orderId: orderData.orderId,
+          currency: orderData.currency,
+          name: authUser?.name || '',
+          email: authUser?.email || '',
+          contact: authUser?.phoneNumber || authUser?.phone || '',
+          description: paymentDescription,
+        });
+
+        const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+          body: JSON.stringify(paymentResponse),
+        });
+        if (!verifyRes.ok) throw new Error('Payment verification failed. Please contact support.');
+
+        verifiedPaymentFields = paymentResponse;
+        setRazorpayPaymentFields(paymentResponse);
       }
 
       setSubmissionProgress('Preparing form data...');
@@ -1450,21 +1387,11 @@ export default function FestRegistration() {
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
 
-      // ✅ NEW: Add transaction ID if available
-      if (transactionId && transactionId.trim()) {
-        submissionFormData.append('transactionId', transactionId.trim());
-        console.log('💳 Added transaction ID to submission:', transactionId);
-      } else {
-        console.log('⚠️ No transaction ID provided');
-      }
-
-      // ✅ NEW: Add payment receipt URL if uploaded
-      if (paymentReceiptUrl) {
-        submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
-        console.log('💳 Added payment receipt URL to submission:', paymentReceiptUrl);
-        console.log('💳 FormData now contains paymentReceiptUrl');
-      } else {
-        console.log('⚠️ No payment receipt URL to add to submission');
+      // Attach Razorpay payment fields if payment was made
+      if (verifiedPaymentFields) {
+        submissionFormData.append('razorpay_order_id',   verifiedPaymentFields.razorpay_order_id);
+        submissionFormData.append('razorpay_payment_id', verifiedPaymentFields.razorpay_payment_id);
+        submissionFormData.append('razorpay_signature',  verifiedPaymentFields.razorpay_signature);
       }
 
       // ✅ PERFORMANCE: Show file submission progress
@@ -1672,6 +1599,125 @@ export default function FestRegistration() {
     );
   }
 
+  // ─── RAZORPAY DIRECT PAYMENT: if fest has a feeAmount, bypass the form ───
+  const handleRazorpayFestRegister = async () => {
+    setRazorpayLoading(true);
+    setRazorpayError('');
+    try {
+      const token = authToken || localStorage.getItem('crwdctrl_token');
+      // 1. Create order using database price + platform fee
+      const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ festId }),
+      });
+      if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
+      const orderData = await orderRes.json();
+
+      // 2. Open Razorpay checkout — prefilled with logged-in user info
+      const paymentResponse = await openRazorpayCheckout({
+        orderId: orderData.orderId,
+        currency: orderData.currency,
+        name: authUser?.name || '',
+        email: authUser?.email || '',
+        contact: authUser?.phoneNumber || authUser?.phone || '',
+        description: `Register: ${fest.festName}`,
+      });
+
+      // 3. Verify + save registration
+      const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(paymentResponse),
+      });
+      if (!regRes.ok) {
+        const errData = await regRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Registration failed after payment. Please contact support.');
+      }
+
+      setSuccess(true);
+    } catch (err) {
+      if (err.message !== 'Payment cancelled') {
+        setRazorpayError(err.message || 'Payment failed. Please try again.');
+        setTimeout(() => setRazorpayError(''), 5000);
+      }
+    } finally {
+      setRazorpayLoading(false);
+    }
+  };
+
+  // Show Razorpay payment UI when fest has a feeAmount (only for fest-only registrations, not competition registrations)
+  if (fest && !isCompetitionRegistration && fest.feeAmount > 0 && !success) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+        <div className={`w-full max-w-md rounded-2xl p-8 text-center shadow-xl ${isDark ? 'bg-[#2A2B2D]' : 'bg-white'}`}>
+          <div className="mb-6">
+            {fest.coverImage && (
+              <img src={fest.coverImage} alt={fest.festName} className="w-24 h-24 object-cover rounded-full mx-auto mb-4" />
+            )}
+            <h1 className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{fest.festName}</h1>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{fest.collegeName}</p>
+          </div>
+
+          <div className={`rounded-xl p-5 mb-6 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
+            <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Payment Breakdown</p>
+            {priceBreakdown && (
+              <div className={`space-y-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                <div className="flex justify-between gap-4">
+                  <span>Ticket Price</span>
+                  <span>₹{priceBreakdown.ticketPrice}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span>Platform Fee</span>
+                  <span>₹{priceBreakdown.platformFee}</span>
+                </div>
+                <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
+                  <span>Total</span>
+                  <span>₹{priceBreakdown.totalAmount}</span>
+                </div>
+              </div>
+            )}
+            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Secure payment via Razorpay</p>
+          </div>
+
+          {competition && (
+            <p className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              Registering for: <span className="font-semibold">{competition.name}</span>
+            </p>
+          )}
+
+          {razorpayError && (
+            <p className="text-red-400 text-sm mb-4 bg-red-900/20 border border-red-800 rounded-lg p-2">{razorpayError}</p>
+          )}
+
+          <button
+            onClick={handleRazorpayFestRegister}
+            disabled={razorpayLoading || !priceBreakdown}
+            className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {razorpayLoading ? (
+              <>
+                <Loader className="w-5 h-5 animate-spin" />
+                Processing Payment...
+              </>
+            ) : !priceBreakdown ? (
+              'Calculating Amount...'
+            ) : (
+              `Pay ₹${priceBreakdown.totalAmount} & Register`
+            )}
+          </button>
+
+          <button
+            onClick={() => navigate(-1)}
+            className={`w-full mt-3 py-2.5 rounded-xl text-sm ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'} transition`}
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!fest) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
@@ -1849,25 +1895,8 @@ export default function FestRegistration() {
 
 
         {/* Registration Form */}
-        <div className={`rounded-xl p-4 sm:p-6 ${isDark ? 'bg-[#2A2B2D]' : 'bg-white shadow-sm'}`}>
+        <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#2A2B2D] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'}`}>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Form Instructions */}
-            {fest.registration.formInstructions && (
-              <div className={`rounded-lg p-3 sm:p-4 border ${isDark ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-300'}`}>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center mt-0.5">
-                    <span className="text-white text-xs font-bold">i</span>
-                  </div>
-                  <div>
-                    <h3 className={`text-base font-semibold mb-1 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>Instructions</h3>
-                    <div className={`text-sm whitespace-pre-wrap ${isDark ? 'text-blue-100' : 'text-blue-600'}`}>
-                      {fest.registration.formInstructions}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* ✅ NEW: Multi-Step Progress Indicator */}
             {isMultiStepForm() && (
               <div className={`rounded-lg p-4 mb-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
@@ -1906,42 +1935,26 @@ export default function FestRegistration() {
                     </div>
                   ))}
                   
-                  {/* Payment step indicator (if QR is configured) */}
-                  {fest.registration.paymentQR && (
-                    <div className="flex flex-col items-center">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                        currentStep > fest.registration.steps.length
-                          ? 'bg-[#0ECCEE] text-black' 
-                          : completedSteps.has(fest.registration.steps.length + 1)
-                            ? 'bg-green-600 text-white'
-                            : isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-300 text-gray-600'
-                      }`}>
-                        {completedSteps.has(fest.registration.steps.length + 1) ? '✓' : '💳'}
-                      </div>
-                      <span className={`text-xs mt-1 text-center max-w-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Payment
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
 
             {/* ✅ NEW: Current Step Title and Description */}
             {isMultiStepForm() && (
-              <div className={`rounded-lg p-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
+              <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#1B1C1E] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                 {/* Step title and description */}
                 {currentStep <= fest.registration.steps.length ? (
                   // Regular form step
                   <>
-                    <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <h3 className={`text-xs font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepTitle}
                     </h3>
                     {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription && (
-                      <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <p className={`text-sm mb-4 mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {fest.registration.steps.find(s => s.stepNumber === currentStep)?.stepDescription}
                       </p>
                     )}
+                    <div className={`border-b mb-4 ${isDark ? 'border-gray-700/70' : 'border-gray-200'}`} />
                   </>
                 ) : (
                   // Payment step
@@ -1983,8 +1996,8 @@ export default function FestRegistration() {
 
             {/* ✅ EXISTING: Single Step Form Fields */}
             {!isMultiStepForm() && (
-              <div className={`rounded-lg p-3 sm:p-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
-                <h3 className={`text-base font-semibold mb-3 pb-2 border-b ${isDark ? 'text-white border-gray-700' : 'text-gray-900 border-gray-200'}`}>Registration Details</h3>
+              <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#1B1C1E] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+                <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>Registration Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                   {(() => {
                     const formFields = fest.registration.formSchema;
@@ -2005,205 +2018,38 @@ export default function FestRegistration() {
               </div>
             )}
 
-            {/* Payment QR Code Display - Only on dedicated payment step for multi-step forms */}
-            {fest.registration.paymentQR && (
-              !isMultiStepForm() || 
-              (isMultiStepForm() && currentStep > fest.registration.steps.length)
-            ) && (
-              <div className={`rounded-lg p-3 sm:p-4 border-2 ${isDark ? 'bg-[#1B1C1E] border-yellow-600/30' : 'bg-gray-50 border-yellow-400/50'}`}>
-                <div className={`flex items-center justify-between mb-3 pb-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <h3 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Information</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                  {/* QR Code - Left Column */}
-                  <div className="flex flex-col items-center justify-start">
-                    <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Scan QR Code</p>
-                    <div className="w-full max-w-xs flex justify-center p-4 bg-white rounded-xl">
-                      <img 
-                        src={fest.registration.paymentQR} 
-                        alt="Payment QR Code" 
-                        className="w-48 h-48 object-contain"
-                      />
+            {/* Fee box — shown before payment */}
+            {!razorpayPaymentFields && (() => {
+              if (!priceBreakdown) return null;
+              return (
+                <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#1B1C1E] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
+                  <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
+                  <div className={`space-y-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <div className="flex justify-between gap-4">
+                      <span>Ticket Price</span>
+                      <span>₹{priceBreakdown.ticketPrice}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span>Platform Fee</span>
+                      <span>₹{priceBreakdown.platformFee}</span>
+                    </div>
+                    <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
+                      <span>Total</span>
+                      <span>₹{priceBreakdown.totalAmount}</span>
                     </div>
                   </div>
-
-                  {/* Payment Details - Right Column */}
-                  <div className="flex flex-col justify-start space-y-4">
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium mb-3 uppercase tracking-wide">Or Use UPI ID</p>
-                      {(() => {
-                        const rawMsg = fest.registration.paymentQRMessage || '';
-                        const upiMatch = rawMsg.match(/([a-zA-Z0-9.\-_]+@[a-zA-Z0-9.\-]+)/);
-                        const extractedUpi = upiMatch ? upiMatch[1] : null;
-                        const cleanMsg = extractedUpi
-                          ? rawMsg.replace(/(?:UPI\s*(?:ID)?[\s:~\-]*)?[a-zA-Z0-9.\-_]+@[a-zA-Z0-9.\-]+/gi, '').replace(/\n{2,}/g, '\n').trim()
-                          : rawMsg;
-                        return (
-                          <div className="space-y-3">
-                            {cleanMsg && (
-                              <p className="text-xs text-gray-400 whitespace-pre-wrap leading-relaxed">{cleanMsg}</p>
-                            )}
-                            {extractedUpi && (
-                              <div className="space-y-3">
-                                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
-                                  <p className="text-xs text-gray-400 mb-1">UPI ID</p>
-                                  <p className="font-mono font-semibold text-white text-sm break-all">{extractedUpi}</p>
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => navigator.clipboard.writeText(extractedUpi).catch(() => {})}
-                                    className={`w-full px-3 py-2 text-sm rounded-lg font-medium transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
-                                  >
-                                    📋 Copy UPI ID
-                                  </button>
-                                  <a
-                                    href={`upi://pay?pa=${encodeURIComponent(extractedUpi)}&pn=${encodeURIComponent(fest.festName || 'CrwdCtrl')}&cu=INR`}
-                                    className="w-full px-3 py-2 text-sm rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition-colors text-center"
-                                  >
-                                    💳 Pay via UPI App
-                                  </a>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Instructions */}
-                    <div className={`rounded-lg p-3 border ${isDark ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-300'}`}>
-                      <p className={`text-xs font-medium mb-2 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>📋 Payment Steps:</p>
-                      <ol className={`text-xs space-y-1 ${isDark ? 'text-blue-200' : 'text-blue-600'}`}>
-                        <li>1. Pay using QR code or UPI ID</li>
-                        <li>2. Note your Transaction ID</li>
-                        <li>3. Upload payment screenshot below</li>
-                      </ol>
-                    </div>
-                  </div>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Razorpay secure payment — click Submit to pay and register.</p>
                 </div>
+              );
+            })()}
 
-                {/* ✅ NEW: Payment Receipt Upload Section */}
-                <div className={`mt-4 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    <Upload className="w-4 h-4" />
-                    Upload Payment Receipt <span className="text-red-400">*</span>
-                  </h4>
-                  
-                  {!paymentReceiptUrl ? (
-                    <div className="space-y-3 max-w-xs mx-auto">
-                      <div className="flex items-center justify-center w-full">
-                        <label 
-                          htmlFor="payment-receipt-upload"
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            const file = e.dataTransfer.files?.[0];
-                            if (file) {
-                              handlePaymentReceiptUpload(file);
-                            }
-                          }} 
-                          className={`flex flex-col items-center justify-center w-full h-20 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                            uploadingReceipt 
-                              ? 'border-blue-400 bg-blue-900/20' 
-                              : isDark ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70' : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
-                          }`}
-                        >
-                          <div className="flex flex-col items-center justify-center py-2">
-                            {uploadingReceipt ? (
-                              <>
-                                <Loader className="w-8 h-8 mb-2 text-blue-400 animate-spin" />
-                                <p className="text-sm text-blue-400">Uploading receipt...</p>
-                              </>
-                            ) : (
-                              <>
-                                <Upload className={`w-8 h-8 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-                                <p className={`mb-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                  <span className="font-semibold">Click or drag &amp; drop</span> payment screenshot
-                                </p>
-                                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>PNG or JPG (Max 5MB)</p>
-                              </>
-                            )}
-                          </div>
-                          <input 
-                            id="payment-receipt-upload" 
-                            type="file" 
-                            data-field-id="payment-receipt"
-                            className="hidden" 
-                            accept="image/jpeg,image/jpg,image/png"
-                            onChange={(e) => {
-                              const file = e.target.files[0];
-                              if (file) {
-                                handlePaymentReceiptUpload(file);
-                              }
-                            }}
-                            disabled={uploadingReceipt}
-                          />
-                        </label>
-                      </div>
-                      
-                      {receiptError && (
-                        <div className={`text-sm rounded-lg p-2 border ${isDark ? 'text-red-400 bg-red-900/20 border-red-800' : 'text-red-600 bg-red-50 border-red-300'}`}>
-                          {receiptError}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 p-3 bg-green-900/20 border border-green-800 rounded-lg">
-                        <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-sm text-green-400 font-medium">Payment receipt uploaded successfully</p>
-                          <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {paymentReceipt?.name} ({(paymentReceipt?.size / 1024 / 1024).toFixed(2)}MB)
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentReceiptUrl('');
-                            setPaymentReceipt(null);
-                            setReceiptError('');
-                          }}
-                          className={`text-sm underline ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
-                        >
-                          Change
-                        </button>
-                      </div>
-                      
-                      {/* Preview for images */}
-                      {paymentReceipt?.type.startsWith('image/') && (
-                        <div className="flex justify-center">
-                          <img 
-                            src={paymentReceiptUrl} 
-                            alt="Payment receipt preview" 
-                            className={`max-w-full max-h-32 object-contain rounded-lg border ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* ✅ NEW: Transaction ID Input - Always Visible Below Upload */}
-                  {paymentReceiptUrl && (
-                    <div className={`mt-4 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Transaction ID <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={transactionId}
-                        onChange={(e) => setTransactionId(e.target.value)}
-                        placeholder="Enter transaction ID from payment (e.g., UPI ref, bank ref, etc.)"
-                        className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE] ${isDark ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`}
-                      />
-                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>This helps us verify your payment</p>
-                    </div>
-                  )}
-                  
+            {/* Payment confirmed notice — shown after Razorpay payment is verified */}
+            {razorpayPaymentFields && (
+              <div className={`rounded-xl p-3 border flex items-center gap-3 ${isDark ? 'bg-green-900/15 border-green-700/40' : 'bg-green-50 border-green-300'}`}>
+                <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-green-400">Payment Confirmed</p>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Click Submit to complete your registration.</p>
                 </div>
               </div>
             )}
@@ -2214,17 +2060,17 @@ export default function FestRegistration() {
               <button
                 type="button"
                 onClick={isMultiStepForm() && currentStep > 1 ? handleStepBack : () => navigate(-1)}
-                className={`px-4 sm:px-6 py-2.5 rounded-lg border transition-colors text-sm sm:text-base ${isDark ? 'border-gray-700 text-white hover:bg-gray-800' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
+                className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm sm:text-base ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
                 disabled={submitting}
               >
                 {isMultiStepForm() && currentStep > 1 ? 'Previous Step' : 'Cancel'}
               </button>
-              
+
               {/* Next/Submit Button */}
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 sm:px-6 py-2.5 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition-colors text-sm sm:text-base flex items-center justify-center gap-2"
+                className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10"
               >
                 {submitting ? (
                   <>
@@ -2258,19 +2104,18 @@ export default function FestRegistration() {
                     baseSteps: fest.registration.steps?.length || 0,
                     isNotFinalStep: currentStep < getTotalSteps(),
                     shouldShowNextStep: isMultiStepForm() && currentStep < getTotalSteps(),
-                    hasPaymentQR: !!fest.registration.paymentQR,
-                    isPaymentStep: isMultiStepForm() && fest.registration.paymentQR && currentStep > (fest.registration.steps?.length || 0)
+                    hasFeeAmount: !!(isCompetitionRegistration ? competition?.feeAmount : fest.feeAmount),
+                    paymentDone: !!razorpayPaymentFields
                   });
-                  
+
                   if (isMultiStepForm() && currentStep < getTotalSteps()) {
-                    // Check if next step is payment step
-                    const nextStepIsPayment = fest.registration.paymentQR && currentStep === (fest.registration.steps?.length || 0);
-                    return nextStepIsPayment ? 'Continue to Payment' : 'Next Step';
+                    return 'Next Step';
                   }
-                  
                   // Final step
-                  const isPaymentStep = isMultiStepForm() && fest.registration.paymentQR && currentStep > (fest.registration.steps?.length || 0);
-                  return isPaymentStep ? 'Complete Payment & Registration' : 'Submit Registration';
+                  if (priceBreakdown && !razorpayPaymentFields) {
+                    return `Pay ₹${priceBreakdown.totalAmount} & Register`;
+                  }
+                  return 'Submit Registration';
                 })()}
               </button>
             </div>

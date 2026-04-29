@@ -5,13 +5,15 @@ const {
   submitRegistration,
   submitCompetitionRegistration,
   submitCustomCompetitionRegistration,
+  payAndRegisterFest,
+  payAndRegister,
   getUserRegistration,
   getFestRegistrations,
   updateRegistrationStatus,
   getUserRegistrations,
   getRegistrationDetails,
   testGoogleSheets,
-  diagnoseGoogleSheets, // ✅ NEW: Import the diagnostic function
+  diagnoseGoogleSheets,
   upload
 } = require('../controllers/registrationController');
 
@@ -79,6 +81,10 @@ router.post(
   },
   submitCustomCompetitionRegistration
 );
+
+// Razorpay-only registration — no form, uses user profile data
+router.post('/fests/:festId/pay-and-register', authenticateToken, payAndRegisterFest);
+router.post('/competitions/:competitionId/pay-and-register', authenticateToken, payAndRegister);
 
 // File upload for registrations
 router.post('/upload', authenticateToken, upload.any(), async (req, res) => {

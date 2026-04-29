@@ -1,11 +1,12 @@
 const Registration = require('../model/registration_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const User = require('../model/usermodel');
-const { appendToGoogleSheets, testGoogleSheetsConnection } = require('../services/googleSheetsService');
+const { testGoogleSheetsConnection, appendPaymentOnlyToSheets } = require('../services/googleSheetsService');
 const { uploadToCloudinary } = require('../services/cloudinaryService');
 const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOrganizerNotificationEmail } = require('../services/emailService');
 const { createNotification } = require('./notificationController');
 const { sendPushNotification } = require('../services/pushService');
+const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const multer = require('multer');
 
 // Configure multer for file uploads
@@ -287,6 +288,41 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       }
     }
 
+    // ✅ RAZORPAY: Verify payment if competition has a fee
+    let razorpayOrderId = null;
+    let razorpayPaymentId = null;
+    let razorpaySignature = null;
+    let paymentStatus = 'free';
+    const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
+    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice).totalAmount;
+
+    if (competitionTicketPrice > 0) {
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ error: 'Payment is required for this competition. Please complete payment before registering.' });
+      }
+
+      // Re-verify signature server-side (second check — defence in depth)
+      const crypto = require('crypto');
+      const hmacBody = razorpay_order_id + '|' + razorpay_payment_id;
+      const expectedSig = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(hmacBody)
+        .digest('hex');
+
+      if (expectedSig !== razorpay_signature) {
+        console.error('❌ Razorpay signature mismatch on registration gate');
+        return res.status(400).json({ error: 'Payment verification failed. Please try again.' });
+      }
+
+      razorpayOrderId = razorpay_order_id;
+      razorpayPaymentId = razorpay_payment_id;
+      razorpaySignature = razorpay_signature;
+      paymentStatus = 'paid';
+      console.log('✅ Razorpay payment verified:', razorpayPaymentId);
+    }
+
     // Create registration ID
     const registrationId = `COMP_REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log('🆔 Generated registration ID:', registrationId);
@@ -323,7 +359,12 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       user: userId,
       competitionId: competition._id,
       responses: responses,
-      status: 'pending', // Use valid enum value: 'pending', 'approved', 'rejected'
+      status: 'pending',
+      razorpay_order_id: razorpayOrderId,
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_signature: razorpaySignature,
+      paymentStatus,
+      amountPaid: paymentStatus === 'paid' ? competitionTotalAmount : 0,
       submittedAt: new Date()
     });
 
@@ -457,25 +498,21 @@ const submitCustomCompetitionRegistration = async (req, res) => {
           try {
             console.log('📊 Adding registration to Google Sheets (async)...');
             const { appendToCompetitionGoogleSheets } = require('../services/googleSheetsService');
-            
+
+            // Inject Razorpay Payment ID so it appears as a column
+            if (razorpayPaymentId) responses['Razorpay Payment ID'] = razorpayPaymentId;
+
             // Get form schema based on form type
             let formSchema = [];
             const formType = competition.registration?.formType || 'SINGLE_STEP';
             if (formType === 'SINGLE_STEP') {
               formSchema = competition.registration?.formSchema || [];
             } else if (formType === 'MULTI_STEP') {
-              // For MULTI_STEP, combine all fields from all steps
               formSchema = (competition.registration?.steps || []).reduce((allFields, step) => {
                 return allFields.concat(step.fields || []);
               }, []);
             }
-            
-            console.log('📊 Form schema for Google Sheets:', {
-              formType,
-              totalFields: formSchema.length,
-              responses: Object.keys(responses)
-            });
-            
+
             await appendToCompetitionGoogleSheets(
               competition.registration.googleSheetsUrl,
               responses,
@@ -506,9 +543,9 @@ const submitCustomCompetitionRegistration = async (req, res) => {
   } catch (error) {
     console.error('❌ Competition registration error:', error);
     console.error('❌ Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Registration failed', 
-      details: error.message 
+    res.status(500).json({
+      error: 'Registration failed',
+      details: error.message
     });
   }
 };
@@ -776,13 +813,52 @@ const submitCompetitionRegistration = async (req, res) => {
 
     console.log('✅ All required fields validated');
 
+    // ✅ RAZORPAY: Verify payment if competition has a fee
+    let rzpOrderId = null;
+    let rzpPaymentId = null;
+    let rzpSignature = null;
+    let rzpPaymentStatus = 'free';
+    const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
+    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice).totalAmount;
+
+    if (competitionTicketPrice > 0) {
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ error: 'Payment is required for this competition. Please complete payment before registering.' });
+      }
+
+      const crypto = require('crypto');
+      const hmacBody = razorpay_order_id + '|' + razorpay_payment_id;
+      const expectedSig = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(hmacBody)
+        .digest('hex');
+
+      if (expectedSig !== razorpay_signature) {
+        console.error('❌ Razorpay signature mismatch (competition route)');
+        return res.status(400).json({ error: 'Payment verification failed. Please try again.' });
+      }
+
+      rzpOrderId = razorpay_order_id;
+      rzpPaymentId = razorpay_payment_id;
+      rzpSignature = razorpay_signature;
+      rzpPaymentStatus = 'paid';
+      console.log('✅ Razorpay payment verified (competition route):', rzpPaymentId);
+    }
+
     // Create registration with competition reference
     const registration = new Registration({
       fest: competition.fest._id,
       user: userId,
-      responses: processedResponses, // Use processed responses with fieldNames
+      responses: processedResponses,
       status: 'pending',
-      competitionId: competitionId // Add competition reference
+      competitionId: competitionId,
+      razorpay_order_id: rzpOrderId,
+      razorpay_payment_id: rzpPaymentId,
+      razorpay_signature: rzpSignature,
+      paymentStatus: rzpPaymentStatus,
+      amountPaid: rzpPaymentStatus === 'paid' ? competitionTotalAmount : 0,
     });
 
     console.log('💾 Saving registration with competitionId:', competitionId);
@@ -887,38 +963,43 @@ const submitCompetitionRegistration = async (req, res) => {
         }
 
         // STEP 3: Add to Google Sheets (async, non-blocking)
-        if (fest.registration.googleSheetsUrl) {
+        // Check both the fest's URL and the competition's own URL as fallback
+        const compSheetsUrl = fest.registration?.googleSheetsUrl || competition.registration?.googleSheetsUrl;
+        if (compSheetsUrl) {
           try {
-            console.log('📊 Adding registration to Google Sheets (async)...');
-            console.log('📊 Including payment receipt in sheets:', {
-              hasPaymentReceipt: !!processedResponses['Payment Receipt'],
-              paymentReceiptValue: processedResponses['Payment Receipt'],
-              hasTransactionId: !!processedResponses['Transaction ID'],
-              transactionIdValue: processedResponses['Transaction ID'],
-              allResponseKeys: Object.keys(processedResponses)
-            });
-            const sheetsResult = await appendToGoogleSheets(
-              fest.registration.googleSheetsUrl,
-              processedResponses, // Use processed responses
+            const { appendToCompetitionGoogleSheets } = require('../services/googleSheetsService');
+
+            // Inject Razorpay Payment ID so it appears as a column
+            if (rzpPaymentId) processedResponses['Razorpay Payment ID'] = rzpPaymentId;
+
+            console.log('📊 Saving to Google Sheets:', compSheetsUrl);
+            console.log('📊 Responses keys:', Object.keys(processedResponses));
+
+            const sheetsResult = await appendToCompetitionGoogleSheets(
+              compSheetsUrl,
+              processedResponses,
               {
                 festName: fest.festName,
-                collegeName: fest.collegeName,
-                competitionName: competition.name, // Add competition name
-                festId: fest._id
+                competitionName: competition.name,
+                registrationId: registration._id.toString(),
               },
               {
                 name: user.name,
-                email: user.email
-              }
+                email: user.email,
+                phone: user.phoneNumber || '',
+              },
+              formSchema   // already computed — no extra DB fetch needed
             );
-            console.log('✅ Registration added to Google Sheets successfully');
-            
-            if (!sheetsResult.success) {
+            if (sheetsResult.success) {
+              console.log('✅ Competition registration saved to Google Sheets');
+            } else {
               console.warn('⚠️ Google Sheets sync failed:', sheetsResult.error);
             }
           } catch (sheetsError) {
             console.error('⚠️ Google Sheets update failed:', sheetsError.message);
           }
+        } else {
+          console.log('ℹ️ No Google Sheets URL configured for this fest/competition — skipping');
         }
 
         console.log('🎉 All async operations completed for competition registration');
@@ -1282,40 +1363,48 @@ const submitRegistration = async (req, res) => {
         
         // Append to Google Sheets if configured (async, non-blocking)
         if (fest.registration.googleSheetsUrl) {
-          console.log('📊 Google Sheets sync starting (async)...');
-          console.log('📊 Including payment receipt in sheets:', {
-            hasPaymentReceipt: !!responses['Payment Receipt'],
-            paymentReceiptValue: responses['Payment Receipt'],
-            hasTransactionId: !!responses['Transaction ID'],
-            transactionIdValue: responses['Transaction ID'],
-            allResponseKeys: Object.keys(responses)
-          });
           try {
-            const sheetsResult = await appendToGoogleSheets(
+            const { appendToCompetitionGoogleSheets } = require('../services/googleSheetsService');
+            console.log('📊 Saving fest registration to Google Sheets:', fest.registration.googleSheetsUrl);
+            console.log('📊 Responses keys:', Object.keys(responses));
+
+            // Map responses to fieldName keys so they match the schema
+            const mappedResponses = {};
+            formSchema.forEach(field => {
+              const key = field.fieldName || field.id;
+              if (key && responses[key] !== undefined) mappedResponses[key] = responses[key];
+            });
+            // Preserve special columns
+            if (responses['Payment Receipt']) mappedResponses['Payment Receipt'] = responses['Payment Receipt'];
+            if (responses['Transaction ID']) mappedResponses['Transaction ID'] = responses['Transaction ID'];
+            if (responses['Razorpay Payment ID']) mappedResponses['Razorpay Payment ID'] = responses['Razorpay Payment ID'];
+
+            const sheetsResult = await appendToCompetitionGoogleSheets(
               fest.registration.googleSheetsUrl,
-              responses,
+              mappedResponses,
               {
                 festName: fest.festName,
-                collegeName: fest.collegeName,
-                festId: festId
+                competitionName: '',   // fest-level registration, no specific competition
+                registrationId: registration._id.toString(),
               },
               {
                 name: user.name,
-                email: user.email
-              }
+                email: user.email,
+                phone: user.phoneNumber || '',
+              },
+              formSchema
             );
-            
-            console.log('📊 Google Sheets integration result:', sheetsResult);
-            
-            if (!sheetsResult.success) {
+
+            if (sheetsResult.success) {
+              console.log('✅ Fest registration saved to Google Sheets');
+            } else {
               console.warn('⚠️ Google Sheets sync failed:', sheetsResult.error);
             }
           } catch (sheetsError) {
-            console.error('❌ Google Sheets integration error:', sheetsError);
-            // Don't fail the registration if Google Sheets fails
+            console.error('❌ Google Sheets integration error:', sheetsError.message);
           }
         } else {
-          console.log('ℹ️ No Google Sheets URL configured for this fest');
+          console.log('ℹ️ No Google Sheets URL configured for this fest — skipping');
         }
 
         // STEP 1: Send immediate thank you email (async)
@@ -1736,16 +1825,259 @@ const getRegistrationDetails = async (req, res) => {
   }
 };
 
+// Pay-and-register for FESTS: Razorpay-only flow, uses user profile data
+// POST /api/registrations/fests/:festId/pay-and-register
+const payAndRegisterFest = async (req, res) => {
+  try {
+    const { festId } = req.params;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const userId = req.user.userId;
+
+    const fest = await FestOrganizer.findById(festId);
+    if (!fest) return res.status(404).json({ error: 'Fest not found' });
+
+    if (!fest.feeAmount || fest.feeAmount <= 0) {
+      return res.status(400).json({ error: 'This fest does not require payment' });
+    }
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ error: 'Missing payment fields' });
+    }
+
+    // Verify Razorpay HMAC signature
+    const crypto = require('crypto');
+    const hmacBody = razorpay_order_id + '|' + razorpay_payment_id;
+    const expected = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(hmacBody)
+      .digest('hex');
+
+    if (expected !== razorpay_signature) {
+      return res.status(400).json({ error: 'Payment verification failed' });
+    }
+
+    // Prevent duplicate registrations
+    const existing = await Registration.findOne({ fest: festId, user: userId, competitionId: null });
+    if (existing) {
+      return res.status(400).json({ error: 'You have already registered for this fest' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const registration = new Registration({
+      fest: festId,
+      user: userId,
+      responses: {
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+      },
+      status: 'approved',
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      paymentStatus: 'paid',
+      amountPaid: fest.feeAmount,
+      submittedAt: new Date(),
+    });
+
+    await registration.save();
+    console.log('✅ Fest pay-and-register saved:', registration._id);
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      registrationId: registration._id,
+      festName: fest.festName,
+      amountPaid: fest.feeAmount,
+    });
+
+    setImmediate(async () => {
+      try {
+        await createNotification({
+          userId,
+          title: 'Fest Registration Confirmed!',
+          message: `You've successfully registered for ${fest.festName}.`,
+          type: 'registration',
+          link: `/registration-details/${registration._id}`,
+          metadata: { festId: fest._id, registrationId: registration._id },
+        });
+        sendPushNotification(userId, {
+          title: 'Fest Registration Confirmed!',
+          body: `You've registered for ${fest.festName}`,
+          link: `/registration-details/${registration._id}`,
+          type: 'registration',
+        }).catch(() => {});
+        await sendRegistrationThankYouEmail(user.email, user.name, fest.festName).catch(() => {});
+        await sendRegistrationConfirmationEmail(
+          user.email, user.name,
+          fest.festName, null,
+          registration._id.toString(),
+          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+        ).catch(() => {});
+
+        // Google Sheets
+        if (fest.registration?.googleSheetsUrl) {
+          await appendPaymentOnlyToSheets(fest.registration.googleSheetsUrl, {
+            name: user.name,
+            email: user.email,
+            phone: user.phoneNumber || '',
+            amountPaid: fest.feeAmount,
+            razorpayPaymentId: razorpay_payment_id,
+            entityName: fest.festName,
+            entityType: 'Fest',
+          }).catch(e => console.error('❌ Sheets error (payAndRegisterFest):', e.message));
+        }
+      } catch (bgErr) {
+        console.error('❌ fest pay-and-register background error:', bgErr);
+      }
+    });
+  } catch (err) {
+    console.error('❌ payAndRegisterFest error:', err);
+    res.status(500).json({ error: 'Registration failed', details: err.message });
+  }
+};
+
+// Pay-and-register for COMPETITIONS: Razorpay-only flow with no form
+// POST /api/registrations/competitions/:competitionId/pay-and-register
+// Body: { razorpay_order_id, razorpay_payment_id, razorpay_signature }
+const payAndRegister = async (req, res) => {
+  try {
+    const { competitionId } = req.params;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const userId = req.user.userId;
+
+    const Competition = require('../model/competition_model');
+    const competition = await Competition.findById(competitionId).populate('fest');
+    if (!competition) return res.status(404).json({ error: 'Competition not found' });
+    const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
+    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice).totalAmount;
+
+    if (competitionTicketPrice <= 0) {
+      return res.status(400).json({ error: 'This competition does not require payment' });
+    }
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ error: 'Missing payment fields' });
+    }
+
+    // Verify Razorpay HMAC signature
+    const crypto = require('crypto');
+    const hmacBody = razorpay_order_id + '|' + razorpay_payment_id;
+    const expected = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(hmacBody)
+      .digest('hex');
+
+    if (expected !== razorpay_signature) {
+      return res.status(400).json({ error: 'Payment verification failed' });
+    }
+
+    // Prevent duplicate registrations
+    const existing = await Registration.findOne({
+      fest: competition.fest._id,
+      user: userId,
+      competitionId: competition._id,
+    });
+    if (existing) {
+      return res.status(400).json({ error: 'You have already registered for this competition' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const registration = new Registration({
+      fest: competition.fest._id,
+      user: userId,
+      competitionId: competition._id,
+      responses: {
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+      },
+      status: 'approved',
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      paymentStatus: 'paid',
+      amountPaid: competitionTotalAmount,
+      submittedAt: new Date(),
+    });
+
+    await registration.save();
+    console.log('✅ Pay-and-register saved:', registration._id);
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      registrationId: registration._id,
+      competitionName: competition.name,
+      amountPaid: competitionTotalAmount,
+    });
+
+    // Background: notifications + emails
+    setImmediate(async () => {
+      try {
+        await createNotification({
+          userId,
+          title: 'Registration Confirmed!',
+          message: `You've successfully registered for ${competition.name}.`,
+          type: 'registration',
+          link: `/registration-details/${registration._id}`,
+          metadata: { competitionId: competition._id, festId: competition.fest?._id, registrationId: registration._id },
+        });
+        sendPushNotification(userId, {
+          title: 'Registration Confirmed!',
+          body: `You've registered for ${competition.name}`,
+          link: `/registration-details/${registration._id}`,
+          type: 'registration',
+        }).catch(() => {});
+
+        await sendRegistrationThankYouEmail(user.email, user.name, competition.name).catch(() => {});
+        await sendRegistrationConfirmationEmail(
+          user.email, user.name,
+          competition.fest?.festName || competition.name,
+          competition.name,
+          registration._id.toString(),
+          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+        ).catch(() => {});
+
+        // Google Sheets — use the fest's Google Sheets URL if configured
+        const sheetsUrl = competition.fest?.registration?.googleSheetsUrl;
+        if (sheetsUrl) {
+          await appendPaymentOnlyToSheets(sheetsUrl, {
+            name: user.name,
+            email: user.email,
+            phone: user.phoneNumber || '',
+            amountPaid: competitionTotalAmount,
+            razorpayPaymentId: razorpay_payment_id,
+            entityName: competition.name,
+            entityType: 'Competition',
+          }).catch(e => console.error('❌ Sheets error (payAndRegister):', e.message));
+        }
+      } catch (bgErr) {
+        console.error('❌ pay-and-register background error:', bgErr);
+      }
+    });
+  } catch (err) {
+    console.error('❌ payAndRegister error:', err);
+    res.status(500).json({ error: 'Registration failed', details: err.message });
+  }
+};
+
 module.exports = {
   submitRegistration,
   submitCompetitionRegistration,
   submitCustomCompetitionRegistration,
+  payAndRegisterFest,
+  payAndRegister,
   getUserRegistration,
   getFestRegistrations,
   updateRegistrationStatus,
   getUserRegistrations,
   getRegistrationDetails,
   testGoogleSheets,
-  diagnoseGoogleSheets, // ✅ NEW: Export the new diagnostic function
-  upload // Export multer middleware
+  diagnoseGoogleSheets,
+  upload
 };

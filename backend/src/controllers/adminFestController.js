@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Competition = require('../model/competition_model');
+const { parseTicketPrice } = require('../utils/platformFee');
 const User = require('../model/usermodel'); // Check if your file is userModel.js or user.js
 const { sendEventBroadcast } = require('../services/emailService');
 
@@ -16,6 +17,11 @@ const clearFestsCache = () => {
     festsCache.data = null;
     festsCache.timestamp = 0;
     console.log('🗑️ Admin: Fests cache cleared');
+};
+
+const getCompetitionBaseFee = (registrationFee, feeAmount) => {
+  const numericFeeAmount = parseTicketPrice(feeAmount);
+  return numericFeeAmount || parseTicketPrice(registrationFee);
 };
 
 // In adminFestController.js
@@ -402,6 +408,7 @@ exports.createCompetition = async (req, res) => {
       commonRulesMessage, // NEW: message field for common rules
       rounds,
       registrationFee,
+      feeAmount,
       registrationLink,
       registrationFields,
       contact,
@@ -458,6 +465,7 @@ exports.createCompetition = async (req, res) => {
       commonRulesMessage: commonRulesMessage || '', // NEW: message field for common rules
       rounds: rounds || [],
       registrationFee: registrationFee || 'Free',
+      feeAmount: getCompetitionBaseFee(registrationFee, feeAmount),
       registrationLink: registrationLink || '',
       registrationFields: registrationFields || [],
       contact: contact || {},

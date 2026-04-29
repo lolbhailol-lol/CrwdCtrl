@@ -772,6 +772,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     venueDetails: '',
     festType: 'cultural', // cultural | technical | sports
     ticketPrice: '',
+    feeAmount: 0,
     description: '',
     status: 'upcoming', // ongoing | upcoming | completed | lastyearhit
     registrationLink: '',
@@ -1147,6 +1148,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         venueDetails: fest.venue || fest.location || '',
         festType: fest.festType || fest.category || 'cultural',
         ticketPrice: fest.ticketPrice || '',
+        feeAmount: fest.feeAmount || 0,
         description: fest.description || fest.overview || '',
         status: fest.status === 'lastyearhit' ? 'completed' : fest.status || 'upcoming',
         registrationLink: fest.registrationLink || fest.websiteLink || '',
@@ -1457,12 +1459,6 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     // Validate internal form mandatory fields
     if (form.registrationMode === 'INTERNAL_FORM') {
       console.log('🔍 Validating internal form fields...');
-      if (!form.paymentQR) {
-        console.error('❌ Payment QR missing');
-        setError('Payment QR code is required for internal form registration');
-        setLoading(false);
-        return;
-      }
       if (!form.googleSheetsUrl) {
         console.error('❌ Google Sheets URL missing');
         setError('Google Sheets URL is required for internal form registration');
@@ -1504,6 +1500,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       festDate: form.festDate,        // ✅ single date field
       venue: form.venueDetails,
       ticketPrice: form.ticketPrice,
+      feeAmount: form.feeAmount || 0,
       description: form.description,
       registrationLink: form.registrationLink,
       status: form.status,
@@ -1887,6 +1884,22 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Razorpay Fee Amount (₹) <span className="text-gray-400 font-normal text-xs">— amount shown on payment gateway</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0 for free"
+                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  value={form.feeAmount || 0}
+                  onChange={(e) => setForm({ ...form, feeAmount: Number(e.target.value) })}
+                />
+                <p className="text-xs text-gray-500 mt-1">Set to 0 for free. When &gt; 0, users pay via Razorpay before registering.</p>
+              </div>
+
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-2">Fest Images (can add more than one)</label>
                 <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center">
@@ -2265,20 +2278,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <div className="bg-[#2A2B2D] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Basic Configuration</h5>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Form Instructions */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium mb-2">Form Instructions</label>
-                      <textarea
-                        rows={3}
-                        placeholder="Enter instructions that will be displayed at the start of the registration form..."
-                        className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none text-sm"
-                        value={form.formInstructions}
-                        onChange={(e) => setForm({ ...form, formInstructions: e.target.value })}
-                      />
-                      <p className="text-xs text-gray-400">These instructions will appear at the top of the registration form</p>
-                    </div>
-
+                  <div className="grid grid-cols-1 gap-4">
                     {/* Organizer Email */}
                     <div className="space-y-2">
                       <label className="block text-sm font-medium mb-2">Organizer Email *</label>
@@ -2545,74 +2545,6 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Payment Information</h5>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Payment QR Upload - Compact */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium mb-2">Payment QR Code *</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files[0];
-                            if (file) {
-                              setUploadingImage(true);
-                              try {
-                                const formData = new FormData();
-                                formData.append('image', file);
-                                formData.append('folder', 'crwdctrl/payment-qr');
-
-                                const response = await fetch(`${API_BASE_URL}/admin/upload/image`, {
-                                  method: 'POST',
-                                  headers: {
-                                    Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-                                  },
-                                  body: formData,
-                                });
-
-                                if (!response.ok) throw new Error('Upload failed');
-                                const data = await response.json();
-                                setForm({ ...form, paymentQR: data.url });
-                              } catch (error) {
-                                console.error('Payment QR upload error:', error?.message);
-                                setError('Failed to upload payment QR');
-                              } finally {
-                                setUploadingImage(false);
-                              }
-                            }
-                          }}
-                          className="hidden"
-                          id="paymentQR"
-                        />
-                        <label
-                          htmlFor="paymentQR"
-                          className="px-3 py-2 bg-[#1B1C1E] border border-gray-700 rounded-lg cursor-pointer hover:bg-[#3A3B3D] transition-colors flex items-center gap-2 text-sm"
-                        >
-                          {uploadingImage ? <Loader className="w-4 h-4 animate-spin" /> : <Upload size={16} />}
-                          {uploadingImage ? 'Uploading...' : 'Upload QR'}
-                        </label>
-                        {form.paymentQR && (
-                          <div className="flex items-center gap-2">
-                            <img src={form.paymentQR} alt="Payment QR" className="w-10 h-10 object-cover rounded" />
-                            <span className="text-xs text-green-400">✓ Uploaded</span>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-400">Upload QR code for payment processing</p>
-                    </div>
-
-                    {/* Payment QR Message */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium mb-2">Payment Instructions</label>
-                      <textarea
-                        rows={3}
-                        placeholder="Enter payment instructions (e.g., Scan QR to pay ₹500 registration fee...)"
-                        className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none text-sm"
-                        value={form.paymentQRMessage}
-                        onChange={(e) => setForm({ ...form, paymentQRMessage: e.target.value })}
-                      />
-                      <p className="text-xs text-gray-400">This message will be displayed with the QR code</p>
-                    </div>
-
                     {/* WhatsApp Community Link (Optional) */}
                     <div className="space-y-2">
                       <label className="block text-sm font-medium mb-2">WhatsApp Community Link <span className="text-gray-400">(Optional)</span></label>

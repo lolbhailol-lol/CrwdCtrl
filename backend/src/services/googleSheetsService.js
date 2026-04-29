@@ -57,15 +57,9 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
       headers.push(field.label); // Use label for column headers
     });
     
-    // ✅ ALWAYS add Payment Receipt column if it exists in responses
-    if (responses['Payment Receipt']) {
-      headers.push('Payment Receipt');
-    }
-
-    // ✅ ALWAYS add Transaction ID column if it exists in responses
-    if (responses['Transaction ID']) {
-      headers.push('Transaction ID');
-    }
+    if (responses['Payment Receipt']) headers.push('Payment Receipt');
+    if (responses['Transaction ID']) headers.push('Transaction ID');
+    if (responses['Razorpay Payment ID']) headers.push('Razorpay Payment ID');
 
     // Add headers if sheet is empty or headers don't match
     if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
@@ -242,27 +236,21 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
       }
     }
 
-    // ✅ ALWAYS add Transaction ID data if available in responses
     if (responses['Transaction ID']) {
-      const transactionId = responses['Transaction ID'];
-      console.log('💰 Processing competition transaction ID from responses:', transactionId);
-      
-      if (transactionId && typeof transactionId === 'string' && transactionId.trim()) {
-        // Add transaction ID directly
-        rowData.push(transactionId);
-        console.log('✅ Competition transaction ID added to Google Sheets row data');
-      } else {
-        rowData.push('');
-        console.log('⚠️ Competition transaction ID not valid');
-      }
+      const tid = responses['Transaction ID'];
+      rowData.push(tid && typeof tid === 'string' && tid.trim() ? tid : '');
     }
 
+    if (responses['Razorpay Payment ID']) {
+      rowData.push(responses['Razorpay Payment ID']);
+      console.log('✅ Razorpay Payment ID added to competition sheets row');
+    }
 
     // Append the new row
     const appendResponse = await sheets.spreadsheets.values.append({
       spreadsheetId: spreadsheetId,
       range: `${sheetName}!A:A`,
-      valueInputOption: 'USER_ENTERED', // This is crucial - it processes formulas
+      valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       resource: {
         values: [rowData],
@@ -378,15 +366,9 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       headers.push(field.label); // Use label for column headers
     });
     
-    // ✅ ALWAYS add Payment Receipt column if it exists in responses
-    if (responses['Payment Receipt']) {
-      headers.push('Payment Receipt');
-    }
-
-    // ✅ ALWAYS add Transaction ID column if it exists in responses
-    if (responses['Transaction ID']) {
-      headers.push('Transaction ID');
-    }
+    if (responses['Payment Receipt']) headers.push('Payment Receipt');
+    if (responses['Transaction ID']) headers.push('Transaction ID');
+    if (responses['Razorpay Payment ID']) headers.push('Razorpay Payment ID');
 
     // Add headers if sheet is empty or headers don't match
     const hasPaymentReceiptInResponses = !!responses['Payment Receipt'];
@@ -522,21 +504,15 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       console.log('⚠️ No payment receipt in responses - Payment Receipt column will be empty');
     }
 
-    // ✅ ALWAYS add Transaction ID data if available in responses
     if (responses['Transaction ID']) {
-      const transactionId = responses['Transaction ID'];
-      console.log('💰 Processing transaction ID from responses:', transactionId);
-      
-      if (transactionId && typeof transactionId === 'string' && transactionId.trim()) {
-        // Add transaction ID directly
-        rowData.push(transactionId);
-        console.log('✅ Transaction ID added to Google Sheets row data');
-      } else {
-        rowData.push('');
-        console.log('⚠️ Transaction ID not valid');
-      }
-    } else {
-      console.log('⚠️ No transaction ID in responses - Transaction ID column will be empty');
+      const tid = responses['Transaction ID'];
+      rowData.push(tid && typeof tid === 'string' && tid.trim() ? tid : '');
+      console.log('✅ Transaction ID added to Google Sheets row data');
+    }
+
+    if (responses['Razorpay Payment ID']) {
+      rowData.push(responses['Razorpay Payment ID']);
+      console.log('✅ Razorpay Payment ID added to sheets row');
     }
 
     console.log('📊 Row data prepared:', {
@@ -712,9 +688,68 @@ const testGoogleSheetsConnection = async (googleSheetsUrl) => {
   }
 };
 
+/**
+ * Append a Razorpay-only (no-form) registration to Google Sheets.
+ * Used by payAndRegisterFest and payAndRegister where no form schema exists.
+ */
+const appendPaymentOnlyToSheets = async (googleSheetsUrl, { name, email, phone, amountPaid, razorpayPaymentId, entityName, entityType }) => {
+  try {
+    const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
+    if (!spreadsheetId) return { success: false, error: 'Invalid Google Sheets URL' };
+
+    const auth = await getGoogleAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const spreadsheetInfo = await sheets.spreadsheets.get({ spreadsheetId });
+    const sheetName = spreadsheetInfo.data.sheets[0].properties.title;
+
+    const headers = ['Timestamp', 'Name', 'Email', 'Phone', entityType || 'Event', 'Amount Paid (₹)', 'Razorpay Payment ID'];
+
+    let existingHeaders = [];
+    try {
+      const hr = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetName}!1:1` });
+      existingHeaders = hr.data.values ? hr.data.values[0] : [];
+    } catch (_) { /* no headers yet */ }
+
+    if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${sheetName}!1:1`,
+        valueInputOption: 'RAW',
+        resource: { values: [headers] },
+      });
+    }
+
+    const rowData = [
+      new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
+      name || '',
+      email || '',
+      phone || '',
+      entityName || '',
+      amountPaid || 0,
+      razorpayPaymentId || '',
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${sheetName}!A:A`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      resource: { values: [rowData] },
+    });
+
+    console.log('✅ Payment-only registration saved to Google Sheets');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ appendPaymentOnlyToSheets error:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   appendToGoogleSheets,
   appendToCompetitionGoogleSheets,
+  appendPaymentOnlyToSheets,
   validateGoogleSheetsUrl,
   testGoogleSheetsConnection,
   extractSpreadsheetId

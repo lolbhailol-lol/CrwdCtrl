@@ -14,6 +14,7 @@ const publicFestRoutes = require("./routers/publicFestRoute");
 const competitionRoutes = require("./routers/competitionRoute");
 const adminRoutes = require("./routers/adminRoute");
 const registrationRoutes = require("./routers/registrationRoute");
+const paymentRoutes = require("./routers/paymentRoute");
 
 console.log('🚀 Starting FestBuzzZ Backend Server...');
 console.log('📍 Node Environment:', process.env.NODE_ENV || 'development');
@@ -213,6 +214,7 @@ app.use("/api/fests", publicFestRoutes);
 app.use("/api/competitions", competitionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/registrations', registrationRoutes);
+app.use('/api/payment', paymentRoutes);
 
 
 // Root route

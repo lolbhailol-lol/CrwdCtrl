@@ -52,6 +52,29 @@ const registrationSchema = new mongoose.Schema({
     default: false,
   },
 
+  // Razorpay payment fields
+  razorpay_order_id: {
+    type: String,
+    default: null,
+  },
+  razorpay_payment_id: {
+    type: String,
+    default: null,
+  },
+  razorpay_signature: {
+    type: String,
+    default: null,
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['free', 'pending', 'paid', 'failed'],
+    default: 'free',
+  },
+  amountPaid: {
+    type: Number,
+    default: 0, // in INR
+  },
+
   submittedAt: {
     type: Date,
     default: Date.now

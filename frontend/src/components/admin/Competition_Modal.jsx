@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
+import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
 
 // Configure API base URL - Use Vite environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -379,7 +380,17 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
                       <div className="flex flex-wrap gap-4 text-sm text-gray-400">
                         <span>Type: <span className="text-white capitalize">{comp.competitionType}</span></span>
                         <span>Venue: <span className="text-white">{comp.venue}</span></span>
-                        <span>Fee: <span className="text-white">₹{comp.registrationFee || 0}</span></span>
+                        {(() => {
+                          const breakdown = buildPriceBreakdown(comp.feeAmount || comp.registrationFee);
+                          return (
+                            <span>
+                              Fee: <span className="text-white">₹{breakdown.ticketPrice}</span>
+                              {breakdown.ticketPrice > 0 && (
+                                <span className="text-gray-500"> · Payable ₹{breakdown.totalAmount}</span>
+                              )}
+                            </span>
+                          );
+                        })()}
                         {comp.startTime && (
                           <span>Start: <span className="text-white">{new Date(comp.startTime).toLocaleString()}</span></span>
                         )}
@@ -457,6 +468,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
     category: 'OTHER',
     prizePool: '',
     registrationFee: '',
+    feeAmount: 0,
     registrationLink: '',
     registrationType: 'fest', // 'fest' or 'custom'
     registration: {
@@ -502,6 +514,25 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
 
   // Add error boundary to catch any rendering errors
   const [hasError, setHasError] = useState(false);
+  const priceBreakdown = buildPriceBreakdown(form.feeAmount);
+
+  const updateEntryFee = (value) => {
+    const ticketPrice = parseTicketPrice(value);
+    setForm({
+      ...form,
+      registrationFee: value,
+      feeAmount: ticketPrice,
+    });
+  };
+
+  const updateNumericEntryFee = (value) => {
+    const ticketPrice = parseTicketPrice(value);
+    setForm({
+      ...form,
+      registrationFee: ticketPrice > 0 ? `₹${ticketPrice}` : 'Free',
+      feeAmount: ticketPrice,
+    });
+  };
 
   useEffect(() => {
     try {
@@ -536,6 +567,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
           category: competition.category || 'OTHER',
           prizePool: competition.prizePool ? competition.prizePool.toString() : '',
           registrationFee: competition.registrationFee || '',
+          feeAmount: parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee),
           registrationLink: competition.registrationLink || '',
           registrationType: competition.registrationType || 'fest',
           registration: {
@@ -1294,6 +1326,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         category: form.category,
         prizePool: form.prizePool,
         registrationFee: form.registrationFee,
+        feeAmount: parseTicketPrice(form.feeAmount) || parseTicketPrice(form.registrationFee),
         registrationLink: form.registrationLink,
         registrationType: form.registrationType,
         registration: form.registration,
@@ -1738,8 +1771,47 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     placeholder="e.g., Free or ₹200"
                     className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={form.registrationFee || ''}
-                    onChange={(e) => setForm({ ...form, registrationFee: e.target.value })}
+                    onChange={(e) => updateEntryFee(e.target.value)}
                   />
+                </div>
+
+                {/* Entry fee amount and automatic platform fee preview */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Razorpay Fee Amount (₹) <span className="text-gray-500 font-normal">— for online payment</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Enter the base entry fee. The 3% platform fee is added automatically at payment.
+                  </p>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0 for free"
+                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    value={form.feeAmount || 0}
+                    onChange={(e) => updateNumericEntryFee(e.target.value)}
+                  />
+                  {priceBreakdown.ticketPrice > 0 ? (
+                    <div className="mt-2 rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 p-3 text-xs text-gray-300">
+                      <div className="flex justify-between gap-4">
+                        <span>Ticket Price</span>
+                        <span>₹{priceBreakdown.ticketPrice}</span>
+                      </div>
+                      <div className="flex justify-between gap-4 mt-1">
+                        <span>Platform Fee (3%)</span>
+                        <span>₹{priceBreakdown.platformFee}</span>
+                      </div>
+                      <div className="flex justify-between gap-4 mt-2 pt-2 border-t border-[#0ECCEE]/20 font-semibold text-[#0ECCEE]">
+                        <span>Users will pay</span>
+                        <span>₹{priceBreakdown.totalAmount}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Set to 0 or Free for free competitions.
+                    </p>
+                  )}
                 </div>
 
                 {/* Registration Configuration */}
@@ -2082,106 +2154,6 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                         </div>
                       )}
 
-                      {/* QR Code Configuration - Only show for internal form and SINGLE_STEP */}
-                      {form.registration?.status === 'internal_form' && form.registration?.formType === 'SINGLE_STEP' && (
-                      <div>
-                        <label className="block text-sm font-medium mb-2">QR Code (Optional)</label>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs font-medium mb-1">QR Code Image</label>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={async (e) => {
-                                const file = e.target.files[0];
-                                if (file) {
-                                  setUploadingImage(true);
-                                  try {
-                                    const formData = new FormData();
-                                    formData.append('images', file);
-                                    formData.append('folder', 'crwdctrl/competitions/qr-codes');
-
-                                    const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
-                                      method: 'POST',
-                                      headers: {
-                                        Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-                                      },
-                                      body: formData,
-                                      credentials: 'include',
-                                      mode: 'cors'
-                                    });
-
-                                    if (!response.ok) throw new Error('Failed to upload QR code');
-
-                                    const data = await response.json();
-                                    const qrCodeUrl = data.urls[0].url;
-                                    
-                                    setForm({
-                                      ...form,
-                                      registration: {
-                                        ...form.registration,
-                                        qrCode: qrCodeUrl
-                                      }
-                                    });
-                                  } catch (err) {
-                                    setError('Failed to upload QR code: ' + err.message);
-                                  } finally {
-                                    setUploadingImage(false);
-                                  }
-                                }
-                              }}
-                              className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
-                              disabled={uploadingImage}
-                            />
-                            {uploadingImage && (
-                              <div className="flex items-center gap-2 mt-2 text-sm text-gray-400">
-                                <Loader className="w-4 h-4 animate-spin" />
-                                Uploading QR code...
-                              </div>
-                            )}
-                            {form.registration?.qrCode && (
-                              <div className="mt-2 flex items-center gap-3">
-                                <img 
-                                  src={form.registration.qrCode} 
-                                  alt="QR Code" 
-                                  className="w-16 h-16 object-cover rounded border border-gray-700"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setForm({
-                                    ...form,
-                                    registration: {
-                                      ...form.registration,
-                                      qrCode: ''
-                                    }
-                                  })}
-                                  className="text-red-400 hover:text-red-300 text-sm"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div>
-                            <label className="block text-xs font-medium mb-1">QR Code Message (Optional)</label>
-                            <textarea
-                              rows={2}
-                              placeholder="Message to display with QR code (e.g., 'Scan to join WhatsApp group')"
-                              className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm resize-none"
-                              value={form.registration?.qrCodeMessage || ''}
-                              onChange={(e) => setForm({
-                                ...form,
-                                registration: {
-                                  ...form.registration,
-                                  qrCodeMessage: e.target.value
-                                }
-                              })}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      )}
 
                       {/* Payment Information - Only show for internal form and MULTI_STEP */}
                       {form.registration?.status === 'internal_form' && form.registration?.formType === 'MULTI_STEP' && (
@@ -2189,88 +2161,6 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                         <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Payment Information</h5>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Payment QR Upload */}
-                          <div className="space-y-2">
-                            <label className="block text-sm font-medium mb-2">Payment QR Code *</label>
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={async (e) => {
-                                  const file = e.target.files[0];
-                                  if (file) {
-                                    setUploadingImage(true);
-                                    try {
-                                      const formData = new FormData();
-                                      formData.append('images', file);
-                                      formData.append('folder', 'crwdctrl/competitions/payment-qr');
-
-                                      const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
-                                        method: 'POST',
-                                        headers: {
-                                          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-                                        },
-                                        body: formData,
-                                        credentials: 'include',
-                                        mode: 'cors'
-                                      });
-
-                                      if (!response.ok) throw new Error('Upload failed');
-                                      const data = await response.json();
-                                      setForm({
-                                        ...form,
-                                        registration: {
-                                          ...form.registration,
-                                          qrCode: data.urls[0].url
-                                        }
-                                      });
-                                    } catch (error) {
-                                      console.error('Payment QR upload error:', error?.message);
-                                      setError('Failed to upload payment QR');
-                                    } finally {
-                                      setUploadingImage(false);
-                                    }
-                                  }
-                                }}
-                                className="hidden"
-                                id="paymentQR"
-                              />
-                              <label
-                                htmlFor="paymentQR"
-                                className="px-3 py-2 bg-[#1B1C1E] border border-gray-700 rounded-lg cursor-pointer hover:bg-[#3A3B3D] transition-colors flex items-center gap-2 text-sm"
-                              >
-                                {uploadingImage ? <Loader className="w-4 h-4 animate-spin" /> : <Upload size={16} />}
-                                {uploadingImage ? 'Uploading...' : 'Upload QR'}
-                              </label>
-                              {form.registration?.qrCode && (
-                                <div className="flex items-center gap-2">
-                                  <img src={form.registration.qrCode} alt="Payment QR" className="w-10 h-10 object-cover rounded" />
-                                  <span className="text-xs text-green-400">✓ Uploaded</span>
-                                </div>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-400">Upload QR code for payment processing</p>
-                          </div>
-
-                          {/* Payment Instructions */}
-                          <div className="space-y-2">
-                            <label className="block text-sm font-medium mb-2">Payment Instructions</label>
-                            <textarea
-                              rows={3}
-                              placeholder="Enter payment instructions (e.g., Scan QR to pay ₹500 registration fee...)"
-                              className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none text-sm"
-                              value={form.registration?.qrCodeMessage || ''}
-                              onChange={(e) => setForm({
-                                ...form,
-                                registration: {
-                                  ...form.registration,
-                                  qrCodeMessage: e.target.value
-                                }
-                              })}
-                            />
-                            <p className="text-xs text-gray-400">This message will be displayed with the QR code</p>
-                          </div>
-
                           {/* WhatsApp Group Link */}
                           <div className="space-y-2">
                             <label className="block text-sm font-medium mb-2">WhatsApp Group Link (Optional)</label>

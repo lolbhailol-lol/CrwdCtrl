@@ -5,6 +5,12 @@ const adminAuth = require('../middleware/adminAuth');
 const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
 const uploadCtrl = require('../controllers/uploadController');
+const { parseTicketPrice } = require('../utils/platformFee');
+
+const getCompetitionBaseFee = (registrationFee, feeAmount) => {
+  const numericFeeAmount = parseTicketPrice(feeAmount);
+  return numericFeeAmount || parseTicketPrice(registrationFee);
+};
 
 // ===== ADMIN HEALTH CHECK =====
 router.get('/health', (req, res) => {
@@ -268,6 +274,7 @@ router.put(
       // Update other fields including new registration system
       const updateFields = {
         ...req.body,
+        feeAmount: getCompetitionBaseFee(req.body.registrationFee, req.body.feeAmount),
         registrationType: req.body.registrationType || 'fest',
         registration: req.body.registration || {
           status: 'not_started',

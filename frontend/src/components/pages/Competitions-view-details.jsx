@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Instagram, Check, Moon, Sun, Mail, User, ArrowLeft } from 'lucide-react';
+import { Phone, Instagram, Check, Moon, Sun, Mail, User, ArrowLeft, Trophy, Ticket, Zap } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
@@ -268,6 +268,7 @@ const buildCompetitionData = (compData, options = {}) => {
         time: compData.time || '',
         venue: compData.venue || 'TBD',
         entryFee: compData.registrationFee || compData.entryFee || 'Free',
+        feeAmount: compData.feeAmount || 0,
         prize: compData.prizePool || compData.prize || 'TBD',
         image: compData.coverImage || compData.image,
         contact: compData.contact || { phone: '', instagram: '', email: '' },
@@ -682,115 +683,57 @@ function EventPage() {
     const registrationInfo = getRegistrationStatus();
 
     const handleRegister = async () => {
-        console.log('🎯 Register button clicked');
-
-        // Get the competition's registration configuration
-        const registrationType = eventData?.registrationType || 'fest';
-        const registrationStatus = eventData?.registration?.status || 'not_started';
-        
-        // ✅ Get registration data from multiple sources
-        const festRegistrationFromState = passedEventData?.registration || eventData?.registration;
-        const festRegistrationMode = eventData?.fest?.registration?.mode || 
-                                     festRegistrationFromState?.mode || 
-                                     eventData?.registration?.mode;
-        
-        console.log('🎯 Registration attempt:', { 
-            registrationType, 
-            registrationStatus,
-            festRegistrationMode,
-            eventData: eventData,
-            registrationConfig: eventData?.registration,
-            festRegistration: eventData?.fest?.registration,
-            passedEventData: passedEventData
-        });
-        
-        // Check if custom form is properly configured
-        if (registrationType === 'custom' && !isCustomFormConfigured()) {
-            console.error('❌ Custom form not configured');
-            alert('This competition\'s registration form is not properly configured. Please contact the organizers to set up the form.');
+        if (!isAuthenticated) {
+            setShowLogin(true);
             return;
         }
-        
+
+        const registrationType = eventData?.registrationType || 'fest';
+        const registrationStatus = eventData?.registration?.status || 'not_started';
+        const festRegistrationFromState = passedEventData?.registration || eventData?.registration;
+        const festRegistrationMode = eventData?.fest?.registration?.mode ||
+                                     festRegistrationFromState?.mode ||
+                                     eventData?.registration?.mode;
+
         if (registrationType === 'fest') {
-            console.log('📋 Using fest registration system');
-            
-            // ✅ Use mode from multiple sources
             const mode = festRegistrationMode || 'NOT_STARTED';
-            console.log('🎯 Fest registration mode:', mode);
-            
             if (mode === 'EXTERNAL_LINK') {
-                // Use fest's external registration link
-                const externalLink = eventData?.fest?.registration?.externalLink || 
+                const externalLink = eventData?.fest?.registration?.externalLink ||
                                      festRegistrationFromState?.externalLink ||
                                      eventData?.registration?.externalLink;
-                if (externalLink && externalLink.trim() !== '') {
-                    window.open(externalLink, '_blank');
-                } else {
-                    alert('Registration link is not available. Please contact the organizers.');
-                }
+                externalLink?.trim()
+                    ? window.open(externalLink, '_blank')
+                    : alert('Registration link is not available. Please contact the organizers.');
             } else if (mode === 'INTERNAL_FORM') {
-                // ✅ CRITICAL: Navigate to internal registration form
                 const festId = eventData?.fest?._id || passedEventData?.id || eventData?.festId || eventData?.fest?.id;
-                const competitionId = eventData?.id;
-                
-                console.log('🚀 Navigating to internal form:', { festId, competitionId });
-                
-                if (festId) {
-                    const registrationUrl = `/fest/${festId}/register?competition=${competitionId}`;
-                    console.log('🌐 Registration URL:', registrationUrl);
-                    navigate(registrationUrl);
-                } else {
-                    alert('Registration is not available. Please contact the organizers.');
-                }
+                const compId = eventData?.id;
+                festId
+                    ? navigate(`/fest/${festId}/register?competition=${compId}`)
+                    : alert('Registration is not available. Please contact the organizers.');
             } else if (mode === 'NOT_STARTED') {
                 alert('Registration has not started yet for this competition.');
             } else if (mode === 'CLOSED') {
                 alert('Registration for this competition is closed.');
             } else {
-                console.log('❓ Unknown fest registration mode:', mode);
                 alert('Registration configuration is not set up properly. Please contact the organizers.');
             }
         } else if (registrationType === 'custom') {
-            console.log('🏆 Using custom competition registration system');
-            console.log('📊 eventData.id:', eventData?.id);
-            console.log('📊 eventData._id:', eventData?._id);
-            // Competition has its own registration system
             if (registrationStatus === 'internal_form') {
-                console.log('📝 Redirecting to custom internal form');
-                const competitionIdForReg = eventData?.id || eventData?._id;
-                console.log('🚀 Navigating to:', `/competition-registration/${competitionIdForReg}`);
-                // Navigate to competition-specific registration page
-                navigate(`/competition-registration/${competitionIdForReg}`);
+                navigate(`/competition-registration/${eventData?.id || eventData?._id}`);
             } else if (registrationStatus === 'external_link') {
-                console.log('🔗 Opening external link');
-                // Open external link
                 const externalUrl = eventData?.registration?.externalUrl;
-                if (externalUrl && externalUrl.trim() !== '') {
-                    window.open(externalUrl, '_blank');
-                } else {
-                    alert('External registration link not available. Please contact the organizers.');
-                }
+                externalUrl?.trim()
+                    ? window.open(externalUrl, '_blank')
+                    : alert('External registration link not available. Please contact the organizers.');
             } else if (registrationStatus === 'not_started') {
                 alert('Registration has not started yet for this competition.');
             } else if (registrationStatus === 'registration_closed') {
                 alert('Registration for this competition is closed.');
             } else {
-                console.log('❓ Unknown registration status:', registrationStatus);
                 alert('Registration configuration is not set up properly. Please contact the organizers.');
             }
-        }
-        // For legacy compatibility, handle old status values
-        else {
-            console.log('🔄 Using legacy registration system');
-            const competitionRegistrationStatus = eventData?.legacyRegistration?.status || eventData?.registration?.status || 'NOT_STARTED';
-            if (competitionRegistrationStatus === 'CLOSED') {
-                alert('Registration for this competition is closed.');
-            } else if (competitionRegistrationStatus === 'NOT_STARTED' || competitionRegistrationStatus === 'not_started') {
-                alert('Registration for this competition has not started yet.');
-            } else {
-                // Default to showing not started message
-                alert('Registration for this competition has not started yet.');
-            }
+        } else {
+            alert('Registration has not started yet for this competition.');
         }
     };
 
@@ -972,7 +915,12 @@ function EventPage() {
                                     {eventData?.subtitle || 'Competition Subtitle'}
                                 </p>
                                 <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                    <p><span className="font-semibold">Entry fee:</span> {eventData?.entryFee || 'Free'}</p>
+                                    <p>
+                                        <span className="font-semibold">Entry fee: </span>
+                                        <span className="font-bold text-[#0ECCEE]">
+                                            {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}` : 'Free'}
+                                        </span>
+                                    </p>
                                 </div>
                             </div>
 
@@ -1079,18 +1027,21 @@ function EventPage() {
                             {/* Mobile Prize Pool Highlight Card */}
                             {eventData?.prize && (
                                 <div className="px-4 py-4">
-                                    <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <span className={`text-xl ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>🏆</span>
-                                            <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>PRIZE POOL</h2>
-                                        </div>
-                                        <div 
-                                            className={`font-medium whitespace-pre-wrap leading-relaxed text-sm ${
-                                                isDark ? 'text-gray-300' : 'text-gray-900'
-                                            }`}
-                                            style={{ whiteSpace: 'pre-wrap' }}
-                                        >
-                                            {eventData.prize}
+                                    <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#1B1C1E] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
+                                        <div className="relative p-4">
+                                            <div className="flex items-center gap-2.5 mb-3">
+                                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-md shadow-[#00C2CB]/30">
+                                                    <Trophy className="w-4 h-4 text-white" />
+                                                </div>
+                                                <h2 className="text-xs font-bold uppercase tracking-widest text-[#00C2CB]">Prize Pool</h2>
+                                            </div>
+                                            <div
+                                                className={`text-sm leading-relaxed whitespace-pre-wrap ${isDark ? 'text-gray-200' : 'text-gray-800'}`}
+                                                style={{ whiteSpace: 'pre-wrap' }}
+                                            >
+                                                {eventData.prize}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1263,25 +1214,34 @@ function EventPage() {
                                                 </div>
                                                 <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Phone</p>
                                             </div>
-                                            <div className="space-y-2">
-                                                {eventData.contact.phone.includes(' / ') 
-                                                    ? eventData.contact.phone.split(' / ').map((phone, index) => (
-                                                        <a
-                                                            key={index}
-                                                            href={`tel:${phone.replace(/\s*\([^)]*\)/, '').trim()}`}
-                                                            className={`block text-sm ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition pl-7`}
-                                                        >
-                                                            {phone.trim()}
-                                                        </a>
-                                                    ))
-                                                    : (
-                                                        <a
-                                                            href={`tel:${eventData.contact.phone.replace(/\s*\([^)]*\)/, '').trim()}`}
-                                                            className={`block text-sm ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition pl-7`}
-                                                        >
-                                                            {eventData.contact.phone.trim()}
-                                                        </a>
-                                                    )
+                                            <div className="space-y-2 pl-7">
+                                                {eventData.contact.phone
+                                                    .split(/\s*(?:,|\/)\s*/)
+                                                    .map(s => s.trim())
+                                                    .filter(Boolean)
+                                                    .map((entry, index) => {
+                                                        const nameMatch = entry.match(/\(([^)]+)\)/);
+                                                        const name = nameMatch ? nameMatch[1].trim() : null;
+                                                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
+                                                        const telHref = `tel:${rawNumber.replace(/[\s\-]/g, '')}`;
+                                                        return (
+                                                            <a
+                                                                key={index}
+                                                                href={telHref}
+                                                                className={`flex items-center gap-2.5 group py-2 px-3 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50'}`}
+                                                            >
+                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                                    {name ? name.charAt(0).toUpperCase() : '#'}
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    {name && (
+                                                                        <p className={`text-xs font-medium leading-none mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</p>
+                                                                    )}
+                                                                    <p className={`text-sm font-medium ${isDark ? 'text-blue-400 group-hover:text-blue-300' : 'text-blue-600 group-hover:text-blue-800'} transition-colors`}>{rawNumber}</p>
+                                                                </div>
+                                                            </a>
+                                                        );
+                                                    })
                                                 }
                                             </div>
                                         </div>
@@ -1340,18 +1300,21 @@ function EventPage() {
                                 <div className="space-y-6">
                                     {/* Desktop Prize Pool Highlight Card */}
                                     {eventData?.prize && (
-                                        <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <span className={`text-2xl ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>🏆</span>
-                                                <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>PRIZE POOL</h2>
-                                            </div>
-                                            <div 
-                                                className={`font-medium whitespace-pre-wrap leading-relaxed ${
-                                                    isDark ? 'text-gray-300' : 'text-gray-900'
-                                                }`}
-                                                style={{ whiteSpace: 'pre-wrap' }}
-                                            >
-                                                {eventData.prize}
+                                        <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#1B1C1E] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
+                                            <div className="absolute inset-0 bg-gradient-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
+                                            <div className="relative p-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-lg shadow-[#00C2CB]/30">
+                                                        <Trophy className="w-5 h-5 text-white" />
+                                                    </div>
+                                                    <h2 className="text-xs font-bold uppercase tracking-widest text-[#00C2CB]">Prize Pool</h2>
+                                                </div>
+                                                <div
+                                                    className={`leading-relaxed whitespace-pre-wrap text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}
+                                                    style={{ whiteSpace: 'pre-wrap' }}
+                                                >
+                                                    {eventData.prize}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -1405,31 +1368,37 @@ function EventPage() {
                                     {/* Phone Numbers Section */}
                                     {eventData?.contact?.phone && (
                                         <div className="mb-6">
-                                            <div className="flex items-center space-x-3 mb-4">
+                                            <div className="flex items-center space-x-3 mb-3">
                                                 <div className={`p-2 ${isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full`}>
                                                     <Phone className="w-5 h-5" />
                                                 </div>
                                                 <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Phone Numbers</p>
                                             </div>
-                                            <div className="space-y-2">
-                                                {eventData.contact.phone.includes(' / ') 
-                                                    ? eventData.contact.phone.split(' / ').map((phone, index) => (
-                                                        <a
-                                                            key={index}
-                                                            href={`tel:${phone.replace(/\s*\([^)]*\)/, '').trim()}`}
-                                                            className={`block text-sm ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition pl-12`}
-                                                        >
-                                                            {phone.trim()}
-                                                        </a>
-                                                    ))
-                                                    : (
-                                                        <a
-                                                            href={`tel:${eventData.contact.phone.replace(/\s*\([^)]*\)/, '').trim()}`}
-                                                            className={`block text-sm ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition pl-12`}
-                                                        >
-                                                            {eventData.contact.phone.trim()}
-                                                        </a>
-                                                    )
+                                            <div className="space-y-1 pl-12">
+                                                {eventData.contact.phone
+                                                    .split(/\s*(?:,|\/)\s*/)
+                                                    .map(s => s.trim())
+                                                    .filter(Boolean)
+                                                    .map((entry, index) => {
+                                                        const nameMatch = entry.match(/\(([^)]+)\)/);
+                                                        const name = nameMatch ? nameMatch[1].trim() : null;
+                                                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
+                                                        return (
+                                                            <a
+                                                                key={index}
+                                                                href={`tel:${rawNumber.replace(/[\s\-]/g, '')}`}
+                                                                className={`flex items-center gap-2.5 group py-2 px-3 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50'}`}
+                                                            >
+                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                                    {name ? name.charAt(0).toUpperCase() : '#'}
+                                                                </div>
+                                                                <div>
+                                                                    {name && <p className={`text-xs font-medium leading-none mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</p>}
+                                                                    <p className={`text-sm font-medium ${isDark ? 'text-blue-400 group-hover:text-blue-300' : 'text-blue-600 group-hover:text-blue-800'} transition-colors`}>{rawNumber}</p>
+                                                                </div>
+                                                            </a>
+                                                        );
+                                                    })
                                                 }
                                             </div>
                                         </div>
@@ -1491,11 +1460,26 @@ function EventPage() {
                                         </div>
                                     </div>
 
-                                    <div className={`mb-4 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                        <p>Entry fee - {eventData?.entryFee || 'Free'}/-</p>
-                                    </div>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        {/* Fee pill */}
+                                        <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-gradient-to-r from-[#0060DF]/10 to-[#00C2CB]/10 border-[#00C2CB]/30">
+                                            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-gradient-to-br from-[#0060DF]/25 to-[#00C2CB]/25">
+                                                {eventData?.feeAmount > 0
+                                                    ? <Ticket className="w-3.5 h-3.5 text-[#00C2CB]" />
+                                                    : <Zap className="w-3.5 h-3.5 text-[#00C2CB]" />
+                                                }
+                                            </div>
+                                            <div>
+                                                <span className="text-base font-bold leading-tight block text-[#00C2CB]">
+                                                    {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}` : 'Free'}
+                                                </span>
+                                                <span className={`text-[10px] leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                    {eventData?.feeAmount > 0 ? 'Entry Fee' : 'No Entry Fee'}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                    <div className="flex gap-2 relative">
+                                        {/* Register button */}
                                         <button
                                             onClick={handleRegister}
                                             disabled={isRegistered || registrationInfo.isDisabled}
@@ -1696,22 +1680,31 @@ function EventPage() {
                 <Footer />
 
             {/* Fixed Mobile/Tablet Register Button Footer */}
-            <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden px-4 py-3 ${isDark ? 'bg-[#0F1014] border-t border-gray-700' : 'bg-white border-t border-gray-200'}`}>
+            <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden px-4 py-3 flex items-center gap-3 ${isDark ? 'bg-[#0F1014] border-t border-gray-700' : 'bg-white border-t border-gray-200'}`}>
+                {/* Fee display */}
+                <div className="shrink-0">
+                    <span className={`text-lg font-bold leading-tight block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}/-` : 'Free'}
+                    </span>
+                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {eventData?.feeAmount > 0 ? 'Fee' : 'No Fee'}
+                    </span>
+                </div>
+
+                {/* Register button */}
                 <button
                     onClick={handleRegister}
                     disabled={isRegistered || registrationInfo.isDisabled}
-                    className={`w-full font-semibold py-3 rounded-xl transition ${
+                    className={`flex-1 font-semibold py-3 rounded-xl transition ${
                         registrationInfo.isDisabled
-                            ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
+                            ? 'bg-gray-500 text-white cursor-not-allowed'
                             : isRegistered
-                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            ? 'bg-green-600 text-white'
                             : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
                     }`}
                 >
                     {isRegistered ? (
-                        <>
-                            <span className="mr-1">✓</span> Registered
-                        </>
+                        <><span className="mr-1">✓</span> Registered</>
                     ) : registrationInfo.buttonText}
                 </button>
             </div>

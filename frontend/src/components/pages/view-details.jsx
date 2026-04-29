@@ -915,17 +915,25 @@ function EventDetailsPage() {
 
                           {/* Contact info in compact format */}
                           <div className="space-y-1">
-                            {contact.phone && (
-                              <div className="flex items-center">
-                                <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mr-2`} />
-                                <a
-                                  href={`tel:${contact.phone.replace(/\s*\([^)]*\)/, '').trim()}`}
-                                  className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
-                                >
-                                  {contact.phone}
-                                </a>
-                              </div>
-                            )}
+                            {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
+                              const nameMatch = entry.match(/\(([^)]+)\)/);
+                              const name = nameMatch ? nameMatch[1].trim() : null;
+                              const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
+                              return (
+                                <div key={pi} className="flex items-start gap-1.5">
+                                  <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 flex-shrink-0`} />
+                                  <div>
+                                    {name && <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
+                                    <a
+                                      href={`tel:${rawNumber.replace(/[\s\-]/g, '')}`}
+                                      className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
+                                    >
+                                      {rawNumber}
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
 
                             {contact.email && (
                               <div className="flex items-center">
@@ -1213,17 +1221,25 @@ function EventDetailsPage() {
 
                     {/* Contact info in compact format */}
                     <div className="space-y-1">
-                      {contact.phone && (
-                        <div className="flex items-center">
-                          <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mr-2`} />
-                          <a
-                            href={`tel:${contact.phone.replace(/\s*\([^)]*\)/, '').trim()}`}
-                            className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
-                          >
-                            {contact.phone}
-                          </a>
-                        </div>
-                      )}
+                      {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
+                        const nameMatch = entry.match(/\(([^)]+)\)/);
+                        const name = nameMatch ? nameMatch[1].trim() : null;
+                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
+                        return (
+                          <div key={pi} className="flex items-start gap-1.5">
+                            <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 flex-shrink-0`} />
+                            <div>
+                              {name && <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
+                              <a
+                                href={`tel:${rawNumber.replace(/[\s\-]/g, '')}`}
+                                className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
+                              >
+                                {rawNumber}
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
 
                       {contact.email && (
                         <div className="flex items-center">

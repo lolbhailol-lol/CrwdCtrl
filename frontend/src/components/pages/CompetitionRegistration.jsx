@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { openRazorpayCheckout } from '../../utils/useRazorpay';
+import { parseTicketPrice } from '../../utils/platformFee';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -9,9 +11,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 export default function CompetitionRegistration() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
-    const { isAuthenticated, isLoading: authLoading, token, isAuthProcessing, isRedirectProcessing } = useAuth();
-    
+    const { isAuthenticated, isLoading: authLoading, token, isAuthProcessing, isRedirectProcessing, user: authUser } = useAuth();
+
     const [competition, setCompetition] = useState(null);
+    const [priceBreakdown, setPriceBreakdown] = useState(null);
     const [formData, setFormData] = useState({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -23,12 +26,10 @@ export default function CompetitionRegistration() {
     const [currentStep, setCurrentStep] = useState(1);
     const [stepData, setStepData] = useState({});
     const [completedSteps, setCompletedSteps] = useState(new Set());
-    // ✅ NEW: Payment info state
-    const [paymentReceipt, setPaymentReceipt] = useState(null);
-    const [paymentReceiptUrl, setPaymentReceiptUrl] = useState('');
-    const [uploadingReceipt, setUploadingReceipt] = useState(false);
-    const [receiptError, setReceiptError] = useState('');
-    const [transactionId, setTransactionId] = useState('');
+    // Razorpay verified payment fields (populated after successful Razorpay checkout)
+    const [razorpayPaymentFields, setRazorpayPaymentFields] = useState(null);
+    const [paymentReceiptUrl] = useState('');
+    const [transactionId] = useState('');
 
     // Helper function to generate consistent field IDs
     const generateFieldId = (field) => {
@@ -81,6 +82,27 @@ export default function CompetitionRegistration() {
             console.log('📋 Direct schema count:', data.registration?.formSchema?.length || 0);
             
             setCompetition(data);
+
+            if ((parseTicketPrice(data.feeAmount) || parseTicketPrice(data.registrationFee)) > 0) {
+                const quoteToken = token || localStorage.getItem('crwdctrl_token');
+                const quoteRes = await fetch(`${API_BASE_URL}/payment/quote`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${quoteToken}`,
+                    },
+                    body: JSON.stringify({ competitionId: data._id }),
+                });
+
+                if (!quoteRes.ok) {
+                    const quoteErr = await quoteRes.json().catch(() => ({}));
+                    throw new Error(quoteErr.message || 'Failed to calculate payment amount');
+                }
+
+                setPriceBreakdown(await quoteRes.json());
+            } else {
+                setPriceBreakdown(null);
+            }
             
             // Check if competition has custom internal form registration
             if (data.registrationType !== 'custom' || 
@@ -147,7 +169,7 @@ export default function CompetitionRegistration() {
         } finally {
             setLoading(false);
         }
-    }, [competitionId]);
+    }, [competitionId, token]);
 
     // ✅ MAIN: Initialize registration and fetch competition details
     useEffect(() => {
@@ -221,27 +243,13 @@ export default function CompetitionRegistration() {
         if (!isMultiStepFormActive()) {
             return competition?.registration?.formSchema || [];
         }
-        
-        // ✅ NEW: If this is the payment step (last step with QR), return empty fields
-        const baseSteps = competition.registration.steps.length;
-        const isPaymentStep = competition.registration.qrCode && currentStep > baseSteps;
-        
-        if (isPaymentStep) {
-            return []; // Payment step has no form fields
-        }
-        
         const step = competition.registration.steps.find(s => s.stepNumber === currentStep);
         return step?.fields || [];
     };
 
     const getTotalSteps = () => {
         if (!isMultiStepFormActive()) return 1;
-        
-        // ✅ NEW: Add +1 for dedicated payment step if QR is configured
-        const baseSteps = competition.registration.steps.length;
-        const hasPaymentStep = competition.registration.qrCode;
-        
-        return hasPaymentStep ? baseSteps + 1 : baseSteps;
+        return competition.registration.steps.length;
     };
 
     const getCurrentStepData = () => {
@@ -509,96 +517,6 @@ export default function CompetitionRegistration() {
         });
     };
 
-    // ✅ NEW: Payment receipt upload function
-    const handlePaymentReceiptUpload = async (file) => {
-        if (!file) return;
-
-        console.log('💳 Starting payment receipt upload:', file.name);
-        setUploadingReceipt(true);
-        setReceiptError('');
-
-        try {
-            // ✅ FIX: Ensure we have a valid token BEFORE making the request
-            const authToken = token || localStorage.getItem('crwdctrl_token');
-            console.log('🔑 Auth token check for upload:', {
-                hasContextToken: !!token,
-                hasStorageToken: !!localStorage.getItem('crwdctrl_token'),
-                finalToken: authToken ? authToken.substring(0, 20) + '...' : 'NONE',
-                tokenLength: authToken?.length
-            });
-            
-            if (!authToken) {
-                throw new Error('Authentication required. Please log in again to upload files.');
-            }
-
-            // Validate file type (only images for proof)
-            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-            if (!allowedTypes.includes(file.type)) {
-                throw new Error('Please upload a valid image (JPG, PNG) or PDF file');
-            }
-
-            // Validate file size (5MB limit)
-            const maxSize = 5 * 1024 * 1024; // 5MB
-            if (file.size > maxSize) {
-                throw new Error('File size must be less than 5MB');
-            }
-
-            // Compress image if it's an image file
-            let processedFile = file;
-            if (file.type.startsWith('image/')) {
-                try {
-                    processedFile = await compressImage(file);
-                    console.log('🗜️ Receipt image compressed');
-                } catch (compressionError) {
-                    console.warn('⚠️ Image compression failed, using original:', compressionError);
-                    processedFile = file;
-                }
-            }
-
-            // Upload to backend
-            const formData = new FormData();
-            formData.append('image', processedFile);
-
-            console.log('📤 Sending upload request with auth token...');
-            const response = await fetch(`${API_BASE_URL}/users/upload/image`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: formData,
-                credentials: 'include',
-                mode: 'cors'
-            });
-
-            if (!response.ok) {
-                let errorData;
-                try {
-                    errorData = await response.json();
-                } catch {
-                    errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
-                }
-                throw new Error(errorData.message || 'Failed to upload receipt');
-            }
-
-            const result = await response.json();
-            const uploadedUrl = result.url || result.imageUrl;
-
-            if (!uploadedUrl) {
-                throw new Error('Upload successful but no URL returned');
-            }
-
-            setPaymentReceiptUrl(uploadedUrl);
-            setPaymentReceipt(processedFile);
-            console.log('✅ Payment receipt uploaded successfully');
-
-        } catch (error) {
-            console.error('❌ Payment receipt upload error:', error);
-            setReceiptError(error.message || 'Failed to upload payment receipt');
-        } finally {
-            setUploadingReceipt(false);
-        }
-    };
-
     const renderField = (field) => {
         // Use consistent field ID generation
         const fieldId = generateFieldId(field);
@@ -628,7 +546,7 @@ export default function CompetitionRegistration() {
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         placeholder={placeholder}
                         required={required}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
                     />
                 );
 
@@ -657,7 +575,7 @@ export default function CompetitionRegistration() {
                         value={sanitizedValue}
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         required={required}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
                     />
                 );
             }
@@ -668,7 +586,7 @@ export default function CompetitionRegistration() {
                         value={value}
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         required={required}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
                     >
                         <option value="">{placeholder || 'Select an option'}</option>
                         {options?.map((option, idx) => (
@@ -869,27 +787,85 @@ export default function CompetitionRegistration() {
                 }
             }
 
-            // ✅ NEW: Validate payment receipt only on the final payment step
-            const totalSteps = getTotalSteps();
-            const hasPaymentQR = competition.registration.qrCode;
-            const isOnPaymentStep = isMultiStepFormActive() && hasPaymentQR && currentStep === totalSteps;
-            
-            console.log('💳 Payment validation check:', {
-                hasPaymentQR,
-                totalSteps,
-                currentStep,
-                isOnPaymentStep,
-                hasPaymentReceiptUrl: !!paymentReceiptUrl,
-                hasTransactionId: !!transactionId.trim()
-            });
-            
-            // Only require payment receipt and transaction ID on the final payment step
-            if (isOnPaymentStep) {
-                if (!paymentReceiptUrl) {
-                    throw new Error('Payment receipt is required. Please upload your payment proof after scanning the QR code.');
+            // ✅ RAZORPAY: If competition has a fee, open Razorpay checkout now
+            const feeAmount = priceBreakdown?.ticketPrice || parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
+            let verifiedPaymentFields = razorpayPaymentFields; // may already be set from a prior attempt
+
+            if (feeAmount > 0 && !verifiedPaymentFields) {
+                setSubmissionProgress('Opening payment gateway...');
+
+                const submitToken = token || localStorage.getItem('crwdctrl_token');
+
+                // 1. Create Razorpay order on backend using database price + platform fee
+                const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${submitToken}`,
+                    },
+                    body: JSON.stringify({
+                        competitionId: competition._id,
+                    }),
+                });
+
+                if (!orderRes.ok) {
+                    const orderErr = await orderRes.json().catch(() => ({}));
+                    throw new Error(orderErr.message || 'Failed to create payment order. Please try again.');
                 }
-                if (!transactionId.trim()) {
-                    throw new Error('Transaction ID is required. Please enter your payment reference number.');
+
+                const orderData = await orderRes.json();
+
+                // 2. Open Razorpay checkout — prefilled with logged-in user info
+                let paymentResponse;
+                try {
+                    paymentResponse = await openRazorpayCheckout({
+                        orderId: orderData.orderId,
+                        currency: orderData.currency,
+                        name: authUser?.name || '',
+                        email: authUser?.email || '',
+                        contact: authUser?.phoneNumber || authUser?.phone || '',
+                        description: `Registration: ${competition.name}`,
+                    });
+                } catch (rzpErr) {
+                    // User cancelled or payment failed — stop here, don't submit
+                    throw rzpErr;
+                }
+
+                // 3. Verify on backend
+                const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${submitToken}`,
+                    },
+                    body: JSON.stringify(paymentResponse),
+                });
+
+                if (!verifyRes.ok) {
+                    const verifyErr = await verifyRes.json().catch(() => ({}));
+                    throw new Error(verifyErr.message || 'Payment verification failed. Please contact support.');
+                }
+
+                verifiedPaymentFields = {
+                    razorpay_order_id:   paymentResponse.razorpay_order_id,
+                    razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                    razorpay_signature:  paymentResponse.razorpay_signature,
+                };
+                setRazorpayPaymentFields(verifiedPaymentFields);
+                console.log('✅ Razorpay payment verified, proceeding with registration');
+            } else if (feeAmount === 0) {
+                // Free competition — validate old QR-based payment fields if QR is configured
+                const totalSteps = getTotalSteps();
+                const hasPaymentQR = competition.registration.qrCode;
+                const isOnPaymentStep = isMultiStepFormActive() && hasPaymentQR && currentStep === totalSteps;
+
+                if (isOnPaymentStep) {
+                    if (!paymentReceiptUrl) {
+                        throw new Error('Payment receipt is required. Please upload your payment proof after scanning the QR code.');
+                    }
+                    if (!transactionId.trim()) {
+                        throw new Error('Transaction ID is required. Please enter your payment reference number.');
+                    }
                 }
             }
 
@@ -969,16 +945,22 @@ export default function CompetitionRegistration() {
             submissionFormData.append('responses', JSON.stringify(textResponses));
             console.log('✅ Appended responses to FormData');
 
-            // ✅ MATCHING FEST FORM: Add transaction ID
-            if (transactionId && transactionId.trim()) {
-                submissionFormData.append('transactionId', transactionId.trim());
-                console.log('💳 Added transaction ID to submission:', transactionId);
+            // ✅ RAZORPAY: Attach verified payment fields if Razorpay was used
+            if (verifiedPaymentFields) {
+                submissionFormData.append('razorpay_order_id',   verifiedPaymentFields.razorpay_order_id);
+                submissionFormData.append('razorpay_payment_id', verifiedPaymentFields.razorpay_payment_id);
+                submissionFormData.append('razorpay_signature',  verifiedPaymentFields.razorpay_signature);
+                console.log('💳 Razorpay payment fields appended to submission');
             }
 
-            // ✅ MATCHING FEST FORM: Add payment receipt URL if uploaded
-            if (paymentReceiptUrl) {
-                submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
-                console.log('💳 Added payment receipt URL to submission:', paymentReceiptUrl);
+            // Legacy QR-based payment fields (only used when feeAmount === 0 but QR is configured)
+            if (!verifiedPaymentFields) {
+                if (transactionId && transactionId.trim()) {
+                    submissionFormData.append('transactionId', transactionId.trim());
+                }
+                if (paymentReceiptUrl) {
+                    submissionFormData.append('paymentReceiptUrl', paymentReceiptUrl);
+                }
             }
 
             // ✅ PERFORMANCE: Show file submission progress
@@ -1147,12 +1129,20 @@ export default function CompetitionRegistration() {
                         </span>
                     </p>
 
-                    <p className="text-sm text-yellow-300 mb-1">
-                        Status: Verification Pending
-                    </p>
-                    <p className="text-xs text-gray-400 mb-4">
-                        Our team will verify your payment within 24–48 hours and update your registration status.
-                    </p>
+                    {razorpayPaymentFields ? (
+                        <p className="text-sm text-green-400 mb-4">
+                            Payment confirmed via Razorpay. You are registered!
+                        </p>
+                    ) : (
+                        <>
+                            <p className="text-sm text-yellow-300 mb-1">
+                                Status: Verification Pending
+                            </p>
+                            <p className="text-xs text-gray-400 mb-4">
+                                Our team will verify your payment within 24–48 hours and update your registration status.
+                            </p>
+                        </>
+                    )}
 
                     <button
                         onClick={() => navigate('/registered-fest')}
@@ -1198,7 +1188,7 @@ export default function CompetitionRegistration() {
                 )}
 
                 {/* Registration Form */}
-                <div className="bg-[#2A2B2D] rounded-xl p-4 sm:p-6">
+                <div className="bg-[#2A2B2D] rounded-2xl p-4 sm:p-6 border border-gray-700/40">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Step Progress */}
                         {isMultiStepFormActive() && (
@@ -1271,472 +1261,90 @@ export default function CompetitionRegistration() {
                             </div>
                         )}
 
-                {/* Payment Information (multi-step final step) */}
-                {isMultiStepFormActive() && competition.registration.qrCode && currentStep === getTotalSteps() && (
-                    <div className="rounded-lg p-3 sm:p-4 border-2 bg-[#1B1C1E] border-yellow-600/30 mb-6">
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700">
-                            <h3 className="text-base font-semibold text-white">💳 Payment Information</h3>
+                {/* Fee box — shown before payment */}
+                {!razorpayPaymentFields && priceBreakdown && (
+                    <div className="rounded-xl p-4 border bg-[#1B1C1E] border-[#0ECCEE]/30 mb-4">
+                        <p className="text-sm font-semibold text-white mb-2">Payment Breakdown</p>
+                        <div className="space-y-1 text-sm text-gray-300">
+                            <div className="flex justify-between gap-4">
+                                <span>Ticket Price</span>
+                                <span>₹{priceBreakdown.ticketPrice}</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                                <span>Platform Fee</span>
+                                <span>₹{priceBreakdown.platformFee}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
+                                <span>Total</span>
+                                <span>₹{priceBreakdown.totalAmount}</span>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                            {/* QR Code - Left Column */}
-                            <div className="flex flex-col items-center justify-start">
-                                <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Scan QR Code</p>
-                                <div className="w-full max-w-xs flex justify-center p-4 bg-white rounded-xl">
-                                    <img
-                                        src={competition.registration.qrCode}
-                                        alt="Payment QR Code"
-                                        className="w-48 h-48 object-contain"
-                                        onError={(e) => { e.target.style.display = 'none'; }}
-                                    />
-                                </div>
-                            </div>
+                        <p className="text-xs text-gray-400 mt-1">Razorpay secure payment — click Submit to pay and register.</p>
+                    </div>
+                )}
 
-                            {/* Payment Details - Right Column */}
-                            <div className="flex flex-col justify-start space-y-4">
-                                <div>
-                                    <p className="text-xs text-gray-500 font-medium mb-3 uppercase tracking-wide">Or Use UPI ID</p>
-                                    {(() => {
-                                        const rawMsg = competition?.registration?.qrCodeMessage || '';
-                                        const upiMatch = rawMsg.match(/([a-zA-Z0-9.\-_]+@[a-zA-Z0-9.\-]+)/);
-                                        const extractedUpi = upiMatch ? upiMatch[1] : null;
-                                        const cleanMsg = extractedUpi
-                                            ? rawMsg.replace(/(?:UPI\s*(?:ID)?[\s:~\-]*)?[a-zA-Z0-9.\-_]+@[a-zA-Z0-9.\-]+/gi, '').replace(/\n{2,}/g, '\n').trim()
-                                            : rawMsg;
-                                        return (
-                                            <div className="space-y-3">
-                                                {cleanMsg && (
-                                                    <p className="text-xs text-gray-400 whitespace-pre-wrap leading-relaxed">{cleanMsg}</p>
-                                                )}
-                                                {extractedUpi && (
-                                                    <div className="space-y-3">
-                                                        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
-                                                            <p className="text-xs text-gray-400 mb-1">UPI ID</p>
-                                                            <p className="font-mono font-semibold text-white text-sm break-all">{extractedUpi}</p>
-                                                        </div>
-                                                        <div className="flex flex-col gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => navigator.clipboard.writeText(extractedUpi).catch(() => {})}
-                                                                className="w-full px-3 py-2 text-sm rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium transition-colors"
-                                                            >
-                                                                📋 Copy UPI ID
-                                                            </button>
-                                                            <a
-                                                                href={`upi://pay?pa=${encodeURIComponent(extractedUpi)}&pn=${encodeURIComponent(competition?.name || 'CrwdCtrl')}&cu=INR`}
-                                                                className="w-full px-3 py-2 text-sm rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition-colors text-center"
-                                                            >
-                                                                💳 Pay via UPI App
-                                                            </a>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-
-                                {/* Instructions */}
-                                <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3">
-                                    <p className="text-xs text-blue-300 font-medium mb-2">📋 Payment Steps:</p>
-                                    <ol className="text-xs text-blue-200 space-y-1">
-                                        <li>1. Pay using QR code or UPI ID</li>
-                                        <li>2. Note your Transaction ID</li>
-                                        <li>3. Upload payment screenshot below</li>
-                                    </ol>
-                                </div>
-                            </div>
+                {/* Payment confirmed notice — shown after Razorpay payment is verified */}
+                {razorpayPaymentFields && (
+                    <div className="rounded-xl p-3 border bg-green-900/15 border-green-700/40 flex items-center gap-3 mb-4">
+                        <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                        <div>
+                            <p className="text-sm font-semibold text-green-400">Payment Confirmed</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Click Submit Registration to complete.</p>
                         </div>
                     </div>
                 )}
 
-                {/* Payment Section for SINGLE-STEP forms with QR */}
-                {!isMultiStepFormActive() && competition.registration.qrCode && (
-                    <div className="rounded-lg p-3 sm:p-4 border-2 bg-[#1B1C1E] border-yellow-600/30 mb-6">
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700">
-                            <h3 className="text-base font-semibold text-white">💳 Payment Information</h3>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                            {/* QR Code - Left Column */}
-                            <div className="flex flex-col items-center justify-start">
-                                <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Scan QR Code</p>
-                                <div className="w-full max-w-xs flex justify-center p-4 bg-white rounded-xl">
-                                    <img
-                                        src={competition.registration.qrCode}
-                                        alt="Payment QR Code"
-                                        className="w-48 h-48 object-contain"
-                                        onError={(e) => { e.target.style.display = 'none'; }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Payment Details - Right Column */}
-                            <div className="flex flex-col justify-start space-y-4">
-                                <div>
-                                    <p className="text-xs text-gray-500 font-medium mb-3 uppercase tracking-wide">Or Use UPI ID</p>
-                                    {(() => {
-                                        const rawMsg = competition?.registration?.qrCodeMessage || '';
-                                        const upiMatch = rawMsg.match(/([a-zA-Z0-9.\-_]+@[a-zA-Z0-9.\-]+)/);
-                                        const extractedUpi = upiMatch ? upiMatch[1] : null;
-                                        const cleanMsg = extractedUpi
-                                            ? rawMsg.replace(/(?:UPI\s*(?:ID)?[\s:~\-]*)?[a-zA-Z0-9.\-_]+@[a-zA-Z0-9.\-]+/gi, '').replace(/\n{2,}/g, '\n').trim()
-                                            : rawMsg;
-                                        return (
-                                            <div className="space-y-3">
-                                                {cleanMsg && (
-                                                    <p className="text-xs text-gray-400 whitespace-pre-wrap leading-relaxed">{cleanMsg}</p>
-                                                )}
-                                                {extractedUpi && (
-                                                    <div className="space-y-3">
-                                                        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
-                                                            <p className="text-xs text-gray-400 mb-1">UPI ID</p>
-                                                            <p className="font-mono font-semibold text-white text-sm break-all">{extractedUpi}</p>
-                                                        </div>
-                                                        <div className="flex flex-col gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => navigator.clipboard.writeText(extractedUpi).catch(() => {})}
-                                                                className="w-full px-3 py-2 text-sm rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium transition-colors"
-                                                            >
-                                                                📋 Copy UPI ID
-                                                            </button>
-                                                            <a
-                                                                href={`upi://pay?pa=${encodeURIComponent(extractedUpi)}&pn=${encodeURIComponent(competition?.name || 'CrwdCtrl')}&cu=INR`}
-                                                                className="w-full px-3 py-2 text-sm rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition-colors text-center"
-                                                            >
-                                                                💳 Pay via UPI App
-                                                            </a>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-
-                                {/* Instructions */}
-                                <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3">
-                                    <p className="text-xs text-blue-300 font-medium mb-2">📋 Payment Steps:</p>
-                                    <ol className="text-xs text-blue-200 space-y-1">
-                                        <li>1. Pay using QR code or UPI ID</li>
-                                        <li>2. Note your Transaction ID</li>
-                                        <li>3. Upload payment screenshot below</li>
-                                    </ol>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Upload & Transaction Section */}
-                        <div className="mt-4 pt-4 border-t border-gray-700">
-                            <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                                <Upload className="w-4 h-4" />
-                                Upload Payment Receipt <span className="text-red-400">*</span>
-                            </h4>
-
-                            {!paymentReceiptUrl ? (
-                                <div className="space-y-3 max-w-xs mx-auto">
-                                    <div className="flex items-center justify-center w-full">
-                                        <label
-                                            htmlFor="payment-receipt-upload"
-                                            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                            onDrop={(e) => {
-                                                e.preventDefault();
-                                                const file = e.dataTransfer.files?.[0];
-                                                if (file) handlePaymentReceiptUpload(file);
-                                            }}
-                                            className={`flex flex-col items-center justify-center w-full h-20 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                                                uploadingReceipt
-                                                    ? 'border-blue-400 bg-blue-900/20'
-                                                    : 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70'
-                                            }`}
-                                        >
-                                            <div className="flex flex-col items-center justify-center py-2">
-                                                {uploadingReceipt ? (
-                                                    <>
-                                                        <Loader className="w-8 h-8 mb-2 text-blue-400 animate-spin" />
-                                                        <p className="text-sm text-blue-400">Uploading receipt...</p>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Upload className="w-8 h-8 mb-2 text-gray-400" />
-                                                        <p className="mb-2 text-sm text-gray-300">
-                                                            <span className="font-semibold">Click or drag & drop</span> payment screenshot
-                                                        </p>
-                                                        <p className="text-xs text-gray-400">PNG or JPG (Max 5MB)</p>
-                                                    </>
-                                                )}
-                                            </div>
-                                            <input
-                                                id="payment-receipt-upload"
-                                                type="file"
-                                                className="hidden"
-                                                accept="image/jpeg,image/jpg,image/png"
-                                                onChange={(e) => {
-                                                    const file = e.target.files[0];
-                                                    if (file) handlePaymentReceiptUpload(file);
-                                                }}
-                                                disabled={uploadingReceipt}
-                                            />
-                                        </label>
-                                    </div>
-                                    {receiptError && (
-                                        <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-2">
-                                            {receiptError}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-3 p-3 bg-green-900/20 border border-green-800 rounded-lg">
-                                        <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
-                                        <div className="flex-1">
-                                            <p className="text-sm text-green-400 font-medium">Payment receipt uploaded successfully</p>
-                                            <p className="text-xs text-gray-400 mt-1">{paymentReceipt?.name} {paymentReceipt?.size ? `(${(paymentReceipt.size / 1024 / 1024).toFixed(2)}MB)` : ''}</p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setPaymentReceiptUrl('');
-                                                setPaymentReceipt(null);
-                                                setReceiptError('');
-                                            }}
-                                            className="text-gray-400 hover:text-white text-sm underline"
-                                        >
-                                            Change
-                                        </button>
-                                    </div>
-                                    {paymentReceipt?.type?.startsWith('image/') && (
-                                        <div className="flex justify-center">
-                                            <img
-                                                src={paymentReceiptUrl}
-                                                alt="Payment receipt preview"
-                                                className="max-w-full max-h-32 object-contain rounded-lg border border-gray-600"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Transaction ID */}
-                        <div className="mt-4 pt-4 border-t border-gray-700">
-                            <label className="block text-sm font-semibold text-white mb-2">
-                                Transaction ID <span className="text-red-400">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={transactionId}
-                                onChange={(e) => setTransactionId(e.target.value)}
-                                placeholder="Enter transaction ID (UPI ref, bank ref, etc.)"
-                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
-                            />
-                            <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Upload & Transaction Section for MULTI-STEP forms (final payment step) */}
-                {isMultiStepFormActive() && competition.registration.qrCode && currentStep === getTotalSteps() && (
-                    <div className="rounded-lg p-3 sm:p-4 border bg-[#1B1C1E] border-gray-700 mb-6">
-                        <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                            <Upload className="w-4 h-4" />
-                            Upload Payment Receipt <span className="text-red-400">*</span>
-                        </h4>
-
-                        {!paymentReceiptUrl ? (
-                            <div className="space-y-3 max-w-xs mx-auto">
-                                <div className="flex items-center justify-center w-full">
-                                    <label
-                                        htmlFor="payment-receipt-upload-multi"
-                                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            const file = e.dataTransfer.files?.[0];
-                                            if (file) handlePaymentReceiptUpload(file);
-                                        }}
-                                        className={`flex flex-col items-center justify-center w-full h-20 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                                            uploadingReceipt
-                                                ? 'border-blue-400 bg-blue-900/20'
-                                                : 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800/70'
-                                        }`}
-                                    >
-                                        <div className="flex flex-col items-center justify-center py-2">
-                                            {uploadingReceipt ? (
-                                                <>
-                                                    <Loader className="w-8 h-8 mb-2 text-blue-400 animate-spin" />
-                                                    <p className="text-sm text-blue-400">Uploading receipt...</p>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Upload className="w-8 h-8 mb-2 text-gray-400" />
-                                                    <p className="mb-2 text-sm text-gray-300">
-                                                        <span className="font-semibold">Click or drag & drop</span> payment screenshot
-                                                    </p>
-                                                    <p className="text-xs text-gray-400">PNG or JPG (Max 5MB)</p>
-                                                </>
-                                            )}
-                                        </div>
-                                        <input
-                                            id="payment-receipt-upload-multi"
-                                            type="file"
-                                            className="hidden"
-                                            accept="image/jpeg,image/jpg,image/png"
-                                            onChange={(e) => {
-                                                const file = e.target.files[0];
-                                                if (file) handlePaymentReceiptUpload(file);
-                                            }}
-                                            disabled={uploadingReceipt}
-                                        />
+                {/* Form Fields */}
+                <div className="bg-[#1B1C1E] rounded-xl p-4 sm:p-5 mb-6 border border-gray-700/50">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 pb-2.5 border-b border-gray-700/70">
+                        {isMultiStepFormActive() ? `Step ${currentStep}` : 'Registration Details'}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {getCurrentStepFields().map((field) => {
+                            const fieldId = generateFieldId(field);
+                            const isFullWidth = field.type === 'textarea' || field.type === 'file' ||
+                                               field.type === 'image' || field.type === 'checkbox' || field.type === 'radio';
+                            return (
+                                <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
+                                    <label className="block text-sm font-medium text-white mb-2">
+                                        {field.label}
+                                        {field.required && <span className="text-red-400 ml-1">*</span>}
                                     </label>
+                                    {renderField(field)}
                                 </div>
-
-                                {receiptError && (
-                                    <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-2">
-                                        {receiptError}
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-3 p-3 bg-green-900/20 border border-green-800 rounded-lg">
-                                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
-                                    <div className="flex-1">
-                                        <p className="text-sm text-green-400 font-medium">Payment receipt uploaded successfully</p>
-                                        <p className="text-xs text-gray-400 mt-1">
-                                            {paymentReceipt?.name} {paymentReceipt?.size ? `(${(paymentReceipt.size / 1024 / 1024).toFixed(2)}MB)` : ''}
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPaymentReceiptUrl('');
-                                            setPaymentReceipt(null);
-                                            setReceiptError('');
-                                        }}
-                                        className="text-gray-400 hover:text-white text-sm underline"
-                                    >
-                                        Change
-                                    </button>
-                                </div>
-
-                                {paymentReceipt?.type?.startsWith('image/') && (
-                                    <div className="flex justify-center">
-                                        <img
-                                            src={paymentReceiptUrl}
-                                            alt="Payment receipt preview"
-                                            className="max-w-full max-h-32 object-contain rounded-lg border border-gray-600"
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Transaction ID */}
-                        <div className="mt-4 pt-4 border-t border-gray-700">
-                            <label className="block text-sm font-semibold text-white mb-2">
-                                Transaction ID <span className="text-red-400">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={transactionId}
-                                onChange={(e) => setTransactionId(e.target.value)}
-                                placeholder="Enter transaction ID (UPI ref, bank ref, etc.)"
-                                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#0ECCEE]"
-                            />
-                            <p className="text-xs text-gray-400 mt-1">This helps us verify your payment</p>
-                        </div>
-
+                            );
+                        })}
                     </div>
-                )}
+                </div>
 
-                {/* ✅ NEW: Form Fields Section */}
-                {(() => {
-                    const currentFields = getCurrentStepFields();
-                    
-                    // Don't show fields section for payment step
-                    if (isMultiStepFormActive() && competition.registration.qrCode && currentStep === getTotalSteps()) {
-                        return null;
-                    }
-                    
-                    return (
-                        <div className="bg-[#1B1C1E] rounded-lg p-4 mb-6">
-                            <h3 className="text-base font-semibold text-white mb-4 border-b border-gray-700 pb-3">
-                                {isMultiStepFormActive() ? `Step ${currentStep}` : 'Registration Details'}
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {currentFields.map((field) => {
-                                    const fieldId = generateFieldId(field);
-                                    const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image' || 
-                                                       field.type === 'checkbox' || field.type === 'radio';
-                                    
-                                    return (
-                                        <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                                            <label className="block text-sm font-medium text-white mb-2">
-                                                {field.label}
-                                                {field.required && <span className="text-red-400 ml-1">*</span>}
-                                            </label>
-                                            {renderField(field)}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    );
-                })()}
-
-                        {/* Submit Button */}
+                        {/* Submit / Next Button */}
                         <div className="flex gap-3 pt-2 pb-8 md:pb-4">
-                            {/* Back Button */}
                             <button
                                 type="button"
                                 onClick={isMultiStepFormActive() && currentStep > 1 ? handleStepBack : () => navigate(-1)}
-                                className="px-4 sm:px-6 py-2.5 rounded-lg border border-gray-700 text-white hover:bg-gray-800 transition-colors text-sm sm:text-base"
+                                className="px-4 sm:px-6 py-3 rounded-xl border border-gray-700 text-white hover:bg-gray-800/60 transition-colors text-sm sm:text-base font-medium"
                                 disabled={submitting}
                             >
                                 {isMultiStepFormActive() && currentStep > 1 ? 'Previous Step' : 'Cancel'}
                             </button>
-                            
-                            {/* Next/Submit Button */}
+
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="flex-1 px-4 sm:px-6 py-2.5 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 text-sm sm:text-base"
+                                className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base shadow-lg shadow-[#0ECCEE]/10"
                             >
                                 {submitting ? (
                                     <>
-                                        <div className="flex items-center gap-2">
-                                            <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                                            <span className="hidden sm:inline">{submissionProgress || 'Submitting...'}</span>
-                                            <span className="sm:hidden">Submitting...</span>
-                                        </div>
-                                        
-                                        {/* Progress indicator */}
-                                        {submissionProgress && (
-                                            <div className="w-full mt-1">
-                                                <div className="bg-gray-700 rounded-full h-1.5">
-                                                    <div 
-                                                        className="bg-black h-1.5 rounded-full transition-all duration-500 ease-out"
-                                                        style={{
-                                                            width: submissionProgress.includes('Validating') ? '25%' :
-                                                                   submissionProgress.includes('Preparing') ? '50%' :
-                                                                   submissionProgress.includes('Submitting') ? '75%' :
-                                                                   submissionProgress.includes('completed') ? '100%' : '10%'
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
+                                        <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                                        <span>{submissionProgress || 'Submitting...'}</span>
                                     </>
-                                ) : (() => {
-                                    if (isMultiStepFormActive() && currentStep < getTotalSteps()) {
-                                        // Check if next step is payment step
-                                        const nextStepIsPayment = competition.registration.qrCode && currentStep === (competition.registration.steps?.length || 0);
-                                        return nextStepIsPayment ? 'Continue to Payment' : 'Next Step';
-                                    }
-                                    
-                                    // Final step
-                                    const isPaymentStep = isMultiStepFormActive() && competition.registration.qrCode && currentStep > (competition.registration.steps?.length || 0);
-                                    return isPaymentStep ? 'Complete Payment & Registration' : 'Submit Registration';
-                                })()}
+                                ) : isMultiStepFormActive() && currentStep < getTotalSteps() ? (
+                                    'Next Step'
+                                ) : priceBreakdown && !razorpayPaymentFields ? (
+                                    `Pay ₹${priceBreakdown.totalAmount} & Register`
+                                ) : (
+                                    'Submit Registration'
+                                )}
                             </button>
                         </div>
                     </form>
