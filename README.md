@@ -18,7 +18,7 @@ A full-stack festival management platform connecting organizers and participants
 - **JWT** + **bcryptjs** for authentication
 - **Firebase Admin SDK** for social auth verification (server)
 - **Cloudinary** for media uploads
-- **Nodemailer** / **Brevo** (and/or Resend) for email delivery
+- **Nodemailer** / **Resend** for email delivery
 
 ### Deployment
 - **Backend**: [Railway](https://railway.app) (Nixpacks)
@@ -126,7 +126,7 @@ CrwdCtrl/
 - **Registration system** — Register for fests, events, and competitions with capacity tracking
 - **Admin dashboard** — Manage all fests, registrations, and competitions
 - **Media uploads** — Cloudinary-powered image uploads for festivals
-- **Email notifications** — Registration confirmations via Nodemailer/Brevo
+- **Email notifications** — Registration confirmations via Nodemailer/Resend
 - **Dark mode** — Theme toggle across the app
 - **Responsive UI** — Mobile-first with Tailwind CSS
 

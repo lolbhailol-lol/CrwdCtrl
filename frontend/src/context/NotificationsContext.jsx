@@ -19,6 +19,8 @@ export const NotificationsProvider = ({ children }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const pollIntervalRef = useRef(null);
+    const seenNotificationIdsRef = useRef(new Set());
+    const hasInitializedRef = useRef(false);
 
     // Helper: get auth token
     const getToken = () => {
@@ -44,17 +46,53 @@ export const NotificationsProvider = ({ children }) => {
         return res.json();
     };
 
+    const showBrowserNotification = useCallback((title, body) => {
+        if (typeof Notification === 'undefined') return;
+        if (Notification.permission === 'granted' && title) {
+            new Notification(title, { body: body || '', icon: '/icon-192x192.png' });
+        }
+    }, []);
+
     // Fetch notifications from backend
     const fetchNotifications = useCallback(async () => {
         try {
             const data = await authFetchJSON('/notifications?limit=20');
             if (data && data.success) {
-                setNotifications(data.notifications || []);
+                const nextNotifications = data.notifications || [];
+                setNotifications(nextNotifications);
+
+                const seenIds = seenNotificationIdsRef.current;
+                const now = Date.now();
+                const isFresh = (notification) => {
+                    if (!notification?.timestamp) return false;
+                    const createdAt = new Date(notification.timestamp).getTime();
+                    return Number.isFinite(createdAt) && (now - createdAt) < 2 * 60 * 1000;
+                };
+
+                if (!hasInitializedRef.current) {
+                    nextNotifications.forEach(notification => {
+                        if (notification?.id) seenIds.add(notification.id);
+                    });
+
+                    nextNotifications
+                        .filter(isFresh)
+                        .forEach(notification => showBrowserNotification(notification.title, notification.message));
+
+                    hasInitializedRef.current = true;
+                    return;
+                }
+
+                nextNotifications
+                    .filter(notification => notification?.id && !seenIds.has(notification.id))
+                    .forEach(notification => {
+                        showBrowserNotification(notification.title, notification.message);
+                        seenIds.add(notification.id);
+                    });
             }
         } catch (error) {
             console.error('Failed to fetch notifications:', error);
         }
-    }, []);
+    }, [showBrowserNotification]);
 
     // Fetch unread count (lightweight)
     const fetchUnreadCount = useCallback(async () => {
@@ -74,6 +112,8 @@ export const NotificationsProvider = ({ children }) => {
         if (!token) {
             setNotifications([]);
             setUnreadCount(0);
+            seenNotificationIdsRef.current = new Set();
+            hasInitializedRef.current = false;
             return;
         }
 
@@ -142,6 +182,8 @@ export const NotificationsProvider = ({ children }) => {
                 } else {
                     setNotifications([]);
                     setUnreadCount(0);
+                    seenNotificationIdsRef.current = new Set();
+                    hasInitializedRef.current = false;
                 }
             }
         };
@@ -178,6 +220,7 @@ export const NotificationsProvider = ({ children }) => {
             unread: true,
             isRead: false,
         };
+        seenNotificationIdsRef.current.add(newNotification.id);
         setNotifications(prev => [newNotification, ...prev]);
         setUnreadCount(prev => prev + 1);
     };

@@ -1,12 +1,39 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require("../model/usermodel");
-const { sendWelcomeEmail } = require('../services/emailService');
+const { sendWelcomeEmail, sendLoginConfirmationEmail } = require('../services/emailService');
+const { createNotification } = require('./notificationController');
+const { sendPushNotification } = require('../services/pushService');
 
 // Generate JWT Token
 const generateToken = (userId) => {
     return jwt.sign({ userId }, process.env.JWT_SECRET || 'your-secret-key', {
         expiresIn: '7d',
+    });
+};
+
+const notifyLoginSuccess = async (user) => {
+    if (!user || !user._id) return;
+
+    try {
+        await createNotification({
+            userId: user._id,
+            title: 'Login successful',
+            message: 'You signed in to CrwdCtrl.',
+            type: 'system',
+            link: '/notifications',
+        });
+    } catch (error) {
+        console.error('❌ Login notification error:', error.message);
+    }
+
+    sendPushNotification(user._id, {
+        title: 'Login successful',
+        body: 'You signed in to CrwdCtrl.',
+        link: '/notifications',
+        type: 'system',
+    }).catch(error => {
+        console.error('❌ Login push notification error:', error.message);
     });
 };
 
@@ -226,6 +253,20 @@ const login = async (req, res) => {
         const userResponse = user.toObject();
         delete userResponse.password;
 
+        if (user.email) {
+            const loginEmailData = {
+                name: user.name,
+                email: user.email,
+            };
+
+            sendLoginConfirmationEmail(loginEmailData).catch(error => {
+                console.error('❌ Failed to send login confirmation email to:', user.email);
+                console.error('   Error:', error.message);
+            });
+        }
+
+        await notifyLoginSuccess(user);
+
         res.status(200).json({
             success: true,
             message: 'Login successful',
@@ -373,6 +414,8 @@ const socialAuth = async (req, res) => {
             const userResponse = existingUser.toObject();
             delete userResponse.password;
 
+            await notifyLoginSuccess(existingUser);
+
             return res.status(200).json({
                 success: true,
                 message: 'Login successful',
@@ -426,6 +469,8 @@ const socialAuth = async (req, res) => {
                 // Remove password from response
                 const userResponse = existingUser.toObject();
                 delete userResponse.password;
+
+                await notifyLoginSuccess(existingUser);
 
                 return res.status(200).json({
                     success: true,

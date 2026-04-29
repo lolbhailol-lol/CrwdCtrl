@@ -1,5 +1,4 @@
 const nodemailer = require('nodemailer');
-const Brevo = require('@getbrevo/brevo');
 const { Resend } = require('resend');
 
 // Initialize Resend
@@ -11,7 +10,7 @@ if (process.env.RESEND_API_KEY) {
 // ============================================
 // 📧 EMAIL QUEUE SYSTEM - Prevents Rate Limiting
 // ============================================
-// Brevo free tier allows 300 emails/day.
+// Provider limits vary by service.
 // This queue ensures emails are sent sequentially with proper delays and retries.
 
 const emailQueue = [];
@@ -67,61 +66,11 @@ const processEmailQueue = async () => {
     isProcessingQueue = false;
 };
 
-// ✅ BREVO API CLIENT (HTTP-based, works on Railway/cloud platforms)
-// Free tier: 300 emails/day forever, no trial expiry
-let brevoApiInstance = null;
-if (process.env.BREVO_API_KEY) {
-    brevoApiInstance = new Brevo.TransactionalEmailsApi();
-    brevoApiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
-}
-
-// Check if Brevo is available
-const useBrevo = () => {
-    if (brevoApiInstance && process.env.BREVO_API_KEY) {
-        console.log('📧 Using Brevo API for email delivery');
-        return true;
-    }
-    console.log('⚠️ Brevo API key not configured, falling back to SMTP (may fail on cloud)');
-    return false;
-};
-
-// ✅ BREVO EMAIL SENDER (HTTP-based - works on Railway!)
-const sendWithBrevo = async (mailOptions) => {
-    if (!brevoApiInstance) {
-        throw new Error('Brevo API key not configured');
-    }
-
-    console.log('📧 Sending email via Brevo API...');
-    console.log('   To:', mailOptions.to);
-    console.log('   Subject:', mailOptions.subject);
-    console.log('   Timestamp:', new Date().toISOString());
-
-    const sendSmtpEmail = new Brevo.SendSmtpEmail();
-    sendSmtpEmail.sender = {
-        name: 'CrwdCtrl',
-        email: mailOptions.from || process.env.BREVO_SENDER_EMAIL || 'onboarding@crwdctrl.in'
-    };
-    sendSmtpEmail.to = Array.isArray(mailOptions.to)
-        ? mailOptions.to.map(email => ({ email }))
-        : [{ email: mailOptions.to }];
-    sendSmtpEmail.subject = mailOptions.subject;
-    sendSmtpEmail.htmlContent = mailOptions.html;
-    if (mailOptions.text) {
-        sendSmtpEmail.textContent = mailOptions.text;
-    }
-    sendSmtpEmail.replyTo = {
-        email: process.env.BREVO_REPLY_TO || 'team.crwdctrl@gmail.com'
-    };
-
-    try {
-        const data = await brevoApiInstance.sendTransacEmail(sendSmtpEmail);
-        console.log('✅ Email sent via Brevo! MessageId:', data?.body?.messageId || data?.messageId || 'OK');
-        return { success: true, messageId: data?.body?.messageId || data?.messageId || 'brevo-ok' };
-    } catch (error) {
-        const errMsg = error?.body?.message || error?.message || 'Brevo API failed';
-        console.error('❌ Brevo API error:', errMsg);
-        throw new Error(errMsg);
-    }
+const getDefaultFrom = () => {
+    if (process.env.RESEND_FROM) return process.env.RESEND_FROM;
+    if (process.env.RESEND_API_KEY) return 'CrwdCtrl <onboarding@crwdctrl.in>';
+    if (process.env.EMAIL_USER) return process.env.EMAIL_USER;
+    return 'CrwdCtrl <onboarding@crwdctrl.in>';
 };
 
 // ✅ UNIVERSAL EMAIL SENDER - Uses queue to prevent rate limiting
@@ -132,16 +81,13 @@ const sendEmail = async (mailOptions) => {
             try {
                 return await sendWithResend(mailOptions);
             } catch (error) {
-                console.warn('🔄 Resend failed or Domain mismatch, falling back to Brevo...');
+                console.warn('🔄 Resend failed or domain mismatch, falling back to SMTP...');
             }
+        } else {
+            console.warn('⚠️ Resend not configured, using SMTP fallback...');
         }
 
-        // PRIORITY 2: BREVO
-        if (useBrevo()) {
-            return await sendWithBrevo(mailOptions);
-        }
-
-        // PRIORITY 3: GMAIL/SMTP
+        // PRIORITY 2: GMAIL/SMTP
         const transporter = createTransporter();
         const info = await transporter.sendMail(mailOptions);
         return { success: true, messageId: info.messageId };
@@ -234,9 +180,9 @@ const createTransporter = () => {
         console.warn('⚠️ EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
         console.warn('⚠️ EMAIL_PASS:', process.env.EMAIL_PASS ? 'SET' : 'NOT SET');
 
-        // In production without Brevo, throw error
-        if (process.env.NODE_ENV === 'production' && !useBrevo()) {
-            throw new Error('Email credentials not configured in production environment');
+        // In production, do not allow SMTP fallback without credentials
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error('SMTP credentials not configured in production environment');
         }
 
         console.log('📧 Using test email account (development only)');
@@ -428,8 +374,13 @@ const sendRegistrationThankYouEmail = async (userEmail, userName, festName) => {
     try {
         console.log('📧 Sending thank you email to:', userEmail);
 
+        if (!userEmail) {
+            console.error('❌ Thank you email skipped: user email missing');
+            return { success: false, error: 'User email missing' };
+        }
+
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
+            from: getDefaultFrom(),
             to: userEmail,
             subject: `Thank you for registering - ${festName}`,
             html: generateThankYouEmailHTML(userName, festName)
@@ -446,15 +397,20 @@ const sendRegistrationThankYouEmail = async (userEmail, userName, festName) => {
 };
 
 // Send registration confirmation email with details (GENERALIZED)
-const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, competitionName, registrationId, submissionDate) => {
+const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, competitionName, registrationId, submissionDate, paymentContext = {}) => {
     try {
         console.log('📧 Sending confirmation email to:', userEmail);
 
+        if (!userEmail) {
+            console.error('❌ Confirmation email skipped: user email missing');
+            return { success: false, error: 'User email missing' };
+        }
+
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
+            from: getDefaultFrom(),
             to: userEmail,
             subject: `Registration Confirmed - ${festName}`,
-            html: generateConfirmationEmailHTML(userName, festName, competitionName, registrationId, submissionDate)
+            html: generateConfirmationEmailHTML(userName, festName, competitionName, registrationId, submissionDate, paymentContext)
         };
 
         const result = await sendEmail(mailOptions);
@@ -549,7 +505,68 @@ const generateThankYouEmailHTML = (userName, festName) => {
 };
 
 // Generate HTML content for confirmation email (GENERALIZED)
-const generateConfirmationEmailHTML = (userName, festName, competitionName, registrationId, submissionDate) => {
+const generateConfirmationEmailHTML = (userName, festName, competitionName, registrationId, submissionDate, paymentContext = {}) => {
+    const paymentStatus = paymentContext?.status || 'unknown';
+    const paymentMethod = paymentContext?.method || '';
+    const paymentMethodLabel = paymentMethod === 'razorpay' ? 'Razorpay' : paymentMethod;
+
+    const nextStepsHtml = (() => {
+        if (paymentStatus === 'paid') {
+            const methodText = paymentMethodLabel ? ` via ${paymentMethodLabel}` : '';
+            return `
+                <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 25px 0; border: 2px solid #c3e6cb;">
+                    <h4 style="color: #155724; margin-bottom: 15px;">Payment confirmed</h4>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li style="color: #155724; margin-bottom: 8px;">Your payment${methodText} is verified.</li>
+                        <li style="color: #155724; margin-bottom: 8px;">We will share event updates and check-in details closer to the date.</li>
+                    </ul>
+                    <p style="color: #155724; margin: 15px 0 5px 0;">– Team ${festName}</p>
+                    <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
+                </div>
+            `;
+        }
+
+        if (paymentStatus === 'free') {
+            return `
+                <div style="background: #e3f2fd; border: 1px solid #bbdefb; padding: 20px; border-radius: 8px; margin: 25px 0;">
+                    <h4 style="color: #0b4b74; margin-bottom: 15px;">No payment required</h4>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li style="color: #0b4b74; margin-bottom: 8px;">This registration did not require a payment.</li>
+                        <li style="color: #0b4b74; margin-bottom: 8px;">We will send next steps and updates shortly.</li>
+                    </ul>
+                    <p style="color: #0b4b74; margin: 15px 0 5px 0;">– Team ${festName}</p>
+                    <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
+                </div>
+            `;
+        }
+
+        if (paymentStatus === 'pending') {
+            return `
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 25px 0;">
+                    <h4 style="color: #856404; margin-bottom: 15px;">Payment under review</h4>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li style="color: #856404; margin-bottom: 8px;">Your payment will be reviewed manually.</li>
+                        <li style="color: #856404; margin-bottom: 8px;">We will confirm once verification is complete.</li>
+                    </ul>
+                    <p style="color: #856404; margin: 15px 0 5px 0;">– Team ${festName}</p>
+                    <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
+                </div>
+            `;
+        }
+
+        return `
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 25px 0;">
+                <h4 style="color: #856404; margin-bottom: 15px;">What happens next?</h4>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li style="color: #856404; margin-bottom: 8px;">We will review your registration details for completeness and accuracy.</li>
+                    <li style="color: #856404; margin-bottom: 8px;">We will share updates and next steps soon.</li>
+                </ul>
+                <p style="color: #856404; margin: 15px 0 5px 0;">– Team ${festName}</p>
+                <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
+            </div>
+        `;
+    })();
+
     return `
     <!DOCTYPE html>
     <html>
@@ -691,16 +708,7 @@ const generateConfirmationEmailHTML = (userName, festName, competitionName, regi
                     </p>
                 </div>
 
-                <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 25px 0;">
-                    <h4 style="color: #856404; margin-bottom: 15px;">🚀 What happens next?</h4>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li style="color: #856404; margin-bottom: 8px;">Payment screenshot will be reviewed manually</li>
-                        <li style="color: #856404; margin-bottom: 8px;">We'll review your registration details for completeness and accuracy</li>
-                    <li style="color: #856404; margin-bottom: 8px;">We'll review your registration details for completeness and accuracy</li>
-                    </ul>
-                    <p style="color: #856404; margin: 15px 0 5px 0;">– Team ${festName}</p>
-                    <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
-                </div>
+                ${nextStepsHtml}
             </div>
             
             <div class="footer">
@@ -718,8 +726,13 @@ const sendOrganizerNotificationEmail = async (organizerEmail, userName, userEmai
     try {
         console.log('📧 Sending organizer notification email to:', organizerEmail);
 
+        if (!organizerEmail) {
+            console.error('❌ Organizer email skipped: organizer email missing');
+            return { success: false, error: 'Organizer email missing' };
+        }
+
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
+            from: getDefaultFrom(),
             to: organizerEmail,
             subject: `New Registration - ${festName}${competitionName ? ` (${competitionName})` : ''}`,
             html: generateOrganizerNotificationEmailHTML(userName, userEmail, festName, competitionName, registrationId, submissionDate)
@@ -908,11 +921,11 @@ const sendLoginConfirmationEmail = async (userData) => {
 
         if (!userData.email) {
             console.error('❌ Cannot send login confirmation email: email is missing');
-            throw new Error('User email is required to send login confirmation email');
+            return { success: false, error: 'User email is required to send login confirmation email' };
         }
 
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'noreply@crwdctrl.com',
+            from: getDefaultFrom(),
             to: userData.email,
             subject: '✅ Login Confirmed - CrwdCtrl Account',
             html: generateLoginConfirmationEmailHTML(userData)

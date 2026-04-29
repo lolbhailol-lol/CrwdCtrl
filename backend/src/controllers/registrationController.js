@@ -446,7 +446,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
             competition.fest.festName || competition.name,
             competition.name,
             registrationId,
-            submissionDate
+            submissionDate,
+            { status: paymentStatus, method: paymentStatus === 'paid' ? 'razorpay' : 'free' }
           );
           console.log('✅ Confirmation email sent successfully');
         } catch (emailError) {
@@ -934,7 +935,8 @@ const submitCompetitionRegistration = async (req, res) => {
             fest.festName,
             competition.name, // Use competition name
             registration._id.toString(),
-            submissionDate
+            submissionDate,
+            { status: rzpPaymentStatus, method: rzpPaymentStatus === 'paid' ? 'razorpay' : 'free' }
           );
           console.log('✅ Confirmation email sent successfully');
 
@@ -1914,7 +1916,8 @@ const payAndRegisterFest = async (req, res) => {
           user.email, user.name,
           fest.festName, null,
           registration._id.toString(),
-          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          { status: 'paid', method: 'razorpay' }
         ).catch(() => {});
 
         // Google Sheets
@@ -2040,7 +2043,8 @@ const payAndRegister = async (req, res) => {
           competition.fest?.festName || competition.name,
           competition.name,
           registration._id.toString(),
-          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          { status: 'paid', method: 'razorpay' }
         ).catch(() => {});
 
         // Google Sheets — use the fest's Google Sheets URL if configured

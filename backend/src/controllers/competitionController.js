@@ -150,7 +150,8 @@ const registerForCompetition = async (req, res) => {
                         'Competition Registration', // Generic fest name
                         registrationData.competitionName, // Competition name
                         registrationData.registrationId,
-                        submissionDate
+                        submissionDate,
+                        { status: 'pending', method: 'manual' }
                     );
                     
                     console.log('✅ Confirmation email sent successfully');
