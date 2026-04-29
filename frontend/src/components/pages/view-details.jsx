@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Calendar, MapPin } from "lucide-react";
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Bell, User, Home, ChevronRight,ChevronLeft, Sun, Moon, Phone, Instagram, Mail, ArrowLeft, Share, MoreHorizontal } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
@@ -749,7 +750,7 @@ function EventDetailsPage() {
 
                   <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
                     <div className="flex items-center space-x-3">
-                      <img src={calendarIcon} alt="Calendar" className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'filter brightness-150 invert' : ''}`} />
+                      <img src={calendarIcon} alt="Calendar" className={`w-[18px] h-[18px] ${isDark ? 'invert brightness-200' : ''}`}/>                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{eventData.venue}</span>
                       <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{eventData.dateTime}</span>
                     </div>
                     <div className="flex items-center space-x-3">
@@ -981,13 +982,7 @@ function EventDetailsPage() {
                 >
                   <ArrowLeft size={20} />
                 </button>
-                <button
-                  onClick={() => navigate('/')}
-                  className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
-                  title="Go to Home"
-                >
-                  <Home size={20} />
-                </button>
+                 
               </div>
               <div className="flex items-center space-x-3">
                 <button
@@ -1070,25 +1065,25 @@ function EventDetailsPage() {
             {/* Event Details - Information Rows */}
             <div className="space-y-4 mb-5">
               <div className="flex items-center space-x-3">
-                <div className={`p-2 ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'} rounded-lg`}>
-                  <img src={calendarIcon} alt="Calendar" className={`w-[18px] h-[18px] ${isDark ? 'filter contrast-150 hue-rotate-180' : ''}`} style={{ filter: isDark ? 'brightness(2) saturate(2) hue-rotate(200deg)' : '' }} />
-                </div>
-                <div>
-                  <p className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-                    {eventData.dateTime}
-                  </p>
-                </div>
-              </div>
+  <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
+    <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+  </div>
+  <div>
+    <p className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
+      {eventData.dateTime}
+    </p>
+  </div>
+</div>
               <div className="flex items-center space-x-3">
-                <div className={`p-2 ${isDark ? 'bg-green-900/30' : 'bg-green-50'} rounded-lg`}>
-                  <img src={locationIcon} alt="Location" className={`w-[18px] h-[18px] ${isDark ? 'filter brightness-150 contrast-150 hue-rotate-90' : ''}`} style={{ filter: isDark ? 'brightness(2) saturate(2) hue-rotate(90deg)' : '' }} />
-                </div>
-                <div>
-                  <p className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-                    {eventData.venue}
-                  </p>
-                </div>
-              </div>
+  <div className={`p-2 rounded-lg ${isDark ? 'bg-green-900/30' : 'bg-green-50'}`}>
+    <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+  </div>
+  <div>
+    <p className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
+      {eventData.venue}
+    </p>
+  </div>
+</div>
             </div>
 
             {/* Short Description */}
@@ -1263,7 +1258,7 @@ function EventDetailsPage() {
           )}
 
           {/* Spacer for fixed mobile footer */}
-          <div className="md:hidden h-20"></div>
+          <div className="h-32 md:hidden"></div>
 
           {/* Footer */}
           <Footer />
@@ -1271,8 +1266,7 @@ function EventDetailsPage() {
       </div>
 
       {/* Fixed Mobile/Tablet Register Button Footer */}
-      <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden px-4 py-3 ${isDark ? 'bg-[#0F1014] border-t border-gray-700' : 'bg-white border-t border-gray-200'}`}>
-        <button
+<div className={`sticky bottom-0 z-40 md:hidden px-4 py-3 ...`}>          <button
           onClick={handleRegister}
           disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
           className={`w-full font-semibold py-3 rounded-xl transition ${eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'

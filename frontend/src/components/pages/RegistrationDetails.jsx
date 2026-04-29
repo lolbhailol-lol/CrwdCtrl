@@ -165,8 +165,7 @@ export default function RegistrationDetails() {
               <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                 {registration.fest?.collegeName && (
                   <div className="flex items-center gap-2 text-gray-500">
-                    <MapPin className="w-4 h-4 flex-shrink-0" />
-                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
+<MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
                       {registration.fest.collegeName}
                     </span>
                   </div>
@@ -174,8 +173,7 @@ export default function RegistrationDetails() {
                 
                 {registration.fest?.festDate && (
                   <div className="flex items-center gap-2 text-gray-500">
-                    <Calendar className="w-4 h-4 flex-shrink-0" />
-                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+<Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
                       {registration.fest.festDate}
                     </span>
                   </div>
