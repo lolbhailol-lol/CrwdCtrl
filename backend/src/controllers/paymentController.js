@@ -5,10 +5,16 @@ const Competition = require('../model/competition_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+let _razorpay;
+const getRazorpay = () => {
+  if (!_razorpay) {
+    _razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+  }
+  return _razorpay;
+};
 
 const resolvePricedEntity = async ({ eventId, competitionId, festId, notes = {} }) => {
   const resolvedEventId = eventId || notes.eventId;
@@ -101,7 +107,7 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ message: 'This event does not require payment' });
     }
 
-    const order = await razorpay.orders.create({
+    const order = await getRazorpay().orders.create({
       amount: Math.round(pricing.totalAmount * 100),
       currency,
       notes: {
