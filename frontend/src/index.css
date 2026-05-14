@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Hide portal bottom nav on desktop */
+@media (min-width: 1024px) {
+    #crwdctrl-bottom-nav {
+        display: none !important;
+    }
+}
+
 /* Sticky footer support */
 html,
 body,
@@ -249,101 +256,7 @@ html {
         }
     }
 
-    /* iOS Safe Area Support for Bottom Navigation */
-    .fixed.bottom-0 {
-        /* Ensure bottom navigation respects safe area */
-        bottom: max(env(safe-area-inset-bottom), 0px);
-        padding-bottom: 0;
-    }
-
-    /* iOS-specific bottom navigation fixes */
-    .mobile-bottom-nav {
-        /* Force hardware acceleration */
-        -webkit-transform: translateZ(0);
-        transform: translateZ(0);
-        -webkit-backface-visibility: hidden;
-        backface-visibility: hidden;
-        /* Prevent bounce scrolling interference */
-        -webkit-overflow-scrolling: auto;
-        /* Ensure proper stacking */
-        position: fixed !important;
-        z-index: 9999 !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        /* Prevent duplicates */
-        pointer-events: auto !important;
-    }
-
-    /* Ensure only one mobile bottom nav exists */
-    .mobile-bottom-nav:not(:first-of-type) {
-        display: none !important;
-    }
-
-    /* Ensure the main mobile bottom nav is always visible on mobile */
-    #mobile-bottom-nav-main {
-        display: block !important;
-    }
-
-    @media (min-width: 768px) {
-        #mobile-bottom-nav-main {
-            display: none !important;
-        }
-    }
-
-    /* Fix iOS Safari bottom safe area handling */
-    @supports (padding-bottom: env(safe-area-inset-bottom)) {
-        .mobile-bottom-nav {
-            padding-bottom: max(env(safe-area-inset-bottom), 8px);
-        }
-    }
-
-    /* Prevent iOS Safari from hiding bottom nav on scroll */
-    body {
-        /* Prevent elastic scrolling that can hide fixed elements */
-        overscroll-behavior-y: none;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    /* Fix for iOS Safari address bar hiding/showing */
-    .fixed.bottom-0.z-50 {
-        /* Use viewport height units that account for dynamic viewport */
-        bottom: max(env(safe-area-inset-bottom), 0px) !important;
-        /* Ensure it stays above iOS Safari's bottom UI */
-        z-index: 999999 !important;
-        position: fixed !important;
-    }
-
-    /* Additional mobile bottom nav visibility fixes */
-    .mobile-bottom-nav {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
-
-    /* Ensure mobile bottom nav shows on all mobile devices */
-    @media (max-width: 767px) {
-        .mobile-bottom-nav {
-            display: block !important;
-        }
-    }
-
-    /* Hide mobile bottom nav on desktop */
-    @media (min-width: 768px) {
-        .mobile-bottom-nav {
-            display: none !important;
-        }
-        .mobile-bottom-nav-spacer {
-            display: none !important;
-        }
-    }
-
-    /* Show mobile bottom nav spacer on mobile */
-    @media (max-width: 767px) {
-        .mobile-bottom-nav-spacer {
-            display: block !important;
-        }
-    }
+    /* Bottom nav — no transform rules here, transforms break position:fixed on iOS */
 
     /* iOS-specific safe area fix for ProfileSidebar bottom navigation */
     @supports (padding-bottom: env(safe-area-inset-bottom)) {

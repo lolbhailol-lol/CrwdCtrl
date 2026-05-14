@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Heart, Calendar, User } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -9,163 +10,122 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
     const location = useLocation();
     const { isDark } = useDarkMode();
     const { isAuthenticated } = useAuth();
+    const [mounted, setMounted] = useState(false);
 
-    // Helper function to determine if a nav item should be active
+    useEffect(() => { setMounted(true); }, []);
+
     const isItemActive = (itemPath, itemId) => {
-        const currentPath = location.pathname;
-
-        if (itemId === 'home') {
-            // Home should ONLY be active on exact home path, not on fest pages
-            return currentPath === '/';
-        } else if (itemId === 'favorites') {
-            // Favorites should ONLY be active on exact favorites path
-            return currentPath === '/favorites';
-        } else if (itemId === 'registered') {
-            // Registered should ONLY be active on exact registered path
-            return currentPath === '/registered-fest';
-        } else if (itemId === 'profile') {
-            // Profile includes multiple related paths but NOT registered-fest
-            return currentPath.includes('/profile') ||
-                currentPath.includes('/edit-profile') ||
-                currentPath.includes('/help-center') ||
-                currentPath.includes('/list-your-fest') ||
-                currentPath.includes('/notifications');
-        } else {
-            // For other items, exact path match
-            return currentPath === itemPath;
-        }
+        const p = location.pathname;
+        if (itemId === 'home')       return p === '/';
+        if (itemId === 'favorites')  return p === '/favorites';
+        if (itemId === 'registered') return p === '/registered-fest';
+        if (itemId === 'profile')    return p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications');
+        return p === itemPath;
     };
 
     const navItems = [
-        {
-            id: 'home',
-            icon: Home,
-            label: 'Home',
-            path: '/',
-            isActive: isItemActive('/', 'home')
-        },
-        {
-            id: 'favorites',
-            icon: Heart,
-            label: 'Favourite',
-            path: '/favorites',
-            isActive: isItemActive('/favorites', 'favorites')
-        },
-        {
-            id: 'registered',
-            icon: Calendar,
-            label: 'Registered',
-            path: '/registered-fest',
-            isActive: isItemActive('/registered-fest', 'registered')
-        },
-        {
-            id: 'profile',
-            icon: User,
-            label: 'Profile',
-            path: '/profile',
-            isActive: isItemActive('/profile', 'profile')
-        }
+        { id: 'home',       icon: Home,     label: 'Home',       path: '/' },
+        { id: 'favorites',  icon: Heart,    label: 'Favourite',  path: '/favorites' },
+        { id: 'registered', icon: Calendar, label: 'Registered', path: '/registered-fest' },
+        { id: 'profile',    icon: User,     label: 'Profile',    path: '/profile' },
     ];
 
     const handleNavClick = (path, itemId) => {
-    if (itemId === 'profile') {
-        if (!isAuthenticated) {
-            if (onShowLogin) {
-                onShowLogin();
-                return;
-            }
+        if (itemId === 'profile' && !isAuthenticated) {
+            onShowLogin?.();
+            return;
         }
-
-        // ALWAYS navigate for active state
-       navigate(path);
-
-        // Optional sidebar open
-        if (onProfileClick) {
-            onProfileClick();
-        }
-
-    } else {
         navigate(path);
+        if (itemId === 'profile') onProfileClick?.();
+        else onNavigate?.(path);
+    };
 
-        if (onNavigate) {
-            onNavigate(path);
-        }
-    }
-};
-    return (
+    if (!mounted) return null;
+
+    // Portal renders directly into document.body — completely immune to ancestor
+    // transforms, stacking contexts, or display:none that break position:fixed on iOS
+    return createPortal(
         <>
-            {/* Mobile Bottom Navigation - Only visible on small screens */}
-          <div 
-  className="fixed inset-x-0 z-[9999] md:hidden mobile-bottom-nav"
-  style={{
-    bottom: 0,
-    paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
-    WebkitTransform: 'translate3d(0,0,0)',
-    transform: 'translate3d(0,0,0)'
-  }}
->
-               <div className={`rounded-3xl mx-4 mb-0 transition-all duration-300 border border-gray-600/50 backdrop-blur-md ${isDark
-    ? 'bg-[#0a0a0a]/95'
-    : 'bg-[#F5F6FA]/95 border-gray-200'
-    }`}
+            {/* ── Bottom nav rendered at body level via portal ── */}
+            <div
+                id="crwdctrl-bottom-nav"
+                style={{
+                    position: 'fixed',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    zIndex: 99999,
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
+                    paddingLeft: 0,
+                    paddingRight: 0,
+                    pointerEvents: 'auto',
+                }}
+            >
+                <div
                     style={{
-                        // iOS Safari specific fixes
-                        WebkitBackdropFilter: 'blur(12px)',
-                        backdropFilter: 'blur(12px)',
-                        WebkitTransform: 'translate3d(0,0,0)',
-                        transform: 'translate3d(0,0,0)',
-                        WebkitBackfaceVisibility: 'hidden',
-                        backfaceVisibility: 'hidden'
+                        margin: '0 12px',
+                        borderRadius: '20px',
+                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'}`,
+                        backgroundColor: isDark
+                            ? 'rgba(10, 10, 10, 0.98)'
+                            : 'rgba(245, 246, 250, 0.98)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        backdropFilter: 'blur(20px)',
+                        overflow: 'hidden',
                     }}
                 >
-                    <div className="flex items-center justify-around px-4 py-4">
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'space-around',
+                            alignItems: 'center',
+                            padding: '10px 4px',
+                        }}
+                    >
                         {navItems.map((item) => {
+                            const active = isItemActive(item.path, item.id);
                             const IconComponent = item.icon;
                             return (
                                 <button
                                     key={item.id}
                                     onClick={() => handleNavClick(item.path, item.id)}
-                                    className={`flex flex-col items-center justify-center p-2 transition-all duration-300 touch-manipulation ${item.isActive
-                                        ? isDark
-                                            ? 'text-blue-400'
-                                            : 'text-blue-600'
-                                        : isDark
-                                            ? 'text-white hover:text-blue-400'
-                                            : 'text-gray-500 hover:text-blue-600'
-                                        }`}
                                     aria-label={item.label}
                                     style={{
-                                        // iOS Safari touch optimization
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '8px 20px',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
                                         WebkitTapHighlightColor: 'transparent',
-                                        WebkitTouchCallout: 'none',
-                                        WebkitUserSelect: 'none',
-                                        userSelect: 'none'
+                                        WebkitAppearance: 'none',
+                                        color: active
+                                            ? '#2563eb'
+                                            : isDark ? '#e5e7eb' : '#6b7280',
+                                        transition: 'color 0.2s ease',
                                     }}
                                 >
                                     <IconComponent
                                         size={24}
                                         strokeWidth={2}
-                                        fill="none"
-                                        className={`transition-all duration-200 ${item.isActive ? 'scale-110' : 'scale-100'
-                                            }`}
+                                        style={{
+                                            transform: active ? 'scale(1.15)' : 'scale(1)',
+                                            transition: 'transform 0.2s ease',
+                                        }}
                                     />
                                 </button>
                             );
                         })}
-
-
                     </div>
                 </div>
             </div>
 
-            {/* Spacer to prevent content from being hidden behind the nav - iOS safe area aware */}
-            <div 
-                className="md:hidden mobile-bottom-nav-spacer"
-                style={{
-                    height: `calc(6rem + max(env(safe-area-inset-bottom), 8px))`
-                }}
-            ></div>
-        </>
+            {/* Spacer injected at body level so pages know to pad their content */}
+            <div style={{ height: 'calc(68px + max(env(safe-area-inset-bottom), 8px))' }} />
+        </>,
+        document.body
     );
 };
 
