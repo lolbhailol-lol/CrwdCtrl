@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -316,7 +316,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
             <div className={`${isModal ? 'fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto' : 'min-h-screen flex items-center justify-center p-4'}`}>
                 <div
                     className={`relative rounded-2xl shadow-2xl w-full max-w-xs sm:max-w-sm p-4 sm:p-6 transition-colors duration-300 my-8
-        ${isDark ? 'bg-[#1B1C1E] text-white' : 'bg-white text-gray-900'}`}
+        ${isDark ? 'bg-[#111213] text-white' : 'bg-white text-gray-900'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Close Button - only show for modal */}
@@ -418,7 +418,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                         className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
                                 ${errors.name ? 'border-red-500' : ''}
                                 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
                                             } focus:outline-none focus:ring-2`}
                                     />
@@ -435,7 +435,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                         className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
                                 ${errors.email ? 'border-red-500' : ''}
                                 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
                                             } focus:outline-none focus:ring-2`}
                                     />
@@ -453,7 +453,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                             className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
                                     ${errors.password ? 'border-red-500' : ''}
                                     ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
                                                 } focus:outline-none focus:ring-2`}
                                         />
@@ -490,7 +490,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                         readOnly
                                         className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
                                 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-gray-300 cursor-not-allowed'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-gray-300 cursor-not-allowed'
                                                 : 'bg-gray-100 border-gray-200 placeholder-gray-400 text-gray-600 cursor-not-allowed'
                                             } focus:outline-none`}
                                     />
@@ -508,7 +508,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                         readOnly
                                         className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
                                 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-gray-300 cursor-not-allowed'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-gray-300 cursor-not-allowed'
                                                 : 'bg-gray-100 border-gray-200 placeholder-gray-400 text-gray-600 cursor-not-allowed'
                                             } focus:outline-none`}
                                     />
@@ -533,7 +533,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
                         ${errors.phone ? 'border-red-500' : ''}
                         ${isDark
-                                        ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
+                                        ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
                                         : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
                                     } focus:outline-none focus:ring-2`}
                             />
@@ -557,7 +557,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                     className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
                             ${errors.dateOfBirth ? 'border-red-500' : ''}
                             ${isDark
-                                            ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
+                                            ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
                                             : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
                                         } focus:outline-none focus:ring-2`}
                                 />
@@ -618,7 +618,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                             </div>
 
                             <div className={`relative flex justify-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                <span className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} px-4`}>
+                                <span className={`${isDark ? 'bg-[#111213]' : 'bg-white'} px-4`}>
                                     or continue with
                                 </span>
                             </div>
@@ -637,7 +637,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                     ? 'opacity-50 cursor-not-allowed'
                                     : ''
                                     } ${isDark
-                                        ? 'bg-[#2A2B2D] text-white hover:bg-[#3A3B3D]'
+                                        ? 'bg-[#1D1E20] text-white hover:bg-[#3A3B3D]'
                                         : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
                                     }`}
                             >
@@ -656,7 +656,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                     ? 'opacity-50 cursor-not-allowed'
                                     : ''
                                     } ${isDark
-                                        ? 'bg-[#2A2B2D] text-white hover:bg-[#3A3B3D]'
+                                        ? 'bg-[#1D1E20] text-white hover:bg-[#3A3B3D]'
                                         : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
                                     }`}
                             >

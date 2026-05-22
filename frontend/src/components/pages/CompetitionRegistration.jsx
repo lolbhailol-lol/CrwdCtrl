@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -21,6 +21,7 @@ export default function CompetitionRegistration() {
     const [submissionProgress, setSubmissionProgress] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [registrationId, setRegistrationId] = useState(null);
     const [uploadingFiles, setUploadingFiles] = useState({});
     // ✅ NEW: Multi-step form state
     const [currentStep, setCurrentStep] = useState(1);
@@ -546,7 +547,7 @@ export default function CompetitionRegistration() {
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         placeholder={placeholder}
                         required={required}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#1D1E20] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
                     />
                 );
 
@@ -558,7 +559,7 @@ export default function CompetitionRegistration() {
                         placeholder={placeholder}
                         required={required}
                         rows={4}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white resize-none text-sm sm:text-base"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white resize-none text-sm sm:text-base"
                     />
                 );
 
@@ -575,7 +576,7 @@ export default function CompetitionRegistration() {
                         value={sanitizedValue}
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         required={required}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#1D1E20] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
                     />
                 );
             }
@@ -586,7 +587,7 @@ export default function CompetitionRegistration() {
                         value={value}
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         required={required}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#2A2B2D] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#1D1E20] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
                     >
                         <option value="">{placeholder || 'Select an option'}</option>
                         {options?.map((option, idx) => (
@@ -607,7 +608,7 @@ export default function CompetitionRegistration() {
                                     checked={value === option}
                                     onChange={(e) => handleInputChange(fieldId, e.target.value)}
                                     required={required}
-                                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                                    className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                                 />
                                 <span className="text-white">{option}</span>
                             </label>
@@ -625,7 +626,7 @@ export default function CompetitionRegistration() {
                                     value={option}
                                     checked={(value || []).includes(option)}
                                     onChange={() => handleInputChange(fieldId, option, 'checkbox')}
-                                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+                                    className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
                                 />
                                 <span className="text-white">{option}</span>
                             </label>
@@ -1054,8 +1055,13 @@ export default function CompetitionRegistration() {
             setSubmissionProgress('Registration completed successfully!');
             const result = await response.json();
             console.log('✅ Registration successful:', result);
-            
+
+            const regId = result._id || result.registration?._id;
+            setRegistrationId(regId);
             setSuccess(true);
+            setTimeout(() => {
+                navigate(regId ? `/qr-ticket/${regId}` : '/registered-fest');
+            }, 2000);
             // ✅ FIXED: Redirect to registered events page (same as fest registration)
             setTimeout(() => {
                 navigate('/registered-fest');
@@ -1092,7 +1098,7 @@ export default function CompetitionRegistration() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center">
+            <div className="min-h-screen bg-[#111213] flex items-center justify-center">
                 <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
             </div>
         );
@@ -1100,7 +1106,7 @@ export default function CompetitionRegistration() {
 
     if (error && !competition) {
         return (
-            <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center px-4">
+            <div className="min-h-screen bg-[#111213] flex items-center justify-center px-4">
                 <div className="text-center">
                     <h1 className="text-xl font-bold text-white mb-3">Competition Not Found</h1>
                     <p className="text-gray-400 mb-4">{error}</p>
@@ -1117,8 +1123,8 @@ export default function CompetitionRegistration() {
 
     if (success) {
         return (
-            <div className="min-h-screen bg-[#1B1C1E] flex items-center justify-center px-4">
-                <div className="text-center max-w-md mx-auto p-6 bg-[#2A2B2D] rounded-xl">
+            <div className="min-h-screen bg-[#111213] flex items-center justify-center px-4">
+                <div className="text-center max-w-md mx-auto p-6 bg-[#1D1E20] rounded-xl">
                     <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
                     <h1 className="text-xl font-bold text-white mb-2">Registration Submitted</h1>
 
@@ -1130,7 +1136,7 @@ export default function CompetitionRegistration() {
                     </p>
 
                     {razorpayPaymentFields ? (
-                        <p className="text-sm text-green-400 mb-4">
+                        <p className="text-sm text-green-400 mb-3">
                             Payment confirmed via Razorpay. You are registered!
                         </p>
                     ) : (
@@ -1138,11 +1144,13 @@ export default function CompetitionRegistration() {
                             <p className="text-sm text-yellow-300 mb-1">
                                 Status: Verification Pending
                             </p>
-                            <p className="text-xs text-gray-400 mb-4">
+                            <p className="text-xs text-gray-400 mb-3">
                                 Our team will verify your payment within 24–48 hours and update your registration status.
                             </p>
                         </>
                     )}
+
+                    <p className="text-xs text-gray-500 mb-4">Redirecting to your ticket...</p>
 
                     <button
                         onClick={() => navigate('/registered-fest')}
@@ -1163,7 +1171,7 @@ export default function CompetitionRegistration() {
 
     // Main registration form
     return (
-        <div className="min-h-screen bg-[#1B1C1E] px-4 py-6 pb-24 sm:pb-8">
+        <div className="min-h-screen bg-[#111213] px-4 py-6 pb-24 sm:pb-8">
             <div className="max-w-3xl mx-auto">
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-6">
@@ -1188,7 +1196,7 @@ export default function CompetitionRegistration() {
                 )}
 
                 {/* Registration Form */}
-                <div className="bg-[#2A2B2D] rounded-2xl p-4 sm:p-6 border border-gray-700/40">
+                <div className="bg-[#1D1E20] rounded-2xl p-4 sm:p-6 border border-gray-700/40">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Step Progress */}
                         {isMultiStepFormActive() && (
@@ -1263,7 +1271,7 @@ export default function CompetitionRegistration() {
 
                 {/* Fee box — shown before payment */}
                 {!razorpayPaymentFields && priceBreakdown && (
-                    <div className="rounded-xl p-4 border bg-[#1B1C1E] border-[#0ECCEE]/30 mb-4">
+                    <div className="rounded-xl p-4 border bg-[#111213] border-[#0ECCEE]/30 mb-4">
                         <p className="text-sm font-semibold text-white mb-2">Payment Breakdown</p>
                         <div className="space-y-1 text-sm text-gray-300">
                             <div className="flex justify-between gap-4">
@@ -1295,7 +1303,7 @@ export default function CompetitionRegistration() {
                 )}
 
                 {/* Form Fields */}
-                <div className="bg-[#1B1C1E] rounded-xl p-4 sm:p-5 mb-6 border border-gray-700/50">
+                <div className="bg-[#111213] rounded-xl p-4 sm:p-5 mb-6 border border-gray-700/50">
                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 pb-2.5 border-b border-gray-700/70">
                         {isMultiStepFormActive() ? `Step ${currentStep}` : 'Registration Details'}
                     </h3>

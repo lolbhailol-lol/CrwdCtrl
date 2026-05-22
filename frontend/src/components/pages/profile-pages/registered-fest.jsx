@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../../utils/imageImports';
 import Footer from '../../Footer';
@@ -55,36 +55,15 @@ function RegisteredFest() {
                 
                 const registrationsData = await registrationsResponse.json();
                 const internalRegistrations = registrationsData.registrations || [];
-                
-                console.log('🔍 Raw registrations received:', internalRegistrations.length);
-                internalRegistrations.forEach((reg, i) => {
-                    console.log(`Registration ${i + 1}:`, {
-                        id: reg._id,
-                        hasCompetitionId: !!reg.competitionId,
-                        competitionName: reg.competitionId?.name,
-                        festName: reg.fest?.festName
-                    });
-                });
-                
-                // Transform internal registrations to match structure
+                const trekBookings = registrationsData.trekBookings || [];
+
+                // Transform fest/competition registrations
                 const transformedFests = internalRegistrations.map(reg => {
-                    // Check if this is a competition registration
                     const isCompetitionRegistration = !!(reg.competitionId && reg.competitionId._id);
-                    
-                    console.log(`🔄 Processing registration ${reg._id}:`, {
-                        isCompetitionRegistration,
-                        competitionId: reg.competitionId?._id,
-                        competitionName: reg.competitionId?.name,
-                        festName: reg.fest?.festName,
-                        hasCompetitionData: !!reg.competitionId
-                    });
-                    
                     if (isCompetitionRegistration) {
-                        // Show competition card
-                        const competitionName = reg.competitionId?.name || `Competition ID: ${reg.competitionId?._id || 'Unknown'}`;
-                        const competitionCard = {
-                            id: reg._id, // Use registration ID for details
-                            name: competitionName,
+                        return {
+                            id: reg._id,
+                            name: reg.competitionId?.name || 'Competition',
                             image: reg.competitionId?.coverImage || reg.fest?.coverImage,
                             date: reg.fest?.festDate,
                             venue: reg.fest?.venue,
@@ -95,15 +74,13 @@ function RegisteredFest() {
                             registrationStatus: reg.status,
                             registrationType: 'internal',
                             isCompetition: true,
+                            isTrek: false,
                             paymentAmount: reg.competitionId?.registrationFee || reg.fest?.ticketPrice || 'N/A',
                             registeredAt: reg.submittedAt
                         };
-                        console.log('🏆 Competition registration found:', competitionName, 'ID:', reg._id);
-                        return competitionCard;
                     } else {
-                        // Show fest card
-                        const festCard = {
-                            id: reg._id, // Use registration ID for details
+                        return {
+                            id: reg._id,
                             name: reg.fest?.festName,
                             image: reg.fest?.coverImage,
                             date: reg.fest?.festDate,
@@ -114,20 +91,37 @@ function RegisteredFest() {
                             registrationStatus: reg.status,
                             registrationType: 'internal',
                             isCompetition: false,
+                            isTrek: false,
                             paymentAmount: reg.fest?.ticketPrice || 'N/A',
                             registeredAt: reg.submittedAt
                         };
-                        console.log('🎪 Fest registration found:', festCard.name, 'ID:', reg._id);
-                        return festCard;
                     }
                 });
-                
-                console.log(`✅ Transformed ${transformedFests.length} registrations:`, 
-                    transformedFests.filter(card => card.isCompetition).length + ' competitions, ' +
-                    transformedFests.filter(card => !card.isCompetition).length + ' fests'
-                );
-                
-                setRegisteredFests(transformedFests);
+
+                // Transform trek bookings
+                const transformedTreks = trekBookings.map(booking => ({
+                    id: booking._id,
+                    name: booking.trekId?.trekName || 'Trek',
+                    image: booking.trekId?.coverImage || booking.trekId?.images?.[0] || null,
+                    date: booking.bookingDetails?.date || booking.trekId?.trekDate,
+                    venue: booking.trekId?.city || '',
+                    type: 'trek',
+                    collegeName: '',
+                    status: 'upcoming',
+                    registrationStatus: booking.status || 'confirmed',
+                    registrationType: 'trek',
+                    isCompetition: false,
+                    isTrek: true,
+                    people: booking.bookingDetails?.people || 1,
+                    amountPaid: booking.bookingDetails?.amountPaid || 0,
+                    paymentId: booking.bookingDetails?.paymentId || '',
+                    difficulty: booking.trekId?.difficultyLevel || '',
+                    registeredAt: booking.createdAt
+                }));
+
+                const all = [...transformedFests, ...transformedTreks]
+                    .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
+                setRegisteredFests(all);
             } catch (err) {
                 console.error('Error fetching registered events:', err);
                 setError(err.message);
@@ -196,7 +190,26 @@ function RegisteredFest() {
                                 }
                             });
                             
-                            setRegisteredFests(transformedFests);
+                            const trekBookings = registrationsData.trekBookings || [];
+                            const transformedTreks = trekBookings.map(booking => ({
+                                id: booking._id,
+                                name: booking.trekId?.trekName || 'Trek',
+                                image: booking.trekId?.coverImage || booking.trekId?.images?.[0] || null,
+                                date: booking.bookingDetails?.date || booking.trekId?.trekDate,
+                                venue: booking.trekId?.city || '',
+                                type: 'trek',
+                                collegeName: '',
+                                status: 'upcoming',
+                                registrationStatus: booking.status || 'confirmed',
+                                registrationType: 'trek',
+                                isCompetition: false,
+                                isTrek: true,
+                                people: booking.bookingDetails?.people || 1,
+                                amountPaid: booking.bookingDetails?.amountPaid || 0,
+                            }));
+                            const all = [...transformedFests, ...transformedTreks]
+                                .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
+                            setRegisteredFests(all);
                         }
                     } catch (err) {
                         console.warn('Error refetching registered events:', err);
@@ -274,7 +287,7 @@ function RegisteredFest() {
     // Loading state
     if (loading) {
         return (
-            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
+            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
                     <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading registered events...</h2>
@@ -286,7 +299,7 @@ function RegisteredFest() {
     // Error state
     if (error) {
         return (
-            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
+            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center">
                     <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>{error}</h2>
                     <button
@@ -301,7 +314,7 @@ function RegisteredFest() {
     }
 
     return (
-        <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'
+        <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'
             }`}>
             <div className={`transition-all duration-300`}>
 
@@ -326,12 +339,12 @@ function RegisteredFest() {
                     </div>
 
                     {/* Registered Events */}
-                    <div className={`max-w-6xl mx-auto ${isDark ? 'bg-[#0a0a0a]' : 'bg-[#F5F6FA]'
+                    <div className={`max-w-6xl mx-auto ${isDark ? 'bg-[#111213]' : 'bg-white'
                         } rounded-lg p-3 sm:p-4 md:p-8`}>
-                        <div className={`flex gap-2 sm:gap-4 md:gap-8 mb-4 sm:mb-6 md:mb-8 border-b ${isDark ? 'border-[#0E0E0F]' : 'border-gray-200'
+                        <div className={`flex gap-2 sm:gap-4 md:gap-8 mb-4 sm:mb-6 md:mb-8 border-b ${isDark ? 'border-[#161718]' : 'border-gray-200'
                             }`}>
                             <div className="pb-2 sm:pb-3 px-2 font-semibold text-sm sm:text-base md:text-lg text-blue-600 border-b-2 border-blue-600">
-                                <span>Registered</span>
+                                <span>My Registrations</span>
                                 <span className="ml-1">({allFests.length})</span>
                             </div>
                         </div>
@@ -344,7 +357,7 @@ function RegisteredFest() {
                                         key={item.id}
                                         className={`flex flex-col sm:flex-row items-start sm:items-center p-3 sm:p-4 rounded-lg border transition-all duration-300 hover:shadow-md ${
                                             isDark 
-                                                ? 'bg-[#1B1C1E] border-gray-700 hover:border-gray-600' 
+                                                ? 'bg-[#111213] border-gray-700 hover:border-gray-600' 
                                                 : 'bg-white border-gray-200 hover:border-gray-300'
                                         }`}
                                     >
@@ -375,12 +388,13 @@ function RegisteredFest() {
                                                             {item.name}
                                                         </h3>
                                                         {item.isCompetition && (
-                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full flex-shrink-0 ${
-                                                                isDark 
-                                                                    ? 'bg-purple-900 text-purple-300' 
-                                                                    : 'bg-purple-100 text-purple-800'
-                                                            }`}>
+                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full flex-shrink-0 ${isDark ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-800'}`}>
                                                                 Competition
+                                                            </span>
+                                                        )}
+                                                        {item.isTrek && (
+                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full flex-shrink-0 ${isDark ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800'}`}>
+                                                                Trek
                                                             </span>
                                                         )}
                                                     </div>
@@ -392,7 +406,7 @@ function RegisteredFest() {
                                                     <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                                                         {item.date && (
                                                             <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                                📅 {item.date}
+                                                                📅 {typeof item.date === 'string' ? item.date : new Date(item.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                             </span>
                                                         )}
                                                         {item.venue && (
@@ -405,6 +419,19 @@ function RegisteredFest() {
                                                                 🏫 {item.collegeName}
                                                             </span>
                                                         )}
+                                                        {item.isTrek && item.people && (
+                                                            <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                                👥 {item.people} {item.people > 1 ? 'people' : 'person'}
+                                                            </span>
+                                                        )}
+                                                        {item.isTrek && item.amountPaid > 0 && (
+                                                            <span className="text-[#0ECCEE] font-medium">
+                                                                ₹{item.amountPaid.toLocaleString('en-IN')} paid
+                                                            </span>
+                                                        )}
+                                                        {item.isTrek && item.amountPaid === 0 && (
+                                                            <span className="text-green-500 font-medium">Free</span>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -413,16 +440,33 @@ function RegisteredFest() {
 
                                         {/* Action Buttons */}
                                         <div className="flex-shrink-0 flex items-center gap-2 mt-3 sm:mt-0 sm:ml-4 w-full sm:w-auto">
-                                            {/* View Details Button */}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleViewDetails(item);
-                                                }}
-                                                className="flex-1 sm:flex-none bg-cyan-500 hover:bg-cyan-600 text-white font-medium text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap"
-                                            >
-                                                View Details
-                                            </button>
+                                            {!item.isTrek && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/qr-ticket/${item.id}`);
+                                                    }}
+                                                    className="flex-1 sm:flex-none bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black font-medium text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap"
+                                                >
+                                                    🎟 My Ticket
+                                                </button>
+                                            )}
+                                            {!item.isTrek && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleViewDetails(item);
+                                                    }}
+                                                    className="flex-1 sm:flex-none bg-cyan-500 hover:bg-cyan-600 text-white font-medium text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap"
+                                                >
+                                                    View Details
+                                                </button>
+                                            )}
+                                            {item.isTrek && (
+                                                <span className={`text-xs px-3 py-2 rounded-lg font-medium ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                                                    ✓ Confirmed
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

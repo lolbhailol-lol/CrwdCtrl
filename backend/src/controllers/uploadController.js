@@ -95,7 +95,7 @@ exports.uploadImage = async (req, res) => {
     });
   } catch (error) {
     console.error('Error uploading image to Cloudinary:', error);
-    res.status(500).json({ error: 'Failed to upload image', details: error.message });
+    res.status(500).json({ error: 'Failed to upload image' });
   }
 };
 
@@ -146,7 +146,7 @@ exports.uploadMultipleImages = async (req, res) => {
     });
   } catch (error) {
     console.error('Error uploading images to Cloudinary:', error);
-    res.status(500).json({ error: 'Failed to upload images', details: error.message });
+    res.status(500).json({ error: 'Failed to upload images' });
   }
 };
 
@@ -193,7 +193,7 @@ exports.uploadFile = async (req, res) => {
     });
   } catch (error) {
     console.error('Error uploading file to Cloudinary:', error);
-    res.status(500).json({ error: 'Failed to upload file', details: error.message });
+    res.status(500).json({ error: 'Failed to upload file' });
   }
 };
 

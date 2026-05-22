@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Phone, Instagram, Check, Moon, Sun, Mail, User, ArrowLeft, Trophy, Ticket, Zap } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../Sidebar';
@@ -493,7 +493,7 @@ function EventPage() {
     // Loading state
     if (loading) {
         return (
-            <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} flex items-center justify-center`}>
+            <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} flex items-center justify-center`}>
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
                     <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading competition...</h2>
@@ -505,7 +505,7 @@ function EventPage() {
     // Error state
     if (error || !competitionData) {
         return (
-            <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} flex items-center justify-center`}>
+            <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} flex items-center justify-center`}>
                 <div className="text-center max-w-md mx-auto p-6">
                     <div className="mb-6">
                         <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? 'bg-red-900/20' : 'bg-red-100'}`}>
@@ -869,9 +869,9 @@ function EventPage() {
     };
 
     return (
-        <div className={`min-h-screen flex flex-col transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-[#F5F6FA]'}`}>
+        <div className={`min-h-screen flex flex-col transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
 
-            <main className={`flex-1 pb-8 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
+            <main className={`flex-1 pb-8 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
                     <div className="max-w-7xl mx-auto">
                         {/* Mobile/Narrow Layout - Only visible below 768px */}
                         <div className="block md:hidden">
@@ -881,7 +881,7 @@ function EventPage() {
                                     onClick={() => navigate(-1)}
                                     className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                                         isDark 
-                                            ? 'bg-[#1B1C1E] text-gray-300 hover:bg-[#2A2B2D] hover:text-white' 
+                                            ? 'bg-[#111213] text-gray-300 hover:bg-[#1D1E20] hover:text-white' 
                                             : 'bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                                     } shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
                                 >
@@ -892,7 +892,7 @@ function EventPage() {
 
                             {/* Mobile Event Image */}
                             <div className="px-4 pt-4">
-                                <div className="bg-[#F5F6FA] dark:bg-[#1B1C1E] rounded-lg overflow-hidden shadow-sm">
+                                <div className="bg-[#EDEDF2] dark:bg-[#111213] rounded-lg overflow-hidden shadow-sm">
                                     <img
                                         src={getImageUrl(eventData?.image) || '/default-image.jpg'}
                                         alt={eventData?.title || 'Competition'}
@@ -1027,7 +1027,7 @@ function EventPage() {
                             {/* Mobile Prize Pool Highlight Card */}
                             {eventData?.prize && (
                                 <div className="px-4 py-4">
-                                    <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#1B1C1E] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
+                                    <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#111213] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
                                         <div className="absolute inset-0 bg-gradient-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
                                         <div className="relative p-4">
                                             <div className="flex items-center gap-2.5 mb-3">
@@ -1049,7 +1049,7 @@ function EventPage() {
                             {/* Mobile Competition Rounds - Only show if rounds exist */}
                             {eventData?.rounds?.roundsList?.length > 0 && (
                             <div className="px-4 py-4">
-                                <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
                                     {eventData?.rounds?.description && (() => {
                                         const desc = sanitizeRoundDescription(eventData.rounds.description);
@@ -1159,7 +1159,7 @@ function EventPage() {
 
                             {/* Mobile Common Rules */}
                             <div className="px-4 py-4">
-                                <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
                                     <RulesList
                                         rules={commonRules}
@@ -1171,7 +1171,7 @@ function EventPage() {
 
                             {/* Mobile Contact Details */}
                             <div className="px-4 py-4 mb-6">
-                                <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
 
                                     {/* Contact Name */}
@@ -1284,7 +1284,7 @@ function EventPage() {
                             {/* Left Column - Image and Rules */}
                             <div className="w-1/2 flex-shrink-0 space-y-6">
                                 {/* Event Image Card */}
-                                <div className="bg-[#F5F6FA] rounded-2xl overflow-hidden">
+                                <div className="bg-[#EDEDF2] rounded-2xl overflow-hidden">
                                     <img
                                         src={getImageUrl(eventData?.image) || '/default-image.jpg'}
                                         alt={eventData?.title || 'Competition'}
@@ -1300,7 +1300,7 @@ function EventPage() {
                                 <div className="space-y-6">
                                     {/* Desktop Prize Pool Highlight Card */}
                                     {eventData?.prize && (
-                                        <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#1B1C1E] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
+                                        <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#111213] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
                                             <div className="absolute inset-0 bg-gradient-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
                                             <div className="relative p-6">
                                                 <div className="flex items-center gap-3 mb-4">
@@ -1320,7 +1320,7 @@ function EventPage() {
                                     )}
 
                                     {/* Common Rules */}
-                                    <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
+                                    <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
                                         <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
                                         <RulesList
                                             rules={commonRules}
@@ -1331,7 +1331,7 @@ function EventPage() {
                                 </div>
 
                                 {/* Contact Details */}
-                                <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
                                     <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact details</h2>
 
                                     {/* Contact Name */}
@@ -1438,7 +1438,7 @@ function EventPage() {
                             {/* Right Column - Event Details */}
                             <div className="w-1/2 flex-shrink-0 space-y-6">
                                 {/* Event Header Card */}
-                                <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6 relative`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6 relative`}>
                                     {showRegistrationSuccess && (
                                         <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 animate-fade-in z-10">
                                             <Check className="w-4 h-4" />
@@ -1565,7 +1565,7 @@ function EventPage() {
 
                                 {/* Competition Rounds - Only show if rounds exist */}
                                 {eventData?.rounds?.roundsList?.length > 0 && (
-                                <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'} rounded-2xl p-6`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
                                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
                                     {eventData?.rounds?.description && (() => {
                                         const desc = sanitizeRoundDescription(eventData.rounds.description);
@@ -1590,8 +1590,8 @@ function EventPage() {
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
                                                     className={`flex-1 py-2 px-4 rounded-2xl font-medium transition ${activeRound === idx
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-[#F5F6FA] text-black'}`
-                                                        : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#F5F6FA] text-black'}`
+                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-[#EDEDF2] text-black'}`
+                                                        : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#EDEDF2] text-black'}`
                                                         }`}
                                                 >
                                                     Round {idx + 1}

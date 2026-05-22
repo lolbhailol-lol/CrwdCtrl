@@ -1,10 +1,56 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, MapPin, Sun, Moon, Menu, Clock, Calendar, X, User, Navigation, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { searchFests, searchAll } from '../services/searchService';
+import FestsIcon from '../assets/mobile-icons/FEST.svg';
+import SportsIcon from '../assets/mobile-icons/SPORTS.svg';
+import TreksIcon from '../assets/mobile-icons/trek.svg';
+import TheatreIcon from '../assets/mobile-icons/THETRE.svg';
+import FestsDarkIcon from '../assets/mobile-icons/fest-dark.svg';
+import SportsDarkIcon from '../assets/mobile-icons/sports-dark.svg';
+import TreksDarkIcon from '../assets/mobile-icons/treks-dark.svg';
+import TheatreDarkIcon from '../assets/mobile-icons/theatre-dark.svg';
+
+const NAV_ITEMS = [
+    { id: 'fests',   label: 'Fests',   path: '/fests',       icon: FestsIcon,   darkIcon: FestsDarkIcon },
+    { id: 'sports',  label: 'Sports',  path: '/sports-fest', icon: SportsIcon,  darkIcon: SportsDarkIcon },
+    { id: 'treks',   label: 'Treks',   path: '/treks',       icon: TreksIcon,   darkIcon: TreksDarkIcon },
+    { id: 'theatre', label: 'Theatre', path: '/theatre',     icon: TheatreIcon, darkIcon: TheatreDarkIcon },
+];
+
+const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, className = '' }) => {
+    const isStacked = layout === 'stacked';
+    const iconClass = layout === 'icon-only'
+        ? 'w-20 h-20'
+        : isStacked
+            ? 'w-8 h-8'
+            : 'w-6 h-6';
+    return (
+        <button
+            onClick={onClick}
+            className={`group flex ${isStacked ? 'flex-col' : 'flex-row'} items-center ${isStacked ? 'gap-2' : 'gap-3'}
+                ${isStacked ? 'py-1' : 'py-2'} ${layout === 'icon-only' ? 'px-2' : ''} ${className}`}
+            aria-label={item.label}
+        >
+            <img
+                src={isDark && item.darkIcon ? item.darkIcon : item.icon}
+                alt={`${item.label} icon`}
+                className={`${iconClass} object-contain`}
+            />
+            {(layout !== 'icon-only') && (
+                <span className={`text-xs font-semibold tracking-wide ${isActive ? 'text-[#007BFF]' : isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {item.label}
+                </span>
+            )}
+            {isActive && isStacked && layout !== 'icon-only' && (
+                <div className="mt-1 h-0.5 w-5 rounded-full bg-[#007BFF]" />
+            )}
+        </button>
+    );
+};
 
 const Navbar = ({ setIsProfileOpen = () => { } }) => {
     const { isDark } = useDarkMode();
@@ -28,12 +74,6 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
     const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
     const locationRef = useRef(null);
 
-    const eventCategories = [
-
-        { label: 'CULTURAL FEST', path: '/cultural-fest' },
-        { label: 'TECH FEST', path: '/tech-fest' },
-        { label: 'SPORTS FEST', path: '/sports-fest' }
-    ];
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
@@ -472,8 +512,8 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
 
     return (
         <header className={`fixed top-0 left-20 right-0 z-50 mx-2 lg:mx-4 pt-4 px-4 lg:px-6 py-4 rounded-b-2xl backdrop-blur-md transition-all duration-300 ${isDark
-            ? 'bg-[#0a0a0a] '
-            : 'bg-[#F5F6FA]'
+            ? 'bg-[#161718] '
+            : 'bg-[#EDEDF2]'
             }`} style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
             <div className="flex items-center justify-between">
                 {/* Left Section: Location and Navigation */}
@@ -603,25 +643,19 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                     </button>
 
                     {/* Desktop Navigation Links */}
-                    <nav className="hidden lg:flex items-center space-x-1">
-                        {eventCategories.map((category) => {
-                            const isActive = location.pathname === category.path;
+                    <nav className="hidden lg:flex items-center gap-8">
+                        {NAV_ITEMS.map((item) => {
+                            const isActive = location.pathname === item.path;
                             return (
-                                <button
-                                    key={category.label}
-                                    onClick={() => handleNavigation(category.path)}
-                                    className={`relative px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 ${isActive
-                                        ? 'text-[#007BFF] bg-[#007BFF]/10 shadow-md'
-                                        : isDark
-                                            ? 'text-gray-300 hover:text-[#007BFF] hover:bg-gray-800/60'
-                                            : 'text-gray-600 hover:text-[#007BFF] hover:bg-[#007BFF]/5'
-                                        }`}
-                                >
-                                    {category.label}
-                                    {isActive && (
-                                        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#007BFF] rounded-full"></div>
-                                    )}
-                                </button>
+                                <NavItem
+                                    key={item.id}
+                                    item={item}
+                                    isActive={isActive}
+                                    isDark={isDark}
+                                    layout="icon-only"
+                                    onClick={() => handleNavigation(item.path)}
+                                    className=""
+                                />
                             );
                         })}
                     </nav>
@@ -634,7 +668,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                 <div className="flex items-center space-x-3 lg:space-x-6 pr-2 lg:pr-4">
                     {/* Search Bar - Now visible on both mobile and desktop */}
                     <div className="block" ref={searchRef}>
-                        <form onSubmit={handleSearchSubmit} className="relative group">
+                        <form onSubmit={handleSearchSubmit} className="relative group mt-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                             
                             <input
@@ -642,7 +676,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                 placeholder="search"
                                 value={searchQuery}
                                 onChange={handleSearchChange}
-                                className={`w-28 sm:w-48 lg:w-64 pl-10 pr-10 py-2 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30 focus:shadow-lg ${isDark
+                                className={`w-28 sm:w-48 lg:w-52 pl-10 pr-10 py-2 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30 focus:shadow-lg ${isDark
                                     ? 'bg-black/60 border border-gray-700/50 text-white placeholder-gray-400 focus:bg-black/80'
                                     : 'bg-[#F8F9FB] border border-gray-200/50 text-gray-900 placeholder-gray-500 focus:bg-white'
                                     }`}
@@ -908,24 +942,21 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
             {isMobileMenuOpen && (
                 <div className={`lg:hidden mt-4 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                     <nav className="flex flex-col space-y-2">
-                        {eventCategories.map((category) => {
-                            const isActive = location.pathname === category.path;
+                        {NAV_ITEMS.map((item) => {
+                            const isActive = location.pathname === item.path;
                             return (
-                                <button
-                                    key={category.label}
+                                <NavItem
+                                    key={item.id}
+                                    item={item}
+                                    isActive={isActive}
+                                    isDark={isDark}
+                                    layout="inline"
                                     onClick={() => {
-                                        handleNavigation(category.path);
+                                        handleNavigation(item.path);
                                         setIsMobileMenuOpen(false);
                                     }}
-                                    className={`text-left px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 ${isActive
-                                        ? 'text-[#007BFF] bg-[#007BFF]/10 shadow-md'
-                                        : isDark
-                                            ? 'text-gray-300 hover:text-[#007BFF] hover:bg-gray-800/60'
-                                            : 'text-gray-600 hover:text-[#007BFF] hover:bg-[#007BFF]/5'
-                                        }`}
-                                >
-                                    {category.label}
-                                </button>
+                                    className="w-full justify-start px-4"
+                                />
                             );
                         })}
                     </nav>

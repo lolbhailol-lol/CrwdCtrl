@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
@@ -152,6 +152,11 @@ export default defineConfig({
     }
   },
 
+  // Strip console.log / debugger in production builds
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
+
   // Environment variables configuration
   envPrefix: ['VITE_'],
 
@@ -160,4 +165,4 @@ export default defineConfig({
     port: 4173,
     host: true
   }
-})
+}))

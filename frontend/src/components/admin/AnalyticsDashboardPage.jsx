@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import {
   Users, FileText, Eye, Activity,
   TrendingUp, TrendingDown, Minus,
@@ -25,7 +25,7 @@ function StatCard({ icon: Icon, label, value, change, color }) {
   const isPositive = change > 0;
   const isNeutral = change === 0 || change === undefined;
   return (
-    <div className="bg-[#1B1C1E] rounded-xl border border-gray-800 p-5">
+    <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
       <div className="flex items-center justify-between mb-3">
         <div className={`p-2 rounded-lg ${color}`}>
           <Icon size={20} />
@@ -218,7 +218,7 @@ export default function AnalyticsDashboardPage() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Registrations by Day */}
-        <div className="bg-[#1B1C1E] rounded-xl border border-gray-800 p-5">
+        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 size={18} className="text-[#0ECCEE]" />
             <h3 className="font-semibold text-white">Registrations (Last 30 Days)</h3>
@@ -231,7 +231,7 @@ export default function AnalyticsDashboardPage() {
         </div>
 
         {/* Top Fests */}
-        <div className="bg-[#1B1C1E] rounded-xl border border-gray-800 p-5">
+        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
           <div className="flex items-center gap-2 mb-4">
             <Eye size={18} className="text-[#0ECCEE]" />
             <h3 className="font-semibold text-white">Top Fests by Views</h3>
@@ -248,7 +248,7 @@ export default function AnalyticsDashboardPage() {
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* User Signups */}
-        <div className="bg-[#1B1C1E] rounded-xl border border-gray-800 p-5">
+        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
           <h3 className="font-semibold text-white mb-4">User Signups (30d)</h3>
           <SimpleBarChart
             data={charts?.userSignupsByDay}
@@ -258,13 +258,13 @@ export default function AnalyticsDashboardPage() {
         </div>
 
         {/* Device Breakdown */}
-        <div className="bg-[#1B1C1E] rounded-xl border border-gray-800 p-5">
+        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
           <h3 className="font-semibold text-white mb-4">Device Breakdown</h3>
           <DeviceBreakdown devices={stats?.devices} />
         </div>
 
         {/* Recent Registrations */}
-        <div className="bg-[#1B1C1E] rounded-xl border border-gray-800 p-5">
+        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
           <h3 className="font-semibold text-white mb-4">Recent Registrations</h3>
           <div className="space-y-3 max-h-64 overflow-y-auto">
             {recentRegistrations?.length > 0 ? (

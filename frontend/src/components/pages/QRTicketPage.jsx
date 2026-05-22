@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Download, CheckCircle, Ticket, CalendarDays, MapPin } from 'lucide-react';
 
@@ -8,7 +8,7 @@ const getToken = () => localStorage.getItem('crwdctrl_token');
 // Simple QR Code generator using a free API (no dependency needed)
 function QRCodeImage({ data, size = 200 }) {
   const encodedData = encodeURIComponent(JSON.stringify(data));
-  const url = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodedData}&bgcolor=1B1C1E&color=ffffff&format=svg`;
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodedData}&bgcolor=111213&color=ffffff&format=svg`;
 
   return (
     <img
@@ -81,7 +81,7 @@ export default function QRTicketPage() {
         </Link>
 
         {/* Ticket Card */}
-        <div className="bg-[#1B1C1E] rounded-2xl border border-gray-800 overflow-hidden">
+        <div className="bg-[#111213] rounded-2xl border border-gray-800 overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-[#0ECCEE]/20 to-[#0ECCEE]/5 px-6 py-4 border-b border-gray-800">
             <div className="flex items-center gap-2 text-[#0ECCEE] mb-1">

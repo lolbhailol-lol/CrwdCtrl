@@ -1,6 +1,6 @@
-export default function StatsCard({ label, value }) {
+﻿export default function StatsCard({ label, value }) {
   return (
-    <div className="bg-[#1B1C1E] rounded-xl p-6 w-52 text-center shadow-lg">
+    <div className="bg-[#111213] rounded-xl p-6 w-52 text-center shadow-lg">
       <div className="w-24 h-24 mx-auto rounded-full border-4 border-[#0ECCEE] flex items-center justify-center text-3xl font-bold">
         {value}
       </div>

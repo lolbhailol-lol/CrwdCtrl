@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="shoeTop" x1="8" y1="20" x2="56" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <linearGradient id="shoeSole" x1="8" y1="44" x2="56" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="100%" stop-color="#FDBA74"/>
+    </linearGradient>
+    <linearGradient id="ballGrad" x1="46" y1="10" x2="58" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F87171"/>
+      <stop offset="100%" stop-color="#DC2626"/>
+    </linearGradient>
+    <filter id="shoeShad" x="-5%" y="-5%" width="115%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#EA580C" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Ball (top right) -->
+  <circle cx="51" cy="15" r="9" fill="url(#ballGrad)" filter="url(#shoeShad)"/>
+  <!-- Ball seam lines -->
+  <path d="M44 12 Q48 16 44 19" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.7"/>
+  <path d="M58 12 Q54 16 58 19" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.7"/>
+  <path d="M46 9 Q51 12 56 9" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Shoe main body -->
+  <path d="M8 38 Q10 22 20 20 L36 20 Q42 20 46 26 L50 34 Q52 38 48 40 L10 44 Q6 44 8 38 Z"
+        fill="url(#shoeTop)" filter="url(#shoeShad)"/>
+
+  <!-- Shoe toe cap -->
+  <path d="M8 38 Q9 28 18 26 L28 26 Q14 28 12 40 Z" fill="#FB923C" opacity="0.5"/>
+
+  <!-- Nike-style swoosh -->
+  <path d="M18 32 Q28 26 40 30 Q36 34 22 36 Z" fill="white" opacity="0.35"/>
+
+  <!-- Laces area -->
+  <rect x="22" y="21" width="18" height="12" rx="2" fill="#FED7AA" opacity="0.4"/>
+  <!-- Lace lines -->
+  <line x1="24" y1="24" x2="38" y2="24" stroke="white" stroke-width="1.2" opacity="0.6" stroke-linecap="round"/>
+  <line x1="24" y1="27" x2="38" y2="27" stroke="white" stroke-width="1.2" opacity="0.6" stroke-linecap="round"/>
+  <line x1="24" y1="30" x2="38" y2="30" stroke="white" stroke-width="1.2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Collar (back of shoe) -->
+  <path d="M36 20 Q44 20 46 26 L50 34 Q48 30 42 28 L38 26 Z" fill="#C2410C" opacity="0.6"/>
+
+  <!-- Sole -->
+  <path d="M8 42 L48 40 Q52 40 52 44 L52 48 Q52 52 48 52 L12 52 Q8 52 8 48 Z"
+        fill="url(#shoeSole)"/>
+  <!-- Sole tread lines -->
+  <line x1="15" y1="52" x2="15" y2="48" stroke="#FB923C" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/>
+  <line x1="22" y1="52" x2="22" y2="48" stroke="#FB923C" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/>
+  <line x1="29" y1="52" x2="29" y2="48" stroke="#FB923C" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/>
+  <line x1="36" y1="52" x2="36" y2="48" stroke="#FB923C" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/>
+  <line x1="43" y1="52" x2="43" y2="48" stroke="#FB923C" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/>
+</svg>

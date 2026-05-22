@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle, AlertTriangle, XCircle, RefreshCw, QrCode } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -144,7 +144,7 @@ export default function CheckinScannerPage() {
       </div>
 
       {/* Scanner Area */}
-      <div className="bg-[#1B1C1E] rounded-xl border border-gray-800 p-5">
+      <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
         {!isScanning && !scanResult && (
           <div className="text-center py-12">
             <QrCode size={48} className="text-gray-600 mx-auto mb-4" />
@@ -245,7 +245,7 @@ export default function CheckinScannerPage() {
       </div>
 
       {/* Manual Entry */}
-      <div className="bg-[#1B1C1E] rounded-xl border border-gray-800 p-5">
+      <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
         <h3 className="font-semibold text-white mb-3">Manual Check-in</h3>
         <form onSubmit={handleManualSubmit} className="flex gap-3">
           <input

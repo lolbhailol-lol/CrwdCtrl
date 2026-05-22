@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfileSidebar from '../ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -22,7 +22,7 @@ const ProfilePage = () => {
     };
 
     return (
-        <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
+        <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
             <ProfileSidebar
                 isOpen={isOpen}
                 onClose={handleClose}

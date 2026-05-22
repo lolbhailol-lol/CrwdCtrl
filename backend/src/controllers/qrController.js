@@ -11,7 +11,8 @@ const generateQR = async (req, res) => {
       _id: registrationId,
       user: userId,
     }).populate('fest', 'festName festDate venue')
-      .populate('competitionId', 'name');
+      .populate('competitionId', 'name')
+      .populate('user', 'name');
 
     if (!registration) {
       return res.status(404).json({ success: false, message: 'Registration not found' });
@@ -30,23 +31,18 @@ const generateQR = async (req, res) => {
       type: 'crwdctrl-checkin',
     });
 
-    // Return QR data for frontend to render (lightweight approach)
     res.json({
       success: true,
-      qr: {
-        data: qrData,
-        hash: registration.qrCodeData,
-        checkinUrl: `/checkin/${registration.qrCodeData}`,
-        registration: {
-          id: registration._id,
-          festName: registration.fest?.festName || 'Unknown',
-          festDate: registration.fest?.festDate || null,
-          venue: registration.fest?.venue || null,
-          competitionName: registration.competitionId?.name || null,
-          status: registration.status,
-          checkedIn: registration.checkedIn || false,
-          checkedInAt: registration.checkedInAt || null,
-        },
+      data: {
+        registrationId: registration._id,
+        qrHash: registration.qrCodeData,
+        userName: registration.user?.name || null,
+        festName: registration.fest?.festName || 'Unknown',
+        festDate: registration.fest?.festDate || null,
+        venue: registration.fest?.venue || null,
+        competitionName: registration.competitionId?.name || null,
+        checkedIn: registration.checkedIn || false,
+        checkedInAt: registration.checkedInAt || null,
       },
     });
   } catch (error) {

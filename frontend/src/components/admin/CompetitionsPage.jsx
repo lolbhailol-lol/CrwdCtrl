@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import CompetitionModal from './Competition_Modal';
 
 // Configure API base URL - Use Vite environment variables
@@ -28,7 +28,7 @@ export default function CompetitionsPage() {
         <p className="text-gray-400">Manage competitions across all fests</p>
       </div>
 
-      <div className="bg-[#1B1C1E] rounded-xl p-6">
+      <div className="bg-[#111213] rounded-xl p-6">
         <h2 className="text-xl font-semibold mb-4">Select a Fest to Manage Competitions</h2>
         
         {fests.length === 0 ? (
@@ -40,7 +40,7 @@ export default function CompetitionsPage() {
             {fests.map(fest => (
               <div
                 key={fest._id}
-                className="bg-[#2A2B2D] p-4 rounded-lg border border-gray-700 hover:border-[#0ECCEE] transition-colors cursor-pointer"
+                className="bg-[#1D1E20] p-4 rounded-lg border border-gray-700 hover:border-[#0ECCEE] transition-colors cursor-pointer"
                 onClick={() => {
                   setSelectedFest(fest);
                   setShowModal(true);

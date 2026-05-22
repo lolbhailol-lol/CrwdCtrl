@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
 import Footer from '../../Footer';
@@ -85,7 +85,7 @@ const HelpCenter = () => {
     ];
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'}`}>
+        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Mobile Header with Back Button */}
@@ -213,8 +213,7 @@ const HelpCenter = () => {
                     </div>
                 </main>
 
-                {/* Desktop Footer - Hidden on mobile */}
-                <div className="hidden lg:block mt-10">
+                <div className="mt-10 pb-20 lg:pb-0">
                     <Footer />
                 </div>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Eye, Download, Filter, Search, Calendar, User, Mail, Phone } from 'lucide-react';
 
 // Configure API base URL - Use Vite environment variables
@@ -108,7 +108,7 @@ export default function RegistrationsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Fests List */}
-        <div className="bg-[#1B1C1E] rounded-xl p-6">
+        <div className="bg-[#111213] rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-4">Select Fest</h2>
           {loading ? (
             <div className="text-center py-8 text-gray-400">Loading fests...</div>
@@ -146,7 +146,7 @@ export default function RegistrationsPage() {
         </div>
 
         {/* Registrations */}
-        <div className="lg:col-span-2 bg-[#1B1C1E] rounded-xl p-6">
+        <div className="lg:col-span-2 bg-[#111213] rounded-xl p-6">
           {!selectedFest ? (
             <div className="text-center py-12 text-gray-400">
               <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -182,13 +182,13 @@ export default function RegistrationsPage() {
                       placeholder="Search users..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 py-2 bg-[#2A2B2D] border border-gray-700 rounded-lg focus:border-[#0ECCEE] focus:outline-none"
+                      className="pl-10 pr-4 py-2 bg-[#1D1E20] border border-gray-700 rounded-lg focus:border-[#0ECCEE] focus:outline-none"
                     />
                   </div>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 bg-[#2A2B2D] border border-gray-700 rounded-lg focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 bg-[#1D1E20] border border-gray-700 rounded-lg focus:border-[#0ECCEE] focus:outline-none"
                   >
                     <option value="all">All Status</option>
                     <option value="pending">Pending</option>
@@ -208,7 +208,7 @@ export default function RegistrationsPage() {
               ) : (
                 <div className="space-y-4">
                   {filteredRegistrations.map((registration) => (
-                    <div key={registration._id} className="bg-[#2A2B2D] rounded-lg p-4">
+                    <div key={registration._id} className="bg-[#1D1E20] rounded-lg p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-[#0ECCEE]/20 rounded-full flex items-center justify-center">
@@ -251,7 +251,7 @@ export default function RegistrationsPage() {
                           <select
                             value={registration.status}
                             onChange={(e) => updateRegistrationStatus(registration._id, e.target.value)}
-                            className="text-xs px-2 py-1 bg-[#1B1C1E] border border-gray-700 rounded focus:border-[#0ECCEE] focus:outline-none"
+                            className="text-xs px-2 py-1 bg-[#111213] border border-gray-700 rounded focus:border-[#0ECCEE] focus:outline-none"
                           >
                             <option value="pending">Pending</option>
                             <option value="approved">Approved</option>

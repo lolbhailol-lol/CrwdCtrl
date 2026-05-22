@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
 import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
 
@@ -13,7 +13,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
   };
 
   return (
-    <div className="bg-[#2A2B2D] p-4 rounded-lg space-y-3">
+    <div className="bg-[#1D1E20] p-4 rounded-lg space-y-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">Field {index + 1}</span>
         <button
@@ -29,19 +29,19 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
         <input
           type="text"
           placeholder="Field Label"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.label || ''}
           onChange={(e) => handleInputChange('label', e.target.value)}
         />
         <input
           type="text"
           placeholder="Field Name (no spaces)"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.fieldName || ''}
           onChange={(e) => handleInputChange('fieldName', e.target.value.replace(/\s+/g, '_').toLowerCase())}
         />
         <select
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.type || 'text'}
           onChange={(e) => handleInputChange('type', e.target.value)}
         >
@@ -60,7 +60,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
         <input
           type="text"
           placeholder="Placeholder text"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.placeholder || ''}
           onChange={(e) => handleInputChange('placeholder', e.target.value)}
         />
@@ -72,7 +72,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
             type="checkbox"
             checked={field.required || false}
             onChange={(e) => handleInputChange('required', e.target.checked)}
-            className="w-4 h-4 text-[#0ECCEE] bg-[#1B1C1E] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+            className="w-4 h-4 text-[#0ECCEE] bg-[#111213] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
           />
           <span className="text-sm">Required Field</span>
         </label>
@@ -96,7 +96,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
               <input
                 type="text"
                 placeholder={`Option ${optionIndex + 1}`}
-                className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                className="flex-1 px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                 value={option || ''}
                 onChange={(e) => onUpdateOption(index, optionIndex, e.target.value)}
               />
@@ -122,7 +122,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
   };
 
   return (
-    <div className="bg-[#2A2B2D] p-4 rounded-lg space-y-3 ml-4">
+    <div className="bg-[#1D1E20] p-4 rounded-lg space-y-3 ml-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">Field {fieldIndex + 1}</span>
         <button
@@ -138,19 +138,19 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
         <input
           type="text"
           placeholder="Field Label"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.label || ''}
           onChange={(e) => handleInputChange('label', e.target.value)}
         />
         <input
           type="text"
           placeholder="Field Name (no spaces)"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.fieldName || ''}
           onChange={(e) => handleInputChange('fieldName', e.target.value.replace(/\s+/g, '_').toLowerCase())}
         />
         <select
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.type || 'text'}
           onChange={(e) => handleInputChange('type', e.target.value)}
         >
@@ -169,7 +169,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
         <input
           type="text"
           placeholder="Placeholder text"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.placeholder || ''}
           onChange={(e) => handleInputChange('placeholder', e.target.value)}
         />
@@ -181,7 +181,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
             type="checkbox"
             checked={field.required || false}
             onChange={(e) => handleInputChange('required', e.target.checked)}
-            className="w-4 h-4 text-[#0ECCEE] bg-[#1B1C1E] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+            className="w-4 h-4 text-[#0ECCEE] bg-[#111213] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
           />
           <span className="text-sm">Required Field</span>
         </label>
@@ -205,7 +205,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
               <input
                 type="text"
                 placeholder={`Option ${optionIndex + 1}`}
-                className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                className="flex-1 px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                 value={option || ''}
                 onChange={(e) => onUpdateOption(stepIndex, fieldIndex, optionIndex, e.target.value)}
               />
@@ -327,9 +327,9 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1B1C1E] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-[#111213] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-[#1B1C1E] border-b border-gray-800 p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between">
           <div>
             <h3 className="text-2xl font-bold">Competitions - {fest?.festName}</h3>
             <p className="text-sm text-gray-400 mt-1">Manage competitions for this fest</p>
@@ -371,7 +371,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
               {competitions.map((comp) => (
                 <div
                   key={comp._id}
-                  className="bg-[#2A2B2D] rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition-colors"
+                  className="bg-[#1D1E20] rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition-colors"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -649,7 +649,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
   if (hasError) {
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div className="bg-[#1B1C1E] rounded-xl p-6 max-w-md">
+        <div className="bg-[#111213] rounded-xl p-6 max-w-md">
           <h3 className="text-xl font-bold text-red-400 mb-4">Error Loading Competition</h3>
           <p className="text-gray-300 mb-4">There was an error loading the competition form. Please try again.</p>
           <div className="flex gap-3">
@@ -1589,9 +1589,9 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1B1C1E] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-[#111213] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-[#1B1C1E] border-b border-gray-800 p-6 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between z-10">
           <div>
             <h3 className="text-2xl font-bold">
               {competition ? 'Edit Competition' : 'Create New Competition'}
@@ -1653,7 +1653,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 <input
                   type="text"
                   placeholder="e.g., InSync, Head Bang"
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.name || ''}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
@@ -1664,7 +1664,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 <input
                   type="text"
                   placeholder="e.g., Fast-paced basketball tournament - DAY 1"
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.subtitle || ''}
                   onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
                 />
@@ -1675,7 +1675,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 <textarea
                   rows={4}
                   placeholder="Describe the competition with formatting:&#10;&#10;Join us for an exciting competition featuring:&#10;• Multiple rounds of challenges&#10;• Expert judges&#10;• Amazing prizes"
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
                   style={{ whiteSpace: 'pre-wrap' }}
                   value={form.description || ''}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -1689,7 +1689,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 <div>
                   <label className="block text-sm font-medium mb-2">Category</label>
                   <select
-                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={form.category || 'OTHER'}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
                   >
@@ -1714,7 +1714,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 <div>
                   <label className="block text-sm font-medium mb-2">Competition Type *</label>
                   <select
-                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={form.competitionType || 'other'}
                     onChange={(e) => setForm({ ...form, competitionType: e.target.value })}
                   >
@@ -1754,7 +1754,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   <textarea
                     rows={4}
                     placeholder="Enter prize pool details with formatting:&#10;&#10;Prize Pool - Individual Events – 1st Prize: ₹1,500 | 2nd Prize: ₹1,000&#10;Relay Events – 1st Prize: ₹2,500 | 2nd Prize: ₹1,500&#10;Medals for top 3 finishers in each category"
-                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
+                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
                     style={{ whiteSpace: 'pre-wrap' }}
                     value={form.prizePool || ''}
                     onChange={(e) => setForm({ ...form, prizePool: e.target.value })}
@@ -1769,7 +1769,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   <input
                     type="text"
                     placeholder="e.g., Free or ₹200"
-                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={form.registrationFee || ''}
                     onChange={(e) => updateEntryFee(e.target.value)}
                   />
@@ -1788,7 +1788,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     min="0"
                     step="1"
                     placeholder="0 for free"
-                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={form.feeAmount || 0}
                     onChange={(e) => updateNumericEntryFee(e.target.value)}
                   />
@@ -1829,7 +1829,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                           value="fest"
                           checked={form.registrationType === 'fest'}
                           onChange={(e) => setForm({ ...form, registrationType: e.target.value })}
-                          className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                          className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                         />
                         <label className="ml-2 text-sm">Use Same Registration as Fest</label>
                       </div>
@@ -1840,7 +1840,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                           value="custom"
                           checked={form.registrationType === 'custom'}
                           onChange={(e) => setForm({ ...form, registrationType: e.target.value })}
-                          className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                          className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                         />
                         <label className="ml-2 text-sm">Create Own Registration</label>
                       </div>
@@ -1871,7 +1871,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                 status: e.target.value 
                               } 
                             })}
-                            className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                           />
                           <label className="ml-2 text-sm">Not Started</label>
                         </div>
@@ -1888,7 +1888,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                 status: e.target.value 
                               } 
                             })}
-                            className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                           />
                           <label className="ml-2 text-sm">External Link</label>
                         </div>
@@ -1905,7 +1905,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                 status: e.target.value 
                               } 
                             })}
-                            className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                           />
                           <label className="ml-2 text-sm">Internal Form</label>
                         </div>
@@ -1922,7 +1922,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                 status: e.target.value 
                               } 
                             })}
-                            className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                           />
                           <label className="ml-2 text-sm">Registration Closed</label>
                         </div>
@@ -1937,7 +1937,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                       <input
                         type="url"
                         placeholder="https://forms.google.com/..."
-                        className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                         value={form.registration?.externalUrl || ''}
                         onChange={(e) => setForm({ 
                           ...form, 
@@ -1958,7 +1958,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                         <input
                           type="url"
                           placeholder="https://docs.google.com/spreadsheets/..."
-                          className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                          className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                           value={form.registration?.googleSheetsUrl || ''}
                           onChange={(e) => setForm({ 
                             ...form, 
@@ -1984,7 +1984,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                               value="SINGLE_STEP"
                               checked={form.registration?.formType === 'SINGLE_STEP'}
                               onChange={(e) => handleFormTypeChange(e.target.value)}
-                              className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                              className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                             />
                             <span className="text-sm">Single Step Form</span>
                           </label>
@@ -1995,7 +1995,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                               value="MULTI_STEP"
                               checked={form.registration?.formType === 'MULTI_STEP'}
                               onChange={(e) => handleFormTypeChange(e.target.value)}
-                              className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                              className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                             />
                             <span className="text-sm">Multi-Step Form</span>
                           </label>
@@ -2012,7 +2012,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                       {form.registration?.formType === 'SINGLE_STEP' && (
                         <div>
                           <label className="block text-sm font-medium mb-2">Registration Form Fields</label>
-                          <div className="bg-[#1B1C1E] rounded-lg p-4 border border-gray-700">
+                          <div className="bg-[#111213] rounded-lg p-4 border border-gray-700">
                             <div className="flex items-center justify-between mb-4">
                               <p className="text-sm text-gray-400">
                                 Configure the fields that users will fill during registration
@@ -2066,10 +2066,10 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                             </button>
                           </div>
 
-                          <div className="bg-[#1B1C1E] rounded-lg p-4 border border-gray-700">
+                          <div className="bg-[#111213] rounded-lg p-4 border border-gray-700">
                             <div className="space-y-4">
                               {(form.registration?.steps || []).map((step, stepIndex) => (
-                                <div key={`step-${stepIndex}`} className="bg-[#2A2B2D] p-4 rounded-lg border border-gray-700">
+                                <div key={`step-${stepIndex}`} className="bg-[#1D1E20] p-4 rounded-lg border border-gray-700">
                                   {/* Step Header */}
                                   <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
@@ -2101,7 +2101,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                     <input
                                       type="text"
                                       placeholder="Step description (optional)"
-                                      className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                                      className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
                                       value={step.stepDescription}
                                       onChange={(e) => updateStep(stepIndex, 'stepDescription', e.target.value)}
                                     />
@@ -2136,7 +2136,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                                     ))}
 
                                     {(step.fields || []).length === 0 && (
-                                      <div className="text-center py-4 text-gray-500 bg-[#1B1C1E] rounded-lg">
+                                      <div className="text-center py-4 text-gray-500 bg-[#111213] rounded-lg">
                                         <p className="text-sm">No fields in this step. Click "Add Field" to add form fields.</p>
                                       </div>
                                     )}
@@ -2157,7 +2157,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
 
                       {/* Payment Information - Only show for internal form and MULTI_STEP */}
                       {form.registration?.status === 'internal_form' && form.registration?.formType === 'MULTI_STEP' && (
-                      <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                      <div className="bg-[#1D1E20] p-4 rounded-lg">
                         <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Payment Information</h5>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2167,7 +2167,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                             <input
                               type="url"
                               placeholder="https://chat.whatsapp.com/... (optional - for participants to join)"
-                              className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                              className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
                               value={form.registration?.whatsappGroupLink || ''}
                               onChange={(e) => setForm({
                                 ...form,
@@ -2191,7 +2191,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                         <input
                           type="email"
                           placeholder="organizer@example.com"
-                          className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                          className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                           value={form.registration?.confirmationEmail || ''}
                           onChange={(e) => setForm({
                             ...form,
@@ -2214,7 +2214,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   <input
                     type="text"
                     placeholder="e.g., December 10, 2025 • 08:00 AM or 'To be announced'"
-                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={form.dateTime || ''}
                     onChange={(e) => setForm({ ...form, dateTime: e.target.value })}
                   />
@@ -2225,7 +2225,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   <input
                     type="text"
                     placeholder="e.g., Main Hall, Auditorium"
-                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={form.venue || ''}
                     onChange={(e) => setForm({ ...form, venue: e.target.value })}
                   />
@@ -2241,7 +2241,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     <input
                       type="text"
                       placeholder="Contact person name"
-                      className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                       value={form.contact?.name || ''}
                       onChange={(e) => setForm({ 
                         ...form, 
@@ -2258,7 +2258,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     <input
                       type="tel"
                       placeholder="+91-1234567890"
-                      className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                       value={form.contact?.phone || ''}
                       onChange={(e) => setForm({ 
                         ...form, 
@@ -2275,7 +2275,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     <input
                       type="email"
                       placeholder="contact@example.com"
-                      className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                       value={form.contact?.email || ''}
                       onChange={(e) => setForm({ 
                         ...form, 
@@ -2292,7 +2292,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     <input
                       type="text"
                       placeholder="@username or full URL"
-                      className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                       value={form.contact?.instagram || ''}
                       onChange={(e) => setForm({ 
                         ...form, 
@@ -2375,7 +2375,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   <textarea
                     rows={6}
                     placeholder="Paste all common rules here with line breaks, bullets, etc.&#10;&#10;Example:&#10;• Rule 1: Participants must arrive 30 minutes early&#10;• Rule 2: Mobile phones are not allowed&#10;• Rule 3: Follow the dress code"
-                    className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
+                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
                     style={{ whiteSpace: 'pre-wrap' }}
                     value={form.commonRulesMessage || ''}
                     onChange={(e) => {
@@ -2397,7 +2397,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     <input
                       type="text"
                       placeholder="Add a rule"
-                      className="flex-1 px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      className="flex-1 px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                       value={ruleInput}
                       onChange={(e) => setRuleInput(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addRule()}
@@ -2448,7 +2448,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
               ) : (
                 <div className="space-y-4">
                   {(form.rounds || []).map((round, roundIndex) => (
-                    <div key={roundIndex} className="bg-[#2A2B2D] rounded-lg p-4 border border-gray-700">
+                    <div key={roundIndex} className="bg-[#1D1E20] rounded-lg p-4 border border-gray-700">
                       <div className="flex items-center justify-between mb-4">
                         <h5 className="font-semibold">Round {round.roundNumber}</h5>
                         <button
@@ -2465,7 +2465,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                           <input
                             type="text"
                             placeholder="e.g., Elimination Round, Final Round"
-                            className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                            className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                             value={round?.roundName || ''}
                             onChange={(e) => updateRound(roundIndex, 'roundName', e.target.value)}
                           />
@@ -2476,7 +2476,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                           <textarea
                             rows={3}
                             placeholder="Describe this round with formatting:&#10;&#10;Round 1 - Elimination Round&#10;Time limit: 5 minutes&#10;Maximum team size: 4 members"
-                            className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
+                            className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
                             style={{ whiteSpace: 'pre-wrap' }}
                             value={round?.message || ''}
                             onChange={(e) => updateRound(roundIndex, 'message', e.target.value)}
@@ -2497,7 +2497,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                             <textarea
                               rows={4}
                               placeholder="Paste all round rules here with line breaks, bullets, etc.&#10;&#10;Example:&#10;• Time limit: 5 minutes&#10;• Maximum team size: 4 members&#10;• Judging criteria: Creativity and execution"
-                              className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
+                              className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none font-mono text-sm"
                               style={{ whiteSpace: 'pre-wrap' }}
                               value={round?.roundRulesMessage || ''}
                               onChange={(e) => {
@@ -2532,7 +2532,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         </div>
 
         {/* Footer Navigation */}
-        <div className="sticky bottom-0 bg-[#1B1C1E] border-t border-gray-800 p-6 flex justify-between gap-3">
+        <div className="sticky bottom-0 bg-[#111213] border-t border-gray-800 p-6 flex justify-between gap-3">
           <button
             onClick={() => currentStep > 1 ? setCurrentStep(currentStep - 1) : onClose()}
             className="px-6 py-2 rounded-lg border border-gray-700 hover:bg-gray-800 transition-colors flex items-center gap-2"
@@ -2582,7 +2582,7 @@ function RoundRulesInput({ rules, onAddRule, onRemoveRule }) {
         <input
           type="text"
           placeholder="Add a rule"
-          className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="flex-1 px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={ruleInput}
           onChange={(e) => setRuleInput(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleAdd()}

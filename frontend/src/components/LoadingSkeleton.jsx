@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
 
 const LoadingSkeleton = ({ count = 3 }) => {
@@ -10,7 +10,7 @@ const LoadingSkeleton = ({ count = 3 }) => {
                 <div
                     key={index}
                     className={`min-w-[260px] w-[260px] sm:min-w-[300px] sm:w-[300px] lg:min-w-[340px] lg:w-[340px] rounded-xl shadow-sm overflow-hidden flex-shrink-0 animate-pulse ${
-                        isDark ? 'bg-[#1B1C1E]' : 'bg-white'
+                        isDark ? 'bg-[#111213]' : 'bg-white'
                     }`}
                 >
                     {/* Image Skeleton */}
@@ -32,8 +32,8 @@ const LoadingSkeleton = ({ count = 3 }) => {
                         <div className={`h-4 rounded mb-3 w-3/4 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
                         
                         {/* Button Skeleton */}
-                        <div className={`h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-                    </div>
+  .z x/                       <div className={`h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+hm</div>
                 </div>
             ))}
         </div>
@@ -41,3 +41,5 @@ const LoadingSkeleton = ({ count = 3 }) => {
 };
 
 export default LoadingSkeleton;
+
+

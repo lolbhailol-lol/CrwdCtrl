@@ -1,7 +1,15 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { GripVertical } from 'lucide-react';
 import FestFormModal from './FestFormModal';
 import CompetitionModal from './Competition_Modal';
+
+const SECTION_OPTIONS = [
+  { value: 'ongoing',     label: '🔥 Trending Now',   color: 'text-green-400' },
+  { value: 'upcoming',    label: '⏳ Upcoming',        color: 'text-orange-400' },
+  { value: 'beyondcampus',label: '🌍 Beyond Campus',  color: 'text-blue-400' },
+  { value: 'lastyearhit', label: '⭐ Last Year Hit',  color: 'text-purple-400' },
+  { value: 'completed',   label: '✅ Completed',       color: 'text-gray-400' },
+];
 
 // Configure API base URL - Use Vite environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -178,6 +186,34 @@ export default function FestTable() {
     }));
   };
 
+  const assignFestSection = async (id, status) => {
+    await fetch(`${API_BASE_URL}/admin/fests/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+    await clearServerCache();
+    localStorage.setItem('admin_data_updated', Date.now().toString());
+    setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+    fetchFests();
+  };
+
+  const assignFestSlide = async (id, value) => {
+    await fetch(`${API_BASE_URL}/admin/fests/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+      },
+      body: JSON.stringify({ showOnHomeSlide: value }),
+    });
+    await clearServerCache();
+    fetchFests();
+  };
+
   const deleteFest = async (id) => {
     await fetch(`${API_BASE_URL}/admin/fests/${id}`, {
       method: 'DELETE',
@@ -324,7 +360,7 @@ export default function FestTable() {
   };
 
   return (
-    <div className="bg-[#1B1C1E] rounded-xl p-6">
+    <div className="bg-[#111213] rounded-xl p-6">
       <div className="flex justify-between mb-4">
         <h2 className="text-xl font-semibold">Fests</h2>
         <button
@@ -390,7 +426,7 @@ export default function FestTable() {
                         </td>
                         <td className="py-4 text-gray-400 text-sm">{fest.festDate || 'N/A'}</td>
                         <td className="py-4">
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex gap-2 justify-end flex-wrap">
                             <button
                               onClick={() => { setSelectedFest(fest); setShowForm(true); }}
                               className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
@@ -466,7 +502,7 @@ export default function FestTable() {
                         </td>
                         <td className="py-4 text-gray-400 text-sm">{fest.festDate || 'N/A'}</td>
                         <td className="py-4">
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex gap-2 justify-end flex-wrap">
                             <button
                               onClick={() => { setSelectedFest(fest); setShowForm(true); }}
                               className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
@@ -542,7 +578,7 @@ export default function FestTable() {
                         </td>
                         <td className="py-4 text-gray-400 text-sm">{fest.festDate || 'N/A'}</td>
                         <td className="py-4">
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex gap-2 justify-end flex-wrap">
                             <button
                               onClick={() => { setSelectedFest(fest); setShowForm(true); }}
                               className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
@@ -605,7 +641,7 @@ export default function FestTable() {
                         </td>
                         <td className="py-4 text-gray-400 text-sm">{fest.festDate || 'N/A'}</td>
                         <td className="py-4">
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex gap-2 justify-end flex-wrap">
                             <button
                               onClick={() => { setSelectedFest(fest); setShowForm(true); }}
                               className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"

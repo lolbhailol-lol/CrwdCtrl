@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, MapPin } from "lucide-react";
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Bell, User, Home, ChevronRight,ChevronLeft, Sun, Moon, Phone, Instagram, Mail, ArrowLeft, Share, MoreHorizontal } from 'lucide-react';
@@ -421,7 +421,7 @@ function EventDetailsPage() {
   // Loading state
   if (loading) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} flex items-center justify-center`}>
+      <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} flex items-center justify-center`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
           <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading event...</h2>
@@ -433,7 +433,7 @@ function EventDetailsPage() {
   // Error state
   if (error || !eventData) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} flex items-center justify-center`}>
+      <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} flex items-center justify-center`}>
         <div className="text-center max-w-md mx-auto p-6">
           <div className="mb-6">
             <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? 'bg-red-900/20' : 'bg-red-100'}`}>
@@ -583,7 +583,7 @@ function EventDetailsPage() {
   };
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} transition-colors duration-300`}>
+    <div className={`min-h-screen ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} transition-colors duration-300`}>
       {/* Desktop Version - Show at 768px and above */}
       <div className="hidden md:block">
         <div className={`transition-all duration-300`}>
@@ -632,7 +632,7 @@ function EventDetailsPage() {
                 </div>
 
                 {/* Fest Overview */}
-                <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
+                <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
                   <h2 className={`text-xl sm:text-2xl font-bold mb-3 sm:mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Event Overview</h2>
                   <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} leading-relaxed text-sm sm:text-base`}>
                     {showFullOverview ? eventData.overview : `${eventData.overview.substring(0, 200)}...`}
@@ -649,7 +649,7 @@ function EventDetailsPage() {
 
                 {/* Competitions */}
                 {availableTabs.length > 0 && (
-                  <div ref={eventsRef} className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
+                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
                     <h2 className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {eventData.competitionsHeading || "Competitions"}
                     </h2>
@@ -677,7 +677,7 @@ function EventDetailsPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {eventData.competitions[activeTab]?.map((comp, idx) => {
                           return (
-                            <div key={idx} className={`${isDark ? 'bg-[#0a0a0a] hover:bg-gray-600' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300 h-full flex flex-col`}>
+                            <div key={idx} className={`${isDark ? 'bg-[#161718] hover:bg-gray-600' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300 h-full flex flex-col`}>
                               <div className="flex space-x-4 flex-1">
                                 <img
                                   src={getImageUrl(comp.image)}
@@ -724,7 +724,7 @@ function EventDetailsPage() {
                       {eventData.sponsors.map((sponsor, idx) => (
                         <div
                           key={idx}
-                          className={`aspect-square ${isDark ? 'bg-[#1B1C1E] hover:bg-gray-600' : 'bg-[#F5F6FA] '} rounded-lg flex items-center justify-center p-1 transition-all duration-300`}
+                          className={`aspect-square ${isDark ? 'bg-[#111213] hover:bg-gray-600' : 'bg-[#EDEDF2] '} rounded-lg flex items-center justify-center p-1 transition-all duration-300`}
                         >
                           <img
                             src={getImageUrl(sponsor.logo)}
@@ -743,7 +743,7 @@ function EventDetailsPage() {
 
               {/* Right Column - Registration Card & Artists */}
               <div className="lg:col-span-1 space-y-4 sm:space-y-5">
-                <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 top-24 mb-10 pt-6 sm:pt-8 pb-8 sm:pb-10 transition-colors duration-300`}>
+                <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 top-24 mb-10 pt-6 sm:pt-8 pb-8 sm:pb-10 transition-colors duration-300`}>
                   <div className="flex items-start justify-between mb-4 sm:mb-6">
                     <h1 className={`text-lg sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.title}<br />{eventData.subtitle}</h1>
                   </div>
@@ -791,7 +791,7 @@ function EventDetailsPage() {
                     </button>
                     <button
                       onClick={handleShare}
-                      className={`p-2.5 sm:p-3 ${isDark ? 'bg-[#1B1C1E] hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition`}
+                      className={`p-2.5 sm:p-3 ${isDark ? 'bg-[#111213] hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition`}
                     >
                       <img src={shareIcon} alt="Share" className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'filter brightness-150 invert' : ''}`} />
                     </button>
@@ -805,13 +805,13 @@ function EventDetailsPage() {
                   </h2>
                 </div>
                 {eventData.artists && eventData.artists.length > 0 && (
-                    <div className={`${isDark ? 'bg-[#1B1C1E] rounded-2xl' : 'bg-white-100 rounded-2xl'} w-full`}>
+                    <div className={`${isDark ? 'bg-[#111213] rounded-2xl' : 'bg-white-100 rounded-2xl'} w-full`}>
 
                       {/* Artist Card */}
                       <div className={`w-full max-w-full rounded-2xl overflow-hidden duration-300 
       ${isDark
-                          ? 'bg-[#1B1C1E] border-8 border-[#1B1C1E]'
-                          : 'bg-[#F5F6FA] border-8 border-[#F5F6FA]'
+                          ? 'bg-[#111213] border-8 border-[#111213]'
+                          : 'bg-[#EDEDF2] border-8 border-[#EDEDF2]'
                       }`}
                       >
                         <div className="relative h-[280px] sm:h-[300px] overflow-hidden">
@@ -848,7 +848,7 @@ function EventDetailsPage() {
                           )}
                         </div>
 
-                        <div className={`p-4 sm:p-5 rounded-[16px] ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+                        <div className={`p-4 sm:p-5 rounded-[16px] ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                           {/* Artist Name */}
                           <div className="mb-2">
                             <h3 className={`text-lg sm:text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -896,11 +896,11 @@ function EventDetailsPage() {
 
                 {/* Contact Details */}
                 {eventData.contacts && eventData.contacts.length > 0 && (
-                  <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-100'} rounded-2xl p-4 transition-colors duration-300`}>
+                  <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 transition-colors duration-300`}>
                     <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
                     <div className="space-y-2">
                       {eventData.contacts.map((contact, index) => (
-                        <div key={index} className={`${isDark ? 'bg-[#0a0a0a]' : 'bg-white'} rounded-lg p-3 transition-colors duration-300`}>
+                        <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-white'} rounded-lg p-3 transition-colors duration-300`}>
                           {/* Name - Role in one line */}
                           <div className="mb-1">
                             <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -1005,7 +1005,7 @@ function EventDetailsPage() {
 
           {/* Event Banner with Thumbnails */}
           {/* Wrapper to match page background */}
-          <div className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+          <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
             {/* Event Banner */}
             <div className="relative -mt-16 rounded-b-4xl">
               <img
@@ -1057,7 +1057,7 @@ function EventDetailsPage() {
           </div>
 
           {/* Event Info Card */}
-          <div className={`${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'} p-5`}>
+          <div className={`${isDark ? 'bg-[#161718]' : 'bg-gray-50'} p-5`}>
             {/* Event Logo and Name Section */}
             <div className="flex items-center space-x-4 mb-5 pt-10">
               <div className="flex-1">
@@ -1112,14 +1112,14 @@ function EventDetailsPage() {
 
           {/* Artists You'll Love */}
           {eventData.artists && eventData.artists.length > 0 && (
-            <div className={`${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} p-4`}>
+            <div className={`${isDark ? 'bg-[#161718]' : 'bg-white'} p-4`}>
               <h2 className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {eventData.artistsHeading || "Artists You'll Love"}
               </h2>
               <div className="overflow-x-auto scrollbar-hide">
                 <div className="flex space-x-4">
                   {eventData.artists.map((artist, idx) => (
-                    <div key={idx} className={`min-w-[280px] ${isDark ? 'bg-[#1B1C1E] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl overflow-hidden transition-all duration-300`}>
+                    <div key={idx} className={`min-w-[280px] ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl overflow-hidden transition-all duration-300`}>
                       <div className="relative h-40">
                         <img
                           src={getImageUrl(artist.image)}
@@ -1153,7 +1153,7 @@ function EventDetailsPage() {
 
           {/* Competitions */}
           {availableTabs.length > 0 && (
-            <div className={`${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'} p-4`}>
+            <div className={`${isDark ? 'bg-[#161718]' : 'bg-gray-50'} p-4`}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   {eventData.competitionsHeading || "Competitions"}
@@ -1169,7 +1169,7 @@ function EventDetailsPage() {
                 <div className="flex space-x-4">
                   {eventData.competitions[activeTab]?.slice(0, 3).map((comp, idx) => {
                     return (
-                      <div key={idx} className={`min-w-[250px] ${isDark ? 'bg-[#1B1C1E] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300`}>
+                      <div key={idx} className={`min-w-[250px] ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300`}>
                         <img
                           src={getImageUrl(comp.image)}
                           alt={comp.name}
@@ -1202,11 +1202,11 @@ function EventDetailsPage() {
 
           {/* Contact Details */}
           {eventData.contacts && eventData.contacts.length > 0 && (
-            <div className={`${isDark ? 'bg-[#0E0E0F]' : 'bg-white'} p-3 rounded-xl mt-4 mb-6`}>
+            <div className={`${isDark ? 'bg-[#161718]' : 'bg-white'} p-3 rounded-xl mt-4 mb-6`}>
               <h3 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
               <div className="space-y-2">
                 {eventData.contacts.map((contact, index) => (
-                  <div key={index} className={`${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'} rounded-lg p-3`}>
+                  <div key={index} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-3`}>
                     {/* Name - Role in one line */}
                     <div className="mb-1">
                       <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>

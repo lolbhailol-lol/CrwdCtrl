@@ -11,6 +11,7 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
     const { isDark } = useDarkMode();
     const { isAuthenticated } = useAuth();
     const [mounted, setMounted] = useState(false);
+    const lastTapRef = React.useRef(0);
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -26,13 +27,24 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
     const navItems = [
         { id: 'home',       icon: Home,     label: 'Home',       path: '/' },
         { id: 'favorites',  icon: Heart,    label: 'Favourite',  path: '/favorites' },
-        { id: 'registered', icon: Calendar, label: 'Registered', path: '/registered-fest' },
+        { id: 'registered', icon: Calendar, label: 'My Reg', path: '/registered-fest' },
         { id: 'profile',    icon: User,     label: 'Profile',    path: '/profile' },
     ];
 
     const handleNavClick = (path, itemId) => {
         if (itemId === 'profile' && !isAuthenticated) {
             onShowLogin?.();
+            return;
+        }
+        // Double-tap on profile while already on profile → go home
+        if (itemId === 'profile' && isItemActive(path, itemId)) {
+            const now = Date.now();
+            if (now - lastTapRef.current < 350) {
+                navigate('/');
+                lastTapRef.current = 0;
+                return;
+            }
+            lastTapRef.current = now;
             return;
         }
         navigate(path);
@@ -59,6 +71,10 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
                     paddingLeft: 0,
                     paddingRight: 0,
                     pointerEvents: 'auto',
+                    /* Promote to own compositor layer — keeps nav rock-solid during iOS scroll */
+                    WebkitTransform: 'translate3d(0,0,0)',
+                    transform: 'translate3d(0,0,0)',
+                    willChange: 'transform',
                 }}
             >
                 <div
@@ -79,7 +95,7 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
                             display: 'flex',
                             justifyContent: 'space-around',
                             alignItems: 'center',
-                            padding: '10px 4px',
+                            padding: '14px 4px',
                         }}
                     >
                         {navItems.map((item) => {
@@ -102,7 +118,7 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
                                         WebkitTapHighlightColor: 'transparent',
                                         WebkitAppearance: 'none',
                                         color: active
-                                            ? '#2563eb'
+                                            ? '#00C2CB'
                                             : isDark ? '#e5e7eb' : '#6b7280',
                                         transition: 'color 0.2s ease',
                                     }}

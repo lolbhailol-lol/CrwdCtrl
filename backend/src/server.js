@@ -13,16 +13,22 @@ const festOrganizerRoutes = require("./routers/festOrganizerRoute");
 const publicFestRoutes = require("./routers/publicFestRoute");
 const competitionRoutes = require("./routers/competitionRoute");
 const adminRoutes = require("./routers/adminRoute");
+const adminEventRoutes = require("./routers/adminEventRoute");
+const publicEventRoutes = require("./routers/publicEventRoute");
+const publicTrekRoutes = require("./routers/publicTrekRoute");
+const adminSportsRoutes = require("./routers/adminSportsRoute");
+const adminTrekRoutes = require("./routers/adminTrekRoute");
+const adminTrekCommunityRoutes = require("./routers/adminTrekCommunityRoute");
+const publicTrekCommunityRoutes = require("./routers/publicTrekCommunityRoute");
+const adminTheatreRoutes = require("./routers/adminTheatreRoute");
+const categoryRegistrationRoutes = require("./routers/categoryRegistrationRoute");
 const registrationRoutes = require("./routers/registrationRoute");
 const paymentRoutes = require("./routers/paymentRoute");
 const notificationRoutes = require("./routers/notificationRoute");
-
-console.log('🚀 Starting FestBuzzZ Backend Server...');
-console.log('📍 Node Environment:', process.env.NODE_ENV || 'development');
-console.log('🔧 Port Configuration:', process.env.PORT || 8080);
+const qrRoutes = require("./routers/qrRoute");
+const analyticsRoutes = require("./routers/analyticsRoute");
 
 // Register mongoose models
-console.log('📋 Registering Mongoose models...');
 require("./model/fest_organizer_model");
 require("./model/student&participant");
 require("./model/usermodel");
@@ -30,7 +36,13 @@ require("./model/event_model");
 require("./model/competition_model");
 require("./model/competition_registration_model");
 require("./model/registration_model");
-console.log('✅ Mongoose models registered');
+require("./model/platform_event_model");
+require("./model/sports_model");
+require("./model/trek_model");
+require("./model/trek_community_model");
+require("./model/trek_booking_model");
+require("./model/theatre_model");
+require("./model/category_registration_model");
 
 const app = express();
 
@@ -68,48 +80,32 @@ const corsOrigins = [
   "http://localhost"       // Add for mobile emulators
 ];
 
-console.log("✅ CORS Allowed Origins:", corsOrigins);
+const isDev = process.env.NODE_ENV !== 'production';
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
+      // Allow requests with no origin (mobile apps, curl, etc.)
       if (!origin) {
         return callback(null, true);
       }
-      
-      console.log('🔍 CORS request from origin:', origin);
-      
-      // Check if origin is in allowed list
+
       if (corsOrigins.includes(origin)) {
-        console.log('✅ Origin allowed from corsOrigins list');
         return callback(null, true);
       }
-      
-      // For debugging: Allow any localhost or 127.0.0.1 origin
-      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        console.log('🔧 Debug: Allowing localhost origin:', origin);
+
+      // In development only: allow any localhost / 127.0.0.1 port
+      if (isDev && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
         return callback(null, true);
       }
-      
-      // For debugging: Allow any Vercel domain
-      if (origin.includes('vercel.app')) {
-        console.log('🔧 Debug: Allowing Vercel origin:', origin);
+
+      // Allow any Vercel preview deployment (*.vercel.app)
+      if (origin.endsWith('.vercel.app')) {
         return callback(null, true);
       }
-      
-      // For debugging: Allow Firebase hosting domains
-      if (origin.includes('firebaseapp.com') || origin.includes('web.app')) {
-        console.log('🔧 Debug: Allowing Firebase origin:', origin);
-        return callback(null, true);
-      }
-      
-      console.warn("⚠️ CORS request from unauthorized origin:", origin);
-      console.warn("   Allowed origins:", corsOrigins);
-      
-      // TEMPORARY: Allow all origins for debugging
-      console.log('🔧 TEMPORARY: Allowing all origins for debugging');
-      return callback(null, true);
+
+      console.warn('CORS blocked origin:', origin);
+      return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -162,6 +158,13 @@ app.use((req, res, next) => {
     else if (req.path.startsWith('/api/fests') && !req.path.includes('/admin/')) {
       res.set('Cache-Control', 'public, max-age=300'); // 5 minutes
     }
+    // Treks and communities — no cache so admin changes show immediately
+    else if (
+      (req.path.startsWith('/api/treks') || req.path.startsWith('/api/trek-communities')) &&
+      !req.path.includes('/admin/')
+    ) {
+      res.set('Cache-Control', 'no-store');
+    }
   }
   
   // Add compression hint
@@ -182,28 +185,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log(
-    `${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${
-      req.get("origin") || "none"
-    }`
-  );
-
-  // Additional logging for upload routes
-  if (req.path.includes('/upload') || req.path.includes('/users')) {
-    console.log('🎯 USERS/UPLOAD route hit:', {
-      method: req.method,
-      path: req.path,
-      fullUrl: req.originalUrl,
-      origin: req.get("origin"),
-      contentType: req.get("content-type"),
-      hasFile: !!req.file
-    });
-  }
-
-  next();
-});
+// Request logging — development only
+if (isDev) {
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+  });
+}
 
 // ----------------------
 // Routes
@@ -214,9 +202,20 @@ app.use("/api/fest-organizer", festOrganizerRoutes);
 app.use("/api/fests", publicFestRoutes);
 app.use("/api/competitions", competitionRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/events', adminEventRoutes);
+app.use('/api/admin/sports', adminSportsRoutes);
+app.use('/api/admin/treks', adminTrekRoutes);
+app.use('/api/admin/trek-communities', adminTrekCommunityRoutes);
+app.use('/api/trek-communities', publicTrekCommunityRoutes);
+app.use('/api/admin/theatre', adminTheatreRoutes);
+app.use('/api/events', publicEventRoutes);
+app.use('/api/treks', publicTrekRoutes);
+app.use('/api/category-registrations', categoryRegistrationRoutes);
 app.use('/api/registrations', registrationRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/qr', qrRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 
 // Root route
@@ -309,11 +308,7 @@ const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`🚀 Server running on ${HOST}:${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🌐 Ready to accept connections`);
-  console.log(`✅ PAYMENT RECEIPT UPLOAD: /api/users/upload/image is LIVE`);
+  console.log(`Server running on ${HOST}:${PORT} [${process.env.NODE_ENV || 'development'}]`);
 });
 
 // Graceful shutdown handling

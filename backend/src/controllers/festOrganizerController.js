@@ -372,7 +372,7 @@ exports.getFestById = async (req, res) => {
         res.status(200).json(fest);
     } catch (err) {
         console.error('Error in getFestById:', err);
-        res.status(500).json({ error: 'Server error', details: err.message });
+        res.status(500).json({ error: 'Server error' });
     }
 };
 
@@ -454,7 +454,7 @@ exports.getAllFests = async (req, res) => {
         }
 
         const fests = await FestOrganizer.find(filter)
-            .select('festName collegeName festType festDate venue coverImage images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode priority')
+            .select('festName collegeName festType festDate venue coverImage images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode priority homeSection homePriority showOnHomeSlide')
             .lean() // Returns plain JS objects, 40-60% faster
             .sort(sortOptions)
             .skip(skip)

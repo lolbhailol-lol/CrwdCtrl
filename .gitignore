@@ -42,3 +42,9 @@ backend/uploads/payment-screenshots/*
 # Temporary files
 tmp/
 temp/
+
+# Claude Code local session data
+.claude/
+
+# Local MCP / IDE config
+mcp.json

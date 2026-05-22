@@ -1,0 +1,461 @@
+﻿import React, { useState } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle } from 'lucide-react';
+import { useDarkMode } from '../../context/DarkModeContext';
+
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
+const loadRazorpay = () =>
+    new Promise(resolve => {
+        if (window.Razorpay) return resolve(true);
+        const s = document.createElement('script');
+        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.onload = () => resolve(true);
+        s.onerror = () => resolve(false);
+        document.body.appendChild(s);
+    });
+
+function generateDates(baseDate) {
+    const base = baseDate ? new Date(baseDate) : new Date();
+    const dates = [];
+    for (let i = 0; i < 5; i++) {
+        const d = new Date(base);
+        d.setDate(base.getDate() + i * 7);
+        dates.push(d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
+    }
+    return dates;
+}
+
+const STEPS = ['Date & Time', 'Your Details', 'Confirm'];
+
+export default function TrekBookingPage() {
+    const navigate  = useNavigate();
+    const location  = useLocation();
+    const { id }    = useParams();
+    const { isDark } = useDarkMode();
+
+    const trek      = location.state?.trek || {};
+    const trekName  = trek.trekName || trek.title || 'Trek';
+    const fee       = Number(trek.registrationFee) || 0;
+    const reg       = trek.registration || {};
+    const dates     = reg.availableDates?.length ? reg.availableDates : generateDates(trek.trekDate);
+    const times     = reg.timeSlots?.length ? reg.timeSlots : trek.departureTime ? [trek.departureTime] : ['6:00 AM', '8:30 AM'];
+    const maxPeople = reg.maxPeoplePerBooking || trek.maxParticipants || 15;
+
+    const [step,        setStep]       = useState(1);
+    const [selDate,     setSelDate]    = useState(dates[0] || '');
+    const [selTime,     setSelTime]    = useState(times[0] || '');
+    const [people,      setPeople]     = useState(1);
+    const [extraFields, setExtraFields] = useState({});
+    const [error,       setError]      = useState('');
+    const [paying,      setPaying]     = useState(false);
+    const [payDone,     setPayDone]    = useState(false);
+    const [paymentId,   setPaymentId]  = useState('');
+
+    const regSchema          = trek.registration?.formSchema || [];
+    const sheetsInstructions = trek.registration?.formInstructions || '';
+
+    const baseFee     = fee * people;
+    const platformFee = fee > 0 ? Math.ceil(baseFee * 0.03) : 0;
+    const total       = baseFee + platformFee;
+
+    const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`;
+
+    const renderField = (field) => {
+        const val = extraFields[field.fieldName] || '';
+        const onChange = (v) => setExtraFields(f => ({ ...f, [field.fieldName]: v }));
+
+        if (field.type === 'textarea') {
+            return (
+                <textarea rows={3} placeholder={field.placeholder || ''}
+                    value={val}
+                    onChange={e => onChange(e.target.value)}
+                    className={`${inp} resize-none`} />
+            );
+        }
+        if (field.type === 'select') {
+            return (
+                <select value={val} onChange={e => onChange(e.target.value)} className={inp}>
+                    <option value="">Select...</option>
+                    {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+            );
+        }
+        if (field.type === 'file') {
+            return (
+                <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${isDark ? 'border-gray-600 hover:border-[#0ECCEE] bg-[#1D1E20]' : 'border-gray-300 hover:border-[#0ECCEE] bg-white'}`}>
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {val ? val.slice(0, 24) + '…' : field.placeholder || 'Choose file'}
+                    </span>
+                    <input type="file" accept="image/*,.pdf" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) onChange(f.name); }} />
+                </label>
+            );
+        }
+        return (
+            <input type={field.type || 'text'} placeholder={field.placeholder || ''}
+                value={val}
+                onChange={e => onChange(e.target.value)}
+                className={inp} />
+        );
+    };
+
+    const next = async () => {
+        setError('');
+        if (step === 1) { setStep(2); return; }
+
+        if (step === 2) {
+            const missing = regSchema.filter(f => f.required && !extraFields[f.fieldName]?.toString().trim());
+            if (missing.length > 0) { setError(`Please fill: ${missing.map(f => f.label).join(', ')}`); return; }
+
+            if (total <= 0) {
+                const trekId = id || trek._id || trek.id;
+                if (trekId) {
+                    const token = localStorage.getItem('crwdctrl_token');
+                    fetch(`${API}/treks/${trekId}/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                        body: JSON.stringify({ formData: extraFields, bookingDetails: { date: selDate, time: selTime, people, amountPaid: 0 } }),
+                    }).catch(() => {});
+                }
+                setStep(3);
+                setTimeout(() => navigate('/registered-fest'), 2000);
+                return;
+            }
+
+            setPaying(true);
+            try {
+                const loaded = await loadRazorpay();
+                if (!loaded) { setError('Could not load payment gateway. Check your connection.'); setPaying(false); return; }
+
+                const res = await fetch(`${API}/payment/trek-order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ baseAmount: fee, trekId: id || trek._id || trek.id, trekName, people }),
+                });
+                const order = await res.json();
+                if (!res.ok) { setError(order.message || 'Failed to create order.'); setPaying(false); return; }
+
+                const options = {
+                    key:         order.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
+                    amount:      order.amount,
+                    currency:    order.currency,
+                    name:        'CrwdCtrl Treks',
+                    description: trekName,
+                    order_id:    order.orderId,
+                    prefill: {
+                        name:    extraFields.full_name    || extraFields.name     || extraFields.fullname  || '',
+                        contact: extraFields.contact_no  || extraFields.phone    || extraFields.contact   || extraFields.mobile || '',
+                        email:   extraFields.email       || extraFields.e_mail_id || extraFields.e_mail   || '',
+                    },
+                    theme: { color: '#0ECCEE' },
+                    handler: async (response) => {
+                        const vRes = await fetch(`${API}/payment/trek-verify`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(response),
+                        });
+                        const v = await vRes.json();
+                        if (v.verified) {
+                            setPaymentId(response.razorpay_payment_id);
+                            setPayDone(true);
+                            const trekId = id || trek._id || trek.id;
+                            if (trekId) {
+                                const token = localStorage.getItem('crwdctrl_token');
+                                fetch(`${API}/treks/${trekId}/register`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                                    body: JSON.stringify({
+                                        formData: extraFields,
+                                        bookingDetails: { date: selDate, time: selTime, people, amountPaid: total, paymentId: response.razorpay_payment_id },
+                                    }),
+                                }).catch(() => {});
+                            }
+                            setStep(3);
+                            setTimeout(() => navigate('/registered-fest'), 2000);
+                        } else {
+                            setError('Payment verification failed. Contact support.');
+                        }
+                        setPaying(false);
+                    },
+                    modal: { ondismiss: () => setPaying(false) },
+                };
+                const rzp = new window.Razorpay(options);
+                rzp.on('payment.failed', r => { setError(r.error?.description || 'Payment failed.'); setPaying(false); });
+                rzp.open();
+            } catch (e) {
+                setError('Payment error: ' + e.message);
+                setPaying(false);
+            }
+        }
+    };
+
+    const back = () => step === 1 ? navigate(-1) : setStep(s => s - 1);
+
+    // ── Success Screen ──
+    if (step === 3) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+                <div className="text-center max-w-md mx-auto p-8 w-full">
+                    <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
+                    <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {payDone ? '🎉 Payment Successful!' : '🎉 Booking Confirmed!'}
+                    </h1>
+                    <p className={`mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Your booking for <span className="text-[#0ECCEE] font-semibold">{trekName}</span> has been confirmed.
+                    </p>
+                    <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        Redirecting to My Registrations...
+                    </p>
+
+                    <div className={`rounded-xl p-5 mb-6 text-left ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
+                        <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Booking Details</p>
+                        {[
+                            { label: 'Date',  value: selDate || '—' },
+                            { label: 'Time',  value: selTime },
+                            { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
+                            { label: 'Trek Fee', value: fee > 0 ? `₹${baseFee.toLocaleString('en-IN')}` : 'Free' },
+                            ...(total > 0    ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }] : []),
+                            ...(paymentId    ? [{ label: 'Payment ID',  value: paymentId.slice(0, 18) + '…' }] : []),
+                        ].map(r => (
+                            <div key={r.label} className={`flex justify-between text-sm py-2 border-b last:border-0 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{r.label}</span>
+                                <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{r.value}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={() => navigate('/registered-fest')}
+                        className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                    >
+                        View My Registrations
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`min-h-screen py-2 sm:py-4 pb-40 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+            <div className="max-w-lg mx-auto px-4 sm:px-6">
+
+                {/* Header */}
+                <div className="flex items-start gap-3 mb-4 sm:mb-6 pt-10">
+                    <button
+                        onClick={back}
+                        className={`p-2 rounded-lg transition-colors flex-shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+                    >
+                        <ArrowLeft className={`w-5 h-5 ${isDark ? 'text-white' : 'text-gray-900'}`} />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                        <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            Book: {trekName}
+                        </h1>
+                        <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {STEPS[step - 1]}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Error */}
+                {error && (
+                    <div className={`rounded-lg p-3 mb-4 text-sm border ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>
+                        {error}
+                    </div>
+                )}
+
+                {/* Card */}
+                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'}`}>
+
+                    {/* Step Progress */}
+                    <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
+                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step} of {STEPS.length}</span>
+                        </div>
+                        <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                            <div
+                                className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${(step / STEPS.length) * 100}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between">
+                            {STEPS.map((s, i) => (
+                                <div key={s} className="flex flex-col items-center">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                                        i + 1 === step ? 'bg-[#0ECCEE] text-black'
+                                        : i + 1 < step  ? 'bg-green-600 text-white'
+                                        : isDark        ? 'bg-gray-600 text-gray-300'
+                                        :                  'bg-gray-300 text-gray-600'
+                                    }`}>
+                                        {i + 1 < step ? '✓' : i + 1}
+                                    </div>
+                                    <span className={`text-xs mt-1 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* ── Step 1: Date, Time, People ── */}
+                    {step === 1 && (
+                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+                            <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
+                                Select Date & Time
+                            </h3>
+                            <div className="space-y-5">
+
+                                {/* Date chips */}
+                                <div>
+                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Choose Date</label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {dates.map((d, i) => (
+                                            <button key={i} type="button" onClick={() => setSelDate(d)}
+                                                className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                                                    selDate === d
+                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                                                        : isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                                                }`}>
+                                                {d}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Time chips */}
+                                <div>
+                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Departure Time</label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {times.map(t => (
+                                            <button key={t} type="button" onClick={() => setSelTime(t)}
+                                                className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                                    selTime === t
+                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                                                        : isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                                                }`}>
+                                                {t}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* People + Entry Fee combined box */}
+                                <div className={`rounded-xl p-3 border flex items-center justify-between gap-4 ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
+                                    <div>
+                                        <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Number of People</p>
+                                        <div className="flex items-center">
+                                            <button type="button" onClick={() => setPeople(p => Math.max(1, p - 1))}
+                                                className={`w-9 h-9 rounded-l-lg flex items-center justify-center border-2 border-r-0 transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}>
+                                                <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
+                                            </button>
+                                            <div className={`w-12 h-9 flex items-center justify-center border-y-2 ${isDark ? 'bg-[#111213] border-gray-600' : 'bg-white border-gray-300'}`}>
+                                                <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{people}</span>
+                                            </div>
+                                            <button type="button" onClick={() => setPeople(p => Math.min(maxPeople, p + 1))}
+                                                className={`w-9 h-9 rounded-r-lg flex items-center justify-center border-2 border-l-0 transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}>
+                                                <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Entry Fee</p>
+                                        {fee > 0 ? (
+                                            <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                ₹{baseFee.toLocaleString('en-IN')}
+                                            </p>
+                                        ) : (
+                                            <p className="text-lg font-bold text-green-500">Free</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Step 2: Form Fields ── */}
+                    {step === 2 && (
+                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+                            <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
+                                Your Details
+                            </h3>
+
+                            {sheetsInstructions && (
+                                <div className={`rounded-lg p-3 mb-4 border text-xs ${isDark ? 'bg-amber-900/20 border-amber-700/40 text-amber-400' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
+                                    {sheetsInstructions}
+                                </div>
+                            )}
+
+                            {regSchema.length === 0 ? (
+                                <p className={`text-sm text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    No form fields configured. Add fields in the admin trek form.
+                                </p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {regSchema.map(field => (
+                                        <div key={field.id || field.fieldName}>
+                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                {field.label}
+                                                {field.required && <span className="text-red-400 ml-1">*</span>}
+                                            </label>
+                                            {renderField(field)}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Payment breakdown (step 2, paid trek) */}
+                    {step === 2 && fee > 0 && (
+                        <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
+                            <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
+                            <div className={`space-y-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                <div className="flex justify-between gap-4">
+                                    <span>Ticket Price <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span></span>
+                                    <span>₹{baseFee.toLocaleString('en-IN')}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span>Platform Fee (3%)</span>
+                                    <span>₹{platformFee}</span>
+                                </div>
+                                <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
+                                    <span>Total</span>
+                                    <span>₹{total.toLocaleString('en-IN')}</span>
+                                </div>
+                            </div>
+                            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Razorpay secure payment — click Pay to book.</p>
+                        </div>
+                    )}
+
+                    {/* Nav buttons */}
+                    <div className="flex flex-col sm:flex-row gap-3 pt-5">
+                        <button
+                            type="button"
+                            onClick={back}
+                            disabled={paying}
+                            className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
+                        >
+                            {step === 1 ? 'Cancel' : 'Previous Step'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={next}
+                            disabled={paying}
+                            className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60"
+                        >
+                            {paying ? (
+                                <><Loader className="w-4 h-4 animate-spin" /> Processing...</>
+                            ) : step === 2 && total > 0 ? (
+                                `Pay ₹${total.toLocaleString('en-IN')} & Book`
+                            ) : step === 2 ? (
+                                'Confirm Booking'
+                            ) : (
+                                'Next Step'
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

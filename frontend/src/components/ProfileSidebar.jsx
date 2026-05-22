@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
@@ -77,17 +77,17 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
             <div className="hidden md:block">
                 {/* Full Screen Overlay */}
                 <div
-                    className={`fixed inset-0 backdrop-blur-sm z-[60] transition-opacity duration-300 ${isDark ? 'bg-[#0E0E0F]/50' : 'bg-white/30'}`}
+                    className={`fixed inset-0 backdrop-blur-sm z-[60] transition-opacity duration-300 ${isDark ? 'bg-[#161718]/50' : 'bg-white/30'}`}
                     onClick={onClose}
                 />
 
                 {/* Sidebar */}
                 <div className={`fixed right-0 top-0 z-[70] w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
                     }`}>
-                    <div className={`h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#1B1C1E] ' : 'bg-[#F5F6FA]'
+                    <div className={`h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#111213] ' : 'bg-[#EDEDF2]'
                         }`}>
                         {/* Header */}
-                        <div className={`px-6 py-6 border-b flex items-center justify-between ${isDark ? 'bg-[#1B1C1E] border-[#1B1C1E]' : 'bg-[#F5F6FA] border-[#F5F6FA]'}
+                        <div className={`px-6 py-6 border-b flex items-center justify-between ${isDark ? 'bg-[#111213] border-[#111213]' : 'bg-[#EDEDF2] border-[#EDEDF2]'}
                             }`}>
                             <div className="flex items-center gap-3">
                                 <button
@@ -106,7 +106,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                         </div>
 
                         {/* Profile Section */}
-                        <div className={`px-6 py-8 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+                        <div className={`px-6 py-8 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                             <div className="flex items-center gap-4">
                                 <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isAuthenticated
                                     ? 'bg-gradient-to-br from-[#007BFF] to-[#00C9A7]'
@@ -140,7 +140,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                 <button
                                     key={index}
                                     onClick={() => handleMenuItemClick(item.label)}
-                                    className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors group ${isDark ? 'hover:bg-gray-700' : 'hover:bg-[#F5F6FA]'}
+                                    className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors group ${isDark ? 'hover:bg-gray-700' : 'hover:bg-[#EDEDF2]'}
                                         }`}
                                 >
                                     <div className="flex items-center gap-3">
@@ -193,7 +193,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                     onClick={handleLogout}
                                     className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl transition-colors group ${isDark
                                         ? 'bg-gray-700 hover:bg-gray-600'
-                                        : 'bg-[#F5F6FA] hover:bg-gray-100'
+                                        : 'bg-[#EDEDF2] hover:bg-gray-100'
                                         }`}
                                 >
                                     <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -232,16 +232,16 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
             <div className="block md:hidden">
                 {/* Overlay */}
                 <div
-                    className={`fixed inset-0 z-[60] transition-opacity duration-300 ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}
+                    className={`fixed inset-0 z-[60] transition-opacity duration-300 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
                 />
 
                 {/* Mobile Profile Screen */}
-                <div className={`fixed inset-0 z-[9999] profile-sidebar-mobile ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
+                <div className={`fixed inset-0 z-[9999] profile-sidebar-mobile ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                     {/* Scrollable content container */}
                     <div className="h-full overflow-y-auto scrollbar-hide pb-32">
                         <div className="min-h-full">
                             {/* Header */}
-                            <div className={`px-6 py-6 pt-12 ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
+                            <div className={`px-6 py-6 pt-12 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                             <div className="flex items-center justify-between">
                                 <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     Profile
@@ -251,7 +251,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                     onClick={toggleDarkMode}
                                     className={`flex items-center gap-1 px-4 py-2 rounded-full transition-all duration-300 ${isDark
                                         ? 'bg-gray-800 hover:bg-gray-700'
-                                        : 'bg-[#F5F6FA] hover:bg-gray-100 shadow-md'
+                                        : 'bg-[#EDEDF2] hover:bg-gray-100 shadow-md'
                                         }`}
                                     aria-label="Toggle dark mode"
                                 >
@@ -268,7 +268,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                         </div>
 
                         {/* Profile Avatar Section */}
-                        <div className={`px-6 py-8 flex flex-col items-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
+                        <div className={`px-6 py-8 flex flex-col items-center ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                             <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 ${isAuthenticated
                                 ? 'bg-gradient-to-br from-[#007BFF] to-[#00C9A7]'
                                 : isDark
@@ -301,7 +301,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                         onClick={() => handleMenuItemClick(item.label)}
                                         className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-200 ${isDark
                                             ? 'bg-gray-700/50 hover:bg-gray-700 active:scale-95'
-                                            : 'bg-[#F5F6FA] hover:bg-gray-100 shadow-sm active:scale-95'
+                                            : 'bg-[#EDEDF2] hover:bg-gray-100 shadow-sm active:scale-95'
                                             }`}
                                     >
                                         <div className="flex items-center gap-4">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
 import Footer from '../../Footer';
@@ -441,7 +441,7 @@ function CompetitionRegisterPage() {
     };
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'}`}>
+        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'}`}>
             {/* Desktop Sidebar */}
             <div className="hidden lg:block">
                 <Sidebar />
@@ -467,7 +467,7 @@ function CompetitionRegisterPage() {
 
                     {/* Main Content */}
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
-                        <div className={`max-w-4xl mx-auto rounded-xl shadow-lg p-6 sm:p-8 ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <div className={`max-w-4xl mx-auto rounded-xl shadow-lg p-6 sm:p-8 ${isDark ? 'bg-[#111213]' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                             {/* Header */}
                             <div className="text-center mb-8">
                                 <h1 className={`text-2xl sm:text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -526,7 +526,7 @@ function CompetitionRegisterPage() {
                                             onChange={handleInputChange}
                                             placeholder="Enter your full name"
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                 } ${errors.name ? 'border-red-500' : ''}`}
                                         />
@@ -547,7 +547,7 @@ function CompetitionRegisterPage() {
                                             onChange={handleInputChange}
                                             placeholder="@your_instagram_id"
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                 } ${errors.instagramId ? 'border-red-500' : ''}`}
                                         />
@@ -569,7 +569,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="+91 9876543210"
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.contactNumber ? 'border-red-500' : ''}`}
                                             />
@@ -589,7 +589,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="your.email@example.com"
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.email ? 'border-red-500' : ''}`}
                                             />
@@ -610,7 +610,7 @@ function CompetitionRegisterPage() {
                                             value={formData.dateOfBirth}
                                             onChange={handleInputChange}
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 text-white'
                                                 : 'bg-gray-50 border-gray-200 text-gray-900'
                                                 } ${errors.dateOfBirth ? 'border-red-500' : ''}`}
                                         />
@@ -629,7 +629,7 @@ function CompetitionRegisterPage() {
                                             value={formData.competitionName}
                                             onChange={handleInputChange}
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 text-white'
                                                 : 'bg-gray-50 border-gray-200 text-gray-900'
                                                 } ${errors.competitionName ? 'border-red-500' : ''}`}
                                         >
@@ -660,7 +660,7 @@ function CompetitionRegisterPage() {
                                                 min={getSelectedCompetition()?.minParticipants}
                                                 max={getSelectedCompetition()?.maxParticipants}
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.numberOfParticipants ? 'border-red-500' : ''}`}
                                             />
@@ -686,7 +686,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter your city"
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.city ? 'border-red-500' : ''}`}
                                             />
@@ -706,7 +706,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter college or organization name"
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.collegeName ? 'border-red-500' : ''}`}
                                             />
@@ -726,7 +726,7 @@ function CompetitionRegisterPage() {
                                             value={formData.paymentMode}
                                             onChange={handleInputChange}
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 text-white'
                                                 : 'bg-gray-50 border-gray-200 text-gray-900'
                                                 } ${errors.paymentMode ? 'border-red-500' : ''}`}
                                         >
@@ -741,7 +741,7 @@ function CompetitionRegisterPage() {
                                     </div>
 
                                     {/* Payment QR Code */}
-                                    <div className={`p-4 rounded-lg border ${isDark ? 'bg-[#2A2B2D] border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                                    <div className={`p-4 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
                                         <h4 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                             Scan QR Code to Pay
                                         </h4>
@@ -818,7 +818,7 @@ function CompetitionRegisterPage() {
                                             onChange={handleInputChange}
                                             placeholder="Enter transaction ID"
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                 } ${errors.transactionId ? 'border-red-500' : ''}`}
                                         />
@@ -844,7 +844,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter your full name"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.name ? 'border-red-500' : ''}`}
                                             />
@@ -865,7 +865,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="@your_instagram_id"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.instagramId ? 'border-red-500' : ''}`}
                                             />
@@ -886,7 +886,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="+91 9876543210"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.contactNumber ? 'border-red-500' : ''}`}
                                             />
@@ -907,7 +907,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="your.email@example.com"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.email ? 'border-red-500' : ''}`}
                                             />
@@ -927,7 +927,7 @@ function CompetitionRegisterPage() {
                                                 value={formData.dateOfBirth}
                                                 onChange={handleInputChange}
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 text-white'
                                                     : 'bg-gray-50 border-gray-200 text-gray-900'
                                                     } ${errors.dateOfBirth ? 'border-red-500' : ''}`}
                                             />
@@ -946,7 +946,7 @@ function CompetitionRegisterPage() {
                                                 value={formData.competitionName}
                                                 onChange={handleInputChange}
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 text-white'
                                                     : 'bg-gray-50 border-gray-200 text-gray-900'
                                                     } ${errors.competitionName ? 'border-red-500' : ''}`}
                                             >
@@ -980,7 +980,7 @@ function CompetitionRegisterPage() {
                                                     min={getSelectedCompetition()?.minParticipants}
                                                     max={getSelectedCompetition()?.maxParticipants}
                                                     className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                        ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                        ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                         : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                         } ${errors.numberOfParticipants ? 'border-red-500' : ''}`}
                                                 />
@@ -1005,7 +1005,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter your city"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.city ? 'border-red-500' : ''}`}
                                             />
@@ -1026,7 +1026,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter college or organization name"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.collegeName ? 'border-red-500' : ''}`}
                                             />
@@ -1045,7 +1045,7 @@ function CompetitionRegisterPage() {
                                                 value={formData.paymentMode}
                                                 onChange={handleInputChange}
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 text-white'
                                                     : 'bg-gray-50 border-gray-200 text-gray-900'
                                                     } ${errors.paymentMode ? 'border-red-500' : ''}`}
                                             >
@@ -1060,7 +1060,7 @@ function CompetitionRegisterPage() {
                                         </div>
 
                                         {/* Payment QR Code */}
-                                        <div className={`p-4 rounded-lg border ${isDark ? 'bg-[#2A2B2D] border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                                        <div className={`p-4 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
                                             <h4 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                 Scan QR Code to Pay
                                             </h4>
@@ -1137,7 +1137,7 @@ function CompetitionRegisterPage() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter transaction ID"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.transactionId ? 'border-red-500' : ''}`}
                                             />

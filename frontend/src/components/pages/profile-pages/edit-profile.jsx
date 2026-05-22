@@ -427,7 +427,7 @@ function EditProfile() {
         const storedToken = localStorage.getItem('crwdctrl_token');
 
         return (
-            <div className={`min-h-screen flex flex-col items-center justify-center ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'}`}>
+            <div className={`min-h-screen flex flex-col items-center justify-center ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
                 <Loader2 className="w-8 h-8 animate-spin mb-4" />
                 <p className="text-sm text-gray-500 mb-4">Loading profile data...</p>
 
@@ -455,7 +455,7 @@ function EditProfile() {
     }
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'}`}>
+        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Back Navigation */}
@@ -472,7 +472,7 @@ function EditProfile() {
 
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
                         {/* Desktop View */}
-                        <div className={`hidden lg:block max-w-4xl mx-auto rounded-lg shadow-sm p-8 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-100'}`}>
+                        <div className={`hidden lg:block max-w-4xl mx-auto rounded-lg shadow-sm p-8 ${isDark ? 'bg-[#161718]' : 'bg-gray-100'}`}>
                             {/* Profile Section */}
                             <div className="flex items-center gap-4 mb-8">
                                 <div className="w-20 h-20 bg-gradient-to-br from-[#007BFF] to-[#00C9A7] rounded-full flex items-center justify-center relative overflow-hidden">
@@ -755,7 +755,7 @@ function EditProfile() {
                         </div>
 
                         {/* Mobile View */}
-                        <div className={`lg:hidden rounded-lg shadow-sm p-4 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-100'}`}>
+                        <div className={`lg:hidden rounded-lg shadow-sm p-4 ${isDark ? 'bg-[#161718]' : 'bg-gray-100'}`}>
                             {/* Mobile Profile Section */}
                             <div className="flex flex-col items-center text-center mb-6">
                                 <div className="w-24 h-24 bg-gradient-to-br from-[#007BFF] to-[#00C9A7] rounded-full flex items-center justify-center mb-4 relative overflow-hidden">

@@ -1,0 +1,614 @@
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { ArrowLeft, Share2, Heart, ChevronRight } from 'lucide-react';
+import { useDarkMode } from '../../context/DarkModeContext';
+import { getImageUrl } from '../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
+// ── Colorful SVG Icons (no background — work on both light & dark) ─────────────
+function InfoRow({ label, value, isDark }) {
+    return (
+        <div className={`flex items-center justify-between py-2 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+            <span className="text-sm text-gray-500">{label}</span>
+            <span className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{value}</span>
+        </div>
+    );
+}
+
+// Hourglass — amber/orange for duration
+const ClockIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M12 12 C9 9 6 7 6 4h12c0 3-3 5-6 8z" fill="#F59E0B" opacity="0.9"/>
+        <path d="M12 12 C15 15 18 17 18 20H6c0-3 3-5 6-8z" fill="#D97706"/>
+        <rect x="5" y="3" width="14" height="2" rx="1" fill="#FBBF24"/>
+        <rect x="5" y="19" width="14" height="2" rx="1" fill="#B45309"/>
+    </svg>
+);
+
+// Bar chart — green for difficulty
+const ChartIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <rect x="3"  y="14" width="4" height="7" rx="1.5" fill="#4ADE80"/>
+        <rect x="10" y="9"  width="4" height="12" rx="1.5" fill="#22C55E"/>
+        <rect x="17" y="4"  width="4" height="17" rx="1.5" fill="#16A34A"/>
+    </svg>
+);
+
+// Compass — cyan/blue for trek style
+const GridIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="#0ECCEE" strokeWidth="1.5"/>
+        <circle cx="12" cy="12" r="2" fill="#0ECCEE"/>
+        <polygon points="12,3 14,10 12,12 10,10" fill="#0ECCEE" opacity="0.9"/>
+        <polygon points="21,12 14,14 12,12 14,10" fill="#9CA3AF" opacity="0.7"/>
+        <polygon points="12,21 10,14 12,12 14,14" fill="#9CA3AF" opacity="0.7"/>
+        <polygon points="3,12 10,10 12,12 10,14" fill="#0ECCEE" opacity="0.6"/>
+    </svg>
+);
+
+// People — teal for max participants
+const PersonIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <circle cx="9"  cy="6"  r="3"   fill="#2DD4BF"/>
+        <path   d="M3 20 Q3 14 9 14 Q15 14 15 20" fill="#0D9488"/>
+        <circle cx="17" cy="7"  r="2.5" fill="#5EEAD4" opacity="0.8"/>
+        <path   d="M14 20 Q14 15.5 17 15.5 Q21 15.5 21 20" fill="#0D9488" opacity="0.7"/>
+    </svg>
+);
+
+// Sun — yellow for departure time
+const SunIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="5" fill="#FCD34D"/>
+        <circle cx="12" cy="12" r="3.5" fill="#FBBF24"/>
+        {[0,45,90,135,180,225,270,315].map((deg,i) => {
+            const r = 8.5, r2 = 10.5;
+            const rad = deg * Math.PI / 180;
+            return <line key={i} x1={12+r*Math.cos(rad)} y1={12+r*Math.sin(rad)} x2={12+r2*Math.cos(rad)} y2={12+r2*Math.sin(rad)} stroke="#F59E0B" strokeWidth="1.5" strokeLinecap="round"/>;
+        })}
+    </svg>
+);
+
+// Checklist — green for inclusions
+const ListIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="3" width="18" height="18" rx="4" fill="#DCFCE7"/>
+        <path d="M7 8h10M7 12h10M7 16h6" stroke="#16A34A" strokeWidth="1.8" strokeLinecap="round"/>
+        <circle cx="19" cy="16" r="3.5" fill="#22C55E"/>
+        <path d="M17.2 16l1 1.2 2-2" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+);
+
+// Document — amber for T&C
+const UserCardIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <rect x="4" y="2" width="16" height="20" rx="3" fill="#FEF3C7"/>
+        <rect x="4" y="2" width="16" height="20" rx="3" stroke="#F59E0B" strokeWidth="1.2"/>
+        <path d="M8 8h8M8 11.5h8M8 15h5" stroke="#D97706" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M14 2v5h6" fill="none" stroke="#F59E0B" strokeWidth="1.2"/>
+    </svg>
+);
+
+// Moon — purple for return time
+const MoonIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#A78BFA"/>
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="url(#moon-grad)"/>
+        <defs><linearGradient id="moon-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#C4B5FD"/><stop offset="100%" stopColor="#7C3AED"/></linearGradient></defs>
+    </svg>
+);
+
+// Map pin — red for location
+const MapPinIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#FCA5A5"/>
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="url(#pin-grad)"/>
+        <circle cx="12" cy="9" r="3" fill="white" opacity="0.9"/>
+        <defs><linearGradient id="pin-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F87171"/><stop offset="100%" stopColor="#DC2626"/></linearGradient></defs>
+    </svg>
+);
+
+// Age — blue/indigo
+const AgeIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="1.2"/>
+        <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1D4ED8">18+</text>
+    </svg>
+);
+
+// Heart-rate / fitness — red/pink
+const FitnessIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M3 12h3l2-6 3 12 3-8 2 4h5" stroke="#F43F5E" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+);
+
+export default function TrekDetailPage() {
+    const navigate  = useNavigate();
+    const location  = useLocation();
+    const { id }    = useParams();
+    const { isDark } = useDarkMode();
+
+    const [trek,      setTrek]      = useState(null);
+    const [community, setCommunity] = useState(location.state?.community || null);
+    const [loading,   setLoading]   = useState(true);
+    const [liked,     setLiked]     = useState(false);
+    const [imgPg,     setImgPg]     = useState(0);
+    const [overviewExpanded, setOverviewExpanded] = useState(false);
+    const [activeTab, setActiveTab] = useState('Details');
+    const [termsOpen, setTermsOpen] = useState(false);
+    const [inclusionOpen, setInclusionOpen] = useState(false);
+    const imgRef = useRef(null);
+
+    useEffect(() => {
+        // Always fetch full trek data from API so all fields are available
+        const fetchTrek = async () => {
+            const trekId = id || location.state?.trek?.id || location.state?.trek?._id;
+            if (!trekId) {
+                // Fallback: use state data and normalise field names
+                const raw = location.state?.trek;
+                if (raw) {
+                    setTrek({
+                        ...raw,
+                        trekName:       raw.trekName || raw.title || 'Trek',
+                        trekDuration:   raw.trekDuration || raw.duration,
+                        difficultyLevel: raw.difficultyLevel || raw.difficulty,
+                        images:         raw.images?.length ? raw.images : raw.image ? [raw.image] : [],
+                    });
+                }
+                setLoading(false);
+                return;
+            }
+            try {
+                const r = await fetch(`${API}/treks/${trekId}`);
+                const d = await r.json();
+                if (d.trek) {
+                    setTrek(d.trek);
+                } else {
+                    // Fallback to state
+                    const raw = location.state?.trek;
+                    if (raw) setTrek({ ...raw, trekName: raw.trekName || raw.title, trekDuration: raw.trekDuration || raw.duration, difficultyLevel: raw.difficultyLevel || raw.difficulty, images: raw.images?.length ? raw.images : raw.image ? [raw.image] : [] });
+                }
+            } catch {
+                const raw = location.state?.trek;
+                if (raw) setTrek({ ...raw, trekName: raw.trekName || raw.title, trekDuration: raw.trekDuration || raw.duration, difficultyLevel: raw.difficultyLevel || raw.difficulty, images: raw.images?.length ? raw.images : raw.image ? [raw.image] : [] });
+            }
+            setLoading(false);
+        };
+        fetchTrek();
+    }, [id]);
+
+    if (loading) return (
+        <div className={`flex items-center justify-center min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
+        </div>
+    );
+    if (!trek) return (
+        <div className={`flex flex-col items-center justify-center min-h-screen gap-3 px-6 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <span className="text-4xl">⛰️</span>
+            <p className="text-gray-500 text-sm text-center">Trek not found</p>
+            <button onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">← Go back</button>
+        </div>
+    );
+
+    const coverImg  = trek.coverImage || null;
+    const rawImages = trek.images?.filter(Boolean) || [];
+    const allImages = coverImg ? [coverImg, ...rawImages.filter(u => u !== coverImg)] : rawImages;
+    const images    = allImages.length ? allImages : trek.image ? [trek.image] : [null];
+    const communityName = community?.name || community?.title || trek.communityName || trek.trekLeader || null;
+    const price         = trek.registrationFee ? `₹${Number(trek.registrationFee).toLocaleString('en-IN')}/-` : 'Free';
+    // Build overview from available trek fields
+    const buildOverview = () => {
+        if (trek.description) return trek.description;
+        const parts = [];
+        if (trek.trekName) parts.push(`${trek.trekName} is an exciting trek`);
+        if (trek.city || trek.destination) parts.push(`located in ${[trek.city, trek.destination].filter(Boolean).join(', ')}`);
+        if (trek.difficultyLevel) parts.push(`with a ${trek.difficultyLevel} difficulty level`);
+        if (trek.trekDuration) parts.push(`spanning ${trek.trekDuration}`);
+        if (trek.startingPoint) parts.push(`Starting from ${trek.startingPoint}`);
+        if (trek.fitnessRequirements) parts.push(`Fitness requirements: ${trek.fitnessRequirements}`);
+        if (trek.maxParticipants) parts.push(`This trek accommodates up to ${trek.maxParticipants} participants`);
+        return parts.length ? parts.join('. ') + '.' : 'No description available for this trek.';
+    };
+    const desc      = buildOverview();
+    const shortDesc = desc.slice(0, 150);
+
+    const handleShare = () => {
+        if (navigator.share) navigator.share({ title: trek.trekName, url: window.location.href }).catch(() => {});
+    };
+
+    return (
+        <div className={`flex flex-col min-h-screen max-w-md mx-auto ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+
+            {/* ── HERO IMAGE ── */}
+            <div className="relative w-full h-[280px] flex-shrink-0 bg-gray-200">
+                <div
+                    ref={imgRef}
+                    className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                    onScroll={e => setImgPg(Math.round(e.target.scrollLeft / e.target.clientWidth))}
+                >
+                    <div className="flex h-full">
+                        {images.map((img, i) => (
+                            <div key={i} className="flex-shrink-0 w-full h-full snap-start">
+                                {img
+                                    ? <img src={getImageUrl(img)} alt={trek.trekName} className="w-full h-full object-cover"
+                                        onError={e => handleImageErrorWithFallback(e, 393, 280, '#1a3a2a', trek.trekName)} />
+                                    : <div className="w-full h-full bg-gradient-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
+                                        <span className="text-7xl opacity-40">⛰️</span>
+                                      </div>
+                                }
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Back / Share / Heart */}
+                <div className="absolute top-12 left-0 right-0 flex items-center justify-between px-4">
+                    <button onClick={() => navigate(-1)}
+                        className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                        <ArrowLeft size={16} className="text-white" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleShare}
+                            className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                            <Share2 size={15} className="text-white" />
+                        </button>
+                        <button onClick={() => setLiked(l => !l)}
+                            className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                            <Heart size={15} className={liked ? 'fill-red-400 text-red-400' : 'text-white'} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Dots */}
+                {images.length > 1 && (
+                    <div className="absolute bottom-3 left-0 right-0 flex justify-center items-center gap-2">
+                        {images.slice(0, 4).map((_, i) => (
+                            <div key={i} className={`rounded-full transition-all duration-300
+                                ${i === imgPg ? 'w-6 h-2.5 bg-white' : 'size-2.5 border-2 border-white/70 bg-transparent'}`} />
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* ── Sticky price + CTA bar ── */}
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}>
+            <div className={`px-4 py-2.5 flex items-center gap-4 border-t
+                ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
+
+                {/* Price block */}
+                <div className="flex-1 min-w-0 pl-4">
+                    {Number(trek.registrationFee) > 0 ? (
+                        <>
+                            <p className={`text-[10px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Starting from</p>
+                            <div className="flex items-baseline gap-0.5">
+                                <span className={`text-base font-bold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>₹</span>
+                                <span className={`text-3xl font-extrabold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {Number(trek.registrationFee).toLocaleString('en-IN')}
+                                </span>
+                                <span className={`text-[10px] ml-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>/ person</span>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex items-center gap-1.5 pl-4">
+                            <span className="text-3xl font-extrabold text-green-500 leading-none">FREE</span>
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">No charge</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* CTA button */}
+                <button
+                    onClick={() => {
+                        const trekId = id || trek._id || trek.id;
+                        navigate(`/trek/${trekId}/book`, { state: { trek } });
+                    }}
+                    className="flex items-center justify-center gap-2 w-52 py-2.5 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-95 transition-all flex-shrink-0"
+                >
+                    Check Availability
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div className={`flex-1 rounded-t-3xl -mt-5 relative z-10 overflow-hidden ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+
+                {/* Trek name + community */}
+                <div className="px-4 pt-5 pb-3">
+                    <h1 className={`text-[26px] font-bold leading-8 break-words ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {trek.trekName || trek.title || trek.name || 'Trek Name'}
+                    </h1>
+                    <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {communityName || 'Community Name'}
+                    </p>
+                </div>
+
+                {/* Meta: details LEFT, map RIGHT — side by side */}
+                <div className="px-4 flex items-start gap-3 mb-5">
+
+                    {/* Left: 3 detail rows */}
+                    <div className="flex-1 min-w-0 space-y-3.5">
+                        {[
+                            { Icon: ClockIcon,  label: 'Trek Duration',   value: trek.trekDuration || trek.duration || '—' },
+                            { Icon: ChartIcon,  label: 'Difficulty',      value: (trek.difficultyLevel || trek.difficulty || '—'), extra: 'capitalize' },
+                            { Icon: GridIcon,   label: 'Trek Style',      value: trek.trekCategory || 'Adventure Trek', extra: 'capitalize' },
+                        ].map(({ Icon, label, value, extra }) => (
+                            <div key={label} className="flex items-center gap-2.5">
+                                <Icon size={22} />
+                                <div>
+                                    <p className={`text-[15px] font-semibold leading-5 ${extra || ''} ${isDark ? 'text-white' : 'text-gray-900'}`}>{value}</p>
+                                    <p className={`text-[11px] font-medium leading-4 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{label}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Right: map + location */}
+                    <div className="flex flex-col flex-shrink-0">
+                        <div className="w-60 h-33 rounded-2xl overflow-hidden relative">
+                            {(trek.city || trek.destination || trek.meetingLocation) ? (
+                                <>
+                                    <div className={`absolute inset-0 animate-pulse ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-200'}`} />
+                                    <iframe
+                                        title="trek-location"
+                                        src={`https://maps.google.com/maps?q=${encodeURIComponent(trek.city || trek.destination || trek.meetingLocation)}&output=embed&zoom=11`}
+                                        width="100%"
+                                        height="100%"
+                                        style={{ border: 0, display: 'block', position: 'relative' }}
+                                        loading="eager"
+                                        referrerPolicy="no-referrer-when-downgrade"
+                                    />
+                                </>
+                            ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
+                                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
+                                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                                        <circle cx="12" cy="9" r="2.5" fill="#9CA3AF"/>
+                                    </svg>
+                                    <span className="text-[10px] text-gray-400">No location</span>
+                                </div>
+                            )}
+                        </div>
+                        {(trek.city || trek.destination) && (
+                            <p className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                {[trek.city, trek.destination].filter(Boolean).join(', ')}
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Overview ── */}
+                <div className="px-4 mb-5">
+                    <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Overview</h2>
+                    <p className={`text-sm leading-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {overviewExpanded ? desc : shortDesc}
+                        {desc.length > 150 && (
+                            <>
+                                {!overviewExpanded && '...'}
+                                <button onClick={() => setOverviewExpanded(v => !v)}
+                                    className="text-[#0ECCEE] text-sm font-medium ml-0.5">
+                                    {overviewExpanded ? ' show less' : 'read more'}
+                                </button>
+                            </>
+                        )}
+                    </p>
+                </div>
+
+
+                {/* ── Trek Info Tabs ── */}
+                <div className="px-4 mb-5">
+                    <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Trek Info</h2>
+                    <div className={`rounded-2xl p-1 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
+                    <div className="flex rounded-xl p-1">
+                        {['Details', 'Schedule', 'Inclusion', 'Exclusion'].map(tab => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`relative flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200
+                                    ${activeTab === tab
+                                        ? isDark ? 'bg-[#1D1E20] text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
+                                        : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                                    }`}
+                            >
+                                {tab}
+                                {activeTab === tab && (
+                                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#0ECCEE]" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                    </div>
+
+                    {/* Tab content */}
+                    <div>
+                        {activeTab === 'Details' && (
+                            <div className="space-y-2">
+                                {/* 2-col grid cards */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { show: trek.maxParticipants > 0,    Icon: PersonIcon,  label: 'Max People',    value: trek.maxParticipants },
+                                        { show: !!trek.departureTime,        Icon: SunIcon,     label: 'Trek Timing',   value: trek.departureTime },
+                                        { show: !!trek.returnTime,           Icon: MoonIcon,    label: 'Return Time',   value: trek.returnTime },
+                                        { show: !!trek.meetingLocation,      Icon: MapPinIcon,  label: 'Meeting Point', value: trek.meetingLocation },
+                                        { show: !!trek.ageRestrictions,      Icon: AgeIcon,     label: 'Age Limit',     value: trek.ageRestrictions },
+                                        { show: !!trek.fitnessRequirements,  Icon: FitnessIcon, label: 'Fitness',       value: trek.fitnessRequirements },
+                                    ].filter(r => r.show).map(({ Icon, label, value }) => (
+                                        <div key={label} className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                            <Icon size={22} />
+                                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{label}</p>
+                                            <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{value}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Experience Included — full width expandable */}
+                                {trek.inclusions?.length > 0 && (
+                                    <button onClick={() => setInclusionOpen(o => !o)} className={`w-full rounded-2xl p-3 border text-left ${isDark ? 'bg-[#111213] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <ListIcon />
+                                                <div>
+                                                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Experience Included</p>
+                                                    <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        {inclusionOpen ? trek.inclusions.join(', ') : trek.inclusions.slice(0, 2).join(', ')}
+                                                        {!inclusionOpen && trek.inclusions.length > 2 && '…'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={16} className={`flex-shrink-0 transition-transform ${inclusionOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                        </div>
+                                    </button>
+                                )}
+
+                                {trek.thingsToCarry?.length > 0 && (
+                                    <div className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <UserCardIcon />
+                                            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Things to Carry</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {trek.thingsToCarry.map((t, i) => (
+                                                <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-[#111213] text-gray-300' : 'bg-white text-gray-700 border border-gray-200'}`}>{t}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {activeTab === 'Schedule' && (
+                            trek.itinerary?.length > 0
+                                ? <div className="space-y-2">{trek.itinerary.map((day, i) => (
+                                                    <div key={i} className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
+                                        <p className="text-xs font-bold text-[#0ECCEE] mb-0.5">Day {day.day || i + 1}</p>
+                                        <p className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{day.title}</p>
+                                        {day.description && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{day.description}</p>}
+                                    </div>
+                                ))}</div>
+                                : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No schedule added yet.</p>
+                        )}
+                        {activeTab === 'Inclusion' && (
+                            trek.inclusions?.length > 0
+                                ? <ul className="space-y-2">{trek.inclusions.map((item, i) => (
+                                    <li key={i} className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <span className="size-1.5 rounded-full bg-green-400 flex-shrink-0" />{item}
+                                    </li>))}</ul>
+                                : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No inclusions listed.</p>
+                        )}
+                        {activeTab === 'Exclusion' && (
+                            trek.exclusions?.length > 0
+                                ? <ul className="space-y-2">{trek.exclusions.map((item, i) => (
+                                    <li key={i} className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <span className="size-1.5 rounded-full bg-red-400 flex-shrink-0" />{item}
+                                    </li>))}</ul>
+                                : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No exclusions listed.</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Terms & Conditions ── */}
+                {(() => {
+                    const terms = trek.termsAndConditions?.length ? trek.termsAndConditions : [
+                        'Participants must be medically fit and physically capable for this trek.',
+                        'Follow all safety instructions given by the trek leader at all times.',
+                        'Cancellation policy: 50% refund if cancelled 7+ days before trek date. No refund thereafter.',
+                        'The organiser reserves the right to cancel or modify the trek due to bad weather or safety concerns.',
+                        'Participants are responsible for their own travel insurance and personal belongings.',
+                        'Any damage to nature or property will be the participant\'s responsibility.',
+                    ];
+                    return (
+                        <div className="px-4 mb-6">
+                            <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Terms &amp; Conditions</h2>
+                            <button
+                                onClick={() => setTermsOpen(o => !o)}
+                                className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${isDark ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]' : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'}`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`size-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-amber-50'}`}>
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isDark ? '#FCD34D' : '#D97706'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                            <polyline points="14 2 14 8 20 8"/>
+                                            <line x1="16" y1="13" x2="8" y2="13"/>
+                                            <line x1="16" y1="17" x2="8" y2="17"/>
+                                            <polyline points="10 9 9 9 8 9"/>
+                                        </svg>
+                                    </div>
+                                    <div className="text-left">
+                                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Terms &amp; Conditions</p>
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{terms.length} points — tap to {termsOpen ? 'collapse' : 'read'}</p>
+                                    </div>
+                                </div>
+                                <ChevronRight size={16} className={`transition-transform duration-200 flex-shrink-0 ${termsOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                            </button>
+                            {termsOpen && (
+                                <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    {terms.map((term, i) => (
+                                        <div key={i} className={`flex gap-3 px-4 py-3 ${i < terms.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}>
+                                            <span className={`text-xs font-bold mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-amber-50 text-amber-600'}`}>{i + 1}</span>
+                                            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{term}</p>
+                                        </div>
+                                    ))}
+                                    <div className={`px-4 py-3 ${isDark ? 'bg-[#1D1E20]/50' : 'bg-amber-50/60'}`}>
+                                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-amber-700'}`}>
+                                            ⚠️ By registering, you agree to all the above terms.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
+                {/* ── Contact Details ── */}
+                <div className="px-4 pb-28">
+                    <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
+                    <div className="space-y-2.5">
+                        {/* Phone */}
+                        {(() => {
+                            const phone = community?.contactPhone || trek.emergencyContact;
+                            return (
+                                <a href={phone ? `tel:${phone}` : undefined}
+                                    className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center flex-shrink-0">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
+                                            <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Phone</p>
+                                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{phone || 'Not set'}</p>
+                                    </div>
+                                </a>
+                            );
+                        })()}
+                        {/* Instagram */}
+                        {(() => {
+                            const insta = community?.contactInstagram || trek.contactInstagram;
+                            return (
+                                <a href={insta ? `https://instagram.com/${insta.replace('@','')}` : undefined}
+                                    target={insta ? '_blank' : undefined} rel="noopener noreferrer"
+                                    className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    <div className="size-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                        style={{ background: 'linear-gradient(135deg, #FCD34D 0%, #EC4899 50%, #7C3AED 100%)' }}>
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
+                                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Instagram</p>
+                                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{insta || 'Not set'}</p>
+                                    </div>
+                                </a>
+                            );
+                        })()}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Instagram, Sun, Moon } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { Link } from 'react-router-dom';
@@ -7,7 +7,7 @@ export default function Footer() {
   const { isDark } = useDarkMode();
 
   return (
-    <footer className={`w-full max-w-7xl mx-auto ${isDark ? 'bg-[#0a0a0a]' : 'bg-gray-50'} py-8 md:py-12 transition-colors duration-300 mt-auto`}>
+    <footer className={`w-full max-w-7xl mx-auto ${isDark ? 'bg-[#161718]' : 'bg-gray-50'} py-8 md:py-12 transition-colors duration-300 mt-auto`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {/* Mobile Layout */}
         <div className="md:hidden">

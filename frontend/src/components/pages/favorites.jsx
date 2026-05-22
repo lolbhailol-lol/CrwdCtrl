@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Heart, Calendar, MapPin, Clock, Sparkles, Filter, Trash2, ArrowLeft } from 'lucide-react';
 import Sidebar from '../Sidebar';
@@ -18,7 +18,7 @@ axios.defaults.baseURL = API_BASE_URL;
 // Mobile-specific card component for mobile layout
 const MobileFestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
     return (
-        <div className={`relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-[#1B1C1E] border border-gray-800' : 'bg-white border border-gray-100'
+        <div className={`relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-[#111213] border border-gray-800' : 'bg-white border border-gray-100'
             }`}>
             {/* Event Image */}
             <div className="relative h-40">
@@ -105,15 +105,15 @@ const FestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
         <div
             className={`rounded-xl overflow-hidden duration-300 cursor-pointer shadow-md hover:shadow-lg transition-all
     ${isDark
-                    ? 'bg-[#1B1C1E]'
-                    : 'bg-[#F5F6FA]'
+                    ? 'bg-[#111213]'
+                    : 'bg-[#EDEDF2]'
                 }`}
             onClick={() => onViewDetails(fest)}
         >
             <div className="relative h-[160px] sm:h-[180px] overflow-hidden rounded-t-xl">
                 {/* Loading placeholder */}
                 {imageLoading && (
-                    <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
+                    <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-[#161718]' : 'bg-gray-200'}`}>
                         <div className="animate-pulse text-center">
                             <div className={`w-8 h-8 rounded-full mx-auto mb-2 ${isDark ? 'bg-gray-800' : 'bg-gray-300'}`}></div>
                             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</p>
@@ -123,7 +123,7 @@ const FestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
 
                 {/* Error fallback */}
                 {imageError ? (
-                    <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
+                    <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#161718]' : 'bg-gray-200'}`}>
                         <div className="text-center">
                             <div className={`text-4xl mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>🎭</div>
                             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Image unavailable</p>
@@ -153,7 +153,7 @@ const FestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
                 </button>
             </div>
 
-            <div className={`p-3 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+            <div className={`p-3 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                 {/* Event Name */}
                 <div className="mb-2">
                     <h3 className={`text-sm sm:text-base font-bold mb-1 line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -213,7 +213,7 @@ const FilterDropdown = ({ isOpen, onClose, onFilterChange, activeFilter, isDark 
 
     return (
         <div className={`absolute top-full right-0 mt-2 w-48 rounded-xl shadow-xl border z-10 ${isDark
-            ? 'bg-[#0E0E0F] '
+            ? 'bg-[#161718] '
             : 'bg-white border-gray-200'
             }`}>
             <div className="p-2">
@@ -380,7 +380,7 @@ function FestFavoritesPage() {
     const favoriteCount = getFavoriteCount();
 
     return (
-        <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
+        <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
             {/* Desktop Layout */}
             <div className={`hidden lg:flex lg:flex-1 lg:flex-col transition-all duration-300`}>
 
@@ -403,7 +403,7 @@ function FestFavoritesPage() {
                                     <button
                                         onClick={() => setIsFilterOpen(!isFilterOpen)}
                                         className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${isDark
-                                            ? 'bg-[#0E0E0F] border-gray-700 text-gray-300 hover:bg-gray-900'
+                                            ? 'bg-[#161718] border-gray-700 text-gray-300 hover:bg-gray-900'
                                             : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
                                             }`}
                                     >
@@ -494,7 +494,7 @@ function FestFavoritesPage() {
             {/* Mobile Layout */}
             <div className="lg:hidden flex flex-1 flex-col">
                 {/* Mobile Header */}
-                <div className={`sticky top-0 z-40 backdrop-blur-md  transition-all duration-300 ${isDark ? 'bg-[#0E0E0F]/90 border-gray-700' : 'bg-white/90 border-gray-200'
+                <div className={`sticky top-0 z-40 backdrop-blur-md  transition-all duration-300 ${isDark ? 'bg-[#161718]/90 border-gray-700' : 'bg-white/90 border-gray-200'
                     }`}>
                     <div className="flex items-center px-4 py-3">
                         {/* Back Arrow */}

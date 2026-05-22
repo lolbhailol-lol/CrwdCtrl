@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import {
     Users,
@@ -134,7 +134,7 @@ export default function CompetitionRegistrationsAdmin() {
 
     if (loading) {
         return (
-            <div className={`min-h-screen p-6 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-gray-50 text-gray-900'}`}>
+            <div className={`min-h-screen p-6 ${isDark ? 'bg-[#161718] text-white' : 'bg-gray-50 text-gray-900'}`}>
                 <div className="max-w-7xl mx-auto">
                     <div className="animate-pulse">
                         <div className="h-8 bg-gray-300 rounded w-64 mb-6"></div>
@@ -151,7 +151,7 @@ export default function CompetitionRegistrationsAdmin() {
     }
 
     return (
-        <div className={`min-h-screen p-6 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-gray-50 text-gray-900'}`}>
+        <div className={`min-h-screen p-6 ${isDark ? 'bg-[#161718] text-white' : 'bg-gray-50 text-gray-900'}`}>
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
@@ -176,7 +176,7 @@ export default function CompetitionRegistrationsAdmin() {
 
                 {/* Statistics Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div className={`p-6 rounded-lg border ${isDark ? 'bg-[#1B1C1E] border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className={`p-6 rounded-lg border ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-200'}`}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -190,7 +190,7 @@ export default function CompetitionRegistrationsAdmin() {
                         </div>
                     </div>
 
-                    <div className={`p-6 rounded-lg border ${isDark ? 'bg-[#1B1C1E] border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className={`p-6 rounded-lg border ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-200'}`}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -204,7 +204,7 @@ export default function CompetitionRegistrationsAdmin() {
                         </div>
                     </div>
 
-                    <div className={`p-6 rounded-lg border ${isDark ? 'bg-[#1B1C1E] border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className={`p-6 rounded-lg border ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-200'}`}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -218,7 +218,7 @@ export default function CompetitionRegistrationsAdmin() {
                         </div>
                     </div>
 
-                    <div className={`p-6 rounded-lg border ${isDark ? 'bg-[#1B1C1E] border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className={`p-6 rounded-lg border ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-200'}`}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -234,7 +234,7 @@ export default function CompetitionRegistrationsAdmin() {
                 </div>
 
                 {/* Filters */}
-                <div className={`mb-6 p-4 rounded-lg border ${isDark ? 'bg-[#1B1C1E] border-gray-700' : 'bg-white border-gray-200'}`}>
+                <div className={`mb-6 p-4 rounded-lg border ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-200'}`}>
                     <div className="flex flex-wrap gap-4 items-center">
                         <div className="flex items-center space-x-2">
                             <Filter className="w-4 h-4" />
@@ -245,7 +245,7 @@ export default function CompetitionRegistrationsAdmin() {
                             value={filters.competition}
                             onChange={(e) => setFilters(prev => ({ ...prev, competition: e.target.value, page: 1 }))}
                             className={`px-3 py-1 rounded border text-sm ${isDark
-                                ? 'bg-[#2A2B2D] border-gray-600 text-white'
+                                ? 'bg-[#1D1E20] border-gray-600 text-white'
                                 : 'bg-white border-gray-300 text-gray-900'
                                 }`}
                         >
@@ -264,7 +264,7 @@ export default function CompetitionRegistrationsAdmin() {
                             value={filters.status}
                             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value, page: 1 }))}
                             className={`px-3 py-1 rounded border text-sm ${isDark
-                                ? 'bg-[#2A2B2D] border-gray-600 text-white'
+                                ? 'bg-[#1D1E20] border-gray-600 text-white'
                                 : 'bg-white border-gray-300 text-gray-900'
                                 }`}
                         >
@@ -290,10 +290,10 @@ export default function CompetitionRegistrationsAdmin() {
                 </div>
 
                 {/* Registrations Table */}
-                <div className={`rounded-lg border ${isDark ? 'bg-[#1B1C1E] border-gray-700' : 'bg-white border-gray-200'} overflow-hidden`}>
+                <div className={`rounded-lg border ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-200'} overflow-hidden`}>
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className={`${isDark ? 'bg-[#2A2B2D]' : 'bg-gray-50'}`}>
+                            <thead className={`${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
                                 <tr>
                                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
                                         Participant
@@ -332,7 +332,7 @@ export default function CompetitionRegistrationsAdmin() {
                                     </tr>
                                 ) : (
                                     registrations.map((registration) => (
-                                        <tr key={registration._id} className={`hover:${isDark ? 'bg-[#2A2B2D]' : 'bg-gray-50'}`}>
+                                        <tr key={registration._id} className={`hover:${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
                                             <td className="px-6 py-4">
                                                 <div>
                                                     <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>

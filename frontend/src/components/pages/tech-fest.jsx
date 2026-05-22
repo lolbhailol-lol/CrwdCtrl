@@ -1,330 +1,165 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Heart, Share2, ArrowLeft, Search } from 'lucide-react';
-import ShareIcon from '../../assets/share.svg';
-import Sidebar from '../Sidebar';
-import Navbar from '../Navbar';
-import ProfileSidebar from '../ProfileSidebar';
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
-import { useAuth } from '../../context/AuthContext';
-import FestCard from '../FestCard';
-import Footer from '../Footer';
-import CrwdCtrlLogin from './login';
-import CrwdCtrlRegister from './register';
-// ✅ FIX: Use native fetch instead of axios (fixes ERR_NETWORK on mobile)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { getImageUrl } from '../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 
-const fetchJSON = async (endpoint, options = {}) => {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const timeout = options.timeout || 20000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    try {
-        const response = await fetch(url, {
-            method: 'GET',
-            credentials: 'omit',
-            mode: 'cors',
-            headers: { 'Accept': 'application/json' },
-            signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        return { data };
-    } catch (err) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') { const e = new Error('Request timeout'); e.code = 'ECONNABORTED'; throw e; }
-        throw err;
-    }
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
+const STATUS_BADGE = {
+    ongoing:      { label: 'Ongoing',       cls: 'bg-green-500 text-white' },
+    upcoming:     { label: 'Upcoming',      cls: 'bg-blue-500 text-white' },
+    beyondcampus: { label: 'Beyond Campus', cls: 'bg-purple-500 text-white' },
+    completed:    { label: 'Completed',     cls: 'bg-gray-500 text-white' },
+    lastyearhit:  { label: 'Last Year',     cls: 'bg-amber-500 text-black' },
 };
 
-console.log('🔧 tech-fest - API_BASE_URL:', API_BASE_URL);
-
-function TechFestPage() {
-    const { toggleFavorite, isFavorite } = useFavorites();
-    const { isAuthenticated } = useAuth();
-    const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const { isDark } = useDarkMode();
-    const navigate = useNavigate();
-    const [showLogin, setShowLogin] = useState(false);
-    const [showRegister, setShowRegister] = useState(false);
-    const [searchParams, setSearchParams] = useSearchParams();
-    const [fests, setFests] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    // Function to fetch tech fests
-    const fetchTechFests = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            
-            // ✅ iOS/Safari compatibility - longer timeout
-            const userAgent = navigator.userAgent || '';
-            const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-            const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
-            const timeout = (isIOS || isSafari) ? 20000 : 10000;
-            
-            // Add cache busting parameter to ensure fresh data
-            const response = await fetchJSON(`/fests/all?t=${Date.now()}`, {
-                timeout: timeout
-            });
-            const data = response.data;
-            const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-            
-            // Filter for technical fests only and exclude last year hits
-            const techFests = festsList.filter(fest => 
-                fest.festType === 'technical' && fest.status !== 'lastyearhit'
-            );
-            
-            // Transform data to match expected structure
-            const transformedFests = techFests.map(fest => ({
-                id: fest._id || fest.id,
-                title: fest.festName,
-                subtitle: `${fest.festDate} • ${fest.collegeName}`,
-                image: fest.coverImage,
-                type: 'Tech Fest',
-                venue: fest.venue,
-                dateTime: fest.festDate,
-                description: fest.description,
-                status: fest.status,
-                trending: false
-            }));
-            
-            setFests(transformedFests);
-        } catch (err) {
-            console.error('Error fetching tech fests:', err);
-            setError('Failed to load tech fests');
-            setFests([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Fetch tech fests on component mount
-    useEffect(() => {
-        fetchTechFests();
-    }, []);
-
-    // 🔄 Listen for admin updates and refetch data
-    useEffect(() => {
-        const handleAdminUpdate = () => {
-            console.log('🔄 Admin update detected - refetching tech fests');
-            fetchTechFests();
-        };
-
-        // Listen for custom event from admin
-        window.addEventListener('admin_fest_updated', handleAdminUpdate);
-
-        // Also listen for localStorage changes (cross-tab updates)
-        const handleStorageChange = (e) => {
-            if (e.key === 'admin_data_updated') {
-                console.log('🔄 Admin update detected (cross-tab) - refetching tech fests');
-                fetchTechFests();
-            }
-        };
-        window.addEventListener('storage', handleStorageChange);
-
-        return () => {
-            window.removeEventListener('admin_fest_updated', handleAdminUpdate);
-            window.removeEventListener('storage', handleStorageChange);
-        };
-    }, []);
-
-    // Check for login modal parameter
-    useEffect(() => {
-        if (searchParams.get('showLogin') === 'true') {
-            setShowLogin(true);
-        }
-    }, [searchParams]);
-
-    // ✅ CRITICAL FIX: Auto-close login/register modal when user becomes authenticated
-    // This is essential for phone login which uses redirect-based authentication
-    useEffect(() => {
-        if (isAuthenticated && showLogin) {
-            console.log('✅ User authenticated, closing login modal in tech-fest');
-            setShowLogin(false);
-            setSearchParams({});
-        }
-        if (isAuthenticated && showRegister) {
-            console.log('✅ User authenticated, closing register modal in tech-fest');
-            setShowRegister(false);
-        }
-    }, [isAuthenticated, showLogin, showRegister, setSearchParams]);
-
-    // Handle login modal close
-    const handleCloseLogin = () => {
-        setShowLogin(false);
-        setSearchParams({}); // Clear URL parameters
-    };
-
-    // Handle register modal close
-    const handleCloseRegister = () => {
-        setShowRegister(false);
-    };
-
-    // Switch from login to register
-    const handleSwitchToRegister = () => {
-        setShowLogin(false);
-        setShowRegister(true);
-    };
-
-    // Switch from register to login
-    const handleSwitchToLogin = () => {
-        setShowRegister(false);
-        setShowLogin(true);
-    };
-
-    const handleToggleFavorite = (fest) => {
-        // Splitting subtitle to get date and venue information
-        const subtitleParts = fest.subtitle?.split('•').map(s => s.trim()) || [];
-        const dateTime = subtitleParts[0] || 'Date TBA';
-        const venue = subtitleParts[1] || 'Venue TBA';
-
-        const eventData = {
-            id: fest.id,
-            title: fest.title,
-            subtitle: fest.subtitle,
-            image: fest.image,
-            type: 'Tech Fest',
-            venue: venue,
-            dateTime: dateTime,
-            trending: false
-        };
-        toggleFavorite(fest.id, eventData);
-    };
-
-    const handleViewDetails = (fest) => {
-        // Navigate to the view-details page with the specific event ID
-        navigate(`/view-details/${fest.id}`);
-    };
-
-    // Loading state
-    if (loading) {
-        return (
-            <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-dark-950' : 'bg-white'}`}>
-                <div className="flex flex-1 flex-col items-center justify-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mb-4"></div>
-                    <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading tech fests...</h2>
-                </div>
-            </div>
-        );
-    }
-
-    // Error state
-    if (error) {
-        return (
-            <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-dark-950' : 'bg-white'}`}>
-                <div className="flex flex-1 flex-col items-center justify-center">
-                    <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>{error}</h2>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-600 transition"
-                    >
-                        Try Again
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
+function StatusBadge({ status }) {
+    const b = STATUS_BADGE[status];
+    if (!b) return null;
     return (
-        <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-[#0E0E0F]' : 'bg-white'}`}>
-            <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
+        <span className={`absolute bottom-2 left-2 text-[10px] font-semibold px-2 py-0.5 rounded-lg ${b.cls}`}>
+            {b.label}
+        </span>
+    );
+}
 
-                {/* Mobile Header with Back Button and Title - Only visible on mobile */}
-                <div className="md:hidden flex items-center justify-between p-4 pb-2">
-                    <div className="flex items-center">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors mr-3 ${isDark
-                                ? 'bg-gray-800 hover:bg-gray-700 text-white'
-                                : 'bg-white hover:bg-gray-50 text-gray-900  border-gray-200'
-                                }`}
-                            aria-label="Go back"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-                        <h1 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Tech Fests</h1>
-                    </div>
-                    <button
-                        className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors ${isDark
-                            ? 'bg-gray-800 hover:bg-gray-700 text-white'
-                            : 'bg-white hover:bg-gray-50 text-gray-900  border-gray-200'
-                            }`}
-                        aria-label="Search"
-                    >
-                        <Search className="w-5 h-5" />
-                    </button>
-                </div>
+function formatDate(d) {
+    if (!d) return '';
+    return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
-                <main className="flex-1 p-4 sm:p-6 md:pt-6 pt-2">
-                    {/* Desktop Title - Hidden on mobile */}
-                    <h1 className={`hidden md:block text-xl sm:text-2xl font-semibold mb-6 sm:mb-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>Tech Fests</h1>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 pt-8">
-                        {fests.length > 0 ? (
-                            fests.map(fest => {
-                                const subtitleParts = fest.subtitle?.split('•').map(s => s.trim()) || [];
-                                const dateTime = subtitleParts[0] || 'Date TBA';
-                                const venue = subtitleParts[1] || 'Venue TBA';
-
-                                return (
-                                    <FestCard
-                                        key={fest.id}
-                                        image={fest.image}
-                                        title={fest.title}
-                                        subtitle={dateTime}
-                                        venue={venue}
-                                        emoji={fest.emoji}
-                                        eventId={fest.id}
-                                        status={fest.status}
-                                        isFavorite={isFavorite(fest.id)}
-                                        onToggleFavorite={() => handleToggleFavorite(fest)}
-                                        onViewDetails={() => handleViewDetails(fest)}
-                                        isDark={isDark}
-                                    />
-                                );
-                            })
-                        ) : (
-                            <div className={`col-span-full text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                <div className="text-4xl mb-2">📅</div>
-                                <p className="text-lg">No upcoming events available</p>
-                            </div>
-                        )}
-                    </div>
-                </main>
-
-                {/* Footer - Hidden on mobile */}
-                <div className={`hidden md:block mt-16 transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
-                    <Footer />
-                </div>
-            </div>
-
-            {/* Profile Sidebar */}
-            <ProfileSidebar
-                isOpen={isProfileOpen}
-                onClose={() => setIsProfileOpen(false)}
-                onShowLogin={() => setShowLogin(true)}
-                onShowRegister={() => setShowRegister(true)}
-            />
-
-            {/* Login Modal */}
-            {showLogin && (
-                <div className="fixed inset-0 z-50">
-                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
-                </div>
-            )}
-
-            {/* Register Modal */}
-            {showRegister && (
-                <div className="fixed inset-0 z-50">
-                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
-                </div>
-            )}
+function DotPagination({ total, current, isDark }) {
+    if (total <= 1) return null;
+    return (
+        <div className="flex justify-center items-center gap-1.5 mt-3">
+            {Array.from({ length: Math.min(total, 5) }).map((_, i) => (
+                <div key={i} className={`rounded-full transition-all duration-300
+                    ${i === current % Math.min(total, 5)
+                        ? `h-2 w-5 ${isDark ? 'bg-white' : 'bg-[#0ECCEE]'}`
+                        : `size-2 bg-transparent border-2 ${isDark ? 'border-gray-500' : 'border-slate-300'}`
+                    }`} />
+            ))}
         </div>
     );
 }
 
-export default TechFestPage;
+export default function TechFestPage() {
+    const navigate = useNavigate();
+    const { isDark } = useDarkMode();
+    const { toggleFavorite, isFavorite } = useFavorites();
+
+    const [fests, setFests] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [featuredPg, setFeaturedPg] = useState(0);
+    const scrollRef = useRef(null);
+
+    useEffect(() => {
+        fetch(`${API}/fests/all?_cb=${Date.now()}`, { credentials: 'omit', mode: 'cors', headers: { Accept: 'application/json' } })
+            .then(r => r.json())
+            .then(data => {
+                const all = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+                setFests(all.filter(f => f.festType === 'technical' && f.status !== 'lastyearhit'));
+            })
+            .catch(() => setFests([]))
+            .finally(() => setLoading(false));
+    }, []);
+
+    const featured = fests.filter(f => f.status === 'ongoing');
+    const listed   = fests.filter(f => f.status !== 'ongoing');
+    const bg   = isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]';
+    const card = isDark ? 'bg-[#111213]' : 'bg-white';
+
+    return (
+        <div className={`flex flex-col min-h-screen max-w-md mx-auto ${bg}`}>
+            <div className={`sticky top-0 z-40 rounded-b-3xl px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}
+                style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
+                <div className="flex items-center gap-3 mt-2">
+                    <button onClick={() => navigate(-1)} className={`size-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
+                        <ArrowLeft size={18} className={isDark ? 'text-white' : 'text-gray-700'} />
+                    </button>
+                    <h1 className={`text-2xl font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Tech</h1>
+                </div>
+            </div>
+
+            <main className="flex-1 pt-5 pb-28">
+                {loading ? (
+                    <div className="flex justify-center items-center py-20">
+                        <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
+                    </div>
+                ) : (
+                    <>
+                        {featured.length > 0 && (
+                            <section className="mb-6">
+                                <h2 className={`text-xl font-semibold px-4 mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
+                                <div ref={scrollRef} className="overflow-x-auto scrollbar-hide pl-4" style={{ scrollbarWidth: 'none' }}
+                                    onScroll={e => setFeaturedPg(Math.round(e.target.scrollLeft / 320))}>
+                                    <div className="flex gap-4 pb-1 snap-x snap-mandatory">
+                                        {featured.map(fest => {
+                                            const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
+                                            return (
+                                                <div key={fest._id} className={`flex-shrink-0 w-[320px] rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
+                                                    <div className="relative w-full h-[175px] overflow-hidden">
+                                                        {img ? <img src={getImageUrl(img)} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 320, 175, '#0a1628', fest.festName)} />
+                                                            : <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}><span className="text-5xl">💻</span></div>}
+                                                        <StatusBadge status={fest.status} />
+                                                        <button onClick={e => { e.stopPropagation(); toggleFavorite(fest._id, fest); }}
+                                                            className={`absolute top-2.5 right-2.5 size-8 rounded-2xl flex items-center justify-center ${isDark ? 'bg-black/30' : 'bg-white shadow-sm'}`}>
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite(fest._id) ? '#ef4444' : 'none'} stroke={isFavorite(fest._id) ? '#ef4444' : (isDark ? 'white' : '#374151')} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                                                        </button>
+                                                    </div>
+                                                    <div className="px-4 pt-3 pb-4">
+                                                        <p className={`text-lg font-medium leading-7 line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{fest.festName}</p>
+                                                        <p className={`text-sm font-medium leading-5 mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{fest.collegeName}</p>
+                                                        <button onClick={() => navigate(`/view-details/${fest._id}`)} className="w-full h-11 rounded-2xl bg-[#0ECCEE] text-black text-sm font-medium shadow-md">View details</button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <DotPagination total={featured.length} current={featuredPg} isDark={isDark} />
+                            </section>
+                        )}
+
+                        <section className="px-4">
+                            <h2 className={`text-xl font-semibold mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Listed Fest</h2>
+                            {listed.length === 0 && featured.length === 0 ? (
+                                <div className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    <div className="text-4xl mb-2">💻</div><p>No tech fests right now</p>
+                                </div>
+                            ) : listed.length === 0 ? null : (
+                                <div className="space-y-3">
+                                    {listed.map(fest => {
+                                        const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
+                                        return (
+                                            <div key={fest._id} onClick={() => navigate(`/view-details/${fest._id}`)}
+                                                className={`flex rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${card} shadow-sm`}>
+                                                <div className="relative size-40 flex-shrink-0">
+                                                    {img ? <img src={getImageUrl(img)} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 160, 160, '#0a1628', fest.festName)} />
+                                                        : <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}><span className="text-4xl">💻</span></div>}
+                                                    <StatusBadge status={fest.status} />
+                                                    <button onClick={e => { e.stopPropagation(); toggleFavorite(fest._id, fest); }}
+                                                        className="absolute top-2 right-2 size-6 rounded-full bg-black/10 border-[0.5px] border-slate-100 flex items-center justify-center">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill={isFavorite(fest._id) ? '#ef4444' : 'none'} stroke={isFavorite(fest._id) ? '#ef4444' : 'white'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                                                    </button>
+                                                </div>
+                                                <div className="flex-1 min-w-0 px-4 py-4">
+                                                    <p className={`text-sm font-medium line-clamp-2 mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{fest.festName}</p>
+                                                    <p className={`text-xs font-medium line-clamp-1 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{fest.collegeName}</p>
+                                                    {fest.festDate && <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{formatDate(fest.festDate)}</p>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </section>
+                    </>
+                )}
+            </main>
+        </div>
+    );
+}

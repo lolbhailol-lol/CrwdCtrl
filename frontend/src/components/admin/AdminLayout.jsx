@@ -1,15 +1,17 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  Trophy, 
-  LogOut, 
-  Menu, 
+import {
+  LayoutDashboard,
+  Calendar,
+  Dumbbell,
+  Mountain,
+  Theater,
+  LogOut,
+  Menu,
   X,
   FileText,
   BarChart3,
-  QrCode
+  Layers,
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -25,17 +27,19 @@ export default function AdminLayout() {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
     { icon: Calendar, label: 'Fests', path: '/admin/fests' },
-    { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
-    { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
-    { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
-    { icon: QrCode, label: 'Check-in', path: '/admin/checkin' },
+    { icon: Dumbbell, label: 'Sports', path: '/admin/sports' },
+    { icon: Mountain, label: 'Treks', path: '/admin/treks' },
+    { icon: Theater, label: 'Theatre', path: '/admin/theatre' },
+    { icon: Layers,    label: 'Sections',      path: '/admin/sections' },
+    { icon: FileText,  label: 'Registrations', path: '/admin/registrations' },
+    { icon: BarChart3, label: 'Analytics',     path: '/admin/analytics' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#0E0E0F] text-white flex">
+    <div className="min-h-screen bg-[#161718] text-white flex">
       {/* Sidebar */}
       <aside
-        className={`bg-[#1B1C1E] border-r border-gray-800 transition-all duration-300 ${
+        className={`bg-[#111213] border-r border-gray-800 transition-all duration-300 ${
           sidebarOpen ? 'w-64' : 'w-20'
         } fixed h-full z-40`}
       >
@@ -88,7 +92,7 @@ export default function AdminLayout() {
       {/* Main Content */}
       <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
         {/* Top Navbar */}
-        <header className="bg-[#1B1C1E] border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <header className="bg-[#111213] border-b border-gray-800 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold">
               {menuItems.find(item => item.path === location.pathname)?.label || 'Admin Dashboard'}

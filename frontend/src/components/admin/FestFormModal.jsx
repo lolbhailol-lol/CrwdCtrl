@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, Loader } from 'lucide-react';
 
 // Configure API base URL - Use Vite environment variables
@@ -77,7 +77,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
   };
 
   return (
-    <div className="bg-[#2A2B2D] p-4 rounded-lg space-y-3">
+    <div className="bg-[#1D1E20] p-4 rounded-lg space-y-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">Field {index + 1}</span>
         <button
@@ -93,19 +93,19 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
         <input
           type="text"
           placeholder="Field Label"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.label || ''}
           onChange={(e) => handleInputChange('label', e.target.value)}
         />
         <input
           type="text"
           placeholder="Field Name (no spaces)"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.fieldName || ''}
           onChange={(e) => handleInputChange('fieldName', e.target.value.replace(/\s+/g, '_').toLowerCase())}
         />
         <select
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.type || 'text'}
           onChange={(e) => handleInputChange('type', e.target.value)}
         >
@@ -126,7 +126,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
         <input
           type="text"
           placeholder="Placeholder text"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.placeholder || ''}
           onChange={(e) => handleInputChange('placeholder', e.target.value)}
         />
@@ -151,12 +151,12 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
           <p className="text-xs text-gray-400">Define categories and their competitions. Users will first select a category, then a competition.</p>
           
           {field.categoryOptions?.map((category, catIndex) => (
-            <div key={catIndex} className="bg-[#1B1C1E] p-3 rounded-lg space-y-2">
+            <div key={catIndex} className="bg-[#111213] p-3 rounded-lg space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   placeholder="Category Name (e.g., Technical)"
-                  className="flex-1 px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="flex-1 px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={category.categoryName || ''}
                   onChange={(e) => {
                     const newCategories = [...(field.categoryOptions || [])];
@@ -197,7 +197,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                     <input
                       type="text"
                       placeholder={`Competition ${compIndex + 1}`}
-                      className="flex-1 px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                      className="flex-1 px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                       value={comp || ''}
                       onChange={(e) => {
                         const newCategories = [...(field.categoryOptions || [])];
@@ -237,7 +237,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
             type="checkbox"
             checked={field.required || false}
             onChange={(e) => handleInputChange('required', e.target.checked)}
-            className="w-4 h-4 text-[#0ECCEE] bg-[#1B1C1E] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+            className="w-4 h-4 text-[#0ECCEE] bg-[#111213] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
           />
           <span className="text-sm">Required Field</span>
         </label>
@@ -261,7 +261,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
               <input
                 type="text"
                 placeholder={`Option ${optionIndex + 1}`}
-                className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                className="flex-1 px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                 value={option || ''}
                 onChange={(e) => onUpdateOption(index, optionIndex, e.target.value)}
               />
@@ -304,7 +304,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
           </div>
           <p className="text-xs text-gray-400">Users can add multiple entries with these sub-fields</p>
           {field.subFields?.map((subField, subIndex) => (
-            <div key={subField.id || subIndex} className="bg-[#1B1C1E] p-3 rounded-lg space-y-2">
+            <div key={subField.id || subIndex} className="bg-[#111213] p-3 rounded-lg space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400">Sub-field {subIndex + 1}</span>
                 <button
@@ -322,7 +322,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                 <input
                   type="text"
                   placeholder="Sub-field Label"
-                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={subField.label || ''}
                   onChange={(e) => {
                     const newSubFields = [...field.subFields];
@@ -333,7 +333,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                 <input
                   type="text"
                   placeholder="Field Name"
-                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={subField.fieldName || ''}
                   onChange={(e) => {
                     const newSubFields = [...field.subFields];
@@ -342,7 +342,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                   }}
                 />
                 <select
-                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={subField.type || 'text'}
                   onChange={(e) => {
                     const newSubFields = [...field.subFields];
@@ -360,7 +360,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                 <input
                   type="text"
                   placeholder="Placeholder"
-                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={subField.placeholder || ''}
                   onChange={(e) => {
                     const newSubFields = [...field.subFields];
@@ -376,7 +376,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                   <input
                     type="text"
                     placeholder="Option 1, Option 2, Option 3"
-                    className="w-full px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                    className="w-full px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                     value={subField.options?.join(', ') || ''}
                     onChange={(e) => {
                       const newSubFields = [...field.subFields];
@@ -399,7 +399,7 @@ const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpda
                     newSubFields[subIndex] = { ...newSubFields[subIndex], required: e.target.checked };
                     handleInputChange('subFields', newSubFields);
                   }}
-                  className="w-3 h-3 text-[#0ECCEE] bg-[#1B1C1E] border-gray-600 rounded"
+                  className="w-3 h-3 text-[#0ECCEE] bg-[#111213] border-gray-600 rounded"
                 />
                 <span className="text-xs">Required</span>
               </label>
@@ -421,7 +421,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
   };
 
   return (
-    <div className="bg-[#2A2B2D] p-4 rounded-lg space-y-3 ml-4">
+    <div className="bg-[#1D1E20] p-4 rounded-lg space-y-3 ml-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">Field {fieldIndex + 1}</span>
         <button
@@ -437,19 +437,19 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
         <input
           type="text"
           placeholder="Field Label"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.label || ''}
           onChange={(e) => handleInputChange('label', e.target.value)}
         />
         <input
           type="text"
           placeholder="Field Name (no spaces)"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.fieldName || ''}
           onChange={(e) => handleInputChange('fieldName', e.target.value.replace(/\s+/g, '_').toLowerCase())}
         />
         <select
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.type || 'text'}
           onChange={(e) => handleInputChange('type', e.target.value)}
         >
@@ -470,7 +470,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
         <input
           type="text"
           placeholder="Placeholder text"
-          className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
           value={field.placeholder || ''}
           onChange={(e) => handleInputChange('placeholder', e.target.value)}
         />
@@ -495,12 +495,12 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
           <p className="text-xs text-gray-400">Define categories and their competitions. Users will first select a category, then a competition.</p>
           
           {field.categoryOptions?.map((category, catIndex) => (
-            <div key={catIndex} className="bg-[#1B1C1E] p-3 rounded-lg space-y-2">
+            <div key={catIndex} className="bg-[#111213] p-3 rounded-lg space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   placeholder="Category Name (e.g., Technical)"
-                  className="flex-1 px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="flex-1 px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={category.categoryName || ''}
                   onChange={(e) => {
                     const newCategories = [...(field.categoryOptions || [])];
@@ -541,7 +541,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                     <input
                       type="text"
                       placeholder={`Competition ${compIndex + 1}`}
-                      className="flex-1 px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                      className="flex-1 px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                       value={comp || ''}
                       onChange={(e) => {
                         const newCategories = [...(field.categoryOptions || [])];
@@ -581,7 +581,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
             type="checkbox"
             checked={field.required || false}
             onChange={(e) => handleInputChange('required', e.target.checked)}
-            className="w-4 h-4 text-[#0ECCEE] bg-[#1B1C1E] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
+            className="w-4 h-4 text-[#0ECCEE] bg-[#111213] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
           />
           <span className="text-sm">Required Field</span>
         </label>
@@ -605,7 +605,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
               <input
                 type="text"
                 placeholder={`Option ${optionIndex + 1}`}
-                className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                className="flex-1 px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                 value={option || ''}
                 onChange={(e) => onUpdateOption(stepIndex, fieldIndex, optionIndex, e.target.value)}
               />
@@ -648,7 +648,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
           </div>
           <p className="text-xs text-gray-400">Users can add multiple entries with these sub-fields</p>
           {field.subFields?.map((subField, subIndex) => (
-            <div key={subField.id || subIndex} className="bg-[#1B1C1E] p-3 rounded-lg space-y-2">
+            <div key={subField.id || subIndex} className="bg-[#111213] p-3 rounded-lg space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400">Sub-field {subIndex + 1}</span>
                 <button
@@ -666,7 +666,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                 <input
                   type="text"
                   placeholder="Sub-field Label"
-                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={subField.label || ''}
                   onChange={(e) => {
                     const newSubFields = [...field.subFields];
@@ -677,7 +677,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                 <input
                   type="text"
                   placeholder="Field Name"
-                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={subField.fieldName || ''}
                   onChange={(e) => {
                     const newSubFields = [...field.subFields];
@@ -686,7 +686,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                   }}
                 />
                 <select
-                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={subField.type || 'text'}
                   onChange={(e) => {
                     const newSubFields = [...field.subFields];
@@ -704,7 +704,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                 <input
                   type="text"
                   placeholder="Placeholder"
-                  className="px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                  className="px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                   value={subField.placeholder || ''}
                   onChange={(e) => {
                     const newSubFields = [...field.subFields];
@@ -720,7 +720,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                   <input
                     type="text"
                     placeholder="Option 1, Option 2, Option 3"
-                    className="w-full px-2 py-1.5 rounded bg-[#2A2B2D] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                    className="w-full px-2 py-1.5 rounded bg-[#1D1E20] border border-gray-600 focus:border-[#0ECCEE] focus:outline-none text-sm"
                     value={subField.options?.join(', ') || ''}
                     onChange={(e) => {
                       const newSubFields = [...field.subFields];
@@ -743,7 +743,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
                     newSubFields[subIndex] = { ...newSubFields[subIndex], required: e.target.checked };
                     handleInputChange('subFields', newSubFields);
                   }}
-                  className="w-3 h-3 text-[#0ECCEE] bg-[#1B1C1E] border-gray-600 rounded"
+                  className="w-3 h-3 text-[#0ECCEE] bg-[#111213] border-gray-600 rounded"
                 />
                 <span className="text-xs">Required</span>
               </label>
@@ -1741,9 +1741,9 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1B1C1E] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-[#111213] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-[#1B1C1E] border-b border-gray-800 p-6 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between z-10">
           <h3 className="text-2xl font-bold">
             {fest ? 'Edit Fest' : 'Create New Fest'}
         </h3>
@@ -1796,7 +1796,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <input
                   type="text"
                   placeholder="e.g., Aarohan 2026"
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.festName}
                   onChange={(e) => setForm({ ...form, festName: e.target.value })}
                 />
@@ -1807,7 +1807,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <input
                   type="text"
                   placeholder="e.g., AAROHAN 2026"
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.subtitle}
                   onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
                 />
@@ -1818,7 +1818,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <input
                   type="text"
                   placeholder="e.g., MIT-WPU"
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.collegeName}
                   onChange={(e) => setForm({ ...form, collegeName: e.target.value })}
                 />
@@ -1829,7 +1829,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <input
                   type="text"
                   placeholder='e.g., "Dec 10-12, 2025" or "To be announced"'
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.festDate}
                   onChange={(e) => setForm({ ...form, festDate: e.target.value })}
                 />
@@ -1838,7 +1838,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
               <div>
                 <label className="block text-sm font-medium mb-2">Fest Type *</label>
                 <select
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.festType}
                   onChange={(e) => setForm({ ...form, festType: e.target.value, category: e.target.value })}
                 >
@@ -1851,7 +1851,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
               <div>
                 <label className="block text-sm font-medium mb-2">Status *</label>
                 <select
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                 >
@@ -1867,7 +1867,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <input
                   type="text"
                   placeholder="e.g., Symbiosis Junior College, Kiwale"
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.venueDetails}
                   onChange={(e) => setForm({ ...form, venueDetails: e.target.value })}
                 />
@@ -1878,7 +1878,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <input
                   type="url"
                   placeholder="https://forms.google.com/..."
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.registrationLink}
                   onChange={(e) => setForm({ ...form, registrationLink: e.target.value })}
                 />
@@ -1893,7 +1893,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   min="0"
                   step="1"
                   placeholder="0 for free"
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.feeAmount || 0}
                   onChange={(e) => setForm({ ...form, feeAmount: Number(e.target.value) })}
                 />
@@ -1949,7 +1949,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
               <textarea
                 rows={4}
                 placeholder="Brief description of the fest..."
-                className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none"
+                className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none resize-none"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
@@ -1972,7 +1972,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
             </div>
             
             {/* Artists Section Heading */}
-            <div className="bg-[#2A2B2D] p-4 rounded-lg">
+            <div className="bg-[#1D1E20] p-4 rounded-lg">
               <label className="block text-sm font-medium mb-2">Artists Section Heading</label>
               <input
                 type="text"
@@ -1981,14 +1981,14 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   console.log('🎨 Artists heading changed:', e.target.value);
                   setForm({ ...form, artistsHeading: e.target.value });
                 }}
-                className="w-full p-3 bg-[#1B1C1E] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-[#0ECCEE] focus:outline-none"
+                className="w-full p-3 bg-[#111213] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-[#0ECCEE] focus:outline-none"
                 placeholder="Artists You'll Love"
               />
               <p className="text-xs text-gray-400 mt-1">This heading will appear above the artists section. Leave empty to use default: "Artists You'll Love"</p>
             </div>
 
             {form.artists.map((artist, index) => (
-              <div key={index} className="bg-[#2A2B2D] p-4 rounded-lg space-y-3">
+              <div key={index} className="bg-[#1D1E20] p-4 rounded-lg space-y-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">Artist {index + 1}</span>
                   <button
@@ -2002,14 +2002,14 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   <input
                     type="text"
                     placeholder="Artist Name"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={artist.artistName}
                     onChange={(e) => updateArtist(index, 'artistName', e.target.value)}
                   />
                   <input
                     type="text"
                     placeholder="Genre"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={artist.genre}
                     onChange={(e) => updateArtist(index, 'genre', e.target.value)}
                   />
@@ -2017,7 +2017,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                     <input
                       type="text"
                       placeholder="Artist Photo URL"
-                      className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none mb-2"
+                      className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none mb-2"
                       value={artist.artistPhoto}
                       onChange={(e) => updateArtist(index, 'artistPhoto', e.target.value)}
                     />
@@ -2048,14 +2048,14 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   <input
                     type="text"
                     placeholder="College Name"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={artist.collegeName}
                     onChange={(e) => updateArtist(index, 'collegeName', e.target.value)}
                   />
                   <input
                     type="text"
                     placeholder="Message / Highlight"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={artist.message}
                     onChange={(e) => updateArtist(index, 'message', e.target.value)}
                   />
@@ -2079,7 +2079,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
               </button>
             </div>
             {form.contacts.map((contact, index) => (
-              <div key={index} className="bg-[#2A2B2D] p-4 rounded-lg space-y-3">
+              <div key={index} className="bg-[#1D1E20] p-4 rounded-lg space-y-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">Contact {index + 1}</span>
                   <button
@@ -2093,35 +2093,35 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   <input
                     type="text"
                     placeholder="Name"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={contact.name}
                     onChange={(e) => updateContact(index, 'name', e.target.value)}
                   />
                   <input
                     type="tel"
                     placeholder="Phone"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={contact.phone}
                     onChange={(e) => updateContact(index, 'phone', e.target.value)}
                   />
                   <input
                     type="email"
                     placeholder="Email"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={contact.email}
                     onChange={(e) => updateContact(index, 'email', e.target.value)}
                   />
                   <input
                     type="text"
                     placeholder="Instagram ID"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={contact.instagramId}
                     onChange={(e) => updateContact(index, 'instagramId', e.target.value)}
                   />
                   <input
                     type="text"
                     placeholder="Role (e.g., General Secretary, Coordinator)"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={contact.role}
                     onChange={(e) => updateContact(index, 'role', e.target.value)}
                   />
@@ -2145,7 +2145,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
               </button>
             </div>
             {form.sponsors.map((sponsor, index) => (
-              <div key={index} className="bg-[#2A2B2D] p-4 rounded-lg space-y-3">
+              <div key={index} className="bg-[#1D1E20] p-4 rounded-lg space-y-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">Sponsor {index + 1}</span>
                   <button
@@ -2159,7 +2159,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   <input
                     type="text"
                     placeholder="Sponsor Name"
-                    className="px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                    className="px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                     value={sponsor.sponsorName}
                     onChange={(e) => updateSponsor(index, 'sponsorName', e.target.value)}
                   />
@@ -2167,7 +2167,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                     <input
                       type="text"
                       placeholder="Logo / Image URL"
-                      className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none mb-2"
+                      className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none mb-2"
                       value={sponsor.sponsorImage}
                       onChange={(e) => updateSponsor(index, 'sponsorImage', e.target.value)}
                     />
@@ -2217,7 +2217,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                     value="NOT_STARTED"
                     checked={form.registrationMode === 'NOT_STARTED'}
                     onChange={(e) => setForm({ ...form, registrationMode: e.target.value })}
-                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                    className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                   />
                   <span className="text-sm">Registration Not Started</span>
                 </label>
@@ -2228,7 +2228,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                     value="EXTERNAL_LINK"
                     checked={form.registrationMode === 'EXTERNAL_LINK'}
                     onChange={(e) => setForm({ ...form, registrationMode: e.target.value })}
-                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                    className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                   />
                   <span className="text-sm">External Registration Link</span>
                 </label>
@@ -2239,7 +2239,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                     value="INTERNAL_FORM"
                     checked={form.registrationMode === 'INTERNAL_FORM'}
                     onChange={(e) => setForm({ ...form, registrationMode: e.target.value })}
-                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                    className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                   />
                   <span className="text-sm">Internal Website Form</span>
                 </label>
@@ -2250,7 +2250,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                     value="CLOSED"
                     checked={form.registrationMode === 'CLOSED'}
                     onChange={(e) => setForm({ ...form, registrationMode: e.target.value })}
-                    className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                    className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                   />
                   <span className="text-sm">Registration Closed</span>
                 </label>
@@ -2264,7 +2264,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <input
                   type="url"
                   placeholder="https://forms.google.com/..."
-                  className="w-full px-4 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.externalRegistrationLink}
                   onChange={(e) => setForm({ ...form, externalRegistrationLink: e.target.value })}
                 />
@@ -2275,7 +2275,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
             {form.registrationMode === 'INTERNAL_FORM' && (
               <div className="space-y-6">
                 {/* Section 1: Basic Configuration */}
-                <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                <div className="bg-[#1D1E20] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Basic Configuration</h5>
                   
                   <div className="grid grid-cols-1 gap-4">
@@ -2285,7 +2285,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                       <input
                         type="email"
                         placeholder="organizer@college.edu"
-                        className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                         value={form.organizerEmail}
                         onChange={(e) => setForm({ ...form, organizerEmail: e.target.value })}
                       />
@@ -2295,7 +2295,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 </div>
 
                 {/* Section 2: Google Sheets Integration */}
-                <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                <div className="bg-[#1D1E20] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Google Sheets Integration</h5>
                   
                   {/* Google Sheets URL */}
@@ -2305,7 +2305,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                       <input
                         type="url"
                         placeholder="https://docs.google.com/spreadsheets/d/your-sheet-id/edit"
-                        className="flex-1 px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        className="flex-1 px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                         value={form.googleSheetsUrl}
                         onChange={(e) => setForm({ ...form, googleSheetsUrl: e.target.value })}
                       />
@@ -2361,7 +2361,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 </div>
 
                 {/* Section 3: Form Type Selection */}
-                <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                <div className="bg-[#1D1E20] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Form Configuration</h5>
                   
                   <div className="space-y-4">
@@ -2375,7 +2375,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                             value="SINGLE_STEP"
                             checked={form.formType === 'SINGLE_STEP'}
                             onChange={(e) => handleFormTypeChange(e.target.value)}
-                            className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                           />
                           <span className="text-sm">Single Step Form</span>
                         </label>
@@ -2386,7 +2386,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                             value="MULTI_STEP"
                             checked={form.formType === 'MULTI_STEP'}
                             onChange={(e) => handleFormTypeChange(e.target.value)}
-                            className="w-4 h-4 text-[#0ECCEE] bg-[#2A2B2D] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
                           />
                           <span className="text-sm">Multi-Step Form</span>
                         </label>
@@ -2403,7 +2403,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
                 {/* Section 4: Form Fields - Single Step */}
                 {form.formType === 'SINGLE_STEP' && (
-                  <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                  <div className="bg-[#1D1E20] p-4 rounded-lg">
                     <div className="flex items-center justify-between mb-4">
                       <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2 flex-1">Registration Form Fields</h5>
                       <button
@@ -2441,7 +2441,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
                 {/* Section 4: Form Steps - Multi Step */}
                 {form.formType === 'MULTI_STEP' && (
-                  <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                  <div className="bg-[#1D1E20] p-4 rounded-lg">
                     <div className="flex items-center justify-between mb-4">
                       <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2 flex-1">Multi-Step Form Configuration</h5>
                       <button
@@ -2456,7 +2456,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
                     <div className="space-y-4">
                       {form.steps.map((step, stepIndex) => (
-                        <div key={`step-${stepIndex}`} className="bg-[#1B1C1E] p-4 rounded-lg border border-gray-700">
+                        <div key={`step-${stepIndex}`} className="bg-[#111213] p-4 rounded-lg border border-gray-700">
                           {/* Step Header */}
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
@@ -2488,7 +2488,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                             <input
                               type="text"
                               placeholder="Step description (optional)"
-                              className="w-full px-3 py-2 rounded-lg bg-[#2A2B2D] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                              className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
                               value={step.stepDescription}
                               onChange={(e) => updateStep(stepIndex, 'stepDescription', e.target.value)}
                             />
@@ -2523,7 +2523,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                             ))}
 
                             {step.fields.length === 0 && (
-                              <div className="text-center py-4 text-gray-500 bg-[#2A2B2D] rounded-lg">
+                              <div className="text-center py-4 text-gray-500 bg-[#1D1E20] rounded-lg">
                                 <p className="text-sm">No fields in this step. Click "Add Field" to add form fields.</p>
                               </div>
                             )}
@@ -2541,7 +2541,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 )}
 
                 {/* Section 5: Payment Information - Compact */}
-                <div className="bg-[#2A2B2D] p-4 rounded-lg">
+                <div className="bg-[#1D1E20] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Payment Information</h5>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2551,7 +2551,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                       <input
                         type="url"
                         placeholder="https://chat.whatsapp.com/... (optional - for participants to join)"
-                        className="w-full px-3 py-2 rounded-lg bg-[#1B1C1E] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                        className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
                         value={form.whatsappCommunityLink || ''}
                         onChange={(e) => setForm({ ...form, whatsappCommunityLink: e.target.value })}
                       />
@@ -2580,7 +2580,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
             )}
 
             {/* Competitions Section Heading */}
-            <div className="bg-[#2A2B2D] p-4 rounded-lg">
+            <div className="bg-[#1D1E20] p-4 rounded-lg">
               <label className="block text-sm font-medium mb-2">Competitions Section Heading</label>
               <input
                 type="text"
@@ -2589,7 +2589,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   console.log('🏆 Competitions heading changed:', e.target.value);
                   setForm({ ...form, competitionsHeading: e.target.value });
                 }}
-                className="w-full p-3 bg-[#1B1C1E] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-[#0ECCEE] focus:outline-none"
+                className="w-full p-3 bg-[#111213] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-[#0ECCEE] focus:outline-none"
                 placeholder="Competitions"
               />
               <p className="text-xs text-gray-400 mt-1">This heading will appear above the competitions section. Leave empty to use default: "Competitions"</p>
@@ -2599,7 +2599,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-[#1B1C1E] border-t border-gray-800 p-6 flex justify-end gap-3">
+        <div className="sticky bottom-0 bg-[#111213] border-t border-gray-800 p-6 flex justify-end gap-3">
           <button
             onClick={onClose}
             className="px-6 py-2 rounded-lg border border-gray-700 hover:bg-gray-800 transition-colors"

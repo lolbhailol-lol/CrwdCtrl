@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Calendar, Heart, Ticket, Settings, HelpCircle, Sun, Moon, Menu, X, LogOut } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -43,7 +43,7 @@ const Sidebar = () => {
                     : 'bg-white/90 text-gray-800 border border-gray-200 shadow-lg'
                     }`}
             >
-                <Menu className="w-6 h-6" />
+                <Menu className="w-7 h-7" />
             </button>
 
             {/* Mobile Overlay */}
@@ -57,7 +57,7 @@ const Sidebar = () => {
             {/* Sidebar */}
             <div
                className={`fixed left-0 top-0 bottom-0 w-16 lg:w-20 rounded-tr-[40px] rounded-br-[40px] 
-${isDark ? 'bg-[#0a0a0a]' : 'bg-[#F5F6FA]'} 
+${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} 
 border-[1px] ${isDark ? 'border-blue-500' : 'border-[#86C4C4]'}
 flex flex-col items-center py-6 z-50 backdrop-blur-md transition-transform duration-300 
 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -76,7 +76,7 @@ ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
                     <img
                         src={logo}
                         alt="CrwdCtrl Logo"
-                        className="w-16 h-16 object-contain transition-transform duration-300 "
+                        className="w-24 h-24 lg:w-28 lg:h-28 object-contain transition-transform duration-300"
                     />
                 </div>
 

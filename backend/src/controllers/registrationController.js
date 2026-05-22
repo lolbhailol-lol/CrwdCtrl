@@ -1,4 +1,5 @@
 const Registration = require('../model/registration_model');
+const TrekBooking = require('../model/trek_booking_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const User = require('../model/usermodel');
 const { testGoogleSheetsConnection, appendPaymentOnlyToSheets } = require('../services/googleSheetsService');
@@ -143,16 +144,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
         competitionId: competitionId,
         allRegistrationKeys: Object.keys(competition.registration || {})
       });
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Registration form is not configured for this competition. Please add at least one form field in the admin panel.',
-        debug: {
-          formType,
-          hasFormSchema: !!competition.registration?.formSchema,
-          schemaLength: competition.registration?.formSchema?.length,
-          stepsCount: competition.registration?.steps?.length,
-          registrationStatus: competition.registration?.status,
-          allRegistrationKeys: Object.keys(competition.registration || {})
-        }
       });
     }
 
@@ -546,7 +539,6 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       error: 'Registration failed',
-      details: error.message
     });
   }
 };
@@ -591,24 +583,15 @@ const submitCompetitionRegistration = async (req, res) => {
     if (competition.registrationType === 'fest') {
       // Fest-based competitions use the fest's registration mode
       if (fest.registration.mode !== 'INTERNAL_FORM') {
-        return res.status(400).json({ 
-          error: 'Registration is not available for this competition',
-          debug: { festMode: fest.registration.mode }
-        });
+        return res.status(400).json({ error: 'Registration is not available for this competition' });
       }
     } else if (competition.registrationType === 'custom') {
       // Custom competitions use their own registration status
       if (competition.registration?.status !== 'internal_form') {
-        return res.status(400).json({ 
-          error: 'Registration has not started for this competition',
-          debug: { status: competition.registration?.status }
-        });
+        return res.status(400).json({ error: 'Registration has not started for this competition' });
       }
     } else {
-      return res.status(400).json({ 
-        error: 'Invalid competition registration type',
-        debug: { registrationType: competition.registrationType }
-      });
+      return res.status(400).json({ error: 'Invalid competition registration type' });
     }
     
     // ✅ CRITICAL: Get form schema (support both single-step and multi-step forms)
@@ -787,32 +770,16 @@ const submitCompetitionRegistration = async (req, res) => {
       if (field.type === 'file' || field.type === 'image') {
         if (!value || !value.uploaded || !value.cloudinaryLink) {
           console.error('❌ Required file field missing:', field.label);
-          return res.status(400).json({ 
-            error: `${field.label} is required - please upload a file`,
-            debug: {
-              field: field.fieldName,
-              value: value,
-              processedResponses: Object.keys(processedResponses)
-            }
-          });
+          return res.status(400).json({ error: `${field.label} is required - please upload a file` });
         }
       } else {
         // For other fields, check if value exists and is not empty
         if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
           console.error('❌ Required field missing:', field.label);
-          return res.status(400).json({ 
-            error: `${field.label} is required`,
-            debug: {
-              field: field.fieldName,
-              value: value,
-              processedResponses: Object.keys(processedResponses)
-            }
-          });
+          return res.status(400).json({ error: `${field.label} is required` });
         }
       }
     }
-
-    console.log('✅ All required fields validated');
 
     // ✅ RAZORPAY: Verify payment if competition has a fee
     let rzpOrderId = null;
@@ -1012,10 +979,7 @@ const submitCompetitionRegistration = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Competition registration error:', error);
-    res.status(500).json({
-      error: 'Registration failed',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Registration failed' });
   }
 };
 
@@ -1051,13 +1015,7 @@ const submitRegistration = async (req, res) => {
     // ✅ CRITICAL: Validate registration mode
     if (!fest.registration || fest.registration.mode !== 'INTERNAL_FORM') {
       console.error('❌ Invalid registration mode:', fest.registration?.mode);
-      return res.status(400).json({ 
-        error: 'Internal form registration is not available for this fest',
-        debug: {
-          currentMode: fest.registration?.mode || 'NOT_SET',
-          expectedMode: 'INTERNAL_FORM'
-        }
-      });
+      return res.status(400).json({ error: 'Internal form registration is not available for this fest' });
     }
 
     // ✅ CRITICAL: Get form schema (support both single-step and multi-step forms)
@@ -1196,14 +1154,6 @@ const submitRegistration = async (req, res) => {
         })));
         return res.status(400).json({
           error: `Invalid form fields: ${fileValidationErrors.map(e => e.field).join(', ')}. Please refresh the form and try again.`,
-          debug: {
-            validationErrors: fileValidationErrors,
-            availableFields: formSchema.map(f => ({
-              id: f.id,
-              fieldName: f.fieldName,
-              label: f.label
-            }))
-          }
         });
       }
 
@@ -1263,14 +1213,7 @@ const submitRegistration = async (req, res) => {
         // For other fields, check if value exists and is not empty
         if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
           console.error('❌ Required field missing:', field.label);
-          return res.status(400).json({ 
-            error: `${field.label} is required`,
-            debug: {
-              field: fieldKey,
-              received: value,
-              expected: 'non-empty value'
-            }
-          });
+          return res.status(400).json({ error: `${field.label} is required` });
         }
       }
     }
@@ -1489,18 +1432,7 @@ const submitRegistration = async (req, res) => {
 } catch (error) {  // <- Closes the outer try that opened at line 613
     console.error('❌ Error submitting registration:', error);
     console.error('❌ Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Failed to submit registration',
-      message: error.message,
-      debug: {
-        timestamp: new Date().toISOString(),
-        festId: req.params.festId,
-        userId: req.user?.userId,
-        filesCount: req.files?.length || 0,
-        bodyKeys: Object.keys(req.body || {}),
-        errorType: error.constructor.name
-      }
-    });
+    res.status(500).json({ error: 'Failed to submit registration' });
   }
 };
 
@@ -1636,10 +1568,16 @@ const getUserRegistrations = async (req, res) => {
         }
     });
 
+    // Also fetch trek bookings for this user
+    const trekBookings = await TrekBooking.find({ userId })
+        .populate('trekId', 'trekName coverImage images registrationFee trekDate city difficultyLevel communityId')
+        .sort({ createdAt: -1 });
+
     const total = await Registration.countDocuments({ user: userId });
 
     res.json({
       registrations,
+      trekBookings,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
       total
@@ -1938,7 +1876,7 @@ const payAndRegisterFest = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ payAndRegisterFest error:', err);
-    res.status(500).json({ error: 'Registration failed', details: err.message });
+    res.status(500).json({ error: 'Registration failed' });
   }
 };
 
@@ -2066,7 +2004,7 @@ const payAndRegister = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ payAndRegister error:', err);
-    res.status(500).json({ error: 'Registration failed', details: err.message });
+    res.status(500).json({ error: 'Registration failed' });
   }
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
 import Footer from '../../Footer';
@@ -178,7 +178,7 @@ function ListYourFest() {
     };
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'}`}>
+        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Back Navigation */}
@@ -195,7 +195,7 @@ function ListYourFest() {
 
                     {/* Main Content */}
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
-                        <div className={`max-w-4xl mx-auto rounded-xl shadow-lg p-6 sm:p-8 ${isDark ? 'bg-[#1B1C1E]' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <div className={`max-w-4xl mx-auto rounded-xl shadow-lg p-6 sm:p-8 ${isDark ? 'bg-[#111213]' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                             {/* Header */}
                             <div className="text-center mb-8">
                                 <h1 className={`text-2xl sm:text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -237,7 +237,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter fest name"
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.festName ? 'border-red-500' : ''}`}
                                             />
@@ -257,7 +257,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter college name"
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.collegeName ? 'border-red-500' : ''}`}
                                             />
@@ -277,7 +277,7 @@ function ListYourFest() {
                                             value={formData.festType}
                                             onChange={handleInputChange}
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 text-white'
                                                 : 'bg-gray-50 border-gray-200 text-gray-900'
                                                 } ${errors.festType ? 'border-red-500' : ''}`}
                                         >
@@ -304,7 +304,7 @@ function ListYourFest() {
                                             onChange={handleInputChange}
                                             placeholder="Enter organizer's full name"
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                 } ${errors.organizerName ? 'border-red-500' : ''}`}
                                         />
@@ -325,7 +325,7 @@ function ListYourFest() {
                                             onChange={handleInputChange}
                                             placeholder="e.g., Event Coordinator, President, Secretary"
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                 } ${errors.position ? 'border-red-500' : ''}`}
                                         />
@@ -347,7 +347,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="+91 9876543210"
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.contactNumber ? 'border-red-500' : ''}`}
                                             />
@@ -367,7 +367,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="organizer@college.edu"
                                                 className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.email ? 'border-red-500' : ''}`}
                                             />
@@ -389,7 +389,7 @@ function ListYourFest() {
                                             rows="4"
                                             placeholder="Describe your fest, events, highlights, and what makes it special..."
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                 }`}
                                         />
@@ -407,7 +407,7 @@ function ListYourFest() {
                                             rows="3"
                                             placeholder="Any additional information, questions, or special requirements..."
                                             className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical ${isDark
-                                                ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                 }`}
                                         />
@@ -430,7 +430,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter fest name"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.festName ? 'border-red-500' : ''}`}
                                             />
@@ -451,7 +451,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter college name"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.collegeName ? 'border-red-500' : ''}`}
                                             />
@@ -470,7 +470,7 @@ function ListYourFest() {
                                                 value={formData.festType}
                                                 onChange={handleInputChange}
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 text-white'
                                                     : 'bg-gray-50 border-gray-200 text-gray-900'
                                                     } ${errors.festType ? 'border-red-500' : ''}`}
                                             >
@@ -497,7 +497,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="Enter organizer's full name"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.organizerName ? 'border-red-500' : ''}`}
                                             />
@@ -518,7 +518,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="e.g., Event Coordinator, President, Secretary"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.position ? 'border-red-500' : ''}`}
                                             />
@@ -542,7 +542,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="+91 9876543210"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.contactNumber ? 'border-red-500' : ''}`}
                                             />
@@ -563,7 +563,7 @@ function ListYourFest() {
                                                 onChange={handleInputChange}
                                                 placeholder="organizer@college.edu"
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     } ${errors.email ? 'border-red-500' : ''}`}
                                             />
@@ -584,7 +584,7 @@ function ListYourFest() {
                                                 rows="4"
                                                 placeholder="Describe your fest, events, highlights, and what makes it special..."
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     }`}
                                             />
@@ -602,7 +602,7 @@ function ListYourFest() {
                                                 rows="3"
                                                 placeholder="Any additional information, questions, or special requirements..."
                                                 className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical ${isDark
-                                                    ? 'bg-[#2A2B2D] border-gray-700 placeholder-gray-500 text-white'
+                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
                                                     : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
                                                     }`}
                                             />

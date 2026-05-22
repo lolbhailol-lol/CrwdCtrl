@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -35,7 +35,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       // Custom fallback UI
       return (
-        <div className="min-h-screen bg-[#0E0E0F] flex items-center justify-center p-4">
+        <div className="min-h-screen bg-[#161718] flex items-center justify-center p-4">
           <div className="text-center max-w-md">
             <div className="text-6xl mb-4">😕</div>
             <h1 className="text-2xl font-bold text-white mb-2">
@@ -46,7 +46,7 @@ class ErrorBoundary extends React.Component {
             </p>
             
             {/* Show error details in development */}
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <div className="bg-red-900/30 border border-red-500 rounded-lg p-4 mb-6 text-left overflow-auto max-h-40">
                 <p className="text-red-400 text-sm font-mono">
                   {this.state.error.toString()}

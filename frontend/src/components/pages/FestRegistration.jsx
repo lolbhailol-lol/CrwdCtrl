@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -27,6 +27,7 @@ export default function FestRegistration() {
   const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [registrationId, setRegistrationId] = useState(null);
   const [uploadingFiles, setUploadingFiles] = useState({});
   // Razorpay verified payment fields
   const [razorpayPaymentFields, setRazorpayPaymentFields] = useState(null);
@@ -104,6 +105,7 @@ export default function FestRegistration() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
 
   // Helper function to generate consistent field IDs
   const generateFieldId = (field) => {
@@ -301,7 +303,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
           />
         );
       
@@ -315,7 +317,7 @@ export default function FestRegistration() {
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
             rows={3}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm resize-none transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm resize-none transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
           />
         );
       
@@ -327,7 +329,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
           >
             <option value="">Select an option</option>
             {field.options?.map((option, index) => (
@@ -348,7 +350,7 @@ export default function FestRegistration() {
                   checked={value === option}
                   onChange={(e) => onFieldChange(fieldId, e.target.value)}
                   required={field.required}
-                  className={`w-4 h-4 text-[#0ECCEE] focus:ring-[#0ECCEE] focus:ring-2 ${isDark ? 'bg-[#2A2B2D] border-gray-600' : 'bg-white border-gray-300'}`}
+                  className={`w-4 h-4 text-[#0ECCEE] focus:ring-[#0ECCEE] focus:ring-2 ${isDark ? 'bg-[#1D1E20] border-gray-600' : 'bg-white border-gray-300'}`}
                 />
                 <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{option}</span>
               </label>
@@ -375,7 +377,7 @@ export default function FestRegistration() {
                         onFieldChange(fieldId, currentValues.filter(v => v !== option));
                       }
                     }}
-                    className={`w-4 h-4 text-[#0ECCEE] rounded focus:ring-[#0ECCEE] focus:ring-2 ${isDark ? 'bg-[#2A2B2D] border-gray-600' : 'bg-white border-gray-300'}`}
+                    className={`w-4 h-4 text-[#0ECCEE] rounded focus:ring-[#0ECCEE] focus:ring-2 ${isDark ? 'bg-[#1D1E20] border-gray-600' : 'bg-white border-gray-300'}`}
                   />
                   <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{option}</span>
                 </label>
@@ -399,7 +401,7 @@ export default function FestRegistration() {
             value={sanitizedValue}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
           />
         );
       }
@@ -421,7 +423,7 @@ export default function FestRegistration() {
                 }
               }}
               required={field.required}
-              className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#0ECCEE] file:text-black hover:file:bg-[#0ECCEE]/80 transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+              className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#0ECCEE] file:text-black hover:file:bg-[#0ECCEE]/80 transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
             />
             {uploadingFiles[fieldId] && (
               <div className="flex items-center gap-2 text-sm text-blue-400">
@@ -444,7 +446,7 @@ export default function FestRegistration() {
         return (
           <div className="space-y-4">
             {groupEntries.map((entry, entryIndex) => (
-              <div key={`group-entry-${fieldId}-${entryIndex}`} className={`p-4 rounded-lg border ${isDark ? 'bg-[#1B1C1E] border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+              <div key={`group-entry-${fieldId}-${entryIndex}`} className={`p-4 rounded-lg border ${isDark ? 'bg-[#111213] border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-[#0ECCEE]">Entry {entryIndex + 1}</span>
                   <button
@@ -514,7 +516,7 @@ export default function FestRegistration() {
                               onFieldChange(fieldId, newEntries);
                             }}
                             required={subField.required}
-                            className={`w-full px-3 py-2 rounded-lg border focus:border-[#0ECCEE] focus:outline-none text-sm ${isDark ? 'bg-[#2A2B2D] border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            className={`w-full px-3 py-2 rounded-lg border focus:border-[#0ECCEE] focus:outline-none text-sm ${isDark ? 'bg-[#1D1E20] border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                           >
                             <option value="">{subField.placeholder || `Select ${subField.label}`}</option>
                             {selectOptions.map((opt, optIdx) => (
@@ -552,7 +554,7 @@ export default function FestRegistration() {
                             onFieldChange(fieldId, newEntries);
                           }}
                           required={subField.required}
-                          className={`w-full px-3 py-2 rounded-lg border focus:border-[#0ECCEE] focus:outline-none text-sm ${isDark ? 'bg-[#2A2B2D] border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                          className={`w-full px-3 py-2 rounded-lg border focus:border-[#0ECCEE] focus:outline-none text-sm ${isDark ? 'bg-[#1D1E20] border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                         />
                       </div>
                     );
@@ -609,7 +611,7 @@ export default function FestRegistration() {
                   onFieldChange(fieldId, { category: e.target.value, competition: '' });
                 }}
                 required={field.required}
-                className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+                className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
               >
                 <option value="">-- Select a Category --</option>
                 {categoryOptions.map((cat, index) => (
@@ -635,7 +637,7 @@ export default function FestRegistration() {
                     onFieldChange(fieldId, { ...currentValue, competition: e.target.value });
                   }}
                   required={field.required}
-                  className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+                  className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
                 >
                   <option value="">-- Select a Competition --</option>
                   {competitionsInCategory.map((comp, index) => (
@@ -672,7 +674,7 @@ export default function FestRegistration() {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#2A2B2D] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
           />
         );
     }
@@ -1543,11 +1545,12 @@ export default function FestRegistration() {
       console.log('✅ Registration successful:', result);
 
       setSubmissionProgress('Registration completed successfully!');
+      const regId = result._id || result.registration?._id;
+      setRegistrationId(regId);
       setSuccess(true);
-      // Auto redirect after 3 seconds to registered events page
       setTimeout(() => {
-        navigate('/registered-fest');
-      }, 3000);
+        navigate(regId ? `/qr-ticket/${regId}` : '/registered-fest');
+      }, 2000);
 
     } catch (err) {
       console.error('❌ Registration error:', err);
@@ -1562,7 +1565,7 @@ export default function FestRegistration() {
         console.log('ℹ️ Registration may have been saved on the server. Checking registered events...');
         setError('Registration is taking longer than expected. Your submission may have been saved. Please check your registered events in a moment. Contact support if needed.');
         // Don't prevent navigation - allow user to check registered events
-        setTimeout(() => navigate('/registered-fest'), 3000);
+        setTimeout(() => navigate('/registered-fest'), 2000);
       } else if (err.message.includes('Authentication') || err.message.includes('session') || err.message.includes('token')) {
         setError('Your session has expired. Please log in again.');
         // Clear invalid tokens
@@ -1593,7 +1596,7 @@ export default function FestRegistration() {
 
   if (loading || authLoading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
         <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
       </div>
     );
@@ -1635,7 +1638,13 @@ export default function FestRegistration() {
         throw new Error(errData.error || 'Registration failed after payment. Please contact support.');
       }
 
+      const regData = await regRes.json().catch(() => ({}));
+      const regId = regData._id || regData.registration?._id;
+      setRegistrationId(regId);
       setSuccess(true);
+      setTimeout(() => {
+        navigate(regId ? `/qr-ticket/${regId}` : '/registered-fest');
+      }, 2000);
     } catch (err) {
       if (err.message !== 'Payment cancelled') {
         setRazorpayError(err.message || 'Payment failed. Please try again.');
@@ -1649,8 +1658,8 @@ export default function FestRegistration() {
   // Show Razorpay payment UI when fest has a feeAmount (only for fest-only registrations, not competition registrations)
   if (fest && !isCompetitionRegistration && fest.feeAmount > 0 && !success) {
     return (
-      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
-        <div className={`w-full max-w-md rounded-2xl p-8 text-center shadow-xl ${isDark ? 'bg-[#2A2B2D]' : 'bg-white'}`}>
+      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`w-full max-w-md rounded-2xl p-8 text-center shadow-xl ${isDark ? 'bg-[#1D1E20]' : 'bg-white'}`}>
           <div className="mb-6">
             {fest.coverImage && (
               <img src={fest.coverImage} alt={fest.festName} className="w-24 h-24 object-cover rounded-full mx-auto mb-4" />
@@ -1659,7 +1668,7 @@ export default function FestRegistration() {
             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{fest.collegeName}</p>
           </div>
 
-          <div className={`rounded-xl p-5 mb-6 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
+          <div className={`rounded-xl p-5 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
             <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Payment Breakdown</p>
             {priceBreakdown && (
               <div className={`space-y-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1720,7 +1729,7 @@ export default function FestRegistration() {
 
   if (!fest) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
         <div className="text-center">
           <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Fest Not Found</h1>
           <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>The requested fest could not be found or may have been removed.</p>
@@ -1738,7 +1747,7 @@ export default function FestRegistration() {
   // ✅ CRITICAL: Better registration mode validation with detailed error messages
   if (!isCompetitionRegistration && fest.registration?.mode !== 'INTERNAL_FORM') {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
         <div className="text-center max-w-md mx-auto p-6">
           <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Registration Not Available</h1>
           <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1780,7 +1789,7 @@ export default function FestRegistration() {
   if (isCompetitionRegistration) {
     if (competition?.registrationType === 'fest' && fest.registration?.mode !== 'INTERNAL_FORM') {
       return (
-        <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+        <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
           <div className="text-center max-w-md mx-auto p-6">
             <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Registration Not Available</h1>
             <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1807,7 +1816,7 @@ export default function FestRegistration() {
     
     if (competition?.registrationType === 'custom' && competition?.registration?.status !== 'internal_form') {
       return (
-        <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+        <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
           <div className="text-center max-w-md mx-auto p-6">
             <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Registration Not Available</h1>
             <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1837,17 +1846,18 @@ export default function FestRegistration() {
 
   if (success) {
     return (
-      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
         <div className="text-center max-w-md mx-auto p-8">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
           <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>🎉 Registration Successful!</h1>
-          <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             Your registration for <span className="text-[#0ECCEE] font-semibold">
               {isCompetitionRegistration ? competition?.name : fest.festName}
             </span> has been submitted successfully.
           </p>
+
           <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            You will be redirected to your registered events shortly...
+            Redirecting to your ticket...
           </p>
 
           <button
@@ -1862,7 +1872,7 @@ export default function FestRegistration() {
   }
 
   return (
-    <div className={`min-h-screen py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20 ${isDark ? 'bg-[#1B1C1E]' : 'bg-[#F5F6FA]'}`}>
+    <div className={`min-h-screen py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
@@ -1895,11 +1905,11 @@ export default function FestRegistration() {
 
 
         {/* Registration Form */}
-        <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#2A2B2D] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'}`}>
+        <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'}`}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* ✅ NEW: Multi-Step Progress Indicator */}
             {isMultiStepForm() && (
-              <div className={`rounded-lg p-4 mb-4 ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'}`}>
+              <div className={`rounded-lg p-4 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
                   <div className="text-right">
@@ -1941,7 +1951,7 @@ export default function FestRegistration() {
 
             {/* ✅ NEW: Current Step Title and Description */}
             {isMultiStepForm() && (
-              <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#1B1C1E] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+              <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                 {/* Step title and description */}
                 {currentStep <= fest.registration.steps.length ? (
                   // Regular form step
@@ -1996,7 +2006,7 @@ export default function FestRegistration() {
 
             {/* ✅ EXISTING: Single Step Form Fields */}
             {!isMultiStepForm() && (
-              <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#1B1C1E] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+              <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                 <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>Registration Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                   {(() => {
@@ -2022,7 +2032,7 @@ export default function FestRegistration() {
             {!razorpayPaymentFields && (() => {
               if (!priceBreakdown) return null;
               return (
-                <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#1B1C1E] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
+                <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
                   <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
                   <div className={`space-y-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     <div className="flex justify-between gap-4">

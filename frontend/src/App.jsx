@@ -46,17 +46,28 @@ const TermsAndConditions = React.lazy(() => import('./components/pages/terms-and
 const PrivacyPolicy = React.lazy(() => import('./components/pages/privacy-policy'))
 const ContactUs = React.lazy(() => import('./components/pages/contact-us'))
 const About = React.lazy(() => import('./components/pages/about'))
+const FestsPage = React.lazy(() => import('./components/pages/FestsPage'))
 const FestRegistration = React.lazy(() => import('./components/pages/FestRegistration'))
 const CompetitionRegistration = React.lazy(() => import('./components/pages/CompetitionRegistration'))
 const RegistrationDetails = React.lazy(() => import('./components/pages/RegistrationDetails'))
 const AdminLayout = React.lazy(() => import('./components/admin/AdminLayout'))
 const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'))
-const FestsPage = React.lazy(() => import('./components/admin/FestsPage'))
+const AdminFestsPage = React.lazy(() => import('./components/admin/FestsPage'))
 const CompetitionsPage = React.lazy(() => import('./components/admin/CompetitionsPage'))
 const RegistrationsPage = React.lazy(() => import('./components/admin/RegistrationsPage'))
 const AnalyticsDashboardPage = React.lazy(() => import('./components/admin/AnalyticsDashboardPage'))
 const CheckinScannerPage = React.lazy(() => import('./components/admin/CheckinScannerPage'))
+const EventsPage = React.lazy(() => import('./components/admin/EventsPage'))
+const SportsPage = React.lazy(() => import('./components/admin/SportsPage'))
+const TreksPage = React.lazy(() => import('./components/admin/TreksPage'))
+const TheatrePage = React.lazy(() => import('./components/admin/TheatrePage'))
+const SectionManager = React.lazy(() => import('./components/admin/SectionManager'))
+const TrekDetailPage  = React.lazy(() => import('./components/pages/TrekDetailPage'))
+const TrekBookingPage = React.lazy(() => import('./components/pages/TrekBookingPage'))
 const QRTicketPage = React.lazy(() => import('./components/pages/QRTicketPage'))
+const PublicTreksPage = React.lazy(() => import('./components/pages/treks-page'))
+const CommunityDetailPage = React.lazy(() => import('./components/pages/CommunityDetailPage'))
+const TrekCategoryPage = React.lazy(() => import('./components/pages/TrekCategoryPage'))
 
 // Component to conditionally render MobileBottomNav
 function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick }) {
@@ -68,6 +79,8 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname === '/verify-email' ||
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/view-details') ||
+    location.pathname.startsWith('/trek/') ||
+    location.pathname.includes('/book') ||
     location.pathname.startsWith('/competitions-view-details') ||
     location.pathname.startsWith('/competition') ||
     location.pathname.includes('/fest/') && location.pathname.includes('/register') ||
@@ -148,16 +161,15 @@ function App() {
     // Check if this is a page refresh by checking if performance.navigation exists
     // and its type or checking if sessionStorage has our flag
     const checkIfPageRefresh = () => {
-      // ✅ CRITICAL FIX: Don't show loading page if we have Firebase auth parameters
+      // Don't show loading page if we have Firebase auth parameters
       const urlParams = new URLSearchParams(window.location.search);
-      const hasAuthParams = urlParams.has('apiKey') || urlParams.has('oobCode') || 
+      const hasAuthParams = urlParams.has('apiKey') || urlParams.has('oobCode') ||
                           window.location.hash.includes('access_token') ||
                           window.location.search.includes('state=') ||
                           window.location.search.includes('code=');
-      
+
       if (hasAuthParams) {
-        console.log('🔄 Firebase auth redirect detected, skipping loading page');
-        return false; // Don't show loading page for auth redirects
+        return false;
       }
 
       // Method 1: Check performance navigation API
@@ -187,16 +199,12 @@ function App() {
     setIsPageRefresh(isRefresh);
 
     if (isRefresh) {
-      // Show loading for page refresh & wake backend simultaneously
-      wakeBackend();
       const timer = setTimeout(() => {
         setIsInitialLoading(false);
-      }, 200); // Quick logo flash then show website
+      }, 200);
 
       return () => clearTimeout(timer);
     } else {
-      // No loading for navigation or auth redirects, but still wake backend
-      wakeBackend();
       setIsInitialLoading(false);
     }
   }, []);
@@ -273,9 +281,15 @@ function App() {
                   <Route path="/admin/login" element={<CrwdCtrlLogin />} />
                   <Route path="/register" element={<CrwdCtrlRegister />} />
                   <Route path="/verify-email" element={<EmailVerification />} />
+                  <Route path="/fests" element={<FestsPage />} />
                   <Route path="/cultural-fest" element={<CulturalFestPage />} />
                   <Route path="/tech-fest" element={<TechFestPage />} />
                   <Route path="/sports-fest" element={<SportsFestPage />} />
+                  <Route path="/treks" element={<PublicTreksPage />} />
+                  <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
+                  <Route path="/treks/category/:category" element={<TrekCategoryPage />} />
+                  <Route path="/trek/:id" element={<TrekDetailPage />} />
+                  <Route path="/trek/:id/book" element={<TrekBookingPage />} />
                   <Route path="/favorites" element={<FavoritesPage />} />
                   <Route path="/view-details/:eventId" element={<ViewDetailsPage />} />
                   <Route path="/view-details" element={<ViewDetailsPage />} />
@@ -307,11 +321,16 @@ function App() {
                     }
                   >
                     <Route index element={<AdminDashboardPage />} />
-                    <Route path="fests" element={<FestsPage />} />
+                    <Route path="fests" element={<AdminFestsPage />} />
                     <Route path="competitions" element={<CompetitionsPage />} />
                     <Route path="registrations" element={<RegistrationsPage />} />
                     <Route path="analytics" element={<AnalyticsDashboardPage />} />
                     <Route path="checkin" element={<CheckinScannerPage />} />
+                    <Route path="events" element={<EventsPage />} />
+                    <Route path="sports" element={<SportsPage />} />
+                    <Route path="treks" element={<TreksPage />} />
+                    <Route path="theatre" element={<TheatrePage />} />
+                    <Route path="sections" element={<SectionManager />} />
                   </Route>
 
                 </Routes>

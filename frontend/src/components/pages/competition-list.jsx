@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -279,7 +279,7 @@ const CompetitionListPage = () => {
     // Loading state
     if (loading) {
         return (
-            <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
+            <div className={`min-h-screen ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
                     <h2 className="text-xl font-semibold">Loading competitions...</h2>
@@ -291,7 +291,7 @@ const CompetitionListPage = () => {
     // Error state
     if (error || !eventData) {
         return (
-            <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
+            <div className={`min-h-screen ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center max-w-md mx-auto p-6">
                     <div className="mb-6">
                         <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? 'bg-red-900/20' : 'bg-red-100'}`}>
@@ -328,7 +328,7 @@ const CompetitionListPage = () => {
     }
 
     return (
-        <div className={`min-h-screen ${isDark ? 'bg-[#0E0E0F] text-white' : 'bg-white text-gray-900'} transition-colors duration-300`}>
+        <div className={`min-h-screen ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} transition-colors duration-300`}>
             {/* Header */}
             <div className={`flex items-center justify-between p-4  ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
                 <div className="flex items-center gap-3">
@@ -370,7 +370,7 @@ const CompetitionListPage = () => {
                         <div
                             key={idx}
                             className={`${isDark
-                                ? 'bg-[#1B1C1E] '
+                                ? 'bg-[#111213] '
                                 : 'bg-white border-gray-200'
                                 } rounded-2xl overflow-hidden  transition-all duration-300 hover:shadow-lg`}
                         >

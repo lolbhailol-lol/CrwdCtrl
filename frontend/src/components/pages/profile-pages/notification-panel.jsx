@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Bell, ChevronLeft, Clock, Calendar } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../../../context/DarkModeContext';
@@ -55,7 +55,7 @@ function NotificationsPanel() {
     };
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
+        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
             <div className={`hidden lg:flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
                 <div className="flex-1 flex flex-col">
                     <div className="p-4 sm:p-6 flex-1">
@@ -148,7 +148,7 @@ function NotificationsPanel() {
             {/* Mobile Layout - Shown only on Mobile */}
             <div className="lg:hidden flex flex-1 flex-col">
                 {/* Mobile Header */}
-                <div className={`sticky top-0 z-40 backdrop-blur-sm border-b ${isDark ? 'bg-[#0E0E0F]/95 border-gray-800' : 'bg-white/95 border-gray-200'}`}>
+                <div className={`sticky top-0 z-40 backdrop-blur-sm border-b ${isDark ? 'bg-[#161718]/95 border-gray-800' : 'bg-white/95 border-gray-200'}`}>
                     <div className="flex items-center justify-between p-4">
                         <button
                             onClick={() => navigate(-1)}

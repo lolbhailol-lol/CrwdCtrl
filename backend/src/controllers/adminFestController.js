@@ -41,14 +41,14 @@ exports.triggerEventAnnouncement = async (req, res) => {
             return res.status(404).json({ message: "No eligible users found." });
         }
 
-        sendEventBroadcast(users, {
+        const results = await sendEventBroadcast(users, {
             name: eventName,
             date: eventDate,
             location: eventLocation,
             id: eventId
         });
 
-        res.status(200).json({ success: true, count: users.length });
+        res.status(200).json({ success: true, count: users.length, sent: results.success, failed: results.failed });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -207,7 +207,7 @@ exports.getAllFests = async (req, res) => {
       .sort({ priority: 1, createdAt: -1 }) // Priority first (1 = highest), then by creation date
       .skip(skip)
       .limit(limit)
-      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority') // Include priority field
+      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority homeSection homePriority showOnHomeSlide') // Include section fields
       .lean(); // Use lean() for better performance
 
     // Calculate pagination info

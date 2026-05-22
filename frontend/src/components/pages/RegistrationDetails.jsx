@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Calendar, MapPin, User, Mail, Phone } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -70,7 +70,7 @@ export default function RegistrationDetails() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'} flex items-center justify-center`}>
+      <div className={`min-h-screen ${isDark ? 'bg-[#111213]' : 'bg-gray-50'} flex items-center justify-center`}>
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
       </div>
     );
@@ -78,7 +78,7 @@ export default function RegistrationDetails() {
 
   if (error || !registration) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'} flex items-center justify-center`}>
+      <div className={`min-h-screen ${isDark ? 'bg-[#111213]' : 'bg-gray-50'} flex items-center justify-center`}>
         <div className="text-center">
           <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
             {error || 'Registration not found'}
@@ -103,7 +103,7 @@ export default function RegistrationDetails() {
     : registration.fest?.coverImage;
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[#1B1C1E]' : 'bg-gray-50'} py-4 sm:py-8`}>
+    <div className={`min-h-screen ${isDark ? 'bg-[#111213]' : 'bg-gray-50'} py-4 sm:py-8`}>
       <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-center gap-2 sm:gap-4 mb-6 sm:mb-8">
@@ -141,7 +141,7 @@ export default function RegistrationDetails() {
         </div>
 
         {/* Event Information */}
-        <div className={`${isDark ? 'bg-[#2A2B2D]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
+        <div className={`${isDark ? 'bg-[#1D1E20]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
           <h2 className={`text-lg sm:text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
             Event Information
           </h2>
@@ -185,7 +185,7 @@ export default function RegistrationDetails() {
         </div>
 
         {/* Registration Details */}
-        <div className={`${isDark ? 'bg-[#2A2B2D]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm`}>
+        <div className={`${isDark ? 'bg-[#1D1E20]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm`}>
           <h2 className={`text-lg sm:text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4 sm:mb-6`}>
             Registration Details
           </h2>

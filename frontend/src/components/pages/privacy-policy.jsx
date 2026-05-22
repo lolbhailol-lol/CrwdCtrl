@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Shield, Eye, Database, Share2, Lock, Users, FileText, Globe, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -125,7 +125,7 @@ export default function PrivacyPolicy() {
     };
 
     return (
-        <div className={`min-h-screen ${isDark ? 'bg-[#0a0a0a] text-white' : 'bg-gray-50 text-gray-900'} transition-colors duration-300`}>
+        <div className={`min-h-screen ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} transition-colors duration-300`}>
             {/* Header */}
             <div className={`${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b sticky top-0 z-10`}>
                 <div className="max-w-4xl mx-auto px-4 py-4">

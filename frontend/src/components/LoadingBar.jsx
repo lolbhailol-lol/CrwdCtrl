@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
 import MainLogo from '../assets/logo01_.svg';
 
@@ -7,7 +7,7 @@ const LoadingBar = ({ message = "Loading..." }) => {
 
     return (
         <div className={`fixed inset-0 z-50 flex items-center justify-center transition-colors duration-300 ${
-            isDark ? 'bg-[#0E0E0F]' : 'bg-white'
+            isDark ? 'bg-[#161718]' : 'bg-white'
         }`}>
             <div className="flex flex-col items-center justify-center space-y-0">
                 {/* Logo Container */}

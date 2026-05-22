@@ -161,3 +161,49 @@ exports.verifyPayment = async (req, res) => {
     res.status(500).json({ message: 'Verification error' });
   }
 };
+
+// POST /api/payment/trek-order  (no auth — public trek booking)
+// Body: { baseAmount, trekId, trekName, people }
+exports.createTrekOrder = async (req, res) => {
+  try {
+    const { buildPriceBreakdown } = require('../utils/platformFee');
+    const { baseAmount, amount, trekId, trekName = 'Trek Booking', people = 1, currency = 'INR' } = req.body;
+    const ticketPrice = Number(baseAmount || amount || 0);
+    if (!ticketPrice || ticketPrice <= 0) {
+      return res.status(400).json({ message: 'Invalid amount' });
+    }
+    const { platformFee, totalAmount } = buildPriceBreakdown(ticketPrice * Number(people || 1));
+    const order = await getRazorpay().orders.create({
+      amount: Math.round(totalAmount * 100),
+      currency,
+      notes: { trekId, trekName, people: String(people), ticketPrice, platformFee, totalAmount },
+    });
+    res.json({
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      ticketPrice,
+      platformFee,
+      totalAmount,
+    });
+  } catch (err) {
+    console.error('Trek order error:', err);
+    res.status(500).json({ message: 'Failed to create trek payment order' });
+  }
+};
+
+// POST /api/payment/trek-verify  (no auth — public)
+exports.verifyTrekPayment = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expected = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(body).digest('hex');
+    if (expected !== razorpay_signature) {
+      return res.status(400).json({ verified: false, message: 'Signature mismatch' });
+    }
+    res.json({ verified: true, razorpay_payment_id, razorpay_order_id });
+  } catch (err) {
+    res.status(500).json({ verified: false, message: 'Verification error' });
+  }
+};
