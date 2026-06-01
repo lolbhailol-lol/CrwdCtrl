@@ -120,6 +120,143 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen }) {
     </>
   );
 }
+function AppContent({
+  isProfileOpen,
+  setIsProfileOpen,
+  showLogin,
+  setShowLogin,
+  showRegister,
+  setShowRegister,
+  handleCloseLogin,
+  handleCloseRegister,
+  handleSwitchToRegister,
+  handleSwitchToLogin,
+}) {
+  const location = useLocation();
+  const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
+  useEffect(() => {
+    if (isAuthenticated && showLogin) {
+      setShowLogin(false);
+    }
+    if (isAuthenticated && showRegister) {
+      setShowRegister(false);
+    }
+  }, [isAuthenticated, showLogin, showRegister, setShowLogin, setShowRegister]);
+
+  if (isAuthProcessing || isLoading || isRedirectProcessing) {
+    return <AuthLoadingPage />;
+  }
+
+  return (
+    <div className="relative min-h-screen">
+      {!isAdminRoute && <EmailVerificationBanner />}
+
+      <ConditionalNavigation
+        isProfileOpen={isProfileOpen}
+        setIsProfileOpen={setIsProfileOpen}
+      />
+
+      <div className={isAdminRoute ? '' : 'lg:ml-20'}>
+        <div className={isAdminRoute ? '' : 'lg:pt-20'}>
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingBar />}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/login" element={<CrwdCtrlLogin />} />
+                <Route path="/admin/login" element={<CrwdCtrlLogin />} />
+                <Route path="/register" element={<CrwdCtrlRegister />} />
+                <Route path="/verify-email" element={<EmailVerification />} />
+                <Route path="/fests" element={<FestsPage />} />
+                <Route path="/cultural-fest" element={<CulturalFestPage />} />
+                <Route path="/tech-fest" element={<TechFestPage />} />
+                <Route path="/sports-fest" element={<SportsFestPage />} />
+                <Route path="/treks" element={<PublicTreksPage />} />
+                <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
+                <Route path="/treks/category/:category" element={<TrekCategoryPage />} />
+                <Route path="/trek/:id" element={<TrekDetailPage />} />
+                <Route path="/trek/:id/book" element={<TrekBookingPage />} />
+                <Route path="/favorites" element={<FavoritesPage />} />
+                <Route path="/view-details/:eventId" element={<ViewDetailsPage />} />
+                <Route path="/view-details" element={<ViewDetailsPage />} />
+                <Route path="/competitions-view-details/:competitionId" element={<CompetitionsViewDetails />} />
+                <Route path="/competitions-view-details" element={<CompetitionsViewDetails />} />
+                <Route path="/competition-list/:eventId" element={<CompetitionListPage />} />
+                <Route path="/competition-register" element={<CompetitionRegisterPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/edit-profile" element={<EditProfile />} />
+                <Route path="/registered-fest" element={<RegisteredFest />} />
+                <Route path="/help-center" element={<HelpCenter />} />
+                <Route path="/list-your-fest" element={<ListYourFest />} />
+                <Route path="/notifications" element={<NotificationsPanel />} />
+                <Route path="/connection-status" element={<ConnectionStatus />} />
+                <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/contact-us" element={<ContactUs />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/fest/:festId/register" element={<FestRegistration />} />
+                <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
+                <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
+                <Route path="/qr-ticket/:registrationId" element={<QRTicketPage />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout />
+                    </AdminProtectedRoute>
+                  }
+                >
+                  <Route index element={<AdminDashboardPage />} />
+                  <Route path="fests" element={<AdminFestsPage />} />
+                  <Route path="competitions" element={<CompetitionsPage />} />
+                  <Route path="registrations" element={<RegistrationsPage />} />
+                  <Route path="analytics" element={<AnalyticsDashboardPage />} />
+                  <Route path="checkin" element={<CheckinScannerPage />} />
+                  <Route path="events" element={<EventsPage />} />
+                  <Route path="sports" element={<SportsPage />} />
+                  <Route path="treks" element={<TreksPage />} />
+                  <Route path="theatre" element={<TheatrePage />} />
+                  <Route path="sections" element={<SectionManager />} />
+                </Route>
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+      </div>
+
+      {!isAdminRoute && (
+        <ConditionalMobileBottomNav
+          onShowLogin={() => setShowLogin(true)}
+          isProfileOpen={isProfileOpen}
+          onProfileClick={() => setIsProfileOpen(true)}
+        />
+      )}
+
+      {!isAdminRoute && (
+        <ProfileSidebar
+          isOpen={isProfileOpen}
+          onClose={() => setIsProfileOpen(false)}
+          onShowLogin={() => setShowLogin(true)}
+          onShowRegister={() => setShowRegister(true)}
+        />
+      )}
+
+      {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
+        <div className="fixed inset-0 z-50">
+          <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+        </div>
+      )}
+
+      {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
+        <div className="fixed inset-0 z-50">
+          <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -144,7 +281,7 @@ function App() {
             window.dispatchEvent(new Event('backendReady'));
             return;
           }
-        } catch (e) {
+        } catch {
           console.log(`⏳ Backend warming up... (attempt ${i + 1}/${maxAttempts})`);
         }
         // Wait longer between retries: 2s, 3s, 4s, 5s...
@@ -228,7 +365,6 @@ function App() {
     setShowLogin(true);
   };
 
-  // Show loading page only on initial page refresh
   if (isInitialLoading && isPageRefresh) {
     return (
       <AuthProvider>
@@ -238,134 +374,6 @@ function App() {
       </AuthProvider>
     );
   }
-
-  const AppContent = () => {
-    const location = useLocation();
-    const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
-    const isAdminRoute = location.pathname.startsWith('/admin');
-
-    // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
-    useEffect(() => {
-      if (isAuthenticated && showLogin) {
-        console.log('✅ User authenticated, closing login modal');
-        setShowLogin(false);
-      }
-      if (isAuthenticated && showRegister) {
-        console.log('✅ User authenticated, closing register modal');
-        setShowRegister(false);
-      }
-    }, [isAuthenticated]);
-
-    // ✅ CRITICAL FIX: Show auth loading page when processing OAuth redirect OR during initial loading
-    // This prevents modal from showing during redirect
-    if (isAuthProcessing || isLoading || isRedirectProcessing) {
-      return <AuthLoadingPage />;
-    }
-
-    return (
-      <div className="relative min-h-screen">
-        {!isAdminRoute && <EmailVerificationBanner />}
-
-        <ConditionalNavigation
-          isProfileOpen={isProfileOpen}
-          setIsProfileOpen={setIsProfileOpen}
-        />
-
-        <div className={isAdminRoute ? '' : 'lg:ml-20'}>
-          <div className={isAdminRoute ? '' : 'lg:pt-20'}>
-            <ErrorBoundary>
-              <Suspense fallback={<LoadingBar />}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/login" element={<CrwdCtrlLogin />} />
-                  <Route path="/admin/login" element={<CrwdCtrlLogin />} />
-                  <Route path="/register" element={<CrwdCtrlRegister />} />
-                  <Route path="/verify-email" element={<EmailVerification />} />
-                  <Route path="/fests" element={<FestsPage />} />
-                  <Route path="/cultural-fest" element={<CulturalFestPage />} />
-                  <Route path="/tech-fest" element={<TechFestPage />} />
-                  <Route path="/sports-fest" element={<SportsFestPage />} />
-                  <Route path="/treks" element={<PublicTreksPage />} />
-                  <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
-                  <Route path="/treks/category/:category" element={<TrekCategoryPage />} />
-                  <Route path="/trek/:id" element={<TrekDetailPage />} />
-                  <Route path="/trek/:id/book" element={<TrekBookingPage />} />
-                  <Route path="/favorites" element={<FavoritesPage />} />
-                  <Route path="/view-details/:eventId" element={<ViewDetailsPage />} />
-                  <Route path="/view-details" element={<ViewDetailsPage />} />
-                  <Route path="/competitions-view-details/:competitionId" element={<CompetitionsViewDetails />} />
-                  <Route path="/competitions-view-details" element={<CompetitionsViewDetails />} />
-                  <Route path="/competition-list/:eventId" element={<CompetitionListPage />} />
-                  <Route path="/competition-register" element={<CompetitionRegisterPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/edit-profile" element={<EditProfile />} />
-                  <Route path="/registered-fest" element={<RegisteredFest />} />
-                  <Route path="/help-center" element={<HelpCenter />} />
-                  <Route path="/list-your-fest" element={<ListYourFest />} />
-                  <Route path="/notifications" element={<NotificationsPanel />} />
-                  <Route path="/connection-status" element={<ConnectionStatus />} />
-                  <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
-                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                  <Route path="/contact-us" element={<ContactUs />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/fest/:festId/register" element={<FestRegistration />} />
-                  <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
-                  <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
-                  <Route path="/qr-ticket/:registrationId" element={<QRTicketPage />} />
-                  <Route
-                    path="/admin"
-                    element={
-                      <AdminProtectedRoute>
-                        <AdminLayout />
-                      </AdminProtectedRoute>
-                    }
-                  >
-                    <Route index element={<AdminDashboardPage />} />
-                    <Route path="fests" element={<AdminFestsPage />} />
-                    <Route path="competitions" element={<CompetitionsPage />} />
-                    <Route path="registrations" element={<RegistrationsPage />} />
-                    <Route path="analytics" element={<AnalyticsDashboardPage />} />
-                    <Route path="checkin" element={<CheckinScannerPage />} />
-                    <Route path="events" element={<EventsPage />} />
-                    <Route path="sports" element={<SportsPage />} />
-                    <Route path="treks" element={<TreksPage />} />
-                    <Route path="theatre" element={<TheatrePage />} />
-                    <Route path="sections" element={<SectionManager />} />
-                  </Route>
-
-                </Routes>
-              </Suspense>
-            </ErrorBoundary>
-          </div>
-        </div>
-
-        {!isAdminRoute && <ConditionalMobileBottomNav onShowLogin={() => setShowLogin(true)} isProfileOpen={isProfileOpen} onProfileClick={() => setIsProfileOpen(true)} />}
-
-        {!isAdminRoute && (
-          <ProfileSidebar
-            isOpen={isProfileOpen}
-            onClose={() => setIsProfileOpen(false)}
-            onShowLogin={() => setShowLogin(true)}
-            onShowRegister={() => setShowRegister(true)}
-          />
-        )}
-
-        {/* Login Modal - Don't show while auth is processing or loading */}
-        {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
-          <div className="fixed inset-0 z-50">
-            <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
-          </div>
-        )}
-
-        {/* Register Modal - Don't show while auth is processing or loading */}
-        {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
-          <div className="fixed inset-0 z-50">
-            <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
-          </div>
-        )}
-      </div>
-    );
-  };
 
   return (
     <AuthProvider>
@@ -377,7 +385,18 @@ function App() {
                 <RouteTracker />
                 <AdSenseLoader />
                 <PWAInstallPrompt />
-                <AppContent />
+                <AppContent
+                  isProfileOpen={isProfileOpen}
+                  setIsProfileOpen={setIsProfileOpen}
+                  showLogin={showLogin}
+                  setShowLogin={setShowLogin}
+                  showRegister={showRegister}
+                  setShowRegister={setShowRegister}
+                  handleCloseLogin={handleCloseLogin}
+                  handleCloseRegister={handleCloseRegister}
+                  handleSwitchToRegister={handleSwitchToRegister}
+                  handleSwitchToLogin={handleSwitchToLogin}
+                />
               </Router>
             </NotificationsProvider>
           </RegisteredEventsProvider>
