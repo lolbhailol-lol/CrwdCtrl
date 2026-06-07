@@ -1,19 +1,11 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
 
-const loadRazorpay = () =>
-    new Promise(resolve => {
-        if (window.Razorpay) return resolve(true);
-        const s = document.createElement('script');
-        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        s.onload = () => resolve(true);
-        s.onerror = () => resolve(false);
-        document.body.appendChild(s);
-    });
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 function generateDates(baseDate) {
     const base = baseDate ? new Date(baseDate) : new Date();
@@ -119,70 +111,58 @@ export default function TrekBookingPage() {
                     }).catch(() => {});
                 }
                 setStep(3);
-                setTimeout(() => navigate('/registered-fest'), 2000);
+                setTimeout(() => navigate('/booking'), 2000);
                 return;
             }
 
             setPaying(true);
             try {
-                const loaded = await loadRazorpay();
-                if (!loaded) { setError('Could not load payment gateway. Check your connection.'); setPaying(false); return; }
-
                 const res = await fetch(`${API}/payment/trek-order`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ baseAmount: fee, trekId: id || trek._id || trek.id, trekName, people }),
+                    body: JSON.stringify({
+                        baseAmount: fee,
+                        trekId: id || trek._id || trek.id,
+                        trekName,
+                        people,
+                        customerName: extraFields.full_name || extraFields.name || extraFields.fullname || '',
+                        customerEmail: extraFields.email || extraFields.e_mail_id || extraFields.e_mail || '',
+                        customerPhone: extraFields.contact_no || extraFields.phone || extraFields.contact || extraFields.mobile || '',
+                    }),
                 });
                 const order = await res.json();
                 if (!res.ok) { setError(order.message || 'Failed to create order.'); setPaying(false); return; }
 
-                const options = {
-                    key:         order.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
-                    amount:      order.amount,
-                    currency:    order.currency,
-                    name:        'CrwdCtrl Treks',
-                    description: trekName,
-                    order_id:    order.orderId,
-                    prefill: {
-                        name:    extraFields.full_name    || extraFields.name     || extraFields.fullname  || '',
-                        contact: extraFields.contact_no  || extraFields.phone    || extraFields.contact   || extraFields.mobile || '',
-                        email:   extraFields.email       || extraFields.e_mail_id || extraFields.e_mail   || '',
-                    },
-                    theme: { color: '#0ECCEE' },
-                    handler: async (response) => {
-                        const vRes = await fetch(`${API}/payment/trek-verify`, {
+                await openCashfreeCheckout({ paymentSessionId: order.paymentSessionId });
+
+                const vRes = await fetch(`${API}/payment/trek-verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ payment_order_id: order.orderId }),
+                });
+                const v = await vRes.json();
+                if (v.verified) {
+                    const verified = buildVerifiedPaymentFields(v, order.orderId);
+                    setPaymentId(verified.payment_id);
+                    setPayDone(true);
+                    const trekId = id || trek._id || trek.id;
+                    if (trekId) {
+                        const token = localStorage.getItem('crwdctrl_token');
+                        fetch(`${API}/treks/${trekId}/register`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(response),
-                        });
-                        const v = await vRes.json();
-                        if (v.verified) {
-                            setPaymentId(response.razorpay_payment_id);
-                            setPayDone(true);
-                            const trekId = id || trek._id || trek.id;
-                            if (trekId) {
-                                const token = localStorage.getItem('crwdctrl_token');
-                                fetch(`${API}/treks/${trekId}/register`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-                                    body: JSON.stringify({
-                                        formData: extraFields,
-                                        bookingDetails: { date: selDate, time: selTime, people, amountPaid: total, paymentId: response.razorpay_payment_id },
-                                    }),
-                                }).catch(() => {});
-                            }
-                            setStep(3);
-                            setTimeout(() => navigate('/registered-fest'), 2000);
-                        } else {
-                            setError('Payment verification failed. Contact support.');
-                        }
-                        setPaying(false);
-                    },
-                    modal: { ondismiss: () => setPaying(false) },
-                };
-                const rzp = new window.Razorpay(options);
-                rzp.on('payment.failed', r => { setError(r.error?.description || 'Payment failed.'); setPaying(false); });
-                rzp.open();
+                            headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                            body: JSON.stringify({
+                                formData: extraFields,
+                                bookingDetails: { date: selDate, time: selTime, people, amountPaid: total, paymentId: verified.payment_id },
+                            }),
+                        }).catch(() => {});
+                    }
+                    setStep(3);
+                    setTimeout(() => navigate('/booking'), 2000);
+                } else {
+                    setError('Payment verification failed. Contact support.');
+                }
+                setPaying(false);
             } catch (e) {
                 setError('Payment error: ' + e.message);
                 setPaying(false);
@@ -205,7 +185,7 @@ export default function TrekBookingPage() {
                         Your booking for <span className="text-[#0ECCEE] font-semibold">{trekName}</span> has been confirmed.
                     </p>
                     <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        Redirecting to My Registrations...
+                        Redirecting to My Bookings...
                     </p>
 
                     <div className={`rounded-xl p-5 mb-6 text-left ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
@@ -226,10 +206,10 @@ export default function TrekBookingPage() {
                     </div>
 
                     <button
-                        onClick={() => navigate('/registered-fest')}
+                        onClick={() => navigate('/booking')}
                         className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
                     >
-                        View My Registrations
+                        View My Bookings
                     </button>
                 </div>
             </div>
@@ -244,7 +224,7 @@ export default function TrekBookingPage() {
                 <div className="flex items-start gap-3 mb-4 sm:mb-6 pt-10">
                     <button
                         onClick={back}
-                        className={`p-2 rounded-lg transition-colors flex-shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+                        className={`p-2 rounded-lg transition-colors shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
                     >
                         <ArrowLeft className={`w-5 h-5 ${isDark ? 'text-white' : 'text-gray-900'}`} />
                     </button>
@@ -423,7 +403,7 @@ export default function TrekBookingPage() {
                                     <span>₹{total.toLocaleString('en-IN')}</span>
                                 </div>
                             </div>
-                            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Razorpay secure payment — click Pay to book.</p>
+                            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Cashfree secure payment — click Pay to book.</p>
                         </div>
                     )}
 

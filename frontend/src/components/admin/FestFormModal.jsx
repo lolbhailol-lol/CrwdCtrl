@@ -1886,7 +1886,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Razorpay Fee Amount (₹) <span className="text-gray-400 font-normal text-xs">— amount shown on payment gateway</span>
+                  Online Fee Amount (₹) <span className="text-gray-400 font-normal text-xs">— amount shown on payment gateway</span>
                 </label>
                 <input
                   type="number"
@@ -1897,7 +1897,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   value={form.feeAmount || 0}
                   onChange={(e) => setForm({ ...form, feeAmount: Number(e.target.value) })}
                 />
-                <p className="text-xs text-gray-500 mt-1">Set to 0 for free. When &gt; 0, users pay via Razorpay before registering.</p>
+                <p className="text-xs text-gray-500 mt-1">Set to 0 for free. When &gt; 0, users pay via Cashfree before registering.</p>
               </div>
 
               <div className="md:col-span-2">

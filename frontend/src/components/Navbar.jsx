@@ -1,10 +1,10 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, MapPin, Sun, Moon, Menu, Clock, Calendar, X, User, Navigation, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
-import { searchFests, searchAll } from '../services/searchService';
+import { searchAll } from '../services/searchService';
 import FestsIcon from '../assets/mobile-icons/FEST.svg';
 import SportsIcon from '../assets/mobile-icons/SPORTS.svg';
 import TreksIcon from '../assets/mobile-icons/trek.svg';
@@ -16,7 +16,7 @@ import TheatreDarkIcon from '../assets/mobile-icons/theatre-dark.svg';
 
 const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests',       icon: FestsIcon,   darkIcon: FestsDarkIcon },
-    { id: 'sports',  label: 'Sports',  path: '/sports-fest', icon: SportsIcon,  darkIcon: SportsDarkIcon },
+    { id: 'sports',  label: 'Sports',  path: '/sports', icon: SportsIcon,  darkIcon: SportsDarkIcon },
     { id: 'treks',   label: 'Treks',   path: '/treks',       icon: TreksIcon,   darkIcon: TreksDarkIcon },
     { id: 'theatre', label: 'Theatre', path: '/theatre',     icon: TheatreIcon, darkIcon: TheatreDarkIcon },
 ];
@@ -82,6 +82,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
     const searchRef = useRef(null);
 
     // Get user's location on component mount
+     
     useEffect(() => {
         console.log('🚀 Navbar component mounted, checking for stored location...');
         
@@ -122,7 +123,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
         } else {
             console.log('✅ Using stored location');
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, []);
 
     // Search functionality
@@ -541,7 +542,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
 
                         {/* Location Dropdown */}
                         {isLocationDropdownOpen && (
-                            <div className={`absolute left-0 sm:left-0 mt-2 w-80 sm:w-72 max-w-[95vw] rounded-2xl shadow-2xl border backdrop-blur-md z-[60] ${isDark
+                            <div className={`absolute left-0 sm:left-0 mt-2 w-80 sm:w-72 max-w-[95vw] rounded-2xl shadow-2xl border backdrop-blur-md z-60 ${isDark
                                 ? 'bg-black/95 border-gray-700/50'
                                 : 'bg-white/95 border-gray-200/50'
                                 }`}>
@@ -710,7 +711,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                         </div>
                                     ) : searchResults.length > 0 ? (
                                         <>
-                                            {searchResults.map((event, index) => (
+                                            {searchResults.map((event, _index) => (
                                                 <div
                                                     key={event.id}
                                                     onClick={() => handleSearchResultClick(event)}
@@ -719,7 +720,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                                         : 'border-gray-100 hover:bg-gray-50'
                                                         }`}
                                                 >
-                                                    <div className={`w-10 h-10 rounded-lg flex-shrink-0 mr-3 flex items-center justify-center text-xs font-bold ${
+                                                    <div className={`w-10 h-10 rounded-lg shrink-0 mr-3 flex items-center justify-center text-xs font-bold ${
                                                         event.resultType === 'competition'
                                                             ? 'bg-orange-100 text-orange-600'
                                                             : event.category === 'cultural'
@@ -738,7 +739,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                                                 {event.title || event.festival_name}
                                                             </h4>
                                                             {event.resultType === 'competition' && (
-                                                                <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-600 rounded-full flex-shrink-0">
+                                                                <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-600 rounded-full shrink-0">
                                                                     Competition
                                                                 </span>
                                                             )}
@@ -846,7 +847,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                                 }}
                                             >
                                                 <div className="flex items-start space-x-3">
-                                                    <div className={`p-2 rounded-lg flex-shrink-0 ${notification.type === 'event'
+                                                    <div className={`p-2 rounded-lg shrink-0 ${notification.type === 'event'
                                                         ? 'bg-blue-100 text-blue-600'
                                                         : notification.type === 'reminder'
                                                             ? 'bg-orange-100 text-orange-600'
@@ -866,7 +867,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                                                 {notification.title}
                                                             </h4>
                                                             {notification.unread && (
-                                                                <div className="w-2 h-2 bg-[#007BFF] rounded-full flex-shrink-0 ml-2 mt-1"></div>
+                                                                <div className="w-2 h-2 bg-[#007BFF] rounded-full shrink-0 ml-2 mt-1"></div>
                                                             )}
                                                         </div>
                                                         <p className={`text-sm mt-1 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -919,7 +920,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                                 }
                             }}
                             className={`w-8 lg:w-10 h-8 lg:h-10 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 ${isAuthenticated
-                                ? 'bg-gradient-to-br from-[#007BFF] to-[#00C9A7]'
+                                ? 'bg-linear-to-br from-[#007BFF] to-[#00C9A7]'
                                 : isDark
                                     ? 'bg-gray-700 hover:bg-gray-600'
                                     : 'bg-gray-200 hover:bg-gray-300'

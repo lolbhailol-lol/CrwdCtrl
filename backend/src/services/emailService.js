@@ -508,7 +508,7 @@ const generateThankYouEmailHTML = (userName, festName) => {
 const generateConfirmationEmailHTML = (userName, festName, competitionName, registrationId, submissionDate, paymentContext = {}) => {
     const paymentStatus = paymentContext?.status || 'unknown';
     const paymentMethod = paymentContext?.method || '';
-    const paymentMethodLabel = paymentMethod === 'razorpay' ? 'Razorpay' : paymentMethod;
+    const paymentMethodLabel = paymentMethod === 'cashfree' ? 'Cashfree' : paymentMethod;
 
     const nextStepsHtml = (() => {
         if (paymentStatus === 'paid') {

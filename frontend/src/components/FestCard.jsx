@@ -11,31 +11,31 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
         switch (status) {
             case 'ongoing':
                 return {
-                    gradient: 'bg-gradient-to-r from-green-500 to-emerald-600',
+                    gradient: 'bg-linear-to-r from-green-500 to-emerald-600',
                     glow: 'shadow-green-500/30',
                     icon: Zap
                 };
             case 'upcoming':
                 return {
-                    gradient: 'bg-gradient-to-r from-orange-500 to-amber-600',
+                    gradient: 'bg-linear-to-r from-orange-500 to-amber-600',
                     glow: 'shadow-orange-500/30',
                     icon: Clock
                 };
             case 'completed':
                 return {
-                    gradient: 'bg-gradient-to-r from-gray-500 to-slate-600',
+                    gradient: 'bg-linear-to-r from-gray-500 to-slate-600',
                     glow: 'shadow-gray-500/20',
                     icon: Clock
                 };
             case 'lastyearhit':
                 return {
-                    gradient: 'bg-gradient-to-r from-purple-500 to-violet-600',
+                    gradient: 'bg-linear-to-r from-purple-500 to-violet-600',
                     glow: 'shadow-purple-500/30',
                     icon: Zap
                 };
             default:
                 return {
-                    gradient: 'bg-gradient-to-r from-orange-500 to-amber-600',
+                    gradient: 'bg-linear-to-r from-orange-500 to-amber-600',
                     glow: 'shadow-orange-500/30',
                     icon: Clock
                 };
@@ -69,7 +69,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
     return (
         <div
             className={`group relative rounded-2xl overflow-hidden cursor-pointer mb-6 mx-2 
-                       transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                       transition-all duration-300 ease-in-out
                        ${isDark 
                            ? 'bg-black/20 backdrop-blur-3xl border border-white/20 shadow-2xl shadow-black/50' 
                            : 'bg-white/40 backdrop-blur-3xl border border-white/50 shadow-xl shadow-black/10'
@@ -81,7 +81,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                 <img
                     src={getImageUrl(image)}
                     alt={title}
-                    className="w-full h-40 sm:h-44 object-cover transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                    className="w-full h-40 sm:h-44 object-cover transition-all duration-300 ease-in-out
                              group-hover:scale-105"
                     onError={(e) => {
                         handleImageErrorWithFallback(e, 300, 176, '#6366f1', title || 'Event');
@@ -89,7 +89,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                 />
                 
                 {/* Subtle Hover Overlay */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 ease-in-out" />
 
                 {/* Status Badge with Premium Glass Effect */}
                 {status && (
@@ -108,7 +108,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                 <button
                     onClick={handleLike}
                     className={`absolute top-3 right-3 w-10 h-10 rounded-full z-20
-                               transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                               transition-all duration-300 ease-in-out
                                hover:scale-110 active:scale-95
                                ${isDark 
                                    ? 'bg-black/30 hover:bg-black/40 backdrop-blur-2xl border-2 border-white/30' 
@@ -123,7 +123,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                     title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 >
                     <Heart
-                        className={`w-5 h-5 mx-auto transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                        className={`w-5 h-5 mx-auto transition-all duration-300 ease-in-out
                                    ${isFavorite
                                        ? 'text-red-500 fill-red-500 scale-110 animate-pulse' 
                                        : isDark 
@@ -150,8 +150,8 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
 
                     {/* Share Button with Cool Glass Effect */}
                     <button
-                        className={`w-8 h-8 flex items-center justify-center rounded-xl flex-shrink-0 z-10
-                                   transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]
+                        className={`w-8 h-8 flex items-center justify-center rounded-xl shrink-0 z-10
+                                   transition-all duration-200 ease-in-out
                                    hover:scale-110 active:scale-95
                                    ${isDark 
                                        ? 'bg-white/10 hover:bg-white/20 backdrop-blur-xl border-2 border-white/30 shadow-lg' 
@@ -188,7 +188,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                 <button
                     onClick={handleViewDetailsClick}
                     className="w-full px-4 py-3 rounded-lg text-sm font-bold text-white
-                               bg-gradient-to-b from-blue-500 to-blue-600 
+                               bg-linear-to-b from-blue-500 to-blue-600 
                                hover:from-blue-600 hover:to-blue-700
                                active:from-blue-700 active:to-blue-800
                                shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40
@@ -196,7 +196,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                                transform hover:scale-[1.02] active:scale-[0.98]
                                transition-all duration-200 ease-out
                                relative overflow-hidden
-                               before:absolute before:inset-0 before:bg-gradient-to-r 
+                               before:absolute before:inset-0 before:bg-linear-to-r 
                                before:from-transparent before:via-white/20 before:to-transparent
                                before:translate-x-[-100%] hover:before:translate-x-[100%]
                                before:transition-transform before:duration-700"

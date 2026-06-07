@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Mountain, Calendar, Clock, Users, MapPin, Edit2, Trash2, Plus, Eye, EyeOff, Users2 } from 'lucide-react';
 import TrekFormModal from './TrekFormModal';
 import TrekCommunityFormModal from './TrekCommunityFormModal';
@@ -35,12 +35,12 @@ function AdminTrekCard({ trek, onEdit, onDelete }) {
     const diff = DIFFICULTY_BADGE[trek.difficultyLevel];
 
     return (
-        <div className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors group">
+        <div className="flex items-center gap-3 px-4 py-3 hover:bg-white/3 transition-colors group">
             {/* Thumbnail */}
-            <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-gray-800">
+            <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-gray-800">
                 {(trek.coverImage || trek.images?.[0]) && !imgErr
                     ? <img src={trek.coverImage || trek.images[0]} alt={trek.trekName} className="w-full h-full object-cover" onError={() => setImgErr(true)} />
-                    : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-900 to-emerald-700">
+                    : <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-green-900 to-emerald-700">
                         <Mountain size={20} className="text-white/40" />
                       </div>
                 }
@@ -51,11 +51,11 @@ function AdminTrekCard({ trek, onEdit, onDelete }) {
                 <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-semibold text-white truncate">{trek.trekName}</p>
                     {trek.difficultyLevel && (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${diff || 'bg-gray-700 text-gray-300'}`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${diff || 'bg-gray-700 text-gray-300'}`}>
                             {trek.difficultyLevel}
                         </span>
                     )}
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${STATUS_BADGE[trek.status] || 'bg-gray-700 text-gray-300'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${STATUS_BADGE[trek.status] || 'bg-gray-700 text-gray-300'}`}>
                         {trek.status}
                     </span>
                 </div>
@@ -79,12 +79,12 @@ function AdminTrekCard({ trek, onEdit, onDelete }) {
             </div>
 
             {/* Price */}
-            <span className={`text-sm font-bold flex-shrink-0 ${trek.registrationFee > 0 ? 'text-[#0ECCEE]' : 'text-green-400'}`}>
+            <span className={`text-sm font-bold shrink-0 ${trek.registrationFee > 0 ? 'text-[#0ECCEE]' : 'text-green-400'}`}>
                 {trek.registrationFee > 0 ? `₹${trek.registrationFee}` : 'Free'}
             </span>
 
             {/* Actions */}
-            <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={() => onEdit(trek)}
                     className="p-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
                     title="Edit trek">
@@ -260,10 +260,10 @@ export default function TreksPage() {
                                 {/* Community header row */}
                                 <div className="flex items-center gap-3 p-4">
                                     {/* Thumbnail */}
-                                    <div className="size-12 rounded-xl overflow-hidden flex-shrink-0 bg-gray-800">
+                                    <div className="size-12 rounded-xl overflow-hidden shrink-0 bg-gray-800">
                                         {c.coverImage
                                             ? <img src={c.coverImage} alt={c.name} className="w-full h-full object-cover" />
-                                            : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-900 to-emerald-700"><Users2 size={20} className="text-white/40" /></div>
+                                            : <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-green-900 to-emerald-700"><Users2 size={20} className="text-white/40" /></div>
                                         }
                                     </div>
 
@@ -277,7 +277,7 @@ export default function TreksPage() {
                                     </div>
 
                                     {/* Actions */}
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <div className="flex items-center gap-1.5 shrink-0">
                                         <button
                                             onClick={() => { setSelectedComm(c); setShowCommForm(true); }}
                                             className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded-lg transition-colors"
@@ -328,7 +328,7 @@ export default function TreksPage() {
                                                 <p className="text-xs text-gray-500 mb-3">No treks in this community yet</p>
                                             </div>
                                         ) : (
-                                            <div className="rounded-xl border border-white/[0.06] overflow-hidden divide-y divide-white/[0.05]">
+                                            <div className="rounded-xl border border-white/6 overflow-hidden divide-y divide-white/5">
                                                 {commTreks.map(t => (
                                                     <AdminTrekCard
                                                         key={t._id}

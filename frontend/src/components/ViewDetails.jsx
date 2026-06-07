@@ -1,24 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-interface Event {
-  _id: string;
-  name: string;
-  description: string;
-  date: string;
-  time: string;
-  location: string;
-  category: string;
-  image: string;
-  price: number;
-  capacity: number;
-  registeredCount: number;
-}
-
-interface ViewDetailsProps {
-  event: Event;
-}
-
 const ViewDetails = ({ event }) => {
   const availableSeats = event.capacity - event.registeredCount;
 
@@ -28,25 +10,14 @@ const ViewDetails = ({ event }) => {
         {event.image && (
           <img src={event.image} alt={event.name} className="event-image" />
         )}
-
-        <div className="event-card-content">
-          <h3 className="event-name">{event.name}</h3>
-
-          <p className="event-description">
-            {event.description?.substring(0, 100)}...
-          </p>
-
-          <div className="event-card-meta">
-            <span className="category">{event.category}</span>
-            <span className="date">{new Date(event.date).toLocaleDateString()}</span>
-          </div>
-
-          <div className="event-card-footer">
-            <span className="price">₹{event.price}</span>
-            <span className={`seats ${availableSeats > 0 ? 'available' : 'full'}`}>
-              {availableSeats > 0 ? `${availableSeats} seats` : 'Full'}
-            </span>
-          </div>
+        <div className="event-details">
+          <h3>{event.name}</h3>
+          <p className="event-date">{event.date} at {event.time}</p>
+          <p className="event-location">{event.location}</p>
+          <p className="event-category">{event.category}</p>
+          <p className="event-price">₹{event.price}</p>
+          <p className="event-seats">{availableSeats} seats available</p>
+          <p className="event-description">{event.description}</p>
         </div>
       </div>
     </Link>

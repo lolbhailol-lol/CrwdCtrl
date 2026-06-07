@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -91,7 +91,7 @@ export default function CulturalFestPage() {
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center gap-3 mt-2">
                     <button onClick={() => navigate(-1)}
-                        className={`size-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
+                        className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
                         <ArrowLeft size={18} className={isDark ? 'text-white' : 'text-gray-700'} />
                     </button>
                     <h1 className={`text-2xl font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Cultural</h1>
@@ -121,7 +121,7 @@ export default function CulturalFestPage() {
                                             const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
                                             return (
                                                 <div key={fest._id}
-                                                    className={`flex-shrink-0 w-[320px] rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
+                                                    className={`shrink-0 w-[320px] rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
                                                     {/* Image */}
                                                     <div className="relative w-full h-[175px] overflow-hidden">
                                                         {img ? (
@@ -180,7 +180,7 @@ export default function CulturalFestPage() {
                                                 onClick={() => navigate(`/view-details/${fest._id}`)}
                                                 className={`flex rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${card} shadow-sm`}>
                                                 {/* Square image */}
-                                                <div className="relative size-40 flex-shrink-0">
+                                                <div className="relative size-40 shrink-0">
                                                     {img ? (
                                                         <img src={getImageUrl(img)} alt={fest.festName}
                                                             className="w-full h-full object-cover"

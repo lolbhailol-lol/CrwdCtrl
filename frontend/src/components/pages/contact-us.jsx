@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Mail, Phone, Globe, User, MapPin, Clock, MessageCircle, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -59,7 +59,7 @@ export default function ContactUs() {
             {/* Content */}
             <div className="max-w-4xl mx-auto px-4 py-8">
                 {/* Hero Section */}
-                <div className={`${isDark ? 'bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-gray-800' : 'bg-gradient-to-r from-blue-50 to-purple-50 border-gray-200'} border rounded-lg p-6 mb-8`}>
+                <div className={`${isDark ? 'bg-linear-to-r from-blue-900/20 to-purple-900/20 border-gray-800' : 'bg-linear-to-r from-blue-50 to-purple-50 border-gray-200'} border rounded-lg p-6 mb-8`}>
                     <div className="text-center">
                         <div className="flex justify-center mb-4">
                             <div className={`p-3 rounded-full ${isDark ? 'bg-blue-600/20' : 'bg-blue-100'}`}>
@@ -217,7 +217,7 @@ export default function ContactUs() {
                 </div>
 
                 {/* Office Information */}
-                <div className={`${isDark ? 'bg-gradient-to-r from-gray-900 to-gray-800 border-gray-700' : 'bg-gradient-to-r from-gray-100 to-gray-200 border-gray-300'} border rounded-lg p-6`}>
+                <div className={`${isDark ? 'bg-linear-to-r from-gray-900 to-gray-800 border-gray-700' : 'bg-linear-to-r from-gray-100 to-gray-200 border-gray-300'} border rounded-lg p-6`}>
                     <div className="flex items-center gap-3 mb-4">
                         <MapPin className="w-6 h-6 text-teal-500" />
                         <h3 className="font-semibold">CrwdCtrl</h3>

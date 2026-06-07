@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Download, CheckCircle, Ticket, CalendarDays, MapPin } from 'lucide-react';
 
@@ -28,6 +28,7 @@ export default function QRTicketPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+   
   useEffect(() => {
     fetchTicket();
   }, [registrationId]);
@@ -73,17 +74,17 @@ export default function QRTicketPage() {
       <div className="max-w-md mx-auto">
         {/* Back Link */}
         <Link
-          to="/my-registrations"
+          to="/booking"
           className="inline-flex items-center gap-1.5 text-gray-400 hover:text-white mb-6 text-sm transition-colors"
         >
           <ArrowLeft size={16} />
-          Back to Registrations
+          Back to Bookings
         </Link>
 
         {/* Ticket Card */}
         <div className="bg-[#111213] rounded-2xl border border-gray-800 overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-[#0ECCEE]/20 to-[#0ECCEE]/5 px-6 py-4 border-b border-gray-800">
+          <div className="bg-linear-to-r from-[#0ECCEE]/20 to-[#0ECCEE]/5 px-6 py-4 border-b border-gray-800">
             <div className="flex items-center gap-2 text-[#0ECCEE] mb-1">
               <Ticket size={18} />
               <span className="text-sm font-semibold uppercase tracking-wide">Event Ticket</span>

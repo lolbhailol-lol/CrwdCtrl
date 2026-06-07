@@ -1,4 +1,4 @@
-﻿import { Heart } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { getImageUrl } from '../utils/imageImports';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 
@@ -10,7 +10,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
 
     return (
         <div
-            className={`flex-shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer
+            className={`shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer
                         transition-all duration-200 active:scale-95
                         ${isDark
                             ? 'bg-[#111213] shadow-lg shadow-black/30'

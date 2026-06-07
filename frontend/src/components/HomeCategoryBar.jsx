@@ -10,36 +10,31 @@ import TheatreDarkIcon from '../assets/mobile-icons/theatre-dark.svg';
 
 const CATEGORIES = [
     { id: 'fests',   icon: FestsIcon,   darkIcon: FestsDarkIcon,   label: 'Fests',   path: '/fests' },
-    { id: 'sports',  icon: SportsIcon,  darkIcon: SportsDarkIcon,  label: 'Sports',  path: '/sports-fest' },
+    { id: 'sports',  icon: SportsIcon,  darkIcon: SportsDarkIcon,  label: 'Sports',  path: '/sports' },
     { id: 'treks',   icon: TreksIcon,   darkIcon: TreksDarkIcon,   label: 'Treks',   path: '/treks' },
     { id: 'theatre', icon: TheatreIcon, darkIcon: TheatreDarkIcon, label: 'Theatre', path: '/theatre' },
 ];
 
 /*
-  Figma spec:
-  - Icon image: w-20 h-14 (80×56px), overflows 37px above the box
-  - Box: w-16 h-12 (64×48px), rounded-2xl
-  - Active box: shadow + border-slate-100
-  - Label: text-sm font-medium, inside/below box
-  - Active underline: thin black line under label
-*/
+  Category icons are full SVG assets (illustration + label).
+  No extra wrapper box — active state uses lift + shadow only.
+ */
 function CategoryCard({ icon, darkIcon, label, isActive, isDark, onClick }) {
     return (
         <button
             onClick={onClick}
             aria-label={label}
             style={{ WebkitTapHighlightColor: 'transparent' }}
-            className="flex-1 flex flex-col items-center gap-0.5 active:scale-95 transition-all duration-200"
+            className="flex-1 flex flex-col items-center active:scale-95 transition-all duration-200"
         >
-            <div className={`transition-all duration-200 ${isActive ? '-translate-y-1 scale-110 drop-shadow-lg' : 'scale-100'}`}>
-                <img
-                    src={isDark ? darkIcon : icon}
-                    alt={label}
-                    draggable={false}
-                    className="w-[110px] h-[88px] object-contain"
-                />
-            </div>
-            <div className={`h-1 w-5 rounded-full transition-all duration-200 ${isActive ? 'bg-[#0ECCEE]' : 'bg-transparent'}`} />
+            <img
+                src={isDark ? darkIcon : icon}
+                alt={label}
+                draggable={false}
+                className={`w-20 h-14 object-contain pointer-events-none transition-all duration-200 ${
+                    isActive ? '-translate-y-0.5 drop-shadow-[0px_4px_4px_rgba(0,0,0,0.25)]' : ''
+                }`}
+            />
         </button>
     );
 }
@@ -49,7 +44,7 @@ export default function HomeCategoryBar({ isDark = false, activeCategory = null,
 
     return (
         <div className={noPadding ? 'w-full' : 'mb-2 w-full px-0 sm:px-4'}>
-            <div className="mx-auto flex w-full items-end gap-1 sm:max-w-[640px] sm:gap-2">
+            <div className="mx-auto flex w-full items-center justify-between gap-1 sm:max-w-[640px] sm:gap-2">
                 {CATEGORIES.map(cat => (
                     <CategoryCard
                         key={cat.id}

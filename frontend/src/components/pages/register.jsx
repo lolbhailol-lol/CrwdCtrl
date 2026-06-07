@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -332,7 +332,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
                     {/* Logo */}
                     <div className="text-center mb-4 sm:mb-6">
-                        <h1 className="text-xl sm:text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#053780] to-[#0ECCEE]">
+                        <h1 className="text-xl sm:text-2xl font-extrabold bg-clip-text text-transparent bg-linear-to-r from-[#053780] to-[#0ECCEE]">
                             CRWDCTRL
                         </h1>
                         {showSocialFields && (

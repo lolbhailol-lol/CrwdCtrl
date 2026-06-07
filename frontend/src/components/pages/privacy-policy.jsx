@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Shield, Eye, Database, Share2, Lock, Users, FileText, Globe, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -164,7 +164,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.introduction.scope.map((scope, index) => (
                                     <div key={index} className="flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                        <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" />
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {scope}
                                         </span>
@@ -205,7 +205,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.information_collected.personal_identifiers.map((item, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-green-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-green-300' : 'text-green-700'}`}>
                                             {item}
                                         </span>
@@ -222,7 +222,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.information_collected.identity_data.map((item, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-purple-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
                                             {item}
                                         </span>
@@ -239,7 +239,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.information_collected.account_data.map((item, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-indigo-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-indigo-300' : 'text-indigo-700'}`}>
                                             {item}
                                         </span>
@@ -256,7 +256,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.information_collected.platform_activity.map((item, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-orange-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-orange-300' : 'text-orange-700'}`}>
                                             {item}
                                         </span>
@@ -273,7 +273,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.information_collected.uploaded_content.map((item, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-teal-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-teal-300' : 'text-teal-700'}`}>
                                             {item}
                                         </span>
@@ -305,7 +305,7 @@ export default function PrivacyPolicy() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {privacyData.data_usage.purposes.map((purpose, index) => (
                             <div key={index} className="flex items-start gap-3">
-                                <CheckCircle2 className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                                <CheckCircle2 className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
                                 <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {purpose}
                                 </p>
@@ -376,7 +376,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.data_security_and_retention.measures.map((measure, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <Shield className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                                        <Shield className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {measure}
                                         </span>
@@ -411,7 +411,7 @@ export default function PrivacyPolicy() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {privacyData.user_rights.rights_available.map((right, index) => (
                             <div key={index} className="flex items-start gap-3">
-                                <CheckCircle2 className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                                <CheckCircle2 className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
                                 <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {right}
                                 </p>
@@ -437,7 +437,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.advertising_and_cookies.cookies_usage.map((item, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-yellow-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-yellow-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {item}
                                         </span>
@@ -451,7 +451,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.advertising_and_cookies.user_choices.map((item, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                                        <CheckCircle2 className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {item}
                                         </span>
@@ -488,7 +488,7 @@ export default function PrivacyPolicy() {
                             <div className="space-y-2">
                                 {privacyData.consent.withdrawal_conditions.map((condition, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                                        <AlertCircle className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {condition}
                                         </span>

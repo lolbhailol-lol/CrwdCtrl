@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { AlertCircle, Check, Loader2, RefreshCw, Search, Flag, Mountain, Users } from 'lucide-react';
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Check, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -37,16 +37,28 @@ const COMM_PAGE_OPTS = [
     { value: 'both',        label: '🌟 Both Sections' },
     { value: 'hidden',      label: '🚫 Hidden' },
 ];
+const SPORTS_UPCOMING_OPTS = [
+    { value: '',         label: '— Auto —' },
+    { value: 'show',     label: '🏃 Upcoming Activities' },
+    { value: 'hidden',   label: '🚫 Hidden from Upcoming' },
+    { value: 'page_off', label: '🚫 Off Sports Page' },
+];
+const SPORTS_RUNCLUB_OPTS = [
+    { value: '',      label: '— Auto —' },
+    { value: 'show',  label: '👟 Explore Run Clubs' },
+    { value: 'hidden', label: '🚫 Hidden from Run Clubs' },
+    { value: 'na',    label: '— N/A —' },
+];
 
 // ── Shared UI helpers ──────────────────────────────────────────────────────────
 const sel = 'flex-1 min-w-0 bg-transparent text-white text-xs focus:outline-none cursor-pointer';
 const opt = 'bg-[#0D0E10] text-white';
 
 function SaveDot({ state }) {
-    if (state === 'saving') return <Loader2 size={11} className="animate-spin text-[#0ECCEE] flex-shrink-0" />;
-    if (state === 'saved')  return <Check    size={11} className="text-emerald-400 flex-shrink-0" />;
-    if (state === 'error')  return <AlertCircle size={11} className="text-red-400 flex-shrink-0" />;
-    return <span className="w-3 flex-shrink-0" />;
+    if (state === 'saving') return <Loader2 size={11} className="animate-spin text-[#0ECCEE] shrink-0" />;
+    if (state === 'saved')  return <Check    size={11} className="text-emerald-400 shrink-0" />;
+    if (state === 'error')  return <AlertCircle size={11} className="text-red-400 shrink-0" />;
+    return <span className="w-3 shrink-0" />;
 }
 
 /* Pill = [dropdown | divider | priority input | save dot] */
@@ -64,7 +76,7 @@ function Pill({ selectValue, selectOpts, onSelect, priorityValue, onPriority, sa
         if (p === '' || p === String(priorityValue)) return;
         const t = setTimeout(() => commitPriority(p), 700);
         return () => clearTimeout(t);
-    }, [p]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [p]);  
 
     const isSet = selectValue && selectValue !== '';
 
@@ -74,7 +86,7 @@ function Pill({ selectValue, selectOpts, onSelect, priorityValue, onPriority, sa
                 className={`${sel} ${isSet ? 'text-[#0ECCEE]' : 'text-gray-400'}`}>
                 {selectOpts.map(o => <option key={o.value} value={o.value} className={opt}>{o.label}</option>)}
             </select>
-            <div className="w-px h-3.5 bg-white/10 flex-shrink-0" />
+            <div className="w-px h-3.5 bg-white/10 shrink-0" />
             <input
                 type="number" min="1" max="999" value={p} placeholder="—"
                 onChange={e => setP(e.target.value)}
@@ -88,10 +100,10 @@ function Pill({ selectValue, selectOpts, onSelect, priorityValue, onPriority, sa
     );
 }
 
-function Thumb({ src, icon: Icon }) {
+function Thumb({ src, icon }) {
     return (
-        <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-[#1A1B1D] flex items-center justify-center">
-            {src ? <img src={src} alt="" className="w-full h-full object-cover" /> : <Icon size={16} className="text-gray-600" />}
+        <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-[#1A1B1D] flex items-center justify-center">
+            {src ? <img src={src} alt="" className="w-full h-full object-cover" /> : icon ? createElement(icon, { size: 16, className: 'text-gray-600' }) : null}
         </div>
     );
 }
@@ -102,6 +114,7 @@ export default function SectionManager() {
     const [fests, setFests]     = useState([]);
     const [treks, setTreks]     = useState([]);
     const [comms, setComms]     = useState([]);
+    const [sports, setSports]   = useState([]);
     const [loading, setLoading] = useState(true);
     const [errors, setErrors]   = useState({});
     const [saving, setSaving]   = useState({});
@@ -122,14 +135,16 @@ export default function SectionManager() {
             } catch (e) { setErrors(prev => ({ ...prev, [label]: e.message })); return null; }
         };
 
-        const [fd, td, cd] = await Promise.all([
+        const [fd, td, cd, sd] = await Promise.all([
             safe(`${API}/admin/fests?limit=500`,            'fests'),
             safe(`${API}/admin/treks?limit=500`,            'treks'),
             safe(`${API}/admin/trek-communities?limit=500`, 'communities'),
+            safe(`${API}/admin/sports?limit=500`,           'sports'),
         ]);
         if (fd) setFests(Array.isArray(fd.fests)       ? fd.fests       : []);
         if (td) setTreks(Array.isArray(td.treks)       ? td.treks       : []);
         if (cd) setComms(Array.isArray(cd.communities) ? cd.communities : []);
+        if (sd) setSports(Array.isArray(sd.events)     ? sd.events      : []);
         setLoading(false);
     }, []);
 
@@ -185,6 +200,25 @@ export default function SectionManager() {
             () => setComms(prev => prev.map(c => c._id === id ? { ...c, ...body, ...fields } : c)));
     }, [patch]);
 
+    const saveSports = useCallback((id, fields) => {
+        patch(`${API}/admin/sports/${id}`, `sports-${id}-${Object.keys(fields)[0]}`, fields,
+            () => setSports(prev => prev.map(s => s._id === id ? { ...s, ...fields } : s)));
+    }, [patch]);
+
+    const saveSportsUpcoming = useCallback((id, val) => {
+        if (val === 'page_off') saveSports(id, { showOnSportsPage: false, showInUpcoming: false, showInRunClubs: false });
+        else if (val === 'hidden') saveSports(id, { showInUpcoming: false, showOnSportsPage: true });
+        else if (val === 'show') saveSports(id, { showOnSportsPage: true, showInUpcoming: true });
+        else saveSports(id, { showInUpcoming: true, showOnSportsPage: true });
+    }, [saveSports]);
+
+    const saveSportsRunClub = useCallback((id, val, sportType) => {
+        if (val === 'na' || sportType !== 'run_club') return;
+        if (val === 'hidden') saveSports(id, { showInRunClubs: false, showOnSportsPage: true });
+        else if (val === 'show') saveSports(id, { showOnSportsPage: true, showInRunClubs: true });
+        else saveSports(id, { showInRunClubs: true, showOnSportsPage: true });
+    }, [saveSports]);
+
     // ── Filtered lists ───────────────────────────────────────────────────────
     const q = search.trim().toLowerCase();
     const filteredFests = useMemo(() =>
@@ -199,12 +233,32 @@ export default function SectionManager() {
         comms.filter(c => !q || [c.name, c.basedIn].some(v => String(v || '').toLowerCase().includes(q)))
              .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
         [comms, q]);
+    const filteredSports = useMemo(() =>
+        sports.filter(s => !q || [s.title, s.city, s.organizer, s.displayType].some(v => String(v || '').toLowerCase().includes(q)))
+              .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
+        [sports, q]);
 
     const getFestHomeVal = (f) => f.homeSection || (f.showOnHomeSlide ? 'movingSlide' : '');
+
+    const getSportsUpcomingVal = (s) => {
+        if (s.showOnSportsPage === false) return 'page_off';
+        if (s.showInUpcoming === false) return 'hidden';
+        if (s.featuredSection === 'run_clubs') return 'hidden';
+        return s.showInUpcoming === true ? 'show' : '';
+    };
+
+    const getSportsRunClubVal = (s) => {
+        if (s.showOnSportsPage === false) return 'hidden';
+        if (s.sportType !== 'run_club') return 'na';
+        if (s.showInRunClubs === false) return 'hidden';
+        if (s.featuredSection === 'upcoming') return 'hidden';
+        return s.showInRunClubs === true ? 'show' : '';
+    };
 
     const tabs = [
         { id: 'fests',       label: 'Fests',       icon: Flag,     count: fests.length },
         { id: 'treks',       label: 'Treks',        icon: Mountain, count: treks.length },
+        { id: 'sports',      label: 'Sports',       icon: Dumbbell, count: sports.length },
         { id: 'communities', label: 'Communities',  icon: Users,    count: comms.length },
     ];
 
@@ -215,7 +269,7 @@ export default function SectionManager() {
             <div className="flex items-center justify-between gap-4 px-1">
                 <div>
                     <h1 className="text-xl font-bold text-white">Section Manager</h1>
-                    <p className="text-xs text-gray-500 mt-0.5">Assign fests, treks & communities to home page and page sections · set display priority</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Assign fests, treks, sports & communities to home page and page sections · set display priority</p>
                 </div>
                 <button onClick={fetchAll} disabled={loading}
                     className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-gray-300 transition-colors disabled:opacity-50">
@@ -256,15 +310,30 @@ export default function SectionManager() {
             {/* Column headers */}
             {!loading && (
                 <div className="flex items-center gap-3 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-600">
-                    <span className="w-10 flex-shrink-0" />
+                    <span className="w-10 shrink-0" />
                     <span className="flex-1">Name</span>
-                    <span className="w-52 text-center">🏠 Home Page  <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
-                    <span className="w-52 text-center">
-                        {tab === 'fests' ? '🎭 Fest Section' : tab === 'treks' ? '🏔️ Treks Page' : '🏔️ Treks Page'}
-                        <span className="text-gray-700 normal-case font-normal">
-                            {tab === 'fests' ? ' (Featured / Listed)' : ' (section · priority)'}
-                        </span>
-                    </span>
+                    {tab === 'sports' ? (
+                        <>
+                            <span className="w-52 text-center">
+                                🏃 Upcoming Activities
+                                <span className="text-gray-700 normal-case font-normal"> (show · priority)</span>
+                            </span>
+                            <span className="w-52 text-center">
+                                👟 Explore Run Clubs
+                                <span className="text-gray-700 normal-case font-normal"> (show · priority)</span>
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <span className="w-52 text-center">🏠 Home Page  <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
+                            <span className="w-52 text-center">
+                                {tab === 'fests' ? '🎭 Fest Section' : tab === 'treks' ? '🏔️ Treks Page' : '🏔️ Treks Page'}
+                                <span className="text-gray-700 normal-case font-normal">
+                                    {tab === 'fests' ? ' (Featured / Listed)' : ' (section · priority)'}
+                                </span>
+                            </span>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -275,7 +344,7 @@ export default function SectionManager() {
                         <Loader2 size={20} className="animate-spin text-[#0ECCEE]" /> Loading…
                     </div>
                 ) : (
-                    <div className="divide-y divide-white/[0.04] max-h-[640px] overflow-y-auto">
+                    <div className="divide-y divide-white/4 max-h-[640px] overflow-y-auto">
 
                         {/* ── FESTS ── */}
                         {tab === 'fests' && (() => {
@@ -298,14 +367,14 @@ export default function SectionManager() {
                             return grouped.map(group => (
                                 <div key={group.key}>
                                     {/* Group header */}
-                                    <div className="flex items-center gap-2 px-4 py-2 bg-white/[0.03] border-y border-white/[0.05]">
+                                    <div className="flex items-center gap-2 px-4 py-2 bg-white/3 border-y border-white/5">
                                         <span className="text-xs font-bold uppercase tracking-widest text-gray-400">{group.label}</span>
                                         <span className="text-[10px] text-gray-600 bg-white/5 px-1.5 py-0.5 rounded-full">{group.fests.length}</span>
                                     </div>
                                     {group.fests.map(f => {
                                         const id = f._id || f.id;
                                         return (
-                                            <div key={id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                                            <div key={id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
                                                 <Thumb src={f.coverImage} icon={Flag} />
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-semibold text-white truncate">{f.festName || 'Untitled'}</p>
@@ -340,7 +409,7 @@ export default function SectionManager() {
                         {tab === 'treks' && (filteredTreks.length === 0
                             ? <EmptyState label="No treks found" />
                             : filteredTreks.map(t => (
-                                <div key={t._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                                <div key={t._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
                                     <Thumb src={t.coverImage || t.images?.[0]} icon={Mountain} />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-white truncate">{t.trekName || 'Untitled'}</p>
@@ -368,13 +437,47 @@ export default function SectionManager() {
                             ))
                         )}
 
+                        {/* ── SPORTS ── */}
+                        {tab === 'sports' && (filteredSports.length === 0
+                            ? <EmptyState label="No sports events found" />
+                            : filteredSports.map(s => (
+                                <div key={s._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
+                                    <Thumb src={s.images?.[0]} icon={Dumbbell} />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
+                                        <p className="text-[11px] text-gray-600 truncate">
+                                            {[s.displayType || s.sportType, s.city, s.status].filter(Boolean).join(' · ') || '—'}
+                                        </p>
+                                    </div>
+                                    <Pill
+                                        selectValue={getSportsUpcomingVal(s)}
+                                        selectOpts={SPORTS_UPCOMING_OPTS}
+                                        onSelect={v => saveSportsUpcoming(s._id, v)}
+                                        priorityValue={s.upcomingPriority ?? s.priority}
+                                        onPriority={v => saveSports(s._id, { upcomingPriority: v, priority: v })}
+                                        saveKey={`sports-${s._id}-upcoming`}
+                                        saving={saving}
+                                    />
+                                    <Pill
+                                        selectValue={getSportsRunClubVal(s)}
+                                        selectOpts={SPORTS_RUNCLUB_OPTS}
+                                        onSelect={v => saveSportsRunClub(s._id, v, s.sportType)}
+                                        priorityValue={s.runClubPriority}
+                                        onPriority={v => saveSports(s._id, { runClubPriority: v })}
+                                        saveKey={`sports-${s._id}-runclub`}
+                                        saving={saving}
+                                    />
+                                </div>
+                            ))
+                        )}
+
                         {/* ── COMMUNITIES ── */}
                         {tab === 'communities' && (filteredComms.length === 0
                             ? <EmptyState label="No communities found" />
                             : filteredComms.map(c => {
                                 const pageVal = c.showOnTreks === false ? 'hidden' : c.trekPageSection || 'communities';
                                 return (
-                                    <div key={c._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                                    <div key={c._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
                                         <Thumb src={c.coverImage} icon={Users} />
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
@@ -408,7 +511,7 @@ export default function SectionManager() {
 
                 {/* Footer hint */}
                 {!loading && (
-                    <div className="px-4 py-2 bg-black/20 border-t border-white/[0.04]">
+                    <div className="px-4 py-2 bg-black/20 border-t border-white/4">
                         <p className="text-[10px] text-gray-700">
                             Change dropdown → saves instantly · Type priority number → press <kbd className="bg-white/10 text-gray-500 px-1 rounded text-[9px]">Enter</kbd> or click away to save · 1 = first position · blank = default
                         </p>

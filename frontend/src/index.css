@@ -285,7 +285,7 @@ html:not(.dark) .bg-\[\#EDEDF2\] {
         }
         
         /* Ensure ProfileSidebar bottom nav is above everything */
-        .profile-sidebar-mobile + div[class*="z-[10000]"] {
+        .profile-sidebar-mobile + div[class*="z-10000"] {
             z-index: 10001 !important;
         }
     }

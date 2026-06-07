@@ -1,5 +1,7 @@
-const dotenv = require("dotenv");
-dotenv.config(); // Load env vars FIRST
+require('dotenv').config();
+
+const { assertProductionEnv } = require('./config/requiredEnv');
+assertProductionEnv();
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -16,7 +18,10 @@ const adminRoutes = require("./routers/adminRoute");
 const adminEventRoutes = require("./routers/adminEventRoute");
 const publicEventRoutes = require("./routers/publicEventRoute");
 const publicTrekRoutes = require("./routers/publicTrekRoute");
+const publicSportsRoutes = require("./routers/publicSportsRoute");
 const adminSportsRoutes = require("./routers/adminSportsRoute");
+const adminRunClubRoutes = require("./routers/adminRunClubRoute");
+const publicRunClubRoutes = require("./routers/publicRunClubRoute");
 const adminTrekRoutes = require("./routers/adminTrekRoute");
 const adminTrekCommunityRoutes = require("./routers/adminTrekCommunityRoute");
 const publicTrekCommunityRoutes = require("./routers/publicTrekCommunityRoute");
@@ -38,6 +43,7 @@ require("./model/competition_registration_model");
 require("./model/registration_model");
 require("./model/platform_event_model");
 require("./model/sports_model");
+require("./model/run_club_model");
 require("./model/trek_model");
 require("./model/trek_community_model");
 require("./model/trek_booking_model");
@@ -69,7 +75,7 @@ const corsOrigins = [
   // Google Cloud Run domain
   "https://crwdctrl-730576782394.asia-south2.run.app",
   // Additional Vercel domains
-  "https://crwdctrl-mvp-git-main-your-username.vercel.app",
+  "https://crwdctrl-production-9c58.up.railway.app",
   "https://crwdctrl-mvp-git-main.vercel.app",
   // Firebase hosting domains
   "https://crwdctrl.firebaseapp.com",
@@ -160,7 +166,7 @@ app.use((req, res, next) => {
     }
     // Treks and communities — no cache so admin changes show immediately
     else if (
-      (req.path.startsWith('/api/treks') || req.path.startsWith('/api/trek-communities')) &&
+      (req.path.startsWith('/api/treks') || req.path.startsWith('/api/trek-communities') || req.path.startsWith('/api/sports')) &&
       !req.path.includes('/admin/')
     ) {
       res.set('Cache-Control', 'no-store');
@@ -204,12 +210,15 @@ app.use("/api/competitions", competitionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/events', adminEventRoutes);
 app.use('/api/admin/sports', adminSportsRoutes);
+app.use('/api/admin/run-clubs', adminRunClubRoutes);
 app.use('/api/admin/treks', adminTrekRoutes);
 app.use('/api/admin/trek-communities', adminTrekCommunityRoutes);
 app.use('/api/trek-communities', publicTrekCommunityRoutes);
 app.use('/api/admin/theatre', adminTheatreRoutes);
 app.use('/api/events', publicEventRoutes);
 app.use('/api/treks', publicTrekRoutes);
+app.use('/api/sports', publicSportsRoutes);
+app.use('/api/run-clubs', publicRunClubRoutes);
 app.use('/api/category-registrations', categoryRegistrationRoutes);
 app.use('/api/registrations', registrationRoutes);
 app.use('/api/payment', paymentRoutes);
@@ -227,7 +236,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// Health Check (required for Cloud Run)
+// Health Check (required for Railway / Cloud Run)
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     status: "OK",
@@ -236,6 +245,11 @@ app.get("/api/health", (req, res) => {
     environment: process.env.NODE_ENV || "development",
     database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
   });
+});
+
+// Lightweight ping for keep-alive cron (GitHub Actions)
+app.get("/api/keep-alive", (req, res) => {
+  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
 // API Status

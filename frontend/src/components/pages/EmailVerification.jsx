@@ -3,13 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Mail, RefreshCw, ArrowLeft } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
-import { verifyEmail, sendVerificationEmail, getCurrentUser, onAuthStateChange } from '../../firebase';
+import { verifyEmail, sendVerificationEmail, onAuthStateChange } from '../../firebase';
 
 const EmailVerification = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { isDark } = useDarkMode();
-    const { user, login, logout } = useAuth();
+    const { _user, _login, _logout } = useAuth();
     const [verificationState, setVerificationState] = useState('loading'); // loading, success, error, pending
     const [message, setMessage] = useState('');
     const [isResending, setIsResending] = useState(false);
@@ -101,10 +101,6 @@ const EmailVerification = () => {
 
     const handleGoToLogin = () => {
         navigate('/login');
-    };
-
-    const handleGoToDashboard = () => {
-        navigate('/dashboard');
     };
 
     const renderContent = () => {
@@ -228,7 +224,7 @@ const EmailVerification = () => {
                 }`}>
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#053780] to-[#0ECCEE]">
+                    <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-linear-to-r from-[#053780] to-[#0ECCEE]">
                         CRWDCTRL
                     </h1>
                 </div>

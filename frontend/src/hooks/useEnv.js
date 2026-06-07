@@ -61,7 +61,7 @@ export const useEnv = () => {
 /**
  * Higher-order component to inject environment configuration
  */
-// eslint-disable-next-line no-unused-vars
+ 
 export const withEnv = (_WrappedComponent) => {
     return function WithEnvComponent(props) {
         const env = useEnv();

@@ -41,8 +41,17 @@ const trekSchema = new mongoose.Schema(
         city: { type: String, trim: true },
         trekCategory: {
             type: String,
-            enum: ['hiking', 'trail', 'backpacking', 'camping', 'adventure'],
+            enum: ['hiking', 'trail', 'backpacking', 'camping', 'adventure', 'nature'],
             default: null,
+        },
+        trekFilters: {
+            duration: { type: [String], default: [] },
+            difficulty: { type: [String], default: [] },
+            budget: { type: [String], default: [] },
+            experience: { type: [String], default: [] },
+            timing: { type: [String], default: [] },
+            terrain: { type: [String], default: [] },
+            style: { type: [String], default: [] },
         },
         featuredSection: {
             type: String,

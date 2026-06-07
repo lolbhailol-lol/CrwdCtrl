@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
 import Footer from '../../Footer';
@@ -275,16 +275,14 @@ function EditProfile() {
         setError('');
         setSuccess('');
 
-        try {
-            // Prepare update data with all form fields
-            const updateData = {
-                name: formData.name.trim(),
-                college: formData.college?.trim() || '',
-                gender: formData.gender || 'Male',
-                dateOfBirth: formData.dateOfBirth?.trim() || ''
-            };
+        const updateData = {
+            name: formData.name.trim(),
+            college: formData.college?.trim() || '',
+            gender: formData.gender || 'Male',
+            dateOfBirth: formData.dateOfBirth?.trim() || '',
+        };
 
-            // Always include email and phone if provided (even if empty to clear existing data)
+        try {
             if (formData.email !== undefined) {
                 updateData.email = formData.email.trim();
             }
@@ -432,7 +430,7 @@ function EditProfile() {
                 <p className="text-sm text-gray-500 mb-4">Loading profile data...</p>
 
                 {/* Debug info */}
-                {process.env.NODE_ENV === 'development' && (
+                {import.meta.env.DEV && (
                     <div className="text-xs text-gray-400 mb-4 max-w-md text-center">
                         <p>Stored User: {storedUser ? 'Found' : 'Not found'}</p>
                         <p>Stored Token: {storedToken ? 'Found' : 'Not found'}</p>
@@ -475,7 +473,7 @@ function EditProfile() {
                         <div className={`hidden lg:block max-w-4xl mx-auto rounded-lg shadow-sm p-8 ${isDark ? 'bg-[#161718]' : 'bg-gray-100'}`}>
                             {/* Profile Section */}
                             <div className="flex items-center gap-4 mb-8">
-                                <div className="w-20 h-20 bg-gradient-to-br from-[#007BFF] to-[#00C9A7] rounded-full flex items-center justify-center relative overflow-hidden">
+                                <div className="w-20 h-20 bg-linear-to-br from-[#007BFF] to-[#00C9A7] rounded-full flex items-center justify-center relative overflow-hidden">
                                     {getUserAvatar()}
                                 </div>
                                 <div>
@@ -758,7 +756,7 @@ function EditProfile() {
                         <div className={`lg:hidden rounded-lg shadow-sm p-4 ${isDark ? 'bg-[#161718]' : 'bg-gray-100'}`}>
                             {/* Mobile Profile Section */}
                             <div className="flex flex-col items-center text-center mb-6">
-                                <div className="w-24 h-24 bg-gradient-to-br from-[#007BFF] to-[#00C9A7] rounded-full flex items-center justify-center mb-4 relative overflow-hidden">
+                                <div className="w-24 h-24 bg-linear-to-br from-[#007BFF] to-[#00C9A7] rounded-full flex items-center justify-center mb-4 relative overflow-hidden">
                                     {getMobileUserAvatar()}
                                 </div>
                                 <div className={`text-xl font-medium ${isDark ? 'text-white' : 'text-gray-900'} mb-1`}>
@@ -784,14 +782,14 @@ function EditProfile() {
                             {/* Mobile Error and Success Messages */}
                             {error && (
                                 <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${isDark ? 'bg-red-900/30 border border-red-700' : 'bg-red-50 border border-red-200'}`}>
-                                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                                    <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
                                     <span className="text-red-600 text-sm">{error}</span>
                                 </div>
                             )}
 
                             {success && (
                                 <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${isDark ? 'bg-green-900/30 border border-green-700' : 'bg-green-50 border border-green-200'}`}>
-                                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                                    <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
                                     <span className="text-green-600 text-sm">{success}</span>
                                 </div>
                             )}

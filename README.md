@@ -161,10 +161,8 @@ npm run build           # Production build
 - Default port is `8080` (see `backend/src/server.js`).
 
 **Frontend**:
-- This repo includes environment presets:
-  - `frontend/.env.development`
-  - `frontend/.env.production`
-  - `frontend/.env.domain`
+- Use `frontend/.env.example` as the template.
+- Create `frontend/.env` locally (do **not** commit it).
 - The frontend expects an API base like:
   - `VITE_API_BASE_URL=http://localhost:8080/api` (local)
 
@@ -183,11 +181,61 @@ npm run build           # Production build
 - `npm run dev`: Vite dev server
 - `npm run build`: production build
 - `npm run preview`: preview build locally
-- `npm run build:domain`: Windows-only helper that copies `.env.domain` → `.env` then builds
 
-## Deployment notes
+## Deployment
+
+**Stack:** Frontend on [Vercel](https://vercel.com), backend on [Railway](https://railway.app), database on MongoDB Atlas.
+
+### 1. Backend (Railway)
+
+1. Create a Railway service with **Root Directory** = `backend` (or use repo `railway.json`).
+2. Set these variables in the Railway dashboard (see `backend/.env.example`):
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `MONGODB_URI` | Yes | MongoDB Atlas connection string |
+| `JWT_SECRET` | Yes | Long random string |
+| `NODE_ENV` | Yes | `production` |
+| `CASHFREE_CLIENT_ID` | Yes | Payment Gateway API key |
+| `CASHFREE_CLIENT_SECRET` | Yes | Payment Gateway secret |
+| `CASHFREE_ENV` | Yes | `production` for live payments |
+| `ADMIN_EMAIL` | Yes | Admin dashboard login |
+| `ADMIN_PASSWORD` | Yes | Admin dashboard login |
+| `FRONTEND_URL` | Recommended | e.g. `https://www.crwdctrl.in` |
+| `RESEND_API_KEY` | Optional | Transactional email |
+| `CLOUDINARY_*` | Optional | Image uploads |
+
+3. Deploy — health check: `GET /api/health`
+
+Verify Cashfree locally before deploy:
+```bash
+cd backend && node scripts/test-cashfree.js
+```
+
+### 2. Frontend (Vercel)
+
+1. Set **Root Directory** to `frontend`.
+2. Build uses `frontend/vercel.json` — env vars are baked in at build time.
+3. **Critical:** `VITE_CASHFREE_MODE` must match backend `CASHFREE_ENV` (both `production` for live).
+4. Production API URL: `VITE_API_BASE_URL=https://crwdctrl-production-9c58.up.railway.app/api`
+
+For local dev, copy `frontend/.env.example` → `frontend/.env`.
+
+### 3. Cashfree checklist
+
+- Use **Payment Gateway** API keys (not Payouts).
+- Whitelist your domains in Cashfree Dashboard: `https://www.crwdctrl.in`, `https://crwdctrl.in`, Vercel preview URLs if needed.
+- Sandbox keys → set both `CASHFREE_ENV=sandbox` and `VITE_CASHFREE_MODE=sandbox`.
+
+### 4. Post-deploy smoke test
+
+- `GET https://<backend>/api/health` → 200
+- Open site → register/login
+- Test a paid fest/competition/trek booking → Cashfree checkout opens → payment verifies
+
+## Deployment notes (legacy)
 - **Vercel (frontend)**: set `VITE_API_BASE_URL` to your deployed backend base (ending in `/api`).
-- **Railway / Cloud Run (backend)**: ensure `PORT` is provided by the platform (defaults to `8080` locally).
+- **Railway (backend)**: `PORT` is injected automatically by the platform.
 
 ## API Routes
 

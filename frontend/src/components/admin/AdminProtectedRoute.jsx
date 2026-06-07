@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminProtectedRoute({ children }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   const adminToken = localStorage.getItem('admin_token');
 
   // Show loading while auth is being processed

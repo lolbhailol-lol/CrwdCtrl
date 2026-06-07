@@ -12,10 +12,7 @@ npm run dev
 
 ## Environment
 
-This repo includes preset env files:
-- `.env.development`
-- `.env.production`
-- `.env.domain`
+Copy `frontend/.env.example` to `frontend/.env` and set values (especially `VITE_API_BASE_URL`).
 
 The app expects `VITE_API_BASE_URL` to point at the backend API base (ending in `/api`), for example:
 - `http://localhost:8080/api`
@@ -25,12 +22,6 @@ The app expects `VITE_API_BASE_URL` to point at the backend API base (ending in 
 ```bash
 npm run build
 npm run preview
-```
-
-For domain builds on Windows:
-
-```bash
-npm run build:domain
 ```
 
 ## More docs

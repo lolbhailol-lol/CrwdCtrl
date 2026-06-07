@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, CheckCircle2, Shield, Users, Globe, FileText, Scale, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -138,7 +138,7 @@ export default function TermsAndConditions() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                         {termsData.about.purpose.map((purpose, index) => (
                             <div key={index} className="flex items-center gap-2">
-                                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
                                 <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {purpose}
                                 </span>
@@ -168,7 +168,7 @@ export default function TermsAndConditions() {
                     <div className="space-y-3">
                         {termsData.eligibility.requirements.map((requirement, index) => (
                             <div key={index} className="flex items-start gap-3">
-                                <CheckCircle2 className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                                <CheckCircle2 className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
                                 <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {requirement}
                                 </p>
@@ -191,7 +191,7 @@ export default function TermsAndConditions() {
                             <div className="space-y-2">
                                 {termsData.user_accounts.collected_information.map((info, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-indigo-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {info}
                                         </span>
@@ -206,7 +206,7 @@ export default function TermsAndConditions() {
                             <div className="space-y-2">
                                 {termsData.user_accounts.responsibilities.map((responsibility, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {responsibility}
                                         </span>
@@ -221,7 +221,7 @@ export default function TermsAndConditions() {
                             <div className="space-y-2">
                                 {termsData.user_accounts.platform_rights.map((right, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-2"></div>
+                                        <div className="w-2 h-2 bg-red-500 rounded-full shrink-0 mt-2"></div>
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {right}
                                         </span>
@@ -259,7 +259,7 @@ export default function TermsAndConditions() {
                             <div className="space-y-2">
                                 {termsData.event_listings.organizer_responsibility.map((responsibility, index) => (
                                     <div key={index} className="flex items-start gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                                        <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
                                         <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {responsibility}
                                         </span>

@@ -130,7 +130,7 @@ const competitionSchema = new mongoose.Schema(
 
   feeAmount: {
     type: Number,
-    default: 0, // numeric INR amount for Razorpay; 0 means free
+    default: 0, // numeric INR amount for online payment; 0 means free
   },
 
   registrationLink: {

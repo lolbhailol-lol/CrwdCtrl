@@ -7,7 +7,6 @@ import {
     symbiPhoto2,
     symbiPhoto3,
     symbiPhoto4,
-    symbiFashionShow,
     symbiBasketball,
     symbiCricket,
     symbiAtharva,

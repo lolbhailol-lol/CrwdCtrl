@@ -93,6 +93,7 @@ export default function CompetitionRegistrationsAdmin() {
         }
     };
 
+     
     useEffect(() => {
         fetchRegistrations();
         fetchStats();

@@ -1,0 +1,109 @@
+const mongoose = require('mongoose');
+const RunClub = require('../model/run_club_model');
+
+const dbOk = () => mongoose.connection.readyState === 1;
+
+function normalizeImageUrl(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'object' && value.url) return String(value.url).trim();
+    if (typeof value === 'object' && value.secure_url) return String(value.secure_url).trim();
+    return '';
+}
+
+function normalizeImageList(images) {
+    if (!Array.isArray(images)) return [];
+    return images.map(normalizeImageUrl).filter(Boolean);
+}
+
+function sanitizeRunClubBody(body = {}) {
+    const payload = {};
+    if (body.name !== undefined) payload.name = String(body.name).trim();
+    if (body.basedIn !== undefined) payload.basedIn = String(body.basedIn || '').trim();
+    if (body.organizer !== undefined) payload.organizer = String(body.organizer || '').trim();
+    if (body.aboutUs !== undefined) payload.aboutUs = String(body.aboutUs || '').trim();
+    if (body.coverImage !== undefined) payload.coverImage = normalizeImageUrl(body.coverImage);
+    if (body.galleryImages !== undefined) payload.galleryImages = normalizeImageList(body.galleryImages);
+    if (body.registrationLink !== undefined) payload.registrationLink = String(body.registrationLink || '').trim();
+    if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
+    if (body.contactInstagram !== undefined) payload.contactInstagram = String(body.contactInstagram || '').trim();
+    if (body.showOnSportsPage !== undefined) payload.showOnSportsPage = Boolean(body.showOnSportsPage);
+    if (body.showInRunClubs !== undefined) payload.showInRunClubs = Boolean(body.showInRunClubs);
+    if (body.runClubPriority !== undefined) {
+        const p = parseInt(body.runClubPriority, 10);
+        payload.runClubPriority = Number.isNaN(p) ? 999 : Math.max(1, Math.min(999, p));
+    }
+    if (body.status !== undefined && ['published', 'draft'].includes(body.status)) {
+        payload.status = body.status;
+    }
+    return payload;
+}
+
+exports.create = async (req, res) => {
+    try {
+        if (!dbOk()) return res.status(503).json({ message: 'DB not connected' });
+        const payload = sanitizeRunClubBody(req.body);
+        if (!payload.name) return res.status(400).json({ message: 'Run club name is required' });
+        const club = new RunClub(payload);
+        await club.save();
+        res.status(201).json({ message: 'Run club created', club });
+    } catch (err) {
+        console.error('[RunClub] create error:', err.message);
+        res.status(500).json({ message: 'Failed to create run club', error: err.message });
+    }
+};
+
+exports.getAll = async (req, res) => {
+    try {
+        if (!dbOk()) return res.status(503).json({ message: 'DB not connected' });
+        const clubs = await RunClub.find()
+            .sort({ runClubPriority: 1, createdAt: -1 })
+            .limit(parseInt(req.query.limit, 10) || 100)
+            .lean();
+        res.json({ clubs });
+    } catch (err) {
+        console.error('[RunClub] getAll error:', err.message);
+        res.status(500).json({ message: 'Failed to fetch run clubs', error: err.message });
+    }
+};
+
+exports.getById = async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid ID' });
+        }
+        const club = await RunClub.findById(req.params.id).lean();
+        if (!club) return res.status(404).json({ message: 'Not found' });
+        res.json({ club });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to fetch run club', error: err.message });
+    }
+};
+
+exports.update = async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid ID' });
+        }
+        const payload = sanitizeRunClubBody(req.body);
+        const club = await RunClub.findByIdAndUpdate(req.params.id, { $set: payload }, { new: true });
+        if (!club) return res.status(404).json({ message: 'Not found' });
+        res.json({ message: 'Updated', club });
+    } catch (err) {
+        console.error('[RunClub] update error:', err.message);
+        res.status(500).json({ message: 'Failed to update run club', error: err.message });
+    }
+};
+
+exports.remove = async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid ID' });
+        }
+        const club = await RunClub.findByIdAndDelete(req.params.id);
+        if (!club) return res.status(404).json({ message: 'Not found' });
+        res.json({ message: 'Deleted' });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to delete run club', error: err.message });
+    }
+};

@@ -1,5 +1,11 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, ImagePlus } from 'lucide-react';
+import {
+    TREK_FILTER_SECTIONS,
+    emptyTrekFilters,
+    getBudgetTier,
+    DIFFICULTY_LEVEL_FILTER_OPTIONS,
+} from '../../constants/trekFilters';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -9,9 +15,10 @@ const CATEGORY_VALUE_MAP = {
     Hiking: 'hiking',
     Backpacking: 'backpacking',
     Adventure: 'adventure',
+    Nature: 'nature',
 };
 
-const CATEGORY_VALUES = new Set(['hiking', 'trail', 'backpacking', 'camping', 'adventure']);
+const CATEGORY_VALUES = new Set(['hiking', 'trail', 'backpacking', 'camping', 'adventure', 'nature']);
 
 const normalizeCategory = (label) => {
     if (!label) return null;
@@ -32,10 +39,84 @@ const EMPTY = {
     itinerary: [],
     coverImage: '',
     images: [],
+    trekFilters: emptyTrekFilters(),
 };
 
+function TrekFilterTagsEditor({ trekFilters, difficultyLevel, registrationFee, onChange }) {
+    const toggleTag = (sectionId, option) => {
+        const current = trekFilters[sectionId] || [];
+        const next = current.includes(option)
+            ? current.filter((v) => v !== option)
+            : [...current, option];
+        onChange({ ...trekFilters, [sectionId]: next });
+    };
+
+    const budgetTier = getBudgetTier(registrationFee);
+
+    return (
+        <div className="border border-[#0ECCEE]/20 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 bg-[#0ECCEE]/5 border-b border-[#0ECCEE]/15">
+                <p className="text-sm font-bold text-[#0ECCEE]">User Filter Tags</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">
+                    These appear when users filter treks on the Trek Category page.
+                </p>
+            </div>
+
+            <div className="p-4 space-y-4">
+                <div className="rounded-lg bg-[#1D1E20] border border-gray-700 px-3 py-2">
+                    <p className="text-xs font-semibold text-gray-300">Difficulty level (auto)</p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                        Easy / Moderate / Difficult / Extreme filters use the Difficulty Level field above
+                        {difficultyLevel ? `: ${difficultyLevel}` : '.'}
+                    </p>
+                </div>
+
+                <div className="rounded-lg bg-[#1D1E20] border border-gray-700 px-3 py-2">
+                    <p className="text-xs font-semibold text-gray-300">Budget tier (auto)</p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                        Based on Registration Fee:{' '}
+                        <span className="text-[#0ECCEE] font-medium">{budgetTier}</span>
+                    </p>
+                </div>
+
+                {TREK_FILTER_SECTIONS.filter((section) => !section.adminAuto).map((section) => (
+                    <div key={section.id}>
+                        <p className="text-xs font-semibold text-gray-300 mb-1">{section.label}</p>
+                        {section.adminNote && (
+                            <p className="text-[10px] text-gray-600 mb-2">{section.adminNote}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                            {section.options.map((option) => {
+                                const checked = (trekFilters[section.id] || []).includes(option);
+                                return (
+                                    <button
+                                        key={option}
+                                        type="button"
+                                        onClick={() => toggleTag(section.id, option)}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                            checked
+                                                ? 'bg-[#0ECCEE]/20 border-[#0ECCEE] text-[#0ECCEE]'
+                                                : 'bg-[#1D1E20] border-gray-600 text-gray-400 hover:border-gray-500'
+                                        }`}
+                                    >
+                                        {option}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+
+                <p className="text-[10px] text-gray-600">
+                    Difficulty filters shown to users: {DIFFICULTY_LEVEL_FILTER_OPTIONS.join(', ')} plus any tags selected above.
+                </p>
+            </div>
+        </div>
+    );
+}
+
 /* Reusable chip-list editor for dates / time slots / locations */
-function RegListEditor({ label, hint, items, placeholder, onChange, inp }) {
+function RegListEditor({ label, hint, items, placeholder, onChange }) {
     const [draft, setDraft] = useState('');
     const add = () => { const v = draft.trim(); if (v && !items.includes(v)) { onChange([...items, v]); setDraft(''); } };
     return (
@@ -92,6 +173,10 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 itinerary: trek.itinerary || [],
                 coverImage: trek.coverImage || '',
                 images: trek.images || [],
+                trekFilters: {
+                    ...emptyTrekFilters(),
+                    ...(trek.trekFilters || {}),
+                },
             });
         } else {
             setForm({ ...EMPTY, communityId: communityId || null });
@@ -186,6 +271,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 registrationFee: Number(form.registrationFee) || 0,
                 maxParticipants: Number(form.maxParticipants) || 0,
                 trekDate: form.trekDate || null,
+                trekFilters: form.trekFilters || emptyTrekFilters(),
             };
             delete payload.featuredSection;
             delete payload.homeSection;
@@ -307,6 +393,13 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
 
                     <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Link</label><input type="url" value={form.registrationLink} onChange={e => set('registrationLink', e.target.value)} className={inp} placeholder="https://..." /></div>
 
+                    <TrekFilterTagsEditor
+                        trekFilters={form.trekFilters || emptyTrekFilters()}
+                        difficultyLevel={form.difficultyLevel}
+                        registrationFee={form.registrationFee}
+                        onChange={(next) => set('trekFilters', next)}
+                    />
+
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Inclusions (one per line)</label>
                         <textarea value={form.inclusions} onChange={e => set('inclusions', e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Meals&#10;Transport&#10;Guide" />
@@ -352,7 +445,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         <label className="block text-sm font-medium text-gray-300 mb-2">Cover Image <span className="text-gray-500 font-normal text-xs">(shown on cards and hero banners)</span></label>
                         <div className="flex items-start gap-4">
                             {form.coverImage ? (
-                                <div className="relative w-32 h-20 flex-shrink-0">
+                                <div className="relative w-32 h-20 shrink-0">
                                     <img src={form.coverImage} alt="Cover" className="w-full h-full object-cover rounded-lg border border-gray-600" />
                                     <button type="button" onClick={() => set('coverImage', '')} className="absolute -top-1.5 -right-1.5 bg-red-600 rounded-full p-0.5 hover:bg-red-700"><X size={10} /></button>
                                 </div>
@@ -474,7 +567,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                                 onChange={e=>{const u=[...(form.registration?.formSchema||[])];u[idx]={...field,placeholder:e.target.value};set('registration',{...form.registration,formSchema:u});}}
                                                 className="flex-1 bg-[#111213] border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#0ECCEE]"
                                             />
-                                            <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0">
+                                            <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
                                                 <input type="checkbox" checked={field.required||false}
                                                     onChange={e=>{const u=[...(form.registration?.formSchema||[])];u[idx]={...field,required:e.target.checked};set('registration',{...form.registration,formSchema:u});}}
                                                     className="accent-[#0ECCEE]" />

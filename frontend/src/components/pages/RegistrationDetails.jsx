@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Calendar, MapPin, User, Mail, Phone } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -16,6 +16,7 @@ export default function RegistrationDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+   
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -84,7 +85,7 @@ export default function RegistrationDetails() {
             {error || 'Registration not found'}
           </h2>
           <button
-            onClick={() => navigate('/registered-fest')}
+            onClick={() => navigate('/booking')}
             className="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-600 transition"
           >
             Back to Registered Events
@@ -108,8 +109,8 @@ export default function RegistrationDetails() {
         {/* Header */}
         <div className="flex items-center gap-2 sm:gap-4 mb-6 sm:mb-8">
           <button
-            onClick={() => navigate('/registered-fest')}
-            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+            onClick={() => navigate('/booking')}
+            className={`p-2 rounded-lg transition-colors shrink-0 ${
               isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
             }`}
           >
@@ -128,7 +129,7 @@ export default function RegistrationDetails() {
         {/* Success Banner */}
         <div className={`${isDark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'} border rounded-lg p-3 sm:p-4 mb-4 sm:mb-6`}>
           <div className="flex items-start gap-2 sm:gap-3">
-            <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 flex-shrink-0 mt-0.5" />
+            <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 shrink-0 mt-0.5" />
             <div className="min-w-0">
               <h3 className={`text-sm sm:text-base font-semibold ${isDark ? 'text-green-400' : 'text-green-800'}`}>
                 Registration Successful!
@@ -151,7 +152,7 @@ export default function RegistrationDetails() {
               <img
                 src={eventImage}
                 alt={eventName}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover flex-shrink-0"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover shrink-0"
                 onError={(e) => {
                   e.target.style.display = 'none';
                 }}
@@ -256,7 +257,7 @@ export default function RegistrationDetails() {
         {/* Action Buttons */}
         <div className="mt-6 flex flex-col sm:flex-row gap-4">
           <button
-            onClick={() => navigate('/registered-fest')}
+            onClick={() => navigate('/booking')}
             className={`px-6 py-3 rounded-lg border transition-colors ${
               isDark 
                 ? 'border-gray-600 text-gray-300 hover:bg-gray-800' 

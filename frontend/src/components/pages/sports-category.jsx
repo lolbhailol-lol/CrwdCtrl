@@ -9,26 +9,21 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import HomeCategoryBar from '../HomeCategoryBar';
 import Logo from '../../assets/logo01_.svg';
 import ShareIcon from '../../assets/share.svg';
-import MarathonBrowseIcon from '../../assets/mobile-icons/marathon.png';
-import RunClubsBrowseIcon from '../../assets/mobile-icons/run clubs.png';
-import SportClubsBrowseIcon from '../../assets/mobile-icons/sports club.png';
-import OthersBrowseIcon from '../../assets/mobile-icons/others.png';
+import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
 import {
     SPORT_TYPE_LABELS,
     getSportsDisplayType,
     showsInRunClubs,
     showsInUpcoming,
-    sortSportsEvents,
+    sortUpcomingEvents,
+    sortRunClubEvents,
+    normalizeSportsSections,
 } from '../../constants/sportsPage';
+import { normalizeImageUrl } from '../../utils/uploadUrls';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
-const BROWSE_CATEGORIES = [
-    { id: 'marathon', label: 'Marathon', sportTypes: ['marathon'], image: MarathonBrowseIcon },
-    { id: 'run_club', label: 'Run Clubs', sportTypes: ['run_club'], image: RunClubsBrowseIcon },
-    { id: 'sport_clubs', label: 'Sport Clubs', sportTypes: ['football', 'cricket', 'badminton', 'gymkhana'], image: SportClubsBrowseIcon },
-    { id: 'other', label: 'Others', sportTypes: ['other'], image: OthersBrowseIcon },
-];
+const BROWSE_CATEGORIES = SPORTS_BROWSE_CATEGORIES;
 
 const ACTIVITY_CARD_W = 320; // w-80
 const ACTIVITY_CARD_GAP = 16; // gap-4
@@ -179,7 +174,7 @@ function ActivityCard({ item, isDark, isFavorite, onToggleFavorite, onClick }) {
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#14532d', item.title || 'Sports')}
                     />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-emerald-800 to-green-600 flex items-center justify-center">
+                    <div className="w-full h-full bg-linear-to-br from-emerald-800 to-green-600 flex items-center justify-center">
                         <span className="text-6xl">⚽</span>
                     </div>
                 )}
@@ -259,7 +254,7 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#14532d', club.title || 'Run Club')}
                     />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-green-800 to-emerald-600 flex items-center justify-center">
+                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
                         <span className="text-5xl">🏃</span>
                     </div>
                 )}
@@ -306,21 +301,26 @@ export default function SportsCategoryPage() {
 
     const [sportsEvents, setSportsEvents] = useState([]);
     const [sportsFests, setSportsFests] = useState([]);
+    const [runClubEntities, setRunClubEntities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeBrowse, setActiveBrowse] = useState(null);
 
     const activitiesScrollRef = useRef(null);
 
     const loadData = useCallback(async () => {
         try {
-            const [eventsRes, festsRes] = await Promise.all([
+            const [eventsRes, festsRes, clubsRes] = await Promise.all([
                 fetch(`${API}/sports?_cb=${Date.now()}`, {
                     credentials: 'omit',
                     mode: 'cors',
                     headers: { Accept: 'application/json' },
                 }),
                 fetch(`${API}/fests/all?_cb=${Date.now()}`, {
+                    credentials: 'omit',
+                    mode: 'cors',
+                    headers: { Accept: 'application/json' },
+                }),
+                fetch(`${API}/run-clubs?_cb=${Date.now()}`, {
                     credentials: 'omit',
                     mode: 'cors',
                     headers: { Accept: 'application/json' },
@@ -341,9 +341,17 @@ export default function SportsCategoryPage() {
             } else {
                 setSportsFests([]);
             }
+
+            if (clubsRes.ok) {
+                const data = await clubsRes.json();
+                setRunClubEntities(Array.isArray(data?.clubs) ? data.clubs : []);
+            } else {
+                setRunClubEntities([]);
+            }
         } catch {
             setSportsEvents([]);
             setSportsFests([]);
+            setRunClubEntities([]);
         } finally {
             setLoading(false);
         }
@@ -365,13 +373,13 @@ export default function SportsCategoryPage() {
     }, [loadData]);
 
     const normalizedActivities = useMemo(() => {
-        const fromEvents = sortSportsEvents(sportsEvents.filter(showsInUpcoming)).map((e) => ({
+        const fromEvents = sortUpcomingEvents(sportsEvents.filter(showsInUpcoming)).map((e) => ({
             id: e._id,
             kind: 'event',
             sportType: e.sportType,
             title: e.title,
             subtitle: getSportsDisplayType(e, SPORT_TYPE_LABELS),
-            image: e.images?.[0] || null,
+            image: normalizeImageUrl(e.images?.[0]) || null,
             shareUrl: e.registrationLink || `${window.location.origin}/sports`,
             registrationLink: e.registrationLink,
             festId: null,
@@ -393,28 +401,14 @@ export default function SportsCategoryPage() {
     }, [sportsEvents, sportsFests]);
 
     const filteredActivities = useMemo(() => {
-        let list = normalizedActivities;
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            list = list.filter(
-                (item) =>
-                    item.title?.toLowerCase().includes(q) ||
-                    item.subtitle?.toLowerCase().includes(q)
-            );
-        }
-        if (activeBrowse) {
-            const cat = BROWSE_CATEGORIES.find((c) => c.id === activeBrowse);
-            if (cat) {
-                list = list.filter((item) => {
-                    if (item.kind === 'fest') {
-                        return activeBrowse === 'sport_clubs' || activeBrowse === 'other';
-                    }
-                    return cat.sportTypes.includes(item.sportType);
-                });
-            }
-        }
-        return list;
-    }, [normalizedActivities, searchQuery, activeBrowse]);
+        if (!searchQuery.trim()) return normalizedActivities;
+        const q = searchQuery.toLowerCase();
+        return normalizedActivities.filter(
+            (item) =>
+                item.title?.toLowerCase().includes(q) ||
+                item.subtitle?.toLowerCase().includes(q)
+        );
+    }, [normalizedActivities, searchQuery]);
 
     const activitiesSidePad = useCenteredCarouselSidePad(activitiesScrollRef);
     const { slides: activitySlides, activeIndex: activitiesIdx } = useActivityLoopCarousel(
@@ -423,17 +417,27 @@ export default function SportsCategoryPage() {
         activitiesSidePad
     );
 
-    const runClubs = useMemo(
-        () =>
-            sortSportsEvents(sportsEvents.filter(showsInRunClubs)).map((e) => ({
-                id: e._id,
-                title: e.title,
-                subtitle: e.city || e.organizer || 'Based in',
-                image: e.images?.[0] || null,
-                registrationLink: e.registrationLink,
-            })),
-        [sportsEvents]
-    );
+    const runClubs = useMemo(() => {
+        const fromClubs = runClubEntities.map((c) => ({
+            id: c._id,
+            title: c.name,
+            subtitle: c.basedIn || c.organizer || 'Based in',
+            image: normalizeImageUrl(c.coverImage) || null,
+            registrationLink: c.registrationLink,
+            sortKey: c.runClubPriority ?? 999,
+        }));
+
+        const legacyEvents = sortRunClubEvents(sportsEvents.filter(showsInRunClubs)).map((e) => ({
+            id: e._id,
+            title: e.title,
+            subtitle: e.city || e.organizer || 'Based in',
+            image: normalizeImageUrl(e.images?.[0]) || null,
+            registrationLink: e.registrationLink,
+            sortKey: normalizeSportsSections(e).runClubPriority ?? 999,
+        }));
+
+        return [...fromClubs, ...legacyEvents].sort((a, b) => a.sortKey - b.sortKey);
+    }, [runClubEntities, sportsEvents]);
 
     const handleActivityClick = (item) => {
         if (item.kind === 'fest' && item.festId) {
@@ -450,61 +454,67 @@ export default function SportsCategoryPage() {
     }`;
 
     return (
-        <div className={`flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-            {/* ── Header — Figma: slate-100 h-72 shell ── */}
-            <header className={`lg:hidden sticky top-0 z-40 ${isDark ? 'bg-[#0D0E10]/95' : 'bg-slate-100/95'} backdrop-blur-md`}>
+        <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+            {/* ── Sticky Header — rounded shell like Dashboard ── */}
+            <header
+                className={`lg:hidden sticky top-0 z-40 backdrop-blur-md transition-all duration-300 overflow-hidden rounded-b-[40px] ${
+                    isDark ? 'bg-[#0D0E10]/95' : 'bg-white/95'
+                }`}
+            >
                 <div
-                    className={`rounded-b-2xl px-4 pb-4 ${isDark ? 'bg-[#0D0E10]' : 'bg-slate-100'}`}
+                    className={`rounded-b-[40px] px-4 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${
+                        isDark ? 'bg-[#0D0E10]' : 'bg-white'
+                    }`}
                     style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
                 >
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-2">
                         <img
                             src={Logo}
                             alt="CrwdCtrl"
-                            className="h-16 w-auto cursor-pointer"
+                            className="h-20 sm:h-24 w-auto cursor-pointer"
                             onClick={() => navigate('/')}
                         />
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                             <button
                                 type="button"
                                 onClick={() => navigate('/')}
-                                className={`size-10 rounded-full flex items-center justify-center ${
-                                    isDark ? 'bg-white/10 text-white' : 'bg-white text-gray-900'
+                                className={`p-2 rounded-xl bg-transparent transition-colors ${
+                                    isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'
                                 }`}
                                 aria-label="Location"
                             >
-                                <MapPin className="w-5 h-5" />
+                                <MapPin className="w-6 h-6" />
                             </button>
                             <button
                                 type="button"
                                 onClick={() => navigate('/notifications')}
-                                className={`relative size-10 rounded-full flex items-center justify-center ${
-                                    isDark ? 'bg-white/10 text-white' : 'bg-white text-gray-900'
+                                className={`relative p-2 rounded-xl bg-transparent transition-colors ${
+                                    isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'
                                 }`}
                                 aria-label="Notifications"
                             >
-                                <Bell className="w-5 h-5" />
+                                <Bell className="w-6 h-6" />
                                 {unreadCount > 0 && (
-                                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+                                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
                                 )}
                             </button>
                         </div>
                     </div>
 
-                    <div className="mb-4">
+                    <div className="mb-3.5">
                         <div
-                            className={`flex items-center gap-6 h-11 rounded-2xl px-4 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] ${
-                                isDark ? 'bg-[#161718]' : 'bg-white'
+                            className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-4 ${
+                                isDark ? 'bg-[#161718]' : 'bg-[#ffffff] border border-gray-100'
                             }`}
                         >
-                            <Search size={16} className="text-[#0ECCEE] shrink-0" />
+                            <Search size={16} className="text-gray-400 shrink-0" />
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="search college, fest"
-                                className={`flex-1 bg-transparent text-xs font-medium font-roboto leading-4 tracking-wide outline-none ${
-                                    isDark ? 'text-gray-200 placeholder-gray-500' : 'text-gray-500 placeholder-gray-400'
+                                className={`flex-1 bg-transparent text-sm outline-none ${
+                                    isDark ? 'text-gray-200 placeholder-gray-500' : 'text-gray-800 placeholder-gray-400'
                                 }`}
                             />
                             {searchQuery && (
@@ -520,6 +530,7 @@ export default function SportsCategoryPage() {
             </header>
 
             <main className="flex-1 pb-28 overflow-x-hidden">
+                <div className="max-w-2xl lg:max-w-7xl mx-auto">
                 {/* ── Upcoming Activities ── */}
                 <section className="mt-5 mb-8">
                     <h2 className={sectionTitle}>Upcoming Activities</h2>
@@ -628,47 +639,34 @@ export default function SportsCategoryPage() {
                         className="flex justify-between gap-2 overflow-x-auto scrollbar-hide pb-1"
                         style={{ scrollbarWidth: 'none' }}
                     >
-                        {BROWSE_CATEGORIES.map((cat) => {
-                            const isActive = activeBrowse === cat.id;
-                            return (
-                                <button
-                                    key={cat.id}
-                                    type="button"
-                                    onClick={() => setActiveBrowse(isActive ? null : cat.id)}
-                                    className="flex flex-col items-center shrink-0 w-[72px] active:scale-95 transition-transform"
+                        {BROWSE_CATEGORIES.map((cat) => (
+                            <div
+                                key={cat.id}
+                                className="flex flex-col items-center shrink-0 w-[72px]"
+                            >
+                                <div
+                                    className={`size-20 rounded-full overflow-hidden ${
+                                        isDark ? 'bg-[#111213]' : 'bg-slate-100'
+                                    }`}
                                 >
-                                    <div
-                                        className={`size-20 rounded-full overflow-hidden transition-all ${
-                                            isActive ? 'ring-2 ring-[#0ECCEE] ring-offset-2' : ''
-                                        } ${isDark ? 'bg-[#111213]' : 'bg-slate-100'}`}
-                                    >
-                                        <img
-                                            src={cat.image}
-                                            alt={cat.label}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                    <span
-                                        className={`mt-2 text-sm font-medium font-inter leading-5 tracking-tight text-center ${
-                                            isActive ? 'text-[#0ECCEE]' : isDark ? 'text-white' : 'text-black'
-                                        }`}
-                                    >
-                                        {cat.label}
-                                    </span>
-                                </button>
-                            );
-                        })}
+                                    <img
+                                        src={cat.image}
+                                        alt={cat.label}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <span
+                                    className={`mt-2 text-sm font-medium font-inter leading-5 tracking-tight text-center ${
+                                        isDark ? 'text-white' : 'text-black'
+                                    }`}
+                                >
+                                    {cat.label}
+                                </span>
+                            </div>
+                        ))}
                     </div>
-                    {activeBrowse && (
-                        <button
-                            type="button"
-                            onClick={() => setActiveBrowse(null)}
-                            className="mt-4 text-sm font-medium text-[#0ECCEE]"
-                        >
-                            Clear category filter
-                        </button>
-                    )}
                 </section>
+                </div>
             </main>
         </div>
     );

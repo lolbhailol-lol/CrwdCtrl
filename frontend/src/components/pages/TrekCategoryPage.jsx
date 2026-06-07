@@ -1,28 +1,133 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import ShareIcon from '../../assets/share.svg';
-import HikingIcon from '../../assets/mobile-icons/hiking.svg';
-import TrailIcon from '../../assets/mobile-icons/trail walks.svg';
-import BackpackingIcon from '../../assets/mobile-icons/backpacking.svg';
-import CampingIcon from '../../assets/mobile-icons/camping.svg';
-import AdventureIcon from '../../assets/mobile-icons/adventure.svg';
-import NatureIcon from '../../assets/mobile-icons/nature.svg';
+import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
+import {
+    USER_FILTER_SECTIONS,
+    emptyUserFilters,
+    trekMatchesFilters,
+} from '../../constants/trekFilters';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
-const TREK_CATEGORIES = [
-    { id: 'hiking',      label: 'Hiking',      icon: HikingIcon,      bg: '#FFF7ED', darkBg: '#2D1B0E' },
-    { id: 'trail',       label: 'Trail Walks', icon: TrailIcon,       bg: '#F0FDF4', darkBg: '#0A2318' },
-    { id: 'backpacking', label: 'Backpacking', icon: BackpackingIcon, bg: '#EEF2FF', darkBg: '#1A1B3A' },
-    { id: 'camping',     label: 'Camping',     icon: CampingIcon,     bg: '#0F172A', darkBg: '#0F172A' },
-    { id: 'adventure',   label: 'Adventure',   icon: AdventureIcon,   bg: '#F0F9FF', darkBg: '#0B1D2E' },
-    { id: 'nature',      label: 'Nature',      icon: NatureIcon,      bg: '#D1FAE5', darkBg: '#0A2D1A' },
-];
+const TREK_CATEGORIES = TREK_BROWSE_CATEGORIES;
+
+function TrekFilterModal({ isOpen, isDark, draftFilters, onToggle, onClear, onApply, onClose }) {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[119px]">
+            <button
+                type="button"
+                aria-label="Close filters"
+                className="absolute inset-0 bg-stone-900/50"
+                onClick={onClose}
+            />
+
+            <div
+                className={`relative w-full max-w-[288px] rounded-3xl overflow-hidden shadow-xl ${
+                    isDark ? 'bg-[#111213]' : 'bg-white'
+                }`}
+            >
+                <div className={`px-5 py-4 ${isDark ? 'bg-[#161718]' : 'bg-[#F5F6FA]'}`}>
+                    <h2
+                        className={`text-lg font-semibold font-inter leading-7 tracking-wide ${
+                            isDark ? 'text-white' : 'text-gray-900'
+                        }`}
+                    >
+                        Filter by
+                    </h2>
+                </div>
+
+                <div className="max-h-[360px] overflow-y-auto px-5 py-4">
+                    {USER_FILTER_SECTIONS.map((section) => (
+                        <div key={section.id} className="flex gap-4 py-3 border-b border-black/10 last:border-b-0">
+                            <p
+                                className={`w-20 shrink-0 text-sm font-semibold font-inter leading-5 tracking-tight pt-0.5 ${
+                                    isDark ? 'text-white' : 'text-gray-900'
+                                }`}
+                            >
+                                {section.label}
+                            </p>
+
+                            <div className="relative flex-1 pl-4 border-l border-black/20">
+                                <div className="space-y-3">
+                                    {section.options.map((option) => {
+                                        const checked = (draftFilters[section.id] || []).includes(option);
+                                        return (
+                                            <label
+                                                key={option}
+                                                className="flex items-center gap-3 cursor-pointer select-none"
+                                            >
+                                                <span
+                                                    className={`size-3 shrink-0 border flex items-center justify-center ${
+                                                        isDark ? 'border-gray-400' : 'border-black'
+                                                    } ${checked ? (isDark ? 'bg-[#0ECCEE]' : 'bg-white') : ''}`}
+                                                >
+                                                    {checked && (
+                                                        <svg viewBox="0 0 12 10" className="w-2 h-1.5" aria-hidden>
+                                                            <path
+                                                                d="M1 5 L4.5 8.5 L11 1"
+                                                                fill="none"
+                                                                stroke={isDark ? '#111213' : '#000'}
+                                                                strokeWidth="1.5"
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                            />
+                                                        </svg>
+                                                    )}
+                                                </span>
+                                                <input
+                                                    type="checkbox"
+                                                    className="sr-only"
+                                                    checked={checked}
+                                                    onChange={() => onToggle(section.id, option)}
+                                                />
+                                                <span
+                                                    className={`text-sm font-medium font-inter leading-5 tracking-tight ${
+                                                        isDark ? 'text-gray-200' : 'text-black/80'
+                                                    }`}
+                                                >
+                                                    {option}
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="flex items-center justify-center gap-3 px-5 pb-5 pt-2">
+                    <button
+                        type="button"
+                        onClick={onClear}
+                        className={`h-8 min-w-28 rounded-2xl text-base font-medium font-inter leading-6 ${
+                            isDark
+                                ? 'bg-[#161718] text-[#0ECCEE]'
+                                : 'bg-[#F5F6FA] text-[#0ECCEE]'
+                        }`}
+                    >
+                        Clear all
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onApply}
+                        className="h-8 min-w-28 rounded-2xl bg-[#0ECCEE] text-black text-base font-medium font-inter leading-6"
+                    >
+                        Apply
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function TrekCategoryPage() {
     const navigate        = useNavigate();
@@ -34,6 +139,13 @@ export default function TrekCategoryPage() {
     const [communities, setCommunities] = useState([]);
     const [loading,     setLoading]     = useState(true);
     const [active,      setActive]      = useState(category || TREK_CATEGORIES[0].id);
+    const [showFilter,  setShowFilter]  = useState(false);
+    const [draftFilters, setDraftFilters] = useState(emptyUserFilters);
+    const [appliedFilters, setAppliedFilters] = useState(emptyUserFilters);
+
+    useEffect(() => {
+        if (category) setActive(category);
+    }, [category]);
 
     useEffect(() => {
         Promise.all([
@@ -49,58 +161,148 @@ export default function TrekCategoryPage() {
             .finally(() => setLoading(false));
     }, []);
 
-    const filtered = treks.filter(t => t.trekCategory === active);
+    const filtered = useMemo(
+        () =>
+            treks.filter(
+                (t) => t.trekCategory === active && trekMatchesFilters(t, appliedFilters)
+            ),
+        [treks, active, appliedFilters]
+    );
+
+    const activeFilterCount = useMemo(
+        () => Object.values(appliedFilters).reduce((sum, values) => sum + values.length, 0),
+        [appliedFilters]
+    );
+
+    const toggleDraftFilter = (sectionId, option) => {
+        setDraftFilters((prev) => {
+            const current = prev[sectionId] || [];
+            const next = current.includes(option)
+                ? current.filter((v) => v !== option)
+                : [...current, option];
+            return { ...prev, [sectionId]: next };
+        });
+    };
+
+    const handleOpenFilter = () => {
+        setDraftFilters(appliedFilters);
+        setShowFilter(true);
+    };
+
+    const handleApplyFilters = () => {
+        setAppliedFilters(draftFilters);
+        setShowFilter(false);
+    };
+
+    const handleClearDraft = () => {
+        setDraftFilters(emptyUserFilters());
+    };
+
+    const handleClearFilters = () => {
+        const cleared = emptyUserFilters();
+        setDraftFilters(cleared);
+        setAppliedFilters(cleared);
+    };
 
     const commName = (id) =>
         communities.find(c => String(c._id) === String(id))?.name || '';
 
     const bg   = isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]';
-    const card = isDark ? 'bg-[#111213]' : 'bg-white';
 
     return (
         <div className={`flex flex-col min-h-screen max-w-md mx-auto ${bg}`}>
 
             {/* ── Sticky Header ── */}
             <div
-                className={`sticky top-0 z-40 rounded-b-3xl px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-black' : 'bg-white'}`}
+                className={`sticky top-0 z-40 rounded-b-2xl px-4 pb-4 ${isDark ? 'bg-black' : 'bg-slate-100'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
             >
-                {/* Back + Title */}
+                {/* Back + Title + Filter */}
                 <div className="flex items-center gap-3 mt-2 mb-5">
                     <button
+                        type="button"
                         onClick={() => navigate(-1)}
-                        className={`size-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}
+                        className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
+                            isDark ? 'bg-white/10' : 'bg-white'
+                        }`}
                     >
-                        <ArrowLeft size={18} className={isDark ? 'text-white' : 'text-gray-700'} />
+                        <ArrowLeft size={18} className={isDark ? 'text-white' : 'text-gray-900'} />
                     </button>
-                    <h1 className={`text-2xl font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Trek Category</h1>
+                    <h1
+                        className={`flex-1 text-2xl font-medium font-inter leading-8 ${
+                            isDark ? 'text-white' : 'text-gray-900'
+                        }`}
+                    >
+                        Trek Category
+                    </h1>
+                    <button
+                        type="button"
+                        onClick={handleOpenFilter}
+                        className={`relative size-8 rounded-full flex items-center justify-center shrink-0 ${
+                            isDark ? 'bg-white/10' : 'bg-white'
+                        }`}
+                        aria-label="Open filters"
+                    >
+                        <SlidersHorizontal size={16} className={isDark ? 'text-white' : 'text-gray-900'} />
+                        {activeFilterCount > 0 && (
+                            <span className="absolute -top-1 -right-1 size-4 rounded-full bg-[#0ECCEE] text-[10px] font-semibold text-black flex items-center justify-center">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
                 </div>
 
                 {/* Category circles */}
                 <div className="overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
-                    <div className="flex gap-5 pb-2 pt-6">
-                        {TREK_CATEGORIES.map(cat => (
+                    <div className="flex gap-7 pb-2 pt-2">
+                        {TREK_CATEGORIES.map((cat) => (
                             <button
                                 key={cat.id}
+                                type="button"
                                 onClick={() => setActive(cat.id)}
-                                className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-95 transition-all duration-200"
+                                className="flex flex-col items-center gap-1.5 shrink-0 active:scale-95 transition-all duration-200"
                             >
-                                <div className={`transition-all duration-200 ${active === cat.id ? '-translate-y-2 scale-110' : 'scale-100'}`}>
-                                    <div
-                                        className="size-20 rounded-full overflow-hidden flex items-center justify-center transition-all duration-200"
-                                        style={{ backgroundColor: isDark ? '#161718' : '#F5F5F0' }}
-                                    >
-                                        <img src={cat.icon} alt={cat.label} className="w-full h-full object-contain object-center" />
-                                    </div>
+                                <div
+                                    className={`size-20 rounded-full overflow-hidden ${
+                                        active === cat.id ? 'ring-2 ring-[#0ECCEE] ring-offset-2' : ''
+                                    } ${isDark ? 'bg-[#111213]' : 'bg-slate-100'}`}
+                                >
+                                    <img
+                                        src={cat.image}
+                                        alt={cat.label}
+                                        className="w-full h-full object-cover"
+                                    />
                                 </div>
-                                <span className={`text-xs font-medium ${active === cat.id ? 'text-[#0ECCEE]' : isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                <span
+                                    className={`text-sm font-medium font-inter leading-5 tracking-tight whitespace-nowrap ${
+                                        active === cat.id
+                                            ? 'text-blue-700'
+                                            : isDark
+                                              ? 'text-gray-300'
+                                              : 'text-gray-900'
+                                    }`}
+                                >
                                     {cat.label}
                                 </span>
-                                <div className={`h-1 rounded-full transition-all duration-200 ${active === cat.id ? 'w-5 bg-[#0ECCEE]' : 'w-0'}`} />
                             </button>
                         ))}
                     </div>
                 </div>
+
+                {activeFilterCount > 0 && (
+                    <div className="flex items-center justify-between mt-2 px-1">
+                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} applied
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleClearFilters}
+                            className="text-xs font-medium text-[#0ECCEE]"
+                        >
+                            Clear all
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* ── Content ── */}
@@ -112,20 +314,40 @@ export default function TrekCategoryPage() {
                 ) : filtered.length === 0 ? (
                     <div className={`text-center py-16 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         <div className="flex justify-center mb-3">
-                            {(() => { const cat = TREK_CATEGORIES.find(c => c.id === active); return cat ? <img src={cat.icon} alt={cat.label} className="size-14 object-contain" /> : null; })()}
+                            {(() => {
+                                const cat = TREK_CATEGORIES.find((c) => c.id === active);
+                                return cat ? (
+                                    <img src={cat.icon} alt={cat.label} className="size-14 object-contain" />
+                                ) : null;
+                            })()}
                         </div>
-                        <p className="text-sm">No {TREK_CATEGORIES.find(c => c.id === active)?.label} treks added yet</p>
+                        <p className="text-sm">
+                            {activeFilterCount > 0
+                                ? 'No treks match your filters'
+                                : `No ${TREK_CATEGORIES.find((c) => c.id === active)?.label} treks added yet`}
+                        </p>
+                        {activeFilterCount > 0 && (
+                            <button
+                                type="button"
+                                onClick={handleClearFilters}
+                                className="mt-3 text-sm font-medium text-[#0ECCEE]"
+                            >
+                                Clear filters
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {filtered.map(trek => {
-                            const img  = trek.coverImage || trek.images?.[0];
+                        {filtered.map((trek) => {
+                            const img = trek.coverImage || trek.images?.[0];
                             const comm = commName(trek.communityId);
                             return (
                                 <div
                                     key={trek._id}
                                     onClick={() => navigate(`/trek/${trek._id}`, { state: { trek } })}
-                                    className={`rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${card} shadow-sm`}
+                                    className={`rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${
+                                        isDark ? 'bg-[#111213]' : 'bg-[#F5F6FA]'
+                                    }`}
                                 >
                                     {/* Image */}
                                     <div className="relative w-full h-56 overflow-hidden">
@@ -161,7 +383,11 @@ export default function TrekCategoryPage() {
                                                 {trek.trekName}
                                             </p>
                                             {comm && (
-                                                <p className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                <p
+                                                    className={`text-sm font-medium font-inter leading-5 tracking-tight ${
+                                                        isDark ? 'text-gray-400' : 'text-gray-500'
+                                                    }`}
+                                                >
                                                     {comm}
                                                 </p>
                                             )}
@@ -171,7 +397,7 @@ export default function TrekCategoryPage() {
                                                 e.stopPropagation();
                                                 if (navigator.share) navigator.share({ title: trek.trekName, url: `${window.location.origin}/trek/${trek._id}` }).catch(() => {});
                                             }}
-                                            className={`size-8 rounded-2xl flex items-center justify-center ml-3 flex-shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-white shadow-sm border border-gray-100'}`}
+                                            className={`size-8 rounded-2xl flex items-center justify-center ml-3 shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-white shadow-sm border border-gray-100'}`}
                                         >
                                             <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
                                         </button>
@@ -182,6 +408,16 @@ export default function TrekCategoryPage() {
                     </div>
                 )}
             </main>
+
+            <TrekFilterModal
+                isOpen={showFilter}
+                isDark={isDark}
+                draftFilters={draftFilters}
+                onToggle={toggleDraftFilter}
+                onClear={handleClearDraft}
+                onApply={handleApplyFilters}
+                onClose={() => setShowFilter(false)}
+            />
         </div>
     );
 }

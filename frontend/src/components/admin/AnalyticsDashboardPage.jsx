@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { createElement, useState, useEffect } from 'react';
 import {
   Users, FileText, Eye, Activity,
   TrendingUp, TrendingDown, Minus,
@@ -21,14 +21,14 @@ const adminFetch = async (url) => {
   return res.json();
 };
 
-function StatCard({ icon: Icon, label, value, change, color }) {
+function StatCard({ icon, label, value, change, color }) {
   const isPositive = change > 0;
   const isNeutral = change === 0 || change === undefined;
   return (
     <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
       <div className="flex items-center justify-between mb-3">
         <div className={`p-2 rounded-lg ${color}`}>
-          <Icon size={20} />
+          {icon ? createElement(icon, { size: 20 }) : null}
         </div>
         {!isNeutral && (
           <div className={`flex items-center text-xs font-medium ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
@@ -89,7 +89,7 @@ function DeviceBreakdown({ devices }) {
         const pct = Math.round((count / total) * 100);
         return (
           <div key={device} className="flex items-center gap-3">
-            <Icon size={16} className="text-gray-400 flex-shrink-0" />
+            <Icon size={16} className="text-gray-400 shrink-0" />
             <div className="flex-1">
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-300 capitalize">{device || 'Unknown'}</span>
@@ -276,7 +276,7 @@ export default function AnalyticsDashboardPage() {
                       {reg.festName}{reg.competitionName ? ` → ${reg.competitionName}` : ''}
                     </div>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ml-2 ${
+                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ml-2 ${
                     reg.status === 'approved' ? 'bg-green-500/20 text-green-400' :
                     reg.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
                     'bg-yellow-500/20 text-yellow-400'

@@ -32,6 +32,19 @@ const sportsEventSchema = new mongoose.Schema(
         sponsors: { type: [String], default: [] },
         registrationLink: { type: String, trim: true },
         description: { type: String },
+        displayType: { type: String, trim: true },
+        featuredSection: {
+            type: String,
+            enum: ['upcoming', 'run_clubs', 'both', null],
+            default: null,
+        },
+        showInUpcoming: { type: Boolean, default: true },
+        showInRunClubs: { type: Boolean, default: false },
+        upcomingPriority: { type: Number, default: 999, min: 1, max: 999 },
+        runClubPriority: { type: Number, default: 999, min: 1, max: 999 },
+        priority: { type: Number, default: 999, min: 1, max: 999 },
+        showOnSportsPage: { type: Boolean, default: true },
+        runClubId: { type: mongoose.Schema.Types.ObjectId, ref: 'RunClub', default: null },
         status: {
             type: String,
             enum: ['draft', 'published', 'completed', 'cancelled'],
@@ -46,5 +59,10 @@ sportsEventSchema.index({ sportType: 1 });
 sportsEventSchema.index({ status: 1 });
 sportsEventSchema.index({ eventDate: 1 });
 sportsEventSchema.index({ city: 1 });
+sportsEventSchema.index({ priority: 1 });
+sportsEventSchema.index({ upcomingPriority: 1 });
+sportsEventSchema.index({ runClubPriority: 1 });
+sportsEventSchema.index({ showOnSportsPage: 1 });
+sportsEventSchema.index({ runClubId: 1 });
 
 module.exports = mongoose.model('SportsEvent', sportsEventSchema);

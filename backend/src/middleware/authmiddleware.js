@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../model/usermodel');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 const authenticateToken = async (req, res, next) => {
     try {
@@ -30,7 +31,7 @@ const authenticateToken = async (req, res, next) => {
         console.log('🔍 User auth: Validating token...');
 
         // Verify the token
-        const secret = process.env.JWT_SECRET || 'your-secret-key';
+        const secret = getJwtSecret();
         const decoded = jwt.verify(token, secret);
 
         console.log('🔍 User auth: Token decoded:', { 

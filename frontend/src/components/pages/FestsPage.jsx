@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, Search, MapPin, Bell, X } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -70,7 +70,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
     return (
         <div
-            className={`flex-shrink-0 w-[300px] sm:w-[320px] lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start
+            className={`shrink-0 w-[300px] sm:w-[320px] lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start
                         transition-all duration-200 active:scale-[0.98]
                         ${isDark ? 'bg-[#111213]' : 'bg-white shadow-md lg:shadow-lg'}`}
             onClick={onViewDetails}
@@ -107,7 +107,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
                     </h3>
                     <button
                         onClick={handleShare}
-                        className={`flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-colors
+                        className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-colors
                                    ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
                         aria-label="Share"
                     >
@@ -138,7 +138,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
 // ── Skeleton placeholder ─────────────────────────────────────────────────────
 const FestCardSkeleton = ({ isDark }) => (
-    <div className={`flex-shrink-0 w-[300px] sm:w-[320px] lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden snap-start animate-pulse
+    <div className={`shrink-0 w-[300px] sm:w-[320px] lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden snap-start animate-pulse
                     ${isDark ? 'bg-[#111213]' : 'bg-white shadow-md lg:shadow-lg'}`}>
         <div className={`h-[190px] lg:h-[220px] ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
         <div className="px-3 pt-3 pb-3 lg:px-4 lg:pt-4 lg:pb-4 space-y-2">
@@ -286,7 +286,7 @@ export default function FestsPage() {
                     <div className="mb-3.5">
                         <div className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-4
                             ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff] border border-gray-100'}`}>
-                            <Search size={16} className="text-gray-400 flex-shrink-0" />
+                            <Search size={16} className="text-gray-400 shrink-0" />
                             <input
                                 type="text"
                                 value={searchQuery}
@@ -312,7 +312,7 @@ export default function FestsPage() {
                 <div className="hidden lg:block lg:px-10 lg:pt-6 lg:pb-4">
                     <div className={`flex items-center gap-3 rounded-full lg:px-6 lg:py-4
                         ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm border border-gray-100'}`}>
-                        <Search size={17} className="text-gray-400 flex-shrink-0" />
+                        <Search size={17} className="text-gray-400 shrink-0" />
                         <input
                             type="text"
                             value={searchQuery}

@@ -588,7 +588,7 @@ export const apiInterceptors = {
     /**
      * Add request interceptor
      */
-    addRequestInterceptor(interceptor) {
+    addRequestInterceptor(_interceptor) {
         // This would be implemented if using axios or similar
         console.warn('Request interceptors not implemented for fetch API');
     },
@@ -596,7 +596,7 @@ export const apiInterceptors = {
     /**
      * Add response interceptor
      */
-    addResponseInterceptor(interceptor) {
+    addResponseInterceptor(_interceptor) {
         // This would be implemented if using axios or similar
         console.warn('Response interceptors not implemented for fetch API');
     },

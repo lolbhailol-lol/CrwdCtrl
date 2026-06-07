@@ -5,14 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --mode production",
-    "build:prod": "vite build --mode production",
-    "build:domain": "copy .env.domain .env && vite build --mode production",
+    "build": "vite build",
+    "build:prod": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "preview:prod": "vite preview --mode production"
+    "preview:prod": "vite preview"
   },
   "dependencies": {
+    "@cashfreepayments/cashfree-js": "^1.0.7",
     "@tailwindcss/vite": "^4.1.17",
     "axios": "^1.13.2",
     "better-auth": "^1.4.3",

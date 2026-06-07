@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 const Trek = require('../model/trek_model');
+const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
+
+function normalizeTrekPayload(body) {
+    const payload = { ...body };
+    if (payload.trekFilters !== undefined) {
+        payload.trekFilters = sanitizeTrekFilters(payload.trekFilters);
+    }
+    return payload;
+}
 
 exports.createTrek = async (req, res) => {
     try {
@@ -7,7 +16,11 @@ exports.createTrek = async (req, res) => {
         if (!trekName || !difficultyLevel) {
             return res.status(400).json({ message: 'trekName and difficultyLevel are required' });
         }
-        const trek = new Trek({ ...req.body, communityId: req.body.communityId || null, createdBy: req.user?._id || null });
+        const trek = new Trek({
+            ...normalizeTrekPayload(req.body),
+            communityId: req.body.communityId || null,
+            createdBy: req.user?._id || null,
+        });
         await trek.save();
         res.status(201).json({ message: 'Trek created successfully', trek });
     } catch (error) {
@@ -73,7 +86,7 @@ exports.updateTrek = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid ID' });
         }
-        const body = { ...req.body };
+        const body = normalizeTrekPayload(req.body);
         // Coerce empty strings to null so enum validation doesn't fail
         if (body.featuredSection === '') body.featuredSection = null;
         if (body.homeSection === '') body.homeSection = null;

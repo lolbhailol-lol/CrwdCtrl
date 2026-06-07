@@ -186,34 +186,6 @@ export default function FestTable() {
     }));
   };
 
-  const assignFestSection = async (id, status) => {
-    await fetch(`${API_BASE_URL}/admin/fests/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-      },
-      body: JSON.stringify({ status }),
-    });
-    await clearServerCache();
-    localStorage.setItem('admin_data_updated', Date.now().toString());
-    setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
-    fetchFests();
-  };
-
-  const assignFestSlide = async (id, value) => {
-    await fetch(`${API_BASE_URL}/admin/fests/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-      },
-      body: JSON.stringify({ showOnHomeSlide: value }),
-    });
-    await clearServerCache();
-    fetchFests();
-  };
-
   const deleteFest = async (id) => {
     await fetch(`${API_BASE_URL}/admin/fests/${id}`, {
       method: 'DELETE',

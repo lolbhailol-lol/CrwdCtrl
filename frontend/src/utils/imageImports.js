@@ -158,10 +158,16 @@ export const imageMap = {
 
 // Utility function to get the proper image URL for production
 export const getImageUrl = (imagePath) => {
-    
-
-    // If no imagePath provided, return null
     if (!imagePath) {
+        return null;
+    }
+
+    if (typeof imagePath === 'object') {
+        const nested = imagePath.url || imagePath.secure_url;
+        return nested ? getImageUrl(String(nested)) : null;
+    }
+
+    if (typeof imagePath !== 'string') {
         return null;
     }
 

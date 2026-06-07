@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
 import Footer from '../../Footer';
@@ -615,7 +615,7 @@ function ListYourFest() {
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
-                                        className="flex-1 bg-gradient-to-r from-[#053780] to-[#0ECCEE] text-white font-semibold py-3 px-6 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="flex-1 bg-linear-to-r from-[#053780] to-[#0ECCEE] text-white font-semibold py-3 px-6 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {isSubmitting ? 'Submitting...' : 'Submit Registration'}
                                     </button>

@@ -1,9 +1,9 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
-import { openRazorpayCheckout } from '../../utils/useRazorpay';
+import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { parseTicketPrice } from '../../utils/platformFee';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
@@ -14,7 +14,7 @@ export default function FestRegistration() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const competitionId = searchParams.get('competition');
-  const { isAuthenticated, isLoading: authLoading, token: authToken, isAuthProcessing, isRedirectProcessing, user: authUser } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, token: authToken, isAuthProcessing, isRedirectProcessing } = useAuth();
 
   const { isDark } = useDarkMode();
   
@@ -27,17 +27,17 @@ export default function FestRegistration() {
   const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [registrationId, setRegistrationId] = useState(null);
+  const [, setRegistrationId] = useState(null);
   const [uploadingFiles, setUploadingFiles] = useState({});
-  // Razorpay verified payment fields
-  const [razorpayPaymentFields, setRazorpayPaymentFields] = useState(null);
+  // Cashfree verified payment fields
+  const [paymentFields, setPaymentFields] = useState(null);
   // ✅ NEW: Multi-step form state
   const [currentStep, setCurrentStep] = useState(1);
   const [stepData, setStepData] = useState({});
   const [completedSteps, setCompletedSteps] = useState(new Set());
-  // Razorpay direct payment state
-  const [razorpayLoading, setRazorpayLoading] = useState(false);
-  const [razorpayError, setRazorpayError] = useState('');
+  // Cashfree direct payment state
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
 
   const isCompetitionRegistration = !!competitionId;
 
@@ -64,7 +64,6 @@ export default function FestRegistration() {
 
       // ✅ FIX: Check AuthContext FIRST, then fallback to localStorage
       const localToken = localStorage.getItem('crwdctrl_token');
-      const localUser = localStorage.getItem('crwdctrl_user');
       const hasAuth = isAuthenticated || !!authToken || !!localToken;
       
       // If no authentication data at all (neither context nor localStorage), redirect to login
@@ -96,7 +95,7 @@ export default function FestRegistration() {
     };
 
     initializeRegistration();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [festId, competitionId, authLoading, isAuthenticated, isAuthProcessing, isRedirectProcessing]);
 
   useEffect(() => {
@@ -439,7 +438,7 @@ export default function FestRegistration() {
           </div>
         );
       
-      case 'group':
+      case 'group': {
         // Group field type - allows multiple entries with sub-fields
         const groupEntries = Array.isArray(value) ? value : [];
         
@@ -582,7 +581,8 @@ export default function FestRegistration() {
             )}
           </div>
         );
-      
+      }
+
       case 'category_competition_selector': {
         // Cascading selector: first select category, then competition from that category
         const currentValue = typeof value === 'object' ? value : { category: '', competition: '' };
@@ -716,7 +716,7 @@ export default function FestRegistration() {
       console.log('🔍 DEBUG - Raw registration data:', data.registration);
       console.log('🔍 DEBUG - Raw steps data:', data.registration?.steps);
       
-      // If the fest has a Razorpay feeAmount, skip mode validation — payment replaces the form
+      // If the fest has a feeAmount, skip mode validation — payment replaces the form
       if (!data.feeAmount || data.feeAmount <= 0) {
         if (data.registration?.mode !== 'INTERNAL_FORM') {
           console.error('❌ Invalid registration mode:', data.registration?.mode);
@@ -1249,9 +1249,9 @@ export default function FestRegistration() {
 
       console.log('✅ All required fields validated');
 
-      // Razorpay: open checkout if competition/fest has a fee and payment not yet done
+      // Cashfree: open checkout if competition/fest has a fee and payment not yet done
       const effectiveFeeAmount = priceBreakdown?.ticketPrice || (isCompetitionRegistration ? (parseTicketPrice(competition?.feeAmount) || parseTicketPrice(competition?.registrationFee)) : (fest.feeAmount || 0));
-      let verifiedPaymentFields = razorpayPaymentFields;
+      let verifiedPaymentFields = paymentFields;
       if (effectiveFeeAmount > 0 && !verifiedPaymentFields) {
         setSubmissionProgress('Opening payment gateway...');
         const tok = authToken || localStorage.getItem('crwdctrl_token');
@@ -1265,28 +1265,18 @@ export default function FestRegistration() {
         if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
         const orderData = await orderRes.json();
 
-        const { openRazorpayCheckout } = await import('../../utils/useRazorpay');
-        const paymentDescription = isCompetitionRegistration
-          ? `Register: ${competition?.name || fest.festName}`
-          : `Register: ${fest.festName}`;
-        const paymentResponse = await openRazorpayCheckout({
-          orderId: orderData.orderId,
-          currency: orderData.currency,
-          name: authUser?.name || '',
-          email: authUser?.email || '',
-          contact: authUser?.phoneNumber || authUser?.phone || '',
-          description: paymentDescription,
-        });
+        await openCashfreeCheckout({ paymentSessionId: orderData.paymentSessionId });
 
         const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
-          body: JSON.stringify(paymentResponse),
+          body: JSON.stringify({ payment_order_id: orderData.orderId }),
         });
         if (!verifyRes.ok) throw new Error('Payment verification failed. Please contact support.');
 
-        verifiedPaymentFields = paymentResponse;
-        setRazorpayPaymentFields(paymentResponse);
+        const verifyData = await verifyRes.json();
+        verifiedPaymentFields = buildVerifiedPaymentFields(verifyData, orderData.orderId);
+        setPaymentFields(verifiedPaymentFields);
       }
 
       setSubmissionProgress('Preparing form data...');
@@ -1389,11 +1379,10 @@ export default function FestRegistration() {
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
 
-      // Attach Razorpay payment fields if payment was made
+      // Attach Cashfree payment fields if payment was made
       if (verifiedPaymentFields) {
-        submissionFormData.append('razorpay_order_id',   verifiedPaymentFields.razorpay_order_id);
-        submissionFormData.append('razorpay_payment_id', verifiedPaymentFields.razorpay_payment_id);
-        submissionFormData.append('razorpay_signature',  verifiedPaymentFields.razorpay_signature);
+        submissionFormData.append('payment_order_id', verifiedPaymentFields.payment_order_id);
+        submissionFormData.append('payment_id', verifiedPaymentFields.payment_id);
       }
 
       // ✅ PERFORMANCE: Show file submission progress
@@ -1549,7 +1538,7 @@ export default function FestRegistration() {
       setRegistrationId(regId);
       setSuccess(true);
       setTimeout(() => {
-        navigate(regId ? `/qr-ticket/${regId}` : '/registered-fest');
+        navigate(regId ? `/qr-ticket/${regId}` : '/booking');
       }, 2000);
 
     } catch (err) {
@@ -1565,7 +1554,7 @@ export default function FestRegistration() {
         console.log('ℹ️ Registration may have been saved on the server. Checking registered events...');
         setError('Registration is taking longer than expected. Your submission may have been saved. Please check your registered events in a moment. Contact support if needed.');
         // Don't prevent navigation - allow user to check registered events
-        setTimeout(() => navigate('/registered-fest'), 2000);
+        setTimeout(() => navigate('/booking'), 2000);
       } else if (err.message.includes('Authentication') || err.message.includes('session') || err.message.includes('token')) {
         setError('Your session has expired. Please log in again.');
         // Clear invalid tokens
@@ -1602,13 +1591,12 @@ export default function FestRegistration() {
     );
   }
 
-  // ─── RAZORPAY DIRECT PAYMENT: if fest has a feeAmount, bypass the form ───
-  const handleRazorpayFestRegister = async () => {
-    setRazorpayLoading(true);
-    setRazorpayError('');
+  // ─── CASHFREE DIRECT PAYMENT: if fest has a feeAmount, bypass the form ───
+  const handleCashfreeFestRegister = async () => {
+    setPaymentLoading(true);
+    setPaymentError('');
     try {
       const token = authToken || localStorage.getItem('crwdctrl_token');
-      // 1. Create order using database price + platform fee
       const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -1617,21 +1605,12 @@ export default function FestRegistration() {
       if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
       const orderData = await orderRes.json();
 
-      // 2. Open Razorpay checkout — prefilled with logged-in user info
-      const paymentResponse = await openRazorpayCheckout({
-        orderId: orderData.orderId,
-        currency: orderData.currency,
-        name: authUser?.name || '',
-        email: authUser?.email || '',
-        contact: authUser?.phoneNumber || authUser?.phone || '',
-        description: `Register: ${fest.festName}`,
-      });
+      await openCashfreeCheckout({ paymentSessionId: orderData.paymentSessionId });
 
-      // 3. Verify + save registration
       const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(paymentResponse),
+        body: JSON.stringify({ payment_order_id: orderData.orderId }),
       });
       if (!regRes.ok) {
         const errData = await regRes.json().catch(() => ({}));
@@ -1643,19 +1622,19 @@ export default function FestRegistration() {
       setRegistrationId(regId);
       setSuccess(true);
       setTimeout(() => {
-        navigate(regId ? `/qr-ticket/${regId}` : '/registered-fest');
+        navigate(regId ? `/qr-ticket/${regId}` : '/booking');
       }, 2000);
     } catch (err) {
       if (err.message !== 'Payment cancelled') {
-        setRazorpayError(err.message || 'Payment failed. Please try again.');
-        setTimeout(() => setRazorpayError(''), 5000);
+        setPaymentError(err.message || 'Payment failed. Please try again.');
+        setTimeout(() => setPaymentError(''), 5000);
       }
     } finally {
-      setRazorpayLoading(false);
+      setPaymentLoading(false);
     }
   };
 
-  // Show Razorpay payment UI when fest has a feeAmount (only for fest-only registrations, not competition registrations)
+  // Show Cashfree payment UI when fest has a feeAmount (only for fest-only registrations, not competition registrations)
   if (fest && !isCompetitionRegistration && fest.feeAmount > 0 && !success) {
     return (
       <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
@@ -1686,7 +1665,7 @@ export default function FestRegistration() {
                 </div>
               </div>
             )}
-            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Secure payment via Razorpay</p>
+            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Secure payment via Cashfree</p>
           </div>
 
           {competition && (
@@ -1695,16 +1674,16 @@ export default function FestRegistration() {
             </p>
           )}
 
-          {razorpayError && (
-            <p className="text-red-400 text-sm mb-4 bg-red-900/20 border border-red-800 rounded-lg p-2">{razorpayError}</p>
+          {paymentError && (
+            <p className="text-red-400 text-sm mb-4 bg-red-900/20 border border-red-800 rounded-lg p-2">{paymentError}</p>
           )}
 
           <button
-            onClick={handleRazorpayFestRegister}
-            disabled={razorpayLoading || !priceBreakdown}
+            onClick={handleCashfreeFestRegister}
+            disabled={paymentLoading || !priceBreakdown}
             className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {razorpayLoading ? (
+            {paymentLoading ? (
               <>
                 <Loader className="w-5 h-5 animate-spin" />
                 Processing Payment...
@@ -1861,10 +1840,10 @@ export default function FestRegistration() {
           </p>
 
           <button
-            onClick={() => navigate('/registered-fest')}
+            onClick={() => navigate('/booking')}
             className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
           >
-            View My Registrations
+            View My Bookings
           </button>
         </div>
       </div>
@@ -1878,7 +1857,7 @@ export default function FestRegistration() {
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
           <button
             onClick={() => navigate(-1)}
-            className={`p-2 rounded-lg transition-colors flex-shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+            className={`p-2 rounded-lg transition-colors shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
           >
             <ArrowLeft className={`w-5 h-5 sm:w-6 sm:h-6 ${isDark ? 'text-white' : 'text-gray-900'}`} />
           </button>
@@ -2029,7 +2008,7 @@ export default function FestRegistration() {
             )}
 
             {/* Fee box — shown before payment */}
-            {!razorpayPaymentFields && (() => {
+            {!paymentFields && (() => {
               if (!priceBreakdown) return null;
               return (
                 <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
@@ -2048,15 +2027,15 @@ export default function FestRegistration() {
                       <span>₹{priceBreakdown.totalAmount}</span>
                     </div>
                   </div>
-                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Razorpay secure payment — click Submit to pay and register.</p>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Cashfree secure payment — click Submit to pay and register.</p>
                 </div>
               );
             })()}
 
-            {/* Payment confirmed notice — shown after Razorpay payment is verified */}
-            {razorpayPaymentFields && (
+            {/* Payment confirmed notice — shown after Cashfree payment is verified */}
+            {paymentFields && (
               <div className={`rounded-xl p-3 border flex items-center gap-3 ${isDark ? 'bg-green-900/15 border-green-700/40' : 'bg-green-50 border-green-300'}`}>
-                <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
                 <div>
                   <p className="text-sm font-semibold text-green-400">Payment Confirmed</p>
                   <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Click Submit to complete your registration.</p>
@@ -2115,14 +2094,14 @@ export default function FestRegistration() {
                     isNotFinalStep: currentStep < getTotalSteps(),
                     shouldShowNextStep: isMultiStepForm() && currentStep < getTotalSteps(),
                     hasFeeAmount: !!(isCompetitionRegistration ? competition?.feeAmount : fest.feeAmount),
-                    paymentDone: !!razorpayPaymentFields
+                    paymentDone: !!paymentFields
                   });
 
                   if (isMultiStepForm() && currentStep < getTotalSteps()) {
                     return 'Next Step';
                   }
                   // Final step
-                  if (priceBreakdown && !razorpayPaymentFields) {
+                  if (priceBreakdown && !paymentFields) {
                     return `Pay ₹${priceBreakdown.totalAmount} & Register`;
                   }
                   return 'Submit Registration';

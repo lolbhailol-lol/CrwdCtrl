@@ -54,6 +54,7 @@ export const NotificationsProvider = ({ children }) => {
     }, []);
 
     // Fetch notifications from backend
+     
     const fetchNotifications = useCallback(async () => {
         try {
             const data = await authFetchJSON('/notifications?limit=20');
@@ -95,6 +96,7 @@ export const NotificationsProvider = ({ children }) => {
     }, [showBrowserNotification]);
 
     // Fetch unread count (lightweight)
+     
     const fetchUnreadCount = useCallback(async () => {
         try {
             const data = await authFetchJSON('/notifications/unread-count');
@@ -107,6 +109,7 @@ export const NotificationsProvider = ({ children }) => {
     }, []);
 
     // Initialize: fetch notifications when user is authenticated
+     
     useEffect(() => {
         const token = getToken();
         if (!token) {

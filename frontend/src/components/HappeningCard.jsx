@@ -2,7 +2,7 @@ import { getImageUrl } from '../utils/imageImports';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 import ShareIcon from '../assets/share.svg';
 
-export default function HappeningCard({ event, isDark, onViewDetails }) {
+export default function HappeningCard({ event, _isDark, onViewDetails }) {
     const handleShare = (e) => {
         e.stopPropagation();
         if (navigator.share) {
@@ -16,7 +16,7 @@ export default function HappeningCard({ event, isDark, onViewDetails }) {
 
     return (
         <div
-            className="flex-shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200"
+            className="shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200"
             onClick={onViewDetails}
         >
             {/* Image card */}
@@ -28,7 +28,7 @@ export default function HappeningCard({ event, isDark, onViewDetails }) {
                     onError={(e) => handleImageErrorWithFallback(e, 280, 190, '#111213', event.title || 'Event')}
                 />
                 {/* Gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent" />
 
                 {/* Share button — top right */}
                 <button

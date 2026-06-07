@@ -231,11 +231,11 @@ export default function RegistrationsPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap justify-end">
-                          {/* Razorpay payment badge */}
+                          {/* Online payment badge */}
                           {registration.paymentStatus === 'paid' && (
                             <span
                               className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 font-medium cursor-help"
-                              title={`Razorpay Payment ID: ${registration.razorpay_payment_id}`}
+                              title={`Payment ID: ${registration.payment_id || registration.payment_order_id || 'N/A'}`}
                             >
                               💳 Paid ₹{registration.amountPaid}
                             </span>
@@ -266,7 +266,7 @@ export default function RegistrationsPage() {
                           <h4 className="text-sm font-medium mb-2">Registration Details:</h4>
                           
                           {/* Debug info for development */}
-                          {process.env.NODE_ENV === 'development' && (
+                          {import.meta.env.DEV && (
                             <div className="mb-2 p-2 bg-gray-800 rounded text-xs">
                               <strong>Debug:</strong> {JSON.stringify(registration.responses, null, 2)}
                             </div>

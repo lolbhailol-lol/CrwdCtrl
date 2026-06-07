@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../model/usermodel');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 exports.adminLogin = async (req, res) => {
   try {
@@ -28,7 +29,7 @@ exports.adminLogin = async (req, res) => {
     }
 
     // Use JWT_SECRET (consistent with middleware verification)
-    const secret = process.env.JWT_SECRET || 'your-default-secret';
+    const secret = getJwtSecret();
     console.log('🔐 [BACKEND] Secret loaded:', !!secret);
     
     // Generate access token (short-lived: 1 hour)
@@ -74,7 +75,7 @@ exports.refreshAdminToken = async (req, res) => {
       });
     }
 
-    const secret = process.env.JWT_SECRET || 'your-default-secret';
+    const secret = getJwtSecret();
     
     // Verify refresh token
     let decoded;

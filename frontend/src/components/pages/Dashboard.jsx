@@ -13,10 +13,9 @@ import Footer from '../Footer';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
-import { handleImageError, generateFallbackImage } from '../../utils/imageUtils';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../utils/imageImports';
-import { searchFests, searchAll } from '../../services/searchService';
+import { searchAll } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlRegister from './register';
@@ -164,48 +163,7 @@ const clearCache = () => {
     }
 };
 
-// Status badge styling function - Same as FestCard
-const getStatusBadgeStyle = (status) => {
-    switch (status) {
-        case 'ongoing':
-            return {
-                gradient: 'bg-gradient-to-r from-green-500 to-emerald-600',
-                glow: 'shadow-green-500/30',
-                icon: Zap
-            };
-        case 'upcoming':
-            return {
-                gradient: 'bg-gradient-to-r from-orange-500 to-amber-600',
-                glow: 'shadow-orange-500/30',
-                icon: Clock
-            };
-        case 'completed':
-            return {
-                gradient: 'bg-gradient-to-r from-gray-500 to-slate-600',
-                glow: 'shadow-gray-500/20',
-                icon: Clock
-            };
-        case 'beyondcampus':
-            return {
-                gradient: 'bg-gradient-to-r from-green-500 to-emerald-600',
-                glow: 'shadow-green-500/30',
-                icon: Zap
-            };
-        case 'lastyearhit':
-            return {
-                gradient: 'bg-gradient-to-r from-purple-500 to-violet-600',
-                glow: 'shadow-purple-500/30',
-                icon: Zap
-            };
-        default:
-            return {
-                gradient: 'bg-gradient-to-r from-orange-500 to-amber-600',
-                glow: 'shadow-orange-500/30',
-                icon: Clock
-            };
-    }
-};
-const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName, venue, dateTime, ticketPrice, isDark, onRegister, onToggleFavorite, isFavorite }) => {
+const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName, venue: _venue, dateTime, ticketPrice: _ticketPrice, isDark, onRegister: _onRegister, onToggleFavorite, isFavorite }) => {
     const navigate = useNavigate();
     const [imageError, setImageError] = useState(false);
     const [imageLoading, setImageLoading] = useState(true);
@@ -227,7 +185,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
     return (
         <div
             onClick={handleCardClick}
-            className={`min-w-[280px] sm:min-w-[300px] w-[280px] sm:w-[300px] flex-shrink-0 rounded-xl overflow-hidden duration-300 shadow-sm hover:shadow-md transition-shadow cursor-pointer
+            className={`min-w-[280px] sm:min-w-[300px] w-[280px] sm:w-[300px] shrink-0 rounded-xl overflow-hidden duration-300 shadow-sm hover:shadow-md transition-shadow cursor-pointer
     ${isDark
                     ? 'bg-[#111213]'
                     : 'bg-[#EDEDF2]'
@@ -305,7 +263,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                         onToggleFavorite();
                     }}
                     className={`absolute top-2 sm:top-3 right-2 sm:right-3 w-7 sm:w-9 h-7 sm:h-9 rounded-full z-20
-                               transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                               transition-all duration-300 ease-in-out
                                hover:scale-110 active:scale-95
                                ${isDark 
                                    ? 'bg-black/30 hover:bg-black/40 backdrop-blur-2xl border-2 border-white/30' 
@@ -319,7 +277,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                     aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 >
                     <Heart
-                        className={`w-3.5 sm:w-4 h-3.5 sm:h-4 mx-auto transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                        className={`w-3.5 sm:w-4 h-3.5 sm:h-4 mx-auto transition-all duration-300 ease-in-out
                                    ${isFavorite
                                        ? 'text-red-500 fill-red-500 scale-110 animate-pulse' 
                                        : isDark 
@@ -369,7 +327,7 @@ const Dashboard = () => {
     const { isAuthenticated, isAuthProcessing, isLoading, isRedirectProcessing } = useAuth();
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    const [error, setError] = useState(null);
+    const [error] = useState(null);
     const [fests, setFests] = useState([]);
     const [isFestsLoading, setIsFestsLoading] = useState(true);
     const [homeCommunities, setHomeCommunities] = useState([]);
@@ -396,14 +354,14 @@ const Dashboard = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     
     // State for arrow visibility
-    const [ongoingShowLeftArrow, setOngoingShowLeftArrow] = useState(false);
-    const [ongoingShowRightArrow, setOngoingShowRightArrow] = useState(true);
-    const [beyondCampusShowLeftArrow, setBeyondCampusShowLeftArrow] = useState(false);
-    const [beyondCampusShowRightArrow, setBeyondCampusShowRightArrow] = useState(true);
-    const [upcomingShowLeftArrow, setUpcomingShowLeftArrow] = useState(false);
-    const [upcomingShowRightArrow, setUpcomingShowRightArrow] = useState(true);
-    const [lastYearShowLeftArrow, setLastYearShowLeftArrow] = useState(false);
-    const [lastYearShowRightArrow, setLastYearShowRightArrow] = useState(true);
+    const [_ongoingShowLeftArrow, setOngoingShowLeftArrow] = useState(false);
+    const [_ongoingShowRightArrow, setOngoingShowRightArrow] = useState(true);
+    const [_beyondCampusShowLeftArrow, setBeyondCampusShowLeftArrow] = useState(false);
+    const [_beyondCampusShowRightArrow, setBeyondCampusShowRightArrow] = useState(true);
+    const [_upcomingShowLeftArrow, setUpcomingShowLeftArrow] = useState(false);
+    const [_upcomingShowRightArrow, setUpcomingShowRightArrow] = useState(true);
+    const [_lastYearShowLeftArrow, setLastYearShowLeftArrow] = useState(false);
+    const [_lastYearShowRightArrow, setLastYearShowRightArrow] = useState(true);
 
     // Refetch treks and communities without cache
     const refreshTreksAndComms = useCallback(() => {
@@ -734,48 +692,6 @@ const Dashboard = () => {
         }
     }, []);
 
-    const scrollLeft = useCallback((ref) => {
-        if (ref && ref.current) {
-            ref.current.scrollBy({
-                left: -340, // Card width for better UX
-                behavior: 'smooth'
-            });
-            // Manually trigger check after scroll animation
-            setTimeout(() => {
-                if (ref === ongoingScrollRef) {
-                    checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
-                } else if (ref === beyondCampusScrollRef) {
-                    checkScrollPosition(beyondCampusScrollRef, setBeyondCampusShowLeftArrow, setBeyondCampusShowRightArrow);
-                } else if (ref === upcomingScrollRef) {
-                    checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
-                } else if (ref === lastYearScrollRef) {
-                    checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
-                }
-            }, 400);
-        }
-    }, [checkScrollPosition]);
-
-    const scrollRight = useCallback((ref) => {
-        if (ref && ref.current) {
-            ref.current.scrollBy({
-                left: 340, // Card width for better UX
-                behavior: 'smooth'
-            });
-            // Manually trigger check after scroll animation
-            setTimeout(() => {
-                if (ref === ongoingScrollRef) {
-                    checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
-                } else if (ref === beyondCampusScrollRef) {
-                    checkScrollPosition(beyondCampusScrollRef, setBeyondCampusShowLeftArrow, setBeyondCampusShowRightArrow);
-                } else if (ref === upcomingScrollRef) {
-                    checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
-                } else if (ref === lastYearScrollRef) {
-                    checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
-                }
-            }, 400);
-        }
-    }, [checkScrollPosition]);
-
     // Add scroll event listeners
     useEffect(() => {
         const ongoingRef = ongoingScrollRef.current;
@@ -812,30 +728,6 @@ const Dashboard = () => {
             if (lastYearRef) lastYearRef.removeEventListener('scroll', handleLastYearScroll);
         };
     }, [checkScrollPosition]);
-
-    // Handle keyboard navigation for scroll buttons
-    const handleScrollKeyDown = (event, direction) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            direction === 'left' ? scrollLeft() : scrollRight();
-        }
-    };
-
-    // Get status badge color based on status
-    const getStatusBadgeColor = (status) => {
-        switch (status) {
-            case 'ongoing':
-                return 'bg-green-500';
-            case 'upcoming':
-                return 'bg-orange-500';
-            case 'completed':
-                return 'bg-gray-500';
-            case 'lastyearhit':
-                return 'bg-purple-500';
-            default:
-                return 'bg-orange-500';
-        }
-    };
 
     // Transform backend fests for display
     const transformedFests = useMemo(() => {
@@ -968,19 +860,6 @@ const Dashboard = () => {
             }, 100);
         }
     }, [isFestsLoading, ongoingEvents.length, beyondCampusEvents.length, upcomingEvents.length, lastYearEvents.length, checkScrollPosition]);
-
-    const handleRegister = useCallback((eventId) => {
-        navigate(`/view-details/${eventId}`);
-    }, [navigate]);
-
-    // âœ… Manual refresh function to bypass cache (for development/debugging only)
-    const refreshFests = useCallback(async () => {
-        clearCache();
-        setIsFestsLoading(true);
-        
-        // Force a fresh fetch by clearing cache and reloading
-        window.location.reload();
-    }, []);
 
     // Handle search functionality
     const handleSearch = () => {
@@ -1280,9 +1159,6 @@ const Dashboard = () => {
         }
     };
 
-    // All events combined for "Happening Near You"
-    const happeningEvents = [...beyondCampusEvents, ...upcomingEvents];
-
     // Unified section arrays — all content types merged and sorted by a single priority number
     const byPriority = (a, b) => (a._priority || 999) - (b._priority || 999);
     // festHomeSection: explicit homeSection wins; fallback to status-based routing for existing fests
@@ -1316,7 +1192,7 @@ const Dashboard = () => {
         return (
             <div className={`min-h-screen transition-colors flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
                 <div className="text-center max-w-md mx-auto p-6">
-                    <div className="text-6xl mb-4">âš ï¸</div>
+                    <div className="text-6xl mb-4">⚠️</div>
                     <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-800'}`}>Something went wrong</h2>
                     <p className={`text-lg mb-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{error}</p>
                     <button
@@ -1426,7 +1302,7 @@ const Dashboard = () => {
                 <div className="relative mb-3.5" ref={searchRef}>
                     <div className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-4
                         ${isDark ? 'bg-[#161718] border border-white/5' : 'bg-[#EDEDF2] border border-gray-200'}`}>
-                        <Search size={16} className="text-gray-400 flex-shrink-0" />
+                        <Search size={16} className="text-gray-400 shrink-0" />
                         <input
                             type="text"
                             value={searchQuery}
@@ -1464,11 +1340,11 @@ const Dashboard = () => {
                                             <img
                                                 src={getImageUrl(result.coverImage || result.image)}
                                                 alt={result.festName || result.name}
-                                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                                                className="w-10 h-10 rounded-lg object-cover shrink-0"
                                                 onError={(e) => { e.target.style.display = 'none'; }}
                                             />
                                         ) : (
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0
                                                 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                                                 <Search size={14} className="text-gray-400" />
                                             </div>
@@ -1542,9 +1418,9 @@ const Dashboard = () => {
                                             </div>
                                         );
                                         if (item._type === 'trek') return (
-                                            <div key={item._id} className={`snap-start flex-shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-95 ${isDark ? 'bg-[#111213] shadow-lg shadow-black/30' : 'bg-white shadow-md'}`} onClick={() => navigate(`/trek/${item._id}`, { state: { trek: item } })}>
+                                            <div key={item._id} className={`snap-start shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-95 ${isDark ? 'bg-[#111213] shadow-lg shadow-black/30' : 'bg-white shadow-md'}`} onClick={() => navigate(`/trek/${item._id}`, { state: { trek: item } })}>
                                                 <div className="relative h-[160px] overflow-hidden">
-                                                    {(item.coverImage || item.images?.[0] || item.image) ? <img src={item.coverImage || item.images?.[0] || item.image} alt={item.trekName} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center"><span className="text-4xl">⛰️</span></div>}
+                                                    {(item.coverImage || item.images?.[0] || item.image) ? <img src={item.coverImage || item.images?.[0] || item.image} alt={item.trekName} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center"><span className="text-4xl">⛰️</span></div>}
                                                     {item.difficultyLevel && <div className={`absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${item.difficultyLevel === 'easy' ? 'bg-green-500 text-white' : item.difficultyLevel === 'moderate' ? 'bg-yellow-500 text-black' : 'bg-orange-500 text-white'}`}>{item.difficultyLevel}</div>}
                                                 </div>
                                                 <div className="p-3">
@@ -1555,9 +1431,9 @@ const Dashboard = () => {
                                             </div>
                                         );
                                         if (item._type === 'community') return (
-                                            <div key={item._id} className={`snap-start flex-shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-95 ${isDark ? 'bg-[#111213] shadow-lg shadow-black/30' : 'bg-white shadow-md'}`} onClick={() => navigate(`/treks/community/${item._id}`, { state: { community: { id: item._id, title: item.name, subtitle: item.basedIn, image: item.coverImage, trekCategories: item.trekCategories || [] } } })}>
+                                            <div key={item._id} className={`snap-start shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-95 ${isDark ? 'bg-[#111213] shadow-lg shadow-black/30' : 'bg-white shadow-md'}`} onClick={() => navigate(`/treks/community/${item._id}`, { state: { community: { id: item._id, title: item.name, subtitle: item.basedIn, image: item.coverImage, trekCategories: item.trekCategories || [] } } })}>
                                                 <div className="relative h-[160px] overflow-hidden">
-                                                    {item.coverImage ? <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-green-800 to-emerald-600 flex items-center justify-center"><span className="text-4xl">🏔️</span></div>}
+                                                    {item.coverImage ? <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center"><span className="text-4xl">🏔️</span></div>}
                                                     <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">Community</div>
                                                 </div>
                                                 <div className="p-3">
@@ -1602,10 +1478,10 @@ const Dashboard = () => {
                                                 </div>
                                             );
                                             if (item._type === 'trek') return (
-                                                <div key={item._id} className="snap-start flex-shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200" onClick={() => navigate(`/trek/${item._id}`, { state: { trek: item } })}>
+                                                <div key={item._id} className="snap-start shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200" onClick={() => navigate(`/trek/${item._id}`, { state: { trek: item } })}>
                                                     <div className="relative h-[180px] sm:h-[190px] rounded-2xl overflow-hidden mb-2">
-                                                        {(item.coverImage || item.images?.[0] || item.image) ? <img src={item.coverImage || item.images?.[0] || item.image} alt={item.trekName} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center"><span className="text-4xl">⛰️</span></div>}
-                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                                                        {(item.coverImage || item.images?.[0] || item.image) ? <img src={item.coverImage || item.images?.[0] || item.image} alt={item.trekName} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center"><span className="text-4xl">⛰️</span></div>}
+                                                        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent" />
                                                         <div className="absolute bottom-0 left-0 right-0 p-3"><p className="text-white font-bold text-sm leading-tight line-clamp-1">{item.trekName}</p></div>
                                                     </div>
                                                     <div className="flex items-center justify-between px-1">
@@ -1615,10 +1491,10 @@ const Dashboard = () => {
                                                 </div>
                                             );
                                             if (item._type === 'community') return (
-                                                <div key={item._id} className="snap-start flex-shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200" onClick={() => navigate(`/treks/community/${item._id}`, { state: { community: { id: item._id, title: item.name, subtitle: item.basedIn, image: item.coverImage, trekCategories: item.trekCategories || [] } } })}>
+                                                <div key={item._id} className="snap-start shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200" onClick={() => navigate(`/treks/community/${item._id}`, { state: { community: { id: item._id, title: item.name, subtitle: item.basedIn, image: item.coverImage, trekCategories: item.trekCategories || [] } } })}>
                                                     <div className="relative h-[180px] sm:h-[190px] rounded-2xl overflow-hidden mb-2">
-                                                        {item.coverImage ? <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-green-800 to-emerald-600 flex items-center justify-center"><span className="text-4xl">🏔️</span></div>}
-                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                                                        {item.coverImage ? <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center"><span className="text-4xl">🏔️</span></div>}
+                                                        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent" />
                                                         <div className="absolute bottom-0 left-0 right-0 p-3"><p className="text-white font-bold text-sm leading-tight line-clamp-1">{item.name}</p></div>
                                                     </div>
                                                     <div className="flex items-center justify-between px-1">

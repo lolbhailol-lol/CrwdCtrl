@@ -49,7 +49,7 @@ const festOrganizerSchema = new mongoose.Schema(
 
   feeAmount: {
     type: Number,
-    default: 0, // numeric INR amount for Razorpay; 0 = free
+    default: 0, // numeric INR amount for online payment; 0 = free
   },
 
   description: {

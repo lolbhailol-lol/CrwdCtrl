@@ -68,7 +68,7 @@ export default function EventsPage() {
         setModalOpen(true);
     };
 
-    const handleSaved = (saved) => {
+    const handleSaved = (_saved) => {
         setModalOpen(false);
         fetchEvents();
     };

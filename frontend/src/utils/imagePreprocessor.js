@@ -97,9 +97,6 @@ export const processEventsArray = (events) => {
 export const safeImageLoad = (imagePath, options = {}) => {
     const {
         fallback = '/placeholder-image.jpg',
-        width = 300,
-        height = 200,
-        text = 'Image'
     } = options;
 
     try {

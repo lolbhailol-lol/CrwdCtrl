@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, ChevronLeft, Clock, Calendar } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../../../context/DarkModeContext';
@@ -95,7 +95,7 @@ function NotificationsPanel() {
                                                 } ${notification.unread ? 'ring-2 ring-[#007BFF]/20' : ''}`}
                                         >
                                             <div className="flex items-start space-x-4">
-                                                <div className={`p-2 rounded-xl flex-shrink-0 ${notification.type === 'event'
+                                                <div className={`p-2 rounded-xl shrink-0 ${notification.type === 'event'
                                                     ? isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
                                                     : notification.type === 'reminder'
                                                         ? isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-600'
@@ -113,7 +113,7 @@ function NotificationsPanel() {
                                                                 <span className="ml-2 w-2 h-2 bg-[#007BFF] rounded-full inline-block"></span>
                                                             )}
                                                         </h3>
-                                                        <span className={`text-xs flex-shrink-0 ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                        <span className={`text-xs shrink-0 ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                                             {notification.time}
                                                         </span>
                                                     </div>
@@ -195,7 +195,7 @@ function NotificationsPanel() {
                                         } ${notification.unread ? 'ring-1 ring-[#007BFF]/30' : ''}`}
                                 >
                                     <div className="flex items-start space-x-3">
-                                        <div className={`p-2 rounded-lg flex-shrink-0 ${notification.type === 'event'
+                                        <div className={`p-2 rounded-lg shrink-0 ${notification.type === 'event'
                                             ? isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
                                             : notification.type === 'reminder'
                                                 ? isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-600'
@@ -213,7 +213,7 @@ function NotificationsPanel() {
                                                         <span className="ml-1 w-1.5 h-1.5 bg-[#007BFF] rounded-full inline-block"></span>
                                                     )}
                                                 </h3>
-                                                <span className={`text-xs flex-shrink-0 ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                <span className={`text-xs shrink-0 ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                                     {notification.time}
                                                 </span>
                                             </div>

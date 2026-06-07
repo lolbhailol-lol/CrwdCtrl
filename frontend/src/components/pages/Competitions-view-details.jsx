@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Phone, Instagram, Check, Moon, Sun, Mail, User, ArrowLeft, Trophy, Ticket, Zap } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../Sidebar';
@@ -85,7 +85,7 @@ const sanitizeRoundDescription = (rawDesc) => {
 
     // Remove the known duplicated metadata paragraph that can appear between
     // "Submission Deadline" and the "Rules" heading.
-    const deadlineMatch = /Submission\s+Deadline\s*[:\-]?/i.exec(desc);
+    const deadlineMatch = /Submission\s+Deadline\s*[:-]?/i.exec(desc);
     if (deadlineMatch) {
         const afterDeadlineIndex = deadlineMatch.index + deadlineMatch[0].length;
         const afterDeadlineText = desc.substring(afterDeadlineIndex);
@@ -106,7 +106,7 @@ const sanitizeRoundDescription = (rawDesc) => {
 
     // Remove any repeated metadata block (participants/type/rounds) that appears again later.
     // We remove from the second metadata start up to the next Rules heading (or end of text).
-    const metadataStartPattern = /No\.?\s*of\s*Participants\s*[:\-]/i;
+    const metadataStartPattern = /No\.?\s*of\s*Participants\s*[:-]/i;
     const firstMetadataIndex = desc.search(metadataStartPattern);
     if (firstMetadataIndex !== -1) {
         const searchFrom = firstMetadataIndex + 1;
@@ -320,8 +320,7 @@ function EventPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const [activeRound, setActiveRound] = useState(0);
-    const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
+    const [showRegistrationSuccess] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
     const [competitionData, setCompetitionData] = useState(null);
@@ -330,7 +329,7 @@ function EventPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const { isDark } = useDarkMode();
-    const { registeredEvents, registerForEvent } = useRegisteredEvents();
+    const { registeredEvents } = useRegisteredEvents();
     const { isAuthenticated } = useAuth();
 
     // Fetch competition data from backend API
@@ -832,19 +831,6 @@ function EventPage() {
         setShowShareMenu(false);
     };
 
-    const handleContact = (type) => {
-        if (type === 'phone' && eventData?.contact?.phone) {
-            // Extract only the first phone number if multiple numbers exist
-            const phoneString = eventData.contact.phone;
-            // Match the first valid phone number pattern (+91 followed by digits)
-            const firstPhoneMatch = phoneString.match(/\+91\s*\d{10}|\+91\s*\d{5}\s*\d{5}/);
-            const mainPhone = firstPhoneMatch ? firstPhoneMatch[0].replace(/\s/g, '') : phoneString.split('/')[0].trim();
-            window.open(`tel:${mainPhone}`);
-        } else if (type === 'instagram' && eventData?.contact?.instagram) {
-            window.open(eventData.contact.instagram, '_blank');
-        }
-    };
-
     // Modal handler functions
     const handleCloseLogin = () => {
         setShowLogin(false);
@@ -948,7 +934,7 @@ function EventPage() {
                                             ? 'bg-green-500 text-white cursor-not-allowed'
                                             : registrationInfo.isDisabled
                                             ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
-                                            : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
+                                            : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
                                             }`}
                                         title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
                                     >
@@ -1028,10 +1014,10 @@ function EventPage() {
                             {eventData?.prize && (
                                 <div className="px-4 py-4">
                                     <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#111213] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
-                                        <div className="absolute inset-0 bg-gradient-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
+                                        <div className="absolute inset-0 bg-linear-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
                                         <div className="relative p-4">
                                             <div className="flex items-center gap-2.5 mb-3">
-                                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-md shadow-[#00C2CB]/30">
+                                                <div className="w-8 h-8 rounded-xl bg-linear-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-md shadow-[#00C2CB]/30">
                                                     <Trophy className="w-4 h-4 text-white" />
                                                 </div>
                                                 <h2 className="text-xs font-bold uppercase tracking-widest text-[#00C2CB]">Prize Pool</h2>
@@ -1223,14 +1209,14 @@ function EventPage() {
                                                         const nameMatch = entry.match(/\(([^)]+)\)/);
                                                         const name = nameMatch ? nameMatch[1].trim() : null;
                                                         const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                                                        const telHref = `tel:${rawNumber.replace(/[\s\-]/g, '')}`;
+                                                        const telHref = `tel:${rawNumber.replace(/[\s-]/g, '')}`;
                                                         return (
                                                             <a
                                                                 key={index}
                                                                 href={telHref}
                                                                 className={`flex items-center gap-2.5 group py-2 px-3 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50'}`}
                                                             >
-                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                                                                     {name ? name.charAt(0).toUpperCase() : '#'}
                                                                 </div>
                                                                 <div className="min-w-0">
@@ -1251,7 +1237,7 @@ function EventPage() {
                                     {eventData?.contact?.instagram && (
                                         <div className="mb-4">
                                             <div className="flex items-center space-x-2 mb-2">
-                                                <div className={`p-1 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full`}>
+                                                <div className={`p-1 bg-linear-to-br from-purple-500 to-pink-500 rounded-full`}>
                                                     <Instagram className="w-4 h-4 text-white" />
                                                 </div>
                                                 <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Instagram</p>
@@ -1282,7 +1268,7 @@ function EventPage() {
                         {/* Desktop/Laptop Layout - Visible at 768px and above */}
                         <div className="hidden md:flex md:flex-row gap-8 p-6">
                             {/* Left Column - Image and Rules */}
-                            <div className="w-1/2 flex-shrink-0 space-y-6">
+                            <div className="w-1/2 shrink-0 space-y-6">
                                 {/* Event Image Card */}
                                 <div className="bg-[#EDEDF2] rounded-2xl overflow-hidden">
                                     <img
@@ -1301,10 +1287,10 @@ function EventPage() {
                                     {/* Desktop Prize Pool Highlight Card */}
                                     {eventData?.prize && (
                                         <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#111213] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
-                                            <div className="absolute inset-0 bg-gradient-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
+                                            <div className="absolute inset-0 bg-linear-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
                                             <div className="relative p-6">
                                                 <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-lg shadow-[#00C2CB]/30">
+                                                    <div className="w-10 h-10 rounded-xl bg-linear-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-lg shadow-[#00C2CB]/30">
                                                         <Trophy className="w-5 h-5 text-white" />
                                                     </div>
                                                     <h2 className="text-xs font-bold uppercase tracking-widest text-[#00C2CB]">Prize Pool</h2>
@@ -1386,10 +1372,10 @@ function EventPage() {
                                                         return (
                                                             <a
                                                                 key={index}
-                                                                href={`tel:${rawNumber.replace(/[\s\-]/g, '')}`}
+                                                                href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
                                                                 className={`flex items-center gap-2.5 group py-2 px-3 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50'}`}
                                                             >
-                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                                                                     {name ? name.charAt(0).toUpperCase() : '#'}
                                                                 </div>
                                                                 <div>
@@ -1408,7 +1394,7 @@ function EventPage() {
                                     {eventData?.contact?.instagram && (
                                         <div className="mb-6">
                                             <div className="flex items-center space-x-3 mb-2">
-                                                <div className={`p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full`}>
+                                                <div className={`p-2 bg-linear-to-br from-purple-500 to-pink-500 rounded-full`}>
                                                     <Instagram className="w-5 h-5 text-white" />
                                                 </div>
                                                 <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Instagram</p>
@@ -1436,7 +1422,7 @@ function EventPage() {
                             </div>
 
                             {/* Right Column - Event Details */}
-                            <div className="w-1/2 flex-shrink-0 space-y-6">
+                            <div className="w-1/2 shrink-0 space-y-6">
                                 {/* Event Header Card */}
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6 relative`}>
                                     {showRegistrationSuccess && (
@@ -1462,8 +1448,8 @@ function EventPage() {
 
                                     <div className="flex items-center gap-3 mb-4">
                                         {/* Fee pill */}
-                                        <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-gradient-to-r from-[#0060DF]/10 to-[#00C2CB]/10 border-[#00C2CB]/30">
-                                            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-gradient-to-br from-[#0060DF]/25 to-[#00C2CB]/25">
+                                        <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-linear-to-r from-[#0060DF]/10 to-[#00C2CB]/10 border-[#00C2CB]/30">
+                                            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-linear-to-br from-[#0060DF]/25 to-[#00C2CB]/25">
                                                 {eventData?.feeAmount > 0
                                                     ? <Ticket className="w-3.5 h-3.5 text-[#00C2CB]" />
                                                     : <Zap className="w-3.5 h-3.5 text-[#00C2CB]" />
@@ -1487,7 +1473,7 @@ function EventPage() {
                                                 ? 'bg-green-500 text-white cursor-not-allowed'
                                                 : registrationInfo.isDisabled
                                                 ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
-                                                : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
+                                                : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
                                                 }`}
                                             title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
                                         >
@@ -1700,7 +1686,7 @@ function EventPage() {
                             ? 'bg-gray-500 text-white cursor-not-allowed'
                             : isRegistered
                             ? 'bg-green-600 text-white'
-                            : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
+                            : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
                     }`}
                 >
                     {isRegistered ? (

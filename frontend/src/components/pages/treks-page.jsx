@@ -1,14 +1,9 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Search, MapPin } from 'lucide-react';
 import Logo from '../../assets/logo01_.svg';
 import ShareIcon from '../../assets/share.svg';
-import HikingIcon from '../../assets/mobile-icons/hiking.svg';
-import TrailIcon from '../../assets/mobile-icons/trail walks.svg';
-import BackpackingIcon from '../../assets/mobile-icons/backpacking.svg';
-import CampingIcon from '../../assets/mobile-icons/camping.svg';
-import AdventureIcon from '../../assets/mobile-icons/adventure.svg';
-import NatureIcon from '../../assets/mobile-icons/nature.svg';
+import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -36,15 +31,8 @@ const fetchJSON = async (endpoint) => {
     } catch (err) { clearTimeout(timeoutId); throw err; }
 };
 
-/* Figma: size-20 rounded-full circles for Browse categories */
-const TREK_CATEGORIES = [
-    { id: 'hiking',      label: 'Hiking',      icon: HikingIcon,      bg: '#EDE9FE' },
-    { id: 'trail',       label: 'Trail Walks', icon: TrailIcon,       bg: '#DCFCE7' },
-    { id: 'backpacking', label: 'Backpacking', icon: BackpackingIcon, bg: '#FEF9C3' },
-    { id: 'camping',     label: 'Camping',     icon: CampingIcon,     bg: '#DBEAFE' },
-    { id: 'adventure',   label: 'Adventure',   icon: AdventureIcon,   bg: '#FEE2E2' },
-    { id: 'nature',      label: 'Nature',      icon: NatureIcon,      bg: '#D1FAE5' },
-];
+/* Browse by Trek Categories — circular PNG icons */
+const TREK_CATEGORIES = TREK_BROWSE_CATEGORIES;
 
 /* ── Dot Pagination — active: solid pill, inactive: hollow ring (Figma spec) ── */
 function DotPagination({ total, current, isDark }) {
@@ -67,7 +55,7 @@ function DotPagination({ total, current, isDark }) {
 /* ── Community Card — Figma: w-40 h-52 (160×208px), heart overlay, Name + Based in + share below ── */
 function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fullWidth = false }) {
     return (
-        <div className={`flex flex-col cursor-pointer active:scale-95 transition-all duration-200 ${fullWidth ? 'w-full' : 'flex-shrink-0'}`} onClick={onClick}>
+        <div className={`flex flex-col cursor-pointer active:scale-95 transition-all duration-200 ${fullWidth ? 'w-full' : 'shrink-0'}`} onClick={onClick}>
             {/* Image: fills container width, fixed height */}
             <div className={`relative rounded-2xl overflow-hidden ${fullWidth ? 'w-full h-48' : 'w-40 h-52'}`}>
                 {trek.image ? (
@@ -78,7 +66,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
                     />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-green-800 to-emerald-600 flex items-center justify-center">
+                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
                         <span className="text-5xl">🏔️</span>
                     </div>
                 )}
@@ -113,7 +101,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
                         e.stopPropagation();
                         if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
                     }}
-                    className={`size-8 flex-shrink-0 rounded-2xl flex items-center justify-center mt-0.5
+                    className={`size-8 shrink-0 rounded-2xl flex items-center justify-center mt-0.5
                         ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}
                 >
                     <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
@@ -127,7 +115,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
 function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div
-            className={`flex-shrink-0 w-80 rounded-2xl overflow-hidden cursor-pointer
+            className={`shrink-0 w-80 rounded-2xl overflow-hidden cursor-pointer
                 active:scale-[0.98] transition-all duration-200
                 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
             onClick={onClick}
@@ -142,7 +130,7 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#1a3a2a', trek.title || 'Trek')}
                     />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center">
+                    <div className="w-full h-full bg-linear-to-br from-slate-700 to-slate-900 flex items-center justify-center">
                         <span className="text-6xl">🏔️</span>
                     </div>
                 )}
@@ -176,7 +164,7 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                         e.stopPropagation();
                         if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
                     }}
-                    className={`size-8 flex-shrink-0 rounded-2xl flex items-center justify-center ml-3
+                    className={`size-8 shrink-0 rounded-2xl flex items-center justify-center ml-3
                         ${isDark ? 'bg-gray-700' : 'bg-white shadow-sm'}`}
                 >
                     <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
@@ -189,7 +177,7 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
 /* ── Beginner Card — same w-40 h-52 as Community but Name + Date + share below ── */
 function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
-        <div className="flex-shrink-0 flex flex-col cursor-pointer active:scale-95 transition-all duration-200" onClick={onClick}>
+        <div className="shrink-0 flex flex-col cursor-pointer active:scale-95 transition-all duration-200" onClick={onClick}>
             <div className="relative w-40 h-52 rounded-2xl overflow-hidden">
                 {trek.image ? (
                     <img
@@ -199,7 +187,7 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
                     />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-green-800 to-emerald-600 flex items-center justify-center">
+                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
                         <span className="text-5xl">🏔️</span>
                     </div>
                 )}
@@ -232,7 +220,7 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                         e.stopPropagation();
                         if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
                     }}
-                    className={`size-8 flex-shrink-0 rounded-2xl flex items-center justify-center mt-0.5
+                    className={`size-8 shrink-0 rounded-2xl flex items-center justify-center mt-0.5
                         ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}
                 >
                     <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
@@ -244,7 +232,7 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
 
 /* ── Skeleton ── */
 function Skeleton({ w, h, isDark }) {
-    return <div className={`flex-shrink-0 rounded-2xl animate-pulse ${isDark ? 'bg-[#111213]' : 'bg-gray-200'}`} style={{ width: w, height: h }} />;
+    return <div className={`shrink-0 rounded-2xl animate-pulse ${isDark ? 'bg-[#111213]' : 'bg-gray-200'}`} style={{ width: w, height: h }} />;
 }
 
 /* ── Main Page ── */
@@ -257,7 +245,7 @@ function TreksPage() {
     const [treks, setTreks] = useState([]);
     const [communities, setCommunities] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeCategory, setActiveCategory] = useState(null);
+    const [activeCategory, _setActiveCategory] = useState(null);
     const [heroPg, setHeroPg] = useState(0);
     const [weekendPg, setWeekendPg] = useState(0);
 
@@ -388,7 +376,7 @@ function TreksPage() {
                     <div className="mb-3.5">
                         <div className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-4
                             ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff] border border-gray-100'}`}>
-                            <Search size={16} className="text-gray-400 flex-shrink-0" />
+                            <Search size={16} className="text-gray-400 shrink-0" />
                             <span className={`text-sm flex-1
                                 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                 search college, fest
@@ -417,8 +405,8 @@ function TreksPage() {
                                 }}
                             >
                                 <div className="flex">
-                                    {heroItems.map((item, slide) => (
-                                        <div key={item.id} className="flex-shrink-0 w-full snap-start"
+                                    {heroItems.map((item, _slide) => (
+                                        <div key={item.id} className="shrink-0 w-full snap-start"
                                             onClick={() => navigate(`/trek/${item.id}`, { state: { trek: { ...item, trekName: item.title, images: item.image ? [item.image] : [] } } })}>
                                             <div className="relative w-full overflow-hidden cursor-pointer"
                                                 style={{ height: '194px', borderRadius: '16px' }}>
@@ -430,7 +418,7 @@ function TreksPage() {
                                                         onError={(e) => handleImageErrorWithFallback(e, 361, 194, '#1a3a2a', 'Trek')}
                                                     />
                                                 ) : (
-                                                    <div className="w-full h-full bg-gradient-to-br from-green-900 via-emerald-800 to-teal-700" />
+                                                    <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700" />
                                                 )}
                                                 <div className="absolute inset-0 bg-black/35" />
                                                 <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
@@ -477,7 +465,7 @@ function TreksPage() {
                             >
                                 <div className="flex gap-4 pb-2 snap-x snap-proximity">
                                     {exploreCommunities.map((comm) => (
-                                        <div key={comm.id} className="snap-start flex-shrink-0">
+                                        <div key={comm.id} className="snap-start shrink-0">
                                             <CommunityCard
                                                 trek={comm}
                                                 isDark={isDark}
@@ -557,15 +545,20 @@ function TreksPage() {
                                     <button
                                         key={cat.id}
                                         onClick={() => navigate(`/treks/category/${cat.id}`)}
-                                        className="flex-shrink-0 flex flex-col items-center gap-1.5 active:scale-95 transition-all duration-200"
+                                        className="shrink-0 flex flex-col items-center gap-1.5 active:scale-95 transition-all duration-200"
                                     >
                                         {/* Circle with HomeCategoryBar-style lift effect */}
                                         <div className={`transition-all duration-200 ${activeCategory === cat.id ? '-translate-y-2 scale-110' : 'scale-100'}`}>
                                             <div
-                                                className="size-20 rounded-full overflow-hidden flex items-center justify-center transition-all duration-200"
-                                                style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
+                                                className={`size-20 rounded-full overflow-hidden transition-all duration-200 ${
+                                                    activeCategory === cat.id ? 'ring-2 ring-[#0ECCEE] ring-offset-2' : ''
+                                                } ${isDark ? 'bg-[#111213]' : 'bg-slate-100'}`}
                                             >
-                                                <img src={cat.icon} alt={cat.label} className="w-full h-full object-contain object-center" />
+                                                <img
+                                                    src={cat.image}
+                                                    alt={cat.label}
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </div>
                                         </div>
                                         <span className={`text-sm font-medium font-inter leading-5 tracking-tight

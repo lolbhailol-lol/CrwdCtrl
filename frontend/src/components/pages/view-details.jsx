@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, MapPin } from "lucide-react";
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Bell, User, Home, ChevronRight,ChevronLeft, Sun, Moon, Phone, Instagram, Mail, ArrowLeft, Share, MoreHorizontal } from 'lucide-react';
@@ -13,7 +13,6 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
 import { getImageUrl, aarohanLogoImg } from '../../utils/imageImports';
-import carnivalSymbios from '../../data/real-data/symbi-images/carnival-symbios.jpg';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
 // ✅ FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
@@ -72,7 +71,7 @@ const fetchJSON = async (endpoint, options = {}) => {
 function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { isAuthenticated } = useAuth();
-  const { registerForEvent, isRegistered } = useRegisteredEvents();
+  const { isRegistered } = useRegisteredEvents();
   const { eventId } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('GROUP');
@@ -396,16 +395,6 @@ function EventDetailsPage() {
     setShowRegister(false);
   };
 
-  // Handle back navigation
-  const handleBackClick = () => {
-    // Try to go back in history, or navigate to home if no history
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/');
-    }
-  };
-
   // Switch from login to register
   const handleSwitchToRegister = () => {
     setShowLogin(false);
@@ -470,9 +459,6 @@ function EventDetailsPage() {
       </div>
     );
   }
-
-  const isPersona = eventData.title.toLowerCase() === 'persona fest';
-  const isSaksham = eventData.title.toLowerCase() === 'saksham 4.0';
 
   const handleRegister = () => {
     // Redirect to view competitions for this particular fest
@@ -682,7 +668,7 @@ function EventDetailsPage() {
                                 <img
                                   src={getImageUrl(comp.image)}
                                   alt={comp.name}
-                                  className="w-24 h-24 rounded-lg object-cover flex-shrink-0"
+                                  className="w-24 h-24 rounded-lg object-cover shrink-0"
                                   onError={(e) => {
                                     handleImageErrorWithFallback(e, 100, 100, '#0ea5e9', comp.name || 'Competition');
                                   }}
@@ -775,7 +761,7 @@ function EventDetailsPage() {
                           ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
                           : isRegistered(eventData.id)
                           ? 'bg-green-600 hover:bg-green-700 text-white'
-                          : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
+                          : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
                       }`}
                       disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
                       title={eventData?.registration?.mode === 'NOT_STARTED' ? 'Registrations Not Started' : 
@@ -921,11 +907,11 @@ function EventDetailsPage() {
                               const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
                               return (
                                 <div key={pi} className="flex items-start gap-1.5">
-                                  <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 flex-shrink-0`} />
+                                  <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 shrink-0`} />
                                   <div>
                                     {name && <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
                                     <a
-                                      href={`tel:${rawNumber.replace(/[\s\-]/g, '')}`}
+                                      href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
                                       className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
                                     >
                                       {rawNumber}
@@ -981,7 +967,7 @@ function EventDetailsPage() {
         <div>
           {/* Header Icons */}
           <div className="relative z-20">
-            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/20 to-transparent">
+            <div className="flex items-center justify-between px-4 py-3 bg-linear-to-b from-black/20 to-transparent">
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => navigate(-1)}
@@ -1227,11 +1213,11 @@ function EventDetailsPage() {
                         const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
                         return (
                           <div key={pi} className="flex items-start gap-1.5">
-                            <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 flex-shrink-0`} />
+                            <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 shrink-0`} />
                             <div>
                               {name && <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
                               <a
-                                href={`tel:${rawNumber.replace(/[\s\-]/g, '')}`}
+                                href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
                                 className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
                               >
                                 {rawNumber}
@@ -1289,7 +1275,7 @@ function EventDetailsPage() {
               ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
               : isRegistered(eventData.id)
               ? 'bg-green-600 hover:bg-green-700 text-white'
-            : 'bg-gradient-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
+            : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
         }`}
         >
           {eventData?.registration?.mode === 'NOT_STARTED'

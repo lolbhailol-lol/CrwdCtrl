@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
 import Footer from '../../Footer';
@@ -44,9 +44,8 @@ function CompetitionRegisterPage() {
     const festName = passedCompetition?.fest || passedCompetition?.festival ||
         passedEventData?.festival_name || passedFestName || 'AAROHAN';
 
-    // Get fest-specific competition data
-    const competitions = getRealCompetitions(festName);
-    const inSyncCompetition = competitions.find(comp => comp.id === 'comp_001');
+    // Get fest-specific competition data (reserved for future dynamic form options)
+    getRealCompetitions(festName);
 
     // Get pre-selected competition name from passed data
     const getPreselectedCompetition = () => {
@@ -1154,7 +1153,7 @@ function CompetitionRegisterPage() {
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
-                                        className="flex-1 bg-gradient-to-r from-[#053780] to-[#0ECCEE] text-white font-semibold py-3 px-6 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="flex-1 bg-linear-to-r from-[#053780] to-[#0ECCEE] text-white font-semibold py-3 px-6 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {isSubmitting ? 'Submitting...' : formData.competitionName ? `Register for ${formData.competitionName}` : 'Submit Registration'}
                                     </button>

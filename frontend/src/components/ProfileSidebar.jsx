@@ -1,11 +1,11 @@
-﻿import React from 'react';
+import React from 'react';
 import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import MobileBottomNav from './MobileBottomNav';
 
-export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowRegister }) {
+export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowRegister: _onShowRegister }) {
     const { isDark, toggleDarkMode } = useDarkMode();
     const { user, logout, isAuthenticated } = useAuth();
     const navigate = useNavigate();
@@ -23,8 +23,8 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
             console.log('Navigating to /edit-profile'); // Debug log
             navigate('/edit-profile');
             onClose();
-        } else if (label === 'Registered fest') {
-            navigate('/registered-fest');
+        } else if (label === 'Bookings') {
+            navigate('/booking');
             onClose();
         } else if (label === 'Help Center') {
             navigate('/help-center');
@@ -41,7 +41,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
 
     const menuItems = [
         { icon: User, label: 'Edit profile', color: 'text-blue-500' },
-        { icon: Calendar, label: 'Registered fest', color: 'text-blue-500' },
+        { icon: Calendar, label: 'Bookings', color: 'text-blue-500' },
     ];
 
     const secondaryItems = [
@@ -52,7 +52,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
     const allMobileMenuItems = [
         { icon: User, label: 'Edit profile', color: 'text-blue-500', requiresAuth: true },
         { icon: Heart, label: 'Favourites', color: 'text-blue-500', requiresAuth: false },
-        { icon: Calendar, label: 'Registered fest', color: 'text-blue-500', requiresAuth: false },
+        { icon: Calendar, label: 'Bookings', color: 'text-blue-500', requiresAuth: false },
         { icon: HelpCircle, label: 'Help Center', color: 'text-blue-500', requiresAuth: false },
         { icon: Bell, label: 'Notifications', color: 'text-blue-500', requiresAuth: true },
     ];
@@ -77,12 +77,12 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
             <div className="hidden md:block">
                 {/* Full Screen Overlay */}
                 <div
-                    className={`fixed inset-0 backdrop-blur-sm z-[60] transition-opacity duration-300 ${isDark ? 'bg-[#161718]/50' : 'bg-white/30'}`}
+                    className={`fixed inset-0 backdrop-blur-sm z-60 transition-opacity duration-300 ${isDark ? 'bg-[#161718]/50' : 'bg-white/30'}`}
                     onClick={onClose}
                 />
 
                 {/* Sidebar */}
-                <div className={`fixed right-0 top-0 z-[70] w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
+                <div className={`fixed right-0 top-0 z-70 w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
                     }`}>
                     <div className={`h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#111213] ' : 'bg-[#EDEDF2]'
                         }`}>
@@ -109,7 +109,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                         <div className={`px-6 py-8 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                             <div className="flex items-center gap-4">
                                 <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isAuthenticated
-                                    ? 'bg-gradient-to-br from-[#007BFF] to-[#00C9A7]'
+                                    ? 'bg-linear-to-br from-[#007BFF] to-[#00C9A7]'
                                     : isDark
                                         ? 'bg-gray-700'
                                         : 'bg-gray-200'
@@ -232,11 +232,11 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
             <div className="block md:hidden">
                 {/* Overlay */}
                 <div
-                    className={`fixed inset-0 z-[60] transition-opacity duration-300 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
+                    className={`fixed inset-0 z-60 transition-opacity duration-300 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
                 />
 
                 {/* Mobile Profile Screen */}
-                <div className={`fixed inset-0 z-[9999] profile-sidebar-mobile ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                <div className={`fixed inset-0 z-9999 profile-sidebar-mobile ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                     {/* Scrollable content container */}
                     <div className="h-full overflow-y-auto scrollbar-hide pb-32">
                         <div className="min-h-full">
@@ -270,7 +270,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                         {/* Profile Avatar Section */}
                         <div className={`px-6 py-8 flex flex-col items-center ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                             <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 ${isAuthenticated
-                                ? 'bg-gradient-to-br from-[#007BFF] to-[#00C9A7]'
+                                ? 'bg-linear-to-br from-[#007BFF] to-[#00C9A7]'
                                 : isDark
                                     ? 'bg-gray-700'
                                     : 'bg-gray-200'
@@ -361,7 +361,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
 
                     {/* Mobile Bottom Navigation - Fixed at actual bottom with proper z-index and safe-area */}
                     <div 
-                        className="fixed bottom-0 left-0 right-0 z-[10000]"
+                        className="fixed bottom-0 left-0 right-0 z-10000"
                         style={{
                             paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
                             paddingLeft: 'env(safe-area-inset-left)',

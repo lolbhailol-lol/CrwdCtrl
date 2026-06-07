@@ -4,10 +4,11 @@ const User = require("../model/usermodel");
 const { sendWelcomeEmail, sendLoginConfirmationEmail } = require('../services/emailService');
 const { createNotification } = require('./notificationController');
 const { sendPushNotification } = require('../services/pushService');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 // Generate JWT Token
 const generateToken = (userId) => {
-    return jwt.sign({ userId }, process.env.JWT_SECRET || 'your-secret-key', {
+    return jwt.sign({ userId }, getJwtSecret(), {
         expiresIn: '7d',
     });
 };

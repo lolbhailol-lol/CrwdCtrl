@@ -5,13 +5,14 @@ const jwt = require('jsonwebtoken');
 const Trek = require('../model/trek_model');
 const TrekBooking = require('../model/trek_booking_model');
 const { appendToGoogleSheets } = require('../services/googleSheetsService');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 // Extract userId from optional Bearer token without blocking the request
 function optionalUserId(req) {
     try {
         const auth = req.headers.authorization;
         if (!auth || !auth.startsWith('Bearer ')) return null;
-        const secret = process.env.JWT_SECRET || 'your-secret-key';
+        const secret = getJwtSecret();
         const decoded = jwt.verify(auth.split(' ')[1], secret);
         return decoded.userId || decoded.id || null;
     } catch {

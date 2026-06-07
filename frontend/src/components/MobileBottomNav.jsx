@@ -19,15 +19,15 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
         const p = location.pathname;
         if (itemId === 'home')       return p === '/';
         if (itemId === 'favorites')  return p === '/favorites';
-        if (itemId === 'registered') return p === '/registered-fest';
-        if (itemId === 'profile')    return p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications');
+        if (itemId === 'booking') return p === '/booking';
+        if (itemId === 'profile')    return p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications') || p.includes('/booking');
         return p === itemPath;
     };
 
     const navItems = [
         { id: 'home',       icon: Home,     label: 'Home',       path: '/' },
         { id: 'favorites',  icon: Heart,    label: 'Favourite',  path: '/favorites' },
-        { id: 'registered', icon: Calendar, label: 'My Reg', path: '/registered-fest' },
+        { id: 'booking', icon: Calendar, label: 'Bookings', path: '/booking' },
         { id: 'profile',    icon: User,     label: 'Profile',    path: '/profile' },
     ];
 

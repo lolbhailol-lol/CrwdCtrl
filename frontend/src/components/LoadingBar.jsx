@@ -2,7 +2,7 @@
 import { useDarkMode } from '../context/DarkModeContext';
 import MainLogo from '../assets/logo01_.svg';
 
-const LoadingBar = ({ message = "Loading..." }) => {
+const LoadingBar = ({ message: _message = "Loading..." }) => {
     const { isDark } = useDarkMode();
 
     return (

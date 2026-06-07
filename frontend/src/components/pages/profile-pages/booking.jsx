@@ -1,32 +1,133 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../../utils/imageImports';
-import Footer from '../../Footer';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { ArrowLeft } from 'lucide-react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
-function RegisteredFest() {
+const formatEventDate = (date) => {
+    if (!date) return 'Date TBA';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return String(date);
+    return parsed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const isEventCompleted = (item) => {
+    if (item.status === 'completed') return true;
+    if (!item.date) return false;
+    const eventDate = new Date(item.date);
+    if (Number.isNaN(eventDate.getTime())) return false;
+    eventDate.setHours(23, 59, 59, 999);
+    return eventDate < new Date();
+};
+
+function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, showDownload = true }) {
+    return (
+        <div
+            className={`rounded-2xl border-[0.20px] p-3 sm:p-4 h-40 flex flex-col ${
+                isDark ? 'border-gray-700 bg-[#111213]' : 'border-black/20 bg-white'
+            }`}
+        >
+            <div className="flex gap-3 sm:gap-4 min-h-0 flex-1">
+                <div className="size-20 shrink-0 rounded-2xl overflow-hidden">
+                    {item.image ? (
+                        <img
+                            src={getImageUrl(item.image)}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                                handleImageErrorWithFallback(e, 84, 84, '#6366f1', item.name || 'Event');
+                            }}
+                        />
+                    ) : (
+                        <div
+                            className={`w-full h-full flex items-center justify-center ${
+                                isDark ? 'bg-linear-to-br from-gray-800 to-gray-900' : 'bg-linear-to-br from-gray-100 to-gray-200'
+                            }`}
+                        >
+                            <span className="text-2xl">{item.isTrek ? '🏔️' : '🎉'}</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="min-w-0 flex-1 pt-2">
+                    <h3
+                        className={`text-sm font-medium font-inter leading-5 tracking-tight line-clamp-2 ${
+                            isDark ? 'text-white' : 'text-gray-900'
+                        }`}
+                    >
+                        {item.name}
+                    </h3>
+                    <p
+                        className={`mt-2 text-xs font-medium font-inter leading-4 tracking-tight ${
+                            isDark ? 'text-gray-400' : 'text-gray-900'
+                        }`}
+                    >
+                        {formatEventDate(item.date)}
+                    </p>
+                    {item.isCompetition && item.festName && (
+                        <p className={`mt-1 text-xs line-clamp-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                            {item.festName}
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex gap-2 mt-3">
+                <button
+                    type="button"
+                    onClick={() => onViewBooking(item)}
+                    className={`flex-1 h-11 rounded-2xl text-base font-medium font-inter leading-6 transition-colors ${
+                        isDark
+                            ? 'bg-[#111213] border border-[#0ECCEE] text-[#0ECCEE] hover:bg-[#0ECCEE]/10'
+                            : 'bg-white border-[0.50px] border-[#0ECCEE] text-[#0ECCEE] hover:bg-[#0ECCEE]/5'
+                    }`}
+                >
+                    View Booking
+                </button>
+                {showDownload ? (
+                    <button
+                        type="button"
+                        onClick={() => onDownloadTicket(item)}
+                        className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-black text-base font-medium font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
+                    >
+                        Download ticket
+                    </button>
+                ) : (
+                    <span
+                        className={`flex-1 h-11 rounded-2xl flex items-center justify-center text-sm font-medium ${
+                            isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'
+                        }`}
+                    >
+                        Confirmed
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function Booking() {
     const { isDark } = useDarkMode();
     const { isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
-    const location = useLocation();
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
-    const [registeredFests, setRegisteredFests] = useState([]);
+    const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [activeTab, setActiveTab] = useState('upcoming');
 
     // Fetch user's registered events from backend API
     useEffect(() => {
-        const fetchRegisteredEvents = async () => {
+        const fetchBookings = async () => {
             if (!isAuthenticated || !user) {
                 setLoading(false);
                 return;
@@ -121,17 +222,17 @@ function RegisteredFest() {
 
                 const all = [...transformedFests, ...transformedTreks]
                     .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
-                setRegisteredFests(all);
+                setBookings(all);
             } catch (err) {
-                console.error('Error fetching registered events:', err);
+                console.error('Error fetching bookings:', err);
                 setError(err.message);
-                setRegisteredFests([]);
+                setBookings([]);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchRegisteredEvents();
+        fetchBookings();
     }, [isAuthenticated, user]);
 
     // Refetch data when component becomes visible (user navigates back)
@@ -209,10 +310,10 @@ function RegisteredFest() {
                             }));
                             const all = [...transformedFests, ...transformedTreks]
                                 .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
-                            setRegisteredFests(all);
+                            setBookings(all);
                         }
                     } catch (err) {
-                        console.warn('Error refetching registered events:', err);
+                        console.warn('Error refetching bookings:', err);
                     }
                 };
                 
@@ -234,11 +335,11 @@ function RegisteredFest() {
     // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
     useEffect(() => {
         if (isAuthenticated && showLogin) {
-            console.log('✅ User authenticated, closing login modal in registered-fest');
+            console.log('✅ User authenticated, closing login modal in booking');
             setShowLogin(false);
         }
         if (isAuthenticated && showRegister) {
-            console.log('✅ User authenticated, closing register modal in registered-fest');
+            console.log('✅ User authenticated, closing register modal in booking');
             setShowRegister(false);
         }
     }, [isAuthenticated, showLogin, showRegister]);
@@ -267,22 +368,27 @@ function RegisteredFest() {
     };
 
     // Use backend data if available, otherwise fall back to context data
-    const allFests = [...registeredFests];
+    const allBookings = [...bookings];
 
     const handleGoBack = () => {
         navigate(-1);
     };
 
     const handleViewDetails = (item) => {
-        // Navigate to registration details page
-        console.log('🔍 Navigating to registration details for item:', item);
         if (item.id) {
-            console.log('🔗 Navigation URL:', `/registration-details/${item.id}`);
             navigate(`/registration-details/${item.id}`);
-        } else {
-            console.error('❌ No ID found for item:', item);
         }
     };
+
+    const handleDownloadTicket = (item) => {
+        if (item.id) {
+            navigate(`/qr-ticket/${item.id}`);
+        }
+    };
+
+    const upcomingBookings = allBookings.filter((item) => !isEventCompleted(item));
+    const completedBookings = allBookings.filter((item) => isEventCompleted(item));
+    const visibleBookings = activeTab === 'upcoming' ? upcomingBookings : completedBookings;
 
     // Loading state
     if (loading) {
@@ -290,7 +396,7 @@ function RegisteredFest() {
             <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-                    <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading registered events...</h2>
+                    <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading bookings...</h2>
                 </div>
             </div>
         );
@@ -314,182 +420,120 @@ function RegisteredFest() {
     }
 
     return (
-        <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'
-            }`}>
-            <div className={`transition-all duration-300`}>
-
-                <main className="p-4 sm:p-6 lg:p-8">
-                    {/* Header with Back Button */}
-                    <div className="flex items-center gap-3 mb-6 md:mb-8">
-                        <button
-                            onClick={handleGoBack}
-                            className={`p-2 rounded-lg transition-colors ${
-                                isDark 
-                                    ? 'hover:bg-gray-800 text-gray-300 hover:text-white' 
-                                    : 'hover:bg-gray-200 text-gray-700 hover:text-gray-900'
-                            }`}
-                            title="Go back"
-                        >
-                            <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
-                        </button>
-                        <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold ${isDark ? 'text-white' : 'text-gray-900'
-                            }`}>
-                            My Registrations
-                        </h1>
-                    </div>
-
-                    {/* Registered Events */}
-                    <div className={`max-w-6xl mx-auto ${isDark ? 'bg-[#111213]' : 'bg-white'
-                        } rounded-lg p-3 sm:p-4 md:p-8`}>
-                        <div className={`flex gap-2 sm:gap-4 md:gap-8 mb-4 sm:mb-6 md:mb-8 border-b ${isDark ? 'border-[#161718]' : 'border-gray-200'
-                            }`}>
-                            <div className="pb-2 sm:pb-3 px-2 font-semibold text-sm sm:text-base md:text-lg text-blue-600 border-b-2 border-blue-600">
-                                <span>My Registrations</span>
-                                <span className="ml-1">({allFests.length})</span>
-                            </div>
+        <div
+            className={`min-h-screen transition-colors duration-300 pb-24 lg:pb-8 ${
+                isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'
+            }`}
+        >
+            <main className="px-4 pt-4 sm:px-6 lg:px-8">
+                <div className="mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl">
+                    {/* Header + tabs — Figma: slate-100 shell */}
+                    <div
+                        className={`px-4 pt-4 ${
+                            isDark ? 'bg-[#111213]' : 'bg-slate-100'
+                        }`}
+                    >
+                        <div className="flex items-center gap-4 pb-8">
+                            <button
+                                type="button"
+                                onClick={handleGoBack}
+                                className={`size-8 rounded-full flex items-center justify-center transition-colors ${
+                                    isDark ? 'bg-[#161718] hover:bg-gray-800' : 'bg-white hover:bg-gray-50'
+                                }`}
+                                title="Go back"
+                            >
+                                <ArrowLeft className={`w-4 h-4 ${isDark ? 'text-white' : 'text-gray-900'}`} />
+                            </button>
+                            <h1
+                                className={`text-2xl font-medium font-inter leading-8 ${
+                                    isDark ? 'text-white' : 'text-gray-900'
+                                }`}
+                            >
+                                My Bookings
+                            </h1>
                         </div>
 
-                        {/* Events List */}
-                        {allFests.length > 0 ? (
-                            <div className="space-y-3 sm:space-y-4">
-                                {allFests.map((item) => (
-                                    <div
+                        <div className="flex items-end gap-6 px-2">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('upcoming')}
+                                className={`h-11 min-w-32 rounded-t-2xl px-4 text-lg font-medium font-inter leading-7 tracking-wide transition-colors ${
+                                    activeTab === 'upcoming'
+                                        ? isDark
+                                            ? 'bg-[#161718] text-blue-400'
+                                            : 'bg-[#F5F6FA] text-blue-700'
+                                        : isDark
+                                          ? 'text-gray-400 hover:text-gray-200'
+                                          : 'text-gray-900 hover:text-blue-700'
+                                }`}
+                            >
+                                Upcoming
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('completed')}
+                                className={`h-11 min-w-32 rounded-t-2xl px-4 text-lg font-medium font-inter leading-7 tracking-wide transition-colors ${
+                                    activeTab === 'completed'
+                                        ? isDark
+                                            ? 'bg-[#161718] text-blue-400'
+                                            : 'bg-[#F5F6FA] text-blue-700'
+                                        : isDark
+                                          ? 'text-gray-400 hover:text-gray-200'
+                                          : 'text-gray-900 hover:text-blue-700'
+                                }`}
+                            >
+                                Completed
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content panel — Figma: card-bg with connected corners */}
+                    <div
+                        className={`px-2.5 py-6 sm:px-4 min-h-[420px] rounded-tr-2xl rounded-bl-2xl rounded-br-2xl ${
+                            activeTab === 'completed' ? 'rounded-tl-2xl' : ''
+                        } ${isDark ? 'bg-[#161718]' : 'bg-[#F5F6FA]'}`}
+                    >
+                        {visibleBookings.length > 0 ? (
+                            <div className="space-y-4">
+                                {visibleBookings.map((item) => (
+                                    <BookingCard
                                         key={item.id}
-                                        className={`flex flex-col sm:flex-row items-start sm:items-center p-3 sm:p-4 rounded-lg border transition-all duration-300 hover:shadow-md ${
-                                            isDark 
-                                                ? 'bg-[#111213] border-gray-700 hover:border-gray-600' 
-                                                : 'bg-white border-gray-200 hover:border-gray-300'
-                                        }`}
-                                    >
-                                        {/* Event Image */}
-                                        <div className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden mb-3 sm:mb-0 sm:mr-4">
-                                            {item.image ? (
-                                                <img
-                                                    src={getImageUrl(item.image)}
-                                                    alt={item.name}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        handleImageErrorWithFallback(e, 80, 80, '#6366f1', item.name || 'Event');
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div className={`w-full h-full ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-100 to-gray-200'} flex items-center justify-center`}>
-                                                    <span className={`text-xl sm:text-2xl`}>🎉</span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Event Details */}
-                                        <div className="flex-grow min-w-0 w-full">
-                                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                                                <div className="flex-grow min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                        <h3 className={`text-base sm:text-lg font-semibold line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                            {item.name}
-                                                        </h3>
-                                                        {item.isCompetition && (
-                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full flex-shrink-0 ${isDark ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-800'}`}>
-                                                                Competition
-                                                            </span>
-                                                        )}
-                                                        {item.isTrek && (
-                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full flex-shrink-0 ${isDark ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800'}`}>
-                                                                Trek
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {item.isCompetition && item.festName && (
-                                                        <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-                                                            🏆 Part of {item.festName}
-                                                        </p>
-                                                    )}
-                                                    <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-                                                        {item.date && (
-                                                            <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                                📅 {typeof item.date === 'string' ? item.date : new Date(item.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                            </span>
-                                                        )}
-                                                        {item.venue && (
-                                                            <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                                📍 {item.venue}
-                                                            </span>
-                                                        )}
-                                                        {item.collegeName && (
-                                                            <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                                🏫 {item.collegeName}
-                                                            </span>
-                                                        )}
-                                                        {item.isTrek && item.people && (
-                                                            <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                                👥 {item.people} {item.people > 1 ? 'people' : 'person'}
-                                                            </span>
-                                                        )}
-                                                        {item.isTrek && item.amountPaid > 0 && (
-                                                            <span className="text-[#0ECCEE] font-medium">
-                                                                ₹{item.amountPaid.toLocaleString('en-IN')} paid
-                                                            </span>
-                                                        )}
-                                                        {item.isTrek && item.amountPaid === 0 && (
-                                                            <span className="text-green-500 font-medium">Free</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                            </div>
-                                        </div>
-
-                                        {/* Action Buttons */}
-                                        <div className="flex-shrink-0 flex items-center gap-2 mt-3 sm:mt-0 sm:ml-4 w-full sm:w-auto">
-                                            {!item.isTrek && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        navigate(`/qr-ticket/${item.id}`);
-                                                    }}
-                                                    className="flex-1 sm:flex-none bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black font-medium text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap"
-                                                >
-                                                    🎟 My Ticket
-                                                </button>
-                                            )}
-                                            {!item.isTrek && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleViewDetails(item);
-                                                    }}
-                                                    className="flex-1 sm:flex-none bg-cyan-500 hover:bg-cyan-600 text-white font-medium text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap"
-                                                >
-                                                    View Details
-                                                </button>
-                                            )}
-                                            {item.isTrek && (
-                                                <span className={`text-xs px-3 py-2 rounded-lg font-medium ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
-                                                    ✓ Confirmed
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
+                                        item={item}
+                                        isDark={isDark}
+                                        onViewBooking={handleViewDetails}
+                                        onDownloadTicket={handleDownloadTicket}
+                                        showDownload={!item.isTrek}
+                                    />
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-center py-12 md:py-16">
-                                <div className={`text-6xl mb-4 ${isDark ? 'text-gray-600' : 'text-gray-300'
-                                    }`}>
+                            <div className="flex flex-col items-center justify-center py-16 text-center">
+                                <div className={`text-5xl mb-4 ${isDark ? 'text-gray-600' : 'text-gray-300'}`}>
                                     📅
                                 </div>
-                                <h3 className={`text-xl font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'
-                                    }`}>
-                                    No Events Registered
+                                <h3
+                                    className={`text-lg font-medium font-inter mb-2 ${
+                                        isDark ? 'text-gray-300' : 'text-gray-700'
+                                    }`}
+                                >
+                                    {allBookings.length === 0
+                                        ? 'No bookings yet'
+                                        : activeTab === 'upcoming'
+                                          ? 'No upcoming bookings'
+                                          : 'No completed bookings'}
                                 </h3>
-                                <p className={`${isDark ? 'text-gray-500' : 'text-gray-500'
-                                    }`}>
-                                    Register for events to see them here
+                                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                    {allBookings.length === 0
+                                        ? 'Register for events to see them here'
+                                        : activeTab === 'upcoming'
+                                          ? 'Your past events will appear under Completed'
+                                          : 'Completed events will show up here after the event date'}
                                 </p>
                             </div>
                         )}
                     </div>
-                </main>
-            </div>
+                </div>
+            </main>
 
             {/* Login Modal */}
             {showLogin && (
@@ -508,4 +552,4 @@ function RegisteredFest() {
     );
 }
 
-export default RegisteredFest;
+export default Booking;

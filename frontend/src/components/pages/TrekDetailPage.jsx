@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, Heart, ChevronRight } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -132,7 +132,7 @@ export default function TrekDetailPage() {
     const { isDark } = useDarkMode();
 
     const [trek,      setTrek]      = useState(null);
-    const [community, setCommunity] = useState(location.state?.community || null);
+    const [community] = useState(location.state?.community || null);
     const [loading,   setLoading]   = useState(true);
     const [liked,     setLiked]     = useState(false);
     const [imgPg,     setImgPg]     = useState(0);
@@ -198,7 +198,6 @@ export default function TrekDetailPage() {
     const allImages = coverImg ? [coverImg, ...rawImages.filter(u => u !== coverImg)] : rawImages;
     const images    = allImages.length ? allImages : trek.image ? [trek.image] : [null];
     const communityName = community?.name || community?.title || trek.communityName || trek.trekLeader || null;
-    const price         = trek.registrationFee ? `₹${Number(trek.registrationFee).toLocaleString('en-IN')}/-` : 'Free';
     // Build overview from available trek fields
     const buildOverview = () => {
         if (trek.description) return trek.description;
@@ -223,7 +222,7 @@ export default function TrekDetailPage() {
         <div className={`flex flex-col min-h-screen max-w-md mx-auto ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
 
             {/* ── HERO IMAGE ── */}
-            <div className="relative w-full h-[280px] flex-shrink-0 bg-gray-200">
+            <div className="relative w-full h-[280px] shrink-0 bg-gray-200">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
@@ -232,11 +231,11 @@ export default function TrekDetailPage() {
                 >
                     <div className="flex h-full">
                         {images.map((img, i) => (
-                            <div key={i} className="flex-shrink-0 w-full h-full snap-start">
+                            <div key={i} className="shrink-0 w-full h-full snap-start">
                                 {img
                                     ? <img src={getImageUrl(img)} alt={trek.trekName} className="w-full h-full object-cover"
                                         onError={e => handleImageErrorWithFallback(e, 393, 280, '#1a3a2a', trek.trekName)} />
-                                    : <div className="w-full h-full bg-gradient-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
+                                    : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
                                         <span className="text-7xl opacity-40">⛰️</span>
                                       </div>
                                 }
@@ -307,7 +306,7 @@ export default function TrekDetailPage() {
                         const trekId = id || trek._id || trek.id;
                         navigate(`/trek/${trekId}/book`, { state: { trek } });
                     }}
-                    className="flex items-center justify-center gap-2 w-52 py-2.5 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-95 transition-all flex-shrink-0"
+                    className="flex items-center justify-center gap-2 w-52 py-2.5 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-95 transition-all shrink-0"
                 >
                     Check Availability
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -321,7 +320,7 @@ export default function TrekDetailPage() {
 
                 {/* Trek name + community */}
                 <div className="px-4 pt-5 pb-3">
-                    <h1 className={`text-[26px] font-bold leading-8 break-words ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {trek.trekName || trek.title || trek.name || 'Trek Name'}
                     </h1>
                     <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -338,19 +337,19 @@ export default function TrekDetailPage() {
                             { Icon: ClockIcon,  label: 'Trek Duration',   value: trek.trekDuration || trek.duration || '—' },
                             { Icon: ChartIcon,  label: 'Difficulty',      value: (trek.difficultyLevel || trek.difficulty || '—'), extra: 'capitalize' },
                             { Icon: GridIcon,   label: 'Trek Style',      value: trek.trekCategory || 'Adventure Trek', extra: 'capitalize' },
-                        ].map(({ Icon, label, value, extra }) => (
-                            <div key={label} className="flex items-center gap-2.5">
-                                <Icon size={22} />
+                        ].map((row) => (
+                            <div key={row.label} className="flex items-center gap-2.5">
+                                <row.Icon size={22} />
                                 <div>
-                                    <p className={`text-[15px] font-semibold leading-5 ${extra || ''} ${isDark ? 'text-white' : 'text-gray-900'}`}>{value}</p>
-                                    <p className={`text-[11px] font-medium leading-4 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{label}</p>
+                                    <p className={`text-[15px] font-semibold leading-5 ${row.extra || ''} ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.value}</p>
+                                    <p className={`text-[11px] font-medium leading-4 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
 
                     {/* Right: map + location */}
-                    <div className="flex flex-col flex-shrink-0">
+                    <div className="flex flex-col shrink-0">
                         <div className="w-60 h-33 rounded-2xl overflow-hidden relative">
                             {(trek.city || trek.destination || trek.meetingLocation) ? (
                                 <>
@@ -366,7 +365,7 @@ export default function TrekDetailPage() {
                                     />
                                 </>
                             ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
+                                <div className="w-full h-full bg-linear-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
                                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
                                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
                                         <circle cx="12" cy="9" r="2.5" fill="#9CA3AF"/>
@@ -438,11 +437,11 @@ export default function TrekDetailPage() {
                                         { show: !!trek.meetingLocation,      Icon: MapPinIcon,  label: 'Meeting Point', value: trek.meetingLocation },
                                         { show: !!trek.ageRestrictions,      Icon: AgeIcon,     label: 'Age Limit',     value: trek.ageRestrictions },
                                         { show: !!trek.fitnessRequirements,  Icon: FitnessIcon, label: 'Fitness',       value: trek.fitnessRequirements },
-                                    ].filter(r => r.show).map(({ Icon, label, value }) => (
-                                        <div key={label} className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                            <Icon size={22} />
-                                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{label}</p>
-                                            <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{value}</p>
+                                    ].filter(r => r.show).map((row) => (
+                                        <div key={row.label} className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                            <row.Icon size={22} />
+                                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
+                                            <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.value}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -461,7 +460,7 @@ export default function TrekDetailPage() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <ChevronRight size={16} className={`flex-shrink-0 transition-transform ${inclusionOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                            <ChevronRight size={16} className={`shrink-0 transition-transform ${inclusionOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                                         </div>
                                     </button>
                                 )}
@@ -496,7 +495,7 @@ export default function TrekDetailPage() {
                             trek.inclusions?.length > 0
                                 ? <ul className="space-y-2">{trek.inclusions.map((item, i) => (
                                     <li key={i} className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        <span className="size-1.5 rounded-full bg-green-400 flex-shrink-0" />{item}
+                                        <span className="size-1.5 rounded-full bg-green-400 shrink-0" />{item}
                                     </li>))}</ul>
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No inclusions listed.</p>
                         )}
@@ -504,7 +503,7 @@ export default function TrekDetailPage() {
                             trek.exclusions?.length > 0
                                 ? <ul className="space-y-2">{trek.exclusions.map((item, i) => (
                                     <li key={i} className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        <span className="size-1.5 rounded-full bg-red-400 flex-shrink-0" />{item}
+                                        <span className="size-1.5 rounded-full bg-red-400 shrink-0" />{item}
                                     </li>))}</ul>
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No exclusions listed.</p>
                         )}
@@ -529,7 +528,7 @@ export default function TrekDetailPage() {
                                 className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${isDark ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]' : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'}`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className={`size-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-amber-50'}`}>
+                                    <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-amber-50'}`}>
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isDark ? '#FCD34D' : '#D97706'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                                             <polyline points="14 2 14 8 20 8"/>
@@ -543,13 +542,13 @@ export default function TrekDetailPage() {
                                         <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{terms.length} points — tap to {termsOpen ? 'collapse' : 'read'}</p>
                                     </div>
                                 </div>
-                                <ChevronRight size={16} className={`transition-transform duration-200 flex-shrink-0 ${termsOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                <ChevronRight size={16} className={`transition-transform duration-200 shrink-0 ${termsOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                             </button>
                             {termsOpen && (
                                 <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
                                     {terms.map((term, i) => (
                                         <div key={i} className={`flex gap-3 px-4 py-3 ${i < terms.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}>
-                                            <span className={`text-xs font-bold mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-amber-50 text-amber-600'}`}>{i + 1}</span>
+                                            <span className={`text-xs font-bold mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-amber-50 text-amber-600'}`}>{i + 1}</span>
                                             <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{term}</p>
                                         </div>
                                     ))}
@@ -574,7 +573,7 @@ export default function TrekDetailPage() {
                             return (
                                 <a href={phone ? `tel:${phone}` : undefined}
                                     className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                    <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center flex-shrink-0">
+                                    <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center shrink-0">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
                                             <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
                                         </svg>
@@ -593,7 +592,7 @@ export default function TrekDetailPage() {
                                 <a href={insta ? `https://instagram.com/${insta.replace('@','')}` : undefined}
                                     target={insta ? '_blank' : undefined} rel="noopener noreferrer"
                                     className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                    <div className="size-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    <div className="size-10 rounded-xl flex items-center justify-center shrink-0"
                                         style={{ background: 'linear-gradient(135deg, #FCD34D 0%, #EC4899 50%, #7C3AED 100%)' }}>
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
                                             <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>

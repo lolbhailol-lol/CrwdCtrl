@@ -52,16 +52,15 @@ const registrationSchema = new mongoose.Schema({
     default: false,
   },
 
-  // Razorpay payment fields
-  razorpay_order_id: {
+  payment_order_id: {
     type: String,
     default: null,
   },
-  razorpay_payment_id: {
+  payment_id: {
     type: String,
     default: null,
   },
-  razorpay_signature: {
+  payment_gateway: {
     type: String,
     default: null,
   },

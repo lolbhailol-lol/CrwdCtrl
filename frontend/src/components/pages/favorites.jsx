@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Heart, Calendar, MapPin, Clock, Sparkles, Filter, Trash2, ArrowLeft } from 'lucide-react';
 import Sidebar from '../Sidebar';
@@ -71,7 +71,7 @@ const MobileFestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
                 {/* Date */}
                 <div className={`flex items-center gap-2 text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'
                     }`}>
-                    <Calendar className="w-4 h-4 flex-shrink-0" />
+                    <Calendar className="w-4 h-4 shrink-0" />
                     <span className="truncate">{fest.dateTime || fest.date}</span>
                 </div>
 
@@ -176,7 +176,7 @@ const FestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
                             </p>
                         </div>
                         {fest.ticketPrice && (
-                            <div className="text-right flex-shrink-0">
+                            <div className="text-right shrink-0">
                                 <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     {fest.ticketPrice}
                                 </p>
@@ -289,7 +289,7 @@ function FestFavoritesPage() {
     };
 
     // Helper function to get event by ID (fallback for missing events)
-    const getEventById = (eventId) => {
+    const getEventById = (_eventId) => {
         // This is a placeholder function since we don't have access to the full events data
         // In a real app, this would fetch from a central store or API
         return null;

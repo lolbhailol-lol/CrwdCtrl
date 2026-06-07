@@ -9,7 +9,8 @@ const CONTENT_PAGES = [
   '/',                    // Dashboard - fest listings
   '/cultural-fest',       // Cultural fest listings
   '/tech-fest',           // Tech fest listings
-  '/sports-fest',         // Sports fest listings
+  '/sports-fest',         // Sports fest listings (cultural/tech/sports subsection)
+  '/sports',              // Sports category hub (home banner)
   '/about',               // About Us page
   '/privacy-policy',      // Privacy Policy
   '/terms-and-conditions',// Terms and Conditions

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -376,7 +376,7 @@ const CompetitionListPage = () => {
                         >
                             <div className="flex gap-4 p-3">
                                 {/* Image */}
-                                <div className="w-32 h-32 flex-shrink-0">
+                                <div className="w-32 h-32 shrink-0">
                                     <img
                                         src={getImageUrl(comp.image)}
                                         alt={comp.name}

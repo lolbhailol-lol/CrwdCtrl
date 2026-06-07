@@ -1465,7 +1465,9 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
               headers: { Authorization: `Bearer ${t}` },
               credentials: 'include',
             });
-          } catch (_) {}
+          } catch (_) {
+            // no-op: cache clear failure should not block save flow
+          }
           
           onSaved();
           return;
@@ -1778,7 +1780,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 {/* Entry fee amount and automatic platform fee preview */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Razorpay Fee Amount (₹) <span className="text-gray-500 font-normal">— for online payment</span>
+                    Online Fee Amount (₹) <span className="text-gray-500 font-normal">— for online payment</span>
                   </label>
                   <p className="text-xs text-gray-500 mb-2">
                     Enter the base entry fee. The 3% platform fee is added automatically at payment.

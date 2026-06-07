@@ -8,7 +8,7 @@
 
 import { authAPI } from '../utils/api';
 import { storage } from '../utils/storage';
-import { signInWithGoogle, signInWithFacebook, registerWithEmail, loginWithEmail } from '../firebase';
+import { signInWithGoogle, signInWithFacebook, registerWithEmail } from '../firebase';
 import { processSocialAuthUser } from '../utils/socialAuth';
 import { AUTH_CONFIG, API_CONFIG } from '../config/env.js';
 
@@ -365,7 +365,7 @@ class AuthService {
     /**
      * Social Auth Registration (Google/Facebook)
      */
-    async registerWithSocial(provider, phone, dateOfBirth) {
+    async registerWithSocial(provider, _phone, _dateOfBirth) {
         try {
             this.checkNetworkStatus();
 

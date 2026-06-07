@@ -8,6 +8,7 @@ const {
   getFestAnalytics,
   getRealtimeStats,
 } = require('../controllers/analyticsController');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 // Public endpoint — optionally uses auth token if present
 router.post('/track', (req, res, next) => {
@@ -17,7 +18,7 @@ router.post('/track', (req, res, next) => {
     const jwt = require('jsonwebtoken');
     try {
       const token = authHeader.substring(7);
-      const secret = process.env.JWT_SECRET || 'your-secret-key';
+      const secret = getJwtSecret();
       const decoded = jwt.verify(token, secret);
       req.user = { userId: decoded.userId };
     } catch (_) { /* Not authenticated — fine for tracking */ }

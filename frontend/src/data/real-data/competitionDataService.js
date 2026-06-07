@@ -12,7 +12,6 @@ import bandwarsImg from './aarohan-comition-images/bandwars.png';
 import badmintonSoloImg from './aarohan-comition-images/aarohan badminton (solo).jpg';
 import badmintonDuoImg from './aarohan-comition-images/aarohan badminton (duo).jpg';
 import dastakImg from './aarohan-comition-images/dastak.png';
-import esportsImg from './aarohan-comition-images/esports.png';
 import groupdanceImg from './aarohan-comition-images/groupdance.jpg';
 import nikhildsouzaImg from './aarohan-comition-images/nikhildsouza.jpg';
 import platformImg from './aarohan-comition-images/platform.jpg';
@@ -108,7 +107,7 @@ const getCompetitionImage = (category, type, competitionName = '') => {
 };
 
 // Utility function to get Persona Fest competition image
-const getPersonaCompetitionImage = (competitionId, competitionName = '') => {
+const getPersonaCompetitionImage = (competitionId) => {
     // Map Persona Fest competition IDs to their corresponding fallback images from Aarohan
     const personaImageMap = {
         'vishwadhun_indian_solo_singing': solosingingImg,
@@ -192,19 +191,6 @@ const transformCompetitionData = (competition) => {
             detailedRules = [...detailedRules, sectionTitle, ...process[key]];
         }
     });
-
-    // Helper function to get the first available round rules
-    const getFirstRoundRules = () => {
-        return process.offline_elimination ||
-            process.online_elimination ||
-            process.qualifying_round ||
-            process.preliminary_round ||
-            process.group_stage || [
-                'Same rules as Final Round apply',
-                'Registration fee refunded only if eliminated',
-                'Participants must report 30 minutes before the event'
-            ];
-    };
 
     // Helper function to get the second round rules
     const getSecondRoundRules = () => {

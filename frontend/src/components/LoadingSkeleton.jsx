@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
 
 const LoadingSkeleton = ({ count = 3 }) => {
@@ -9,7 +9,7 @@ const LoadingSkeleton = ({ count = 3 }) => {
             {Array.from({ length: count }).map((_, index) => (
                 <div
                     key={index}
-                    className={`min-w-[260px] w-[260px] sm:min-w-[300px] sm:w-[300px] lg:min-w-[340px] lg:w-[340px] rounded-xl shadow-sm overflow-hidden flex-shrink-0 animate-pulse ${
+                    className={`min-w-[260px] w-[260px] sm:min-w-[300px] sm:w-[300px] lg:min-w-[340px] lg:w-[340px] rounded-xl shadow-sm overflow-hidden shrink-0 animate-pulse ${
                         isDark ? 'bg-[#111213]' : 'bg-white'
                     }`}
                 >

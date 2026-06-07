@@ -61,7 +61,7 @@ export default function PWAInstallPrompt() {
                 : 'bg-white/95 border-gray-200/50 text-gray-900'
         }`}>
             <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-[#007BFF] to-[#00C9A7] flex-shrink-0">
+                <div className="p-2 rounded-xl bg-linear-to-br from-[#007BFF] to-[#00C9A7] shrink-0">
                     <Download className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">

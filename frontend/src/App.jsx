@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react'
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { DarkModeProvider } from './context/DarkModeContext'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -27,17 +27,17 @@ const Dashboard = React.lazy(() => import('./components/pages/Dashboard'))
 const CulturalFestPage = React.lazy(() => import('./components/pages/cultural-fest'))
 const TechFestPage = React.lazy(() => import('./components/pages/tech-fest'))
 const SportsFestPage = React.lazy(() => import('./components/pages/sports-fest'))
+const SportsCategoryPage = React.lazy(() => import('./components/pages/sports-category'))
 const ViewDetailsPage = React.lazy(() => import('./components/pages/view-details'))
 const FavoritesPage = React.lazy(() => import('./components/pages/favorites'))
 const EditProfile = React.lazy(() => import('./components/pages/profile-pages/edit-profile'))
-const RegisteredFest = React.lazy(() => import('./components/pages/profile-pages/registered-fest'))
+const Booking = React.lazy(() => import('./components/pages/profile-pages/booking'))
 const HelpCenter = React.lazy(() => import('./components/pages/profile-pages/help-center'))
 const ListYourFest = React.lazy(() => import('./components/pages/profile-pages/list-your-fest'))
 const NotificationsPanel = React.lazy(() => import('./components/pages/profile-pages/notification-panel'))
-const CrwdCtrlRegister = React.lazy(() => import('./components/pages/register'))
-const ResponsiveRegisteredEvents = React.lazy(() => import('./components/pages/ResponsiveRegisteredEvents'))
 const ProfilePage = React.lazy(() => import('./components/pages/profile-page'))
 const CrwdCtrlLogin = React.lazy(() => import('./components/pages/login'))
+const CrwdCtrlRegister = React.lazy(() => import('./components/pages/register'))
 const EmailVerification = React.lazy(() => import('./components/pages/EmailVerification'))
 const CompetitionsViewDetails = React.lazy(() => import('./components/pages/Competitions-view-details'))
 const CompetitionListPage = React.lazy(() => import('./components/pages/competition-list'))
@@ -171,6 +171,7 @@ function AppContent({
                 <Route path="/fests" element={<FestsPage />} />
                 <Route path="/cultural-fest" element={<CulturalFestPage />} />
                 <Route path="/tech-fest" element={<TechFestPage />} />
+                <Route path="/sports" element={<SportsCategoryPage />} />
                 <Route path="/sports-fest" element={<SportsFestPage />} />
                 <Route path="/treks" element={<PublicTreksPage />} />
                 <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
@@ -186,7 +187,8 @@ function AppContent({
                 <Route path="/competition-register" element={<CompetitionRegisterPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/edit-profile" element={<EditProfile />} />
-                <Route path="/registered-fest" element={<RegisteredFest />} />
+                <Route path="/booking" element={<Booking />} />
+                <Route path="/registered-fest" element={<Navigate to="/booking" replace />} />
                 <Route path="/help-center" element={<HelpCenter />} />
                 <Route path="/list-your-fest" element={<ListYourFest />} />
                 <Route path="/notifications" element={<NotificationsPanel />} />

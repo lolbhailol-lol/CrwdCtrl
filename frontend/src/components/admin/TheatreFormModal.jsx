@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -189,7 +189,7 @@ export default function TheatreFormModal({ show, onClose, onSaved }) {
                             <div key={idx} className="flex items-center gap-3 mb-2">
                                 <input type="date" value={s.date} onChange={e => updateShowing(idx, 'date', e.target.value)} className={`${inp} flex-1`} />
                                 <input type="text" value={s.time} onChange={e => updateShowing(idx, 'time', e.target.value)} className={`${inp} flex-1`} placeholder="e.g. 7:00 PM" />
-                                <button type="button" onClick={() => removeShowing(idx)} className="text-gray-500 hover:text-red-400 flex-shrink-0"><Trash2 size={14} /></button>
+                                <button type="button" onClick={() => removeShowing(idx)} className="text-gray-500 hover:text-red-400 shrink-0"><Trash2 size={14} /></button>
                             </div>
                         ))}
                     </div>

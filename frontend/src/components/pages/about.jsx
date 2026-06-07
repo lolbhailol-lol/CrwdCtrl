@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Users, Target, Rocket, Globe, Heart, Star, Award, Zap, Shield } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -32,7 +32,7 @@ export default function About() {
             {/* Content */}
             <div className="max-w-4xl mx-auto px-4 py-8">
                 {/* Hero Section */}
-                <div className={`${isDark ? 'bg-gradient-to-br from-blue-900/30 to-cyan-900/20 border-blue-800' : 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200'} border rounded-lg p-8 mb-6 text-center`}>
+                <div className={`${isDark ? 'bg-linear-to-br from-blue-900/30 to-cyan-900/20 border-blue-800' : 'bg-linear-to-br from-blue-50 to-cyan-50 border-blue-200'} border rounded-lg p-8 mb-6 text-center`}>
                     <h2 className="text-3xl font-bold mb-3">🎊 CrwdCtrl</h2>
                     <p className={`text-lg ${isDark ? 'text-gray-300' : 'text-gray-700'} max-w-2xl mx-auto`}>
                         India's platform for discovering, exploring, and registering for college fests, competitions, and events — all in one place.
@@ -80,7 +80,7 @@ export default function About() {
                             { icon: <Shield className="w-5 h-5 text-cyan-500" />, title: 'Secure & Reliable', desc: 'Your data is protected with modern security practices' },
                         ].map((feature, index) => (
                             <div key={index} className={`${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} rounded-lg p-4 flex gap-3`}>
-                                <div className="flex-shrink-0 mt-0.5">{feature.icon}</div>
+                                <div className="shrink-0 mt-0.5">{feature.icon}</div>
                                 <div>
                                     <h3 className="font-medium text-sm mb-1">{feature.title}</h3>
                                     <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{feature.desc}</p>

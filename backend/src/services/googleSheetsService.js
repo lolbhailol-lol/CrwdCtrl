@@ -59,7 +59,7 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
     
     if (responses['Payment Receipt']) headers.push('Payment Receipt');
     if (responses['Transaction ID']) headers.push('Transaction ID');
-    if (responses['Razorpay Payment ID']) headers.push('Razorpay Payment ID');
+    if (responses['Payment ID']) headers.push('Payment ID');
 
     // Add headers if sheet is empty or headers don't match
     if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
@@ -241,9 +241,9 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
       rowData.push(tid && typeof tid === 'string' && tid.trim() ? tid : '');
     }
 
-    if (responses['Razorpay Payment ID']) {
-      rowData.push(responses['Razorpay Payment ID']);
-      console.log('✅ Razorpay Payment ID added to competition sheets row');
+    if (responses['Payment ID']) {
+      rowData.push(responses['Payment ID']);
+      console.log('✅ Payment ID added to competition sheets row');
     }
 
     // Append the new row
@@ -368,7 +368,7 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
     
     if (responses['Payment Receipt']) headers.push('Payment Receipt');
     if (responses['Transaction ID']) headers.push('Transaction ID');
-    if (responses['Razorpay Payment ID']) headers.push('Razorpay Payment ID');
+    if (responses['Payment ID']) headers.push('Payment ID');
 
     // Add headers if sheet is empty or headers don't match
     const hasPaymentReceiptInResponses = !!responses['Payment Receipt'];
@@ -510,9 +510,9 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       console.log('✅ Transaction ID added to Google Sheets row data');
     }
 
-    if (responses['Razorpay Payment ID']) {
-      rowData.push(responses['Razorpay Payment ID']);
-      console.log('✅ Razorpay Payment ID added to sheets row');
+    if (responses['Payment ID']) {
+      rowData.push(responses['Payment ID']);
+      console.log('✅ Payment ID added to sheets row');
     }
 
     console.log('📊 Row data prepared:', {
@@ -689,10 +689,9 @@ const testGoogleSheetsConnection = async (googleSheetsUrl) => {
 };
 
 /**
- * Append a Razorpay-only (no-form) registration to Google Sheets.
- * Used by payAndRegisterFest and payAndRegister where no form schema exists.
+ * Append a paid (no-form) registration to Google Sheets.
  */
-const appendPaymentOnlyToSheets = async (googleSheetsUrl, { name, email, phone, amountPaid, razorpayPaymentId, entityName, entityType }) => {
+const appendPaymentOnlyToSheets = async (googleSheetsUrl, { name, email, phone, amountPaid, paymentId, entityName, entityType }) => {
   try {
     const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
     if (!spreadsheetId) return { success: false, error: 'Invalid Google Sheets URL' };
@@ -703,7 +702,7 @@ const appendPaymentOnlyToSheets = async (googleSheetsUrl, { name, email, phone, 
     const spreadsheetInfo = await sheets.spreadsheets.get({ spreadsheetId });
     const sheetName = spreadsheetInfo.data.sheets[0].properties.title;
 
-    const headers = ['Timestamp', 'Name', 'Email', 'Phone', entityType || 'Event', 'Amount Paid (₹)', 'Razorpay Payment ID'];
+    const headers = ['Timestamp', 'Name', 'Email', 'Phone', entityType || 'Event', 'Amount Paid (₹)', 'Payment ID'];
 
     let existingHeaders = [];
     try {
@@ -727,7 +726,7 @@ const appendPaymentOnlyToSheets = async (googleSheetsUrl, { name, email, phone, 
       phone || '',
       entityName || '',
       amountPaid || 0,
-      razorpayPaymentId || '',
+      paymentId || '',
     ];
 
     await sheets.spreadsheets.values.append({

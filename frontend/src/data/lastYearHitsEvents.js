@@ -12,7 +12,7 @@ const rawLastYearHitsEvents = [
         category: 'Multi-Category',
         participants: '1000+ Participants',
         duration: '3 Days',
-        categoryColor: 'bg-gradient-to-r from-purple-600 to-blue-600'
+        categoryColor: 'bg-linear-to-r from-purple-600 to-blue-600'
     }
 ];
 

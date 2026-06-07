@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -45,7 +45,7 @@ export default function AdminLayout() {
       >
         <div className="p-4 flex items-center justify-between border-b border-gray-800">
           {sidebarOpen && (
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#053780] to-[#0ECCEE]">
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-linear-to-r from-[#053780] to-[#0ECCEE]">
               CRWDCTRL Admin
             </h1>
           )}

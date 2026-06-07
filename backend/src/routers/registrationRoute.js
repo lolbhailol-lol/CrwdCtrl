@@ -82,7 +82,7 @@ router.post(
   submitCustomCompetitionRegistration
 );
 
-// Razorpay-only registration — no form, uses user profile data
+// Cashfree payment registration — no form, uses user profile data
 router.post('/fests/:festId/pay-and-register', authenticateToken, payAndRegisterFest);
 router.post('/competitions/:competitionId/pay-and-register', authenticateToken, payAndRegister);
 

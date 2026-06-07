@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 module.exports = (req, res, next) => {
   try {
@@ -12,7 +13,7 @@ module.exports = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const secret = process.env.JWT_SECRET || 'your-default-secret';
+    const secret = getJwtSecret();
     
     console.log('🔐 [ADMIN AUTH] Secret loaded:', !!secret);
     console.log('🔐 [ADMIN AUTH] Token length:', token.length);

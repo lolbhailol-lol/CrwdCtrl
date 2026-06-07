@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Calendar, Heart, Ticket, Settings, HelpCircle, Sun, Moon, Menu, X, LogOut } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -18,7 +18,7 @@ const Sidebar = () => {
         { id: 'home', icon: Home, label: 'Home', path: '/' },
       
         { id: 'favorites', icon: Heart, label: 'Favorites', path: '/favorites', count: favoriteCount },
-        { id: 'events', icon: Calendar, label: 'Events', path: '/registered-fest' },
+        { id: 'bookings', icon: Calendar, label: 'Bookings', path: '/booking' },
     ];
 
     // Determine active item based on current path
@@ -56,12 +56,9 @@ const Sidebar = () => {
 
             {/* Sidebar */}
             <div
-               className={`fixed left-0 top-0 bottom-0 w-16 lg:w-20 rounded-tr-[40px] rounded-br-[40px] 
-${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} 
-border-[1px] ${isDark ? 'border-blue-500' : 'border-[#86C4C4]'}
-flex flex-col items-center py-6 z-50 backdrop-blur-md transition-transform duration-300 
-${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-`}
+                className={`fixed left-0 top-0 bottom-0 w-16 lg:w-20 rounded-tr-[40px] rounded-br-[40px] flex flex-col items-center py-6 z-50 backdrop-blur-md transition-transform duration-300 ${
+                    isDark ? 'bg-[#161718] border border-blue-500' : 'bg-[#EDEDF2] border border-[#86C4C4]'
+                } ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
             >
 
                 {/* Mobile Close Button */}
@@ -92,10 +89,10 @@ ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
                                 onClick={() => handleNavigation(item)}
                                 className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 group ${
                                     item.special && !isActive
-                                        ? 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600'
+                                        ? 'bg-linear-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600'
                                         : isActive
                                             ? item.special 
-                                                ? 'bg-gradient-to-r from-purple-600 to-blue-600'
+                                                ? 'bg-linear-to-r from-purple-600 to-blue-600'
                                                 : 'bg-[#4169E1]'
                                             : 'hover:scale-105'
                                     }`}

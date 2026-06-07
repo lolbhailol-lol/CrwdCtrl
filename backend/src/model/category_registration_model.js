@@ -38,10 +38,9 @@ const categoryRegistrationSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
-        // Razorpay fields (reserved for future payment integration)
-        razorpay_order_id: { type: String, default: null },
-        razorpay_payment_id: { type: String, default: null },
-        razorpay_signature: { type: String, default: null },
+        payment_order_id: { type: String, default: null },
+        payment_id: { type: String, default: null },
+        payment_gateway: { type: String, default: null },
         // QR check-in
         qrCodeData: { type: String, unique: true, sparse: true },
         checkedIn: { type: Boolean, default: false },
