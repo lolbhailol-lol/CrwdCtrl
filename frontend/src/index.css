@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@theme {
+    --font-sans: "Poppins", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-inter: "Poppins", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-poppins: "Poppins", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
 /* Hide portal bottom nav on desktop */
 @media (min-width: 1024px) {
     #crwdctrl-bottom-nav {
@@ -17,6 +23,7 @@ body,
 /* Prevent elastic scroll bounce from displacing fixed elements on iOS */
 body {
     overscroll-behavior-y: none;
+    font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 /* Global dark mode styles */
@@ -25,11 +32,21 @@ html {
     transition: background-color 0.4s ease, color 0.3s ease;
 }
 
-/* Ensure smooth transitions for all color changes */
-*,
-*::before,
-*::after {
+/* Ensure smooth transitions for all color changes — exclude icons (causes mobile blur) */
+*:not(img):not(svg):not(.crisp-icon):not(.crisp-icon-svg):not(.category-icon):not(.category-icon-lg),
+*:not(img):not(svg)::before,
+*:not(img):not(svg)::after {
     transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode — whole site background white */
+html:not(.dark) body,
+html:not(.dark) #root {
+    background-color: #ffffff;
+}
+
+html:not(.dark) .bg-\[\#EDEDF2\] {
+    background-color: #ffffff !important;
 }
 
 /* Dark mode global styles */
@@ -37,18 +54,8 @@ html {
     color-scheme: dark;
 }
 
-/* Light mode: page background = white, card/panel whites = off-white */
-html:not(.dark) body,
-html:not(.dark) #root {
-    background-color: #ffffff;
-}
-
-html:not(.dark) .bg-white {
-    background-color: #F5F6FA !important;
-}
-
-/* Page-level bg (#EDEDF2) → white in light mode */
-html:not(.dark) .bg-\[\#EDEDF2\] {
+/* Footer — always pure white in light mode */
+html:not(.dark) .crwdctrl-footer {
     background-color: #ffffff !important;
 }
 
@@ -102,6 +109,79 @@ html:not(.dark) .bg-\[\#EDEDF2\] {
 /* Animation for theme transitions */
 .theme-transition {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Route change transitions */
+.page-transition-content {
+    min-height: inherit;
+}
+
+.page-transition-exit {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.page-transition-enter {
+    animation: pageEnter 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes pageEnter {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes routeProgress {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    50% {
+        transform: translateX(-10%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.route-progress-bar {
+    width: 40%;
+    animation: routeProgress 0.85s ease-in-out infinite;
+}
+
+/* Skeleton shimmer — District-style grey loading blocks */
+.skeleton-shimmer-light {
+    background: linear-gradient(90deg, #e8eaed 0%, #f2f4f7 45%, #e8eaed 90%);
+    background-size: 200% 100%;
+    animation: skeletonWave 1.3s ease-in-out infinite;
+}
+
+.skeleton-shimmer-dark {
+    background: linear-gradient(90deg, #2a2b2e 0%, #35363a 45%, #2a2b2e 90%);
+    background-size: 200% 100%;
+    animation: skeletonWave 1.3s ease-in-out infinite;
+}
+
+@keyframes skeletonWave {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Hide bottom nav during route transitions — applies app-wide via body class */
+body.page-transition-active #crwdctrl-bottom-nav {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }
 
 /* Custom animations */
@@ -211,28 +291,151 @@ html:not(.dark) .bg-\[\#EDEDF2\] {
     }
 }
 
-/* iOS Safari specific fixes for Featured Lineup */
-@supports (-webkit-touch-callout: none) {
-    /* Target iOS Safari specifically */
+/* Crisp SVG / icon rendering — iOS + Android, light + dark (no GPU layer hacks) */
+.crisp-icon,
+.crisp-icon-svg,
+.category-icon,
+.category-icon-lg {
+    display: block;
+    -webkit-transform: none !important;
+    transform: none !important;
+    -webkit-backface-visibility: visible !important;
+    backface-visibility: visible !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    image-rendering: auto;
+    transition: none !important;
+}
 
-    /* Fix for Featured Lineup scrolling performance */
+.crisp-icon {
+    max-width: 100%;
+}
+
+.crisp-icon-svg {
+    flex-shrink: 0;
+    shape-rendering: geometricPrecision;
+}
+
+/* App logo — integer heights avoid subpixel blur */
+.app-logo {
+    display: block;
+    width: auto;
+    height: 80px;
+    max-height: 80px;
+}
+
+@media (min-width: 640px) {
+    .app-logo {
+        height: 96px;
+        max-height: 96px;
+    }
+}
+
+/* Category bar icons — native SVG aspect (78×85), uniform scale */
+.category-icon {
+    width: 78px;
+    height: 85px;
+    flex-shrink: 0;
+    object-fit: contain;
+    opacity: 1 !important;
+}
+
+@media (min-width: 640px) {
+    .category-icon {
+        width: 93px;
+        height: 101px;
+    }
+}
+
+/* Fest sub-category icons — preserve 128×113 aspect */
+.category-icon-lg {
+    flex-shrink: 0;
+    object-fit: contain;
+    width: 96px;
+    height: 85px;
+    opacity: 1 !important;
+}
+
+@media (min-width: 640px) {
+    .category-icon-lg {
+        width: 112px;
+        height: 99px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .category-icon-lg {
+        width: 128px;
+        height: 113px;
+    }
+}
+
+/* Section headings — sharp on mobile, normal weight */
+.home-section-heading {
+    font-weight: 400 !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-transform: none;
+    transform: none;
+}
+
+/* All headings — normal weight (override Tailwind font-bold/semibold on h tags) */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 400 !important;
+}
+
+/* Mobile header backgrounds — solid (no transparency / blur) */
+html:not(.dark) .mobile-header-shell,
+html:not(.dark) .mobile-header-shell > div {
+    background-color: #F2F4F7 !important;
+}
+
+html.dark .mobile-header-shell,
+html.dark .mobile-header-shell > div {
+    background-color: #0D0E10 !important;
+}
+
+.mobile-header-shell {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+/* Bottom nav — solid bar; backdrop-filter blurs Lucide icons on iOS/Android */
+#crwdctrl-bottom-nav .bottom-nav-pill {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+/* Touch devices — keep icons off compositor layers */
+@media (hover: none) and (pointer: coarse) {
+    .mobile-header-shell,
+    .home-category-bar,
+    .home-category-bar button,
+    #crwdctrl-bottom-nav,
+    #crwdctrl-bottom-nav .bottom-nav-pill,
+    #crwdctrl-bottom-nav button {
+        -webkit-transform: none !important;
+        transform: none !important;
+    }
+
+    .crisp-icon,
+    .crisp-icon-svg,
+    .category-icon,
+    .category-icon-lg,
+    .app-logo {
+        -webkit-transform: none !important;
+        transform: none !important;
+        filter: none !important;
+        -webkit-filter: none !important;
+    }
+}
+
+/* iOS Safari scroll / safe-area extras */
+@supports (-webkit-touch-callout: none) {
     .scrollbar-hide {
         -webkit-overflow-scrolling: touch;
         scroll-snap-type: x proximity;
-        transform: translateZ(0);
-        -webkit-transform: translateZ(0);
-        backface-visibility: hidden;
-        -webkit-backface-visibility: hidden;
-    }
-
-    /* Fix image rendering issues in Featured Lineup cards */
-    img {
-        -webkit-transform: translateZ(0);
-        transform: translateZ(0);
-        -webkit-backface-visibility: hidden;
-        backface-visibility: hidden;
-        image-rendering: -webkit-optimize-contrast;
-        image-rendering: crisp-edges;
     }
 
     /* Prevent zoom/scaling issues on iOS */

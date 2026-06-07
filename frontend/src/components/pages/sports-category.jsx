@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, Bell, X } from 'lucide-react';
+import { MapPin, Bell } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import HomeCategoryBar from '../HomeCategoryBar';
+import HeroSearchBar from '../HeroSearchBar';
 import Logo from '../../assets/logo01_.svg';
 import ShareIcon from '../../assets/share.svg';
 import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
@@ -457,13 +458,13 @@ export default function SportsCategoryPage() {
         <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
             {/* ── Sticky Header — rounded shell like Dashboard ── */}
             <header
-                className={`lg:hidden sticky top-0 z-40 backdrop-blur-md transition-all duration-300 overflow-hidden rounded-b-[40px] ${
-                    isDark ? 'bg-[#0D0E10]/95' : 'bg-white/95'
+                className={`lg:hidden sticky top-0 z-40 mobile-header-shell transition-all duration-300 overflow-hidden rounded-b-[16px] ${
+                    isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
                 }`}
             >
                 <div
-                    className={`rounded-b-[40px] px-4 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${
-                        isDark ? 'bg-[#0D0E10]' : 'bg-white'
+                    className={`rounded-b-[16px] px-4 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${
+                        isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
                     }`}
                     style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
                 >
@@ -471,7 +472,9 @@ export default function SportsCategoryPage() {
                         <img
                             src={Logo}
                             alt="CrwdCtrl"
-                            className="h-20 sm:h-24 w-auto cursor-pointer"
+                            className="crisp-icon app-logo cursor-pointer"
+                            draggable={false}
+                            decoding="sync"
                             onClick={() => navigate('/')}
                         />
                         <div className="flex items-center gap-1">
@@ -502,27 +505,12 @@ export default function SportsCategoryPage() {
                     </div>
 
                     <div className="mb-3.5">
-                        <div
-                            className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-4 ${
-                                isDark ? 'bg-[#161718]' : 'bg-[#ffffff] border border-gray-100'
-                            }`}
-                        >
-                            <Search size={16} className="text-gray-400 shrink-0" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="search college, fest"
-                                className={`flex-1 bg-transparent text-sm outline-none ${
-                                    isDark ? 'text-gray-200 placeholder-gray-500' : 'text-gray-800 placeholder-gray-400'
-                                }`}
-                            />
-                            {searchQuery && (
-                                <button type="button" onClick={() => setSearchQuery('')} aria-label="Clear">
-                                    <X size={16} className="text-gray-400" />
-                                </button>
-                            )}
-                        </div>
+                        <HeroSearchBar
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onClear={() => setSearchQuery('')}
+                            isDark={isDark}
+                        />
                     </div>
 
                     <HomeCategoryBar isDark={isDark} activeCategory="sports" noPadding />

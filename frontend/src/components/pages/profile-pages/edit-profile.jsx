@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
-import Footer from '../../Footer';
 import ProfileSidebar from '../../ProfileSidebar';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -1032,9 +1031,6 @@ function EditProfile() {
                         </div>
                     </div>
                 </main>
-
-                {/* Footer */}
-                <Footer />
             </div>
 
             {/* Profile Sidebar */}

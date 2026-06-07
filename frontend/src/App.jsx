@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom'
-import { DarkModeProvider } from './context/DarkModeContext'
+import { DarkModeProvider, useDarkMode } from './context/DarkModeContext'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { RegisteredEventsProvider } from './context/RegisteredEventsContext'
@@ -8,6 +8,7 @@ import { NotificationsProvider } from './context/NotificationsContext'
 import ConnectionStatus from './components/ConnectionStatus'
 import EmailVerificationBanner from './components/EmailVerificationBanner'
 import MobileBottomNav from './components/MobileBottomNav'
+import Footer from './components/Footer'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
@@ -19,6 +20,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
+import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
 
 import './App.css'
 
@@ -72,6 +74,7 @@ const TrekCategoryPage = React.lazy(() => import('./components/pages/TrekCategor
 // Component to conditionally render MobileBottomNav
 function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick }) {
   const location = useLocation();
+  const { isTransitioning } = usePageTransition();
 
   // Hide MobileBottomNav on specific pages where it shouldn't appear OR when profile sidebar is open
   const shouldHideMobileBottomNav = location.pathname === '/login' ||
@@ -85,15 +88,34 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/competition') ||
     location.pathname.includes('/fest/') && location.pathname.includes('/register') ||
     location.pathname.startsWith('/competition-registration') ||
-    isProfileOpen; // Hide when profile sidebar is open (ProfileSidebar has its own bottom nav)
-  
-  // ✅ FIXED: Show mobile nav on view-details so users can navigate from shared links
+    isProfileOpen || // Hide when profile sidebar is open (ProfileSidebar has its own bottom nav)
+    isTransitioning; // Hide during page transitions on every route
 
   if (shouldHideMobileBottomNav) {
     return null;
   }
 
   return <MobileBottomNav onShowLogin={onShowLogin} onProfileClick={onProfileClick} />;
+}
+
+function ConditionalFooter() {
+  const location = useLocation();
+
+  const shouldHideFooter =
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname === '/verify-email' ||
+    location.pathname.startsWith('/admin') ||
+    location.pathname.startsWith('/competition-registration') ||
+    location.pathname.startsWith('/qr-ticket') ||
+    (location.pathname.includes('/fest/') && location.pathname.includes('/register')) ||
+    location.pathname.includes('/book');
+
+  if (shouldHideFooter) {
+    return null;
+  }
+
+  return <Footer />;
 }
 
 // Component to conditionally render Navbar and Sidebar
@@ -134,6 +156,7 @@ function AppContent({
 }) {
   const location = useLocation();
   const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
+  const { isDark } = useDarkMode();
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   useEffect(() => {
@@ -150,7 +173,7 @@ function AppContent({
   }
 
   return (
-    <div className="relative min-h-screen">
+    <div className={`relative min-h-screen ${!isAdminRoute ? (isDark ? 'bg-[#161718]' : 'bg-white') : ''}`}>
       {!isAdminRoute && <EmailVerificationBanner />}
 
       <ConditionalNavigation
@@ -161,8 +184,9 @@ function AppContent({
       <div className={isAdminRoute ? '' : 'lg:ml-20'}>
         <div className={isAdminRoute ? '' : 'lg:pt-20'}>
           <ErrorBoundary>
-            <Suspense fallback={<LoadingBar />}>
-              <Routes>
+            <PageTransitionContent>
+              <Suspense fallback={<LoadingBar />}>
+                <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/login" element={<CrwdCtrlLogin />} />
                 <Route path="/admin/login" element={<CrwdCtrlLogin />} />
@@ -221,9 +245,11 @@ function AppContent({
                   <Route path="theatre" element={<TheatrePage />} />
                   <Route path="sections" element={<SectionManager />} />
                 </Route>
-              </Routes>
-            </Suspense>
+                </Routes>
+              </Suspense>
+            </PageTransitionContent>
           </ErrorBoundary>
+          {!isAdminRoute && <ConditionalFooter />}
         </div>
       </div>
 
@@ -384,21 +410,23 @@ function App() {
           <RegisteredEventsProvider>
             <NotificationsProvider>
               <Router>
-                <RouteTracker />
-                <AdSenseLoader />
-                <PWAInstallPrompt />
-                <AppContent
-                  isProfileOpen={isProfileOpen}
-                  setIsProfileOpen={setIsProfileOpen}
-                  showLogin={showLogin}
-                  setShowLogin={setShowLogin}
-                  showRegister={showRegister}
-                  setShowRegister={setShowRegister}
-                  handleCloseLogin={handleCloseLogin}
-                  handleCloseRegister={handleCloseRegister}
-                  handleSwitchToRegister={handleSwitchToRegister}
-                  handleSwitchToLogin={handleSwitchToLogin}
-                />
+                <PageTransitionProvider>
+                  <RouteTracker />
+                  <AdSenseLoader />
+                  <PWAInstallPrompt />
+                  <AppContent
+                    isProfileOpen={isProfileOpen}
+                    setIsProfileOpen={setIsProfileOpen}
+                    showLogin={showLogin}
+                    setShowLogin={setShowLogin}
+                    showRegister={showRegister}
+                    setShowRegister={setShowRegister}
+                    handleCloseLogin={handleCloseLogin}
+                    handleCloseRegister={handleCloseRegister}
+                    handleSwitchToRegister={handleSwitchToRegister}
+                    handleSwitchToLogin={handleSwitchToLogin}
+                  />
+                </PageTransitionProvider>
               </Router>
             </NotificationsProvider>
           </RegisteredEventsProvider>

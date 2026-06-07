@@ -38,7 +38,9 @@ const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, classNam
             <img
                 src={isDark && item.darkIcon ? item.darkIcon : item.icon}
                 alt={`${item.label} icon`}
-                className={`${iconClass} object-contain`}
+                draggable={false}
+                decoding="async"
+                className={`crisp-icon object-contain ${iconClass}`}
             />
             {(layout !== 'icon-only') && (
                 <span className={`text-xs font-semibold tracking-wide ${isActive ? 'text-[#007BFF]' : isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -515,7 +517,7 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
         <header className={`fixed top-0 left-20 right-0 z-50 mx-2 lg:mx-4 pt-4 px-4 lg:px-6 py-4 rounded-b-2xl backdrop-blur-md transition-all duration-300 ${isDark
             ? 'bg-[#161718] '
             : 'bg-[#EDEDF2]'
-            }`} style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+            }`} style={{ fontFamily: 'Poppins, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
             <div className="flex items-center justify-between">
                 {/* Left Section: Location and Navigation */}
                 <div className="flex items-center space-x-2 lg:space-x-6">

@@ -9,7 +9,6 @@ import SportsFestImage from '../../assets/mobile-icons/sports-icon.svg';
 import SportsIconNew from '../../assets/mobile-icons/sports-icon-new.svg';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
-import Footer from '../Footer';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -21,9 +20,10 @@ import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlRegister from './register';
 import LoadingSkeleton from '../LoadingSkeleton';
 import HeroBanner from '../HeroBanner';
+import HeroSearchBar from '../HeroSearchBar';
 import HomeCategoryBar from '../HomeCategoryBar';
-import TrendingCard from '../TrendingCard';
-import HappeningCard from '../HappeningCard';
+import HomeCarouselSection from '../HomeCarouselSection';
+import HomeEventCard from '../HomeEventCard';
 // âœ… FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -190,29 +190,8 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                     ? 'bg-[#111213]'
                     : 'bg-[#EDEDF2]'
                 }`}
-            style={{
-                // iOS Safari specific fixes
-                WebkitTransform: 'translateZ(0)',
-                transform: 'translateZ(0)',
-                WebkitBackfaceVisibility: 'hidden',
-                backfaceVisibility: 'hidden',
-                WebkitPerspective: '1000px',
-                perspective: '1000px'
-            }}
         >
-
-            <div
-                className="relative h-[180px] sm:h-[200px] overflow-hidden rounded-t-xl"
-                style={{
-                    // iOS Safari image container fixes
-                    WebkitTransform: 'translateZ(0)',
-                    transform: 'translateZ(0)',
-                    WebkitBackfaceVisibility: 'hidden',
-                    backfaceVisibility: 'hidden',
-                    aspectRatio: '16/9',
-                    WebkitAspectRatio: '16/9'
-                }}
-            >
+            <div className="relative h-[180px] sm:h-[200px] overflow-hidden rounded-t-xl">
                 {/* Loading placeholder */}
                 {imageLoading && (
                     <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
@@ -240,18 +219,11 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                         onLoad={handleImageLoad}
                         style={{
                             display: imageLoading ? 'none' : 'block',
-                            // iOS Safari image fixes
-                            WebkitTransform: 'translateZ(0)',
-                            transform: 'translateZ(0)',
-                            WebkitBackfaceVisibility: 'hidden',
-                            backfaceVisibility: 'hidden',
                             WebkitUserSelect: 'none',
                             userSelect: 'none',
                             WebkitTouchCallout: 'none',
                             touchAction: 'manipulation',
                             objectPosition: 'center center',
-                            maxWidth: '100%',
-                            height: '100%'
                         }}
                     />
                 )}
@@ -1186,6 +1158,35 @@ const Dashboard = () => {
         ...tag('community', homeCommunities.filter(c => c.homeSection === 'happening')),
     ].sort(byPriority);
 
+    const navigateToHomeItem = useCallback((item) => {
+        if (item._type === 'fest') {
+            navigate(`/view-details/${item.id}`);
+        } else if (item._type === 'trek') {
+            navigate(`/trek/${item._id}`, { state: { trek: item } });
+        } else if (item._type === 'community') {
+            navigate(`/treks/community/${item._id}`, {
+                state: {
+                    community: {
+                        id: item._id,
+                        title: item.name,
+                        subtitle: item.basedIn,
+                        image: item.coverImage,
+                        trekCategories: item.trekCategories || [],
+                    },
+                },
+            });
+        }
+    }, [navigate]);
+
+    const getHomeItemShareUrl = useCallback((item) => {
+        const origin = window.location.origin;
+        if (item._type === 'fest') return `${origin}/view-details/${item.id}`;
+        if (item._type === 'trek') return `${origin}/trek/${item._id}`;
+        if (item._type === 'community') return `${origin}/treks/community/${item._id}`;
+        return `${origin}/view-details/${item.id || item._id}`;
+    }, []);
+
+    const getHomeItemId = (item) => item.id || item._id;
 
     // Error state
     if (error) {
@@ -1211,15 +1212,15 @@ const Dashboard = () => {
           <div className="flex flex-col flex-1">
 
             {/* Mobile top section — unified sticky block */}
-            <header className={`lg:hidden sticky top-0 z-40 backdrop-blur-md transition-all duration-300 rounded-b-[40px] overflow-hidden
-                ${isDark ? 'bg-[#0D0E10]/95' : 'bg-white/95'}`}>
+            <header className={`lg:hidden sticky top-0 z-40 mobile-header-shell transition-all duration-300 rounded-b-[16px] overflow-hidden
+                ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}>
                 {/* unified card box — covers full width, safe-area absorbed inside */}
-                <div className={`rounded-b-[40px] px-4 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)]
-                    ${isDark ? 'bg-[#0D0E10]' : 'bg-white'}`}
+                <div className={`rounded-b-[16px] px-4 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)]
+                    ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
                     style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center justify-between mb-2">
                     {/* Logo */}
-                    <img src={Logo} alt="CrwdCtrl" className="h-20 sm:h-24 w-auto" />
+                    <img src={Logo} alt="CrwdCtrl" className="crisp-icon app-logo" draggable={false} decoding="sync" />
 
                     {/* Right icons */}
                     <div className="flex items-center gap-1">
@@ -1300,24 +1301,13 @@ const Dashboard = () => {
 
                 {/* Row 2: Search bar */}
                 <div className="relative mb-3.5" ref={searchRef}>
-                    <div className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-4
-                        ${isDark ? 'bg-[#161718] border border-white/5' : 'bg-[#EDEDF2] border border-gray-200'}`}>
-                        <Search size={16} className="text-gray-400 shrink-0" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
-                            placeholder="search college, fest"
-                            className={`flex-1 bg-transparent text-sm outline-none
-                                ${isDark ? 'text-gray-200 placeholder-gray-500' : 'text-gray-800 placeholder-gray-400'}`}
-                        />
-                        {searchQuery && (
-                            <button onClick={() => { setSearchQuery(''); setIsSearchDropdownOpen(false); }}>
-                                <X size={16} className="text-gray-400" />
-                            </button>
-                        )}
-                    </div>
+                    <HeroSearchBar
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                        onClear={() => { setSearchQuery(''); setIsSearchDropdownOpen(false); }}
+                        isDark={isDark}
+                    />
 
                         {/* Search dropdown */}
                         {isSearchDropdownOpen && searchResults.length > 0 && (
@@ -1393,123 +1383,73 @@ const Dashboard = () => {
                     )}
 
                     {/* Trending Now */}
-                    <section className="mb-8">
-                        <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            Trending Now
-                        </h2>
-                        {isFestsLoading ? (
-                            <div className="px-4">
-                                <LoadingSkeleton count={2} />
-                            </div>
-                        ) : festError && ongoingEvents.length === 0 ? (
-                            <div className="px-4">
-                                <AutoRetryError isDark={isDark} onRetry={forceRefreshData} />
-                            </div>
-                        ) : trendingItems.length > 0 ? (
-                            <div
-                                className="overflow-x-auto scrollbar-hide pl-4 pr-4"
-                                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
-                            >
-                                <div className="flex gap-3 pb-2 snap-x snap-mandatory">
-                                    {trendingItems.map((item) => {
-                                        if (item._type === 'fest') return (
-                                            <div key={item.id} className="snap-start">
-                                                <TrendingCard event={item} isDark={isDark} isFavorite={isFavorite(item.id)} onToggleFavorite={() => handleLike(item.id, item)} onViewDetails={() => navigate(`/view-details/${item.id}`)} />
-                                            </div>
-                                        );
-                                        if (item._type === 'trek') return (
-                                            <div key={item._id} className={`snap-start shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-95 ${isDark ? 'bg-[#111213] shadow-lg shadow-black/30' : 'bg-white shadow-md'}`} onClick={() => navigate(`/trek/${item._id}`, { state: { trek: item } })}>
-                                                <div className="relative h-[160px] overflow-hidden">
-                                                    {(item.coverImage || item.images?.[0] || item.image) ? <img src={item.coverImage || item.images?.[0] || item.image} alt={item.trekName} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center"><span className="text-4xl">⛰️</span></div>}
-                                                    {item.difficultyLevel && <div className={`absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${item.difficultyLevel === 'easy' ? 'bg-green-500 text-white' : item.difficultyLevel === 'moderate' ? 'bg-yellow-500 text-black' : 'bg-orange-500 text-white'}`}>{item.difficultyLevel}</div>}
-                                                </div>
-                                                <div className="p-3">
-                                                    <h3 className={`text-sm font-bold leading-tight mb-1 line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.trekName}</h3>
-                                                    {item.city && <p className={`text-[11px] mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.city}</p>}
-                                                    <button className={`w-full py-1.5 rounded-lg text-xs font-bold transition-colors ${isDark ? 'bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/30 hover:bg-[#0ECCEE]/20' : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100'}`}>Details</button>
-                                                </div>
-                                            </div>
-                                        );
-                                        if (item._type === 'community') return (
-                                            <div key={item._id} className={`snap-start shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-95 ${isDark ? 'bg-[#111213] shadow-lg shadow-black/30' : 'bg-white shadow-md'}`} onClick={() => navigate(`/treks/community/${item._id}`, { state: { community: { id: item._id, title: item.name, subtitle: item.basedIn, image: item.coverImage, trekCategories: item.trekCategories || [] } } })}>
-                                                <div className="relative h-[160px] overflow-hidden">
-                                                    {item.coverImage ? <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center"><span className="text-4xl">🏔️</span></div>}
-                                                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">Community</div>
-                                                </div>
-                                                <div className="p-3">
-                                                    <h3 className={`text-sm font-bold leading-tight mb-1 line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.name}</h3>
-                                                    {item.basedIn && <p className={`text-[11px] mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.basedIn}</p>}
-                                                    <button className={`w-full py-1.5 rounded-lg text-xs font-bold transition-colors ${isDark ? 'bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/30 hover:bg-[#0ECCEE]/20' : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100'}`}>Details</button>
-                                                </div>
-                                            </div>
-                                        );
-                                        return null;
-                                    })}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className={`mx-4 text-center py-10 rounded-2xl ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-500'}`}>
-                                <div className="text-3xl mb-2">ðŸ“…</div>
-                                <p className="text-sm">No trending events right now</p>
-                            </div>
-                        )}
-                    </section>
+                    <HomeCarouselSection
+                        title="Trending Now"
+                        items={trendingItems}
+                        isDark={isDark}
+                        loading={isFestsLoading}
+                        loadingFallback={
+                            <section className="mb-8">
+                                <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    Trending Now
+                                </h2>
+                                <div className="px-4"><LoadingSkeleton count={2} /></div>
+                            </section>
+                        }
+                        emptyFallback={
+                            festError && ongoingEvents.length === 0 ? (
+                                <section className="mb-8">
+                                    <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        Trending Now
+                                    </h2>
+                                    <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
+                                </section>
+                            ) : (
+                                <section className="mb-8">
+                                    <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        Trending Now
+                                    </h2>
+                                    <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
+                                        <p className="text-sm">No trending events right now</p>
+                                    </div>
+                                </section>
+                            )
+                        }
+                        isFavorite={(id) => isFavorite(id)}
+                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
+                        onItemClick={navigateToHomeItem}
+                        getShareUrl={getHomeItemShareUrl}
+                    />
 
                     {/* Happening Near You */}
-                    {(isFestsLoading || happeningItems.length > 0) && (
-                        <section className="mb-8">
-                            <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                Happening near you
-                            </h2>
-                            {isFestsLoading ? (
-                                <div className="px-4">
-                                    <LoadingSkeleton count={2} />
+                    <HomeCarouselSection
+                        title="Happening near you"
+                        items={happeningItems}
+                        isDark={isDark}
+                        loading={isFestsLoading}
+                        loadingFallback={
+                            <section className="mb-8">
+                                <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    Happening near you
+                                </h2>
+                                <div className="px-4"><LoadingSkeleton count={2} /></div>
+                            </section>
+                        }
+                        emptyFallback={
+                            <section className="mb-8">
+                                <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    Happening near you
+                                </h2>
+                                <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
+                                    <p className="text-sm">No events happening near you right now</p>
                                 </div>
-                            ) : (
-                                <div
-                                    className="overflow-x-auto scrollbar-hide pl-4 pr-4"
-                                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
-                                >
-                                    <div className="flex gap-3 pb-2 snap-x snap-mandatory">
-                                        {happeningItems.map((item) => {
-                                            if (item._type === 'fest') return (
-                                                <div key={item.id} className="snap-start">
-                                                    <HappeningCard event={item} isDark={isDark} onViewDetails={() => navigate(`/view-details/${item.id}`)} />
-                                                </div>
-                                            );
-                                            if (item._type === 'trek') return (
-                                                <div key={item._id} className="snap-start shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200" onClick={() => navigate(`/trek/${item._id}`, { state: { trek: item } })}>
-                                                    <div className="relative h-[180px] sm:h-[190px] rounded-2xl overflow-hidden mb-2">
-                                                        {(item.coverImage || item.images?.[0] || item.image) ? <img src={item.coverImage || item.images?.[0] || item.image} alt={item.trekName} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center"><span className="text-4xl">⛰️</span></div>}
-                                                        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent" />
-                                                        <div className="absolute bottom-0 left-0 right-0 p-3"><p className="text-white font-bold text-sm leading-tight line-clamp-1">{item.trekName}</p></div>
-                                                    </div>
-                                                    <div className="flex items-center justify-between px-1">
-                                                        <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.city || item.difficultyLevel || 'Trek'}</p>
-                                                        <span className={`text-xs font-bold ${isDark ? 'text-[#0ECCEE]' : 'text-blue-600'}`}>Details →</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                            if (item._type === 'community') return (
-                                                <div key={item._id} className="snap-start shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200" onClick={() => navigate(`/treks/community/${item._id}`, { state: { community: { id: item._id, title: item.name, subtitle: item.basedIn, image: item.coverImage, trekCategories: item.trekCategories || [] } } })}>
-                                                    <div className="relative h-[180px] sm:h-[190px] rounded-2xl overflow-hidden mb-2">
-                                                        {item.coverImage ? <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center"><span className="text-4xl">🏔️</span></div>}
-                                                        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent" />
-                                                        <div className="absolute bottom-0 left-0 right-0 p-3"><p className="text-white font-bold text-sm leading-tight line-clamp-1">{item.name}</p></div>
-                                                    </div>
-                                                    <div className="flex items-center justify-between px-1">
-                                                        <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.basedIn || 'Trek Community'}</p>
-                                                        <span className={`text-xs font-bold ${isDark ? 'text-[#0ECCEE]' : 'text-blue-600'}`}>Details →</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                            return null;
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                        </section>
-                    )}
+                            </section>
+                        }
+                        isFavorite={(id) => isFavorite(id)}
+                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
+                        onItemClick={navigateToHomeItem}
+                        getShareUrl={getHomeItemShareUrl}
+                    />
 
                     {/* Desktop-only: beyond campus grid */}
                     {beyondCampusEvents.length > 0 && (
@@ -1519,13 +1459,14 @@ const Dashboard = () => {
                             </h2>
                             <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
                                 {beyondCampusEvents.slice(0, 6).map((ev) => (
-                                    <TrendingCard
+                                    <HomeEventCard
                                         key={ev.id}
                                         event={ev}
                                         isDark={isDark}
                                         isFavorite={isFavorite(ev.id)}
                                         onToggleFavorite={() => handleLike(ev.id, ev)}
                                         onViewDetails={() => navigate(`/view-details/${ev.id}`)}
+                                        className="w-full shrink"
                                     />
                                 ))}
                             </div>
@@ -1537,8 +1478,6 @@ const Dashboard = () => {
 
                 </div>
             </main>
-
-            <Footer />
 
             <div className="pb-20 md:pb-0">
 

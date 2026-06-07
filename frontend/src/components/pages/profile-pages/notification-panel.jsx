@@ -6,7 +6,6 @@ import { useNotifications } from '../../../context/NotificationsContext';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
 import ProfileSidebar from '../../ProfileSidebar';
-import Footer from '../../Footer';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 
@@ -141,7 +140,6 @@ function NotificationsPanel() {
                             </div>
                         </div>
                     </div>
-                    <Footer />
                 </div>
             </div>
 

@@ -111,8 +111,6 @@ export default function About() {
                     </h3>
                     <div className="flex flex-wrap gap-3">
                         {[
-                            { label: 'Privacy Policy', to: '/privacy-policy' },
-                            { label: 'Terms & Conditions', to: '/terms-and-conditions' },
                             { label: 'Contact Us', to: '/contact-us' },
                         ].map((link, index) => (
                             <Link

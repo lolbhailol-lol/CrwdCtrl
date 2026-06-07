@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
-import Footer from '../../Footer';
 import ProfileSidebar from '../../ProfileSidebar';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
@@ -636,8 +635,6 @@ function ListYourFest() {
                         </div>
                     </div>
                 </main>
-
-                <Footer />
             </div>
 
             {/* Profile Sidebar Overlay */}

@@ -1,6 +1,6 @@
 import { getImageUrl } from '../utils/imageImports';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
-import ShareIcon from '../assets/share.svg';
+import { Share2 } from 'lucide-react';
 
 export default function HappeningCard({ event, _isDark, onViewDetails }) {
     const handleShare = (e) => {

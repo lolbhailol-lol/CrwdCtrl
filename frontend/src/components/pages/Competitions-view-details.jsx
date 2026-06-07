@@ -10,7 +10,6 @@ import { useAuth } from '../../context/AuthContext';
 import CalendarIcon from '../../assets/calendar.svg';
 import LocationIcon from '../../assets/location-.svg';
 import ShareIcon from '../../assets/share.svg';
-import Footer from '../Footer';
 import { getImageUrl } from '../../utils/imageImports.js';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
@@ -1662,8 +1661,6 @@ function EventPage() {
                 {/* Spacer for fixed mobile footer */}
                 <div className="md:hidden h-20"></div>
 
-                {/* Footer */}
-                <Footer />
 
             {/* Fixed Mobile/Tablet Register Button Footer */}
             <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden px-4 py-3 flex items-center gap-3 ${isDark ? 'bg-[#0F1014] border-t border-gray-700' : 'bg-white border-t border-gray-200'}`}>

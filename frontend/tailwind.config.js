@@ -8,7 +8,9 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                'inter': ['Inter', 'system-ui', 'sans-serif'],
+                sans: ['Poppins', 'system-ui', '-apple-system', 'sans-serif'],
+                inter: ['Poppins', 'system-ui', 'sans-serif'],
+                poppins: ['Poppins', 'system-ui', 'sans-serif'],
             },
             colors: {
                 // Custom colors for better dark mode support

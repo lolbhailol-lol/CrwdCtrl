@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X, Heart, Calendar, MapPin, Clock, Sparkles, Filter, Trash2, ArrowLeft } from 'lucide-react';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
-import Footer from '../Footer';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';

@@ -1,7 +1,6 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
-import Footer from '../../Footer';
 import ProfileSidebar from '../../ProfileSidebar';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { ArrowLeft, Search, MessageCircle, Book, Settings, Phone, Shield, FileText } from 'lucide-react';
@@ -75,11 +74,12 @@ const HelpCenter = () => {
         {
             icon: <Shield className="w-6 h-6" />,
             title: "Legal & Privacy",
-            description: "Privacy policy, terms of service, and legal information",
+            description: "Privacy policy, terms of service, about us, and legal information",
             isLegal: true,
             links: [
                 { text: "Privacy Policy", path: "/privacy-policy" },
-                { text: "Terms and Conditions", path: "/terms-and-conditions" }
+                { text: "Terms and Conditions", path: "/terms-and-conditions" },
+                { text: "About Us", path: "/about" }
             ]
         }
     ];
@@ -212,10 +212,6 @@ const HelpCenter = () => {
                         </div>
                     </div>
                 </main>
-
-                <div className="mt-10 pb-20 lg:pb-0">
-                    <Footer />
-                </div>
             </div>
 
             {/* Profile Sidebar */}

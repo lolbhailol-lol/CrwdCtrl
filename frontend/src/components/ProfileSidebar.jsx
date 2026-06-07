@@ -4,11 +4,13 @@ import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import MobileBottomNav from './MobileBottomNav';
+import { usePageTransition } from './PageTransition';
 
 export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowRegister: _onShowRegister }) {
     const { isDark, toggleDarkMode } = useDarkMode();
     const { user, logout, isAuthenticated } = useAuth();
     const navigate = useNavigate();
+    const { isTransitioning } = usePageTransition();
 
     const handleLogout = () => {
         logout();
@@ -360,6 +362,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                     </div>
 
                     {/* Mobile Bottom Navigation - Fixed at actual bottom with proper z-index and safe-area */}
+                    {!isTransitioning && (
                     <div 
                         className="fixed bottom-0 left-0 right-0 z-10000"
                         style={{
@@ -383,6 +386,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                 }}
                             />
                         </div>
+                    )}
                     </div>
                 </div>
             </div>

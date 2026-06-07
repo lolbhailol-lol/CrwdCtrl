@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Search, MapPin } from 'lucide-react';
+import { Bell, MapPin } from 'lucide-react';
 import Logo from '../../assets/logo01_.svg';
 import ShareIcon from '../../assets/share.svg';
 import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
@@ -10,8 +10,8 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import HomeCategoryBar from '../HomeCategoryBar';
-import Footer from '../Footer';
-
+import HeroSearchBar from '../HeroSearchBar';
+import HeroBanner from '../HeroBanner';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 const fetchJSON = async (endpoint) => {
@@ -246,10 +246,8 @@ function TreksPage() {
     const [communities, setCommunities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeCategory, _setActiveCategory] = useState(null);
-    const [heroPg, setHeroPg] = useState(0);
     const [weekendPg, setWeekendPg] = useState(0);
 
-    const heroScrollRef = useRef(null);
     const weekendScrollRef = useRef(null);
 
     const loadData = useCallback(async () => {
@@ -322,6 +320,27 @@ function TreksPage() {
     const heroItems = sortTrekPage([...heroTreks, ...comingSoonCommunities]);
     const categoryTreks = activeCategory ? treks.filter(t => t.trekCategory === activeCategory) : [];
 
+    const heroBannerEvents = useMemo(() => heroItems.map(item => ({
+        id: item.id,
+        image: item.image,
+        title: item.title,
+        subtitle: item.subtitle,
+        dateTime: item.date,
+        status: item.trekPageSection === 'comingSoon' ? 'upcoming' : undefined,
+    })), [heroItems]);
+
+    const handleHeroClick = useCallback((id) => {
+        const item = heroItems.find(i => i.id === id);
+        if (!item) return;
+        if (item.type === 'Community') {
+            navigate(`/treks/community/${id}`, { state: { community: item } });
+            return;
+        }
+        navigate(`/trek/${id}`, {
+            state: { trek: { ...item, trekName: item.title, images: item.image ? [item.image] : [] } },
+        });
+    }, [heroItems, navigate]);
+
     const handleFav = useCallback((trek) => {
         toggleFavorite(trek.id, { id: trek.id, title: trek.title, image: trek.image, type: 'Trek' });
     }, [toggleFavorite]);
@@ -341,15 +360,15 @@ function TreksPage() {
         <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
 
             {/* ── Sticky Header — matches Figma bg-slate-100 card ── */}
-            <header className={`lg:hidden sticky top-0 z-40 backdrop-blur-md transition-all duration-300
-                ${isDark ? 'bg-[#0D0E10]/95' : 'bg-white/95'}`}>
-                <div className={`rounded-b-3xl px-4 pb-3 shadow-[0_4px_16px_rgba(0,0,0,0.08)]
-                    ${isDark ? 'bg-[#0D0E10]' : 'bg-white'}`}
+            <header className={`lg:hidden sticky top-0 z-40 mobile-header-shell transition-all duration-300
+                ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}>
+                <div className={`rounded-b-[16px] px-4 pb-3 shadow-[0_4px_16px_rgba(0,0,0,0.08)]
+                    ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
                     style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
 
                     {/* Row 1: Logo + icons */}
                     <div className="flex items-center justify-between mb-2">
-                        <img src={Logo} alt="CrwdCtrl" className="h-20 sm:h-24 w-auto" />
+                        <img src={Logo} alt="CrwdCtrl" className="crisp-icon app-logo" draggable={false} decoding="sync" />
                         <div className="flex items-center gap-1">
                             <button
                                 className={`p-2 rounded-xl bg-transparent transition-colors
@@ -374,14 +393,7 @@ function TreksPage() {
 
                     {/* Row 2: Search bar */}
                     <div className="mb-3.5">
-                        <div className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-4
-                            ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff] border border-gray-100'}`}>
-                            <Search size={16} className="text-gray-400 shrink-0" />
-                            <span className={`text-sm flex-1
-                                ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                search college, fest
-                            </span>
-                        </div>
+                        <HeroSearchBar readOnly isDark={isDark} />
                     </div>
 
                     {/* Row 3: Category bar */}
@@ -392,57 +404,17 @@ function TreksPage() {
             <main className="flex-1 pb-28 overflow-x-hidden">
                 <div className="max-w-2xl lg:max-w-7xl mx-auto pt-6 lg:pt-0">
 
-                    {/* ── Hero Banner — only admin-configured hero/comingSoon items ── */}
-                    {heroItems.length > 0 && (
-                        <div className="mb-2" style={{ paddingLeft: '16px', paddingRight: '16px' }}>
-                            <div
-                                ref={heroScrollRef}
-                                className="overflow-x-auto scrollbar-hide snap-x snap-mandatory"
-                                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                                onScroll={(e) => {
-                                    const idx = Math.round(e.target.scrollLeft / e.target.clientWidth);
-                                    setHeroPg(idx);
-                                }}
-                            >
-                                <div className="flex">
-                                    {heroItems.map((item, _slide) => (
-                                        <div key={item.id} className="shrink-0 w-full snap-start"
-                                            onClick={() => navigate(`/trek/${item.id}`, { state: { trek: { ...item, trekName: item.title, images: item.image ? [item.image] : [] } } })}>
-                                            <div className="relative w-full overflow-hidden cursor-pointer"
-                                                style={{ height: '194px', borderRadius: '16px' }}>
-                                                {item.image ? (
-                                                    <img
-                                                        src={getImageUrl(item.image)}
-                                                        alt={item.title}
-                                                        className="w-full h-full object-cover"
-                                                        onError={(e) => handleImageErrorWithFallback(e, 361, 194, '#1a3a2a', 'Trek')}
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700" />
-                                                )}
-                                                <div className="absolute inset-0 bg-black/35" />
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-                                                    <h2 className="text-white text-3xl font-black tracking-widest uppercase drop-shadow-lg">
-                                                        {item.title}
-                                                    </h2>
-                                                </div>
-                                                {heroItems.length > 1 && (
-                                                    <div className="absolute bottom-3 left-0 right-0 flex justify-center items-center gap-2">
-                                                        {heroItems.map((_, i) => (
-                                                            <div key={i} className={`rounded-2xl transition-all duration-300
-                                                                ${i === heroPg
-                                                                    ? 'h-2.5 w-6 bg-white'
-                                                                    : 'size-2.5 bg-transparent border-2 border-white/60'
-                                                                }`}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                    {/* ── Hero Banner — same as Dashboard ── */}
+                    {!loading && heroBannerEvents.length > 0 && (
+                        <HeroBanner
+                            events={heroBannerEvents}
+                            onEventClick={handleHeroClick}
+                            isDark={isDark}
+                        />
+                    )}
+                    {loading && (
+                        <div className="px-4 mb-6">
+                            <div className={`h-52 rounded-2xl animate-pulse ${isDark ? 'bg-[#111213]' : 'bg-gray-200'}`} />
                         </div>
                     )}
 
@@ -647,10 +619,6 @@ function TreksPage() {
 
                 </div>
             </main>
-
-            <div className="pb-20 md:pb-0">
-                <Footer />
-            </div>
         </div>
     );
 }

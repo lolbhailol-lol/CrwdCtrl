@@ -32,8 +32,8 @@ const LoadingSkeleton = ({ count = 3 }) => {
                         <div className={`h-4 rounded mb-3 w-3/4 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
                         
                         {/* Button Skeleton */}
-  .z x/                       <div className={`h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-hm</div>
+                        <div className={`h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                    </div>
                 </div>
             ))}
         </div>

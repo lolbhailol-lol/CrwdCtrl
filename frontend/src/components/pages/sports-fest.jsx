@@ -74,7 +74,7 @@ export default function SportsFestPage() {
 
     return (
         <div className={`flex flex-col min-h-screen max-w-md mx-auto ${bg}`}>
-            <div className={`sticky top-0 z-40 rounded-b-3xl px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}
+            <div className={`sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center gap-3 mt-2">
                     <button onClick={() => navigate(-1)} className={`size-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}>

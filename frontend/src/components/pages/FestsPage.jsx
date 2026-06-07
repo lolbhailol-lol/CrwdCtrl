@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, Search, MapPin, Bell, X } from 'lucide-react';
+import { Heart, MapPin, Bell } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import HomeCategoryBar from '../HomeCategoryBar';
+import HeroSearchBar from '../HeroSearchBar';
 import HeroBanner from '../HeroBanner';
 import Logo from '../../assets/logo01_.svg';
 import ShareIcon from '../../assets/share.svg';
@@ -21,6 +22,31 @@ const SUBCATEGORIES = [
     { id: 'technical',  label: 'TECH',     icon: TechIcon,     path: '/tech-fest' },
     { id: 'sports',     label: 'SPORTS',   icon: SportsIcon,   path: '/sports-fest' },
 ];
+
+// ── Sub-category tile (crisp SVG on iOS) ───────────────────────────────────
+const SubcategoryTile = ({ cat, isDark, onClick }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        aria-label={cat.label}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+        className="flex flex-col items-center justify-center gap-2.5 py-5 lg:py-7 rounded-2xl lg:rounded-3xl
+                   transition-opacity duration-150 active:opacity-80"
+    >
+        <img
+            src={cat.icon}
+            alt={cat.label}
+            width={128}
+            height={113}
+            draggable={false}
+            decoding="sync"
+            className="crisp-icon category-icon-lg pointer-events-none"
+        />
+        <span className={`text-[12px] lg:text-sm font-bold tracking-wide ${isDark ? 'text-white' : 'text-[#111827]'}`}>
+            {cat.label}
+        </span>
+    </button>
+);
 
 // ── Dot Pagination ──────────────────────────────────────────────────────────
 const DotRow = ({ total, active }) => {
@@ -256,13 +282,13 @@ export default function FestsPage() {
         <div className={`flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
 
             {/* ── Mobile Header ── */}
-            <header className={`lg:hidden sticky top-0 z-40 backdrop-blur-md transition-all duration-300
-                ${isDark ? 'bg-[#0D0E10]/95' : 'bg-white/95'}`}>
-                <div className={`rounded-b-3xl px-4 pb-3 shadow-[0_4px_16px_rgba(0,0,0,0.08)]
-                    ${isDark ? 'bg-[#0D0E10]' : 'bg-white'}`}
+            <header className={`lg:hidden sticky top-0 z-40 mobile-header-shell transition-all duration-300
+                ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}>
+                <div className={`rounded-b-[16px] px-4 pb-3 shadow-[0_4px_16px_rgba(0,0,0,0.08)]
+                    ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
                     style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                     <div className="flex items-center justify-between mb-2">
-                        <img src={Logo} alt="CrwdCtrl" className="h-20 sm:h-24 w-auto cursor-pointer" onClick={() => navigate('/')} />
+                        <img src={Logo} alt="CrwdCtrl" className="crisp-icon app-logo cursor-pointer" draggable={false} decoding="sync" onClick={() => navigate('/')} />
                         <div className="flex items-center gap-1">
                             <button
                                 onClick={() => navigate('/')}
@@ -284,23 +310,12 @@ export default function FestsPage() {
                         </div>
                     </div>
                     <div className="mb-3.5">
-                        <div className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-4
-                            ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff] border border-gray-100'}`}>
-                            <Search size={16} className="text-gray-400 shrink-0" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                placeholder="search college, fest"
-                                className={`flex-1 bg-transparent text-sm outline-none
-                                    ${isDark ? 'text-gray-200 placeholder-gray-500' : 'text-gray-800 placeholder-gray-400'}`}
-                            />
-                            {searchQuery && (
-                                <button onClick={() => setSearchQuery('')} aria-label="Clear">
-                                    <X size={16} className="text-gray-400" />
-                                </button>
-                            )}
-                        </div>
+                        <HeroSearchBar
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            onClear={() => setSearchQuery('')}
+                            isDark={isDark}
+                        />
                     </div>
                     <HomeCategoryBar isDark={isDark} activeCategory="fests" noPadding />
                 </div>
@@ -310,23 +325,13 @@ export default function FestsPage() {
 
                 {/* ── Desktop Search ── */}
                 <div className="hidden lg:block lg:px-10 lg:pt-6 lg:pb-4">
-                    <div className={`flex items-center gap-3 rounded-full lg:px-6 lg:py-4
-                        ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm border border-gray-100'}`}>
-                        <Search size={17} className="text-gray-400 shrink-0" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="search college, fest"
-                            className={`flex-1 bg-transparent text-base outline-none
-                                ${isDark ? 'text-gray-200 placeholder-gray-500' : 'text-gray-800 placeholder-gray-400'}`}
-                        />
-                        {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} aria-label="Clear">
-                                <X size={16} className="text-gray-400" />
-                            </button>
-                        )}
-                    </div>
+                    <HeroSearchBar
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        onClear={() => setSearchQuery('')}
+                        isDark={isDark}
+                        className="lg:py-[18px]"
+                    />
                 </div>
 
                 <div className="pt-6 lg:pt-0">
@@ -357,21 +362,12 @@ export default function FestsPage() {
                     </div>
                     <div className="grid grid-cols-3 gap-3 lg:gap-6">
                         {SUBCATEGORIES.map(cat => (
-                                <button
-                                    key={cat.id}
-                                    onClick={() => navigate(cat.path)}
-                                    className="flex flex-col items-center justify-center gap-2.5 py-5 lg:py-7 rounded-2xl lg:rounded-3xl
-                                               transition-transform duration-150 active:scale-95"
-                                >
-                                    <img
-                                        src={cat.icon}
-                                        alt={cat.label}
-                                        className="w-20 h-20 lg:w-24 lg:h-24 object-contain"
-                                    />
-                                    <span className={`text-[12px] lg:text-sm font-bold tracking-wide ${isDark ? 'text-white' : 'text-[#111827]'}`}>
-                                        {cat.label}
-                                    </span>
-                                </button>
+                            <SubcategoryTile
+                                key={cat.id}
+                                cat={cat}
+                                isDark={isDark}
+                                onClick={() => navigate(cat.path)}
+                            />
                         ))}
                     </div>
                 </div>

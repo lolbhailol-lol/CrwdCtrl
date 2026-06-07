@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../Sidebar';
 import Navbar from '../../Navbar';
-import Footer from '../../Footer';
 import ProfileSidebar from '../../ProfileSidebar';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { ArrowLeft, CheckCircle, Upload, X, Calendar, MapPin, Trophy, Users } from 'lucide-react';
@@ -440,7 +439,7 @@ function CompetitionRegisterPage() {
     };
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'}`}>
+        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
             {/* Desktop Sidebar */}
             <div className="hidden lg:block">
                 <Sidebar />
@@ -1174,8 +1173,6 @@ function CompetitionRegisterPage() {
                         </div>
                     </div>
                 </main>
-
-                <Footer />
             </div>
 
             {/* Profile Sidebar Overlay */}

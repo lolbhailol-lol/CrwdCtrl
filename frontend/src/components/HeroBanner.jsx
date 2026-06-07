@@ -39,7 +39,7 @@ export default function HeroBanner({ events = [], onEventClick, isDark = false }
 
                 {/* Text overlay */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-                    <h2 className="text-3xl sm:text-4xl font-black text-white tracking-widest drop-shadow-2xl uppercase">
+                    <h2 className="text-3xl sm:text-4xl text-white tracking-widest drop-shadow-2xl uppercase">
                         {active.status === 'upcoming' ? 'COMING SOON' : active.title}
                     </h2>
                     {active.subtitle && (

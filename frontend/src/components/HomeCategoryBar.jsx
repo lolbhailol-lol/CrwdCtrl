@@ -25,15 +25,16 @@ function CategoryCard({ icon, darkIcon, label, isActive, isDark, onClick }) {
             onClick={onClick}
             aria-label={label}
             style={{ WebkitTapHighlightColor: 'transparent' }}
-            className="flex-1 flex flex-col items-center active:scale-95 transition-all duration-200"
+            className="flex-1 flex flex-col items-center active:opacity-80"
         >
             <img
                 src={isDark ? darkIcon : icon}
                 alt={label}
+                width={78}
+                height={85}
                 draggable={false}
-                className={`w-20 h-14 object-contain pointer-events-none transition-all duration-200 ${
-                    isActive ? '-translate-y-0.5 drop-shadow-[0px_4px_4px_rgba(0,0,0,0.25)]' : ''
-                }`}
+                decoding="sync"
+                className="crisp-icon category-icon pointer-events-none"
             />
         </button>
     );
@@ -43,8 +44,8 @@ export default function HomeCategoryBar({ isDark = false, activeCategory = null,
     const navigate = useNavigate();
 
     return (
-        <div className={noPadding ? 'w-full' : 'mb-2 w-full px-0 sm:px-4'}>
-            <div className="mx-auto flex w-full items-center justify-between gap-1 sm:max-w-[640px] sm:gap-2">
+        <div className={noPadding ? 'home-category-bar w-full' : 'home-category-bar mb-2 w-full px-0 sm:px-4'}>
+            <div className="mx-auto flex w-full items-center justify-between gap-0.5 sm:max-w-[720px] sm:gap-1">
                 {CATEGORIES.map(cat => (
                     <CategoryCard
                         key={cat.id}

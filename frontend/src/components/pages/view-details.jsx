@@ -8,7 +8,6 @@ import calendarIcon from '../../assets/calendar.svg';
 import locationIcon from '../../assets/location-.svg';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
-import Footer from '../Footer';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
@@ -886,7 +885,7 @@ function EventDetailsPage() {
                     <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
                     <div className="space-y-2">
                       {eventData.contacts.map((contact, index) => (
-                        <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-white'} rounded-lg p-3 transition-colors duration-300`}>
+                        <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} rounded-lg p-3 transition-colors duration-300`}>
                           {/* Name - Role in one line */}
                           <div className="mb-1">
                             <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -955,9 +954,6 @@ function EventDetailsPage() {
               </div>
             </div>
           </div>
-        </div>
-        <div className={`transition-all duration-300`}>
-          <Footer />
         </div>
       </div>
 
@@ -1098,7 +1094,7 @@ function EventDetailsPage() {
 
           {/* Artists You'll Love */}
           {eventData.artists && eventData.artists.length > 0 && (
-            <div className={`${isDark ? 'bg-[#161718]' : 'bg-white'} p-4`}>
+            <div className={`${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} p-4`}>
               <h2 className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {eventData.artistsHeading || "Artists You'll Love"}
               </h2>
@@ -1188,7 +1184,7 @@ function EventDetailsPage() {
 
           {/* Contact Details */}
           {eventData.contacts && eventData.contacts.length > 0 && (
-            <div className={`${isDark ? 'bg-[#161718]' : 'bg-white'} p-3 rounded-xl mt-4 mb-6`}>
+            <div className={`${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} p-3 rounded-xl mt-4 mb-6`}>
               <h3 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
               <div className="space-y-2">
                 {eventData.contacts.map((contact, index) => (
@@ -1261,9 +1257,6 @@ function EventDetailsPage() {
 
           {/* Spacer for fixed mobile footer */}
           <div className="h-32 md:hidden"></div>
-
-          {/* Footer */}
-          <Footer />
         </div>
       </div>
 

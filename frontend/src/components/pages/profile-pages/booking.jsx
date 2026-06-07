@@ -422,7 +422,7 @@ function Booking() {
     return (
         <div
             className={`min-h-screen transition-colors duration-300 pb-24 lg:pb-8 ${
-                isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'
+                isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'
             }`}
         >
             <main className="px-4 pt-4 sm:px-6 lg:px-8">
