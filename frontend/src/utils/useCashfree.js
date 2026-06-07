@@ -1,12 +1,17 @@
 import { load } from '@cashfreepayments/cashfree-js';
 
 let cashfreeInstance = null;
+let cashfreeMode = null;
+
+function getCashfreeMode() {
+  return import.meta.env.VITE_CASHFREE_MODE || 'sandbox';
+}
 
 async function getCashfree() {
-  if (!cashfreeInstance) {
-    cashfreeInstance = await load({
-      mode: import.meta.env.VITE_CASHFREE_MODE || 'sandbox',
-    });
+  const mode = getCashfreeMode();
+  if (!cashfreeInstance || cashfreeMode !== mode) {
+    cashfreeInstance = await load({ mode });
+    cashfreeMode = mode;
   }
   return cashfreeInstance;
 }
@@ -18,6 +23,15 @@ async function getCashfree() {
  * @returns {Promise<object>} Checkout result from Cashfree SDK
  */
 export async function openCashfreeCheckout({ paymentSessionId }) {
+  if (!paymentSessionId || typeof paymentSessionId !== 'string') {
+    throw new Error('Payment session missing. Restart the payment and try again.');
+  }
+
+  const mode = getCashfreeMode();
+  if (import.meta.env.DEV) {
+    console.info('[Cashfree] Opening checkout', { mode, sessionPrefix: paymentSessionId.slice(0, 12) });
+  }
+
   const cashfree = await getCashfree();
   if (!cashfree) {
     throw new Error('Cashfree SDK not loaded. Please refresh the page and try again.');
@@ -29,7 +43,12 @@ export async function openCashfreeCheckout({ paymentSessionId }) {
   });
 
   if (result.error) {
-    throw new Error(result.error.message || 'Payment cancelled');
+    const msg = result.error.message || 'Payment cancelled';
+    const domainHint =
+      mode === 'sandbox'
+        ? ' Add http://localhost:5173 under Developers → Domain Whitelisting in the Cashfree sandbox dashboard.'
+        : '';
+    throw new Error(`${msg}.${domainHint}`);
   }
 
   if (!result.paymentDetails) {

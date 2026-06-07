@@ -12,17 +12,23 @@ export default defineConfig(({ mode }) => ({
       // We'll register the SW in `src/main.jsx` to control update behavior.
       injectRegister: null,
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192x192.png', 'icon-512x512.png'],
+      includeAssets: ['favicon.png', 'logo-crwdctrl.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml'],
       manifest: {
         name: 'CrwdCtrl — Discover College Fests',
         short_name: 'CrwdCtrl',
         description: 'Discover and register for college fests, competitions, and events near you.',
-        theme_color: '#007BFF',
+        theme_color: '#0E0E0F',
         background_color: '#0E0E0F',
         display: 'standalone',
         start_url: '/',
         scope: '/',
         icons: [
+          {
+            src: '/logo-crwdctrl.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
           {
             src: '/icon-192x192.png',
             sizes: '192x192',

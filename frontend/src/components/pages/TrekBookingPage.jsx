@@ -132,6 +132,11 @@ export default function TrekBookingPage() {
                 });
                 const order = await res.json();
                 if (!res.ok) { setError(order.message || 'Failed to create order.'); setPaying(false); return; }
+                if (!order.paymentSessionId) {
+                    setError('Payment session missing from server. Restart backend and try again.');
+                    setPaying(false);
+                    return;
+                }
 
                 await openCashfreeCheckout({ paymentSessionId: order.paymentSessionId });
 

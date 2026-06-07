@@ -24,6 +24,12 @@ function assertCredentials() {
   }
 }
 
+const getFrontendBaseUrl = () =>
+  (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+
+const buildReturnUrl = (orderId) =>
+  `${getFrontendBaseUrl()}/booking?order_id=${encodeURIComponent(orderId)}`;
+
 const generateOrderId = () => `order_${crypto.randomBytes(12).toString('hex')}`;
 
 const normalizePhone = (phone) => {
@@ -52,7 +58,10 @@ async function createCashfreeOrder({
       customer_email: customerDetails.customerEmail || customerDetails.email || 'customer@crwdctrl.com',
       customer_phone: normalizePhone(customerDetails.customerPhone || customerDetails.phone),
     },
-    order_meta: orderMeta,
+    order_meta: {
+      return_url: buildReturnUrl(orderId),
+      ...orderMeta,
+    },
     order_note: orderNote,
     order_tags: orderTags,
   };

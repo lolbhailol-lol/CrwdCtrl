@@ -3,22 +3,76 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/src/assets/logo01_.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <!-- Primary SEO -->
+  <title>CrwdCtrl — Discover fests, clubs &amp; events</title>
+  <meta name="description" content="CrwdCtrl helps you find college fests, tech and sports events, running clubs, gym communities, and meetups near you." />
+  <meta name="application-name" content="CrwdCtrl" />
+  <meta name="theme-color" content="#0E0E0F" />
+  <link rel="canonical" href="https://www.crwdctrl.in/" />
+
+  <!-- Favicon / site icon (shown in Google Search results) -->
+  <link rel="icon" type="image/png" href="/favicon.png" sizes="48x48" />
+  <link rel="icon" type="image/png" href="/icon-192x192.png" sizes="192x192" />
+  <link rel="icon" type="image/png" href="/icon-512x512.png" sizes="512x512" />
+  <link rel="apple-touch-icon" href="/icon-192x192.png" />
+
+  <!-- Open Graph / social -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="CrwdCtrl" />
+  <meta property="og:title" content="CrwdCtrl — Discover fests, clubs &amp; events" />
+  <meta property="og:description" content="Find college fests, tech and sports events, running clubs, gym communities, and meetups near you on CrwdCtrl." />
+  <meta property="og:url" content="https://www.crwdctrl.in/" />
+  <meta property="og:image" content="https://www.crwdctrl.in/logo-crwdctrl.png" />
+  <meta property="og:image:alt" content="CrwdCtrl logo" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="CrwdCtrl — Discover fests, clubs &amp; events" />
+  <meta name="twitter:description" content="Find college fests, tech and sports events, running clubs, gym communities, and meetups near you." />
+  <meta name="twitter:image" content="https://www.crwdctrl.in/logo-crwdctrl.png" />
+
+  <!-- PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="apple-touch-icon" href="/icon-192x192.png" />
-  
+  <meta name="apple-mobile-web-app-title" content="CrwdCtrl" />
+
+  <!-- Structured data for Google (brand + logo) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://www.crwdctrl.in/#organization",
+        "name": "CrwdCtrl",
+        "alternateName": ["crwdctrl", "Crwd Ctrl"],
+        "url": "https://www.crwdctrl.in",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://www.crwdctrl.in/logo-crwdctrl.png",
+          "width": 512,
+          "height": 512
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://www.crwdctrl.in/#website",
+        "url": "https://www.crwdctrl.in",
+        "name": "CrwdCtrl",
+        "description": "Discover college fests, sports events, running clubs, and student communities.",
+        "publisher": { "@id": "https://www.crwdctrl.in/#organization" }
+      }
+    ]
+  }
+  </script>
+
   <!-- OAuth and Firebase compatibility headers -->
   <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups" />
   <meta http-equiv="Cross-Origin-Embedder-Policy" content="unsafe-none" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-  
-  <!-- Additional security headers for OAuth -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-  
-  <title>CrwdCtrl — Discover fests, clubs &amp; events</title>
-  <meta name="description" content="Find college fests, tech and sports events, running clubs, gym communities, and meetups near you on CrwdCtrl." />
 </head>
 
 <body>
