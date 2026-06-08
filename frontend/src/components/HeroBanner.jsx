@@ -61,9 +61,9 @@ export default function HeroBanner({
                 <button
                     type="button"
                     onClick={() => onEventClick?.(active.id)}
-                    className={`absolute left-3 z-10 text-left max-w-[55%] sm:max-w-[50%] ${items.length > 1 ? 'bottom-10' : 'bottom-3'}`}
+                    className={`absolute left-3 z-10 text-left max-w-[55%] sm:max-w-[50%] ${items.length > 1 ? 'bottom-7' : 'bottom-2'}`}
                 >
-                    <h2 className="text-base sm:text-lg font-semibold text-white leading-snug drop-shadow-md line-clamp-2">
+                    <h2 className="text-base sm:text-lg font-bold text-white leading-snug drop-shadow-md line-clamp-2">
                         {active.title}
                     </h2>
                     {active.subtitle && (

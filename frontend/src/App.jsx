@@ -15,7 +15,7 @@ import ProfileSidebar from './components/ProfileSidebar'
 import AuthLoadingPage from './components/AuthLoadingPage'
 import AppLoadingPage from './components/AppLoadingPage'
 import LoadingBar from './components/LoadingBar'
-import { shouldShowRefreshSplash, REFRESH_SPLASH_MS } from './utils/bootSplash'
+import { shouldShowBootSplash, removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
@@ -303,13 +303,22 @@ function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [showRefreshSplash, setShowRefreshSplash] = useState(() => shouldShowRefreshSplash());
+  const [showBootSplash, setShowBootSplash] = useState(() => shouldShowBootSplash());
 
   useEffect(() => {
-    if (!showRefreshSplash) return undefined;
-    const timer = setTimeout(() => setShowRefreshSplash(false), REFRESH_SPLASH_MS);
+    if (showBootSplash) return undefined;
+    removeHtmlBootSplash();
+    return undefined;
+  }, [showBootSplash]);
+
+  useEffect(() => {
+    if (!showBootSplash) return undefined;
+    const timer = setTimeout(() => {
+      setShowBootSplash(false);
+      removeHtmlBootSplash();
+    }, BOOT_SPLASH_MS);
     return () => clearTimeout(timer);
-  }, [showRefreshSplash]);
+  }, [showBootSplash]);
 
   useEffect(() => {
     // Fire-and-forget backend wake-up — never blocks first paint
@@ -360,7 +369,7 @@ function App() {
     setShowLogin(true);
   };
 
-  if (showRefreshSplash) {
+  if (showBootSplash) {
     return (
       <DarkModeProvider>
         <AppLoadingPage />

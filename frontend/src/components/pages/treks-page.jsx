@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, MapPin } from 'lucide-react';
-import Logo from '../../assets/logo01_.svg';
+import AppLogo from '../AppLogo';
 import ShareIcon from '../../assets/share.svg';
 import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -368,7 +368,7 @@ function TreksPage() {
 
                     {/* Row 1: Logo + icons */}
                     <div className="flex items-center justify-between mb-2">
-                        <img src={Logo} alt="CrwdCtrl" className="crisp-icon app-logo" draggable={false} decoding="sync" />
+                        <AppLogo />
                         <div className="flex items-center gap-1">
                             <button
                                 className={`p-2 rounded-xl bg-transparent transition-colors

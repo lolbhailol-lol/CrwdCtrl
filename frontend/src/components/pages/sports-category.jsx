@@ -8,7 +8,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import HomeCategoryBar from '../HomeCategoryBar';
 import HeroSearchBar from '../HeroSearchBar';
-import Logo from '../../assets/logo01_.svg';
+import AppLogo from '../AppLogo';
 import ShareIcon from '../../assets/share.svg';
 import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
 import {
@@ -469,14 +469,7 @@ export default function SportsCategoryPage() {
                     style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
                 >
                     <div className="flex items-center justify-between mb-2">
-                        <img
-                            src={Logo}
-                            alt="CrwdCtrl"
-                            className="crisp-icon app-logo cursor-pointer"
-                            draggable={false}
-                            decoding="sync"
-                            onClick={() => navigate('/')}
-                        />
+                        <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
                         <div className="flex items-center gap-1">
                             <button
                                 type="button"

@@ -1,17 +1,14 @@
 import { useDarkMode } from '../context/DarkModeContext';
-import lightLogo from '../assets/crwdctrl-logo-light.png';
-import darkLogo from '../assets/loading-image/dark-mode-logo.svg';
+import markLogo from '../assets/crwdctrl-mark.png';
+import { LOGO_SOURCE_PX } from '../constants/logo';
 
-const DEFAULT_MARK_PX = 72;
+const DEFAULT_DISPLAY_PX = 72;
+const LARGE_DISPLAY_PX = 152;
 
-/**
- * Branded loading screen — logo + top progress bar.
- * Compact size keeps it sharp on iOS; auth/route loaders dismiss quickly.
- */
-export default function LogoSplash({ size = DEFAULT_MARK_PX, large = false }) {
+/** Branded loading screen — 500×500 source asset, scaled for splash */
+export default function LogoSplash({ size = DEFAULT_DISPLAY_PX, large = false }) {
     const { isDark } = useDarkMode();
-    const isMark = !isDark;
-    const wordmarkHeight = Math.round(size * 0.9);
+    const displayPx = large ? LARGE_DISPLAY_PX : size;
 
     return (
         <div
@@ -25,16 +22,17 @@ export default function LogoSplash({ size = DEFAULT_MARK_PX, large = false }) {
                 <div className="route-progress-bar h-full bg-[#0ECCEE]" />
             </div>
             <img
-                src={isDark ? darkLogo : lightLogo}
+                src={markLogo}
                 alt="CrwdCtrl"
-                width={isMark ? size : undefined}
-                height={isMark ? size : wordmarkHeight}
-                className={`${isMark ? 'app-splash-mark' : 'app-splash-wordmark'}${large ? ' app-splash-large' : ''}`}
-                style={
-                    isMark
-                        ? { width: size, height: size, maxWidth: size, maxHeight: size }
-                        : { height: wordmarkHeight, maxHeight: wordmarkHeight, maxWidth: 'min(280px, 72vw)' }
-                }
+                width={LOGO_SOURCE_PX}
+                height={LOGO_SOURCE_PX}
+                className={`app-splash-mark app-logo-mark${large ? ' app-splash-large' : ''}`}
+                style={{
+                    width: displayPx,
+                    height: displayPx,
+                    maxWidth: displayPx,
+                    maxHeight: displayPx,
+                }}
                 draggable={false}
                 decoding="sync"
             />

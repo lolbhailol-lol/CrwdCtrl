@@ -12,15 +12,10 @@ export const useDarkMode = () => {
 };
 
 export const DarkModeProvider = ({ children }) => {
-    // Initialize dark mode from localStorage or system preference
+    // Sync with html.dark set in index.html inline script (avoids theme flash)
     const [isDark, setIsDark] = useState(() => {
         if (typeof window !== 'undefined') {
-            const savedTheme = localStorage.getItem('crwdctrl-theme');
-            if (savedTheme) {
-                return savedTheme === 'dark';
-            }
-            // Check system preference
-            return window.matchMedia('(prefers-color-scheme: dark)').matches;
+            return document.documentElement.classList.contains('dark');
         }
         return false;
     });

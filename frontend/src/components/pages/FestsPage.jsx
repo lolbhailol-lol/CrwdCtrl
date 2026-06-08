@@ -9,7 +9,7 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import HomeCategoryBar from '../HomeCategoryBar';
 import HeroSearchBar from '../HeroSearchBar';
 import HeroBanner from '../HeroBanner';
-import Logo from '../../assets/logo01_.svg';
+import AppLogo from '../AppLogo';
 import ShareIcon from '../../assets/share.svg';
 import CulturalIcon from '../../assets/mobile-icons/cul.svg';
 import TechIcon from '../../assets/mobile-icons/techhh.svg';
@@ -294,7 +294,7 @@ export default function FestsPage() {
                     ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
                     style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                     <div className="flex items-center justify-between mb-2">
-                        <img src={Logo} alt="CrwdCtrl" className="crisp-icon app-logo cursor-pointer" draggable={false} decoding="sync" onClick={() => navigate('/')} />
+                        <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
                         <div className="flex items-center gap-1">
                             <button
                                 onClick={() => navigate('/')}

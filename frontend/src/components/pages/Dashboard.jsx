@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock } from 'lucide-react';
 import ShareIcon from '../../assets/share.svg';
-import Logo from '../../assets/logo01_.svg';
+import AppLogo from '../AppLogo';
 import CulturalFestImage from '../../assets/mobile-icons/cultural-events-icon-02.svg';
 import TechFestImage from '../../assets/mobile-icons/tech-icon.svg';
 import SportsFestImage from '../../assets/mobile-icons/sports-icon.svg';
@@ -1270,7 +1270,7 @@ const Dashboard = () => {
                     style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center justify-between mb-2">
                     {/* Logo */}
-                    <img src={Logo} alt="CrwdCtrl" className="crisp-icon app-logo" draggable={false} decoding="sync" />
+                    <AppLogo />
 
                     {/* Right icons */}
                     <div className="flex items-center gap-1">

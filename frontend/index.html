@@ -5,6 +5,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
+  <!-- Theme before paint — same logic as DarkModeProvider -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('crwdctrl-theme');
+        var dark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Primary SEO -->
   <title>CrwdCtrl — Discover fests, clubs &amp; events</title>
   <meta name="description" content="CrwdCtrl helps you find college fests, tech and sports events, running clubs, gym communities, and meetups near you." />
@@ -78,9 +89,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Instant boot splash — light / dark matches app theme -->
+  <style>
+    html, body { margin: 0; background: #ffffff; }
+    html.dark, html.dark body { background: #161718; }
+    #boot-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+    }
+    html.dark #boot-splash { background: #161718; }
+    #boot-splash img {
+      width: 152px;
+      height: 152px;
+      object-fit: contain;
+      image-rendering: -webkit-optimize-contrast;
+    }
+  </style>
 </head>
 
 <body>
+  <div id="boot-splash" aria-hidden="true">
+    <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
+  </div>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>

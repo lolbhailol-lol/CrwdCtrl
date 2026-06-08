@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Calendar, Heart, Ticket, Settings, HelpCircle, Sun, Moon, Menu, X, LogOut } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useFavorites } from '../context/FavoritesContext';
-import logo from '../assets/logo01_.svg';
+import AppLogo from './AppLogo';
 
 const Sidebar = () => {
     const { isDark, toggleDarkMode } = useDarkMode();
@@ -69,12 +69,8 @@ const Sidebar = () => {
                     <X className="w-6 h-6" />
                 </button>
                 {/* Logo */}
-                <div className="mb-8 group">
-                    <img
-                        src={logo}
-                        alt="CrwdCtrl Logo"
-                        className="w-24 h-24 lg:w-28 lg:h-28 object-contain transition-transform duration-300"
-                    />
+                <div className="mb-8">
+                    <AppLogo size={80} />
                 </div>
 
                 {/* Navigation Icons */}
