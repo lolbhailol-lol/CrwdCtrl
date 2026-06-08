@@ -33,7 +33,7 @@
 
     --card-carousel: clamp(16.25rem, 78vw, 18.75rem);
     --card-carousel-sm: clamp(12.5rem, 62vw, 13.75rem);
-    --card-carousel-wide: clamp(18.75rem, 88vw, 25rem);
+    --card-carousel-wide: clamp(17.5rem, 84vw, 24rem);
     --card-carousel-fest: clamp(17.5rem, 85vw, 20rem);
 
     --hero-banner-min-h: 11rem;

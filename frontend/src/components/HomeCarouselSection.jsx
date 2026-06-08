@@ -4,6 +4,8 @@ import { HomeEventCardSkeleton } from './HomeEventCardSkeleton';
 import {
     useCenteredCarouselSidePad,
     useMeasuredCardWidth,
+    getHomeCardFallbackWidth,
+    scrollCarouselToSlide,
     HOME_CARD_GAP,
 } from '../hooks/useHomeCarousel';
 
@@ -66,12 +68,7 @@ function buildHomeSlides(items) {
 function scrollToSlide(el, trackEl, index) {
     const slide = trackEl?.children?.[index];
     if (!slide) return;
-
-    const targetLeft = slide.offsetLeft - (el.clientWidth - slide.offsetWidth) / 2;
-    el.scrollTo({
-        left: Math.max(0, targetLeft),
-        behavior: 'instant',
-    });
+    scrollCarouselToSlide(el, slide);
 }
 
 function getNearestSlideIndex(el, trackEl) {
@@ -236,7 +233,7 @@ export default function HomeCarouselSection({
     const slideCount = loading
         ? SKELETON_COUNT
         : (items.length <= 1 ? items.length : items.length + 2);
-    const fallbackWidth = wideCard ? 360 : 280;
+    const fallbackWidth = getHomeCardFallbackWidth(wideCard);
     const cardWidth = useMeasuredCardWidth(trackRef, slideCount, fallbackWidth);
     const sidePad = useCenteredCarouselSidePad(scrollRef, cardWidth);
 
@@ -256,7 +253,25 @@ export default function HomeCarouselSection({
         WebkitOverflowScrolling: 'touch',
         overscrollBehaviorX: 'contain',
         paddingInline: sidePadding,
+        scrollPaddingInline: sidePadding,
     };
+
+    const activeIndexRef = useRef(activeIndex);
+    activeIndexRef.current = activeIndex;
+
+    // Re-center after card width / side padding is measured (fixes wide-card misalignment on load).
+    useEffect(() => {
+        const el = scrollRef.current;
+        const trackEl = trackRef.current;
+        if (!el || !trackEl || loading || items.length === 0) return;
+
+        const idx = activeIndexRef.current;
+        const slideIndex = items.length > 1 ? idx + 1 : idx;
+        const slide = trackEl.children[slideIndex];
+        if (!slide) return;
+
+        scrollCarouselToSlide(el, slide);
+    }, [cardWidth, sidePad, loading, items.length]);
 
     if (loading) {
         if (loadingFallback) return loadingFallback;
