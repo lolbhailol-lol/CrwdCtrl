@@ -4,6 +4,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../utils/imageImports';
+import {
+  transformFestPublicData,
+  buildCompetitionNavPayload,
+} from '../../utils/festPublicTransform';
 // ✅ FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -91,69 +95,18 @@ const CompetitionListPage = () => {
                     return;
                 }
 
-                const transformedEventData = {
-                    id: festData._id || festData.id,
-                    title: festData.festName,
-                    subtitle: festData.collegeName,
-                    festival_name: festData.festName,
-                    organizing_body: festData.collegeName,
-                    type: festData.festType,
-                    description: festData.description,
-                    dateTime: festData.festDate,
-                    venue: festData.venue,
-                    image: festData.coverImage,
-                    heroImage: festData.coverImage
-                };
+                const transformedEventData = transformFestPublicData(festData);
+                if (!transformedEventData) {
+                    setError('Event not found');
+                    return;
+                }
 
                 setEventData(transformedEventData);
+                setCompetitions(transformedEventData.competitions || {});
 
-                // Process competitions from the populated fest data (same as main page)
-                if (festData.competitions && Array.isArray(festData.competitions) && festData.competitions.length > 0) {
-                    console.log('Competition-list - Processing populated competitions:', festData.competitions);
-                    
-                    // Group competitions by type
-                    const groupedCompetitions = {};
-                    festData.competitions.forEach(comp => {
-                        const category = comp.competitionType?.toUpperCase() || 'OTHER';
-                        if (!groupedCompetitions[category]) {
-                            groupedCompetitions[category] = [];
-                        }
-                        groupedCompetitions[category].push({
-                            id: comp._id,
-                            name: comp.name,
-                            title: comp.name,
-                            subtitle: comp.subtitle || comp.description,
-                            image: comp.coverImage,
-                            fee: comp.registrationFee || 'Free',
-                            prize: comp.prizePool || 'TBD',
-                            description: comp.description,
-                            dateTime: comp.dateTime,
-                            venue: comp.venue,
-                            rules: comp.commonRules || [],
-                            commonRulesMessage: comp.commonRulesMessage || '',
-                            rounds: comp.rounds || [],
-                            contact: comp.contact,
-                            // Include all original fields for hasCompleteDetails check
-                            prizePool: comp.prizePool,
-                            registrationFee: comp.registrationFee,
-                            competitionType: comp.competitionType,
-                            coverImage: comp.coverImage,
-                            gallery: comp.gallery,
-                            commonRules: comp.commonRules
-                        });
-                    });
-                    
-                    setCompetitions(groupedCompetitions);
-                    console.log('Competition-list - Grouped competitions:', groupedCompetitions);
-                    
-                    // Set initial active tab
-                    const availableTabs = Object.keys(groupedCompetitions);
-                    if (availableTabs.length > 0) {
-                        setActiveTab(availableTabs[0]);
-                    }
-                } else {
-                    console.log('Competition-list - No competitions found in fest data');
-                    setCompetitions({});
+                const availableTabs = Object.keys(transformedEventData.competitions || {});
+                if (availableTabs.length > 0) {
+                    setActiveTab(availableTabs[0]);
                 }
 
             } catch (err) {
@@ -181,58 +134,10 @@ const CompetitionListPage = () => {
                         const eventResponse = await fetchJSON(`/fests/${eventId}/public?t=${timestamp}`);
                         const festData = eventResponse.data;
 
-                        if (festData) {
-                            const transformedEventData = {
-                                id: festData._id || festData.id,
-                                title: festData.festName,
-                                subtitle: festData.collegeName,
-                                festival_name: festData.festName,
-                                organizing_body: festData.collegeName,
-                                type: festData.festType,
-                                description: festData.description,
-                                dateTime: festData.festDate,
-                                venue: festData.venue,
-                                image: festData.coverImage,
-                                heroImage: festData.coverImage
-                            };
-
+                        const transformedEventData = transformFestPublicData(festData);
+                        if (transformedEventData) {
                             setEventData(transformedEventData);
-
-                            // Process competitions
-                            if (festData.competitions && Array.isArray(festData.competitions) && festData.competitions.length > 0) {
-                                const groupedCompetitions = {};
-                                festData.competitions.forEach(comp => {
-                                    const category = comp.competitionType?.toUpperCase() || 'OTHER';
-                                    if (!groupedCompetitions[category]) {
-                                        groupedCompetitions[category] = [];
-                                    }
-                                    groupedCompetitions[category].push({
-                                        id: comp._id,
-                                        name: comp.name,
-                                        title: comp.name,
-                                        subtitle: comp.subtitle || comp.description,
-                                        image: comp.coverImage,
-                                        fee: comp.registrationFee || 'Free',
-                                        prize: comp.prizePool || 'TBD',
-                                        description: comp.description,
-                                        dateTime: comp.dateTime,
-                                        venue: comp.venue,
-                                        rules: comp.commonRules || [],
-                                        commonRulesMessage: comp.commonRulesMessage || '',
-                                        rounds: comp.rounds || [],
-                                        contact: comp.contact,
-                                        prizePool: comp.prizePool,
-                                        registrationFee: comp.registrationFee,
-                                        competitionType: comp.competitionType,
-                                        coverImage: comp.coverImage,
-                                        gallery: comp.gallery,
-                                        commonRules: comp.commonRules
-                                    });
-                                });
-                                setCompetitions(groupedCompetitions);
-                            } else {
-                                setCompetitions({});
-                            }
+                            setCompetitions(transformedEventData.competitions || {});
                         }
                     } catch (err) {
                         console.error('Error refetching updated competition data:', err);
@@ -270,9 +175,9 @@ const CompetitionListPage = () => {
     const handleCompetitionClick = (competition) => {
         navigate(`/competitions-view-details/${competition.id}`, {
             state: {
-                competition: competition,
-                eventData: eventData
-            }
+                competition: buildCompetitionNavPayload(competition, eventData),
+                eventData,
+            },
         });
     };
 

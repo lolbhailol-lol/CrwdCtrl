@@ -19,10 +19,12 @@ import { searchAll } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlRegister from './register';
-import LoadingSkeleton from '../LoadingSkeleton';
+import { HeroBannerSkeleton } from '../HomeEventCardSkeleton';
+import { TRENDING_CARD_GAP } from '../../hooks/useHomeCarousel';
 import HeroBanner from '../HeroBanner';
 import HeroSearchBar from '../HeroSearchBar';
 import HomeCategoryBar from '../HomeCategoryBar';
+import MobileStickyHeader from '../MobileStickyHeader';
 import HomeCarouselSection from '../HomeCarouselSection';
 import HomeEventCard from '../HomeEventCard';
 import { buildHomeCarouselItems } from '../../utils/homeCarouselItems';
@@ -1261,15 +1263,13 @@ const Dashboard = () => {
         <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
           <div className="flex flex-col flex-1">
 
-            {/* Mobile top section — unified sticky block */}
-            <header className={`lg:hidden sticky top-0 z-40 mobile-header-shell transition-all duration-300 rounded-b-[16px] overflow-hidden
-                ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}>
-                {/* unified card box — covers full width, safe-area absorbed inside */}
-                <div className={`rounded-b-[16px] px-4 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)]
-                    ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
-                    style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
-                <div className="flex items-center justify-between mb-2">
-                    {/* Logo */}
+            <MobileStickyHeader
+                isDark={isDark}
+                onCollapsedChange={(collapsed) => {
+                    if (collapsed) setIsLocationDropdownOpen(false);
+                }}
+                brandingRow={
+                    <>
                     <AppLogo />
 
                     {/* Right icons */}
@@ -1347,10 +1347,10 @@ const Dashboard = () => {
                             )}
                         </button>
                     </div>
-                </div>
-
-                {/* Row 2: Search bar */}
-                <div className="relative mb-3.5" ref={searchRef}>
+                    </>
+                }
+                searchRow={
+                    <div className="relative" ref={searchRef}>
                     <HeroSearchBar
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -1401,13 +1401,10 @@ const Dashboard = () => {
                                 ))}
                             </div>
                         )}
-                </div>
-
-                {/* Row 3: Category icons */}
-                <HomeCategoryBar isDark={isDark} noPadding />
-
-                </div>{/* end card box */}
-            </header>
+                    </div>
+                }
+                categoryBar={<HomeCategoryBar isDark={isDark} noPadding />}
+            />
 
             {/* Main content - shared mobile + desktop */}
             <main className="flex-1 pb-4">
@@ -1426,26 +1423,16 @@ const Dashboard = () => {
                             isDark={isDark}
                         />
                     )}
-                    {isFestsLoading && (
-                        <div className="px-4 lg:px-10 mb-6">
-                            <div className={`h-56 sm:h-64 lg:h-72 rounded-2xl lg:rounded-3xl animate-pulse ${isDark ? 'bg-[#111213]' : 'bg-gray-200'}`} />
-                        </div>
-                    )}
+                    {isFestsLoading && <HeroBannerSkeleton />}
 
                     {/* Trending Now */}
                     <HomeCarouselSection
                         title="Trending Now"
                         items={trendingItems}
                         isDark={isDark}
+                        tallCard
+                        cardGap={TRENDING_CARD_GAP}
                         loading={isFestsLoading}
-                        loadingFallback={
-                            <section className="mb-8">
-                                <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    Trending Now
-                                </h2>
-                                <div className="px-4"><LoadingSkeleton count={2} /></div>
-                            </section>
-                        }
                         emptyFallback={
                             festError && ongoingEvents.length === 0 ? (
                                 <section className="mb-8">
@@ -1476,15 +1463,8 @@ const Dashboard = () => {
                         title="Happening near you"
                         items={happeningItems}
                         isDark={isDark}
+                        wideCard
                         loading={isFestsLoading}
-                        loadingFallback={
-                            <section className="mb-8">
-                                <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    Happening near you
-                                </h2>
-                                <div className="px-4"><LoadingSkeleton count={2} /></div>
-                            </section>
-                        }
                         emptyFallback={
                             <section className="mb-8">
                                 <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>

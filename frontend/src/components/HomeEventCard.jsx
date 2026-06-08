@@ -11,6 +11,8 @@ export default function HomeEventCard({
     shareUrl,
     className = '',
     prominentImage = false,
+    tallImage = false,
+    wideCard = false,
 }) {
     const handleShare = (e) => {
         e.stopPropagation();
@@ -29,26 +31,41 @@ export default function HomeEventCard({
         onToggleFavorite?.();
     };
 
+    const isTrendingCard = prominentImage && tallImage && !wideCard;
+    const cardBottomPad = isTrendingCard ? 'pb-5' : prominentImage ? 'pb-2.5' : 'p-4';
+    const titleRowClass = isTrendingCard
+        ? 'mt-4 gap-3.5 px-5'
+        : prominentImage
+        ? 'mt-2 gap-2 px-2.5'
+        : 'mt-3 gap-3';
+
     return (
         <div
-            className={`shrink-0 w-[280px] sm:w-[300px] cursor-pointer rounded-3xl
-                transition-all duration-200 active:scale-[0.98]
-                ${prominentImage ? 'px-2.5 pt-2.5 pb-3' : 'p-4'}
+            className={`shrink-0 cursor-pointer overflow-hidden rounded-3xl
+                ${wideCard ? 'w-[360px] sm:w-[400px]' : 'w-[280px] sm:w-[300px]'}
+                transition-transform duration-200 active:scale-[0.98]
+                ${cardBottomPad}
                 ${isDark ? (prominentImage ? 'bg-black' : 'bg-[#1a1b1e]') : 'bg-[#F2F4F7]'}
                 ${className}`}
             onClick={onViewDetails}
         >
-            {/* Image — larger inset on carousel cards, same outer card size */}
-            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl">
+            {/* Carousel cards: image flush to top + sides; others keep inset */}
+            <div
+                className={`relative w-full overflow-hidden ${
+                    prominentImage
+                        ? (tallImage ? 'aspect-[5/4]' : 'aspect-[3/2]')
+                        : (tallImage ? 'aspect-[5/4]' : 'aspect-[4/3]')
+                } ${prominentImage ? '' : 'rounded-2xl'}`}
+            >
                 <ContentImage
                     src={event.image}
                     alt={event.title}
-                    preset={prominentImage ? 'card' : 'card'}
-                    className="h-full w-full object-cover"
+                    preset="card"
+                    className="absolute inset-0 h-full w-full object-cover object-center"
                     onError={(e) => handleImageErrorWithFallback(
                         e,
-                        prominentImage ? 320 : 300,
-                        prominentImage ? 213 : 225,
+                        prominentImage ? (wideCard ? 400 : 300) : 300,
+                        prominentImage ? (wideCard ? 267 : (tallImage ? 240 : 200)) : 225,
                         '#6366f1',
                         event.title || 'Event',
                     )}
@@ -57,7 +74,7 @@ export default function HomeEventCard({
                     <button
                         type="button"
                         onClick={handleFav}
-                        className={`absolute left-3 top-3 flex size-8 items-center justify-center rounded-full
+                        className={`absolute right-3 top-3 flex size-8 items-center justify-center rounded-full
                             transition-all duration-200 active:scale-90
                             ${isFavorite
                                 ? 'bg-red-500/90'
@@ -75,14 +92,14 @@ export default function HomeEventCard({
             </div>
 
             {/* Title + share */}
-            <div className={`flex items-start justify-between gap-3 ${prominentImage ? 'mt-2' : 'mt-3'}`}>
+            <div className={`flex items-center justify-between ${titleRowClass}`}>
                 <div className="min-w-0 flex-1">
-                    <h3 className={`text-[15px] leading-snug line-clamp-1
+                    <h3 className={`text-[15px] leading-tight line-clamp-1
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {event.title}
                     </h3>
                     {event.subtitle && (
-                        <p className={`mt-0.5 text-xs leading-snug line-clamp-1
+                        <p className={`mt-1 text-xs leading-tight line-clamp-1
                             ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             {event.subtitle}
                         </p>
@@ -91,7 +108,7 @@ export default function HomeEventCard({
                 <button
                     type="button"
                     onClick={handleShare}
-                    className={`flex size-9 shrink-0 items-center justify-center rounded-full active:opacity-80
+                    className={`flex size-8 shrink-0 items-center justify-center rounded-full active:opacity-80
                         ${isDark ? 'bg-[#2a2b2e]' : 'bg-[#E4E7EC]'}`}
                     aria-label={`Share ${event.title}`}
                 >

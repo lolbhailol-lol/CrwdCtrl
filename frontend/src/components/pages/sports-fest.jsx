@@ -5,6 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { FestSubpageLoadingSkeleton } from '../HomeEventCardSkeleton';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -73,7 +74,7 @@ export default function SportsFestPage() {
     const card = isDark ? 'bg-[#111213]' : 'bg-white';
 
     return (
-        <div className={`flex flex-col min-h-screen max-w-md mx-auto ${bg}`}>
+        <div className={`min-h-screen max-w-md mx-auto ${bg}`}>
             <div className={`sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center gap-3 mt-2">
@@ -84,11 +85,9 @@ export default function SportsFestPage() {
                 </div>
             </div>
 
-            <main className="flex-1 pt-5 pb-28">
+            <main className="pt-5 pb-28">
                 {loading ? (
-                    <div className="flex justify-center items-center py-20">
-                        <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
-                    </div>
+                    <FestSubpageLoadingSkeleton listedCount={3} />
                 ) : (
                     <>
                         {featured.length > 0 && (

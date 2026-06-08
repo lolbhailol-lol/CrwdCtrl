@@ -6,6 +6,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import ShareIcon from '../../assets/share.svg';
+import { TrekListSkeleton } from '../HomeEventCardSkeleton';
 import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import {
     USER_FILTER_SECTIONS,
@@ -308,9 +309,7 @@ export default function TrekCategoryPage() {
             {/* ── Content ── */}
             <main className="flex-1 pt-5 pb-28 px-4">
                 {loading ? (
-                    <div className="flex justify-center items-center py-20">
-                        <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
-                    </div>
+                    <TrekListSkeleton count={3} />
                 ) : filtered.length === 0 ? (
                     <div className={`text-center py-16 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         <div className="flex justify-center mb-3">

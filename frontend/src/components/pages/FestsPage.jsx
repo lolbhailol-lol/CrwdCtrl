@@ -7,10 +7,12 @@ import { useNotifications } from '../../context/NotificationsContext';
 import ContentImage from '../ContentImage';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import HomeCategoryBar from '../HomeCategoryBar';
+import MobileStickyHeader from '../MobileStickyHeader';
 import HeroSearchBar from '../HeroSearchBar';
 import HeroBanner from '../HeroBanner';
 import AppLogo from '../AppLogo';
 import ShareIcon from '../../assets/share.svg';
+import { FestCardsRowSkeleton } from '../HomeEventCardSkeleton';
 import CulturalIcon from '../../assets/mobile-icons/cul.svg';
 import TechIcon from '../../assets/mobile-icons/techhh.svg';
 import SportsIcon from '../../assets/mobile-icons/spor.svg';
@@ -163,19 +165,6 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
     );
 };
 
-// ── Skeleton placeholder ─────────────────────────────────────────────────────
-const FestCardSkeleton = ({ isDark }) => (
-    <div className={`shrink-0 w-[300px] sm:w-[320px] lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden snap-start animate-pulse
-                    ${isDark ? 'bg-[#111213]' : 'bg-white shadow-md lg:shadow-lg'}`}>
-        <div className={`h-[190px] lg:h-[220px] ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
-        <div className="px-3 pt-3 pb-3 lg:px-4 lg:pt-4 lg:pb-4 space-y-2">
-            <div className={`h-4 rounded-lg w-3/4 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
-            <div className={`h-3 rounded-lg w-1/2 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
-            <div className={`h-9 lg:h-10 rounded-xl mt-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
-        </div>
-    </div>
-);
-
 // ── Horizontal Section ───────────────────────────────────────────────────────
 const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite, navigate }) => {
     const scrollRef = useRef(null);
@@ -196,7 +185,7 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
             >
                 <div className="flex gap-3 lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-6 pb-1 lg:pb-6 snap-x snap-mandatory lg:snap-none">
                     {loading
-                        ? [1, 2].map(i => <FestCardSkeleton key={i} isDark={isDark} />)
+                        ? <FestCardsRowSkeleton count={2} />
                         : fests.map(fest => (
                             <FestEventCard
                                 key={fest._id}
@@ -285,15 +274,13 @@ export default function FestsPage() {
     const isEmpty = !loading && ongoingFests.length === 0 && upcomingFests.length === 0 && lastYearFests.length === 0;
 
     return (
-        <div className={`flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+        <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
 
-            {/* ── Mobile Header ── */}
-            <header className={`lg:hidden sticky top-0 z-40 mobile-header-shell transition-all duration-300
-                ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}>
-                <div className={`rounded-b-[16px] px-4 pb-3 shadow-[0_4px_16px_rgba(0,0,0,0.08)]
-                    ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
-                    style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
-                    <div className="flex items-center justify-between mb-2">
+            <MobileStickyHeader
+                isDark={isDark}
+                innerClassName="pb-3"
+                brandingRow={
+                    <>
                         <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
                         <div className="flex items-center gap-1">
                             <button
@@ -314,20 +301,20 @@ export default function FestsPage() {
                                 )}
                             </button>
                         </div>
-                    </div>
-                    <div className="mb-3.5">
-                        <HeroSearchBar
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            onClear={() => setSearchQuery('')}
-                            isDark={isDark}
-                        />
-                    </div>
-                    <HomeCategoryBar isDark={isDark} activeCategory="fests" noPadding />
-                </div>
-            </header>
+                    </>
+                }
+                searchRow={
+                    <HeroSearchBar
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        onClear={() => setSearchQuery('')}
+                        isDark={isDark}
+                    />
+                }
+                categoryBar={<HomeCategoryBar isDark={isDark} activeCategory="fests" noPadding />}
+            />
 
-            <main className="flex-1 pb-8 lg:pb-12">
+            <main className="pb-8 lg:pb-12">
 
                 {/* ── Desktop Search ── */}
                 <div className="hidden lg:block lg:px-10 lg:pt-6 lg:pb-4">

@@ -12,6 +12,11 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
 import { getImageUrl, aarohanLogoImg } from '../../utils/imageImports';
+import {
+  transformFestPublicData,
+  buildCompetitionNavPayload,
+  isFestRegistrationDisabled,
+} from '../../utils/festPublicTransform';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
 // ✅ FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
@@ -125,94 +130,8 @@ function EventDetailsPage() {
         // Debug: Check if registrationLink exists in the response
         console.log('ViewDetails - Registration Link from API:', festData.registrationLink);
 
-        if (festData && (festData._id || festData.id)) {
-          // Transform backend fest data to match expected UI structure
-          const transformedData = {
-            id: festData._id || festData.id,
-            title: festData.festName || 'Untitled Event',
-            subtitle: festData.collegeName || 'Unknown College',
-            festival_name: festData.festName || 'Untitled Event',
-            organizing_body: festData.collegeName || 'Unknown College',
-            type: festData.festType || 'cultural',
-            category: festData.festType || 'cultural',
-            description: festData.description || 'No description available',
-            overview: festData.description || 'No description available',
-            dateTime: festData.festDate || 'Date TBA',
-            date: festData.festDate || 'Date TBA',
-            venue: festData.venue || 'Venue TBA',
-            location: festData.venue || 'Venue TBA',
-            image: festData.coverImage || '/placeholder-image.jpg',
-            heroImage: festData.coverImage || '/placeholder-image.jpg',
-            galleryImages: festData.galleryImages || [],
-            ticketPrice: festData.ticketPrice || 'Free',
-            status: festData.status || 'upcoming',
-            registrationLink: festData.registrationLink || '', // ✅ ADD MISSING FIELD
-            // ✅ ADD REGISTRATION CONFIGURATION
-            registration: {
-              mode: festData.registration?.mode || 'NOT_STARTED',
-              externalLink: festData.registration?.externalLink || '',
-              formSchema: festData.registration?.formSchema || []
-            },
-            artists: festData.artists || [],
-            artistsHeading: festData.artistsHeading || "Artists You'll Love",
-            contacts: festData.contacts || [],
-            sponsors: festData.sponsors || [],
-            competitions: {},
-            competitionsHeading: festData.competitionsHeading || "Competitions",
-            theme: festData.festType === 'cultural' ? 'Cultural Festival' :
-                   festData.festType === 'technical' ? 'Technical Festival' :
-                   festData.festType === 'sports' ? 'Sports Festival' : 'Festival'
-          };
-          
-          console.log('ViewDetails - Transformed contacts:', transformedData.contacts);
-          console.log('ViewDetails - Transformed artistsHeading:', transformedData.artistsHeading);
-          console.log('ViewDetails - Transformed competitionsHeading:', transformedData.competitionsHeading);
-
-          // Process competitions from the populated fest data
-          if (festData.competitions && Array.isArray(festData.competitions) && festData.competitions.length > 0) {
-            console.log('ViewDetails - Processing populated competitions:', festData.competitions);
-            console.log('ViewDetails - First competition structure:', festData.competitions[0]);
-            
-            // Group competitions by type
-            const groupedCompetitions = {};
-            festData.competitions.forEach(comp => {
-              console.log('ViewDetails - Processing competition:', {
-                id: comp._id,
-                name: comp.name,
-                venue: comp.venue,
-                commonRules: comp.commonRules,
-                rounds: comp.rounds
-              });
-              
-              const category = comp.competitionType?.toUpperCase() || 'OTHER';
-              if (!groupedCompetitions[category]) {
-                groupedCompetitions[category] = [];
-              }
-              groupedCompetitions[category].push({
-                id: comp._id,
-                name: comp.name,
-                title: comp.name,
-                subtitle: comp.subtitle || comp.description,
-                image: comp.coverImage,
-                fee: comp.registrationFee || 'Free',
-                prize: comp.prizePool || 'TBD',
-                description: comp.description,
-                dateTime: comp.dateTime, // Use dateTime from competition model
-                venue: comp.venue,
-                rules: comp.commonRules || [], // Use commonRules from competition model
-                commonRulesMessage: comp.commonRulesMessage || '', // Include message field for rules
-                rounds: comp.rounds || [],
-                contact: comp.contact
-              });
-            });
-            transformedData.competitions = groupedCompetitions;
-            console.log('ViewDetails - Grouped competitions:', groupedCompetitions);
-          } else {
-            console.log('ViewDetails - No competitions found in fest data');
-            console.log('ViewDetails - Competitions field value:', festData.competitions);
-            transformedData.competitions = {};
-          }
-
+        const transformedData = transformFestPublicData(festData);
+        if (transformedData) {
           setEventData(transformedData);
           setCurrentHeroImage(transformedData.heroImage || transformedData.image);
           
@@ -254,71 +173,8 @@ function EventDetailsPage() {
           try {
             const timestamp = Date.now();
             const response = await fetchJSON(`/fests/${eventId}/public?t=${timestamp}`);
-            if (response.data && (response.data._id || response.data.id)) {
-              const festData = response.data;
-              const transformedData = {
-                id: festData._id || festData.id,
-                title: festData.festName || 'Untitled Event',
-                subtitle: festData.collegeName || 'Unknown College',
-                festival_name: festData.festName || 'Untitled Event',
-                organizing_body: festData.collegeName || 'Unknown College',
-                type: festData.festType || 'cultural',
-                category: festData.festType || 'cultural',
-                description: festData.description || 'No description available',
-                overview: festData.description || 'No description available',
-                dateTime: festData.festDate || 'Date TBA',
-                date: festData.festDate || 'Date TBA',
-                venue: festData.venue || 'Venue TBA',
-                location: festData.venue || 'Venue TBA',
-                image: festData.coverImage || '/placeholder-image.jpg',
-                heroImage: festData.coverImage || '/placeholder-image.jpg',
-                galleryImages: festData.galleryImages || [],
-                ticketPrice: festData.ticketPrice || 'Free',
-                status: festData.status || 'upcoming',
-                registrationLink: festData.registrationLink || '',
-                registration: {
-                  mode: festData.registration?.mode || 'NOT_STARTED',
-                  externalLink: festData.registration?.externalLink || '',
-                  formSchema: festData.registration?.formSchema || []
-                },
-                artists: festData.artists || [],
-                artistsHeading: festData.artistsHeading || "Artists You'll Love",
-                contacts: festData.contacts || [],
-                sponsors: festData.sponsors || [],
-                competitions: {},
-                competitionsHeading: festData.competitionsHeading || "Competitions",
-                theme: festData.festType === 'cultural' ? 'Cultural Festival' :
-                       festData.festType === 'technical' ? 'Technical Festival' :
-                       festData.festType === 'sports' ? 'Sports Festival' : 'Festival'
-              };
-              
-              if (festData.competitions && Array.isArray(festData.competitions) && festData.competitions.length > 0) {
-                const groupedCompetitions = {};
-                festData.competitions.forEach(comp => {
-                  const category = comp.competitionType?.toUpperCase() || 'OTHER';
-                  if (!groupedCompetitions[category]) {
-                    groupedCompetitions[category] = [];
-                  }
-                  groupedCompetitions[category].push({
-                    id: comp._id,
-                    name: comp.name,
-                    title: comp.name,
-                    subtitle: comp.subtitle || comp.description,
-                    image: comp.coverImage,
-                    fee: comp.registrationFee || 'Free',
-                    prize: comp.prizePool || 'TBD',
-                    description: comp.description,
-                    dateTime: comp.dateTime,
-                    venue: comp.venue,
-                    rules: comp.commonRules || [],
-                    commonRulesMessage: comp.commonRulesMessage || '',
-                    rounds: comp.rounds || [],
-                    contact: comp.contact
-                  });
-                });
-                transformedData.competitions = groupedCompetitions;
-              }
-              
+            const transformedData = transformFestPublicData(response.data);
+            if (transformedData) {
               setEventData(transformedData);
               setCurrentHeroImage(transformedData.heroImage || transformedData.image);
               console.log('✅ Event data updated with new admin changes');
@@ -465,75 +321,12 @@ function EventDetailsPage() {
   };
 
   const handleCompetitionRegister = (competition) => {
-    console.log('handleCompetitionRegister called with:', competition);
-    console.log('eventData:', eventData);
-
-    try {
-      // Determine fest name from eventData
-      const festName = eventData?.festival_name || eventData?.fest_name || eventData?.title;
-      console.log('Detected fest name:', festName);
-
-      // Create basic competition data from the available information
-      const fullCompetitionData = {
-        id: competition.id || `comp_${Date.now()}`,
-        title: competition.name || 'Competition',
-        subtitle: competition.subtitle || 'Competition Event',
-        category: 'Cultural',
-        subcategory: competition.subtitle || 'Event',
-        date: eventData?.date || competition.dateTime || 'TBA',
-        time: eventData?.time || 'TBA',
-        venue: competition.venue || eventData?.venue || eventData?.location || 'TBA',
-        image: getImageUrl(competition.image, { preset: 'cardSm' }) || '/default-image.jpg',
-        description: competition.description || `Join the ${competition.name} competition and showcase your talent!`,
-        registrationFee: competition.fee || 'TBA',
-        entryFee: competition.fee || 'TBA',
-        prizePool: competition.prize || 'TBA',
-        prize: competition.prize || 'TBA',
-        teamSize: 'TBA',
-        duration: 'TBA',
-        contact: competition.contact || eventData?.contact || {
-          email: 'info@fest.edu.in',
-          phone: 'TBA',
-          instagram: 'TBA'
-        },
-        rules: competition.rules || [],
-        commonRules: competition.rules || eventData?.common_rules || [],
-        commonRulesMessage: competition.commonRulesMessage || '',
-        rounds: competition.rounds || [],
-        prizes: {
-          first: competition.prize || 'TBA',
-          second: 'TBA',
-          third: 'TBA'
-        },
-        organizer: eventData?.organizing_body || 'Event Organizer',
-        festival: festName,
-        registrationDeadline: eventData?.registration_deadline || 'TBA',
-        status: 'Open',
-        
-        // ✅ CRITICAL: Pass fest registration data for the Register Now button
-        registrationType: 'fest',
-        fest: {
-          _id: eventData?.id,
-          festName: festName,
-          registration: eventData?.registration || { mode: 'NOT_STARTED' }
-        },
-        registration: eventData?.registration || { mode: 'NOT_STARTED' }
-      };
-
-      console.log('Navigating with full competition data:', fullCompetitionData);
-      console.log('Fest registration mode:', fullCompetitionData.fest?.registration?.mode);
-
-      // Navigate to competition details page with competition ID in URL
-      navigate(`/competitions-view-details/${competition.id}`, {
-        state: {
-          competition: fullCompetitionData,
-          eventData: eventData
-        }
-      });
-    } catch (error) {
-      console.error('Navigation error:', error);
-      alert('Navigation failed: ' + error.message);
-    }
+    navigate(`/competitions-view-details/${competition.id}`, {
+      state: {
+        competition: buildCompetitionNavPayload(competition, eventData),
+        eventData,
+      },
+    });
   };
 
   const handleShare = () => {
@@ -728,7 +521,7 @@ function EventDetailsPage() {
 
               {/* Right Column - Registration Card & Artists */}
               <div className="lg:col-span-1 space-y-4 sm:space-y-5">
-                <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 top-24 mb-10 pt-6 sm:pt-8 pb-8 sm:pb-10 transition-colors duration-300`}>
+                <div className={`sticky top-24 ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 mb-10 pt-6 sm:pt-8 pb-8 sm:pb-10 transition-colors duration-300`}>
                   <div className="flex items-start justify-between mb-4 sm:mb-6">
                     <h1 className={`text-lg sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.title}<br />{eventData.subtitle}</h1>
                   </div>
@@ -756,13 +549,13 @@ function EventDetailsPage() {
                     <button
                       onClick={handleRegister}
                       className={`flex-1 font-semibold py-2.5 sm:py-3 rounded-xl transition text-sm sm:text-base ${
-                        eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
+                        isFestRegistrationDisabled(eventData?.registration?.mode)
                           ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
                           : isRegistered(eventData.id)
                           ? 'bg-green-600 hover:bg-green-700 text-white'
                           : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
                       }`}
-                      disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
+                      disabled={isFestRegistrationDisabled(eventData?.registration?.mode)}
                       title={eventData?.registration?.mode === 'NOT_STARTED' ? 'Registrations Not Started' : 
                              eventData?.registration?.mode === 'CLOSED' ? 'Registration Closed' : ''}
                     >
@@ -1049,6 +842,11 @@ function EventDetailsPage() {
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
                   {eventData.subtitle}
                 </p>
+                {eventData.displaySubtitle && eventData.collegeName && eventData.displaySubtitle !== eventData.collegeName && (
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'} mt-0.5`}>
+                    {eventData.collegeName}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1256,27 +1054,35 @@ function EventDetailsPage() {
           )}
 
           {/* Spacer for fixed mobile footer */}
-          <div className="h-32 md:hidden"></div>
+          <div className="h-24 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
         </div>
       </div>
 
-      {/* Fixed Mobile/Tablet Register Button Footer */}
-<div className={`sticky bottom-0 z-40 md:hidden px-4 py-3 ...`}>          <button
-          onClick={handleRegister}
-          disabled={eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'}
-          className={`w-full font-semibold py-3 rounded-xl transition ${eventData?.registration?.mode === 'NOT_STARTED' || eventData?.registration?.mode === 'CLOSED'
-              ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
-              : isRegistered(eventData.id)
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-            : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
+      {/* Fixed mobile Register Now — stays visible while scrolling */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 md:hidden border-t px-4 pt-3 ${
+          isDark ? 'bg-[#161718] border-gray-800' : 'bg-white border-gray-200'
         }`}
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
+      >
+        <button
+          type="button"
+          onClick={handleRegister}
+          disabled={isFestRegistrationDisabled(eventData?.registration?.mode)}
+          className={`w-full rounded-xl py-3 font-semibold transition ${
+            isFestRegistrationDisabled(eventData?.registration?.mode)
+              ? 'cursor-not-allowed bg-gray-500 text-white hover:bg-gray-600'
+              : isRegistered(eventData.id)
+              ? 'bg-green-600 text-white hover:bg-green-700'
+              : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
+          }`}
         >
           {eventData?.registration?.mode === 'NOT_STARTED'
             ? 'Registrations Not Started'
             : eventData?.registration?.mode === 'CLOSED'
             ? 'Registration Closed'
-            : isRegistered(eventData.id) 
-            ? '✓ Registered' 
+            : isRegistered(eventData.id)
+            ? '✓ Registered'
             : 'Register Now'}
         </button>
       </div>

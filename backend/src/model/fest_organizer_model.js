@@ -70,7 +70,7 @@ const festOrganizerSchema = new mongoose.Schema(
   registration: {
     mode: {
       type: String,
-      enum: ['EXTERNAL_LINK', 'INTERNAL_FORM', 'NOT_STARTED'],
+      enum: ['EXTERNAL_LINK', 'INTERNAL_FORM', 'NOT_STARTED', 'CLOSED'],
       default: 'NOT_STARTED'
     },
     externalLink: {

@@ -19,7 +19,7 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
 
     const isItemActive = (itemPath, itemId) => {
         const p = location.pathname;
-        if (itemId === 'profile')    return isProfileOpen || p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications') || p.includes('/booking');
+        if (itemId === 'profile')    return isProfileOpen || p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications');
         // Profile is an overlay — underlying route (e.g. /) must not stay highlighted
         if (isProfileOpen) return false;
         if (itemId === 'home')       return p === '/';

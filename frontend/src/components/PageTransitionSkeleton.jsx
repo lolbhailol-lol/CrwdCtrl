@@ -1,4 +1,11 @@
 import { useDarkMode } from '../context/DarkModeContext';
+import HomeCarouselCardsSkeleton, {
+    HeroBannerSkeleton,
+    FestCardsRowSkeleton,
+    FestSubpageLoadingSkeleton,
+    CompactPortraitCardsRowSkeleton,
+    WideActivityCardsRowSkeleton,
+} from './HomeEventCardSkeleton';
 
 function Block({ className = '', isDark }) {
     return (
@@ -11,10 +18,9 @@ function Block({ className = '', isDark }) {
 function MobileHeaderSkeleton({ isDark }) {
     return (
         <div
-            className={`lg:hidden rounded-b-[16px] px-4 pb-3 ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
-            style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+            className={`mobile-header-inner lg:hidden rounded-b-[16px] px-4 pb-3 ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
         >
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-1 flex items-center justify-between">
                 <Block isDark={isDark} className="h-16 w-28 rounded-xl" />
                 <div className="flex gap-2">
                     <Block isDark={isDark} className="h-10 w-10 rounded-xl" />
@@ -31,24 +37,17 @@ function MobileHeaderSkeleton({ isDark }) {
     );
 }
 
-function SectionHeadingSkeleton({ isDark, width = 'w-36' }) {
-    return <Block isDark={isDark} className={`mb-4 h-6 ${width}`} />;
+function SectionHeadingSkeleton({ isDark, width = 'w-36', className = '' }) {
+    return <Block isDark={isDark} className={`mb-4 h-6 ${width} ${className}`} />;
 }
 
-function HorizontalCardsSkeleton({ isDark, count = 2 }) {
+function HorizontalCardsSkeleton({ count = 2, tallCard = false, wideCard = false }) {
     return (
-        <div className="flex gap-3 overflow-hidden px-4">
-            {Array.from({ length: count }).map((_, i) => (
-                <div
-                    key={i}
-                    className={`w-[280px] shrink-0 rounded-3xl p-4 ${isDark ? 'bg-[#1a1b1e]' : 'bg-[#F2F4F7]'}`}
-                >
-                    <Block isDark={isDark} className="mb-3 h-[160px] w-full rounded-2xl" />
-                    <Block isDark={isDark} className="mb-2 h-5 w-4/5" />
-                    <Block isDark={isDark} className="h-4 w-3/5" />
-                </div>
-            ))}
-        </div>
+        <HomeCarouselCardsSkeleton
+            count={count}
+            tallCard={tallCard}
+            wideCard={wideCard}
+        />
     );
 }
 
@@ -65,12 +64,8 @@ function SubcategoryGridSkeleton({ isDark }) {
     );
 }
 
-function HeroBannerSkeleton({ isDark }) {
-    return (
-        <div className="mb-6 px-4 lg:px-10">
-            <Block isDark={isDark} className="h-56 w-full rounded-2xl sm:h-64 lg:h-72 lg:rounded-3xl" />
-        </div>
-    );
+function CategoryTilesSkeleton({ isDark }) {
+    return <SubcategoryGridSkeleton isDark={isDark} />;
 }
 
 function DetailPageSkeleton({ isDark }) {
@@ -177,30 +172,84 @@ export default function PageTransitionSkeleton({ pathname }) {
             <div className="pb-8 pt-4 lg:pt-6">
                 {variant === 'home' && (
                     <>
-                        <div className="mb-6 px-4">
-                            <SectionHeadingSkeleton isDark={isDark} width="w-32" />
-                            <HorizontalCardsSkeleton isDark={isDark} count={2} />
+                        <HeroBannerSkeleton />
+                        <div className="mb-6">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-32" className="px-4" />
+                            <HorizontalCardsSkeleton count={2} tallCard />
                         </div>
-                        <div className="mb-6 px-4">
-                            <SectionHeadingSkeleton isDark={isDark} width="w-44" />
-                            <HorizontalCardsSkeleton isDark={isDark} count={2} />
+                        <div className="mb-6">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-44" className="px-4" />
+                            <HorizontalCardsSkeleton count={2} wideCard />
                         </div>
                     </>
                 )}
 
-                {variant === 'category' && (
+                {variant === 'category' && pathname === '/fests' && (
                     <>
-                        <HeroBannerSkeleton isDark={isDark} />
-                        <SectionHeadingSkeleton isDark={isDark} />
-                        <SubcategoryGridSkeleton isDark={isDark} />
+                        <HeroBannerSkeleton />
+                        <div className="mb-6 px-4 lg:px-10">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-28" />
+                            <CategoryTilesSkeleton isDark={isDark} />
+                        </div>
+                        <div className="mb-6 px-4 lg:px-10">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-36" />
+                            <FestCardsRowSkeleton count={2} />
+                        </div>
+                        <div className="mb-6 px-4 lg:px-10">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-40" />
+                            <FestCardsRowSkeleton count={2} />
+                        </div>
+                    </>
+                )}
+
+                {variant === 'category' && pathname === '/treks' && (
+                    <>
+                        <HeroBannerSkeleton className="mb-6 px-4" />
+                        <div className="mb-6">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-52" className="px-4" />
+                            <CompactPortraitCardsRowSkeleton count={3} />
+                        </div>
+                        <div className="mb-6">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-48" className="px-4" />
+                            <WideActivityCardsRowSkeleton count={2} />
+                        </div>
+                        <div className="mb-6">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-40" className="px-4" />
+                            <CompactPortraitCardsRowSkeleton count={3} />
+                        </div>
+                    </>
+                )}
+
+                {variant === 'category' && pathname === '/sports' && (
+                    <>
+                        <div className="mb-6">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-44" className="px-4" />
+                            <WideActivityCardsRowSkeleton count={2} className="mx-auto px-4" />
+                        </div>
+                        <div className="mb-6">
+                            <SectionHeadingSkeleton isDark={isDark} width="w-40" className="px-4" />
+                            <CompactPortraitCardsRowSkeleton count={3} withShare={false} />
+                        </div>
+                    </>
+                )}
+
+                {variant === 'category' && pathname.endsWith('-fest') && (
+                    <FestSubpageLoadingSkeleton listedCount={2} />
+                )}
+
+                {variant === 'category'
+                    && pathname !== '/fests'
+                    && pathname !== '/treks'
+                    && pathname !== '/sports'
+                    && !pathname.endsWith('-fest') && (
+                    <>
+                        <HeroBannerSkeleton />
+                        <SectionHeadingSkeleton isDark={isDark} className="px-4" />
+                        <CategoryTilesSkeleton isDark={isDark} />
                         <div className="mb-2 px-4">
                             <SectionHeadingSkeleton isDark={isDark} width="w-40" />
                         </div>
-                        <HorizontalCardsSkeleton isDark={isDark} count={2} />
-                        <div className="mt-8 mb-2 px-4">
-                            <SectionHeadingSkeleton isDark={isDark} width="w-44" />
-                        </div>
-                        <HorizontalCardsSkeleton isDark={isDark} count={2} />
+                        <FestCardsRowSkeleton count={2} className="px-4" />
                     </>
                 )}
 

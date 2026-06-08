@@ -984,7 +984,11 @@ const submitRegistration = async (req, res) => {
     }
 
     // ✅ CRITICAL: Validate registration mode
-    if (!fest.registration || fest.registration.mode !== 'INTERNAL_FORM') {
+    if (!fest.registration || fest.registration.mode === 'CLOSED') {
+      console.error('❌ Registration closed for fest:', festId);
+      return res.status(400).json({ error: 'Registration is closed for this fest' });
+    }
+    if (fest.registration.mode !== 'INTERNAL_FORM') {
       console.error('❌ Invalid registration mode:', fest.registration?.mode);
       return res.status(400).json({ error: 'Internal form registration is not available for this fest' });
     }
@@ -1048,12 +1052,13 @@ const submitRegistration = async (req, res) => {
     const registrationId = `REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log('🆔 Generated registration ID:', registrationId);
 
+    // Declared outside file block so setImmediate background callback can await uploads
+    const fileUploadPromises = [];
+
     // ✅ PERFORMANCE: Process uploaded files concurrently with better field matching
     if (req.files && req.files.length > 0) {
       console.log('📁 Processing uploaded files:', req.files.length);
 
-      // First, validate all files have matching schemas
-      const fileUploadPromises = [];
       const fileValidationErrors = [];
 
       for (const file of req.files) {
@@ -1254,19 +1259,25 @@ const submitRegistration = async (req, res) => {
             
             // Update registration with file URLs (if any)
             let updatedFiles = false;
-            for (const uploadResult of uploadResults) {
-              if (uploadResult && uploadResult.fieldName && uploadResult.cloudinaryLink) {
-                registration.responses[uploadResult.fieldName] = {
+            for (const entry of uploadResults) {
+              const fieldName = entry?.fieldSchema?.fieldName || entry?.fieldSchema?.id;
+              const cloudinaryLink = entry?.uploadResult?.cloudinaryLink;
+              if (entry?.uploadResult?.success && fieldName && cloudinaryLink) {
+                registration.responses.set(fieldName, {
                   uploaded: true,
-                  cloudinaryLink: uploadResult.cloudinaryLink,
-                  uploadedAt: new Date()
-                };
+                  cloudinaryLink,
+                  fileName: entry.uploadResult.fileName,
+                  fileId: entry.uploadResult.fileId,
+                  uploadMethod: entry.uploadResult.uploadMethod || 'cloudinary',
+                  uploadedAt: new Date(),
+                });
                 updatedFiles = true;
               }
             }
             
             // Save registration with updated file URLs
             if (updatedFiles) {
+              registration.markModified('responses');
               await registration.save();
               console.log('✅ Registration updated with file URLs');
             }

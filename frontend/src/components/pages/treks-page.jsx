@@ -10,8 +10,14 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import HomeCategoryBar from '../HomeCategoryBar';
+import MobileStickyHeader from '../MobileStickyHeader';
 import HeroSearchBar from '../HeroSearchBar';
 import HeroBanner from '../HeroBanner';
+import {
+    HeroBannerSkeleton,
+    CompactPortraitCardsRowSkeleton,
+    WideActivityCardsRowSkeleton,
+} from '../HomeEventCardSkeleton';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 const fetchJSON = async (endpoint) => {
@@ -230,11 +236,6 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     );
 }
 
-/* ── Skeleton ── */
-function Skeleton({ w, h, isDark }) {
-    return <div className={`shrink-0 rounded-2xl animate-pulse ${isDark ? 'bg-[#111213]' : 'bg-gray-200'}`} style={{ width: w, height: h }} />;
-}
-
 /* ── Main Page ── */
 function TreksPage() {
     const { isDark } = useDarkMode();
@@ -357,17 +358,13 @@ function TreksPage() {
     );
 
     return (
-        <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+        <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
 
-            {/* ── Sticky Header — matches Figma bg-slate-100 card ── */}
-            <header className={`lg:hidden sticky top-0 z-40 mobile-header-shell transition-all duration-300
-                ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}>
-                <div className={`rounded-b-[16px] px-4 pb-3 shadow-[0_4px_16px_rgba(0,0,0,0.08)]
-                    ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
-                    style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
-
-                    {/* Row 1: Logo + icons */}
-                    <div className="flex items-center justify-between mb-2">
+            <MobileStickyHeader
+                isDark={isDark}
+                innerClassName="pb-3"
+                brandingRow={
+                    <>
                         <AppLogo />
                         <div className="flex items-center gap-1">
                             <button
@@ -389,19 +386,13 @@ function TreksPage() {
                                 )}
                             </button>
                         </div>
-                    </div>
+                    </>
+                }
+                searchRow={<HeroSearchBar readOnly isDark={isDark} />}
+                categoryBar={<HomeCategoryBar isDark={isDark} activeCategory="treks" noPadding />}
+            />
 
-                    {/* Row 2: Search bar */}
-                    <div className="mb-3.5">
-                        <HeroSearchBar readOnly isDark={isDark} />
-                    </div>
-
-                    {/* Row 3: Category bar */}
-                    <HomeCategoryBar isDark={isDark} activeCategory="treks" noPadding />
-                </div>
-            </header>
-
-            <main className="flex-1 pb-28 overflow-x-hidden">
+            <main className="pb-28">
                 <div className="max-w-2xl lg:max-w-7xl mx-auto pt-6 lg:pt-0">
 
                     {/* ── Hero Banner — same as Dashboard ── */}
@@ -412,11 +403,7 @@ function TreksPage() {
                             isDark={isDark}
                         />
                     )}
-                    {loading && (
-                        <div className="px-4 mb-6">
-                            <div className={`h-52 rounded-2xl animate-pulse ${isDark ? 'bg-[#111213]' : 'bg-gray-200'}`} />
-                        </div>
-                    )}
+                    {loading && <HeroBannerSkeleton className="mb-6 px-4" />}
 
                     {/* ── Explore the Communities — Figma: w-40 h-52 (160×208) cards ── */}
                     <section className="mb-6 mt-4">
@@ -425,9 +412,7 @@ function TreksPage() {
                             Explore the Communities
                         </h2>
                         {loading ? (
-                            <div className="flex gap-4 px-4">
-                                {[1, 2, 3].map(i => <Skeleton key={i} w={150} h={208} isDark={isDark} />)}
-                            </div>
+                            <CompactPortraitCardsRowSkeleton count={3} />
                         ) : exploreCommunities.length === 0 ? (
                             <EmptyState label="No communities added yet" />
                         ) : (
@@ -459,9 +444,7 @@ function TreksPage() {
                             Upcoming Weekend Plans
                         </h2>
                         {loading ? (
-                            <div className="flex gap-3 px-4">
-                                {[1, 2].map(i => <Skeleton key={i} w={320} h={290} isDark={isDark} />)}
-                            </div>
+                            <WideActivityCardsRowSkeleton count={2} />
                         ) : weekendTreks.length === 0 ? (
                             <EmptyState label="No weekend plans added yet" />
                         ) : (
@@ -590,9 +573,7 @@ function TreksPage() {
                             Beginner Friendly
                         </h2>
                         {loading ? (
-                            <div className="flex gap-3 px-4">
-                                {[1, 2, 3].map(i => <Skeleton key={i} w={160} h={208} isDark={isDark} />)}
-                            </div>
+                            <CompactPortraitCardsRowSkeleton count={3} />
                         ) : beginnerTreks.length === 0 ? (
                             <EmptyState label="No beginner treks added yet" />
                         ) : (

@@ -6,6 +6,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { CompactPortraitCardsRowSkeleton } from '../HomeEventCardSkeleton';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -313,9 +314,7 @@ export default function CommunityDetailPage() {
                     <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 mt-4"
                         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
                         {loadingTreks ? (
-                            <div className={`mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-600'}`}>
-                                Loading treks...
-                            </div>
+                            <CompactPortraitCardsRowSkeleton count={3} className="px-0" />
                         ) : filteredTreks.length === 0 ? (
                             <div className={`mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-600'}`}>
                                 No treks in this category yet.

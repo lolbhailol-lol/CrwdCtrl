@@ -1,7 +1,13 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import HomeEventCard from './HomeEventCard';
+import { HomeEventCardSkeleton } from './HomeEventCardSkeleton';
+import {
+    useCenteredCarouselSidePad,
+    useMeasuredCardWidth,
+    HOME_CARD_GAP,
+} from '../hooks/useHomeCarousel';
 
-const CARD_GAP = 12;
+const SKELETON_COUNT = 2;
 
 function CarouselDots({ total, active, isDark }) {
     if (total <= 1) return null;
@@ -28,52 +34,6 @@ function CarouselDots({ total, active, isDark }) {
             ))}
         </div>
     );
-}
-
-function useCenteredCarouselSidePad(ref, cardWidth) {
-    const [sidePad, setSidePad] = useState(0);
-
-    useEffect(() => {
-        const el = ref.current;
-        if (!el || !cardWidth) return;
-
-        const update = () => {
-            setSidePad(Math.max(0, (el.clientWidth - cardWidth) / 2));
-        };
-
-        update();
-        const ro = new ResizeObserver(update);
-        ro.observe(el);
-        window.addEventListener('resize', update);
-
-        return () => {
-            ro.disconnect();
-            window.removeEventListener('resize', update);
-        };
-    }, [ref, cardWidth]);
-
-    return sidePad;
-}
-
-function useMeasuredCardWidth(trackRef, slideCount) {
-    const [cardWidth, setCardWidth] = useState(280);
-
-    useEffect(() => {
-        const firstSlide = trackRef.current?.firstElementChild;
-        if (!firstSlide) return;
-
-        const update = () => {
-            const w = firstSlide.getBoundingClientRect().width;
-            if (w > 0) setCardWidth(w);
-        };
-
-        update();
-        const ro = new ResizeObserver(update);
-        ro.observe(firstSlide);
-        return () => ro.disconnect();
-    }, [trackRef, slideCount]);
-
-    return cardWidth;
 }
 
 function getItemId(item) {
@@ -103,60 +63,69 @@ function buildHomeSlides(items) {
     };
 }
 
-function scrollToSlide(el, index, scrollStep, smooth = false) {
+function scrollToSlide(el, trackEl, index) {
+    const slide = trackEl?.children?.[index];
+    if (!slide) return;
+
+    const targetLeft = slide.offsetLeft - (el.clientWidth - slide.offsetWidth) / 2;
     el.scrollTo({
-        left: index * scrollStep,
-        behavior: smooth ? 'smooth' : 'instant',
+        left: Math.max(0, targetLeft),
+        behavior: 'instant',
     });
 }
 
-function useHomeLoopCarousel(scrollRef, items, scrollStep, sidePad) {
+function getNearestSlideIndex(el, trackEl) {
+    const children = trackEl?.children;
+    if (!el || !children?.length) return 0;
+
+    const viewportCenter = el.scrollLeft + el.clientWidth / 2;
+    let nearest = 0;
+    let minDistance = Infinity;
+
+    for (let i = 0; i < children.length; i += 1) {
+        const slide = children[i];
+        const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
+        const distance = Math.abs(viewportCenter - slideCenter);
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearest = i;
+        }
+    }
+
+    return nearest;
+}
+
+function useHomeLoopCarousel(scrollRef, trackRef, items) {
     const { slides, loop, startIndex } = useMemo(() => buildHomeSlides(items), [items]);
     const [activeIndex, setActiveIndex] = useState(0);
     const jumpingRef = useRef(false);
+    const itemsKey = useMemo(
+        () => items.map((item) => getItemId(item)).join('|'),
+        [items],
+    );
 
     useEffect(() => {
         const el = scrollRef.current;
-        if (!el || items.length === 0 || !scrollStep) return;
+        const trackEl = trackRef.current;
+        if (!el || !trackEl || items.length === 0) return;
 
         jumpingRef.current = true;
-        scrollToSlide(el, loop ? startIndex : 0, scrollStep, false);
+        scrollToSlide(el, trackEl, loop ? startIndex : 0);
         setActiveIndex(0);
         requestAnimationFrame(() => {
             jumpingRef.current = false;
         });
-    }, [items, loop, startIndex, sidePad, scrollRef, scrollStep]);
+    }, [itemsKey, loop, startIndex, scrollRef, trackRef]);
 
     useEffect(() => {
         const el = scrollRef.current;
-        if (!el || items.length <= 1 || !scrollStep) return;
+        const trackEl = trackRef.current;
+        if (!el || !trackEl || items.length <= 1) return;
 
-        const onScroll = () => {
+        const syncActiveIndex = () => {
             if (jumpingRef.current) return;
 
-            const slideIndex = Math.round(el.scrollLeft / scrollStep);
-            const lastSlideIndex = items.length + 1;
-
-            if (loop && slideIndex === 0) {
-                jumpingRef.current = true;
-                scrollToSlide(el, items.length, scrollStep, false);
-                setActiveIndex(items.length - 1);
-                requestAnimationFrame(() => {
-                    jumpingRef.current = false;
-                });
-                return;
-            }
-
-            if (loop && slideIndex === lastSlideIndex) {
-                jumpingRef.current = true;
-                scrollToSlide(el, 1, scrollStep, false);
-                setActiveIndex(0);
-                requestAnimationFrame(() => {
-                    jumpingRef.current = false;
-                });
-                return;
-            }
-
+            const slideIndex = getNearestSlideIndex(el, trackEl);
             if (loop) {
                 setActiveIndex(Math.max(0, Math.min(items.length - 1, slideIndex - 1)));
             } else {
@@ -164,19 +133,68 @@ function useHomeLoopCarousel(scrollRef, items, scrollStep, sidePad) {
             }
         };
 
+        const handleLoopWrap = () => {
+            if (!loop || jumpingRef.current) return;
+
+            const slideIndex = getNearestSlideIndex(el, trackEl);
+            const lastSlideIndex = items.length + 1;
+
+            if (slideIndex === 0) {
+                jumpingRef.current = true;
+                scrollToSlide(el, trackEl, items.length);
+                setActiveIndex(items.length - 1);
+                requestAnimationFrame(() => {
+                    jumpingRef.current = false;
+                });
+                return;
+            }
+
+            if (slideIndex === lastSlideIndex) {
+                jumpingRef.current = true;
+                scrollToSlide(el, trackEl, 1);
+                setActiveIndex(0);
+                requestAnimationFrame(() => {
+                    jumpingRef.current = false;
+                });
+            }
+        };
+
+        let scrollEndTimer;
+        const onScroll = () => {
+            syncActiveIndex();
+            clearTimeout(scrollEndTimer);
+            scrollEndTimer = setTimeout(handleLoopWrap, 120);
+        };
+
+        const onScrollEnd = () => {
+            clearTimeout(scrollEndTimer);
+            syncActiveIndex();
+            handleLoopWrap();
+        };
+
         el.addEventListener('scroll', onScroll, { passive: true });
-        return () => el.removeEventListener('scroll', onScroll);
-    }, [items, loop, scrollRef, scrollStep]);
+        if ('onscrollend' in el) {
+            el.addEventListener('scrollend', onScrollEnd);
+        }
+
+        return () => {
+            clearTimeout(scrollEndTimer);
+            el.removeEventListener('scroll', onScroll);
+            if ('onscrollend' in el) {
+                el.removeEventListener('scrollend', onScrollEnd);
+            }
+        };
+    }, [items, loop, scrollRef, trackRef]);
 
     return { slides, activeIndex };
 }
 
-function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, getShareUrl }) {
+function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, getShareUrl, tallCard, wideCard }) {
     const item = slide.item;
     const id = getItemId(item);
 
     return (
-        <div className="shrink-0 snap-center">
+        <div className="shrink-0">
             <HomeEventCard
                 event={{
                     id,
@@ -190,6 +208,8 @@ function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, g
                 onViewDetails={() => onItemClick?.(item)}
                 shareUrl={getShareUrl?.(item)}
                 prominentImage
+                tallImage={tallCard}
+                wideCard={wideCard}
             />
         </div>
     );
@@ -206,28 +226,65 @@ export default function HomeCarouselSection({
     loading = false,
     loadingFallback = null,
     emptyFallback = null,
+    tallCard = false,
+    wideCard = false,
+    cardGap = HOME_CARD_GAP,
 }) {
     const scrollRef = useRef(null);
     const trackRef = useRef(null);
 
-    const slideCount = items.length <= 1 ? items.length : items.length + 2;
-    const cardWidth = useMeasuredCardWidth(trackRef, slideCount);
+    const slideCount = loading
+        ? SKELETON_COUNT
+        : (items.length <= 1 ? items.length : items.length + 2);
+    const fallbackWidth = wideCard ? 360 : 280;
+    const cardWidth = useMeasuredCardWidth(trackRef, slideCount, fallbackWidth);
     const sidePad = useCenteredCarouselSidePad(scrollRef, cardWidth);
-    const scrollStep = cardWidth + CARD_GAP;
 
     const { slides, activeIndex } = useHomeLoopCarousel(
         scrollRef,
-        items,
-        scrollStep,
-        sidePad,
+        trackRef,
+        loading ? [] : items,
     );
 
     const sidePadding = sidePad > 0
         ? `${sidePad}px`
         : `calc(50% - ${cardWidth / 2}px)`;
 
+    const scrollStyle = {
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehaviorX: 'contain',
+        paddingInline: sidePadding,
+    };
+
     if (loading) {
-        return loadingFallback;
+        if (loadingFallback) return loadingFallback;
+
+        return (
+            <section className="mb-8">
+                <h2 className={`home-section-heading mb-3 px-4 text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {title}
+                </h2>
+                <div
+                    ref={scrollRef}
+                    className="overflow-x-auto scrollbar-hide"
+                    style={scrollStyle}
+                >
+                    <div
+                        ref={trackRef}
+                        className="flex w-max pb-1"
+                        style={{ gap: cardGap }}
+                    >
+                        {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
+                            <div key={index} className="shrink-0">
+                                <HomeEventCardSkeleton tallCard={tallCard} wideCard={wideCard} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        );
     }
 
     if (!items.length) {
@@ -236,24 +293,18 @@ export default function HomeCarouselSection({
 
     return (
         <section className="mb-8">
-            <h2 className={`home-section-heading mb-4 px-4 text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <h2 className={`home-section-heading mb-3 px-4 text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {title}
             </h2>
             <div
                 ref={scrollRef}
-                className="overflow-x-auto scrollbar-hide snap-x snap-mandatory"
-                style={{
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none',
-                    WebkitOverflowScrolling: 'touch',
-                    paddingInline: sidePadding,
-                    scrollPaddingInline: sidePadding,
-                }}
+                className="home-carousel-scroll overflow-x-auto scrollbar-hide"
+                style={scrollStyle}
             >
                 <div
                     ref={trackRef}
                     className="flex w-max pb-1"
-                    style={{ gap: CARD_GAP }}
+                    style={{ gap: cardGap }}
                 >
                     {slides.map((slide) => (
                         <SlideCard
@@ -264,6 +315,8 @@ export default function HomeCarouselSection({
                             onToggleFavorite={onToggleFavorite}
                             onItemClick={onItemClick}
                             getShareUrl={getShareUrl}
+                            tallCard={tallCard}
+                            wideCard={wideCard}
                         />
                     ))}
                 </div>

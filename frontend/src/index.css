@@ -13,23 +13,49 @@
     }
 }
 
-/* Sticky footer support */
+/* Document scroll — body grows with page content; window scrolls */
 html,
 body,
 #root {
-    height: 100%;
+    height: auto;
+    min-height: 100%;
 }
 
-/* Prevent elastic scroll bounce from displacing fixed elements on iOS */
+html {
+    overflow-x: clip;
+    scroll-behavior: auto;
+    scroll-padding-top: env(safe-area-inset-top, 0px);
+    -webkit-text-size-adjust: 100%;
+    transition: background-color 0.4s ease, color 0.3s ease;
+}
+
 body {
+    overflow-x: clip;
     overscroll-behavior-y: none;
     font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Global dark mode styles */
-html {
-    scroll-behavior: smooth;
-    transition: background-color 0.4s ease, color 0.3s ease;
+#root {
+    overflow: visible;
+}
+
+/* Pause color transitions while scrolling — reduces jank on long pages */
+html.is-scrolling *:not(img):not(svg):not(.crisp-icon):not(.crisp-icon-svg):not(.category-icon):not(.category-icon-lg):not(.skeleton-shimmer):not(.skeleton-shimmer-light):not(.skeleton-shimmer-dark):not(.route-progress-bar),
+html.is-scrolling *:not(img):not(svg)::before,
+html.is-scrolling *:not(img):not(svg)::after {
+    transition-duration: 0.01ms !important;
+}
+
+/* Vertical nested scroll areas */
+.overflow-y-auto,
+.overflow-auto {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Home carousel only — never apply pan-x globally to scrollbar-hide rows */
+.home-carousel-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
 }
 
 /* Ensure smooth transitions for all color changes — exclude icons (causes mobile blur) */
@@ -113,16 +139,16 @@ html:not(.dark) .crwdctrl-footer {
 
 /* Route change transitions */
 .page-transition-content {
-    min-height: inherit;
+    min-height: 0;
 }
 
 .page-transition-exit {
     opacity: 0;
-    visibility: hidden;
+    pointer-events: none;
 }
 
 .page-transition-enter {
-    animation: pageEnter 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: pageEnter 0.28s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
 }
 
 @keyframes pageEnter {
@@ -132,6 +158,17 @@ html:not(.dark) .crwdctrl-footer {
 
     to {
         opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .page-transition-enter {
+        animation: none;
+        opacity: 1;
+    }
+
+    html.is-scrolling * {
+        transition-duration: inherit !important;
     }
 }
 
@@ -218,6 +255,11 @@ body.page-transition-active #crwdctrl-bottom-nav {
 .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+}
+
+.home-carousel-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: auto;
 }
 
 /* Additional scrollbar hiding for horizontal scroll containers */
@@ -371,9 +413,15 @@ body.page-transition-active #crwdctrl-bottom-nav {
 .category-icon {
     width: 78px;
     height: 85px;
+    min-width: 78px;
+    min-height: 85px;
+    max-width: 78px;
+    max-height: 85px;
     flex-shrink: 0;
     object-fit: contain;
+    object-position: center;
     opacity: 1 !important;
+    image-rendering: -webkit-optimize-contrast;
 }
 
 @media (min-width: 640px) {
@@ -406,9 +454,15 @@ body.page-transition-active #crwdctrl-bottom-nav {
     }
 }
 
-/* Section headings — sharp on mobile, normal weight */
+/* Section headings — bold, sharp on mobile */
+.home-section-heading,
+h2.font-bold,
+h2.font-semibold,
+h2.text-xl {
+    font-weight: 700 !important;
+}
+
 .home-section-heading {
-    font-weight: 400 !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -416,8 +470,8 @@ body.page-transition-active #crwdctrl-bottom-nav {
     transform: none;
 }
 
-/* All headings — normal weight (override Tailwind font-bold/semibold on h tags) */
-h1, h2, h3, h4, h5, h6 {
+/* Card / detail sub-headings stay regular weight */
+h3, h4, h5, h6 {
     font-weight: 400 !important;
 }
 
@@ -437,15 +491,71 @@ html.dark .mobile-header-shell > div {
     backdrop-filter: none !important;
 }
 
+.mobile-header-inner {
+    --collapse: var(--header-collapse, 0);
+    padding-top: calc(env(safe-area-inset-top) + 14px * var(--collapse));
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.mobile-header-shell.is-collapsed .mobile-header-inner {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/*
+ * Collapse clip: GPU transform + opacity inside a shrinking clip slot.
+ * Clip height uses transform scaleY (compositor) to avoid max-height jank.
+ */
+.mobile-header-branding-clip {
+    --collapse: var(--header-collapse, 0);
+    --h: 80px;
+    --gap: 2px;
+    height: calc((var(--h) + var(--gap)) * (1 - var(--collapse)));
+    overflow: hidden;
+    contain: layout style paint;
+}
+
+.mobile-header-shell:not([data-scrolling="true"]):not(.is-collapsed) .mobile-header-branding-clip {
+    overflow: visible;
+}
+
+.mobile-header-branding-row {
+    --collapse: var(--header-collapse, 0);
+    --h: 80px;
+    height: var(--h);
+    transform: translate3d(0, calc(var(--h) * -0.15 * var(--collapse)), 0);
+    opacity: calc(1 - var(--collapse));
+    will-change: transform, opacity;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.mobile-header-shell[data-scrolling="true"] .mobile-header-branding-row {
+    pointer-events: none;
+}
+
+.mobile-header-branding-row__inner {
+    height: var(--h);
+    min-height: var(--h);
+}
+
+.mobile-header-search-row {
+    --collapse: var(--header-collapse, 0);
+    margin-top: calc(6px * var(--collapse));
+    margin-bottom: calc(12px + 4px * var(--collapse));
+}
+
 /* Bottom nav — solid bar; backdrop-filter blurs Lucide icons on iOS/Android */
 #crwdctrl-bottom-nav .bottom-nav-pill {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }
 
-/* Touch devices — keep icons off compositor layers */
+/* Touch devices — keep icons off compositor layers (branding row keeps transform for collapse) */
 @media (hover: none) and (pointer: coarse) {
     .mobile-header-shell,
+    .mobile-header-inner,
+    .mobile-header-search-row,
+    .mobile-header-category-row,
     .home-category-bar,
     .home-category-bar button,
     #crwdctrl-bottom-nav,
@@ -453,6 +563,7 @@ html.dark .mobile-header-shell > div {
     #crwdctrl-bottom-nav button {
         -webkit-transform: none !important;
         transform: none !important;
+        will-change: auto !important;
     }
 
     .crisp-icon,
@@ -464,6 +575,7 @@ html.dark .mobile-header-shell > div {
         transform: none !important;
         filter: none !important;
         -webkit-filter: none !important;
+        image-rendering: -webkit-optimize-contrast !important;
     }
 }
 
@@ -481,6 +593,25 @@ html.dark .mobile-header-shell > div {
     .mobile-header-shell .app-logo-mark {
         position: relative;
         z-index: 1;
+    }
+
+    .category-icon,
+    .category-icon-lg {
+        -webkit-transform: none !important;
+        transform: none !important;
+        filter: none !important;
+        -webkit-filter: none !important;
+        image-rendering: -webkit-optimize-contrast !important;
+        -webkit-backface-visibility: visible !important;
+        backface-visibility: visible !important;
+    }
+
+    .home-category-bar,
+    .home-category-bar button,
+    .mobile-header-category-row {
+        -webkit-transform: none !important;
+        transform: none !important;
+        will-change: auto !important;
     }
 
     .scrollbar-hide {

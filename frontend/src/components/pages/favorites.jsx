@@ -379,7 +379,7 @@ function FestFavoritesPage() {
     const favoriteCount = getFavoriteCount();
 
     return (
-        <div className={`min-h-screen flex transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`min-h-screen flex transition-colors pb-24 lg:pb-0 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
             {/* Desktop Layout */}
             <div className={`hidden lg:flex lg:flex-1 lg:flex-col transition-all duration-300`}>
 
@@ -514,7 +514,7 @@ function FestFavoritesPage() {
                 </div>
 
                 {/* Mobile Content */}
-                <main className="flex-1 px-4 py-4 pb-20">
+                <main className="flex-1 px-4 py-4 pb-4">
                     {favoriteCount === 0 ? (
                         <div className="text-center py-16">
                             <Heart className={`mx-auto mb-4 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} size={48} />

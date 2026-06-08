@@ -7,9 +7,14 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import HomeCategoryBar from '../HomeCategoryBar';
+import MobileStickyHeader from '../MobileStickyHeader';
 import HeroSearchBar from '../HeroSearchBar';
 import AppLogo from '../AppLogo';
 import ShareIcon from '../../assets/share.svg';
+import {
+    WideActivityCardsRowSkeleton,
+    CompactPortraitCardsRowSkeleton,
+} from '../HomeEventCardSkeleton';
 import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
 import {
     SPORT_TYPE_LABELS,
@@ -455,20 +460,11 @@ export default function SportsCategoryPage() {
     }`;
 
     return (
-        <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
-            {/* ── Sticky Header — rounded shell like Dashboard ── */}
-            <header
-                className={`lg:hidden sticky top-0 z-40 mobile-header-shell transition-all duration-300 overflow-hidden rounded-b-[16px] ${
-                    isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
-                }`}
-            >
-                <div
-                    className={`rounded-b-[16px] px-4 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${
-                        isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
-                    }`}
-                    style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
-                >
-                    <div className="flex items-center justify-between mb-2">
+        <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+            <MobileStickyHeader
+                isDark={isDark}
+                brandingRow={
+                    <>
                         <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
                         <div className="flex items-center gap-1">
                             <button
@@ -495,30 +491,26 @@ export default function SportsCategoryPage() {
                                 )}
                             </button>
                         </div>
-                    </div>
+                    </>
+                }
+                searchRow={
+                    <HeroSearchBar
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onClear={() => setSearchQuery('')}
+                        isDark={isDark}
+                    />
+                }
+                categoryBar={<HomeCategoryBar isDark={isDark} activeCategory="sports" noPadding />}
+            />
 
-                    <div className="mb-3.5">
-                        <HeroSearchBar
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onClear={() => setSearchQuery('')}
-                            isDark={isDark}
-                        />
-                    </div>
-
-                    <HomeCategoryBar isDark={isDark} activeCategory="sports" noPadding />
-                </div>
-            </header>
-
-            <main className="flex-1 pb-28 overflow-x-hidden">
+            <main className="pb-28">
                 <div className="max-w-2xl lg:max-w-7xl mx-auto">
                 {/* ── Upcoming Activities ── */}
                 <section className="mt-5 mb-8">
                     <h2 className={sectionTitle}>Upcoming Activities</h2>
                     {loading ? (
-                        <div className="flex justify-center py-12">
-                            <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
-                        </div>
+                        <WideActivityCardsRowSkeleton count={2} className="mx-auto px-4" />
                     ) : filteredActivities.length === 0 ? (
                         <div
                             className={`mx-4 py-10 text-center rounded-2xl text-sm ${
@@ -571,7 +563,9 @@ export default function SportsCategoryPage() {
                 {/* ── Explore Run Clubs ── */}
                 <section className="mb-8">
                     <h2 className={sectionTitle}>Explore Run Clubs</h2>
-                    {loading ? null : runClubs.length === 0 ? (
+                    {loading ? (
+                        <CompactPortraitCardsRowSkeleton count={3} withShare={false} />
+                    ) : runClubs.length === 0 ? (
                         <div
                             className={`mx-4 py-8 text-center rounded-2xl text-sm ${
                                 isDark ? 'bg-[#111213] text-gray-500' : 'bg-[#F5F6FA] text-gray-400'

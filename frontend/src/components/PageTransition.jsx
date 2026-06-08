@@ -5,6 +5,22 @@ import PageTransitionSkeleton from './PageTransitionSkeleton';
 const MIN_MS = 120;
 const TRANSITION_END_MS = MIN_MS + 180;
 
+function resetScrollToTop() {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    document.documentElement.classList.remove('is-scrolling');
+    document.documentElement.dataset.scrolling = 'false';
+    document.body.style.overflow = '';
+
+    document.querySelectorAll('.mobile-header-shell').forEach((el) => {
+        el.style.setProperty('--header-collapse', '0');
+        el.dataset.scrolling = 'false';
+        el.classList.remove('is-collapsed');
+        el.querySelector('.mobile-header-branding-row')?.setAttribute('aria-hidden', 'false');
+    });
+}
+
 /** Profile overlay uses startOverlayTransition — skip duplicate route-based skeleton */
 function shouldSkipPageTransition(pathname) {
     return pathname === '/profile';
@@ -60,6 +76,12 @@ export function PageTransitionProvider({ children }) {
         );
     }, [clearTimers]);
 
+    useEffect(() => {
+        if ('scrollRestoration' in window.history) {
+            window.history.scrollRestoration = 'manual';
+        }
+    }, []);
+
     useLayoutEffect(() => {
         if (isFirstNavigation.current) {
             isFirstNavigation.current = false;
@@ -70,6 +92,8 @@ export function PageTransitionProvider({ children }) {
         if (prevLocationKey.current === location.key) {
             return clearTimers;
         }
+
+        resetScrollToTop();
 
         if (shouldSkipPageTransition(location.pathname)) {
             prevLocationKey.current = location.key;
@@ -112,7 +136,7 @@ export function PageTransitionContent({ children }) {
 
     return (
         <div
-            className={`page-transition-content min-h-inherit ${
+            className={`page-transition-content ${
                 contentVisible ? 'page-transition-enter' : 'page-transition-exit'
             }`}
         >

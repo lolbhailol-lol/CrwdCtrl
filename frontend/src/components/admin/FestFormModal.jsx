@@ -777,7 +777,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     status: 'upcoming', // ongoing | upcoming | completed | lastyearhit
     registrationLink: '',
     // Registration Configuration
-    registrationMode: 'NOT_STARTED', // EXTERNAL_LINK | INTERNAL_FORM | NOT_STARTED
+    registrationMode: 'NOT_STARTED', // NOT_STARTED | EXTERNAL_LINK | INTERNAL_FORM | CLOSED
     externalRegistrationLink: '',
     paymentQR: '',
     paymentQRMessage: '', // Message to display with QR code
@@ -1881,6 +1881,19 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
                   value={form.registrationLink}
                   onChange={(e) => setForm({ ...form, registrationLink: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Display Price Label <span className="text-gray-400 font-normal text-xs">— shown on fest detail page</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Free, ₹300, From ₹200"
+                  className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                  value={form.ticketPrice}
+                  onChange={(e) => setForm({ ...form, ticketPrice: e.target.value })}
                 />
               </div>
 

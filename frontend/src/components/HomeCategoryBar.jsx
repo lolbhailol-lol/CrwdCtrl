@@ -34,7 +34,8 @@ function CategoryCard({ icon, darkIcon, label, isActive, isDark, onClick }) {
                 height={85}
                 draggable={false}
                 decoding="sync"
-                className="crisp-icon category-icon pointer-events-none"
+                loading="eager"
+                className="crisp-icon category-icon pointer-events-none select-none"
             />
         </button>
     );

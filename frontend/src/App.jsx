@@ -22,6 +22,7 @@ import AdSenseLoader from './components/AdSense'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
+import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
 
 import './App.css'
 
@@ -83,7 +84,6 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/view-details') ||
     location.pathname.startsWith('/trek/') ||
-    location.pathname.includes('/book') ||
     location.pathname.startsWith('/competitions-view-details') ||
     location.pathname.startsWith('/competition') ||
     location.pathname.includes('/fest/') && location.pathname.includes('/register') ||
@@ -116,7 +116,7 @@ function ConditionalFooter() {
     location.pathname.startsWith('/competition-registration') ||
     location.pathname.startsWith('/qr-ticket') ||
     (location.pathname.includes('/fest/') && location.pathname.includes('/register')) ||
-    location.pathname.includes('/book');
+    location.pathname.startsWith('/trek/');
 
   if (shouldHideFooter) {
     return null;
@@ -166,6 +166,8 @@ function AppContent({
   const { isDark } = useDarkMode();
   const { startOverlayTransition } = usePageTransition();
   const isAdminRoute = location.pathname.startsWith('/admin');
+
+  useGlobalSmoothScroll();
 
   const openProfile = useCallback(() => {
     startOverlayTransition('/profile', () => setIsProfileOpen(true));

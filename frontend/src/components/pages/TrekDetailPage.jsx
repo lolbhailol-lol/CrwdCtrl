@@ -316,7 +316,7 @@ export default function TrekDetailPage() {
             </div>
         </div>
 
-        <div className={`flex-1 rounded-t-3xl -mt-5 relative z-10 overflow-hidden ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`flex-1 rounded-t-3xl -mt-5 relative z-10 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
 
                 {/* Trek name + community */}
                 <div className="px-4 pt-5 pb-3">
