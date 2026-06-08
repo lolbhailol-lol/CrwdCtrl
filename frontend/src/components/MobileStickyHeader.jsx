@@ -10,7 +10,7 @@ export default function MobileStickyHeader({
     brandingRow,
     searchRow,
     categoryBar,
-    innerClassName = 'pb-4',
+    innerClassName = '',
     shellClassName = '',
     onCollapsedChange,
 }) {

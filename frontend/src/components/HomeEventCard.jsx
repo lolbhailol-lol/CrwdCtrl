@@ -54,8 +54,8 @@ export default function HomeEventCard({
             <div
                 className={`relative w-full overflow-hidden ${
                     prominentImage
-                        ? (tallImage ? 'aspect-[5/4]' : 'aspect-[3/2]')
-                        : (tallImage ? 'aspect-[5/4]' : 'aspect-[4/3]')
+                        ? (tallImage ? 'aspect-[11/10]' : 'aspect-[3/2]')
+                        : (tallImage ? 'aspect-[11/10]' : 'aspect-[4/3]')
                 } ${prominentImage ? '' : 'rounded-2xl'}`}
             >
                 <ContentImage
@@ -66,7 +66,7 @@ export default function HomeEventCard({
                     onError={(e) => handleImageErrorWithFallback(
                         e,
                         prominentImage ? (wideCard ? 400 : 300) : 300,
-                        prominentImage ? (wideCard ? 267 : (tallImage ? 240 : 200)) : 225,
+                        prominentImage ? (wideCard ? 267 : (tallImage ? 273 : 200)) : 225,
                         '#6366f1',
                         event.title || 'Event',
                     )}

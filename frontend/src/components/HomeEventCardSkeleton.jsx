@@ -47,7 +47,7 @@ export function HomeEventCardSkeleton({ tallCard = false, wideCard = false }) {
         >
             <div
                 className={`relative w-full overflow-hidden ${
-                    tallCard ? 'aspect-[5/4]' : 'aspect-[3/2]'
+                    tallCard ? 'aspect-[11/10]' : 'aspect-[3/2]'
                 }`}
             >
                 <Shimmer className="absolute inset-0 rounded-none" />

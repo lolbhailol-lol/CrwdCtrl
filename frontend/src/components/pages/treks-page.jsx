@@ -362,7 +362,6 @@ function TreksPage() {
 
             <MobileStickyHeader
                 isDark={isDark}
-                innerClassName="pb-3"
                 brandingRow={
                     <>
                         <AppLogo />

@@ -174,13 +174,13 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
 
     return (
         <section className="mb-8">
-            <h2 className={`text-xl lg:text-2xl font-bold px-4 lg:px-10 mb-4 lg:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <h2 className={`text-xl lg:text-2xl font-bold px-[var(--page-gutter)] lg:px-10 mb-4 lg:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {title}
             </h2>
 
             <div
                 ref={scrollRef}
-                className="overflow-x-auto lg:overflow-visible scrollbar-hide pl-4 pr-4 lg:pl-10 lg:pr-10"
+                className="overflow-x-auto lg:overflow-visible scrollbar-hide px-[var(--page-gutter)] lg:px-10"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
             >
                 <div className="flex gap-3 lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-6 pb-1 lg:pb-6 snap-x snap-mandatory lg:snap-none">
@@ -278,7 +278,6 @@ export default function FestsPage() {
 
             <MobileStickyHeader
                 isDark={isDark}
-                innerClassName="pb-3"
                 brandingRow={
                     <>
                         <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
