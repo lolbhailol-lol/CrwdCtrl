@@ -27,7 +27,7 @@ export default function MobileStickyHeader({
             } ${shellClassName}`}
         >
             <div
-                className={`mobile-header-inner rounded-b-[16px] px-4 ${
+                className={`mobile-header-inner rounded-b-[16px] px-[var(--page-gutter)] ${
                     isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
                 } ${innerClassName}`}
             >

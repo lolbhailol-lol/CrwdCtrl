@@ -194,13 +194,13 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
     return (
         <div
             onClick={handleCardClick}
-            className={`min-w-[280px] sm:min-w-[300px] w-[280px] sm:w-[300px] shrink-0 rounded-xl overflow-hidden duration-300 shadow-sm hover:shadow-md transition-shadow cursor-pointer
+            className={`card-carousel rounded-xl overflow-hidden duration-300 shadow-sm hover:shadow-md transition-shadow cursor-pointer
     ${isDark
                     ? 'bg-[#111213]'
                     : 'bg-[#EDEDF2]'
                 }`}
         >
-            <div className="relative h-[180px] sm:h-[200px] overflow-hidden rounded-t-xl">
+            <div className="relative aspect-[7/5] overflow-hidden rounded-t-xl">
                 {/* Loading placeholder */}
                 {imageLoading && (
                     <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
@@ -1260,7 +1260,7 @@ const Dashboard = () => {
     }
 
     return (
-        <div className={`flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`crwdctrl-page flex flex-col min-h-screen transition-colors overflow-x-clip ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
           <div className="flex flex-col flex-1">
 
             <MobileStickyHeader
@@ -1278,7 +1278,7 @@ const Dashboard = () => {
                         <div className="relative">
                             <button
                                 onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
-                                className={`flex items-center gap-1 p-2 rounded-xl bg-transparent transition-colors
+                                className={`touch-target flex items-center gap-1 rounded-xl bg-transparent transition-colors
                                     ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}`}
                                 aria-label="Location"
                             >
@@ -1337,7 +1337,7 @@ const Dashboard = () => {
                         {/* Bell */}
                         <button
                             onClick={() => navigate('/notifications')}
-                            className={`relative p-2 rounded-xl bg-transparent transition-colors
+                            className={`touch-target relative rounded-xl bg-transparent transition-colors
                                 ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}`}
                             aria-label="Notifications"
                         >

@@ -36,16 +36,18 @@ export default function HeroBanner({
     };
 
     return (
-        <div className={`px-6 mb-6 lg:px-12 ${className}`}>
-            <div className="relative rounded-2xl lg:rounded-3xl overflow-hidden h-48 sm:h-56 lg:h-64 shadow-md">
+        <div className={`px-[var(--page-gutter)] mb-6 lg:px-12 ${className}`}>
+            <div className="relative rounded-2xl lg:rounded-3xl overflow-hidden hero-banner-height lg:h-[17.5rem] shadow-md">
                 <ContentImage
                     src={active.image}
                     alt={active.title || 'Featured event'}
                     preset="hero"
                     loading="eager"
                     fetchPriority="high"
-                    className="absolute inset-0 z-0 h-full w-full object-cover pointer-events-none transition-opacity duration-500"
-                    onError={(e) => handleImageErrorWithFallback(e, 400, 288, '#0ECCEE', active.title || 'Event')}
+                    width={560}
+                    height={280}
+                    className="hero-banner-image z-0 pointer-events-none transition-opacity duration-500"
+                    onError={(e) => handleImageErrorWithFallback(e, 560, 280, '#0ECCEE', active.title || 'Event')}
                 />
 
                 {/* Soft bottom gradient for title legibility */}
@@ -57,10 +59,10 @@ export default function HeroBanner({
                         type="button"
                         onClick={handleCta}
                         style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
-                        className="pointer-events-auto absolute top-3 right-3 inline-flex min-h-8 items-center gap-1 rounded-full bg-white py-1 pl-2.5 pr-2 text-[11px] font-semibold text-black shadow-md transition-transform hover:bg-white/95 active:scale-[0.98]"
+                        className="pointer-events-auto absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white py-1 pl-2.5 pr-2 text-[11px] leading-none font-semibold text-black shadow-md transition-transform hover:bg-white/95 active:scale-[0.98]"
                     >
                         {ctaLabel}
-                        <ArrowUpRight size={12} strokeWidth={2.5} />
+                        <ArrowUpRight size={11} strokeWidth={2.5} />
                     </button>
 
                     <button
@@ -69,7 +71,7 @@ export default function HeroBanner({
                         style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
                         className={`pointer-events-auto absolute left-3 max-w-[55%] text-left sm:max-w-[50%] ${items.length > 1 ? 'bottom-7' : 'bottom-2'}`}
                     >
-                        <h2 className="text-base font-bold leading-snug text-white drop-shadow-md line-clamp-2 sm:text-lg">
+                        <h2 className="text-fluid-lg font-bold leading-snug text-white drop-shadow-md line-clamp-2">
                             {active.title}
                         </h2>
                         {active.subtitle && (

@@ -6,6 +6,16 @@ export default {
     ],
     darkMode: 'class', // Enable class-based dark mode
     theme: {
+        screens: {
+            xs: '20rem',        // 320px — iPhone SE
+            sm375: '23.4375rem', // 375px — iPhone 14/15/16
+            sm430: '26.875rem', // 430px — iPhone Pro Max
+            sm: '40rem',        // 640px — Tailwind default
+            md: '48rem',        // 768px — tablets
+            lg: '64rem',        // 1024px — laptops
+            xl: '80rem',        // 1280px
+            '2xl': '90rem',     // 1440px — desktops
+        },
         extend: {
             fontFamily: {
                 sans: ['Poppins', 'system-ui', '-apple-system', 'sans-serif'],

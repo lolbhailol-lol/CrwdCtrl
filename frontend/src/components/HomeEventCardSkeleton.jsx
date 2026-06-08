@@ -36,12 +36,13 @@ function CardsRow({ count, gap, className = '', children }) {
 export function HomeEventCardSkeleton({ tallCard = false, wideCard = false }) {
     const { isDark } = useDarkMode();
     const isTrendingCard = tallCard && !wideCard;
+    const cardRadius = 'rounded-2xl';
 
     return (
         <div
-            className={`shrink-0 overflow-hidden rounded-3xl
+            className={`shrink-0 overflow-hidden ${cardRadius}
                 ${isTrendingCard ? 'pb-5' : 'pb-2.5'}
-                ${wideCard ? 'w-[360px] sm:w-[400px]' : 'w-[280px] sm:w-[300px]'}
+                ${wideCard ? 'card-carousel-wide' : 'card-carousel'}
                 ${isDark ? 'bg-black' : 'bg-[#F2F4F7]'}`}
         >
             <div
@@ -113,7 +114,7 @@ export default function HomeCarouselCardsSkeleton({
 export function HeroBannerSkeleton({ className = 'px-6 lg:px-12 mb-6' }) {
     return (
         <div className={className}>
-            <Shimmer className="h-48 w-full rounded-2xl sm:h-56 lg:h-64 lg:rounded-3xl" />
+            <Shimmer className="hero-banner-height w-full rounded-2xl lg:h-[17.5rem] lg:rounded-3xl" />
         </div>
     );
 }
@@ -124,7 +125,7 @@ export function FestCardSkeleton() {
 
     return (
         <div
-            className={`shrink-0 w-[300px] sm:w-[320px] snap-start overflow-hidden rounded-2xl lg:rounded-3xl
+            className={`card-carousel-fest snap-start overflow-hidden rounded-2xl lg:rounded-3xl
                 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-md lg:shadow-lg'}`}
         >
             <div className="relative h-[190px] lg:h-[220px] overflow-hidden">
@@ -157,7 +158,7 @@ export function FeaturedFestCardSkeleton() {
 
     return (
         <div
-            className={`w-[320px] shrink-0 snap-start overflow-hidden rounded-2xl shadow-sm
+            className={`card-carousel-fest snap-start overflow-hidden rounded-2xl shadow-sm
                 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}
         >
             <div className="relative h-[175px] w-full overflow-hidden">

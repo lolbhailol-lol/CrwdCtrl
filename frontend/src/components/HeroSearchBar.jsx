@@ -18,7 +18,7 @@ export default function HeroSearchBar({
         : 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.1)]';
 
     return (
-        <div className={`flex items-center gap-3 rounded-full px-5 py-3.5 ${barClass} ${className}`}>
+        <div className={`hero-search-bar flex items-center gap-3 rounded-full ${barClass} ${className}`}>
             <Search size={20} strokeWidth={2.25} className="crisp-icon-svg shrink-0 text-[#1A73E8]" aria-hidden />
             <input
                 type="text"
@@ -27,12 +27,12 @@ export default function HeroSearchBar({
                 onKeyDown={onKeyDown}
                 placeholder={placeholder}
                 readOnly={readOnly}
-                className={`flex-1 min-w-0 bg-transparent text-[15px] leading-none outline-none lowercase placeholder:text-[#70757A] placeholder:lowercase ${
+                className={`flex-1 min-w-0 bg-transparent text-fluid-base leading-none outline-none lowercase placeholder:text-[#70757A] placeholder:lowercase ${
                     isDark ? 'text-gray-100' : 'text-[#3c4043]'
                 }`}
             />
             {value && onClear && (
-                <button type="button" onClick={onClear} aria-label="Clear search" className="shrink-0">
+                <button type="button" onClick={onClear} aria-label="Clear search" className="touch-target shrink-0">
                     <X size={18} className="text-gray-400" />
                 </button>
             )}

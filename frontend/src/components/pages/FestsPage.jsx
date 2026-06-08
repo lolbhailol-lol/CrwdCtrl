@@ -98,13 +98,13 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
     return (
         <div
-            className={`shrink-0 w-[300px] sm:w-[320px] lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start
+            className={`card-carousel-fest lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start
                         transition-all duration-200 active:scale-[0.98]
                         ${isDark ? 'bg-[#111213]' : 'bg-white shadow-md lg:shadow-lg'}`}
             onClick={onViewDetails}
         >
             {/* Image */}
-            <div className="relative h-[190px] lg:h-[220px] overflow-hidden">
+            <div className="relative aspect-[16/9] lg:aspect-[8/5] overflow-hidden">
                 <ContentImage
                     src={img}
                     alt={fest.festName}
@@ -274,7 +274,7 @@ export default function FestsPage() {
     const isEmpty = !loading && ongoingFests.length === 0 && upcomingFests.length === 0 && lastYearFests.length === 0;
 
     return (
-        <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+        <div className={`crwdctrl-page min-h-screen overflow-x-clip ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
 
             <MobileStickyHeader
                 isDark={isDark}

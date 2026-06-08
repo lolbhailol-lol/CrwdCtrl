@@ -358,7 +358,7 @@ function TreksPage() {
     );
 
     return (
-        <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+        <div className={`crwdctrl-page min-h-screen transition-colors overflow-x-clip ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
 
             <MobileStickyHeader
                 isDark={isDark}

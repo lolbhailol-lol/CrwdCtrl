@@ -16,11 +16,11 @@ export default function HappeningCard({ event, _isDark, onViewDetails }) {
 
     return (
         <div
-            className="shrink-0 w-[260px] sm:w-[280px] cursor-pointer active:scale-95 transition-all duration-200"
+            className="card-carousel cursor-pointer active:scale-95 transition-all duration-200"
             onClick={onViewDetails}
         >
             {/* Image card */}
-            <div className="relative h-[180px] sm:h-[190px] rounded-2xl overflow-hidden">
+            <div className="relative aspect-[14/9] rounded-2xl overflow-hidden">
                 <ContentImage
                     src={event.image}
                     alt={event.title}
@@ -34,7 +34,7 @@ export default function HappeningCard({ event, _isDark, onViewDetails }) {
                 {/* Share button — top right */}
                 <button
                     onClick={handleShare}
-                    className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center
+                    className="card-icon-btn absolute top-1.5 right-1.5 rounded-full
                                bg-black/40 backdrop-blur-sm border border-white/20 transition-all duration-200 active:scale-90"
                     aria-label={`Share ${event.title}`}
                 >

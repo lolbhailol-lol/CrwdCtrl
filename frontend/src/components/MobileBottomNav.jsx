@@ -152,7 +152,7 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
             </div>
 
             {/* Spacer injected at body level so pages know to pad their content */}
-            <div style={{ height: 'calc(62px + max(env(safe-area-inset-bottom), 8px))' }} />
+            <div className="bottom-nav-spacer" aria-hidden="true" />
         </>,
         document.body
     );

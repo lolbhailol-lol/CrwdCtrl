@@ -10,7 +10,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
 
     return (
         <div
-            className={`shrink-0 w-[200px] sm:w-[220px] rounded-2xl overflow-hidden cursor-pointer
+            className={`card-carousel-sm rounded-2xl overflow-hidden cursor-pointer
                         transition-all duration-200 active:scale-95
                         ${isDark
                             ? 'bg-[#111213] shadow-lg shadow-black/30'
@@ -19,7 +19,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
             onClick={onViewDetails}
         >
             {/* Image */}
-            <div className="relative h-[160px] overflow-hidden">
+            <div className="relative aspect-[11/8] overflow-hidden">
                 <ContentImage
                     src={event.image}
                     alt={event.title}
@@ -40,7 +40,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
                 {/* Heart button */}
                 <button
                     onClick={handleFav}
-                    className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center
+                    className={`card-icon-btn absolute top-1.5 right-1.5 rounded-full
                                 transition-all duration-200 active:scale-90
                                 ${isFavorite
                                     ? 'bg-red-500/90 border border-red-400'
@@ -57,7 +57,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
 
             {/* Content */}
             <div className="p-3">
-                <h3 className={`text-sm font-bold leading-tight mb-1 line-clamp-1
+                <h3 className={`text-fluid-sm font-bold leading-tight mb-1 line-clamp-1
                                 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {event.title}
                 </h3>
@@ -69,7 +69,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
                 )}
                 <button
                     onClick={(e) => { e.stopPropagation(); onViewDetails?.(); }}
-                    className={`w-full py-1.5 rounded-lg text-xs font-bold transition-colors
+                    className={`w-full min-h-[var(--touch-min)] py-2 rounded-lg text-fluid-xs font-bold transition-colors
                                 ${isDark
                                     ? 'bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/30 hover:bg-[#0ECCEE]/20'
                                     : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100'

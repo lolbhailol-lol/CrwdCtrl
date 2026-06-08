@@ -85,7 +85,7 @@ export default function CulturalFestPage() {
     const card = isDark ? 'bg-[#111213]' : 'bg-white';
 
     return (
-        <div className={`min-h-screen max-w-md mx-auto ${bg}`}>
+        <div className={`crwdctrl-page crwdctrl-mobile-page min-h-screen ${bg}`}>
 
             {/* ── Header ── */}
             <div className={`sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
@@ -120,7 +120,7 @@ export default function CulturalFestPage() {
                                             const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
                                             return (
                                                 <div key={fest._id}
-                                                    className={`shrink-0 w-[320px] rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
+                                                    className={`card-carousel-fest rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
                                                     {/* Image */}
                                                     <div className="relative w-full h-[175px] overflow-hidden">
                                                         {img ? (

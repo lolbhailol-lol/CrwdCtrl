@@ -4,6 +4,205 @@
     --font-sans: "Poppins", ui-sans-serif, system-ui, -apple-system, sans-serif;
     --font-inter: "Poppins", ui-sans-serif, system-ui, -apple-system, sans-serif;
     --font-poppins: "Poppins", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    /* Device breakpoints — mobile-first */
+    --breakpoint-xs: 20rem;           /* 320px — iPhone SE */
+    --breakpoint-sm375: 23.4375rem;   /* 375px — iPhone 14/15/16 */
+    --breakpoint-sm430: 26.875rem;    /* 430px — iPhone Pro Max */
+    --breakpoint-2xl: 90rem;          /* 1440px — desktop */
+}
+
+/* ── Design tokens ── */
+:root {
+    --text-2xs: clamp(0.625rem, 0.58rem + 0.2vw, 0.6875rem);
+    --text-xs: clamp(0.6875rem, 0.65rem + 0.15vw, 0.75rem);
+    --text-sm: clamp(0.8125rem, 0.78rem + 0.15vw, 0.875rem);
+    --text-base: clamp(1rem, 0.94rem + 0.2vw, 1.0625rem);
+    --text-lg: clamp(1rem, 0.94rem + 0.3vw, 1.125rem);
+    --text-xl: clamp(1.125rem, 1rem + 0.5vw, 1.25rem);
+    --text-2xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem);
+    --text-3xl: clamp(1.5rem, 1.25rem + 1.25vw, 1.875rem);
+
+    --page-gutter: clamp(0.875rem, 3vw, 1.5rem);
+    --touch-min: 2.75rem;
+    --header-logo: clamp(3.5rem, 12vw, 5rem);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+
+    --card-carousel: clamp(16.25rem, 78vw, 18.75rem);
+    --card-carousel-sm: clamp(12.5rem, 62vw, 13.75rem);
+    --card-carousel-wide: clamp(18.75rem, 88vw, 25rem);
+    --card-carousel-fest: clamp(17.5rem, 85vw, 20rem);
+
+    --hero-banner-min-h: 11rem;
+    --hero-banner-max-h: 17.5rem;
+    --hero-banner-h: clamp(var(--hero-banner-min-h), 36vw, var(--hero-banner-max-h));
+}
+
+@layer base {
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+
+    img,
+    picture,
+    video {
+        display: block;
+        max-width: 100%;
+        height: auto;
+    }
+
+    html {
+        overflow-x: clip;
+        scroll-behavior: auto;
+        scroll-padding-top: env(safe-area-inset-top, 0px);
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+        transition: background-color 0.4s ease, color 0.3s ease;
+    }
+
+    html,
+    body,
+    #root {
+        height: auto;
+        min-height: 100%;
+        min-height: 100dvh;
+    }
+
+    body {
+        overflow-x: clip;
+        overscroll-behavior-y: none;
+        font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    #root {
+        overflow: visible;
+    }
+
+    /* iOS — prevent zoom on mobile search inputs (16px minimum) */
+    .hero-search-bar input {
+        font-size: var(--text-base);
+    }
+}
+
+@layer utilities {
+    /* Fluid typography */
+    .text-fluid-2xs { font-size: var(--text-2xs); }
+    .text-fluid-xs { font-size: var(--text-xs); }
+    .text-fluid-sm { font-size: var(--text-sm); }
+    .text-fluid-base { font-size: var(--text-base); }
+    .text-fluid-lg { font-size: var(--text-lg); }
+    .text-fluid-xl { font-size: var(--text-xl); }
+    .text-fluid-2xl { font-size: var(--text-2xl); }
+    .text-fluid-3xl { font-size: var(--text-3xl); }
+
+    /* Viewport height — dvh for iOS Safari */
+    .min-h-screen {
+        min-height: 100vh;
+        min-height: 100dvh;
+    }
+
+    .h-screen {
+        height: 100vh;
+        height: 100dvh;
+    }
+
+    .min-h-svh { min-height: 100svh; }
+    .min-h-dvh { min-height: 100dvh; }
+    .h-svh { height: 100svh; }
+    .h-dvh { height: 100dvh; }
+
+    /* Safe-area padding */
+    .safe-pt { padding-top: max(var(--safe-top), 0px); }
+    .safe-pb { padding-bottom: max(var(--safe-bottom), 0px); }
+    .safe-px {
+        padding-left: max(var(--safe-left), var(--page-gutter));
+        padding-right: max(var(--safe-right), var(--page-gutter));
+    }
+    .safe-inset-bottom { padding-bottom: max(var(--safe-bottom), 0.5rem); }
+
+    /* Page shells */
+    .crwdctrl-app-shell,
+    .crwdctrl-page {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: clip;
+    }
+
+    .crwdctrl-container {
+        width: 100%;
+        max-width: min(90rem, 100%);
+        margin-inline: auto;
+        padding-inline: var(--page-gutter);
+    }
+
+    .crwdctrl-mobile-page {
+        width: 100%;
+        max-width: min(28rem, 100%);
+        margin-inline: auto;
+    }
+
+    /* Carousel card widths */
+    .card-carousel { width: var(--card-carousel); flex-shrink: 0; }
+    .card-carousel-sm { width: var(--card-carousel-sm); flex-shrink: 0; }
+    .card-carousel-wide { width: var(--card-carousel-wide); flex-shrink: 0; }
+    .card-carousel-fest { width: var(--card-carousel-fest); flex-shrink: 0; }
+
+    /* Hero banner */
+    .hero-banner-height {
+        height: var(--hero-banner-h);
+        min-height: var(--hero-banner-h);
+    }
+
+    .hero-banner-height .content-image,
+    .hero-banner-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        object-fit: cover;
+        object-position: center;
+    }
+
+    /* Touch targets */
+    .touch-target {
+        min-height: var(--touch-min);
+        min-width: var(--touch-min);
+    }
+
+    button.touch-target,
+    a.touch-target,
+    [role="button"].touch-target {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .card-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: var(--touch-min);
+        min-height: var(--touch-min);
+        padding: 0.375rem;
+    }
+
+    /* Search bar */
+    .hero-search-bar {
+        min-height: var(--touch-min);
+        padding-inline: clamp(1rem, 4vw, 1.25rem);
+        padding-block: clamp(0.625rem, 2vw, 0.875rem);
+    }
+
+    .bottom-nav-spacer {
+        height: calc(3.875rem + max(var(--safe-bottom), 0.5rem));
+    }
 }
 
 /* Hide portal bottom nav on desktop */
@@ -11,32 +210,6 @@
     #crwdctrl-bottom-nav {
         display: none !important;
     }
-}
-
-/* Document scroll — body grows with page content; window scrolls */
-html,
-body,
-#root {
-    height: auto;
-    min-height: 100%;
-}
-
-html {
-    overflow-x: clip;
-    scroll-behavior: auto;
-    scroll-padding-top: env(safe-area-inset-top, 0px);
-    -webkit-text-size-adjust: 100%;
-    transition: background-color 0.4s ease, color 0.3s ease;
-}
-
-body {
-    overflow-x: clip;
-    overscroll-behavior-y: none;
-    font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-#root {
-    overflow: visible;
 }
 
 /* Pause color transitions while scrolling — reduces jank on long pages */
@@ -52,10 +225,10 @@ html.is-scrolling *:not(img):not(svg)::after {
     -webkit-overflow-scrolling: touch;
 }
 
-/* Home carousel only — never apply pan-x globally to scrollbar-hide rows */
 .home-carousel-scroll {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
+    scroll-behavior: auto;
 }
 
 /* Ensure smooth transitions for all color changes — exclude icons (causes mobile blur) */
@@ -257,11 +430,6 @@ body.page-transition-active #crwdctrl-bottom-nav {
     scrollbar-width: none;
 }
 
-.home-carousel-scroll {
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: auto;
-}
-
 /* Additional scrollbar hiding for horizontal scroll containers */
 .overflow-x-auto::-webkit-scrollbar {
     display: none;
@@ -288,14 +456,8 @@ body.page-transition-active #crwdctrl-bottom-nav {
     scroll-snap-type: x mandatory;
 }
 
-.category-scroll>* {
+.category-scroll > * {
     scroll-snap-align: start;
-}
-
-/* Enhanced mobile touch targets */
-.touch-target {
-    min-height: 44px;
-    min-width: 44px;
 }
 
 /* Loading animation styles */
@@ -328,8 +490,8 @@ body.page-transition-active #crwdctrl-bottom-nav {
 /* Mobile-first breakpoint utilities */
 @media (max-width: 640px) {
     .mobile-header-blur {
-        backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
     }
 }
 
@@ -343,8 +505,8 @@ body.page-transition-active #crwdctrl-bottom-nav {
     transform: none !important;
     -webkit-backface-visibility: visible !important;
     backface-visibility: visible !important;
-    filter: none !important;
     -webkit-filter: none !important;
+    filter: none !important;
     image-rendering: auto;
     transition: none !important;
 }
@@ -358,13 +520,13 @@ body.page-transition-active #crwdctrl-bottom-nav {
     shape-rendering: geometricPrecision;
 }
 
-/* ctrl. mark — 500×500 source; header upper section 80×80 */
+/* ctrl. mark — 500×500 source; header scales with viewport */
 .app-logo-mark {
     display: block;
-    width: 80px;
-    height: 80px;
-    max-width: 80px;
-    max-height: 80px;
+    width: var(--header-logo);
+    height: var(--header-logo);
+    max-width: var(--header-logo);
+    max-height: var(--header-logo);
     object-fit: contain;
     object-position: left center;
     flex-shrink: 0;
@@ -372,10 +534,10 @@ body.page-transition-active #crwdctrl-bottom-nav {
 }
 
 .app-splash-large.app-logo-mark {
-    width: 152px;
-    height: 152px;
-    max-width: 152px;
-    max-height: 152px;
+    width: clamp(6rem, 38vw, 9.5rem);
+    height: clamp(6rem, 38vw, 9.5rem);
+    max-width: clamp(6rem, 38vw, 9.5rem);
+    max-height: clamp(6rem, 38vw, 9.5rem);
 }
 
 /* Loading splash — compact logo, sharp on Retina */
@@ -397,26 +559,25 @@ body.page-transition-active #crwdctrl-bottom-nav {
         transform: none !important;
         image-rendering: -webkit-optimize-contrast;
     }
-}
 
-@supports (-webkit-touch-callout: none) {
     .app-splash-mark,
     .app-logo-mark {
         -webkit-transform: none !important;
         transform: none !important;
+        -webkit-filter: none !important;
         filter: none !important;
         image-rendering: -webkit-optimize-contrast;
     }
 }
 
-/* Category bar icons — native SVG aspect (78×85), uniform scale */
+/* Category bar icons — native SVG aspect (78×85), fluid scale */
 .category-icon {
-    width: 78px;
-    height: 85px;
-    min-width: 78px;
-    min-height: 85px;
-    max-width: 78px;
-    max-height: 85px;
+    width: clamp(4.375rem, 22vw, 5.8125rem);
+    height: clamp(4.75rem, 24vw, 6.3125rem);
+    min-width: clamp(4.375rem, 22vw, 5.8125rem);
+    min-height: clamp(4.75rem, 24vw, 6.3125rem);
+    max-width: clamp(4.375rem, 22vw, 5.8125rem);
+    max-height: clamp(4.75rem, 24vw, 6.3125rem);
     flex-shrink: 0;
     object-fit: contain;
     object-position: center;
@@ -424,34 +585,13 @@ body.page-transition-active #crwdctrl-bottom-nav {
     image-rendering: -webkit-optimize-contrast;
 }
 
-@media (min-width: 640px) {
-    .category-icon {
-        width: 93px;
-        height: 101px;
-    }
-}
-
-/* Fest sub-category icons — preserve 128×113 aspect */
+/* Fest sub-category icons — preserve 128×113 aspect ratio */
 .category-icon-lg {
     flex-shrink: 0;
     object-fit: contain;
-    width: 96px;
-    height: 85px;
+    width: clamp(5rem, 24vw, 8rem);
+    height: clamp(4.4rem, 21vw, 7.0625rem);
     opacity: 1 !important;
-}
-
-@media (min-width: 640px) {
-    .category-icon-lg {
-        width: 112px;
-        height: 99px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .category-icon-lg {
-        width: 128px;
-        height: 113px;
-    }
 }
 
 /* Section headings — bold, sharp on mobile */
@@ -507,8 +647,8 @@ html.dark .mobile-header-shell > div {
  */
 .mobile-header-branding-clip {
     --collapse: var(--header-collapse, 0);
-    --h: 80px;
-    --gap: 2px;
+    --h: var(--header-logo);
+    --gap: 0.125rem;
     height: calc((var(--h) + var(--gap)) * (1 - var(--collapse)));
     overflow: hidden;
     contain: layout style paint;
@@ -520,7 +660,7 @@ html.dark .mobile-header-shell > div {
 
 .mobile-header-branding-row {
     --collapse: var(--header-collapse, 0);
-    --h: 80px;
+    --h: var(--header-logo);
     height: var(--h);
     transform: translate3d(0, calc(var(--h) * -0.15 * var(--collapse)), 0);
     opacity: calc(1 - var(--collapse));
@@ -573,23 +713,14 @@ html.dark .mobile-header-shell > div {
     .app-logo-mark {
         -webkit-transform: none !important;
         transform: none !important;
-        filter: none !important;
         -webkit-filter: none !important;
+        filter: none !important;
         image-rendering: -webkit-optimize-contrast !important;
     }
 }
 
 /* iOS Safari scroll / safe-area extras */
 @supports (-webkit-touch-callout: none) {
-    .app-logo-mark,
-    .app-splash-mark {
-        -webkit-transform: none !important;
-        transform: none !important;
-        filter: none !important;
-        -webkit-filter: none !important;
-        image-rendering: -webkit-optimize-contrast;
-    }
-
     .mobile-header-shell .app-logo-mark {
         position: relative;
         z-index: 1;
@@ -599,8 +730,8 @@ html.dark .mobile-header-shell > div {
     .category-icon-lg {
         -webkit-transform: none !important;
         transform: none !important;
-        filter: none !important;
         -webkit-filter: none !important;
+        filter: none !important;
         image-rendering: -webkit-optimize-contrast !important;
         -webkit-backface-visibility: visible !important;
         backface-visibility: visible !important;
@@ -619,70 +750,53 @@ html.dark .mobile-header-shell > div {
         scroll-snap-type: x proximity;
     }
 
-    /* Prevent zoom/scaling issues on iOS */
+    /* Carousel cards — fluid width, no page overflow */
     .min-w-\[200px\],
     .sm\:min-w-\[240px\] {
         max-width: none;
         flex-shrink: 0;
-        width: 200px;
+        width: var(--card-carousel-sm);
     }
 
     @media (min-width: 640px) {
-
         .min-w-\[200px\],
         .sm\:min-w-\[240px\] {
-            width: 240px;
+            width: var(--card-carousel);
         }
     }
 
-    /* Fix viewport scaling on iOS Safari */
     body {
         -webkit-text-size-adjust: 100%;
-        -ms-text-size-adjust: 100%;
         text-size-adjust: 100%;
     }
 
-    /* Fix iOS Safari viewport units */
+    /* Card image heights — aspect-ratio preferred; fallback for legacy classes */
     .h-\[150px\],
     .sm\:h-\[170px\] {
-        height: 150px;
-        min-height: 150px;
-        max-height: 150px;
+        height: clamp(9rem, 42vw, 10.625rem);
+        min-height: clamp(9rem, 42vw, 10.625rem);
     }
 
     @media (min-width: 640px) {
-
         .h-\[150px\],
         .sm\:h-\[170px\] {
-            height: 170px;
-            min-height: 170px;
-            max-height: 170px;
+            height: clamp(9.375rem, 28vw, 10.625rem);
+            min-height: clamp(9.375rem, 28vw, 10.625rem);
         }
     }
-
-    /* Bottom nav — no transform rules here, transforms break position:fixed on iOS */
 
     /* iOS-specific safe area fix for ProfileSidebar bottom navigation */
     @supports (padding-bottom: env(safe-area-inset-bottom)) {
         .profile-sidebar-mobile .mobile-bottom-nav {
             padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
         }
-        
-        /* Ensure ProfileSidebar bottom nav is above everything */
+
         .profile-sidebar-mobile + div[class*="z-10000"] {
             z-index: 10001 !important;
         }
     }
 
-    /* Additional iOS Safari specific targeting */
-    @supports (-webkit-touch-callout: none) {
-        .profile-sidebar-mobile .mobile-bottom-nav {
-            padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
-        }
-        
-        /* Ensure proper positioning on iOS */
-        .profile-sidebar-mobile {
-            -webkit-overflow-scrolling: touch;
-        }
+    .profile-sidebar-mobile {
+        -webkit-overflow-scrolling: touch;
     }
 }

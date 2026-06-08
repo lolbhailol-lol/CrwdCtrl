@@ -105,8 +105,9 @@
     }
     html.dark #boot-splash { background: #161718; }
     #boot-splash img {
-      width: 152px;
-      height: 152px;
+      width: clamp(6rem, 38vw, 9.5rem);
+      height: clamp(6rem, 38vw, 9.5rem);
+      max-width: 100%;
       object-fit: contain;
       image-rendering: -webkit-optimize-contrast;
     }

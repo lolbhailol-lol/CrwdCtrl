@@ -617,7 +617,7 @@ export default function SportsCategoryPage() {
                         {BROWSE_CATEGORIES.map((cat) => (
                             <div
                                 key={cat.id}
-                                className="flex flex-col items-center shrink-0 w-[72px]"
+                                className="touch-target flex flex-col items-center shrink-0 w-[clamp(4rem,18vw,4.5rem)]"
                             >
                                 <div
                                     className={`size-20 rounded-full overflow-hidden ${

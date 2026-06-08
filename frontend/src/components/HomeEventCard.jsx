@@ -32,6 +32,7 @@ export default function HomeEventCard({
     };
 
     const isTrendingCard = prominentImage && tallImage && !wideCard;
+    const cardRadius = prominentImage ? 'rounded-2xl' : 'rounded-3xl';
     const cardBottomPad = isTrendingCard ? 'pb-5' : prominentImage ? 'pb-2.5' : 'p-4';
     const titleRowClass = isTrendingCard
         ? 'mt-4 gap-3.5 px-5'
@@ -41,8 +42,8 @@ export default function HomeEventCard({
 
     return (
         <div
-            className={`shrink-0 cursor-pointer overflow-hidden rounded-3xl
-                ${wideCard ? 'w-[360px] sm:w-[400px]' : 'w-[280px] sm:w-[300px]'}
+            className={`cursor-pointer overflow-hidden ${cardRadius}
+                ${wideCard ? 'card-carousel-wide' : 'card-carousel'}
                 transition-transform duration-200 active:scale-[0.98]
                 ${cardBottomPad}
                 ${isDark ? (prominentImage ? 'bg-black' : 'bg-[#1a1b1e]') : 'bg-[#F2F4F7]'}
@@ -74,7 +75,7 @@ export default function HomeEventCard({
                     <button
                         type="button"
                         onClick={handleFav}
-                        className={`absolute right-3 top-3 flex size-8 items-center justify-center rounded-full
+                        className={`card-icon-btn absolute right-2 top-2 rounded-full
                             transition-all duration-200 active:scale-90
                             ${isFavorite
                                 ? 'bg-red-500/90'
@@ -94,7 +95,7 @@ export default function HomeEventCard({
             {/* Title + share */}
             <div className={`flex items-center justify-between ${titleRowClass}`}>
                 <div className="min-w-0 flex-1">
-                    <h3 className={`text-[15px] leading-tight line-clamp-1
+                    <h3 className={`text-fluid-base leading-tight line-clamp-1
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {event.title}
                     </h3>
@@ -108,7 +109,7 @@ export default function HomeEventCard({
                 <button
                     type="button"
                     onClick={handleShare}
-                    className={`flex size-8 shrink-0 items-center justify-center rounded-full active:opacity-80
+                    className={`card-icon-btn shrink-0 rounded-full active:opacity-80
                         ${isDark ? 'bg-[#2a2b2e]' : 'bg-[#E4E7EC]'}`}
                     aria-label={`Share ${event.title}`}
                 >

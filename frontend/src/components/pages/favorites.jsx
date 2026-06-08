@@ -379,7 +379,7 @@ function FestFavoritesPage() {
     const favoriteCount = getFavoriteCount();
 
     return (
-        <div className={`min-h-screen flex transition-colors pb-24 lg:pb-0 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`crwdctrl-page min-h-screen flex transition-colors overflow-x-clip pb-24 lg:pb-0 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
             {/* Desktop Layout */}
             <div className={`hidden lg:flex lg:flex-1 lg:flex-col transition-all duration-300`}>
 

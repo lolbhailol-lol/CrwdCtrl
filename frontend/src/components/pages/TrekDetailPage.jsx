@@ -219,7 +219,7 @@ export default function TrekDetailPage() {
     };
 
     return (
-        <div className={`flex flex-col min-h-screen max-w-md mx-auto ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
 
             {/* ── HERO IMAGE ── */}
             <div className="relative w-full h-[280px] shrink-0 bg-gray-200">

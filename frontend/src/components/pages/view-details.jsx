@@ -361,7 +361,7 @@ function EventDetailsPage() {
   };
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} transition-colors duration-300`}>
+    <div className={`crwdctrl-page min-h-screen overflow-x-clip ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} transition-colors duration-300`}>
       {/* Desktop Version - Show at 768px and above */}
       <div className="hidden md:block">
         <div className={`transition-all duration-300`}>
@@ -899,7 +899,7 @@ function EventDetailsPage() {
               <div className="overflow-x-auto scrollbar-hide">
                 <div className="flex space-x-4">
                   {eventData.artists.map((artist, idx) => (
-                    <div key={idx} className={`min-w-[280px] ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl overflow-hidden transition-all duration-300`}>
+                    <div key={idx} className={`card-carousel ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl overflow-hidden transition-all duration-300`}>
                       <div className="relative h-40">
                         <img
                           src={getImageUrl(artist.image, { preset: 'cardSm' })}
@@ -949,7 +949,7 @@ function EventDetailsPage() {
                 <div className="flex space-x-4">
                   {eventData.competitions[activeTab]?.slice(0, 3).map((comp, idx) => {
                     return (
-                      <div key={idx} className={`min-w-[250px] ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300`}>
+                      <div key={idx} className={`card-carousel-sm ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300`}>
                         <img
                           src={getImageUrl(comp.image, { preset: 'cardSm' })}
                           alt={comp.name}

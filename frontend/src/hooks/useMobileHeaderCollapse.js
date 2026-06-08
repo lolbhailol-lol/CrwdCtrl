@@ -1,18 +1,38 @@
 import { useEffect, useRef } from 'react';
 
 const COLLAPSE_DISTANCE = 82;
-const IDLE_MS = 280;
+const MIN_COLLAPSE_DISTANCE = 28;
+const IDLE_MS = 220;
 const LERP_ACTIVE = 0.38;
+const LERP_ACTIVE_MAX = 0.78;
 const LERP_IDLE = 0.14;
+const LERP_IDLE_MAX = 0.42;
 const SNAP_EPSILON = 0.004;
+/** px/ms — ~1.8 ≈ brisk flick, ~3+ ≈ very fast momentum scroll */
+const FAST_SCROLL_VELOCITY = 1.8;
 
 function smoothstep(t) {
     return t * t * (3 - 2 * t);
 }
 
-function getTargetProgress(scrollY) {
-    const raw = Math.min(1, Math.max(0, scrollY / COLLAPSE_DISTANCE));
+function getSpeedFactor(velocityPxPerMs) {
+    return Math.min(1, Math.abs(velocityPxPerMs) / FAST_SCROLL_VELOCITY);
+}
+
+function getEffectiveCollapseDistance(speedFactor) {
+    return COLLAPSE_DISTANCE - (COLLAPSE_DISTANCE - MIN_COLLAPSE_DISTANCE) * speedFactor;
+}
+
+function getTargetProgress(scrollY, speedFactor) {
+    const distance = getEffectiveCollapseDistance(speedFactor);
+    const raw = Math.min(1, Math.max(0, scrollY / distance));
     return smoothstep(raw);
+}
+
+function getLerpFactor(isActivelyScrolling, speedFactor) {
+    const base = isActivelyScrolling ? LERP_ACTIVE : LERP_IDLE;
+    const max = isActivelyScrolling ? LERP_ACTIVE_MAX : LERP_IDLE_MAX;
+    return base + (max - base) * speedFactor;
 }
 
 /**
@@ -32,6 +52,10 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
         let loopActive = false;
         let idleTimer = null;
         let lastScrollEvent = 0;
+        let lastScrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
+        let lastScrollTime = performance.now();
+        let scrollVelocity = 0;
+        let speedFactor = 0;
         let currentProgress = 0;
         let targetProgress = 0;
 
@@ -54,9 +78,23 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
         };
 
         const tick = () => {
-            const now = Date.now();
+            const now = performance.now();
             const isActivelyScrolling = now - lastScrollEvent < 80;
-            const factor = isActivelyScrolling ? LERP_ACTIVE : LERP_IDLE;
+
+            if (!isActivelyScrolling) {
+                scrollVelocity *= 0.88;
+                const prevSpeed = speedFactor;
+                speedFactor = getSpeedFactor(scrollVelocity);
+
+                if (Math.abs(speedFactor - prevSpeed) > 0.02) {
+                    const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
+                    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                        targetProgress = getTargetProgress(scrollY, speedFactor);
+                    }
+                }
+            }
+
+            const factor = getLerpFactor(isActivelyScrolling, speedFactor);
 
             if (Math.abs(targetProgress - currentProgress) > SNAP_EPSILON) {
                 currentProgress += (targetProgress - currentProgress) * factor;
@@ -78,14 +116,25 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
 
         const syncTarget = () => {
             const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
+            const now = performance.now();
+            const dt = Math.max(now - lastScrollTime, 1);
+            const dy = scrollY - lastScrollY;
+            const instantVelocity = dy / dt;
+
+            scrollVelocity = scrollVelocity * 0.45 + instantVelocity * 0.55;
+            speedFactor = getSpeedFactor(scrollVelocity);
+
+            lastScrollY = scrollY;
+            lastScrollTime = now;
+
             const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             targetProgress = prefersReducedMotion
                 ? (scrollY > COLLAPSE_DISTANCE * 0.5 ? 1 : 0)
-                : getTargetProgress(scrollY);
+                : getTargetProgress(scrollY, speedFactor);
         };
 
         const startLoop = () => {
-            lastScrollEvent = Date.now();
+            lastScrollEvent = performance.now();
             syncTarget();
             clearTimeout(idleTimer);
 

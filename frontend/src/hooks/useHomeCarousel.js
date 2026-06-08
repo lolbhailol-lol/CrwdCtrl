@@ -4,7 +4,10 @@ export const HOME_CARD_GAP = 16;
 export const TRENDING_CARD_GAP = 30;
 
 export function getHomeCardFallbackWidth(wideCard) {
-    return wideCard ? 360 : 280;
+    if (typeof window === 'undefined') return wideCard ? 360 : 280;
+    const vw = window.innerWidth;
+    if (wideCard) return Math.min(400, Math.max(300, vw * 0.88));
+    return Math.min(300, Math.max(260, vw * 0.78));
 }
 
 export function useCenteredCarouselSidePad(ref, cardWidth) {

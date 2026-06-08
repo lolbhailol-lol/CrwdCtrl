@@ -188,7 +188,7 @@ function AppContent({
   }
 
   return (
-    <div className={`relative min-h-screen ${!isAdminRoute ? (isDark ? 'bg-[#161718]' : 'bg-white') : ''}`}>
+    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isAdminRoute ? (isDark ? 'bg-[#161718]' : 'bg-white') : ''}`}>
       {!isAdminRoute && <EmailVerificationBanner />}
 
       <ConditionalNavigation

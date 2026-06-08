@@ -211,7 +211,7 @@ export default function TrekCategoryPage() {
     const bg   = isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]';
 
     return (
-        <div className={`flex flex-col min-h-screen max-w-md mx-auto ${bg}`}>
+        <div className={`crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen ${bg}`}>
 
             {/* ── Sticky Header ── */}
             <div

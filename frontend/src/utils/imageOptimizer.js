@@ -11,7 +11,7 @@ export const IMAGE_PRESETS = {
     cardSm: { width: 480, height: 360, crop: 'fill' },
     card: { width: 640, height: 480, crop: 'fill' },
     cardLg: { width: 800, height: 500, crop: 'fill' },
-    hero: { width: 1280, height: 576, crop: 'fill' },
+    hero: { width: 1200, height: 560, crop: 'fill' },
     detail: { width: 1600, height: 900, crop: 'limit' },
 };
 

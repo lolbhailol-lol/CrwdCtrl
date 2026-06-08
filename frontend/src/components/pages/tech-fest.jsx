@@ -74,7 +74,7 @@ export default function TechFestPage() {
     const card = isDark ? 'bg-[#111213]' : 'bg-white';
 
     return (
-        <div className={`min-h-screen max-w-md mx-auto ${bg}`}>
+        <div className={`crwdctrl-page crwdctrl-mobile-page min-h-screen ${bg}`}>
             <div className={`sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center gap-3 mt-2">
@@ -99,7 +99,7 @@ export default function TechFestPage() {
                                         {featured.map(fest => {
                                             const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
                                             return (
-                                                <div key={fest._id} className={`shrink-0 w-[320px] rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
+                                                <div key={fest._id} className={`card-carousel-fest rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
                                                     <div className="relative w-full h-[175px] overflow-hidden">
                                                         {img ? <img src={getImageUrl(img, { preset: 'cardLg' })} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 320, 175, '#0a1628', fest.festName)} />
                                                             : <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}><span className="text-5xl">💻</span></div>}
