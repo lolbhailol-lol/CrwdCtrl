@@ -1,7 +1,7 @@
 import React from 'react';
 import { Heart, Zap, Clock, ArrowRight } from 'lucide-react';
 import ShareIcon from '../assets/share.svg';
-import { getImageUrl } from '../utils/imageImports';
+import ContentImage from './ContentImage';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 
 const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFavorite, onViewDetails, isDark, eventId, status }) => {
@@ -78,11 +78,11 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
         >
             {/* Image Section with Overlay */}
             <div className="relative overflow-hidden">
-                <img
-                    src={getImageUrl(image)}
+                <ContentImage
+                    src={image}
                     alt={title}
-                    className="w-full h-40 sm:h-44 object-cover transition-all duration-300 ease-in-out
-                             group-hover:scale-105"
+                    preset="cardLg"
+                    className="w-full h-40 sm:h-44 object-cover"
                     onError={(e) => {
                         handleImageErrorWithFallback(e, 300, 176, '#6366f1', title || 'Event');
                     }}

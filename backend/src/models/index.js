@@ -1,0 +1,20 @@
+/**
+ * Register all Mongoose models at startup so refs and indexes are ready.
+ */
+require('../model/fest_organizer_model');
+require('../model/student&participant');
+require('../model/usermodel');
+require('../model/event_model');
+require('../model/competition_model');
+require('../model/competition_registration_model');
+require('../model/registration_model');
+require('../model/platform_event_model');
+require('../model/sports_model');
+require('../model/run_club_model');
+require('../model/trek_model');
+require('../model/trek_community_model');
+require('../model/trek_booking_model');
+require('../model/theatre_model');
+require('../model/category_registration_model');
+require('../model/notification_model');
+require('../model/analytics_model');

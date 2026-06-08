@@ -1,4 +1,6 @@
 // Import all images that need to be available in production
+import { optimizeImageUrl } from './imageOptimizer';
+
 // Aarohan Competition Images
 import artImg from '../data/real-data/aarohan-comition-images/art.jpg';
 import bandwarsImg from '../data/real-data/aarohan-comition-images/bandwars.png';
@@ -157,19 +159,21 @@ export const imageMap = {
 };
 
 // Utility function to get the proper image URL for production
-export const getImageUrl = (imagePath) => {
+export const getImageUrl = (imagePath, options = {}) => {
     if (!imagePath) {
         return null;
     }
 
     if (typeof imagePath === 'object') {
         const nested = imagePath.url || imagePath.secure_url;
-        return nested ? getImageUrl(String(nested)) : null;
+        return nested ? getImageUrl(String(nested), options) : null;
     }
 
     if (typeof imagePath !== 'string') {
         return null;
     }
+
+    const { preset } = options;
 
     // If already a full URL or browser-generated URL
     if (
@@ -177,7 +181,7 @@ export const getImageUrl = (imagePath) => {
         imagePath.startsWith('data:') ||
         imagePath.startsWith('http')
     ) {
-        return imagePath;
+        return preset ? optimizeImageUrl(imagePath, preset) : imagePath;
     }
 
     // If it's a hardcoded/imported image
@@ -193,9 +197,13 @@ export const getImageUrl = (imagePath) => {
     if (imageMap?.[normalizedPath]) {
         return imageMap[normalizedPath];
     }
-       return null;
-       
+
+    return null;
 };
+
+/** Resolved + Cloudinary-optimized URL for a given display context */
+export const getOptimizedImageUrl = (imagePath, preset = 'card') =>
+    getImageUrl(imagePath, { preset });
 
 
 // Export individual images for direct use

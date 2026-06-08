@@ -1,11 +1,19 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import PageTransitionSkeleton from './PageTransitionSkeleton';
 
-const MIN_MS = 400;
+const MIN_MS = 120;
+const TRANSITION_END_MS = MIN_MS + 180;
+
+/** Profile overlay uses startOverlayTransition — skip duplicate route-based skeleton */
+function shouldSkipPageTransition(pathname) {
+    return pathname === '/profile';
+}
+
 const PageTransitionContext = createContext({
     contentVisible: true,
     isTransitioning: false,
+    startOverlayTransition: () => {},
 });
 
 function TopProgressBar({ active }) {
@@ -32,12 +40,27 @@ export function PageTransitionProvider({ children }) {
     const prevLocationKey = useRef(location.key);
     const timers = useRef([]);
 
-    useLayoutEffect(() => {
-        const clearTimers = () => {
-            timers.current.forEach(clearTimeout);
-            timers.current = [];
-        };
+    const clearTimers = useCallback(() => {
+        timers.current.forEach(clearTimeout);
+        timers.current = [];
+    }, []);
 
+    /** Skeleton first, then callback — used for profile overlay (no route change) */
+    const startOverlayTransition = useCallback((pathname, onComplete) => {
+        clearTimers();
+        setSkeletonPath(pathname);
+        setContentVisible(false);
+        setIsTransitioning(true);
+        timers.current.push(
+            setTimeout(() => setContentVisible(true), MIN_MS),
+            setTimeout(() => {
+                setIsTransitioning(false);
+                onComplete?.();
+            }, TRANSITION_END_MS),
+        );
+    }, [clearTimers]);
+
+    useLayoutEffect(() => {
         if (isFirstNavigation.current) {
             isFirstNavigation.current = false;
             prevLocationKey.current = location.key;
@@ -45,6 +68,13 @@ export function PageTransitionProvider({ children }) {
         }
 
         if (prevLocationKey.current === location.key) {
+            return clearTimers;
+        }
+
+        if (shouldSkipPageTransition(location.pathname)) {
+            prevLocationKey.current = location.key;
+            setIsTransitioning(false);
+            setContentVisible(true);
             return clearTimers;
         }
 
@@ -56,11 +86,11 @@ export function PageTransitionProvider({ children }) {
         setIsTransitioning(true);
         timers.current.push(
             setTimeout(() => setContentVisible(true), MIN_MS),
-            setTimeout(() => setIsTransitioning(false), MIN_MS + 300),
+            setTimeout(() => setIsTransitioning(false), TRANSITION_END_MS),
         );
 
         return clearTimers;
-    }, [location.key]);
+    }, [location.key, location.pathname, clearTimers]);
 
     useEffect(() => {
         document.body.classList.toggle('page-transition-active', isTransitioning);
@@ -68,7 +98,7 @@ export function PageTransitionProvider({ children }) {
     }, [isTransitioning]);
 
     return (
-        <PageTransitionContext.Provider value={{ contentVisible, isTransitioning }}>
+        <PageTransitionContext.Provider value={{ contentVisible, isTransitioning, startOverlayTransition }}>
             <TopProgressBar active={isTransitioning} />
             {isTransitioning && <PageTransitionSkeleton pathname={skeletonPath} />}
             {children}

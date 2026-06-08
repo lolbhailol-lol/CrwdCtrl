@@ -6,12 +6,12 @@ import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { usePageTransition } from './PageTransition';
 
-const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
+const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNavigate, isProfileOpen = false }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { isDark } = useDarkMode();
     const { isAuthenticated } = useAuth();
-    const { isTransitioning, contentVisible } = usePageTransition();
+    const { isTransitioning, contentVisible, startOverlayTransition } = usePageTransition();
     const [mounted, setMounted] = useState(false);
     const lastTapRef = React.useRef(0);
 
@@ -19,10 +19,12 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
 
     const isItemActive = (itemPath, itemId) => {
         const p = location.pathname;
+        if (itemId === 'profile')    return isProfileOpen || p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications') || p.includes('/booking');
+        // Profile is an overlay — underlying route (e.g. /) must not stay highlighted
+        if (isProfileOpen) return false;
         if (itemId === 'home')       return p === '/';
         if (itemId === 'favorites')  return p === '/favorites';
         if (itemId === 'booking') return p === '/booking';
-        if (itemId === 'profile')    return p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications') || p.includes('/booking');
         return p === itemPath;
     };
 
@@ -38,20 +40,24 @@ const MobileBottomNav = ({ onProfileClick, onShowLogin, onNavigate }) => {
             onShowLogin?.();
             return;
         }
-        // Double-tap on profile while already on profile → go home
-        if (itemId === 'profile' && isItemActive(path, itemId)) {
-            const now = Date.now();
-            if (now - lastTapRef.current < 350) {
-                navigate('/');
-                lastTapRef.current = 0;
+        if (itemId === 'profile') {
+            // Profile is a sidebar overlay — do not navigate (avoids skeleton flash over profile)
+            if (isProfileOpen) {
+                const now = Date.now();
+                if (now - lastTapRef.current < 350) {
+                    onProfileClose?.();
+                    if (location.pathname === '/profile') navigate('/');
+                    lastTapRef.current = 0;
+                    return;
+                }
+                lastTapRef.current = now;
                 return;
             }
-            lastTapRef.current = now;
+            startOverlayTransition('/profile', () => onProfileClick?.());
             return;
         }
         navigate(path);
-        if (itemId === 'profile') onProfileClick?.();
-        else onNavigate?.(path);
+        onNavigate?.(path);
     };
 
     if (!mounted || isTransitioning || !contentVisible) return null;

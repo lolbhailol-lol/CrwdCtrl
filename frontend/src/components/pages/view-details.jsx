@@ -483,7 +483,7 @@ function EventDetailsPage() {
         date: eventData?.date || competition.dateTime || 'TBA',
         time: eventData?.time || 'TBA',
         venue: competition.venue || eventData?.venue || eventData?.location || 'TBA',
-        image: getImageUrl(competition.image) || '/default-image.jpg',
+        image: getImageUrl(competition.image, { preset: 'cardSm' }) || '/default-image.jpg',
         description: competition.description || `Join the ${competition.name} competition and showcase your talent!`,
         registrationFee: competition.fee || 'TBA',
         entryFee: competition.fee || 'TBA',
@@ -580,7 +580,7 @@ function EventDetailsPage() {
                 {/* Hero Image */}
                 <div className="relative rounded-2xl overflow-hidden">
                   <img
-                    src={getImageUrl(currentHeroImage)}
+                    src={getImageUrl(currentHeroImage, { preset: 'hero' })}
                     alt={eventData.title}
                     className="w-full h-64 sm:h-80 xl:h-96 object-cover"
                     onError={(e) => {
@@ -604,7 +604,7 @@ function EventDetailsPage() {
                         className={`w-10 sm:w-12 h-10 sm:h-12 ${currentHeroImage === img ? 'ring-2 ring-blue-500 ring-offset-2' : ''} bg-white rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-300 hover:ring-offset-1 transition-all duration-200`}
                       >
                         <img
-                          src={getImageUrl(img)}
+                          src={getImageUrl(img, { preset: 'thumb' })}
                           alt={`Gallery ${idx + 1}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -665,7 +665,7 @@ function EventDetailsPage() {
                             <div key={idx} className={`${isDark ? 'bg-[#161718] hover:bg-gray-600' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300 h-full flex flex-col`}>
                               <div className="flex space-x-4 flex-1">
                                 <img
-                                  src={getImageUrl(comp.image)}
+                                  src={getImageUrl(comp.image, { preset: 'cardSm' })}
                                   alt={comp.name}
                                   className="w-24 h-24 rounded-lg object-cover shrink-0"
                                   onError={(e) => {
@@ -712,7 +712,7 @@ function EventDetailsPage() {
                           className={`aspect-square ${isDark ? 'bg-[#111213] hover:bg-gray-600' : 'bg-[#EDEDF2] '} rounded-lg flex items-center justify-center p-1 transition-all duration-300`}
                         >
                           <img
-                            src={getImageUrl(sponsor.logo)}
+                            src={getImageUrl(sponsor.logo, { preset: 'thumb' })}
                             alt={sponsor.name}
                             className="max-w-full max-h-full object-contain"
                             onError={(e) => {
@@ -801,7 +801,7 @@ function EventDetailsPage() {
                       >
                         <div className="relative h-[280px] sm:h-[300px] overflow-hidden">
                           <img
-                              src={getImageUrl(eventData.artists[currentArtist].image)}
+                              src={getImageUrl(eventData.artists[currentArtist].image, { preset: 'card' })}
                               alt={eventData.artists[currentArtist].name}
                               className="w-full h-full object-cover transition-transform duration-300 rounded-[16px]"
                               onError={(e) => {
@@ -991,7 +991,7 @@ function EventDetailsPage() {
             {/* Event Banner */}
             <div className="relative -mt-16 rounded-b-4xl">
               <img
-                src={getImageUrl(currentHeroImage)}
+                src={getImageUrl(currentHeroImage, { preset: 'hero' })}
                 alt={eventData.title}
                 className="w-full h-64 object-cover rounded-b-4xl"
                 style={{
@@ -1021,7 +1021,7 @@ function EventDetailsPage() {
                       className={`w-14 h-14 rounded-lg overflow-hidden shadow-sm transition-all duration-200 backdrop-blur-sm${currentHeroImage === img ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${isDark ? 'bg-[#232326] hover:ring-blue-400' : 'bg-white/90 hover:ring-blue-500'}`}
                     >
                       <img
-                        src={getImageUrl(img)}
+                        src={getImageUrl(img, { preset: 'thumb' })}
                         alt={`Gallery ${idx + 1}`}
                         className="w-full h-full object-cover"
                         style={{
@@ -1104,7 +1104,7 @@ function EventDetailsPage() {
                     <div key={idx} className={`min-w-[280px] ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl overflow-hidden transition-all duration-300`}>
                       <div className="relative h-40">
                         <img
-                          src={getImageUrl(artist.image)}
+                          src={getImageUrl(artist.image, { preset: 'cardSm' })}
                           alt={artist.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -1153,7 +1153,7 @@ function EventDetailsPage() {
                     return (
                       <div key={idx} className={`min-w-[250px] ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300`}>
                         <img
-                          src={getImageUrl(comp.image)}
+                          src={getImageUrl(comp.image, { preset: 'cardSm' })}
                           alt={comp.name}
                           className="w-full h-32 rounded-lg object-cover mb-3"
                           onError={(e) => {

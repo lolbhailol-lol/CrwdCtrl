@@ -67,8 +67,8 @@ function SubcategoryGridSkeleton({ isDark }) {
 
 function HeroBannerSkeleton({ isDark }) {
     return (
-        <div className="mb-6 px-4">
-            <Block isDark={isDark} className="h-[140px] w-full rounded-2xl sm:h-[160px]" />
+        <div className="mb-6 px-4 lg:px-10">
+            <Block isDark={isDark} className="h-56 w-full rounded-2xl sm:h-64 lg:h-72 lg:rounded-3xl" />
         </div>
     );
 }

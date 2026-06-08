@@ -38,7 +38,7 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, showDownlo
                 <div className="size-20 shrink-0 rounded-2xl overflow-hidden">
                     {item.image ? (
                         <img
-                            src={getImageUrl(item.image)}
+                            src={getImageUrl(item.image, { preset: 'cardSm' })}
                             alt={item.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {

@@ -378,7 +378,7 @@ const CompetitionListPage = () => {
                                 {/* Image */}
                                 <div className="w-32 h-32 shrink-0">
                                     <img
-                                        src={getImageUrl(comp.image)}
+                                        src={getImageUrl(comp.image, { preset: 'cardSm' })}
                                         alt={comp.name}
                                         className="w-full h-full object-cover rounded-xl"
                                         onError={(e) => handleImageErrorWithFallback(e, 128, 128, '#0ea5e9', comp.name || 'Competition')}

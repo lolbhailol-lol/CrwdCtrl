@@ -331,6 +331,52 @@ body.page-transition-active #crwdctrl-bottom-nav {
     }
 }
 
+/* Loading splash — compact logo, sharp on Retina */
+.app-splash-mark {
+    display: block;
+    object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
+}
+
+.app-splash-wordmark {
+    display: block;
+    width: auto;
+    height: 72px;
+    max-height: 72px;
+    max-width: min(200px, 60vw);
+    object-fit: contain;
+}
+
+.app-splash-large.app-splash-wordmark {
+    height: 136px;
+    max-height: 136px;
+    max-width: min(280px, 72vw);
+}
+
+/* Admin / card photos — sharp cover, no upscale blur */
+.content-image {
+    object-fit: cover;
+    max-width: 100%;
+}
+
+@supports (-webkit-touch-callout: none) {
+    .content-image {
+        -webkit-transform: none !important;
+        transform: none !important;
+        image-rendering: -webkit-optimize-contrast;
+    }
+}
+
+@supports (-webkit-touch-callout: none) {
+    .app-splash-mark,
+    .app-splash-wordmark {
+        -webkit-transform: none !important;
+        transform: none !important;
+        filter: none !important;
+        image-rendering: -webkit-optimize-contrast;
+    }
+}
+
 /* Category bar icons — native SVG aspect (78×85), uniform scale */
 .category-icon {
     width: 78px;

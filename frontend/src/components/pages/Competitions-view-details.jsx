@@ -879,7 +879,7 @@ function EventPage() {
                             <div className="px-4 pt-4">
                                 <div className="bg-[#EDEDF2] dark:bg-[#111213] rounded-lg overflow-hidden shadow-sm">
                                     <img
-                                        src={getImageUrl(eventData?.image) || '/default-image.jpg'}
+                                        src={getImageUrl(eventData?.image, { preset: 'hero' }) || '/default-image.jpg'}
                                         alt={eventData?.title || 'Competition'}
                                         className="w-full h-48 object-cover"
                                         onError={(e) => {
@@ -1271,7 +1271,7 @@ function EventPage() {
                                 {/* Event Image Card */}
                                 <div className="bg-[#EDEDF2] rounded-2xl overflow-hidden">
                                     <img
-                                        src={getImageUrl(eventData?.image) || '/default-image.jpg'}
+                                        src={getImageUrl(eventData?.image, { preset: 'hero' }) || '/default-image.jpg'}
                                         alt={eventData?.title || 'Competition'}
                                         className="w-full h-80 object-cover"
                                         onError={(e) => {

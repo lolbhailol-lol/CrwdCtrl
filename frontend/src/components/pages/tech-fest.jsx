@@ -102,7 +102,7 @@ export default function TechFestPage() {
                                             return (
                                                 <div key={fest._id} className={`shrink-0 w-[320px] rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
                                                     <div className="relative w-full h-[175px] overflow-hidden">
-                                                        {img ? <img src={getImageUrl(img)} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 320, 175, '#0a1628', fest.festName)} />
+                                                        {img ? <img src={getImageUrl(img, { preset: 'cardLg' })} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 320, 175, '#0a1628', fest.festName)} />
                                                             : <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}><span className="text-5xl">💻</span></div>}
                                                         <StatusBadge status={fest.status} />
                                                         <button onClick={e => { e.stopPropagation(); toggleFavorite(fest._id, fest); }}
@@ -138,7 +138,7 @@ export default function TechFestPage() {
                                             <div key={fest._id} onClick={() => navigate(`/view-details/${fest._id}`)}
                                                 className={`flex rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${card} shadow-sm`}>
                                                 <div className="relative size-40 shrink-0">
-                                                    {img ? <img src={getImageUrl(img)} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 160, 160, '#0a1628', fest.festName)} />
+                                                    {img ? <img src={getImageUrl(img, { preset: 'cardLg' })} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 160, 160, '#0a1628', fest.festName)} />
                                                         : <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}><span className="text-4xl">💻</span></div>}
                                                     <StatusBadge status={fest.status} />
                                                     <button onClick={e => { e.stopPropagation(); toggleFavorite(fest._id, fest); }}

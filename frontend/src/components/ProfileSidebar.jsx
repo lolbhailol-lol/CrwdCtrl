@@ -372,11 +372,10 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                         }}
                     >
                             <MobileBottomNav 
-                                onShowLogin={onShowLogin} 
-                                onProfileClick={() => {
-                                    // When profile is clicked in ProfileSidebar, close it
-                                    onClose();
-                                }}
+                                onShowLogin={onShowLogin}
+                                isProfileOpen
+                                onProfileClick={() => onClose()}
+                                onProfileClose={onClose}
                                 onNavigate={(path) => {
                                     // When other nav items are clicked, navigate and close sidebar
                                     if (path !== '/profile') {

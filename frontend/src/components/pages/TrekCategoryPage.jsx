@@ -353,7 +353,7 @@ export default function TrekCategoryPage() {
                                     <div className="relative w-full h-56 overflow-hidden">
                                         {img ? (
                                             <img
-                                                src={getImageUrl(img)}
+                                                src={getImageUrl(img, { preset: 'cardLg' })}
                                                 alt={trek.trekName}
                                                 className="w-full h-full object-cover"
                                                 onError={e => handleImageErrorWithFallback(e, 361, 224, '#1a3a2a', trek.trekName)}

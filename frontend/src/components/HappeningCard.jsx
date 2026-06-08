@@ -1,4 +1,4 @@
-import { getImageUrl } from '../utils/imageImports';
+import ContentImage from './ContentImage';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 import { Share2 } from 'lucide-react';
 
@@ -21,9 +21,10 @@ export default function HappeningCard({ event, _isDark, onViewDetails }) {
         >
             {/* Image card */}
             <div className="relative h-[180px] sm:h-[190px] rounded-2xl overflow-hidden">
-                <img
-                    src={getImageUrl(event.image)}
+                <ContentImage
+                    src={event.image}
                     alt={event.title}
+                    preset="card"
                     className="w-full h-full object-cover"
                     onError={(e) => handleImageErrorWithFallback(e, 280, 190, '#111213', event.title || 'Event')}
                 />
@@ -37,7 +38,7 @@ export default function HappeningCard({ event, _isDark, onViewDetails }) {
                                bg-black/40 backdrop-blur-sm border border-white/20 transition-all duration-200 active:scale-90"
                     aria-label={`Share ${event.title}`}
                 >
-                    <img src={ShareIcon} alt="Share" className="w-4 h-4 filter brightness-0 invert" />
+                    <Share2 size={16} className="text-white" />
                 </button>
 
                 {/* Event name — bottom overlay */}

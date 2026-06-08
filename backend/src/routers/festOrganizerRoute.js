@@ -3,8 +3,9 @@ const router = express.Router();
 const festOrganizerController = require('../controllers/festOrganizerController');
 const { authenticateToken, authorizeRoles } = require('../middleware/authmiddleware');
 
-// Apply auth middleware to all routes (user must be logged in)
+// Apply auth + organizer role to all fest-organizer routes
 router.use(authenticateToken);
+router.use(authorizeRoles('organizer'));
 
 // ✅ Create a new fest
 router.post('/create', festOrganizerController.createFest);

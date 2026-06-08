@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 
 const adminAuth = require('../middleware/adminAuth');
+const devOnly = require('../middleware/devOnly');
 const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
+const adminSectionCtrl = require('../controllers/adminSectionController');
 const uploadCtrl = require('../controllers/uploadController');
 const { parseTicketPrice } = require('../utils/platformFee');
 
@@ -68,6 +70,7 @@ router.put('/fests/:id/priority', (req, res, next) => {
   next();
 }, adminAuth, adminFestCtrl.updateFestPriority);
 router.post('/fests/reorder', adminAuth, adminFestCtrl.reorderFests);
+router.post('/sections/reorder', adminAuth, adminSectionCtrl.batchReorder);
 
 // ===== FEST CRUD =====
 router.post('/fests/broadcast-announcement', adminAuth, adminFestCtrl.triggerEventAnnouncement);
@@ -86,6 +89,22 @@ router.post(
   adminAuth,
   adminFestCtrl.createCompetition
 );
+
+// ===== LIST ALL COMPETITIONS =====
+router.get('/competitions', adminAuth, async (req, res) => {
+  try {
+    const Competition = require('../model/competition_model');
+    const limit = Math.min(parseInt(req.query.limit, 10) || 200, 500);
+    const competitions = await Competition.find()
+      .populate('fest', 'festName collegeName festType')
+      .sort({ createdAt: -1 })
+      .limit(limit);
+    res.json({ competitions });
+  } catch (error) {
+    console.error('Admin - list competitions error:', error);
+    res.status(500).json({ error: 'Failed to fetch competitions' });
+  }
+});
 
 // ===== GET COMPETITIONS FOR A FEST =====
 router.get(
@@ -111,6 +130,7 @@ router.get(
 // ===== TEST ENDPOINT - GET COMPETITION WITH MESSAGE FIELDS =====
 router.get(
   '/competitions/:competitionId/test',
+  devOnly,
   adminAuth,
   async (req, res) => {
     try {
@@ -144,6 +164,7 @@ router.get(
 // ===== TEST QR CODE ENDPOINT =====
 router.get(
   '/competitions/:competitionId/qr-test',
+  devOnly,
   adminAuth,
   async (req, res) => {
     try {
@@ -478,7 +499,7 @@ router.post(
 );
 
 // ===== TEST REGISTRATION WITH PAYMENT RECEIPT =====
-router.post('/test-registration-payment', adminAuth, async (req, res) => {
+router.post('/test-registration-payment', devOnly, adminAuth, async (req, res) => {
   try {
     const { googleSheetsUrl, festId } = req.body;
 
@@ -531,7 +552,7 @@ router.post('/test-registration-payment', adminAuth, async (req, res) => {
 });
 
 // ===== DEBUG FEST PAYMENT QR ENDPOINT =====
-router.get('/debug-fest-payment/:festId', adminAuth, async (req, res) => {
+router.get('/debug-fest-payment/:festId', devOnly, adminAuth, async (req, res) => {
   try {
     const { festId } = req.params;
     const FestOrganizer = require('../model/fest_organizer_model');
@@ -565,7 +586,7 @@ router.get('/debug-fest-payment/:festId', adminAuth, async (req, res) => {
 });
 
 // ===== DEBUG PAYMENT RECEIPT ENDPOINT =====
-router.post('/debug-payment-receipt', adminAuth, async (req, res) => {
+router.post('/debug-payment-receipt', devOnly, adminAuth, async (req, res) => {
   try {
     console.log('🔍 Debug payment receipt request:');
     console.log('📋 Request body:', req.body);
@@ -627,7 +648,7 @@ router.post('/debug-payment-receipt', adminAuth, async (req, res) => {
 });
 
 // ===== DIRECT GOOGLE SHEETS TEST WITH PAYMENT RECEIPT =====
-router.post('/test-google-sheets-direct', adminAuth, async (req, res) => {
+router.post('/test-google-sheets-direct', devOnly, adminAuth, async (req, res) => {
   try {
     const { googleSheetsUrl } = req.body;
 
@@ -731,7 +752,7 @@ router.post('/test-google-sheets-direct', adminAuth, async (req, res) => {
 });
 
 // ===== TEST GOOGLE SHEETS INTEGRATION =====
-router.post('/test-google-sheets', adminAuth, async (req, res) => {
+router.post('/test-google-sheets', devOnly, adminAuth, async (req, res) => {
   try {
     const { googleSheetsUrl } = req.body;
 

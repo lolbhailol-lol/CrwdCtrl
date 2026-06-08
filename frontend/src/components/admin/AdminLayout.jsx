@@ -12,6 +12,8 @@ import {
   FileText,
   BarChart3,
   Layers,
+  Trophy,
+  QrCode,
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -21,19 +23,25 @@ export default function AdminLayout() {
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
-    navigate('/login');
+    localStorage.removeItem('admin_refresh_token');
+    navigate('/admin/login');
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', exact: true },
     { icon: Calendar, label: 'Fests', path: '/admin/fests' },
+    { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
     { icon: Dumbbell, label: 'Sports', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },
     { icon: Theater, label: 'Theatre', path: '/admin/theatre' },
-    { icon: Layers,    label: 'Sections',      path: '/admin/sections' },
-    { icon: FileText,  label: 'Registrations', path: '/admin/registrations' },
-    { icon: BarChart3, label: 'Analytics',     path: '/admin/analytics' },
+    { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
+    { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
+    { icon: QrCode, label: 'Check-in', path: '/admin/checkin' },
+    { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   ];
+
+  const isActivePath = (path, exact = false) =>
+    exact ? location.pathname === path : location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   return (
     <div className="min-h-screen bg-[#161718] text-white flex">
@@ -60,7 +68,7 @@ export default function AdminLayout() {
         <nav className="p-4 space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
+            const isActive = isActivePath(item.path, item.exact);
             return (
               <button
                 key={item.path}
@@ -95,7 +103,7 @@ export default function AdminLayout() {
         <header className="bg-[#111213] border-b border-gray-800 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold">
-              {menuItems.find(item => item.path === location.pathname)?.label || 'Admin Dashboard'}
+              {menuItems.find(item => isActivePath(item.path, item.exact))?.label || 'Admin Dashboard'}
             </h2>
           </div>
           <div className="flex items-center gap-4">

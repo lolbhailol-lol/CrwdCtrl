@@ -54,7 +54,7 @@ const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, classNam
     );
 };
 
-const Navbar = ({ setIsProfileOpen = () => { } }) => {
+const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     const { isDark } = useDarkMode();
     const { user, isAuthenticated } = useAuth();
     const { notifications, unreadCount, markAsRead } = useNotifications();
@@ -916,7 +916,8 @@ const Navbar = ({ setIsProfileOpen = () => { } }) => {
                         <button
                             onClick={() => {
                                 if (isAuthenticated) {
-                                    setIsProfileOpen(true);
+                                    if (onOpenProfile) onOpenProfile();
+                                    else setIsProfileOpen(true);
                                 } else {
                                     _setSearchParams({ showLogin: 'true' });
                                 }

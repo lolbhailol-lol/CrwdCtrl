@@ -112,9 +112,37 @@ function DeviceBreakdown({ devices }) {
   );
 }
 
+function CategoryCard({ label, data, color }) {
+  if (!data) return null;
+  return (
+    <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
+      <h3 className={`font-semibold mb-3 capitalize ${color}`}>{label}</h3>
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-gray-500 text-xs">Active events</p>
+          <p className="text-white font-bold text-lg">{data.activeEvents ?? 0}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 text-xs">Registrations</p>
+          <p className="text-white font-bold text-lg">{data.totalRegistrations ?? 0}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 text-xs">Confirmed</p>
+          <p className="text-green-400 font-semibold">{data.confirmed ?? 0}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 text-xs">Revenue</p>
+          <p className="text-[#0ECCEE] font-semibold">₹{(data.revenue ?? 0).toLocaleString('en-IN')}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AnalyticsDashboardPage() {
   const [data, setData] = useState(null);
   const [realtime, setRealtime] = useState(null);
+  const [categoryData, setCategoryData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -122,12 +150,14 @@ export default function AnalyticsDashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [analyticsRes, realtimeRes] = await Promise.all([
+      const [analyticsRes, realtimeRes, categoryRes] = await Promise.all([
         adminFetch('/analytics/dashboard'),
         adminFetch('/analytics/realtime').catch(() => ({ success: true, activeUsers: 0 })),
+        adminFetch('/analytics/category-summary').catch(() => null),
       ]);
       setData(analyticsRes);
       setRealtime(realtimeRes);
+      setCategoryData(categoryRes?.categories || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -214,6 +244,17 @@ export default function AnalyticsDashboardPage() {
           color="bg-cyan-500/20 text-cyan-400"
         />
       </div>
+
+      {categoryData && (
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-3">Category Registrations</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <CategoryCard label="Sports" data={categoryData.sports} color="text-orange-400" />
+            <CategoryCard label="Treks" data={categoryData.trek} color="text-emerald-400" />
+            <CategoryCard label="Theatre" data={categoryData.theatre} color="text-pink-400" />
+          </div>
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

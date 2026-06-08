@@ -1,5 +1,6 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell } from 'lucide-react';
+import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell } from 'lucide-react';
+import { buildHomeCarouselItems, normalizeHomeCarouselItem } from '../../utils/homeCarouselItems';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -37,17 +38,17 @@ const COMM_PAGE_OPTS = [
     { value: 'both',        label: '🌟 Both Sections' },
     { value: 'hidden',      label: '🚫 Hidden' },
 ];
-const SPORTS_UPCOMING_OPTS = [
-    { value: '',         label: '— Auto —' },
-    { value: 'show',     label: '🏃 Upcoming Activities' },
-    { value: 'hidden',   label: '🚫 Hidden from Upcoming' },
-    { value: 'page_off', label: '🚫 Off Sports Page' },
+const SPORTS_HOME_OPTS = [
+    { value: '',          label: '— None —' },
+    { value: 'trending',  label: '🔥 Trending Now' },
+    { value: 'happening', label: '📍 Happening Near You' },
 ];
-const SPORTS_RUNCLUB_OPTS = [
-    { value: '',      label: '— Auto —' },
-    { value: 'show',  label: '👟 Explore Run Clubs' },
-    { value: 'hidden', label: '🚫 Hidden from Run Clubs' },
-    { value: 'na',    label: '— N/A —' },
+const SPORTS_PAGE_OPTS = [
+    { value: '',         label: '— Auto —' },
+    { value: 'upcoming', label: '🏃 Upcoming Activities' },
+    { value: 'run_clubs', label: '👟 Explore Run Clubs' },
+    { value: 'both',     label: '🌟 Both Sections' },
+    { value: 'hidden',   label: '🚫 Hidden from Page' },
 ];
 
 // ── Shared UI helpers ──────────────────────────────────────────────────────────
@@ -100,6 +101,17 @@ function Pill({ selectValue, selectOpts, onSelect, priorityValue, onPriority, sa
     );
 }
 
+function PreviewLink({ type, id }) {
+    const url = PREVIEW_URL[type]?.(id);
+    if (!url) return null;
+    return (
+        <a href={url} target="_blank" rel="noopener noreferrer" title="Preview on site"
+            className="shrink-0 p-1.5 rounded-lg border border-white/10 text-gray-500 hover:text-[#0ECCEE] hover:border-[#0ECCEE]/30 transition-colors">
+            <ExternalLink size={12} />
+        </a>
+    );
+}
+
 function Thumb({ src, icon }) {
     return (
         <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-[#1A1B1D] flex items-center justify-center">
@@ -108,9 +120,115 @@ function Thumb({ src, icon }) {
     );
 }
 
+function EmptyState({ label }) {
+    return (
+        <div className="flex items-center justify-center py-16 text-sm text-gray-600">{label}</div>
+    );
+}
+
+const PREVIEW_URL = {
+    fest: (id) => `/view-details/${id}`,
+    trek: (id) => `/trek/${id}`,
+    community: (id) => `/treks/community/${id}`,
+    sport: () => '/sports',
+};
+
+const FEST_PAGE_SECTIONS = [
+    { key: 'ongoing', label: '⭐ Featured (Ongoing)' },
+    { key: 'upcoming', label: '📋 Listed (Upcoming)' },
+    { key: 'beyondcampus', label: '🌍 Beyond Campus' },
+    { key: 'lastyearhit', label: '🏆 Last Year Hit' },
+];
+
+const TREK_PAGE_SECTIONS = [
+    { key: 'hero', label: '🎬 Coming Soon' },
+    { key: 'weekend', label: '🏕️ Weekend Plans' },
+    { key: 'beginner', label: '🌿 Beginner Friendly' },
+];
+
+const TYPE_BADGE = {
+    fest: { label: 'Fest', cls: 'bg-violet-500/20 text-violet-300' },
+    trek: { label: 'Trek', cls: 'bg-emerald-500/20 text-emerald-300' },
+    community: { label: 'Community', cls: 'bg-sky-500/20 text-sky-300' },
+    sport: { label: 'Sport', cls: 'bg-orange-500/20 text-orange-300' },
+};
+
+function useCarouselDragDrop(items, onReorder) {
+    const [draggedIndex, setDraggedIndex] = useState(null);
+    const [overIndex, setOverIndex] = useState(null);
+
+    const handleDragStart = (e, index) => {
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(index));
+    };
+
+    const handleDragOver = (e) => e.preventDefault();
+
+    const handleDrop = (e, index) => {
+        e.preventDefault();
+        if (draggedIndex !== null && draggedIndex !== index) onReorder(draggedIndex, index);
+        setDraggedIndex(null);
+        setOverIndex(null);
+    };
+
+    return { draggedIndex, overIndex, setOverIndex, handleDragStart, handleDragOver, handleDrop, handleDragEnd: () => { setDraggedIndex(null); setOverIndex(null); } };
+}
+
+function HomeCarouselPanel({ title, subtitle, items, onReorder, isReordering }) {
+    const dnd = useCarouselDragDrop(items, onReorder);
+
+    return (
+        <div className="rounded-2xl border border-white/8 bg-[#121316] overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/6 bg-white/2">
+                <h2 className="text-sm font-bold text-white">{title}</h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">{subtitle} · {items.length} card{items.length !== 1 ? 's' : ''}</p>
+            </div>
+            {items.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm text-gray-600">No cards assigned — use the tabs below to add items</div>
+            ) : (
+                <div className="divide-y divide-white/4 max-h-[320px] overflow-y-auto">
+                    {items.map((item, index) => {
+                        const badge = TYPE_BADGE[item._type];
+                        const isDragging = dnd.draggedIndex === index;
+                        const isOver = dnd.overIndex === index && dnd.draggedIndex !== index;
+                        return (
+                            <div
+                                key={`${item._type}-${item._id}`}
+                                draggable={!isReordering}
+                                onDragStart={(e) => dnd.handleDragStart(e, index)}
+                                onDragOver={dnd.handleDragOver}
+                                onDragEnter={() => dnd.setOverIndex(index)}
+                                onDragLeave={() => dnd.setOverIndex(null)}
+                                onDrop={(e) => dnd.handleDrop(e, index)}
+                                onDragEnd={dnd.handleDragEnd}
+                                className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${isDragging ? 'opacity-40' : ''} ${isOver ? 'bg-[#0ECCEE]/8' : 'hover:bg-white/2'}`}
+                            >
+                                <div className="flex items-center gap-2 shrink-0 w-14">
+                                    <GripVertical size={14} className="text-gray-600 cursor-grab active:cursor-grabbing" />
+                                    <span className="w-6 h-6 rounded-lg bg-[#0ECCEE]/15 text-[#0ECCEE] text-[11px] font-bold flex items-center justify-center">
+                                        {index + 1}
+                                    </span>
+                                </div>
+                                <Thumb src={item._image} icon={item._type === 'fest' ? Flag : item._type === 'trek' ? Mountain : item._type === 'sport' ? Dumbbell : Users} />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-white truncate">{item._title}</p>
+                                    <p className="text-[11px] text-gray-600 truncate">{item._subtitle || '—'}</p>
+                                </div>
+                                <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.cls}`}>{badge.label}</span>
+                                <span className="shrink-0 text-[10px] text-gray-500 w-8 text-right" title="Home priority">P{item._priority !== 999 ? item._priority : '—'}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SectionManager() {
-    const [tab, setTab]         = useState('fests');
+    const [tab, setTab]         = useState('home');
     const [fests, setFests]     = useState([]);
     const [treks, setTreks]     = useState([]);
     const [comms, setComms]     = useState([]);
@@ -119,6 +237,7 @@ export default function SectionManager() {
     const [errors, setErrors]   = useState({});
     const [saving, setSaving]   = useState({});
     const [search, setSearch]   = useState('');
+    const [reordering, setReordering] = useState(false);
 
     // ── Fetch ────────────────────────────────────────────────────────────────
     const fetchAll = useCallback(async () => {
@@ -205,19 +324,214 @@ export default function SectionManager() {
             () => setSports(prev => prev.map(s => s._id === id ? { ...s, ...fields } : s)));
     }, [patch]);
 
-    const saveSportsUpcoming = useCallback((id, val) => {
-        if (val === 'page_off') saveSports(id, { showOnSportsPage: false, showInUpcoming: false, showInRunClubs: false });
-        else if (val === 'hidden') saveSports(id, { showInUpcoming: false, showOnSportsPage: true });
-        else if (val === 'show') saveSports(id, { showOnSportsPage: true, showInUpcoming: true });
-        else saveSports(id, { showInUpcoming: true, showOnSportsPage: true });
+    const saveSportsPage = useCallback((id, val, sportType) => {
+        if (val === 'hidden') {
+            saveSports(id, { showOnSportsPage: false });
+            return;
+        }
+        if (val === 'upcoming') {
+            saveSports(id, { showOnSportsPage: true, featuredSection: 'upcoming', showInUpcoming: true, showInRunClubs: false });
+            return;
+        }
+        if (val === 'run_clubs') {
+            if (sportType !== 'run_club') return;
+            saveSports(id, { showOnSportsPage: true, featuredSection: 'run_clubs', showInUpcoming: false, showInRunClubs: true });
+            return;
+        }
+        if (val === 'both') {
+            if (sportType !== 'run_club') {
+                saveSports(id, { showOnSportsPage: true, featuredSection: 'upcoming', showInUpcoming: true, showInRunClubs: false });
+                return;
+            }
+            saveSports(id, { showOnSportsPage: true, featuredSection: 'both', showInUpcoming: true, showInRunClubs: true });
+            return;
+        }
+        saveSports(id, { showOnSportsPage: true, showInUpcoming: true, featuredSection: null });
     }, [saveSports]);
 
-    const saveSportsRunClub = useCallback((id, val, sportType) => {
-        if (val === 'na' || sportType !== 'run_club') return;
-        if (val === 'hidden') saveSports(id, { showInRunClubs: false, showOnSportsPage: true });
-        else if (val === 'show') saveSports(id, { showOnSportsPage: true, showInRunClubs: true });
-        else saveSports(id, { showInRunClubs: true, showOnSportsPage: true });
-    }, [saveSports]);
+    const trendingCarousel = useMemo(
+        () => buildHomeCarouselItems(fests, treks, comms, 'trending', sports),
+        [fests, treks, comms, sports],
+    );
+    const happeningCarousel = useMemo(
+        () => buildHomeCarouselItems(fests, treks, comms, 'happening', sports),
+        [fests, treks, comms, sports],
+    );
+
+    const applyLocalCarouselOrder = useCallback((section, orderedItems) => {
+        const applyPriority = (prev, id, field, priority, extra = {}) =>
+            prev.map((row) => ((row._id || row.id) === id ? { ...row, [field]: priority, ...extra } : row));
+
+        orderedItems.forEach((item, index) => {
+            const priority = index + 1;
+            if (item._type === 'fest') {
+                const extra = !item.homeSection && !item.showOnHomeSlide ? { homeSection: section } : {};
+                setFests((prev) => applyPriority(prev, item._id, 'homePriority', priority, extra));
+            } else if (item._type === 'trek') {
+                setTreks((prev) => applyPriority(prev, item._id, 'priority', priority));
+            } else if (item._type === 'sport') {
+                setSports((prev) => applyPriority(prev, item._id, 'homePriority', priority, { homeSection: section }));
+            } else {
+                setComms((prev) => applyPriority(prev, item._id, 'priority', priority));
+            }
+        });
+    }, []);
+
+    const batchReorder = useCallback(async (updates, applyLocal) => {
+        if (!updates.length) return;
+        setReordering(true);
+        try {
+            const r = await authFetch(`${API}/admin/sections/reorder`, {
+                method: 'POST',
+                body: JSON.stringify({ updates }),
+            });
+            if (r.status === 401 || r.status === 403) { window.location.href = '/admin/login'; return; }
+            if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || 'Batch reorder failed');
+            applyLocal?.();
+            localStorage.setItem('admin_data_updated', Date.now().toString());
+            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+        } catch (e) {
+            setErrors((prev) => ({ ...prev, save: e.message }));
+        } finally {
+            setReordering(false);
+        }
+    }, []);
+
+    const persistCarouselOrder = useCallback(async (section, orderedItems) => {
+        const updates = orderedItems.map((item, index) => {
+            const priority = index + 1;
+            if (item._type === 'fest') {
+                const fields = { homePriority: priority };
+                if (!item.homeSection && !item.showOnHomeSlide) fields.homeSection = section;
+                return { type: 'fest', id: item._id, fields };
+            }
+            if (item._type === 'trek') return { type: 'trek', id: item._id, fields: { priority } };
+            if (item._type === 'sport') return { type: 'sport', id: item._id, fields: { homePriority: priority, homeSection: section } };
+            return { type: 'community', id: item._id, fields: { priority } };
+        });
+        applyLocalCarouselOrder(section, orderedItems);
+        await batchReorder(updates);
+    }, [applyLocalCarouselOrder, batchReorder]);
+
+    const handleCarouselReorder = useCallback((section, fromIndex, toIndex) => {
+        if (fromIndex === toIndex || reordering) return;
+        const source = section === 'trending' ? trendingCarousel : happeningCarousel;
+        const next = [...source];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        applyLocalCarouselOrder(section, next);
+        persistCarouselOrder(section, next);
+    }, [trendingCarousel, happeningCarousel, applyLocalCarouselOrder, persistCarouselOrder, reordering]);
+
+    const movingSlideFests = useMemo(
+        () => fests.filter((f) => f.showOnHomeSlide).map((f) => normalizeHomeCarouselItem('fest', f))
+            .sort((a, b) => a._priority - b._priority),
+        [fests],
+    );
+
+    const festPageCarousels = useMemo(() => {
+        const out = {};
+        FEST_PAGE_SECTIONS.forEach(({ key }) => {
+            out[key] = fests
+                .filter((f) => f.status === key)
+                .map((f) => ({ ...normalizeHomeCarouselItem('fest', f), _priority: f.priority ?? 999 }))
+                .sort((a, b) => a._priority - b._priority);
+        });
+        return out;
+    }, [fests]);
+
+    const trekPageCarousels = useMemo(() => {
+        const norm = (t) => ({ ...normalizeHomeCarouselItem('trek', t), _priority: t.trekPagePriority ?? 999 });
+        const inSection = (key) => treks.filter((t) => t.featuredSection === key || t.featuredSection === 'both').map(norm)
+            .sort((a, b) => a._priority - b._priority);
+        return { hero: inSection('hero'), weekend: inSection('weekend'), beginner: inSection('beginner') };
+    }, [treks]);
+
+    const sportsPageCarousels = useMemo(() => {
+        const norm = (s, pri) => ({ ...normalizeHomeCarouselItem('sport', s), _priority: pri });
+        const upcoming = sports
+            .filter((s) => s.showOnSportsPage !== false && (s.showInUpcoming !== false || s.featuredSection === 'upcoming' || s.featuredSection === 'both'))
+            .map((s) => norm(s, s.upcomingPriority ?? s.priority ?? 999))
+            .sort((a, b) => a._priority - b._priority);
+        const runClubs = sports
+            .filter((s) => s.sportType === 'run_club' && s.showInRunClubs)
+            .map((s) => norm(s, s.runClubPriority ?? 999))
+            .sort((a, b) => a._priority - b._priority);
+        return { upcoming, run_clubs: runClubs };
+    }, [sports]);
+
+    const applyLocalFestPageOrder = useCallback((status, ordered) => {
+        ordered.forEach((item, index) => {
+            const priority = index + 1;
+            setFests((prev) => prev.map((f) => ((f._id || f.id) === item._id ? { ...f, priority } : f)));
+        });
+    }, []);
+
+    const applyLocalTrekPageOrder = useCallback((ordered) => {
+        ordered.forEach((item, index) => {
+            setTreks((prev) => prev.map((t) => (t._id === item._id ? { ...t, trekPagePriority: index + 1 } : t)));
+        });
+    }, []);
+
+    const applyLocalSportsPageOrder = useCallback((section, ordered) => {
+        ordered.forEach((item, index) => {
+            const pri = index + 1;
+            if (section === 'run_clubs') {
+                setSports((prev) => prev.map((s) => (s._id === item._id ? { ...s, runClubPriority: pri } : s)));
+            } else {
+                setSports((prev) => prev.map((s) => (s._id === item._id ? { ...s, upcomingPriority: pri, priority: pri } : s)));
+            }
+        });
+    }, []);
+
+    const handleFestPageReorder = useCallback((status, fromIndex, toIndex) => {
+        if (fromIndex === toIndex || reordering) return;
+        const source = festPageCarousels[status] || [];
+        const next = [...source];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        const updates = next.map((item, i) => ({ type: 'fest', id: item._id, fields: { priority: i + 1 } }));
+        applyLocalFestPageOrder(status, next);
+        batchReorder(updates);
+    }, [festPageCarousels, reordering, applyLocalFestPageOrder, batchReorder]);
+
+    const handleTrekPageReorder = useCallback((section, fromIndex, toIndex) => {
+        if (fromIndex === toIndex || reordering) return;
+        const source = trekPageCarousels[section] || [];
+        const next = [...source];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        const updates = next.map((item, i) => ({ type: 'trek', id: item._id, fields: { trekPagePriority: i + 1 } }));
+        applyLocalTrekPageOrder(next);
+        batchReorder(updates);
+    }, [trekPageCarousels, reordering, applyLocalTrekPageOrder, batchReorder]);
+
+    const handleSportsPageReorder = useCallback((section, fromIndex, toIndex) => {
+        if (fromIndex === toIndex || reordering) return;
+        const source = sportsPageCarousels[section] || [];
+        const next = [...source];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        const updates = next.map((item, i) => {
+            const pri = i + 1;
+            if (section === 'run_clubs') return { type: 'sport', id: item._id, fields: { runClubPriority: pri } };
+            return { type: 'sport', id: item._id, fields: { upcomingPriority: pri, priority: pri } };
+        });
+        applyLocalSportsPageOrder(section, next);
+        batchReorder(updates);
+    }, [sportsPageCarousels, reordering, applyLocalSportsPageOrder, batchReorder]);
+
+    const handleMovingSlideReorder = useCallback((fromIndex, toIndex) => {
+        if (fromIndex === toIndex || reordering) return;
+        const next = [...movingSlideFests];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        const updates = next.map((item, i) => ({ type: 'fest', id: item._id, fields: { homePriority: i + 1 } }));
+        next.forEach((item, i) => {
+            setFests((prev) => prev.map((f) => ((f._id || f.id) === item._id ? { ...f, homePriority: i + 1 } : f)));
+        });
+        batchReorder(updates);
+    }, [movingSlideFests, reordering, batchReorder]);
 
     // ── Filtered lists ───────────────────────────────────────────────────────
     const q = search.trim().toLowerCase();
@@ -240,26 +554,43 @@ export default function SectionManager() {
 
     const getFestHomeVal = (f) => f.homeSection || (f.showOnHomeSlide ? 'movingSlide' : '');
 
-    const getSportsUpcomingVal = (s) => {
-        if (s.showOnSportsPage === false) return 'page_off';
-        if (s.showInUpcoming === false) return 'hidden';
-        if (s.featuredSection === 'run_clubs') return 'hidden';
-        return s.showInUpcoming === true ? 'show' : '';
+    const getSportsPageVal = (s) => {
+        if (s.showOnSportsPage === false) return 'hidden';
+        if (s.featuredSection === 'both' || (s.showInUpcoming && s.showInRunClubs && s.sportType === 'run_club')) return 'both';
+        if (s.featuredSection === 'run_clubs' || (s.showInRunClubs && s.sportType === 'run_club' && !s.showInUpcoming)) return 'run_clubs';
+        if (s.featuredSection === 'upcoming' || s.showInUpcoming !== false) return 'upcoming';
+        return '';
     };
 
-    const getSportsRunClubVal = (s) => {
-        if (s.showOnSportsPage === false) return 'hidden';
-        if (s.sportType !== 'run_club') return 'na';
-        if (s.showInRunClubs === false) return 'hidden';
-        if (s.featuredSection === 'upcoming') return 'hidden';
-        return s.showInRunClubs === true ? 'show' : '';
+    const getSportsPagePriority = (s) => {
+        const pageVal = getSportsPageVal(s);
+        if (pageVal === 'run_clubs') return s.runClubPriority;
+        if (pageVal === 'both') return s.upcomingPriority ?? s.priority;
+        return s.upcomingPriority ?? s.priority;
     };
+
+    const saveSportsPagePriority = useCallback((id, v, s) => {
+        const pageVal = getSportsPageVal(s);
+        if (pageVal === 'run_clubs') {
+            saveSports(id, { runClubPriority: v });
+        } else if (pageVal === 'both') {
+            saveSports(id, { upcomingPriority: v, priority: v, runClubPriority: v });
+        } else {
+            saveSports(id, { upcomingPriority: v, priority: v });
+        }
+    }, [saveSports]);
+
+    const sportsPageOptsFor = (sportType) => SPORTS_PAGE_OPTS.filter((o) => {
+        if (o.value === 'run_clubs' || o.value === 'both') return sportType === 'run_club';
+        return true;
+    });
 
     const tabs = [
-        { id: 'fests',       label: 'Fests',       icon: Flag,     count: fests.length },
-        { id: 'treks',       label: 'Treks',        icon: Mountain, count: treks.length },
-        { id: 'sports',      label: 'Sports',       icon: Dumbbell, count: sports.length },
-        { id: 'communities', label: 'Communities',  icon: Users,    count: comms.length },
+        { id: 'home',        label: 'Home Carousels', icon: LayoutGrid, count: trendingCarousel.length + happeningCarousel.length },
+        { id: 'fests',       label: 'Fests',          icon: Flag,       count: fests.length },
+        { id: 'treks',       label: 'Treks',          icon: Mountain,   count: treks.length },
+        { id: 'sports',      label: 'Sports',         icon: Dumbbell,   count: sports.length },
+        { id: 'communities', label: 'Communities',    icon: Users,      count: comms.length },
     ];
 
     return (
@@ -269,12 +600,18 @@ export default function SectionManager() {
             <div className="flex items-center justify-between gap-4 px-1">
                 <div>
                     <h1 className="text-xl font-bold text-white">Section Manager</h1>
-                    <p className="text-xs text-gray-500 mt-0.5">Assign fests, treks, sports & communities to home page and page sections · set display priority</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Drag cards to match Trending Now & Happening near you order on the home page</p>
                 </div>
-                <button onClick={fetchAll} disabled={loading}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-gray-300 transition-colors disabled:opacity-50">
-                    <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                    <a href="/" target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-gray-300 transition-colors">
+                        <ExternalLink size={13} /> Preview site
+                    </a>
+                    <button onClick={fetchAll} disabled={loading}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-gray-300 transition-colors disabled:opacity-50">
+                        <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh
+                    </button>
+                </div>
             </div>
 
             {/* Errors */}
@@ -302,26 +639,21 @@ export default function SectionManager() {
                 </div>
                 <div className="relative flex-1">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${tab}…`}
-                        className="w-full h-10 bg-[#17181A] border border-white/8 rounded-xl pl-8 pr-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#0ECCEE]/50" />
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder={tab === 'home' ? 'Search disabled on this tab' : `Search ${tab}…`}
+                        disabled={tab === 'home'}
+                        className="w-full h-10 bg-[#17181A] border border-white/8 rounded-xl pl-8 pr-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#0ECCEE]/50 disabled:opacity-40" />
                 </div>
             </div>
 
             {/* Column headers */}
-            {!loading && (
+            {!loading && tab !== 'home' && (
                 <div className="flex items-center gap-3 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-600">
                     <span className="w-10 shrink-0" />
                     <span className="flex-1">Name</span>
                     {tab === 'sports' ? (
                         <>
-                            <span className="w-52 text-center">
-                                🏃 Upcoming Activities
-                                <span className="text-gray-700 normal-case font-normal"> (show · priority)</span>
-                            </span>
-                            <span className="w-52 text-center">
-                                👟 Explore Run Clubs
-                                <span className="text-gray-700 normal-case font-normal"> (show · priority)</span>
-                            </span>
+                            <span className="w-52 text-center">🏠 Home Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
+                            <span className="w-52 text-center">⚽ Sports Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
                         </>
                     ) : (
                         <>
@@ -343,8 +675,91 @@ export default function SectionManager() {
                     <div className="flex items-center justify-center gap-3 py-20 text-gray-500 text-sm">
                         <Loader2 size={20} className="animate-spin text-[#0ECCEE]" /> Loading…
                     </div>
+                ) : tab === 'home' ? (
+                    <div className="p-4 space-y-4">
+                        {reordering && (
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0ECCEE]/10 border border-[#0ECCEE]/20 text-xs text-[#0ECCEE]">
+                                <Loader2 size={14} className="animate-spin" /> Saving carousel order…
+                            </div>
+                        )}
+                        <HomeCarouselPanel
+                            title="🔥 Trending Now"
+                            subtitle="Left-to-right on home page · fests, treks, communities & sports mixed"
+                            items={trendingCarousel}
+                            onReorder={(from, to) => handleCarouselReorder('trending', from, to)}
+                            isReordering={reordering}
+                        />
+                        <HomeCarouselPanel
+                            title="📍 Happening Near You"
+                            subtitle="Left-to-right on home page · fests, treks, communities & sports mixed"
+                            items={happeningCarousel}
+                            onReorder={(from, to) => handleCarouselReorder('happening', from, to)}
+                            isReordering={reordering}
+                        />
+                        <HomeCarouselPanel
+                            title="🎠 Moving Hero Slides"
+                            subtitle="Fests with Moving Slide enabled · order by home priority"
+                            items={movingSlideFests}
+                            onReorder={handleMovingSlideReorder}
+                            isReordering={reordering}
+                        />
+                        <p className="text-[10px] text-gray-600 px-1">
+                            Fests without an explicit home section use status fallback (Featured → Trending, Listed/Beyond Campus → Happening).
+                            Assign section + priority in the tabs below, then drag here to fine-tune order.
+                        </p>
+                    </div>
                 ) : (
-                    <div className="divide-y divide-white/4 max-h-[640px] overflow-y-auto">
+                    <div className="max-h-[640px] overflow-y-auto">
+                        {tab === 'fests' && (
+                            <div className="p-4 space-y-3 border-b border-white/6">
+                                <p className="text-[11px] text-gray-500">Drag to reorder within each fest-page section (matches /fests)</p>
+                                {FEST_PAGE_SECTIONS.map(({ key, label }) => (
+                                    <HomeCarouselPanel
+                                        key={key}
+                                        title={label}
+                                        subtitle="Fest page section order"
+                                        items={festPageCarousels[key] || []}
+                                        onReorder={(from, to) => handleFestPageReorder(key, from, to)}
+                                        isReordering={reordering}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        {tab === 'treks' && (
+                            <div className="p-4 space-y-3 border-b border-white/6">
+                                <p className="text-[11px] text-gray-500">Drag to reorder trek-page sections (matches /treks)</p>
+                                {TREK_PAGE_SECTIONS.map(({ key, label }) => (
+                                    <HomeCarouselPanel
+                                        key={key}
+                                        title={label}
+                                        subtitle="Treks page section order"
+                                        items={trekPageCarousels[key] || []}
+                                        onReorder={(from, to) => handleTrekPageReorder(key, from, to)}
+                                        isReordering={reordering}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        {tab === 'sports' && (
+                            <div className="p-4 space-y-3 border-b border-white/6">
+                                <p className="text-[11px] text-gray-500">Drag to reorder sports-page sections (matches /sports)</p>
+                                <HomeCarouselPanel
+                                    title="🏃 Upcoming Activities"
+                                    subtitle="Sports page carousel order"
+                                    items={sportsPageCarousels.upcoming}
+                                    onReorder={(from, to) => handleSportsPageReorder('upcoming', from, to)}
+                                    isReordering={reordering}
+                                />
+                                <HomeCarouselPanel
+                                    title="👟 Run Clubs"
+                                    subtitle="Run clubs section order"
+                                    items={sportsPageCarousels.run_clubs}
+                                    onReorder={(from, to) => handleSportsPageReorder('run_clubs', from, to)}
+                                    isReordering={reordering}
+                                />
+                            </div>
+                        )}
+                    <div className="divide-y divide-white/4">
 
                         {/* ── FESTS ── */}
                         {tab === 'fests' && (() => {
@@ -376,6 +791,7 @@ export default function SectionManager() {
                                         return (
                                             <div key={id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
                                                 <Thumb src={f.coverImage} icon={Flag} />
+                                                <PreviewLink type="fest" id={id} />
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-semibold text-white truncate">{f.festName || 'Untitled'}</p>
                                                     <p className="text-[11px] text-gray-600 truncate">{f.collegeName || '—'}</p>
@@ -411,6 +827,7 @@ export default function SectionManager() {
                             : filteredTreks.map(t => (
                                 <div key={t._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
                                     <Thumb src={t.coverImage || t.images?.[0]} icon={Mountain} />
+                                    <PreviewLink type="trek" id={t._id} />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-white truncate">{t.trekName || 'Untitled'}</p>
                                         <p className="text-[11px] text-gray-600 truncate">{[t.city, t.difficultyLevel].filter(Boolean).join(' · ') || '—'}</p>
@@ -443,6 +860,7 @@ export default function SectionManager() {
                             : filteredSports.map(s => (
                                 <div key={s._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
                                     <Thumb src={s.images?.[0]} icon={Dumbbell} />
+                                    <PreviewLink type="sport" id={s._id} />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
                                         <p className="text-[11px] text-gray-600 truncate">
@@ -450,21 +868,21 @@ export default function SectionManager() {
                                         </p>
                                     </div>
                                     <Pill
-                                        selectValue={getSportsUpcomingVal(s)}
-                                        selectOpts={SPORTS_UPCOMING_OPTS}
-                                        onSelect={v => saveSportsUpcoming(s._id, v)}
-                                        priorityValue={s.upcomingPriority ?? s.priority}
-                                        onPriority={v => saveSports(s._id, { upcomingPriority: v, priority: v })}
-                                        saveKey={`sports-${s._id}-upcoming`}
+                                        selectValue={s.homeSection || ''}
+                                        selectOpts={SPORTS_HOME_OPTS}
+                                        onSelect={v => saveSports(s._id, { homeSection: v || null })}
+                                        priorityValue={s.homePriority}
+                                        onPriority={v => saveSports(s._id, { homePriority: v })}
+                                        saveKey={`sports-${s._id}-home`}
                                         saving={saving}
                                     />
                                     <Pill
-                                        selectValue={getSportsRunClubVal(s)}
-                                        selectOpts={SPORTS_RUNCLUB_OPTS}
-                                        onSelect={v => saveSportsRunClub(s._id, v, s.sportType)}
-                                        priorityValue={s.runClubPriority}
-                                        onPriority={v => saveSports(s._id, { runClubPriority: v })}
-                                        saveKey={`sports-${s._id}-runclub`}
+                                        selectValue={getSportsPageVal(s)}
+                                        selectOpts={sportsPageOptsFor(s.sportType)}
+                                        onSelect={v => saveSportsPage(s._id, v, s.sportType)}
+                                        priorityValue={getSportsPagePriority(s)}
+                                        onPriority={v => saveSportsPagePriority(s._id, v, s)}
+                                        saveKey={`sports-${s._id}-page`}
                                         saving={saving}
                                     />
                                 </div>
@@ -479,6 +897,7 @@ export default function SectionManager() {
                                 return (
                                     <div key={c._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
                                         <Thumb src={c.coverImage} icon={Users} />
+                                        <PreviewLink type="community" id={c._id} />
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
                                             <p className="text-[11px] text-gray-600 truncate">{c.basedIn || '—'}</p>
@@ -507,23 +926,18 @@ export default function SectionManager() {
                         )}
 
                     </div>
+                    </div>
                 )}
 
                 {/* Footer hint */}
-                {!loading && (
+                {!loading && tab !== 'home' && (
                     <div className="px-4 py-2 bg-black/20 border-t border-white/4">
                         <p className="text-[10px] text-gray-700">
-                            Change dropdown → saves instantly · Type priority number → press <kbd className="bg-white/10 text-gray-500 px-1 rounded text-[9px]">Enter</kbd> or click away to save · 1 = first position · blank = default
+                            Drag panels above reorder page sections · Dropdowns save instantly · Priority 1 = first · blank = 999
                         </p>
                     </div>
                 )}
             </div>
         </div>
-    );
-}
-
-function EmptyState({ label }) {
-    return (
-        <div className="flex items-center justify-center py-16 text-sm text-gray-600">{label}</div>
     );
 }

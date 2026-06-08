@@ -1,5 +1,5 @@
 import { Heart, Share2 } from 'lucide-react';
-import { getImageUrl } from '../utils/imageImports';
+import ContentImage from './ContentImage';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 
 export default function HomeEventCard({
@@ -40,12 +40,11 @@ export default function HomeEventCard({
         >
             {/* Image — larger inset on carousel cards, same outer card size */}
             <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl">
-                <img
-                    src={getImageUrl(event.image)}
+                <ContentImage
+                    src={event.image}
                     alt={event.title}
-                    draggable={false}
-                    decoding="async"
-                    className="crisp-icon h-full w-full object-cover"
+                    preset={prominentImage ? 'card' : 'card'}
+                    className="h-full w-full object-cover"
                     onError={(e) => handleImageErrorWithFallback(
                         e,
                         prominentImage ? 320 : 300,

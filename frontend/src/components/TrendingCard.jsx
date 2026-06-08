@@ -1,5 +1,5 @@
 import { Heart } from 'lucide-react';
-import { getImageUrl } from '../utils/imageImports';
+import ContentImage from './ContentImage';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 
 export default function TrendingCard({ event, isDark, isFavorite, onToggleFavorite, onViewDetails }) {
@@ -20,9 +20,10 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
         >
             {/* Image */}
             <div className="relative h-[160px] overflow-hidden">
-                <img
-                    src={getImageUrl(event.image)}
+                <ContentImage
+                    src={event.image}
                     alt={event.title}
+                    preset="cardSm"
                     className="w-full h-full object-cover"
                     onError={(e) => handleImageErrorWithFallback(e, 220, 160, '#6366f1', event.title || 'Event')}
                 />

@@ -4,6 +4,7 @@ const SportsEvent = require('../model/sports_model');
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
 const FEATURED_SECTIONS = new Set(['upcoming', 'run_clubs', 'both']);
+const HOME_SECTIONS = new Set(['trending', 'happening', 'slide']);
 const PARTICIPATION_TYPES = new Set(['individual', 'team', 'both']);
 const SKILL_LEVELS = new Set(['beginner', 'intermediate', 'advanced', 'all']);
 
@@ -105,6 +106,13 @@ function sanitizeSportsPayload(body = {}) {
     if (body.runClubPriority !== undefined) payload.runClubPriority = clampPriority(body.runClubPriority);
     if (body.priority !== undefined) payload.priority = clampPriority(body.priority);
     if (body.showOnSportsPage !== undefined) payload.showOnSportsPage = Boolean(body.showOnSportsPage);
+    if (body.homeSection !== undefined) {
+        payload.homeSection = body.homeSection && HOME_SECTIONS.has(body.homeSection)
+            ? body.homeSection
+            : null;
+    }
+    if (body.homeSection === '') payload.homeSection = null;
+    if (body.homePriority !== undefined) payload.homePriority = clampPriority(body.homePriority);
     if (body.runClubId !== undefined) {
         payload.runClubId = body.runClubId && mongoose.Types.ObjectId.isValid(body.runClubId)
             ? body.runClubId
@@ -144,6 +152,7 @@ function defaultSectionFlags(payload) {
     if (payload.upcomingPriority === undefined) payload.upcomingPriority = 999;
     if (payload.runClubPriority === undefined) payload.runClubPriority = 999;
     if (payload.priority === undefined) payload.priority = payload.upcomingPriority;
+    if (payload.homePriority === undefined) payload.homePriority = 999;
     return payload;
 }
 

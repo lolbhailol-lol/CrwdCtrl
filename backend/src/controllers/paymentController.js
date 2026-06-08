@@ -2,6 +2,7 @@ const User = require('../model/usermodel');
 const Event = require('../model/event_model');
 const Competition = require('../model/competition_model');
 const FestOrganizer = require('../model/fest_organizer_model');
+const Trek = require('../model/trek_model');
 const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const { createCashfreeOrder, verifyCashfreePayment } = require('../services/cashfreeService');
 const { extractPaymentFields } = require('../utils/paymentVerification');
@@ -202,11 +203,22 @@ exports.createTrekOrder = async (req, res) => {
       customerEmail,
       customerPhone,
     } = req.body;
-    const ticketPrice = Number(baseAmount || amount || 0);
-    if (!ticketPrice || ticketPrice <= 0) {
-      return res.status(400).json({ message: 'Invalid amount' });
+
+    let ticketPrice = Number(baseAmount || amount || 0);
+
+    if (trekId) {
+      const trek = await Trek.findById(trekId).select('trekName registrationFee');
+      if (!trek) {
+        return res.status(404).json({ success: false, message: 'Trek not found' });
+      }
+      ticketPrice = Number(trek.registrationFee || 0);
     }
 
+    if (!ticketPrice || ticketPrice <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    const resolvedTrekName = trekName || 'Trek Booking';
     const { platformFee, totalAmount } = buildPriceBreakdown(ticketPrice * Number(people || 1));
     const order = await createCashfreeOrder({
       orderAmount: totalAmount,
@@ -217,10 +229,10 @@ exports.createTrekOrder = async (req, res) => {
         customerEmail,
         customerPhone,
       },
-      orderNote: trekName,
+      orderNote: resolvedTrekName,
       orderTags: {
         trekId: String(trekId || ''),
-        trekName,
+        trekName: resolvedTrekName,
         people: String(people),
         ticketPrice: String(ticketPrice),
         platformFee: String(platformFee),

@@ -1,0 +1,54 @@
+const express = require('express');
+
+const userRoutes = require('../routers/userroute');
+const studentRoutes = require('../routers/studentroute');
+const festOrganizerRoutes = require('../routers/festOrganizerRoute');
+const publicFestRoutes = require('../routers/publicFestRoute');
+const competitionRoutes = require('../routers/competitionRoute');
+const adminRoutes = require('../routers/adminRoute');
+const adminEventRoutes = require('../routers/adminEventRoute');
+const publicEventRoutes = require('../routers/publicEventRoute');
+const publicTrekRoutes = require('../routers/publicTrekRoute');
+const publicSportsRoutes = require('../routers/publicSportsRoute');
+const adminSportsRoutes = require('../routers/adminSportsRoute');
+const adminRunClubRoutes = require('../routers/adminRunClubRoute');
+const publicRunClubRoutes = require('../routers/publicRunClubRoute');
+const adminTrekRoutes = require('../routers/adminTrekRoute');
+const adminTrekCommunityRoutes = require('../routers/adminTrekCommunityRoute');
+const publicTrekCommunityRoutes = require('../routers/publicTrekCommunityRoute');
+const adminTheatreRoutes = require('../routers/adminTheatreRoute');
+const categoryRegistrationRoutes = require('../routers/categoryRegistrationRoute');
+const registrationRoutes = require('../routers/registrationRoute');
+const paymentRoutes = require('../routers/paymentRoute');
+const notificationRoutes = require('../routers/notificationRoute');
+const qrRoutes = require('../routers/qrRoute');
+const analyticsRoutes = require('../routers/analyticsRoute');
+const { authLimiter, paymentLimiter } = require('../middleware/rateLimiter');
+
+const router = express.Router();
+
+router.use('/users', authLimiter, userRoutes);
+router.use('/students', studentRoutes);
+router.use('/fest-organizer', festOrganizerRoutes);
+router.use('/fests', publicFestRoutes);
+router.use('/competitions', competitionRoutes);
+router.use('/admin', adminRoutes);
+router.use('/admin/events', adminEventRoutes);
+router.use('/admin/sports', adminSportsRoutes);
+router.use('/admin/run-clubs', adminRunClubRoutes);
+router.use('/admin/treks', adminTrekRoutes);
+router.use('/admin/trek-communities', adminTrekCommunityRoutes);
+router.use('/trek-communities', publicTrekCommunityRoutes);
+router.use('/admin/theatre', adminTheatreRoutes);
+router.use('/events', publicEventRoutes);
+router.use('/treks', publicTrekRoutes);
+router.use('/sports', publicSportsRoutes);
+router.use('/run-clubs', publicRunClubRoutes);
+router.use('/category-registrations', categoryRegistrationRoutes);
+router.use('/registrations', registrationRoutes);
+router.use('/payment', paymentLimiter, paymentRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/qr', qrRoutes);
+router.use('/analytics', analyticsRoutes);
+
+module.exports = router;

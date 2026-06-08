@@ -60,7 +60,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
             <div className={`relative rounded-2xl overflow-hidden ${fullWidth ? 'w-full h-48' : 'w-40 h-52'}`}>
                 {trek.image ? (
                     <img
-                        src={getImageUrl(trek.image)}
+                        src={getImageUrl(trek.image, { preset: 'cardLg' })}
                         alt={trek.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
@@ -124,7 +124,7 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
             <div className="relative w-80 h-56 overflow-hidden">
                 {trek.image ? (
                     <img
-                        src={getImageUrl(trek.image)}
+                        src={getImageUrl(trek.image, { preset: 'cardLg' })}
                         alt={trek.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#1a3a2a', trek.title || 'Trek')}
@@ -181,7 +181,7 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
             <div className="relative w-40 h-52 rounded-2xl overflow-hidden">
                 {trek.image ? (
                     <img
-                        src={getImageUrl(trek.image)}
+                        src={getImageUrl(trek.image, { preset: 'cardLg' })}
                         alt={trek.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
@@ -312,7 +312,7 @@ function TreksPage() {
     }, [loadData]);
 
     const sortTrekPage = arr => [...arr].sort((a, b) => (a.trekPagePriority || 999) - (b.trekPagePriority || 999));
-    const beginnerTreks = treks.filter(t => t.difficulty === 'easy');
+    const beginnerTreks = sortTrekPage(treks.filter(t => t.featuredSection === 'beginner' || t.featuredSection === 'both'));
     const heroTreks = sortTrekPage(treks.filter(t => t.featuredSection === 'hero' || t.featuredSection === 'both'));
     const weekendTreks = sortTrekPage(treks.filter(t => t.featuredSection === 'weekend' || t.featuredSection === 'both'));
     const comingSoonCommunities = sortTrekPage(communities.filter(c => c.trekPageSection === 'comingSoon' || c.trekPageSection === 'both'));

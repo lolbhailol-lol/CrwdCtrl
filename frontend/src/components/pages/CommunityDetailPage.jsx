@@ -59,7 +59,7 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
             <div className="relative w-40 h-52 rounded-2xl overflow-hidden">
                 {trek.image ? (
                     <img
-                        src={getImageUrl(trek.image)}
+                        src={getImageUrl(trek.image, { preset: 'cardLg' })}
                         alt={trek.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title)}
@@ -185,7 +185,7 @@ export default function CommunityDetailPage() {
             <div className="relative w-full h-[396px] shrink-0">
                 {image ? (
                     <img
-                        src={getImageUrl(image)}
+                        src={getImageUrl(image, { preset: 'hero' })}
                         alt={name}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}

@@ -4,7 +4,7 @@ import { Heart, MapPin, Bell } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
-import { getImageUrl } from '../../utils/imageImports';
+import ContentImage from '../ContentImage';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import HomeCategoryBar from '../HomeCategoryBar';
 import HeroSearchBar from '../HeroSearchBar';
@@ -103,9 +103,10 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
         >
             {/* Image */}
             <div className="relative h-[190px] lg:h-[220px] overflow-hidden">
-                <img
-                    src={getImageUrl(img)}
+                <ContentImage
+                    src={img}
                     alt={fest.festName}
+                    preset="cardLg"
                     className="w-full h-full object-cover"
                     onError={(e) => handleImageErrorWithFallback(e, 320, 190, '#6366f1', fest.festName || 'Fest')}
                 />
@@ -276,7 +277,12 @@ export default function FestsPage() {
         [filtered]
     );
 
-    const isEmpty = !loading && ongoingFests.length === 0 && upcomingFests.length === 0;
+    const lastYearFests = useMemo(() =>
+        filtered.filter(f => f.status === 'lastyearhit').sort(sortByPriority),
+        [filtered]
+    );
+
+    const isEmpty = !loading && ongoingFests.length === 0 && upcomingFests.length === 0 && lastYearFests.length === 0;
 
     return (
         <div className={`flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
@@ -393,6 +399,19 @@ export default function FestsPage() {
                     toggleFavorite={toggleFavorite}
                     navigate={navigate}
                 />
+
+                {/* ── Last Year Hits ── */}
+                {lastYearFests.length > 0 && (
+                    <FestSection
+                        title="Last Year Hits"
+                        fests={lastYearFests}
+                        loading={loading}
+                        isDark={isDark}
+                        isFavorite={isFavorite}
+                        toggleFavorite={toggleFavorite}
+                        navigate={navigate}
+                    />
+                )}
 
                 {/* ── Empty state ── */}
                 {isEmpty && (

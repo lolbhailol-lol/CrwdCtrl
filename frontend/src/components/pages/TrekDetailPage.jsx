@@ -233,7 +233,7 @@ export default function TrekDetailPage() {
                         {images.map((img, i) => (
                             <div key={i} className="shrink-0 w-full h-full snap-start">
                                 {img
-                                    ? <img src={getImageUrl(img)} alt={trek.trekName} className="w-full h-full object-cover"
+                                    ? <img src={getImageUrl(img, { preset: 'detail' })} alt={trek.trekName} className="w-full h-full object-cover content-image" loading="lazy" decoding="async"
                                         onError={e => handleImageErrorWithFallback(e, 393, 280, '#1a3a2a', trek.trekName)} />
                                     : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
                                         <span className="text-7xl opacity-40">⛰️</span>

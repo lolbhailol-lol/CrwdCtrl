@@ -169,7 +169,7 @@ function ActivityCard({ item, isDark, isFavorite, onToggleFavorite, onClick }) {
             <div className="relative w-80 h-56 overflow-hidden">
                 {item.image ? (
                     <img
-                        src={getImageUrl(item.image)}
+                        src={getImageUrl(item.image, { preset: 'cardLg' })}
                         alt={item.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#14532d', item.title || 'Sports')}
@@ -249,7 +249,7 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
             <div className="relative w-40 h-52 rounded-2xl overflow-hidden">
                 {club.image ? (
                     <img
-                        src={getImageUrl(club.image)}
+                        src={getImageUrl(club.image, { preset: 'card' })}
                         alt={club.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#14532d', club.title || 'Run Club')}

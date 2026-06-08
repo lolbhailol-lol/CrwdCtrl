@@ -14,6 +14,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../utils/imageImports';
+import ContentImage from '../ContentImage';
 import { searchAll } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
 import { useAuth } from '../../context/AuthContext';
@@ -24,6 +25,7 @@ import HeroSearchBar from '../HeroSearchBar';
 import HomeCategoryBar from '../HomeCategoryBar';
 import HomeCarouselSection from '../HomeCarouselSection';
 import HomeEventCard from '../HomeEventCard';
+import { buildHomeCarouselItems } from '../../utils/homeCarouselItems';
 // âœ… FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -163,6 +165,11 @@ const clearCache = () => {
     }
 };
 
+function readInitialFestsFromCache() {
+    const cached = getCachedData(CACHE_KEYS.FESTS_LIST);
+    return Array.isArray(cached) && cached.length > 0 ? cached : [];
+}
+
 const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName, venue: _venue, dateTime, ticketPrice: _ticketPrice, isDark, onRegister: _onRegister, onToggleFavorite, isFavorite }) => {
     const navigate = useNavigate();
     const [imageError, setImageError] = useState(false);
@@ -211,10 +218,11 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                         </div>
                     </div>
                 ) : (
-                    <img
-                        src={getImageUrl(image)}
+                    <ContentImage
+                        src={image}
                         alt={artistName || 'Event image'}
-                        className="w-full h-full object-cover transition-transform duration-300"
+                        preset="cardLg"
+                        className="w-full h-full object-cover"
                         onError={handleImageError}
                         onLoad={handleImageLoad}
                         style={{
@@ -300,10 +308,11 @@ const Dashboard = () => {
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [error] = useState(null);
-    const [fests, setFests] = useState([]);
-    const [isFestsLoading, setIsFestsLoading] = useState(true);
+    const [fests, setFests] = useState(readInitialFestsFromCache);
+    const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
     const [homeCommunities, setHomeCommunities] = useState([]);
     const [homeTreks, setHomeTreks] = useState([]);
+    const [homeSports, setHomeSports] = useState([]);
     const [festError, setFestError] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -346,15 +355,24 @@ const Dashboard = () => {
             const list = Array.isArray(res?.data?.treks) ? res.data.treks : [];
             setHomeTreks(list);
         }).catch(() => {});
+        fetchJSON(`/sports?_cb=${cb}`).then(res => {
+            const list = Array.isArray(res?.data?.events) ? res.data.events : [];
+            setHomeSports(list);
+        }).catch(() => {});
     }, []);
 
     // Function to force refresh data (clear cache and fetch fresh) — retries for cold starts
     const forceRefreshData = useCallback(() => {
         console.log('ðŸ”„ Force refreshing dashboard data...');
         clearCache();
-        setIsFestsLoading(true);
         setFestError(null);
         refreshTreksAndComms();
+
+        // Keep showing current cards while refreshing — avoid loading flash (log evidence: hypothesis B)
+        setFests((current) => {
+            if (current.length === 0) setIsFestsLoading(true);
+            return current;
+        });
 
         const fetchFreshData = async (attempt = 0) => {
             const maxAttempts = 8;
@@ -583,6 +601,11 @@ const Dashboard = () => {
         fetchJSON(`/treks?_cb=${Date.now()}`).then(res => {
             const list = Array.isArray(res?.data?.treks) ? res.data.treks : [];
             setHomeTreks(list);
+        }).catch(() => {});
+
+        fetchJSON(`/sports?_cb=${Date.now()}`).then(res => {
+            const list = Array.isArray(res?.data?.events) ? res.data.events : [];
+            setHomeSports(list);
         }).catch(() => {});
 
         return () => { cancelled = true; };
@@ -1131,32 +1154,52 @@ const Dashboard = () => {
         }
     };
 
-    // Unified section arrays — all content types merged and sorted by a single priority number
+    // Unified section arrays — merged fests, treks & communities, sorted by home priority
     const byPriority = (a, b) => (a._priority || 999) - (b._priority || 999);
-    // festHomeSection: explicit homeSection wins; fallback to status-based routing for existing fests
-    const festHomeSection = (f) => {
-        if (f.homeSection) return f.homeSection;
-        if (f.showOnHomeSlide) return null;
-        return f.status === 'ongoing' ? 'trending'
-            : (f.status === 'upcoming' || f.status === 'beyondcampus') ? 'happening'
-            : null;
-    };
 
-    const tag = (type, items, priorityField = 'priority') =>
-        items.map(i => ({ ...i, _type: type, _priority: i[priorityField] || i.priority || 999 }));
+    const trendingItems = useMemo(() => {
+        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, 'trending', homeSports);
+        return raw.map((item) => {
+            if (item._type === 'fest') {
+                const f = transformedFests.find((t) => t.id === item._id);
+                return f ? { ...f, _type: 'fest', _priority: item._priority } : null;
+            }
+            if (item._type === 'sport') {
+                return {
+                    id: item._id,
+                    title: item.title || item._title,
+                    subtitle: item.city || item.sportType || item._subtitle,
+                    image: item.images?.[0] || item._image,
+                    registrationLink: item.registrationLink,
+                    _type: 'sport',
+                    _priority: item._priority,
+                };
+            }
+            return { ...item, _type: item._type, _priority: item._priority };
+        }).filter(Boolean).sort(byPriority);
+    }, [fests, homeTreks, homeCommunities, homeSports, transformedFests]);
 
-    // Use transformedFests so items have the right shape (id, title, image) for card rendering
-    const trendingItems = [
-        ...tag('fest', transformedFests.filter(f => festHomeSection(f) === 'trending'), 'homePriority'),
-        ...tag('trek', homeTreks.filter(t => t.homeSection === 'trending')),
-        ...tag('community', homeCommunities.filter(c => c.homeSection === 'trending')),
-    ].sort(byPriority);
-
-    const happeningItems = [
-        ...tag('fest', transformedFests.filter(f => festHomeSection(f) === 'happening'), 'homePriority'),
-        ...tag('trek', homeTreks.filter(t => t.homeSection === 'happening')),
-        ...tag('community', homeCommunities.filter(c => c.homeSection === 'happening')),
-    ].sort(byPriority);
+    const happeningItems = useMemo(() => {
+        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, 'happening', homeSports);
+        return raw.map((item) => {
+            if (item._type === 'fest') {
+                const f = transformedFests.find((t) => t.id === item._id);
+                return f ? { ...f, _type: 'fest', _priority: item._priority } : null;
+            }
+            if (item._type === 'sport') {
+                return {
+                    id: item._id,
+                    title: item.title || item._title,
+                    subtitle: item.city || item.sportType || item._subtitle,
+                    image: item.images?.[0] || item._image,
+                    registrationLink: item.registrationLink,
+                    _type: 'sport',
+                    _priority: item._priority,
+                };
+            }
+            return { ...item, _type: item._type, _priority: item._priority };
+        }).filter(Boolean).sort(byPriority);
+    }, [fests, homeTreks, homeCommunities, homeSports, transformedFests]);
 
     const navigateToHomeItem = useCallback((item) => {
         if (item._type === 'fest') {
@@ -1175,6 +1218,12 @@ const Dashboard = () => {
                     },
                 },
             });
+        } else if (item._type === 'sport') {
+            if (item.registrationLink) {
+                window.open(item.registrationLink, '_blank', 'noopener,noreferrer');
+            } else {
+                navigate('/sports');
+            }
         }
     }, [navigate]);
 
@@ -1183,6 +1232,7 @@ const Dashboard = () => {
         if (item._type === 'fest') return `${origin}/view-details/${item.id}`;
         if (item._type === 'trek') return `${origin}/trek/${item._id}`;
         if (item._type === 'community') return `${origin}/treks/community/${item._id}`;
+        if (item._type === 'sport') return item.registrationLink || `${origin}/sports`;
         return `${origin}/view-details/${item.id || item._id}`;
     }, []);
 
@@ -1328,7 +1378,7 @@ const Dashboard = () => {
                                     >
                                         {result.coverImage || result.image ? (
                                             <img
-                                                src={getImageUrl(result.coverImage || result.image)}
+                                                src={getImageUrl(result.coverImage || result.image, { preset: 'thumb' })}
                                                 alt={result.festName || result.name}
                                                 className="w-10 h-10 rounded-lg object-cover shrink-0"
                                                 onError={(e) => { e.target.style.display = 'none'; }}
@@ -1377,8 +1427,8 @@ const Dashboard = () => {
                         />
                     )}
                     {isFestsLoading && (
-                        <div className="px-4 mb-6">
-                            <div className={`h-52 rounded-2xl animate-pulse ${isDark ? 'bg-[#111213]' : 'bg-gray-200'}`} />
+                        <div className="px-4 lg:px-10 mb-6">
+                            <div className={`h-56 sm:h-64 lg:h-72 rounded-2xl lg:rounded-3xl animate-pulse ${isDark ? 'bg-[#111213]' : 'bg-gray-200'}`} />
                         </div>
                     )}
 

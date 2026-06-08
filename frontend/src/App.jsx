@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react'
+import React, { useState, useEffect, Suspense, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { DarkModeProvider, useDarkMode } from './context/DarkModeContext'
 import { FavoritesProvider } from './context/FavoritesContext'
@@ -12,9 +12,10 @@ import Footer from './components/Footer'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
-import AppLoadingPage from './components/AppLoadingPage'
 import AuthLoadingPage from './components/AuthLoadingPage'
+import AppLoadingPage from './components/AppLoadingPage'
 import LoadingBar from './components/LoadingBar'
+import { shouldShowRefreshSplash, REFRESH_SPLASH_MS } from './utils/bootSplash'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
@@ -24,8 +25,8 @@ import PageTransitionProvider, { PageTransitionContent, usePageTransition } from
 
 import './App.css'
 
-// Lazy load components for code splitting
-const Dashboard = React.lazy(() => import('./components/pages/Dashboard'))
+// Home route eager-loaded for fastest first paint; other pages stay lazy
+import Dashboard from './components/pages/Dashboard'
 const CulturalFestPage = React.lazy(() => import('./components/pages/cultural-fest'))
 const TechFestPage = React.lazy(() => import('./components/pages/tech-fest'))
 const SportsFestPage = React.lazy(() => import('./components/pages/sports-fest'))
@@ -59,7 +60,6 @@ const CompetitionsPage = React.lazy(() => import('./components/admin/Competition
 const RegistrationsPage = React.lazy(() => import('./components/admin/RegistrationsPage'))
 const AnalyticsDashboardPage = React.lazy(() => import('./components/admin/AnalyticsDashboardPage'))
 const CheckinScannerPage = React.lazy(() => import('./components/admin/CheckinScannerPage'))
-const EventsPage = React.lazy(() => import('./components/admin/EventsPage'))
 const SportsPage = React.lazy(() => import('./components/admin/SportsPage'))
 const TreksPage = React.lazy(() => import('./components/admin/TreksPage'))
 const TheatrePage = React.lazy(() => import('./components/admin/TheatrePage'))
@@ -72,7 +72,7 @@ const CommunityDetailPage = React.lazy(() => import('./components/pages/Communit
 const TrekCategoryPage = React.lazy(() => import('./components/pages/TrekCategoryPage'))
 
 // Component to conditionally render MobileBottomNav
-function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick }) {
+function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick, onProfileClose }) {
   const location = useLocation();
   const { isTransitioning } = usePageTransition();
 
@@ -95,7 +95,14 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     return null;
   }
 
-  return <MobileBottomNav onShowLogin={onShowLogin} onProfileClick={onProfileClick} />;
+  return (
+    <MobileBottomNav
+      onShowLogin={onShowLogin}
+      onProfileClick={onProfileClick}
+      onProfileClose={onProfileClose}
+      isProfileOpen={isProfileOpen}
+    />
+  );
 }
 
 function ConditionalFooter() {
@@ -119,7 +126,7 @@ function ConditionalFooter() {
 }
 
 // Component to conditionally render Navbar and Sidebar
-function ConditionalNavigation({ isProfileOpen, setIsProfileOpen }) {
+function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile }) {
   const location = useLocation();
 
   // Hide navigation on login, register, and email verification pages
@@ -137,7 +144,7 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen }) {
       </div>
       {/* Navbar - Fixed position for all pages except login/register */}
       <div className="hidden lg:block">
-        <Navbar isProfileOpen={isProfileOpen} setIsProfileOpen={setIsProfileOpen} />
+        <Navbar isProfileOpen={isProfileOpen} setIsProfileOpen={setIsProfileOpen} onOpenProfile={onOpenProfile} />
       </div>
     </>
   );
@@ -157,7 +164,12 @@ function AppContent({
   const location = useLocation();
   const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
   const { isDark } = useDarkMode();
+  const { startOverlayTransition } = usePageTransition();
   const isAdminRoute = location.pathname.startsWith('/admin');
+
+  const openProfile = useCallback(() => {
+    startOverlayTransition('/profile', () => setIsProfileOpen(true));
+  }, [startOverlayTransition, setIsProfileOpen]);
 
   useEffect(() => {
     if (isAuthenticated && showLogin) {
@@ -168,7 +180,8 @@ function AppContent({
     }
   }, [isAuthenticated, showLogin, showRegister, setShowLogin, setShowRegister]);
 
-  if (isAuthProcessing || isLoading || isRedirectProcessing) {
+  // Only block UI during OAuth return or active session sync — not on every visit
+  if (isRedirectProcessing || isAuthProcessing) {
     return <AuthLoadingPage />;
   }
 
@@ -179,6 +192,7 @@ function AppContent({
       <ConditionalNavigation
         isProfileOpen={isProfileOpen}
         setIsProfileOpen={setIsProfileOpen}
+        onOpenProfile={openProfile}
       />
 
       <div className={isAdminRoute ? '' : 'lg:ml-20'}>
@@ -239,7 +253,6 @@ function AppContent({
                   <Route path="registrations" element={<RegistrationsPage />} />
                   <Route path="analytics" element={<AnalyticsDashboardPage />} />
                   <Route path="checkin" element={<CheckinScannerPage />} />
-                  <Route path="events" element={<EventsPage />} />
                   <Route path="sports" element={<SportsPage />} />
                   <Route path="treks" element={<TreksPage />} />
                   <Route path="theatre" element={<TheatrePage />} />
@@ -257,7 +270,8 @@ function AppContent({
         <ConditionalMobileBottomNav
           onShowLogin={() => setShowLogin(true)}
           isProfileOpen={isProfileOpen}
-          onProfileClick={() => setIsProfileOpen(true)}
+          onProfileClick={openProfile}
+          onProfileClose={() => setIsProfileOpen(false)}
         />
       )}
 
@@ -287,91 +301,44 @@ function AppContent({
 
 function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isPageRefresh, setIsPageRefresh] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const [showRefreshSplash, setShowRefreshSplash] = useState(() => shouldShowRefreshSplash());
 
   useEffect(() => {
-    // ✅ Pre-emptive backend wake-up with retries (Railway cold starts take 15-30s)
-    const wakeBackend = async () => {
-      const api = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-      const maxAttempts = 8;
-      for (let i = 0; i < maxAttempts; i++) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          const r = await fetch(`${api}/health`, { method: 'GET', mode: 'cors', credentials: 'omit', signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (r.ok) {
-            console.log('✅ Backend is ready');
-            window.__backendReady = true;
-            window.dispatchEvent(new Event('backendReady'));
-            return;
-          }
-        } catch {
-          console.log(`⏳ Backend warming up... (attempt ${i + 1}/${maxAttempts})`);
-        }
-        // Wait longer between retries: 2s, 3s, 4s, 5s...
-        await new Promise(r => setTimeout(r, Math.min(2000 + i * 1000, 6000)));
-      }
-      // Even if all retries failed, let pages try anyway
-      console.log('⚠️ Backend wake-up retries exhausted, pages will retry independently');
+    if (!showRefreshSplash) return undefined;
+    const timer = setTimeout(() => setShowRefreshSplash(false), REFRESH_SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, [showRefreshSplash]);
+
+  useEffect(() => {
+    // Fire-and-forget backend wake-up — never blocks first paint
+    const api = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+    const markReady = () => {
       window.__backendReady = true;
       window.dispatchEvent(new Event('backendReady'));
     };
 
-    wakeBackend();
+    fetch(`${api}/health`, { method: 'GET', mode: 'cors', credentials: 'omit' })
+      .then((r) => { if (r.ok) markReady(); })
+      .catch(() => {});
 
-    // Check if this is a page refresh by checking if performance.navigation exists
-    // and its type or checking if sessionStorage has our flag
-    const checkIfPageRefresh = () => {
-      // Don't show loading page if we have Firebase auth parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const hasAuthParams = urlParams.has('apiKey') || urlParams.has('oobCode') ||
-                          window.location.hash.includes('access_token') ||
-                          window.location.search.includes('state=') ||
-                          window.location.search.includes('code=');
+    // Background retries for cold starts without delaying the UI
+    const retryDelays = [3000, 8000, 15000];
+    const timers = retryDelays.map((delay) =>
+      setTimeout(() => {
+        if (window.__backendReady) return;
+        fetch(`${api}/health`, { method: 'GET', mode: 'cors', credentials: 'omit' })
+          .then((r) => { if (r.ok) markReady(); })
+          .catch(() => markReady());
+      }, delay),
+    );
 
-      if (hasAuthParams) {
-        return false;
-      }
-
-      // Method 1: Check performance navigation API
-      if (performance.navigation && performance.navigation.type === 1) {
-        return true;
-      }
-
-      // Method 2: Check newer performance API
-      if (performance.getEntriesByType) {
-        const navigationEntries = performance.getEntriesByType('navigation');
-        if (navigationEntries.length > 0 && navigationEntries[0].type === 'reload') {
-          return true;
-        }
-      }
-
-      // Method 3: Check if sessionStorage flag exists (this helps detect fresh loads)
-      const wasInitialized = sessionStorage.getItem('app_initialized');
-      if (!wasInitialized) {
-        sessionStorage.setItem('app_initialized', 'true');
-        return true;
-      }
-
-      return false;
+    const fallback = setTimeout(markReady, 20000);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(fallback);
     };
-
-    const isRefresh = checkIfPageRefresh();
-    setIsPageRefresh(isRefresh);
-
-    if (isRefresh) {
-      const timer = setTimeout(() => {
-        setIsInitialLoading(false);
-      }, 200);
-
-      return () => clearTimeout(timer);
-    } else {
-      setIsInitialLoading(false);
-    }
   }, []);
 
   // Modal handlers
@@ -393,13 +360,11 @@ function App() {
     setShowLogin(true);
   };
 
-  if (isInitialLoading && isPageRefresh) {
+  if (showRefreshSplash) {
     return (
-      <AuthProvider>
-        <DarkModeProvider>
-          <AppLoadingPage />
-        </DarkModeProvider>
-      </AuthProvider>
+      <DarkModeProvider>
+        <AppLoadingPage />
+      </DarkModeProvider>
     );
   }
 

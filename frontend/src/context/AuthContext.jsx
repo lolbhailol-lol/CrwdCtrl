@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChange, handleRedirectResult, signOut, auth, firebaseReady } from '../firebase';
 import { authAPI } from '../utils/api';
 import { processSocialAuthUser } from '../utils/socialAuth';
+import { hasPendingOAuthRedirect, restoreSessionFromStorage } from '../utils/authBootstrap';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -9,11 +10,14 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const oauthReturn = hasPendingOAuthRedirect();
+    const savedSession = oauthReturn ? null : restoreSessionFromStorage();
+
+    const [user, setUser] = useState(() => savedSession?.user ?? null);
+    const [token, setToken] = useState(() => savedSession?.token ?? null);
+    const [isLoading, setIsLoading] = useState(oauthReturn);
     const [isAuthProcessing, setIsAuthProcessing] = useState(false);
-    const [isRedirectProcessing, setIsRedirectProcessing] = useState(true); // ✅ NEW: Track redirect completion
+    const [isRedirectProcessing, setIsRedirectProcessing] = useState(oauthReturn);
     const [firebaseUser, setFirebaseUser] = useState(null);
     const [isEmailVerified, setIsEmailVerified] = useState(false);
     const [authInitialized, setAuthInitialized] = useState(false);
@@ -139,23 +143,16 @@ export const AuthProvider = ({ children }) => {
                 // ✅ CRITICAL FOR MOBILE: Check for redirect result FIRST before checking localStorage
                 // On mobile, after Google OAuth redirect, this is the ONLY way to get the user
                 console.log('🔍 Checking for pending redirect result (CRITICAL for mobile OAuth)...');
-                setIsRedirectProcessing(true);
-                
-                // ✅ MOBILE FIX: Progressive delay for real mobile devices
-                // Real mobile browsers (not DevTools emulation) need more time to restore state
                 const isMobile = /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-                const redirectType = sessionStorage.getItem('auth_redirect_type');
-                const redirectTimestamp = sessionStorage.getItem('auth_redirect_timestamp');
-                
-                // ✅ If we have a pending redirect, wait longer for Firebase to restore state
-                if (isMobile && redirectType && redirectTimestamp) {
-                    console.log('📱 Mobile device with pending redirect, using extended delay (1000ms)');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                } else if (isMobile) {
-                    console.log('📱 Mobile device detected, using extended initialization delay (500ms)');
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                } else {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                const pendingRedirect = hasPendingOAuthRedirect();
+
+                if (pendingRedirect) {
+                    setIsRedirectProcessing(true);
+                }
+
+                // Only delay when returning from OAuth — normal visits render immediately
+                if (pendingRedirect && isMobile) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
                 }
                 
                 const result = await handleRedirectResult();
@@ -283,37 +280,19 @@ export const AuthProvider = ({ children }) => {
                         }
                     }
                     
-                    // Step 2: Restore existing session from localStorage
-                    console.log('🔍 Checking localStorage for existing session...');
-                    
-                    const savedUser = localStorage.getItem('crwdctrl_user');
-                    const savedToken = localStorage.getItem('crwdctrl_token');
-
-                    console.log('📦 Session check:', {
-                        hasUser: !!savedUser,
-                        hasToken: !!savedToken,
-                        isFirebaseToken: savedToken?.startsWith('firebase_')
-                    });
-
-                    if (savedUser && savedToken) {
-                        // ✅ FIX: Reject Firebase fallback tokens - they cause jwt malformed errors
-                        if (savedToken.startsWith('firebase_')) {
-                            console.warn('⚠️ Found invalid Firebase fallback token in localStorage');
-                            console.log('🔐 Clearing invalid token - user needs to re-authenticate');
-                            clearLocalSession();
+                    // Step 2: Confirm localStorage session (may already be restored on mount)
+                    if (!user && !token) {
+                        const restored = restoreSessionFromStorage();
+                        if (restored) {
+                            setUser(restored.user);
+                            setToken(restored.token);
+                            console.log('✅ Session restored from localStorage:', restored.user.email);
                         } else {
-                            try {
-                                const parsedUser = JSON.parse(savedUser);
-                                setUser(parsedUser);
-                                setToken(savedToken);
-                                console.log('✅ Session restored from localStorage:', parsedUser.email);
-                            } catch (error) {
-                                console.error('❌ Error parsing saved user data:', error);
-                                clearLocalSession();
-                            }
+                            console.log('📭 No existing session found - user will need to login');
                         }
-                    } else {
-                        console.log('📭 No existing session found - user will need to login');
+                    } else if (token?.startsWith('firebase_')) {
+                        console.warn('⚠️ Invalid Firebase fallback token — clearing session');
+                        clearLocalSession();
                     }
                     
                     // ✅ Mark redirect processing complete even though no redirect occurred
@@ -331,9 +310,7 @@ export const AuthProvider = ({ children }) => {
             }
         };
 
-        // Small delay to allow Firebase to initialize
-        const timer = setTimeout(initializeAuth, 100);
-        return () => clearTimeout(timer);
+        initializeAuth();
     }, [authInitialized]);
 
     // ✅ HELPER FUNCTION TO CLEAR LOCAL SESSION

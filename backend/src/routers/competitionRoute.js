@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const Competition = require('../model/competition_model');
+const adminAuth = require('../middleware/adminAuth');
 const {
     registerForCompetition,
     getAllRegistrations,
@@ -85,13 +86,13 @@ router.get('/search', async (req, res) => {
     }
 });
 
-// Competition registration routes
+// Competition registration (public)
 router.post('/register', upload.single('paymentScreenshot'), registerForCompetition);
 
-// Admin routes for managing registrations
-router.get('/registrations', getAllRegistrations);
-router.get('/registrations/stats', getRegistrationStats);
-router.get('/registrations/:registrationId', getRegistrationById);
-router.put('/registrations/:registrationId/status', updateRegistrationStatus);
+// Admin — manage competition registrations
+router.get('/registrations', adminAuth, getAllRegistrations);
+router.get('/registrations/stats', adminAuth, getRegistrationStats);
+router.get('/registrations/:registrationId', adminAuth, getRegistrationById);
+router.put('/registrations/:registrationId/status', adminAuth, updateRegistrationStatus);
 
 module.exports = router;

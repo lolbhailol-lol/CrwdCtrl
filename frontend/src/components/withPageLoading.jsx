@@ -3,7 +3,7 @@ import LoadingBar from './LoadingBar';
 
 const withPageLoading = (WrappedComponent, { 
     loadingMessage = "Loading page...", 
-    minLoadingTime = 200,
+    minLoadingTime = 0,
     showPoweredBy = true 
 } = {}) => {
     return function WithPageLoadingComponent(props) {

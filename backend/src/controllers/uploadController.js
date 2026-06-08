@@ -78,13 +78,10 @@ exports.uploadImage = async (req, res) => {
 
     // Upload to Cloudinary
     const folder = req.body.folder || 'crwdctrl';
+    // Store originals at full quality — optimize on delivery via Cloudinary URL transforms
     const result = await cloudinary.uploader.upload(base64Image, {
       folder: folder,
       resource_type: 'image',
-      transformation: [
-        { quality: 'auto' },
-        { fetch_format: 'auto' }
-      ]
     });
 
     res.status(200).json({
@@ -127,10 +124,6 @@ exports.uploadMultipleImages = async (req, res) => {
       return cloudinary.uploader.upload(base64Image, {
         folder: folder,
         resource_type: 'image',
-        transformation: [
-          { quality: 'auto' },
-          { fetch_format: 'auto' }
-        ]
       });
     });
 
@@ -173,14 +166,6 @@ exports.uploadFile = async (req, res) => {
       folder: folder,
       resource_type: resourceType,
     };
-
-    // Add transformations only for images
-    if (resourceType === 'image') {
-      uploadOptions.transformation = [
-        { quality: 'auto' },
-        { fetch_format: 'auto' }
-      ];
-    }
 
     const result = await cloudinary.uploader.upload(base64File, uploadOptions);
 

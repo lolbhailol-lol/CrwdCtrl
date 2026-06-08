@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import TheatreFormModal from './TheatreFormModal';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -21,6 +22,7 @@ function nextShowDate(showTimings) {
 
 export default function TheatrePage() {
     const [shows, setShows] = useState([]);
+    const [search, setSearch] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [selected, setSelected] = useState(null);
 
@@ -44,10 +46,18 @@ export default function TheatrePage() {
         fetchShows();
     };
 
+    const q = search.trim().toLowerCase();
+    const filteredShows = useMemo(() => {
+        if (!q) return shows;
+        return shows.filter((s) =>
+            [s.title, s.organizer, s.venue, s.city, s.language].some((v) => String(v || '').toLowerCase().includes(q)),
+        );
+    }, [shows, q]);
+
     const byStatus = {
-        published: shows.filter(s => s.status === 'published').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-        completed: shows.filter(s => s.status === 'completed').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-        cancelled: shows.filter(s => s.status === 'cancelled').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        published: filteredShows.filter(s => s.status === 'published').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        completed: filteredShows.filter(s => s.status === 'completed').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        cancelled: filteredShows.filter(s => s.status === 'cancelled').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
     };
 
     const ActionButtons = ({ show }) => (
@@ -106,7 +116,7 @@ export default function TheatrePage() {
 
     return (
         <div className="bg-[#111213] rounded-xl p-6">
-            <div className="flex justify-between mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                 <h2 className="text-xl font-semibold">Theatre</h2>
                 <button
                     onClick={() => { setSelected(null); setShowForm(true); }}
@@ -116,10 +126,22 @@ export default function TheatrePage() {
                 </button>
             </div>
 
+            <div className="relative max-w-md mb-4">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search shows…"
+                    className="w-full bg-[#1D1E20] border border-gray-600 rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-[#0ECCEE]"
+                />
+            </div>
+
             {shows.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                     No theatre events found. Create your first show!
                 </div>
+            ) : filteredShows.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">No shows match your search.</div>
             ) : (
                 <div className="space-y-8">
 

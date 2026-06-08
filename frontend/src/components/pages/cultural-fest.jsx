@@ -125,7 +125,7 @@ export default function CulturalFestPage() {
                                                     {/* Image */}
                                                     <div className="relative w-full h-[175px] overflow-hidden">
                                                         {img ? (
-                                                            <img src={getImageUrl(img)} alt={fest.festName}
+                                                            <img src={getImageUrl(img, { preset: 'cardLg' })} alt={fest.festName}
                                                                 className="w-full h-full object-cover"
                                                                 onError={e => handleImageErrorWithFallback(e, 320, 175, '#1a1a2e', fest.festName)} />
                                                         ) : (
@@ -182,7 +182,7 @@ export default function CulturalFestPage() {
                                                 {/* Square image */}
                                                 <div className="relative size-40 shrink-0">
                                                     {img ? (
-                                                        <img src={getImageUrl(img)} alt={fest.festName}
+                                                        <img src={getImageUrl(img, { preset: 'cardLg' })} alt={fest.festName}
                                                             className="w-full h-full object-cover"
                                                             onError={e => handleImageErrorWithFallback(e, 160, 160, '#1a1a2e', fest.festName)} />
                                                     ) : (

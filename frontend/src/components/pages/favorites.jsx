@@ -22,7 +22,7 @@ const MobileFestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
             {/* Event Image */}
             <div className="relative h-40">
                 <img
-                    src={getImageUrl(fest.heroImage || fest.image)}
+                    src={getImageUrl(fest.heroImage || fest.image, { preset: 'cardLg' })}
                     alt={fest.title || fest.name}
                     className="w-full h-full object-cover rounded-t-2xl"
                     onError={(e) => {
@@ -130,7 +130,7 @@ const FestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
                     </div>
                 ) : (
                     <img
-                        src={getImageUrl(fest.heroImage || fest.image)}
+                        src={getImageUrl(fest.heroImage || fest.image, { preset: 'cardLg' })}
                         alt={fest.title || fest.name}
                         className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                         onError={handleImageError}
