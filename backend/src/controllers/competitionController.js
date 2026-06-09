@@ -70,16 +70,15 @@ const registerForCompetition = async (req, res) => {
         });
 
         if (existingRegistration) {
-            // For testing purposes, we'll allow duplicate registrations
-            // In production, you might want to enable this check
-            // return res.status(400).json({
-            //     success: false,
-            //     message: 'You have already registered for this competition. Please check your email for confirmation.',
-            //     data: {
-            //         existingRegistrationId: existingRegistration.registrationId,
-            //         status: existingRegistration.status
-            //     }
-            // });
+            return res.status(400).json({
+                success: false,
+                message:
+                    'You have already registered for this competition. Please check your email for confirmation.',
+                data: {
+                    existingRegistrationId: existingRegistration.registrationId,
+                    status: existingRegistration.status,
+                },
+            });
         }
 
         // Generate registration ID
@@ -92,6 +91,7 @@ const registerForCompetition = async (req, res) => {
 
         // Prepare data for database
         const registrationData = {
+            user: req.user?.userId || null,
             name: name.trim(),
             instagramId: instagramId.trim(),
             contactNumber: contactNumber.trim(),

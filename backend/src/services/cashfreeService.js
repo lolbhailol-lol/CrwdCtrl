@@ -113,11 +113,35 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
   };
 }
 
+/**
+ * Verify Cashfree webhook signature (HMAC-SHA256, base64).
+ * Security: must use raw request body — parsed JSON will break signature match.
+ */
+function verifyWebhookSignature({ signature, timestamp, rawBody }) {
+  const secret = process.env.CASHFREE_WEBHOOK_SECRET?.trim();
+  if (!secret) {
+    const err = new Error('CASHFREE_WEBHOOK_SECRET is not configured');
+    err.code = 'WEBHOOK_SECRET_MISSING';
+    throw err;
+  }
+  if (!signature || !timestamp || rawBody === undefined || rawBody === null) {
+    return false;
+  }
+
+  const computed = crypto
+    .createHmac('sha256', secret)
+    .update(String(timestamp) + rawBody)
+    .digest('base64');
+
+  return computed === signature;
+}
+
 module.exports = {
   createCashfreeOrder,
   fetchOrder,
   fetchPaymentsForOrder,
   verifyCashfreePayment,
+  verifyWebhookSignature,
   generateOrderId,
   normalizePhone,
 };

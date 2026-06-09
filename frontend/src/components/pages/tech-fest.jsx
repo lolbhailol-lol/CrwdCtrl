@@ -6,6 +6,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { FestSubpageLoadingSkeleton } from '../HomeEventCardSkeleton';
+import { getCarouselScrollPage } from '../../utils/horizontalScroll';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -78,7 +79,7 @@ export default function TechFestPage() {
             <div className={`sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center gap-3 mt-2">
-                    <button onClick={() => navigate(-1)} className={`size-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
+                    <button type="button" onClick={() => navigate(-1)} aria-label="Go back" className={`touch-target size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
                         <ArrowLeft size={18} className={isDark ? 'text-white' : 'text-gray-700'} />
                     </button>
                     <h1 className={`text-2xl font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Tech</h1>
@@ -94,13 +95,13 @@ export default function TechFestPage() {
                             <section className="mb-6">
                                 <h2 className={`text-xl font-semibold px-4 mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
                                 <div ref={scrollRef} className="overflow-x-auto scrollbar-hide pl-4" style={{ scrollbarWidth: 'none' }}
-                                    onScroll={e => setFeaturedPg(Math.round(e.target.scrollLeft / 320))}>
+                                    onScroll={(e) => setFeaturedPg(getCarouselScrollPage(e.currentTarget))}>
                                     <div className="flex gap-4 pb-1 snap-x snap-mandatory">
                                         {featured.map(fest => {
                                             const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
                                             return (
                                                 <div key={fest._id} className={`card-carousel-fest rounded-2xl overflow-hidden snap-start ${card} shadow-sm`}>
-                                                    <div className="relative w-full h-[175px] overflow-hidden">
+                                                    <div className="fest-card-image">
                                                         {img ? <img src={getImageUrl(img, { preset: 'cardLg' })} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 320, 175, '#0a1628', fest.festName)} />
                                                             : <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}><span className="text-5xl">💻</span></div>}
                                                         <StatusBadge status={fest.status} />
@@ -136,7 +137,7 @@ export default function TechFestPage() {
                                         return (
                                             <div key={fest._id} onClick={() => navigate(`/view-details/${fest._id}`)}
                                                 className={`flex rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${card} shadow-sm`}>
-                                                <div className="relative size-40 shrink-0">
+                                                <div className="relative list-card-thumb shrink-0">
                                                     {img ? <img src={getImageUrl(img, { preset: 'cardLg' })} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 160, 160, '#0a1628', fest.festName)} />
                                                         : <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}><span className="text-4xl">💻</span></div>}
                                                     <StatusBadge status={fest.status} />

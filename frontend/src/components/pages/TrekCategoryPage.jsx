@@ -349,7 +349,7 @@ export default function TrekCategoryPage() {
                                     }`}
                                 >
                                     {/* Image */}
-                                    <div className="relative w-full h-56 overflow-hidden">
+                                    <div className="card-wide-image w-full">
                                         {img ? (
                                             <img
                                                 src={getImageUrl(img, { preset: 'cardLg' })}

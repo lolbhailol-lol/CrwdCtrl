@@ -8,8 +8,9 @@
 
 import { authAPI } from '../utils/api';
 import { storage } from '../utils/storage';
-import { signInWithGoogle, signInWithFacebook, registerWithEmail } from '../firebase';
+import { signInWithGoogle, signInWithFacebook, registerWithEmail, auth } from '../firebase';
 import { processSocialAuthUser } from '../utils/socialAuth';
+import { withFirebaseIdToken } from '../utils/firebaseIdToken';
 import { AUTH_CONFIG, API_CONFIG } from '../config/env.js';
 
 // ✅ FIX: Use config token keys to avoid dev/prod mismatch
@@ -154,8 +155,10 @@ class AuthService {
             }
 
             // Step 2: Sync with backend
-            const socialAuthData = processSocialAuthUser(firebaseResult.user, 'google');
-            socialAuthData.isVerified = true;
+            const socialAuthData = await withFirebaseIdToken(
+                processSocialAuthUser(firebaseResult.user, 'google'),
+                firebaseResult.user
+            );
 
             const backendResponse = await authAPI.socialAuth(socialAuthData);
 
@@ -254,8 +257,10 @@ class AuthService {
             }
 
             // Step 2: Sync with backend
-            const socialAuthData = processSocialAuthUser(firebaseResult.user, 'facebook');
-            socialAuthData.isVerified = true;
+            const socialAuthData = await withFirebaseIdToken(
+                processSocialAuthUser(firebaseResult.user, 'facebook'),
+                firebaseResult.user
+            );
 
             const backendResponse = await authAPI.socialAuth(socialAuthData);
 
@@ -312,15 +317,17 @@ class AuthService {
             }
 
             // Step 2: Register with backend
-            const userData = {
-                name: name.trim(),
-                email: email.trim(),
-                phoneNumber: phone.trim(),
-                password: password,
-                role: 'student',
-                firebaseUid: firebaseResult.user.uid,
-                isVerified: true
-            };
+            const userData = await withFirebaseIdToken(
+                {
+                    name: name.trim(),
+                    email: email.trim(),
+                    phoneNumber: phone.trim(),
+                    password: password,
+                    role: 'student',
+                    firebaseUid: firebaseResult.user.uid,
+                },
+                firebaseResult.user
+            );
 
             const backendResponse = await authAPI.register(userData);
 
@@ -399,12 +406,15 @@ class AuthService {
                 dateOfBirth: dateOfBirth
             });
 
-            const completeAuthData = {
+            let completeAuthData = {
                 ...socialAuthData,
                 phoneNumber: phone.trim(),
                 dateOfBirth: dateOfBirth,
-                isVerified: true
             };
+
+            if (auth.currentUser) {
+                completeAuthData = await withFirebaseIdToken(completeAuthData, auth.currentUser);
+            }
 
             // ✅ FIX: Pre-flight health check to give better error messages
             try {

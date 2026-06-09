@@ -592,7 +592,7 @@ function EventDetailsPage() {
                           : 'bg-[#EDEDF2] border-8 border-[#EDEDF2]'
                       }`}
                       >
-                        <div className="relative h-[280px] sm:h-[300px] overflow-hidden">
+                        <div className="relative detail-hero-height overflow-hidden">
                           <img
                               src={getImageUrl(eventData.artists[currentArtist].image, { preset: 'card' })}
                               alt={eventData.artists[currentArtist].name}
@@ -701,7 +701,7 @@ function EventDetailsPage() {
                                 <div key={pi} className="flex items-start gap-1.5">
                                   <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 shrink-0`} />
                                   <div>
-                                    {name && <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
+                                    {name && <span className={`text-fluid-2xs ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
                                     <a
                                       href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
                                       className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
@@ -1009,7 +1009,7 @@ function EventDetailsPage() {
                           <div key={pi} className="flex items-start gap-1.5">
                             <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 shrink-0`} />
                             <div>
-                              {name && <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
+                              {name && <span className={`text-fluid-2xs ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
                               <a
                                 href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
                                 className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}

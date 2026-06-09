@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChange, handleRedirectResult, signOut, auth, firebaseReady } from '../firebase';
 import { authAPI } from '../utils/api';
 import { processSocialAuthUser } from '../utils/socialAuth';
+import { withFirebaseIdToken } from '../utils/firebaseIdToken';
 import { hasPendingOAuthRedirect, restoreSessionFromStorage } from '../utils/authBootstrap';
 
 // Configure API base URL
@@ -66,8 +67,10 @@ export const AuthProvider = ({ children }) => {
                     
                     // For social auth users, sync with backend
                     if (provider === 'google' || provider === 'facebook') {
-                        const socialAuthData = processSocialAuthUser(firebaseUser, provider);
-                        socialAuthData.isVerified = true;
+                        const socialAuthData = await withFirebaseIdToken(
+                            processSocialAuthUser(firebaseUser, provider),
+                            firebaseUser
+                        );
                         
                         try {
                             console.log('🔄 Syncing Firebase user with backend...');
@@ -175,8 +178,10 @@ export const AuthProvider = ({ children }) => {
                     console.log('🔍 Provider from redirect:', provider);
                     
                     // Process user data for backend
-                    const socialAuthData = processSocialAuthUser(result.user, provider);
-                    socialAuthData.isVerified = true;
+                    const socialAuthData = await withFirebaseIdToken(
+                        processSocialAuthUser(result.user, provider),
+                        result.user
+                    );
                     
                     try {
                         console.log('🔄 Syncing redirect result with backend...');
@@ -250,8 +255,10 @@ export const AuthProvider = ({ children }) => {
                             sessionStorage.removeItem('auth_in_app_browser');
                             
                             // Process the user
-                            const socialAuthData = processSocialAuthUser(firebaseUser, provider);
-                            socialAuthData.isVerified = true;
+                            const socialAuthData = await withFirebaseIdToken(
+                                processSocialAuthUser(firebaseUser, provider),
+                                firebaseUser
+                            );
                             
                             try {
                                 console.log('🔄 Syncing mobile fallback user with backend...');

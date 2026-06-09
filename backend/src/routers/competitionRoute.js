@@ -2,6 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const Competition = require('../model/competition_model');
 const adminAuth = require('../middleware/adminAuth');
+const { authenticateToken } = require('../middleware/authmiddleware');
+const { competitionRegisterLimiter } = require('../middleware/rateLimiter');
 const {
     registerForCompetition,
     getAllRegistrations,
@@ -86,8 +88,14 @@ router.get('/search', async (req, res) => {
     }
 });
 
-// Competition registration (public)
-router.post('/register', upload.single('paymentScreenshot'), registerForCompetition);
+// Legacy competition registration — authenticated + rate limited (security hardening)
+router.post(
+  '/register',
+  competitionRegisterLimiter,
+  authenticateToken,
+  upload.single('paymentScreenshot'),
+  registerForCompetition
+);
 
 // Admin — manage competition registrations
 router.get('/registrations', adminAuth, getAllRegistrations);

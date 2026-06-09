@@ -54,10 +54,10 @@ const normalizeCommunity = (raw) => {
 function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
     return (
         <div
-            className="shrink-0 flex flex-col w-40 cursor-pointer active:scale-95 transition-transform"
+            className="card-portrait flex flex-col cursor-pointer active:scale-95 transition-transform"
             onClick={onClick}
         >
-            <div className="relative w-40 h-52 rounded-2xl overflow-hidden">
+            <div className="card-portrait-image">
                 {trek.image ? (
                     <img
                         src={getImageUrl(trek.image, { preset: 'cardLg' })}

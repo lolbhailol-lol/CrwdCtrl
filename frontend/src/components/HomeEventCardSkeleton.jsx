@@ -128,7 +128,7 @@ export function FestCardSkeleton() {
             className={`card-carousel-fest snap-start overflow-hidden rounded-2xl lg:rounded-3xl
                 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-md lg:shadow-lg'}`}
         >
-            <div className="relative h-[190px] lg:h-[220px] overflow-hidden">
+            <div className="fest-card-image">
                 <Shimmer className="absolute inset-0 rounded-none" />
                 <Shimmer className="absolute right-3 top-3 size-9 rounded-full" />
             </div>
@@ -161,7 +161,7 @@ export function FeaturedFestCardSkeleton() {
             className={`card-carousel-fest snap-start overflow-hidden rounded-2xl shadow-sm
                 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}
         >
-            <div className="relative h-[175px] w-full overflow-hidden">
+            <div className="fest-card-image">
                 <Shimmer className="absolute inset-0 rounded-none" />
                 <Shimmer className="absolute right-2.5 top-2.5 size-8 rounded-2xl" />
             </div>
@@ -190,7 +190,7 @@ export function FestListItemSkeleton() {
             className={`flex overflow-hidden rounded-2xl shadow-sm
                 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}
         >
-            <Shimmer className="size-40 shrink-0 rounded-none" />
+            <Shimmer className="list-card-thumb shrink-0 rounded-none" />
             <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 px-4 py-3">
                 <Shimmer className="h-5 w-[75%] rounded-md" />
                 <Shimmer className="h-4 w-[55%] rounded-md" />
@@ -203,8 +203,8 @@ export function FestListItemSkeleton() {
 /* ── Community / beginner / run-club portrait card ── */
 export function CompactPortraitCardSkeleton({ withShare = true }) {
     return (
-        <div className="w-40 shrink-0">
-            <div className="relative h-52 w-40 overflow-hidden rounded-2xl">
+        <div className="card-portrait">
+            <div className="card-portrait-image">
                 <Shimmer className="absolute inset-0 rounded-2xl" />
                 <Shimmer className="absolute right-2.5 top-2.5 size-6 rounded-full" />
             </div>
@@ -239,10 +239,10 @@ export function WideActivityCardSkeleton() {
 
     return (
         <div
-            className={`w-80 shrink-0 overflow-hidden rounded-2xl
+            className={`card-wide overflow-hidden rounded-2xl
                 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
         >
-            <div className="relative h-56 w-80 overflow-hidden">
+            <div className="card-wide-image">
                 <Shimmer className="absolute inset-0 rounded-none" />
                 <Shimmer className="absolute right-3 top-3 size-6 rounded-full" />
             </div>
@@ -274,7 +274,7 @@ export function TrekListItemSkeleton() {
             className={`overflow-hidden rounded-2xl
                 ${isDark ? 'bg-[#111213]' : 'bg-[#F5F6FA]'}`}
         >
-            <div className="relative h-56 w-full overflow-hidden">
+            <div className="card-wide-image w-full">
                 <Shimmer className="absolute inset-0 rounded-none" />
                 <Shimmer className="absolute right-2.5 top-2.5 size-6 rounded-full" />
             </div>

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../../services/authService';
 import { signInWithGoogle, signInWithFacebook } from '../../firebase';
 import { processSocialAuthUser } from '../../utils/socialAuth';
+import { withFirebaseIdToken } from '../../utils/firebaseIdToken';
 
 export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -197,7 +198,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
             }
 
             // Process social auth data and show additional fields
-            const processedSocialAuthData = processSocialAuthUser(result.user, 'google');
+            const processedSocialAuthData = await withFirebaseIdToken(
+                processSocialAuthUser(result.user, 'google'),
+                result.user
+            );
             setSocialAuthData(processedSocialAuthData);
             setAuthProvider('Google');
             setName(result.user.displayName || '');
@@ -280,7 +284,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
             }
 
             // Process social auth data and show additional fields
-            const processedSocialAuthData = processSocialAuthUser(result.user, 'facebook');
+            const processedSocialAuthData = await withFirebaseIdToken(
+                processSocialAuthUser(result.user, 'facebook'),
+                result.user
+            );
             setSocialAuthData(processedSocialAuthData);
             setAuthProvider('Facebook');
             setName(result.user.displayName || '');

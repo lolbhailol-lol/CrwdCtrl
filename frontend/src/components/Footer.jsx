@@ -7,11 +7,11 @@ export default function Footer() {
 
   return (
     <footer
-      className={`crwdctrl-footer mt-auto w-full border-t pb-[calc(72px+env(safe-area-inset-bottom))] pt-8 md:pb-10 lg:pb-10 ${
+      className={`crwdctrl-footer mt-auto w-full max-w-full overflow-x-clip border-t pt-8 pb-[var(--footer-nav-clearance)] md:pb-10 lg:pb-10 ${
         isDark ? 'border-gray-800 bg-[#161718]' : 'border-gray-200 bg-white'
       }`}
     >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <div className="crwdctrl-container max-w-7xl">
         <div className="flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-between">
           <div className="text-center md:text-left">
             <h2 className="text-xl font-bold text-blue-600">CrwdCtrl</h2>

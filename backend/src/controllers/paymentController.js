@@ -1,11 +1,14 @@
+const mongoose = require('mongoose');
 const User = require('../model/usermodel');
 const Event = require('../model/event_model');
 const Competition = require('../model/competition_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
+const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const { createCashfreeOrder, verifyCashfreePayment } = require('../services/cashfreeService');
 const { extractPaymentFields } = require('../utils/paymentVerification');
+const { signPaymentProof } = require('../utils/paymentProof');
 
 const CASHFREE_CONFIG_MSG =
   'Payment gateway credentials are invalid or missing. Set CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET in backend/.env';
@@ -189,12 +192,10 @@ exports.verifyPayment = async (req, res) => {
   }
 };
 
-// POST /api/payment/trek-order
+// POST /api/payment/trek-order — guest-friendly; price computed server-side only
 exports.createTrekOrder = async (req, res) => {
   try {
     const {
-      baseAmount,
-      amount,
       trekId,
       trekName = 'Trek Booking',
       people = 1,
@@ -204,40 +205,81 @@ exports.createTrekOrder = async (req, res) => {
       customerPhone,
     } = req.body;
 
-    let ticketPrice = Number(baseAmount || amount || 0);
-
-    if (trekId) {
-      const trek = await Trek.findById(trekId).select('trekName registrationFee');
-      if (!trek) {
-        return res.status(404).json({ success: false, message: 'Trek not found' });
-      }
-      ticketPrice = Number(trek.registrationFee || 0);
+    if (!trekId || !mongoose.Types.ObjectId.isValid(trekId)) {
+      return res.status(400).json({ success: false, message: 'Valid trekId is required' });
     }
 
-    if (!ticketPrice || ticketPrice <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid amount' });
+    const email = String(customerEmail || '').trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Valid customerEmail is required' });
     }
 
-    const resolvedTrekName = trekName || 'Trek Booking';
-    const { platformFee, totalAmount } = buildPriceBreakdown(ticketPrice * Number(people || 1));
+    const trek = await Trek.findOne({ _id: trekId, status: 'published' }).select(
+      'trekName registrationFee registration maxParticipants'
+    );
+    if (!trek) {
+      return res.status(404).json({ success: false, message: 'Trek not found or not published' });
+    }
+
+    const ticketPricePerPerson = Number(trek.registrationFee) || 0;
+    if (ticketPricePerPerson <= 0) {
+      return res.status(400).json({ success: false, message: 'This trek does not require payment' });
+    }
+
+    const peopleCount = Math.max(1, Number(people) || 1);
+    const maxPeople =
+      trek.registration?.maxPeoplePerBooking || trek.maxParticipants || 15;
+    if (peopleCount > maxPeople) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum ${maxPeople} people allowed per booking`,
+      });
+    }
+
+    // Security: ignore client-supplied baseAmount/amount — server is source of truth
+    const baseTicketTotal = ticketPricePerPerson * peopleCount;
+    const { platformFee, totalAmount } = buildPriceBreakdown(baseTicketTotal);
+    const resolvedTrekName = trek.trekName || trekName || 'Trek Booking';
+
     const order = await createCashfreeOrder({
       orderAmount: totalAmount,
       currency,
       customerDetails: {
-        customerId: trekId || `trek_${Date.now()}`,
-        customerName,
-        customerEmail,
+        customerId: `trek_guest_${trekId}`,
+        customerName: customerName || 'Trek Guest',
+        customerEmail: email,
         customerPhone,
       },
       orderNote: resolvedTrekName,
       orderTags: {
-        trekId: String(trekId || ''),
+        entityType: 'trek',
+        trekId: String(trekId),
         trekName: resolvedTrekName,
-        people: String(people),
-        ticketPrice: String(ticketPrice),
+        people: String(peopleCount),
+        ticketPrice: String(ticketPricePerPerson),
         platformFee: String(platformFee),
         totalAmount: String(totalAmount),
       },
+    });
+
+    await PaymentOrder.create({
+      orderId: order.order_id,
+      entityType: 'trek',
+      entityId: trek._id,
+      userId: req.user?.userId || null,
+      ticketPrice: ticketPricePerPerson,
+      platformFee,
+      totalAmount,
+      people: peopleCount,
+      currency,
+      status: 'PENDING',
+      orderTags: {
+        trekId: String(trekId),
+        people: String(peopleCount),
+        totalAmount: String(totalAmount),
+      },
+      customerEmail: email,
     });
 
     res.json({
@@ -245,7 +287,7 @@ exports.createTrekOrder = async (req, res) => {
       paymentSessionId: order.payment_session_id,
       amount: order.order_amount,
       currency: order.order_currency,
-      ticketPrice,
+      ticketPrice: ticketPricePerPerson,
       platformFee,
       totalAmount,
     });
@@ -267,10 +309,27 @@ exports.verifyTrekPayment = async (req, res) => {
       return res.status(400).json({ verified: false, message: result.message || 'Payment verification failed' });
     }
 
+    const paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
+    let paymentProof = null;
+    if (paymentOrder && paymentOrder.entityType === 'trek') {
+      await PaymentOrder.updateOne(
+        { orderId },
+        { status: 'PAID', paymentId: result.paymentId }
+      );
+      paymentProof = signPaymentProof({
+        orderId: result.orderId,
+        paymentId: result.paymentId,
+        trekId: paymentOrder.entityId,
+        totalAmount: paymentOrder.totalAmount,
+        people: paymentOrder.people,
+      });
+    }
+
     res.json({
       verified: true,
       payment_order_id: result.orderId,
       payment_id: result.paymentId,
+      paymentProof,
     });
   } catch (err) {
     res.status(500).json({ verified: false, message: 'Verification error' });

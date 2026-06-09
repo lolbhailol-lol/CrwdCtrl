@@ -92,7 +92,19 @@
 
   <!-- Instant boot splash — light / dark matches app theme -->
   <style>
-    html, body { margin: 0; background: #ffffff; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+    html, body {
+      margin: 0;
+      overflow-x: clip;
+      background: #ffffff;
+      min-height: 100%;
+      min-height: 100svh;
+      min-height: 100dvh;
+    }
     html.dark, html.dark body { background: #161718; }
     #boot-splash {
       position: fixed;
@@ -102,6 +114,7 @@
       align-items: center;
       justify-content: center;
       background: #ffffff;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
     html.dark #boot-splash { background: #161718; }
     #boot-splash img {

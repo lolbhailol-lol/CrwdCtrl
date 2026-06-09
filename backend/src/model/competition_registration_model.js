@@ -129,6 +129,12 @@ const competitionRegistrationSchema = new mongoose.Schema(
             type: String,
         },
 
+        // Linked authenticated user (security: trace submissions to accounts)
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+
         // Competition Reference (if you want to link to actual competition)
         competition: {
             type: mongoose.Schema.Types.ObjectId,

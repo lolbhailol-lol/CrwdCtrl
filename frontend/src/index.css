@@ -36,9 +36,17 @@
     --card-carousel-wide: clamp(17.5rem, 84vw, 24rem);
     --card-carousel-fest: clamp(17.5rem, 85vw, 20rem);
 
+    /* Portrait & wide activity cards (treks, sports, communities) */
+    --card-portrait-w: clamp(9rem, 42vw, 10rem);
+    --card-wide-w: var(--card-carousel-wide);
+    --card-list-thumb: clamp(8rem, 38vw, 10rem);
+
     --hero-banner-min-h: 11rem;
     --hero-banner-max-h: 17.5rem;
     --hero-banner-h: clamp(var(--hero-banner-min-h), 36vw, var(--hero-banner-max-h));
+
+    --detail-hero-h: clamp(12rem, 50vw, 17.5rem);
+    --footer-nav-clearance: calc(4.5rem + max(var(--safe-bottom), 0.5rem));
 }
 
 @layer base {
@@ -57,6 +65,7 @@
     }
 
     html {
+        font-size: clamp(0.9375rem, 0.9rem + 0.2vw, 1rem);
         overflow-x: clip;
         scroll-behavior: auto;
         scroll-padding-top: env(safe-area-inset-top, 0px);
@@ -70,22 +79,54 @@
     #root {
         height: auto;
         min-height: 100%;
+        min-height: 100svh;
         min-height: 100dvh;
     }
 
     body {
         overflow-x: clip;
+        overscroll-behavior-x: none;
         overscroll-behavior-y: none;
         font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }
 
     #root {
-        overflow: visible;
+        overflow-x: clip;
+        overflow-y: visible;
+        width: 100%;
+        max-width: 100%;
     }
 
-    /* iOS — prevent zoom on mobile search inputs (16px minimum) */
+    input,
+    select,
+    textarea,
+    button {
+        font: inherit;
+    }
+
+    input,
+    select,
+    textarea {
+        max-width: 100%;
+    }
+
+    /* Prevent zoom on focus — 16px minimum on mobile inputs */
+    input,
+    select,
+    textarea,
     .hero-search-bar input {
-        font-size: var(--text-base);
+        font-size: max(var(--text-base), 1rem);
+    }
+
+    table {
+        max-width: 100%;
+    }
+
+    svg {
+        max-width: 100%;
+        height: auto;
     }
 }
 
@@ -201,8 +242,240 @@
     }
 
     .bottom-nav-spacer {
-        height: calc(3.875rem + max(var(--safe-bottom), 0.5rem));
+        height: var(--footer-nav-clearance);
     }
+
+    /* Portrait cards — treks, communities, run clubs */
+    .card-portrait {
+        width: var(--card-portrait-w);
+        flex-shrink: 0;
+    }
+
+    .card-portrait-image {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 10 / 13;
+        overflow: hidden;
+        border-radius: 1rem;
+    }
+
+    /* Wide activity cards — weekend plans, sports activities */
+    .card-wide {
+        width: var(--card-wide-w);
+        flex-shrink: 0;
+    }
+
+    .card-wide-image {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 10 / 7;
+        overflow: hidden;
+    }
+
+    /* Fest featured card image area */
+    .fest-card-image {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+    }
+
+  @media (min-width: 48rem) {
+        .fest-card-image {
+            aspect-ratio: 8 / 5;
+        }
+    }
+
+    /* Detail page hero */
+    .detail-hero-height {
+        height: var(--detail-hero-h);
+        min-height: var(--detail-hero-h);
+    }
+
+    /* List row thumbnail */
+    .list-card-thumb {
+        width: var(--card-list-thumb);
+        height: var(--card-list-thumb);
+        flex-shrink: 0;
+    }
+
+    /* Overlay favourite — 44px touch target, small visual icon */
+    .overlay-fav-btn {
+        position: absolute;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: var(--touch-min);
+        min-height: var(--touch-min);
+        padding: 0;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .overlay-fav-btn--tr {
+        top: 0.25rem;
+        right: 0.25rem;
+    }
+
+    .overlay-fav-btn__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 9999px;
+    }
+
+    /* Horizontal scroll rows — never cause page overflow */
+    .horizontal-scroll-row {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        max-width: 100%;
+    }
+
+    .horizontal-scroll-row::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Bottom navigation — portal shell */
+    .bottom-nav-shell {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 99999;
+        padding-bottom: max(var(--safe-bottom), 0.5rem);
+        padding-left: max(var(--safe-left), clamp(0.625rem, 3vw, 1rem));
+        padding-right: max(var(--safe-right), clamp(0.625rem, 3vw, 1rem));
+        pointer-events: auto;
+    }
+
+    .bottom-nav-pill {
+        width: 100%;
+        max-width: min(32.5rem, 100%);
+        margin-inline: auto;
+        border-radius: 1.875rem;
+        overflow: hidden;
+    }
+
+    .bottom-nav-pill__inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: clamp(0.5rem, 2vw, 0.625rem) clamp(0.375rem, 2vw, 0.875rem);
+    }
+
+    .bottom-nav-item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: var(--touch-min);
+        min-height: var(--touch-min);
+        padding: clamp(0.375rem, 2vw, 0.4375rem) clamp(0.5rem, 3vw, 1.25rem);
+        border-radius: 1.875rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-appearance: none;
+        appearance: none;
+        transition: color 0.2s ease;
+    }
+
+    .bottom-nav-item__icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.875rem;
+        height: 1.875rem;
+    }
+}
+
+/* ── Breakpoint tuning — mobile-first ── */
+
+/* 320px+ (xs) — base tokens apply */
+
+/* 375px+ — slightly roomier gutters on common phones */
+@media (min-width: 23.4375rem) {
+    :root {
+        --page-gutter: clamp(1rem, 3.5vw, 1.5rem);
+    }
+}
+
+/* 430px+ — large phones */
+@media (min-width: 26.875rem) {
+    :root {
+        --card-portrait-w: clamp(9.5rem, 38vw, 10rem);
+    }
+}
+
+/* 768px+ — tablets */
+@media (min-width: 48rem) {
+    :root {
+        --page-gutter: clamp(1.25rem, 4vw, 2rem);
+        --hero-banner-h: clamp(12rem, 28vw, 17.5rem);
+    }
+
+    .crwdctrl-mobile-page {
+        max-width: min(42rem, 100%);
+    }
+}
+
+/* 1024px+ — laptops: hide mobile chrome */
+@media (min-width: 64rem) {
+    #crwdctrl-bottom-nav,
+    .bottom-nav-spacer {
+        display: none !important;
+    }
+
+    .crwdctrl-mobile-page {
+        max-width: none;
+    }
+}
+
+/* 1440px+ — large desktops */
+@media (min-width: 90rem) {
+    :root {
+        --page-gutter: 1.5rem;
+    }
+}
+
+/* Universal carousel / card overrides — all browsers */
+.min-w-\[200px\],
+.sm\:min-w-\[240px\] {
+    max-width: none;
+    flex-shrink: 0;
+    width: var(--card-carousel-sm);
+}
+
+@media (min-width: 40rem) {
+    .min-w-\[200px\],
+    .sm\:min-w-\[240px\] {
+        width: var(--card-carousel);
+    }
+}
+
+.h-\[150px\],
+.sm\:h-\[170px\],
+.h-\[175px\],
+.h-\[190px\],
+.lg\:h-\[220px\] {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+}
+
+.h-\[280px\],
+.sm\:h-\[300px\] {
+    height: var(--detail-hero-h);
+    min-height: var(--detail-hero-h);
+    aspect-ratio: auto;
 }
 
 /* Hide portal bottom nav on desktop */
@@ -276,7 +549,25 @@ html:not(.dark) .crwdctrl-footer {
     background: #94a3b8;
 }
 
-/* Light mode scrollbar */
+/* Cross-browser scrollbar (Firefox) */
+html,
+body,
+.overflow-y-auto,
+.overflow-auto,
+.overflow-x-auto {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.dark html,
+.dark body,
+.dark .overflow-y-auto,
+.dark .overflow-auto,
+.dark .overflow-x-auto {
+    scrollbar-color: #64748b #161718;
+}
+
+/* Light mode scrollbar (WebKit) */
 ::-webkit-scrollbar {
     width: 8px;
 }
@@ -633,7 +924,7 @@ html.dark .mobile-header-shell > div {
 
 .mobile-header-inner {
     --collapse: var(--header-collapse, 0);
-    padding-top: calc(max(env(safe-area-inset-top) - 0.25rem, 0.375rem) + 10px * var(--collapse));
+    padding-top: calc(max(env(safe-area-inset-top) - 0.25rem, 0.375rem) + 0.625rem * var(--collapse));
     padding-bottom: 0.625rem;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
@@ -681,12 +972,12 @@ html.dark .mobile-header-shell > div {
 
 .mobile-header-search-row {
     --collapse: var(--header-collapse, 0);
-    margin-top: calc(-0.125rem + 4px * var(--collapse));
-    margin-bottom: calc(0.5rem + 3px * var(--collapse));
+    margin-top: calc(-0.125rem + 0.25rem * var(--collapse));
+    margin-bottom: calc(0.5rem + 0.1875rem * var(--collapse));
 }
 
 .mobile-header-shell .hero-search-bar {
-    min-height: 2.5rem;
+    min-height: var(--touch-min);
     padding-block: 0.4375rem;
     gap: 0.625rem;
 }
@@ -770,39 +1061,9 @@ html.dark .mobile-header-shell > div {
         scroll-snap-type: x proximity;
     }
 
-    /* Carousel cards — fluid width, no page overflow */
-    .min-w-\[200px\],
-    .sm\:min-w-\[240px\] {
-        max-width: none;
-        flex-shrink: 0;
-        width: var(--card-carousel-sm);
-    }
-
-    @media (min-width: 640px) {
-        .min-w-\[200px\],
-        .sm\:min-w-\[240px\] {
-            width: var(--card-carousel);
-        }
-    }
-
     body {
         -webkit-text-size-adjust: 100%;
         text-size-adjust: 100%;
-    }
-
-    /* Card image heights — aspect-ratio preferred; fallback for legacy classes */
-    .h-\[150px\],
-    .sm\:h-\[170px\] {
-        height: clamp(9rem, 42vw, 10.625rem);
-        min-height: clamp(9rem, 42vw, 10.625rem);
-    }
-
-    @media (min-width: 640px) {
-        .h-\[150px\],
-        .sm\:h-\[170px\] {
-            height: clamp(9.375rem, 28vw, 10.625rem);
-            min-height: clamp(9.375rem, 28vw, 10.625rem);
-        }
     }
 
     /* iOS-specific safe area fix for ProfileSidebar bottom navigation */

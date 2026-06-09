@@ -44,7 +44,7 @@ const SubcategoryTile = ({ cat, isDark, onClick }) => (
             decoding="sync"
             className="crisp-icon category-icon-lg pointer-events-none"
         />
-        <span className={`text-[12px] lg:text-sm font-bold tracking-wide ${isDark ? 'text-white' : 'text-[#111827]'}`}>
+        <span className={`text-fluid-xs lg:text-sm font-bold tracking-wide ${isDark ? 'text-white' : 'text-[#111827]'}`}>
             {cat.label}
         </span>
     </button>
@@ -69,15 +69,19 @@ const DotRow = ({ total, active }) => {
 };
 
 // ── Horizontal scroll hook (tracks active index from scroll position) ────────
-function useScrollIndex(ref, cardWidth = 312) {
+function useScrollIndex(ref, cardSelector = '.card-carousel-fest', gap = 12) {
     const [idx, setIdx] = useState(0);
     useEffect(() => {
         const el = ref.current;
         if (!el) return;
-        const handler = () => setIdx(Math.round(el.scrollLeft / cardWidth));
+        const handler = () => {
+            const card = el.querySelector(cardSelector);
+            const step = (card?.offsetWidth ?? 312) + gap;
+            setIdx(Math.round(el.scrollLeft / step));
+        };
         el.addEventListener('scroll', handler, { passive: true });
         return () => el.removeEventListener('scroll', handler);
-    }, [ref, cardWidth]);
+    }, [ref, cardSelector, gap]);
     return idx;
 }
 
@@ -130,7 +134,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
             {/* Info */}
             <div className="px-3 pt-3 pb-3 lg:px-4 lg:pt-4 lg:pb-4">
                 <div className="flex items-start justify-between mb-1">
-                    <h3 className={`text-[15px] lg:text-[16px] font-bold leading-snug flex-1 pr-2 line-clamp-1
+                    <h3 className={`text-fluid-base lg:text-base font-bold leading-snug flex-1 pr-2 line-clamp-1
                                    ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {fest.festName}
                     </h3>

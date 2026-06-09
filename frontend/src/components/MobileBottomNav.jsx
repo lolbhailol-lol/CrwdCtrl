@@ -67,82 +67,34 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
     return createPortal(
         <>
             {/* ── Bottom nav rendered at body level via portal ── */}
-            <div
-                id="crwdctrl-bottom-nav"
-                style={{
-                    position: 'fixed',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    zIndex: 99999,
-                    paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
-                    paddingLeft: 'max(env(safe-area-inset-left), clamp(10px, 3vw, 16px))',
-                    paddingRight: 'max(env(safe-area-inset-right), clamp(10px, 3vw, 16px))',
-                    pointerEvents: 'auto',
-                }}
-            >
+            <div id="crwdctrl-bottom-nav" className="bottom-nav-shell">
                 <div
                     className="bottom-nav-pill"
                     style={{
-                        width: '100%',
-                        maxWidth: '520px',
-                        margin: '0 auto',
-                        borderRadius: '30px',
                         border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'}`,
                         backgroundColor: isDark ? '#0A0A0A' : '#F5F6FA',
-                        overflow: 'hidden',
                     }}
                 >
-                    <div
-                        style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '10px clamp(6px, 2vw, 14px)',
-                        }}
-                    >
+                    <div className="bottom-nav-pill__inner">
                         {navItems.map((item) => {
                             const active = isItemActive(item.path, item.id);
                             const IconComponent = item.icon;
                             return (
                                 <button
                                     key={item.id}
+                                    type="button"
                                     onClick={() => handleNavClick(item.path, item.id)}
                                     aria-label={item.label}
+                                    aria-current={active ? 'page' : undefined}
+                                    className="bottom-nav-item touch-target"
                                     style={{
-                                        flex: 1,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        minWidth: '44px',
-                                        minHeight: '44px',
-                                        padding: '7px clamp(8px, 3vw, 20px)',
-                                        borderRadius: '30px',
-                                        background: 'none',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        WebkitTapHighlightColor: 'transparent',
-                                        WebkitAppearance: 'none',
                                         color: active
                                             ? '#00C2CB'
                                             : isDark ? '#e5e7eb' : '#6b7280',
-                                        transition: 'color 0.2s ease',
                                     }}
                                 >
-                                    <span
-                                        className="crisp-icon-svg"
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            width: '30px',
-                                            height: '30px',
-                                        }}
-                                    >
-                                        <IconComponent
-                                            size={22}
-                                            strokeWidth={2}
-                                        />
+                                    <span className="bottom-nav-item__icon crisp-icon-svg">
+                                        <IconComponent size={22} strokeWidth={2} />
                                     </span>
                                 </button>
                             );

@@ -29,4 +29,13 @@ const paymentLimiter = rateLimit({
   message: { success: false, message: 'Too many payment requests, please try again later.' },
 });
 
-module.exports = { apiLimiter, authLimiter, paymentLimiter };
+/** Legacy competition screenshot registration — strict limit */
+const competitionRegisterLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: isDev ? 50 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many registration attempts. Please try again later.' },
+});
+
+module.exports = { apiLimiter, authLimiter, paymentLimiter, competitionRegisterLimiter };

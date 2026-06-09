@@ -18,3 +18,4 @@ require('../model/theatre_model');
 require('../model/category_registration_model');
 require('../model/notification_model');
 require('../model/analytics_model');
+require('../model/payment_order_model');

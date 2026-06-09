@@ -165,13 +165,12 @@ function DotRow({ total, active, isDark }) {
 function ActivityCard({ item, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div
-            className={`shrink-0 w-80 snap-center cursor-pointer active:scale-[0.98] transition-all duration-200 rounded-2xl overflow-hidden ${
+            className={`card-wide snap-center cursor-pointer active:scale-[0.98] transition-all duration-200 rounded-2xl overflow-hidden ${
                 isDark ? 'bg-[#111213]' : 'bg-[#F5F6FA]'
             }`}
             onClick={onClick}
         >
-            {/* Image — Figma: w-80 h-56 (320×224px) */}
-            <div className="relative w-80 h-56 overflow-hidden">
+            <div className="card-wide-image">
                 {item.image ? (
                     <img
                         src={getImageUrl(item.image, { preset: 'cardLg' })}
@@ -190,20 +189,14 @@ function ActivityCard({ item, isDark, isFavorite, onToggleFavorite, onClick }) {
                         e.stopPropagation();
                         onToggleFavorite?.();
                     }}
-                    className={`absolute top-3 right-3 size-6 rounded-full flex items-center justify-center border-[0.5px] border-slate-100 transition-all active:scale-90 ${
-                        isFavorite ? 'bg-red-500/80' : 'bg-black/10'
-                    }`}
+                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
+                    className="overlay-fav-btn overlay-fav-btn--tr"
                 >
-                    <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill={isFavorite ? 'white' : 'none'}
-                        stroke="white"
-                        strokeWidth="2"
-                    >
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
+                    <span className={`overlay-fav-btn__icon border border-slate-100/80 transition-all active:scale-90 ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2" aria-hidden="true">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                    </span>
                 </button>
             </div>
 
@@ -250,8 +243,8 @@ function ActivityCard({ item, isDark, isFavorite, onToggleFavorite, onClick }) {
 
 function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
-        <div className="shrink-0 w-40 snap-start cursor-pointer active:scale-95 transition-all" onClick={onClick}>
-            <div className="relative w-40 h-52 rounded-2xl overflow-hidden">
+        <div className="card-portrait snap-start cursor-pointer active:scale-95 transition-all" onClick={onClick}>
+            <div className="card-portrait-image">
                 {club.image ? (
                     <img
                         src={getImageUrl(club.image, { preset: 'card' })}

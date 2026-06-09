@@ -1,42 +1,4 @@
-const admin = require('firebase-admin');
-const path = require('path');
-const fs = require('fs');
-
-// Initialize Firebase Admin if not already done
-let firebaseAdminApp;
-try {
-  firebaseAdminApp = admin.app();
-} catch (_) {
-  // Firebase Admin not initialized — try to initialize
-  try {
-    let serviceAccount = null;
-
-    // Option 1: JSON string in env var
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-    }
-    // Option 2: Path to JSON file
-    else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-      const filePath = path.resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
-      if (fs.existsSync(filePath)) {
-        serviceAccount = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      } else {
-        console.warn(`⚠️ Firebase service account file not found: ${filePath}`);
-      }
-    }
-
-    if (serviceAccount) {
-      firebaseAdminApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-      console.log('✅ Firebase Admin initialized for push notifications');
-    } else {
-      console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT_KEY / FIREBASE_SERVICE_ACCOUNT_PATH not set — push notifications disabled');
-    }
-  } catch (initError) {
-    console.error('❌ Failed to initialize Firebase Admin:', initError.message);
-  }
-}
+const { getFirebaseAdmin, admin } = require('../config/firebaseAdmin');
 
 /**
  * Send push notification to a specific user
@@ -46,7 +8,7 @@ try {
  */
 const sendPushNotification = async (userId, notification) => {
   try {
-    if (!firebaseAdminApp) {
+    if (!getFirebaseAdmin()) {
       console.log('⚠️ Firebase Admin not initialized — skipping push notification');
       return { success: false, reason: 'firebase_not_initialized' };
     }

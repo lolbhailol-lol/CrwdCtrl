@@ -5,6 +5,7 @@ const { sendWelcomeEmail, sendLoginConfirmationEmail } = require('../services/em
 const { createNotification } = require('./notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { getJwtSecret } = require('../config/jwtSecret');
+const { resolveFirebaseIdentity } = require('../utils/firebaseIdentity');
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -41,7 +42,22 @@ const notifyLoginSuccess = async (user) => {
 // Register function
 const register = async (req, res) => {
     try {
-        const { name, email, phoneNumber, password, role, college, firebaseUid, isVerified } = req.body;
+        const { name, email, phoneNumber, password, role, college, firebaseUid, isVerified, idToken } = req.body;
+
+        let verifiedFirebaseUid = null;
+        let verifiedFromFirebase = false;
+        if (firebaseUid) {
+            try {
+                const identity = await resolveFirebaseIdentity({ idToken, clientUid: firebaseUid });
+                verifiedFirebaseUid = identity.uid;
+                verifiedFromFirebase = identity.emailVerified;
+            } catch (identityErr) {
+                return res.status(identityErr.status || 401).json({
+                    success: false,
+                    message: identityErr.message || 'Firebase authentication failed',
+                });
+            }
+        }
 
         // Validate required fields
         if (!name || !password) {
@@ -97,8 +113,8 @@ const register = async (req, res) => {
         if (phoneNumber) {
             existingUserQuery.push({ phoneNumber });
         }
-        if (firebaseUid) {
-            existingUserQuery.push({ firebaseUid });
+        if (verifiedFirebaseUid) {
+            existingUserQuery.push({ firebaseUid: verifiedFirebaseUid });
         }
 
         if (existingUserQuery.length > 0) {
@@ -110,7 +126,7 @@ const register = async (req, res) => {
                 let conflictField = 'credentials';
                 if (existingUser.email === email) conflictField = 'email';
                 else if (existingUser.phoneNumber === phoneNumber) conflictField = 'phone number';
-                else if (existingUser.firebaseUid === firebaseUid) conflictField = 'Firebase account';
+                else if (existingUser.firebaseUid === verifiedFirebaseUid) conflictField = 'Firebase account';
 
                 return res.status(400).json({
                     success: false,
@@ -124,7 +140,8 @@ const register = async (req, res) => {
             name,
             password,
             role: role || 'student',
-            isVerified: isVerified || false
+            // Security: isVerified only from Firebase token when linked, not client body
+            isVerified: verifiedFirebaseUid ? verifiedFromFirebase : Boolean(isVerified),
         };
 
         // Add college if provided
@@ -132,9 +149,8 @@ const register = async (req, res) => {
             userData.college = college;
         }
 
-        // Add Firebase UID if provided
-        if (firebaseUid) {
-            userData.firebaseUid = firebaseUid;
+        if (verifiedFirebaseUid) {
+            userData.firebaseUid = verifiedFirebaseUid;
         }
 
         // Add email only if provided and not empty
@@ -198,7 +214,18 @@ const register = async (req, res) => {
 // Login function
 const login = async (req, res) => {
     try {
-        const { email, phoneNumber, password, firebaseUid } = req.body;
+        const { email, phoneNumber, password, firebaseUid, idToken } = req.body;
+
+        if (firebaseUid?.trim()) {
+            try {
+                await resolveFirebaseIdentity({ idToken, clientUid: firebaseUid.trim() });
+            } catch (identityErr) {
+                return res.status(identityErr.status || 401).json({
+                    success: false,
+                    message: identityErr.message || 'Firebase authentication failed',
+                });
+            }
+        }
 
         // Validate required fields
         if ((!email && !phoneNumber) || !password) {
@@ -325,11 +352,27 @@ const socialAuth = async (req, res) => {
             providerId,
             photoURL,
             role,
-            isVerified
+            isVerified,
+            idToken,
         } = req.body;
 
+        let firebaseIdentity;
+        try {
+            firebaseIdentity = await resolveFirebaseIdentity({
+                idToken,
+                clientUid: providerId,
+            });
+        } catch (identityErr) {
+            return res.status(identityErr.status || 401).json({
+                success: false,
+                message: identityErr.message || 'Firebase authentication failed',
+            });
+        }
+
+        const trustedProviderId = firebaseIdentity.uid;
+
         // Validate required fields
-        if (!name || !provider || !providerId) {
+        if (!name || !provider || !trustedProviderId) {
             return res.status(400).json({
                 success: false,
                 message: 'Name, provider, and providerId are required',
@@ -404,7 +447,7 @@ const socialAuth = async (req, res) => {
         // Check if user already exists with this provider and providerId
         let existingUser = await User.findOne({
             'socialAuth.provider': provider.toLowerCase(),
-            'socialAuth.providerId': providerId
+            'socialAuth.providerId': trustedProviderId,
         });
 
         if (existingUser) {
@@ -445,9 +488,12 @@ const socialAuth = async (req, res) => {
                 // Link social auth to existing account
                 existingUser.socialAuth = {
                     provider: provider.toLowerCase(),
-                    providerId: providerId,
-                    photoURL: photoURL || null
+                    providerId: trustedProviderId,
+                    photoURL: photoURL || null,
                 };
+                if (!existingUser.firebaseUid) {
+                    existingUser.firebaseUid = trustedProviderId;
+                }
 
                 // Update other fields if not already set
                 if (!existingUser.profilePic && photoURL) {
@@ -458,9 +504,8 @@ const socialAuth = async (req, res) => {
                     existingUser.dateOfBirth = dateOfBirth;
                 }
 
-                if (isVerified === true) {
-                    existingUser.isVerified = true;
-                }
+                // Security: email verified status from Firebase token only
+                existingUser.isVerified = firebaseIdentity.emailVerified;
 
                 await existingUser.save();
 
@@ -490,10 +535,11 @@ const socialAuth = async (req, res) => {
             role: role || 'student',
             socialAuth: {
                 provider: provider.toLowerCase(),
-                providerId: providerId,
-                photoURL: photoURL || null
+                providerId: trustedProviderId,
+                photoURL: photoURL || null,
             },
-            isVerified: isVerified === true
+            firebaseUid: trustedProviderId,
+            isVerified: firebaseIdentity.emailVerified,
         };
 
         // Add email only if provided and not empty

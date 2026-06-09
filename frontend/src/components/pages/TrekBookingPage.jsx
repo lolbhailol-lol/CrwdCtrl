@@ -92,6 +92,36 @@ export default function TrekBookingPage() {
         );
     };
 
+    const submitTrekRegistration = async ({ paymentOrderId, paymentId, amountPaid }) => {
+        const trekId = id || trek._id || trek.id;
+        if (!trekId) throw new Error('Trek not found');
+
+        const token = localStorage.getItem('crwdctrl_token');
+        const regRes = await fetch(`${API}/treks/${trekId}/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+                formData: extraFields,
+                bookingDetails: {
+                    date: selDate,
+                    time: selTime,
+                    people,
+                    amountPaid: amountPaid ?? 0,
+                    paymentId: paymentId || '',
+                    payment_order_id: paymentOrderId || '',
+                },
+            }),
+        });
+        const regData = await regRes.json().catch(() => ({}));
+        if (!regRes.ok) {
+            throw new Error(regData.message || 'Registration failed after payment');
+        }
+        return regData;
+    };
+
     const next = async () => {
         setError('');
         if (step === 1) { setStep(2); return; }
@@ -100,18 +130,21 @@ export default function TrekBookingPage() {
             const missing = regSchema.filter(f => f.required && !extraFields[f.fieldName]?.toString().trim());
             if (missing.length > 0) { setError(`Please fill: ${missing.map(f => f.label).join(', ')}`); return; }
 
+            const customerEmail =
+                extraFields.email || extraFields.e_mail_id || extraFields.e_mail || '';
+            if (!customerEmail.trim()) {
+                setError('Email is required to complete your booking.');
+                return;
+            }
+
             if (total <= 0) {
-                const trekId = id || trek._id || trek.id;
-                if (trekId) {
-                    const token = localStorage.getItem('crwdctrl_token');
-                    fetch(`${API}/treks/${trekId}/register`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-                        body: JSON.stringify({ formData: extraFields, bookingDetails: { date: selDate, time: selTime, people, amountPaid: 0 } }),
-                    }).catch(() => {});
+                try {
+                    await submitTrekRegistration({ amountPaid: 0 });
+                    setStep(3);
+                    setTimeout(() => navigate('/booking'), 2000);
+                } catch (e) {
+                    setError(e.message || 'Registration failed');
                 }
-                setStep(3);
-                setTimeout(() => navigate('/booking'), 2000);
                 return;
             }
 
@@ -121,13 +154,17 @@ export default function TrekBookingPage() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        baseAmount: fee,
                         trekId: id || trek._id || trek.id,
                         trekName,
                         people,
                         customerName: extraFields.full_name || extraFields.name || extraFields.fullname || '',
-                        customerEmail: extraFields.email || extraFields.e_mail_id || extraFields.e_mail || '',
-                        customerPhone: extraFields.contact_no || extraFields.phone || extraFields.contact || extraFields.mobile || '',
+                        customerEmail,
+                        customerPhone:
+                            extraFields.contact_no ||
+                            extraFields.phone ||
+                            extraFields.contact ||
+                            extraFields.mobile ||
+                            '',
                     }),
                 });
                 const order = await res.json();
@@ -138,34 +175,34 @@ export default function TrekBookingPage() {
                     return;
                 }
 
-                await openCashfreeCheckout({ paymentSessionId: order.paymentSessionId });
+                const checkoutResult = await openCashfreeCheckout({ paymentSessionId: order.paymentSessionId });
+                const checkoutPaymentId =
+                    checkoutResult?.paymentDetails?.paymentId ||
+                    checkoutResult?.paymentDetails?.cf_payment_id ||
+                    '';
 
                 const vRes = await fetch(`${API}/payment/trek-verify`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ payment_order_id: order.orderId }),
+                    body: JSON.stringify({
+                        payment_order_id: order.orderId,
+                        payment_id: checkoutPaymentId,
+                    }),
                 });
                 const v = await vRes.json();
                 if (v.verified) {
                     const verified = buildVerifiedPaymentFields(v, order.orderId);
                     setPaymentId(verified.payment_id);
                     setPayDone(true);
-                    const trekId = id || trek._id || trek.id;
-                    if (trekId) {
-                        const token = localStorage.getItem('crwdctrl_token');
-                        fetch(`${API}/treks/${trekId}/register`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-                            body: JSON.stringify({
-                                formData: extraFields,
-                                bookingDetails: { date: selDate, time: selTime, people, amountPaid: total, paymentId: verified.payment_id },
-                            }),
-                        }).catch(() => {});
-                    }
+                    await submitTrekRegistration({
+                        paymentOrderId: verified.payment_order_id || order.orderId,
+                        paymentId: verified.payment_id,
+                        amountPaid: order.totalAmount ?? total,
+                    });
                     setStep(3);
                     setTimeout(() => navigate('/booking'), 2000);
                 } else {
-                    setError('Payment verification failed. Contact support.');
+                    setError(v.message || 'Payment verification failed. Contact support.');
                 }
                 setPaying(false);
             } catch (e) {

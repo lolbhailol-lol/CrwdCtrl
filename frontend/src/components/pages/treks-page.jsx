@@ -58,12 +58,11 @@ function DotPagination({ total, current, isDark }) {
     );
 }
 
-/* ── Community Card — Figma: w-40 h-52 (160×208px), heart overlay, Name + Based in + share below ── */
+/* ── Community Card — fluid portrait card, heart overlay, Name + Based in + share below ── */
 function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fullWidth = false }) {
     return (
-        <div className={`flex flex-col cursor-pointer active:scale-95 transition-all duration-200 ${fullWidth ? 'w-full' : 'shrink-0'}`} onClick={onClick}>
-            {/* Image: fills container width, fixed height */}
-            <div className={`relative rounded-2xl overflow-hidden ${fullWidth ? 'w-full h-48' : 'w-40 h-52'}`}>
+        <div className={`flex flex-col cursor-pointer active:scale-95 transition-all duration-200 ${fullWidth ? 'w-full' : 'card-portrait'}`} onClick={onClick}>
+            <div className={`relative overflow-hidden ${fullWidth ? 'w-full aspect-[5/3]' : 'card-portrait-image'}`}>
                 {trek.image ? (
                     <img
                         src={getImageUrl(trek.image, { preset: 'cardLg' })}
@@ -78,21 +77,22 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
                 )}
                 {/* Heart button — Figma: size-6 bg-black/10 rounded-full border-slate-100 */}
                 <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
-                    className={`absolute top-2.5 right-2.5 size-6 rounded-full flex items-center justify-center
-                        border-[0.5px] border-slate-100 transition-all duration-200 active:scale-90
-                        ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}
+                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
+                    className="overlay-fav-btn overlay-fav-btn--tr"
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke={isFavorite ? 'white' : 'white'} strokeWidth="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
+                    <span className={`overlay-fav-btn__icon border border-slate-100/80 transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2" aria-hidden="true">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                    </span>
                 </button>
             </div>
 
-            {/* Text below */}
-            <div className={`flex items-start justify-between mt-2 ${fullWidth ? 'w-full' : 'w-40'}`}>
+            <div className={`flex items-start justify-between mt-2 ${fullWidth ? 'w-full' : 'w-full max-w-[var(--card-portrait-w)]'}`}>
                 <div className="flex-1 min-w-0 pr-1">
-                    <p className={`text-[15px] font-medium leading-6 tracking-wide line-clamp-1
+                    <p className={`text-fluid-base font-medium leading-6 tracking-wide line-clamp-1
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {trek.title}
                     </p>
@@ -117,17 +117,16 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
     );
 }
 
-/* ── Weekend Plans Card — Figma: size-80 (320px) card, w-80 h-56 image, Trek Name + Type + share ── */
+/* ── Weekend Plans Card — fluid wide card, Trek Name + Type + share ── */
 function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div
-            className={`shrink-0 w-80 rounded-2xl overflow-hidden cursor-pointer
+            className={`card-wide rounded-2xl overflow-hidden cursor-pointer
                 active:scale-[0.98] transition-all duration-200
                 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
             onClick={onClick}
         >
-            {/* Image: w-80 h-56 (320×224px) */}
-            <div className="relative w-80 h-56 overflow-hidden">
+            <div className="card-wide-image">
                 {trek.image ? (
                     <img
                         src={getImageUrl(trek.image, { preset: 'cardLg' })}
@@ -142,21 +141,22 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                 )}
                 {/* Heart: size-6 bg-black/10 rounded-full */}
                 <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
-                    className={`absolute top-3 right-3 size-6 rounded-full flex items-center justify-center
-                        border-[0.5px] border-slate-100 transition-all active:scale-90
-                        ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}
+                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
+                    className="overlay-fav-btn overlay-fav-btn--tr"
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
+                    <span className={`overlay-fav-btn__icon border border-slate-100/80 transition-all active:scale-90 ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2" aria-hidden="true">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                    </span>
                 </button>
             </div>
 
-            {/* Info bar — Trek Name + Type + share (Figma: size-8 bg-white rounded-2xl for share) */}
             <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex-1 min-w-0">
-                    <p className={`text-[15px] font-medium leading-7 tracking-wide line-clamp-1
+                    <p className={`text-fluid-base font-medium leading-7 tracking-wide line-clamp-1
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {trek.title}
                     </p>
@@ -180,11 +180,11 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     );
 }
 
-/* ── Beginner Card — same w-40 h-52 as Community but Name + Date + share below ── */
+/* ── Beginner Card — portrait card, Name + Date + share below ── */
 function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
-        <div className="shrink-0 flex flex-col cursor-pointer active:scale-95 transition-all duration-200" onClick={onClick}>
-            <div className="relative w-40 h-52 rounded-2xl overflow-hidden">
+        <div className="card-portrait flex flex-col cursor-pointer active:scale-95 transition-all duration-200" onClick={onClick}>
+            <div className="card-portrait-image">
                 {trek.image ? (
                     <img
                         src={getImageUrl(trek.image, { preset: 'cardLg' })}
@@ -198,21 +198,22 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                     </div>
                 )}
                 <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
-                    className={`absolute top-2.5 right-2.5 size-6 rounded-full flex items-center justify-center
-                        border-[0.5px] border-slate-100 active:scale-90
-                        ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}
+                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
+                    className="overlay-fav-btn overlay-fav-btn--tr"
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
+                    <span className={`overlay-fav-btn__icon border border-slate-100/80 active:scale-90 ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2" aria-hidden="true">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                    </span>
                 </button>
             </div>
 
-            {/* Name + Date + Share */}
-            <div className="flex items-start justify-between mt-2 w-40">
+            <div className="flex items-start justify-between mt-2 w-full">
                 <div className="flex-1 min-w-0 pr-1">
-                    <p className={`text-[15px] font-medium leading-6 tracking-wide line-clamp-1
+                    <p className={`text-fluid-base font-medium leading-6 tracking-wide line-clamp-1
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {trek.title}
                     </p>

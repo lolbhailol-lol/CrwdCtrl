@@ -59,7 +59,7 @@ export default function HeroBanner({
                         type="button"
                         onClick={handleCta}
                         style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
-                        className="pointer-events-auto absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white py-1 pl-2.5 pr-2 text-[11px] leading-none font-semibold text-black shadow-md transition-transform hover:bg-white/95 active:scale-[0.98]"
+                        className="pointer-events-auto absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white py-1 pl-2.5 pr-2 text-fluid-2xs leading-none font-semibold text-black shadow-md transition-transform hover:bg-white/95 active:scale-[0.98] touch-target"
                     >
                         {ctaLabel}
                         <ArrowUpRight size={11} strokeWidth={2.5} />
@@ -75,12 +75,12 @@ export default function HeroBanner({
                             {active.title}
                         </h2>
                         {active.subtitle && (
-                            <p className="mt-0.5 line-clamp-1 text-[11px] text-white/85 drop-shadow">
+                            <p className="mt-0.5 line-clamp-1 text-fluid-2xs text-white/85 drop-shadow">
                                 {active.subtitle}
                             </p>
                         )}
                         {active.dateTime && active.dateTime !== 'Date TBA' && (
-                            <p className="mt-0.5 line-clamp-1 text-[10px] text-white/70">
+                            <p className="mt-0.5 line-clamp-1 text-fluid-2xs text-white/70">
                                 {active.dateTime}
                             </p>
                         )}
