@@ -1,11 +1,27 @@
 const isDev = process.env.NODE_ENV !== 'production';
 
+/** Normalize Origin header for Set lookup (trim, no trailing slash). */
+function normalizeOrigin(origin) {
+  if (!origin || typeof origin !== 'string') return '';
+  return origin.trim().replace(/\/$/, '');
+}
+
+/** Capacitor / Ionic WebView origins used by the Android & iOS apps. */
+const CAPACITOR_ORIGINS = [
+  'capacitor://localhost',
+  'ionic://localhost',
+  'https://localhost',
+  'http://localhost',
+];
+
 const corsOrigins = [
+  ...CAPACITOR_ORIGINS,
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
+  'http://localhost:8080',
   'https://fest-buzzz-z-mvp.vercel.app',
   'https://www.crwdctrl.in',
   'https://crwdctrl.in',
@@ -16,28 +32,47 @@ const corsOrigins = [
   'https://crwdctrl-mvp-git-main.vercel.app',
   'https://crwdctrl.firebaseapp.com',
   'https://crwdctrl.web.app',
-  'capacitor://localhost',
-  'https://localhost',
-  'http://localhost:8080',
-  'ionic://localhost',
-  'http://localhost',
 ];
 
 const extraOrigins = (process.env.CORS_EXTRA_ORIGINS || '')
   .split(',')
-  .map((s) => s.trim())
+  .map((s) => normalizeOrigin(s))
   .filter(Boolean);
 
-const allowedOrigins = new Set([...corsOrigins, ...extraOrigins]);
+const allowedOrigins = new Set(
+  [...corsOrigins, ...extraOrigins].map(normalizeOrigin),
+);
+
+function isCapacitorOrigin(origin) {
+  const o = normalizeOrigin(origin);
+  if (!o) return false;
+  if (CAPACITOR_ORIGINS.includes(o)) return true;
+  return (
+    o.startsWith('capacitor://') ||
+    o.startsWith('ionic://') ||
+    o === 'https://localhost' ||
+    o === 'http://localhost'
+  );
+}
 
 function corsOptionsDelegate(origin, callback) {
+  // Same-origin / curl / server-to-server — no Origin header
   if (!origin) return callback(null, true);
-  if (allowedOrigins.has(origin)) return callback(null, true);
-  if (isDev && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+
+  const normalized = normalizeOrigin(origin);
+
+  if (allowedOrigins.has(normalized)) return callback(null, true);
+
+  // Always allow Capacitor mobile app origins (production Android/iOS)
+  if (isCapacitorOrigin(normalized)) return callback(null, true);
+
+  if (isDev && (normalized.includes('localhost') || normalized.includes('127.0.0.1'))) {
     return callback(null, true);
   }
+
   console.warn('CORS blocked origin:', origin);
-  return callback(new Error('Not allowed by CORS'));
+  // false → cors package omits ACAO header; browser blocks client-side read (no 500)
+  return callback(null, false);
 }
 
 const corsOptions = {
@@ -58,4 +93,4 @@ const corsOptions = {
   maxAge: 86400,
 };
 
-module.exports = { corsOptions, corsOrigins: [...allowedOrigins] };
+module.exports = { corsOptions, corsOrigins: [...allowedOrigins], CAPACITOR_ORIGINS };
