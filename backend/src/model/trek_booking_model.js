@@ -8,7 +8,7 @@ const trekBookingSchema = new mongoose.Schema(
         userName:  { type: String, trim: true },
         formData:  { type: mongoose.Schema.Types.Mixed, default: {} },
         // Top-level for idempotency queries (security: one order → one booking)
-        payment_order_id: { type: String, sparse: true },
+        payment_order_id: { type: String },
         bookingDetails: {
             date:       { type: String },
             time:       { type: String },

@@ -51,6 +51,8 @@ const CompetitionRegisterPage = React.lazy(() => import('./components/pages/comp
 const TermsAndConditions = React.lazy(() => import('./components/pages/terms-and-conditions'))
 const PrivacyPolicy = React.lazy(() => import('./components/pages/privacy-policy'))
 const ContactUs = React.lazy(() => import('./components/pages/contact-us'))
+const RefundsAndCancellations = React.lazy(() => import('./components/pages/refunds-and-cancellations'))
+const ProductsAndServices = React.lazy(() => import('./components/pages/products-and-services'))
 const About = React.lazy(() => import('./components/pages/about'))
 const FestsPage = React.lazy(() => import('./components/pages/FestsPage'))
 const FestRegistration = React.lazy(() => import('./components/pages/FestRegistration'))
@@ -244,6 +246,8 @@ function AppContent({
                 <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="/contact-us" element={<ContactUs />} />
+                <Route path="/refunds-and-cancellations" element={<RefundsAndCancellations />} />
+                <Route path="/products-and-services" element={<ProductsAndServices />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/fest/:festId/register" element={<FestRegistration />} />
                 <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />

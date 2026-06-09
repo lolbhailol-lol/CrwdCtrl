@@ -14,6 +14,8 @@ const CONTENT_PAGES = [
   '/about',               // About Us page
   '/privacy-policy',      // Privacy Policy
   '/terms-and-conditions',// Terms and Conditions
+  '/refunds-and-cancellations', // Refunds & Cancellations
+  '/products-and-services', // Products & Services (INR pricing)
   '/contact-us',          // Contact Us
   '/help-center',         // Help Center
 ];

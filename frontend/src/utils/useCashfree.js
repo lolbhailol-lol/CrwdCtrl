@@ -4,6 +4,10 @@ import { App } from '@capacitor/app';
 import { prefersRedirectCheckout, isNativeApp } from './capacitorPlatform';
 import { getApiBaseUrl } from '../config/apiBase';
 import {
+  openNativeCashfreeSdkCheckout,
+  isNativeCashfreeAvailable,
+} from './cashfreeNative';
+import {
   storePendingPayment,
   getPendingPayment,
   clearPendingPayment,
@@ -39,10 +43,8 @@ function buildNativeCheckoutUrl({ paymentSessionId, orderId, returnPath }) {
   return `${PUBLIC_WEB_URL}/payment/checkout?${qs.toString()}`;
 }
 
-/**
- * After in-app browser checkout, verify payment when user returns to the app.
- */
-function waitForNativeCheckoutComplete() {
+/** Fallback: external browser on whitelisted crwdctrl.in domain. */
+function waitForBrowserCheckoutComplete() {
   const apiBase = getApiBaseUrl();
 
   return new Promise((resolve, reject) => {
@@ -88,9 +90,7 @@ function waitForNativeCheckoutComplete() {
     }).then((h) => cleanups.push(() => h.remove()));
 
     App.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) {
-        tryVerify().catch(() => {});
-      }
+      if (isActive) tryVerify().catch(() => {});
     }).then((h) => cleanups.push(() => h.remove()));
 
     setTimeout(
@@ -100,7 +100,7 @@ function waitForNativeCheckoutComplete() {
   });
 }
 
-async function openNativeCashfreeCheckout({ paymentSessionId, orderId, returnPath, entityType }) {
+async function openBrowserCashfreeCheckout({ paymentSessionId, orderId, returnPath, entityType }) {
   storePendingPayment({
     orderId,
     paymentSessionId,
@@ -113,12 +113,20 @@ async function openNativeCashfreeCheckout({ paymentSessionId, orderId, returnPat
     presentationStyle: 'popover',
   });
 
-  return waitForNativeCheckoutComplete();
+  return waitForBrowserCheckoutComplete();
+}
+
+async function openCapacitorCashfreeCheckout(opts) {
+  try {
+    return await openNativeCashfreeSdkCheckout(opts);
+  } catch (nativeErr) {
+    console.warn('[Cashfree] Native SDK unavailable, falling back to browser:', nativeErr.message);
+    return openBrowserCashfreeCheckout(opts);
+  }
 }
 
 /**
- * Opens Cashfree checkout — modal on desktop, full redirect on mobile web,
- * production-domain browser on Capacitor (avoids https://localhost whitelist error).
+ * Opens Cashfree checkout — native SDK in Capacitor app, modal/redirect on web.
  */
 export async function openCashfreeCheckout({
   paymentSessionId,
@@ -131,7 +139,7 @@ export async function openCashfreeCheckout({
   }
 
   if (isNativeApp()) {
-    return openNativeCashfreeCheckout({
+    return openCapacitorCashfreeCheckout({
       paymentSessionId,
       orderId,
       returnPath,
@@ -164,9 +172,7 @@ export async function openCashfreeCheckout({
   if (result.error) {
     const msg = result.error.message || 'Payment cancelled';
     const domainHint =
-      mode === 'sandbox'
-        ? ' Whitelist your domain in Cashfree sandbox dashboard.'
-        : '';
+      mode === 'sandbox' ? ' Whitelist your domain in Cashfree sandbox dashboard.' : '';
     throw new Error(`${msg}.${domainHint}`);
   }
 
@@ -212,3 +218,5 @@ export async function verifyPendingCashfreePayment(apiBase, token) {
   clearPendingPayment();
   return { verifyData: data, meta: pending };
 }
+
+export { isNativeCashfreeAvailable };

@@ -77,8 +77,11 @@ const HelpCenter = () => {
             description: "Privacy policy, terms of service, about us, and legal information",
             isLegal: true,
             links: [
+                { text: "Contact Us", path: "/contact-us" },
                 { text: "Privacy Policy", path: "/privacy-policy" },
                 { text: "Terms and Conditions", path: "/terms-and-conditions" },
+                { text: "Refunds & Cancellations", path: "/refunds-and-cancellations" },
+                { text: "Products & Services (INR pricing)", path: "/products-and-services" },
                 { text: "About Us", path: "/about" }
             ]
         }

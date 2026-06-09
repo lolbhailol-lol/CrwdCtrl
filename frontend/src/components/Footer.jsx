@@ -31,16 +31,25 @@ export default function Footer() {
             </a>
           </div>
 
-          <div className="flex flex-col items-center">
-            <Link
-              to="/contact-us"
-              className={`text-sm font-medium transition-colors ${
-                isDark ? 'text-white hover:text-blue-400' : 'text-gray-900 hover:text-blue-600'
-              }`}
-            >
-              Contact Us
-            </Link>
-          </div>
+          <nav className="flex flex-col items-center gap-2 md:items-end" aria-label="Legal and support">
+            {[
+              { to: '/contact-us', label: 'Contact Us' },
+              { to: '/terms-and-conditions', label: 'Terms & Conditions' },
+              { to: '/refunds-and-cancellations', label: 'Refunds & Cancellations' },
+              { to: '/products-and-services', label: 'Products & Services' },
+              { to: '/privacy-policy', label: 'Privacy Policy' },
+            ].map(({ to, label }) => (
+              <Link
+                key={to}
+                to={to}
+                className={`text-sm font-medium transition-colors ${
+                  isDark ? 'text-white hover:text-blue-400' : 'text-gray-900 hover:text-blue-600'
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
         </div>
 
         <p

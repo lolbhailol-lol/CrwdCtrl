@@ -112,6 +112,10 @@ export default function About() {
                     <div className="flex flex-wrap gap-3">
                         {[
                             { label: 'Contact Us', to: '/contact-us' },
+                            { label: 'Terms & Conditions', to: '/terms-and-conditions' },
+                            { label: 'Refunds & Cancellations', to: '/refunds-and-cancellations' },
+                            { label: 'Products & Services', to: '/products-and-services' },
+                            { label: 'Privacy Policy', to: '/privacy-policy' },
                         ].map((link, index) => (
                             <Link
                                 key={index}

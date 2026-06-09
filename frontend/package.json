@@ -35,6 +35,7 @@
     "@tailwindcss/vite": "^4.1.17",
     "axios": "^1.13.2",
     "better-auth": "^1.4.3",
+    "cordova-plugin-cashfree-pg": "^1.1.0-cap",
     "firebase": "^12.6.0",
     "lucide-react": "^0.553.0",
     "qrcode": "^1.5.4",
