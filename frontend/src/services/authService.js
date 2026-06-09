@@ -12,6 +12,8 @@ import { signInWithGoogle, signInWithFacebook, registerWithEmail, auth } from '.
 import { processSocialAuthUser } from '../utils/socialAuth';
 import { withFirebaseIdToken } from '../utils/firebaseIdToken';
 import { AUTH_CONFIG, API_CONFIG } from '../config/env.js';
+import { isNativeApp } from '../utils/capacitorPlatform';
+import { setNativeAuthInProgress } from '../utils/nativeAuth';
 
 // ✅ FIX: Use config token keys to avoid dev/prod mismatch
 const TOKEN_KEY = AUTH_CONFIG.TOKEN_KEY || 'crwdctrl_token';
@@ -58,7 +60,8 @@ class AuthService {
 
             console.log('🔐 [AUTH] Starting email login...');
 
-            // Step 1: Try admin login first (if it fails, continue to user login)
+            // Skip admin probe on native app — avoids long hang when backend is slow
+            if (!isNativeApp()) {
             try {
                 const adminResponse = await authAPI.adminLogin({ email: email.trim(), password });
                 
@@ -83,6 +86,7 @@ class AuthService {
                 } else {
                     console.warn('⚠️ [AUTH] Admin login error:', adminError.message);
                 }
+            }
             }
 
             // Step 2: User login with backend
@@ -134,6 +138,7 @@ class AuthService {
      * Google Social Login
      */
     async loginWithGoogle() {
+        setNativeAuthInProgress(true);
         try {
             this.checkNetworkStatus();
 
@@ -229,6 +234,8 @@ class AuthService {
             }
 
             throw new Error(errorMessage);
+        } finally {
+            setNativeAuthInProgress(false);
         }
     }
 

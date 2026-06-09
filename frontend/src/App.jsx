@@ -16,6 +16,7 @@ import AuthLoadingPage from './components/AuthLoadingPage'
 import AppLoadingPage from './components/AppLoadingPage'
 import LoadingBar from './components/LoadingBar'
 import { shouldShowBootSplash, removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
+import { isNativeApp } from './utils/capacitorPlatform'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
@@ -73,6 +74,7 @@ const PublicTreksPage = React.lazy(() => import('./components/pages/treks-page')
 const PublicTheatrePage = React.lazy(() => import('./components/pages/theatre-page'))
 const CommunityDetailPage = React.lazy(() => import('./components/pages/CommunityDetailPage'))
 const TrekCategoryPage = React.lazy(() => import('./components/pages/TrekCategoryPage'))
+const PaymentCheckoutPage = React.lazy(() => import('./components/pages/PaymentCheckoutPage'))
 
 // Component to conditionally render MobileBottomNav
 function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick, onProfileClose }) {
@@ -184,8 +186,8 @@ function AppContent({
     }
   }, [isAuthenticated, showLogin, showRegister, setShowLogin, setShowRegister]);
 
-  // Only block UI during OAuth return or active session sync — not on every visit
-  if (isRedirectProcessing || isAuthProcessing) {
+  // Only block UI during OAuth return on web — native app uses native Google Sign-In
+  if (!isNativeApp() && (isRedirectProcessing || isAuthProcessing)) {
     return <AuthLoadingPage />;
   }
 
@@ -205,6 +207,7 @@ function AppContent({
             <PageTransitionContent>
               <Suspense fallback={<LoadingBar />}>
                 <Routes>
+                <Route path="/payment/checkout" element={<PaymentCheckoutPage />} />
                 <Route path="/payment/return" element={<Navigate to="/booking" replace />} />
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/dashboard" element={<Dashboard />} />

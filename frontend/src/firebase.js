@@ -8,6 +8,7 @@ import {
     FacebookAuthProvider,
     signInWithPopup,
     signInWithRedirect,
+    signInWithCredential,
     getRedirectResult,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
@@ -20,6 +21,72 @@ import {
     // connectAuthEmulator - Not used currently
 } from "firebase/auth";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { clearOAuthRedirectMarkers } from './utils/authBootstrap';
+
+/** Native Google Sign-In (Android/iOS) — avoids WebView redirect to localhost. */
+const signInWithGoogleNative = async () => {
+    const result = await FirebaseAuthentication.signInWithGoogle();
+    const idToken = result.credential?.idToken;
+    const pluginUser = result.user;
+
+    if (!idToken) {
+        return {
+            success: false,
+            error: 'Google sign-in did not return a token. Please try again.',
+            method: 'native-google-no-token',
+        };
+    }
+
+    let firebaseUser = auth.currentUser;
+
+    // Sync Firebase JS SDK (needed for getIdToken) — never hang the UI
+    try {
+        const credential = GoogleAuthProvider.credential(idToken);
+        const userCredential = await Promise.race([
+            signInWithCredential(auth, credential),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Firebase SDK sync timed out')), 12000),
+            ),
+        ]);
+        firebaseUser = userCredential.user;
+    } catch (syncErr) {
+        console.warn('[Google Native] JS SDK sync skipped:', syncErr.message);
+    }
+
+    if (!firebaseUser && pluginUser) {
+        firebaseUser = {
+            uid: pluginUser.uid,
+            email: pluginUser.email,
+            displayName: pluginUser.displayName,
+            photoURL: pluginUser.photoUrl ?? null,
+            emailVerified: pluginUser.emailVerified ?? false,
+            getIdToken: async (forceRefresh = false) => {
+                if (auth.currentUser?.getIdToken) {
+                    return auth.currentUser.getIdToken(forceRefresh);
+                }
+                const tokenResult = await FirebaseAuthentication.getIdToken({ forceRefresh });
+                return tokenResult.token;
+            },
+        };
+    }
+
+    if (!firebaseUser) {
+        return {
+            success: false,
+            error: 'Google sign-in could not complete. Please try again.',
+            method: 'native-google-no-user',
+        };
+    }
+
+    return {
+        success: true,
+        user: firebaseUser,
+        credential: result.credential || null,
+        needsVerification: false,
+        method: 'native-google',
+    };
+};
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY ,
@@ -296,28 +363,26 @@ export const signInWithGoogle = async () => {
     
     ensurePersistenceStarted();
 
-    // Capacitor Android/iOS: redirect-only (popups fail in WebView)
+    // Capacitor Android/iOS: native Google SDK (no browser redirect to localhost)
     if (isNativeApp()) {
+        clearOAuthRedirectMarkers();
         try {
-            sessionStorage.setItem('auth_redirect_url', window.location.href);
-            sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
-            sessionStorage.setItem('auth_redirect_type', 'google');
-            await signInWithRedirect(auth, googleProvider);
-            return {
-                success: true,
-                user: null,
-                credential: null,
-                needsVerification: false,
-                method: 'capacitor-redirect',
-                redirectInitiated: true,
-                message: 'Redirecting to Google sign-in...',
-            };
+            return await signInWithGoogleNative();
         } catch (err) {
+            const code = err?.code || '';
+            if (code.includes('cancel') || code.includes('12501')) {
+                return {
+                    success: false,
+                    error: 'Sign-in was cancelled. Please try again.',
+                    code,
+                    method: 'native-google-cancelled',
+                };
+            }
             return {
                 success: false,
                 error: getGoogleAuthErrorMessage(err),
-                code: err.code,
-                method: 'capacitor-redirect-failed',
+                code,
+                method: 'native-google-failed',
             };
         }
     }
@@ -966,6 +1031,12 @@ export const getCurrentUser = () => {
 // from a Google/Facebook OAuth redirect. On mobile, this is the ONLY way to get the auth result.
 export const handleRedirectResult = async () => {
     console.log('🔍 Processing redirect result (CRITICAL for mobile OAuth)...');
+
+    // Native Capacitor apps never use Firebase web redirect OAuth
+    if (isNativeApp()) {
+        clearOAuthRedirectMarkers();
+        return null;
+    }
     
     // Check if we have a pending redirect
     const redirectType = sessionStorage.getItem('auth_redirect_type');

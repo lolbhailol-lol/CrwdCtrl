@@ -10,15 +10,20 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "preview:prod": "vite preview",
-    "verify-build": "vite build",
+    "verify-build": "vite build && node scripts/verify-prod-bundle.js",
     "cap:sync": "npm run build && npx cap sync android",
+    "cap:sync:prod": "powershell -ExecutionPolicy Bypass -File scripts/android-prod.ps1",
     "cap:open": "npx cap open android",
-    "android:build": "npm run cap:sync"
+    "android:build": "npm run cap:sync:prod",
+    "android:dev": "powershell -ExecutionPolicy Bypass -File scripts/android-dev.ps1",
+    "android:prod": "powershell -ExecutionPolicy Bypass -File scripts/android-prod.ps1"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.3.0",
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
     "@capacitor/android": "^8.4.0",
     "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/keyboard": "^8.0.3",

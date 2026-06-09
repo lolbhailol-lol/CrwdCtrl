@@ -1,8 +1,9 @@
 // Environment configuration for CrwdCtrl
+import { getApiBaseUrl } from './apiBase.js';
 
 // API Configuration
 export const API_CONFIG = {
-    BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
+    BASE_URL: getApiBaseUrl(),
     TIMEOUT: parseInt(import.meta.env.VITE_API_TIMEOUT) || 10000,
     // ✅ MOBILE-SPECIFIC TIMEOUTS
     MOBILE_TIMEOUT: parseInt(import.meta.env.VITE_MOBILE_API_TIMEOUT) || 30000,

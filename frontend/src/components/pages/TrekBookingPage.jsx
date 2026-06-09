@@ -367,7 +367,13 @@ export default function TrekBookingPage() {
                     paymentSessionId: order.paymentSessionId,
                     orderId: order.orderId,
                     returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
+                    entityType: 'trek',
                 });
+
+                if (checkoutResult?.trekDeferred) {
+                    setPaying(false);
+                    return;
+                }
                 const checkoutPaymentId =
                     checkoutResult?.paymentDetails?.paymentId ||
                     checkoutResult?.paymentDetails?.cf_payment_id ||

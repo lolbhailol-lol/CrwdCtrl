@@ -3,7 +3,9 @@ import { onAuthStateChange, handleRedirectResult, signOut, auth, firebaseReady }
 import { authAPI } from '../utils/api';
 import { processSocialAuthUser } from '../utils/socialAuth';
 import { withFirebaseIdToken } from '../utils/firebaseIdToken';
-import { hasPendingOAuthRedirect, restoreSessionFromStorage } from '../utils/authBootstrap';
+import { hasPendingOAuthRedirect, restoreSessionFromStorage, clearOAuthRedirectMarkers } from '../utils/authBootstrap';
+import { isNativeAuthInProgress } from '../utils/nativeAuth';
+import { isNativeApp } from '../utils/capacitorPlatform';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -11,7 +13,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const oauthReturn = hasPendingOAuthRedirect();
+    const oauthReturn = !isNativeApp() && hasPendingOAuthRedirect();
     const savedSession = oauthReturn ? null : restoreSessionFromStorage();
 
     const [user, setUser] = useState(() => savedSession?.user ?? null);
@@ -42,6 +44,10 @@ export const AuthProvider = ({ children }) => {
             // IMPORTANT: Do NOT check authInitialized here - this listener fires during initialization!
             // This listener runs immediately with cached user, so we must handle it regardless of initialization state
             if (firebaseUser && !user && !token && !isAuthProcessing) {
+                if (isNativeAuthInProgress()) {
+                    console.log('⏭️ Skipping auth listener sync — native login handler active');
+                    return;
+                }
                 console.log('🔄 Firebase user exists but no local session - restoring...');
                 if (hasPendingRedirect) {
                     console.log('📱 This appears to be from a mobile OAuth redirect!');
@@ -142,8 +148,23 @@ export const AuthProvider = ({ children }) => {
                 console.log('⏳ Waiting for Firebase to be ready...');
                 await firebaseReady;
                 console.log('✅ Firebase is ready');
+
+                // Capacitor native apps use native Google Sign-In — never OAuth redirect flow
+                if (isNativeApp()) {
+                    clearOAuthRedirectMarkers();
+                    if (!user && !token) {
+                        const restored = restoreSessionFromStorage();
+                        if (restored) {
+                            setUser(restored.user);
+                            setToken(restored.token);
+                            console.log('✅ Session restored from localStorage:', restored.user.email);
+                        }
+                    }
+                    setIsRedirectProcessing(false);
+                    return;
+                }
                 
-                // ✅ CRITICAL FOR MOBILE: Check for redirect result FIRST before checking localStorage
+                // ✅ CRITICAL FOR MOBILE WEB: Check for redirect result FIRST before checking localStorage
                 // On mobile, after Google OAuth redirect, this is the ONLY way to get the user
                 console.log('🔍 Checking for pending redirect result (CRITICAL for mobile OAuth)...');
                 const isMobile = /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);

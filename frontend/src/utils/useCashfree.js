@@ -1,9 +1,21 @@
 import { load } from '@cashfreepayments/cashfree-js';
+import { Browser } from '@capacitor/browser';
+import { App } from '@capacitor/app';
 import { prefersRedirectCheckout, isNativeApp } from './capacitorPlatform';
-import { storePendingPayment, isTrekPaymentPending } from './deepLinks';
+import { getApiBaseUrl } from '../config/apiBase';
+import {
+  storePendingPayment,
+  getPendingPayment,
+  clearPendingPayment,
+  isTrekPaymentPending,
+} from './deepLinks';
 
 let cashfreeInstance = null;
 let cashfreeMode = null;
+
+const PUBLIC_WEB_URL = (
+  import.meta.env.VITE_PUBLIC_WEB_URL || 'https://www.crwdctrl.in'
+).replace(/\/$/, '');
 
 function getCashfreeMode() {
   return import.meta.env.VITE_CASHFREE_MODE || 'sandbox';
@@ -18,16 +30,113 @@ async function getCashfree() {
   return cashfreeInstance;
 }
 
+function buildNativeCheckoutUrl({ paymentSessionId, orderId, returnPath }) {
+  const qs = new URLSearchParams({
+    payment_session_id: paymentSessionId,
+  });
+  if (orderId) qs.set('order_id', orderId);
+  if (returnPath) qs.set('return_path', returnPath);
+  return `${PUBLIC_WEB_URL}/payment/checkout?${qs.toString()}`;
+}
+
 /**
- * Opens Cashfree checkout — modal on desktop, full redirect on mobile / Capacitor.
- * @param {object} opts
- * @param {string} opts.paymentSessionId
- * @param {string} [opts.orderId] - For resume verification after redirect
- * @param {string} [opts.returnPath] - In-app path after payment
+ * After in-app browser checkout, verify payment when user returns to the app.
  */
-export async function openCashfreeCheckout({ paymentSessionId, orderId, returnPath }) {
+function waitForNativeCheckoutComplete() {
+  const apiBase = getApiBaseUrl();
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const cleanups = [];
+
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      cleanups.forEach((fn) => fn());
+      fn();
+    };
+
+    const tryVerify = async () => {
+      const pending = getPendingPayment();
+      if (!pending?.orderId) {
+        finish(() => reject(new Error('Payment was not completed.')));
+        return;
+      }
+
+      if (isTrekPaymentPending(pending)) {
+        finish(() => resolve({ browserCheckout: true, trekDeferred: true }));
+        return;
+      }
+
+      const token = localStorage.getItem('crwdctrl_token');
+      const result = await verifyPendingCashfreePayment(apiBase, token);
+      if (result?.verifyData?.verified) {
+        finish(() =>
+          resolve({
+            browserCheckout: true,
+            paymentDetails: { paymentId: result.verifyData.payment_id },
+          }),
+        );
+        return;
+      }
+
+      finish(() => reject(new Error('Payment was not completed. Please try again.')));
+    };
+
+    Browser.addListener('browserFinished', () => {
+      tryVerify().catch((err) => finish(() => reject(err)));
+    }).then((h) => cleanups.push(() => h.remove()));
+
+    App.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        tryVerify().catch(() => {});
+      }
+    }).then((h) => cleanups.push(() => h.remove()));
+
+    setTimeout(
+      () => finish(() => reject(new Error('Payment timed out. Please try again.'))),
+      15 * 60 * 1000,
+    );
+  });
+}
+
+async function openNativeCashfreeCheckout({ paymentSessionId, orderId, returnPath, entityType }) {
+  storePendingPayment({
+    orderId,
+    paymentSessionId,
+    returnPath: returnPath || window.location.pathname,
+    entityType,
+  });
+
+  await Browser.open({
+    url: buildNativeCheckoutUrl({ paymentSessionId, orderId, returnPath }),
+    presentationStyle: 'popover',
+  });
+
+  return waitForNativeCheckoutComplete();
+}
+
+/**
+ * Opens Cashfree checkout — modal on desktop, full redirect on mobile web,
+ * production-domain browser on Capacitor (avoids https://localhost whitelist error).
+ */
+export async function openCashfreeCheckout({
+  paymentSessionId,
+  orderId,
+  returnPath,
+  entityType,
+}) {
   if (!paymentSessionId || typeof paymentSessionId !== 'string') {
     throw new Error('Payment session missing. Restart the payment and try again.');
+  }
+
+  if (isNativeApp()) {
+    return openNativeCashfreeCheckout({
+      paymentSessionId,
+      orderId,
+      returnPath,
+      entityType,
+    });
   }
 
   const mode = getCashfreeMode();
@@ -38,6 +147,7 @@ export async function openCashfreeCheckout({ paymentSessionId, orderId, returnPa
       orderId,
       paymentSessionId,
       returnPath: returnPath || window.location.pathname,
+      entityType,
     });
   }
 
@@ -53,10 +163,9 @@ export async function openCashfreeCheckout({ paymentSessionId, orderId, returnPa
 
   if (result.error) {
     const msg = result.error.message || 'Payment cancelled';
-    const domainHint = mode === 'sandbox'
-      ? ' Whitelist your domain in Cashfree sandbox dashboard.'
-      : isNativeApp()
-        ? ' Ensure in.crwdctrl.app / crwdctrl.in is whitelisted in Cashfree.'
+    const domainHint =
+      mode === 'sandbox'
+        ? ' Whitelist your domain in Cashfree sandbox dashboard.'
         : '';
     throw new Error(`${msg}.${domainHint}`);
   }
@@ -80,20 +189,10 @@ export function buildVerifiedPaymentFields(verifyData, orderId) {
  * Trek orders use /payment/trek-verify and are resumed on TrekBookingPage.
  */
 export async function verifyPendingCashfreePayment(apiBase, token) {
-  const pending = sessionStorage.getItem('crwdctrl_pending_payment');
-  if (!pending) return null;
+  const pending = getPendingPayment();
+  if (!pending?.orderId) return null;
 
-  let meta;
-  try {
-    meta = JSON.parse(pending);
-  } catch {
-    return null;
-  }
-
-  if (!meta.orderId) return null;
-
-  // Trek checkout is completed on TrekBookingPage (trek-verify + register)
-  if (isTrekPaymentPending(meta)) {
+  if (isTrekPaymentPending(pending)) {
     return null;
   }
 
@@ -104,12 +203,12 @@ export async function verifyPendingCashfreePayment(apiBase, token) {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ orderId: meta.orderId }),
+    body: JSON.stringify({ orderId: pending.orderId }),
     credentials: 'include',
   });
 
   if (!res.ok) return null;
   const data = await res.json();
-  sessionStorage.removeItem('crwdctrl_pending_payment');
-  return { verifyData: data, meta };
+  clearPendingPayment();
+  return { verifyData: data, meta: pending };
 }

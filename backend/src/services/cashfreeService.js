@@ -28,7 +28,7 @@ const getFrontendBaseUrl = () =>
   (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
 const buildReturnUrl = (orderId) =>
-  `${getFrontendBaseUrl()}/booking?order_id=${encodeURIComponent(orderId)}`;
+  `${getFrontendBaseUrl()}/payment/return?order_id={order_id}`;
 
 const generateOrderId = () => `order_${crypto.randomBytes(12).toString('hex')}`;
 

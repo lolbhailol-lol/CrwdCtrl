@@ -10,6 +10,18 @@ export function hasPendingOAuthRedirect() {
     }
 }
 
+/** Clear OAuth redirect markers (fixes stuck loading on Capacitor after failed redirects). */
+export function clearOAuthRedirectMarkers() {
+    try {
+        sessionStorage.removeItem('auth_redirect_type');
+        sessionStorage.removeItem('auth_redirect_timestamp');
+        sessionStorage.removeItem('auth_redirect_url');
+        sessionStorage.removeItem('auth_in_app_browser');
+    } catch {
+        /* ignore */
+    }
+}
+
 /** Sync restore from localStorage — safe for initial paint when not on OAuth return. */
 export function restoreSessionFromStorage() {
     try {

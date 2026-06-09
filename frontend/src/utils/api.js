@@ -1,5 +1,6 @@
 // API utility functions for CrwdCtrl frontend
 import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
+import { getApiBaseUrl } from '../config/apiBase.js';
 
 /**
  * Base API configuration and utilities
@@ -7,7 +8,7 @@ import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
 class ApiClient {
     constructor() {
         // Use Vite environment variables for API base URL
-        this.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+        this.baseURL = getApiBaseUrl();
         this.timeout = API_CONFIG.TIMEOUT;
         this.defaultHeaders = {
             'Content-Type': 'application/json',
