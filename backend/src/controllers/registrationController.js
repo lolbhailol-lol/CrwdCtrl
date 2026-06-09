@@ -1728,9 +1728,9 @@ const getRegistrationDetails = async (req, res) => {
     const { registrationId } = req.params;
     const userId = req.user.userId;
 
-    const registration = await Registration.findOne({ 
-      _id: registrationId, 
-      user: userId 
+    const registration = await Registration.findOne({
+      _id: registrationId,
+      user: userId
     })
       .populate('fest', 'festName collegeName festDate venue status coverImage registration')
       .populate('competitionId', 'name description coverImage');
@@ -1744,6 +1744,25 @@ const getRegistrationDetails = async (req, res) => {
   } catch (error) {
     console.error('Error fetching registration details:', error);
     res.status(500).json({ error: 'Failed to fetch registration details' });
+  }
+};
+
+const getTrekBookingDetails = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.userId;
+
+    const booking = await TrekBooking.findOne({ _id: bookingId, userId })
+      .populate('trekId', 'trekName city coverImage images trekDate difficultyLevel registration');
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Trek booking not found' });
+    }
+
+    res.json(booking);
+  } catch (error) {
+    console.error('Error fetching trek booking details:', error);
+    res.status(500).json({ error: 'Failed to fetch trek booking details' });
   }
 };
 
@@ -1984,6 +2003,7 @@ module.exports = {
   updateRegistrationStatus,
   getUserRegistrations,
   getRegistrationDetails,
+  getTrekBookingDetails,
   testGoogleSheets,
   diagnoseGoogleSheets,
   upload

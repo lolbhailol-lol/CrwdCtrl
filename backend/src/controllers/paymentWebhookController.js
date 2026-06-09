@@ -19,6 +19,11 @@ exports.handleCashfreeWebhook = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid webhook signature' });
     }
 
+    // Cashfree dashboard test expects HTTP 200 — parse only after signature OK
+    if (!rawBody || rawBody.trim() === '' || rawBody.trim() === '{}') {
+      return res.status(200).send('OK');
+    }
+
     let payload;
     try {
       payload = JSON.parse(rawBody);
@@ -67,7 +72,7 @@ exports.handleCashfreeWebhook = async (req, res) => {
       );
     }
 
-    return res.status(200).json({ success: true });
+    return res.status(200).send('OK');
   } catch (err) {
     if (err.code === 'WEBHOOK_SECRET_MISSING') {
       console.error('[paymentWebhook]', err.message);

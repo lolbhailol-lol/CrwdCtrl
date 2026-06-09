@@ -1,7 +1,17 @@
 function assertProductionEnv() {
   if (process.env.NODE_ENV !== 'production') return;
 
-  const required = ['MONGODB_URI', 'JWT_SECRET'];
+  const required = [
+    'MONGODB_URI',
+    'JWT_SECRET',
+    'ADMIN_EMAIL',
+    'ADMIN_PASSWORD_HASH',
+    'CASHFREE_CLIENT_ID',
+    'CASHFREE_CLIENT_SECRET',
+    'CASHFREE_ENV',
+    'FRONTEND_URL',
+  ];
+
   const missing = required.filter((key) => !process.env[key]?.trim());
 
   if (missing.length) {
@@ -9,14 +19,15 @@ function assertProductionEnv() {
     process.exit(1);
   }
 
+  if (process.env.JWT_SECRET.trim().length < 32) {
+    console.error('❌ JWT_SECRET must be at least 32 characters in production');
+    process.exit(1);
+  }
+
   const recommended = [
-    'CASHFREE_CLIENT_ID',
-    'CASHFREE_CLIENT_SECRET',
-    'CASHFREE_ENV',
-    'CASHFREE_WEBHOOK_SECRET',
-    'ADMIN_EMAIL',
-    'ADMIN_PASSWORD_HASH',
     'FIREBASE_SERVICE_ACCOUNT_KEY',
+    'SENTRY_DSN',
+    'RESEND_API_KEY',
   ];
   const missingRecommended = recommended.filter((key) => !process.env[key]?.trim());
   if (missingRecommended.length) {
@@ -28,6 +39,15 @@ function assertProductionEnv() {
       '⚠️ ADMIN_PASSWORD is set without ADMIN_PASSWORD_HASH — run: node scripts/hash-admin-password.js'
     );
   }
+
+  if (process.env.CASHFREE_ENV !== 'production' && process.env.CASHFREE_ENV !== 'sandbox') {
+    console.error('❌ CASHFREE_ENV must be "production" or "sandbox"');
+    process.exit(1);
+  }
 }
 
-module.exports = { assertProductionEnv };
+function validateEnv() {
+  assertProductionEnv();
+}
+
+module.exports = { assertProductionEnv, validateEnv };

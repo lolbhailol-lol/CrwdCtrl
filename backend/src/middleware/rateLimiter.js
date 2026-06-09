@@ -20,6 +20,15 @@ const authLimiter = rateLimit({
   message: { success: false, message: 'Too many login attempts, please try again later.' },
 });
 
+/** Admin login — stricter than user auth */
+const adminAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 50 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many admin login attempts, please try again later.' },
+});
+
 /** Payment endpoints */
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -38,4 +47,20 @@ const competitionRegisterLimiter = rateLimit({
   message: { success: false, message: 'Too many registration attempts. Please try again later.' },
 });
 
-module.exports = { apiLimiter, authLimiter, paymentLimiter, competitionRegisterLimiter };
+/** Registration uploads — moderate limit */
+const registrationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 100 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many registration requests, please try again later.' },
+});
+
+module.exports = {
+  apiLimiter,
+  authLimiter,
+  adminAuthLimiter,
+  paymentLimiter,
+  competitionRegisterLimiter,
+  registrationLimiter,
+};

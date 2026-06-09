@@ -116,11 +116,18 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
 /**
  * Verify Cashfree webhook signature (HMAC-SHA256, base64).
  * Security: must use raw request body — parsed JSON will break signature match.
+ * Cashfree signs with Client Secret (see official PG webhook docs).
  */
 function verifyWebhookSignature({ signature, timestamp, rawBody }) {
-  const secret = process.env.CASHFREE_WEBHOOK_SECRET?.trim();
+  // Prefer explicit override; otherwise use PG Client Secret (Cashfree official method)
+  const secret =
+    process.env.CASHFREE_WEBHOOK_SECRET?.trim() ||
+    process.env.CASHFREE_CLIENT_SECRET?.trim();
+
   if (!secret) {
-    const err = new Error('CASHFREE_WEBHOOK_SECRET is not configured');
+    const err = new Error(
+      'Cashfree webhook secret not configured — set CASHFREE_CLIENT_SECRET or CASHFREE_WEBHOOK_SECRET'
+    );
     err.code = 'WEBHOOK_SECRET_MISSING';
     throw err;
   }

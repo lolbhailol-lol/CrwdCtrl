@@ -1,26 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Download, CheckCircle, Ticket, CalendarDays, MapPin } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Ticket, CalendarDays, MapPin } from 'lucide-react';
+import LocalQRCode from '../LocalQRCode';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 const getToken = () => localStorage.getItem('crwdctrl_token');
-
-// Simple QR Code generator using a free API (no dependency needed)
-function QRCodeImage({ data, size = 200 }) {
-  const encodedData = encodeURIComponent(JSON.stringify(data));
-  const url = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodedData}&bgcolor=111213&color=ffffff&format=svg`;
-
-  return (
-    <img
-      src={url}
-      alt="QR Code"
-      width={size}
-      height={size}
-      className="rounded-lg"
-      style={{ imageRendering: 'pixelated' }}
-    />
-  );
-}
 
 export default function QRTicketPage() {
   const { registrationId } = useParams();
@@ -145,7 +129,7 @@ export default function QRTicketPage() {
               </div>
             ) : (
               <>
-                <QRCodeImage
+                <LocalQRCode
                   data={{ hash: ticket.qrHash, registrationId: ticket.registrationId }}
                   size={200}
                 />

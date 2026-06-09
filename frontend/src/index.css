@@ -166,12 +166,16 @@
     }
     .safe-inset-bottom { padding-bottom: max(var(--safe-bottom), 0.5rem); }
 
-    /* Page shells */
-    .crwdctrl-app-shell,
-    .crwdctrl-page {
+    /* Page shells — clip on app shell only; page wrappers must not clip or sticky header breaks */
+    .crwdctrl-app-shell {
         width: 100%;
         max-width: 100%;
         overflow-x: clip;
+    }
+
+    .crwdctrl-page {
+        width: 100%;
+        max-width: 100%;
     }
 
     .crwdctrl-container {
@@ -486,9 +490,9 @@
 }
 
 /* Pause color transitions while scrolling — reduces jank on long pages */
-html.is-scrolling *:not(img):not(svg):not(.crisp-icon):not(.crisp-icon-svg):not(.category-icon):not(.category-icon-lg):not(.skeleton-shimmer):not(.skeleton-shimmer-light):not(.skeleton-shimmer-dark):not(.route-progress-bar),
-html.is-scrolling *:not(img):not(svg)::before,
-html.is-scrolling *:not(img):not(svg)::after {
+html.is-scrolling *:not(img):not(svg):not(.crisp-icon):not(.crisp-icon-svg):not(.category-icon):not(.category-icon-lg):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row):not(.skeleton-shimmer):not(.skeleton-shimmer-light):not(.skeleton-shimmer-dark):not(.route-progress-bar),
+html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row)::before,
+html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row)::after {
     transition-duration: 0.01ms !important;
 }
 
@@ -995,16 +999,21 @@ html.dark .mobile-header-shell > div {
     max-height: clamp(4rem, 20vw, 5.375rem);
 }
 
+/* Trek booking — keep fields visible above mobile keyboard */
+.trek-booking-page input,
+.trek-booking-page textarea,
+.trek-booking-page select {
+    scroll-margin-bottom: max(5rem, env(safe-area-inset-bottom, 0px) + 4rem);
+}
+
 /* Bottom nav — solid bar; backdrop-filter blurs Lucide icons on iOS/Android */
 #crwdctrl-bottom-nav .bottom-nav-pill {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }
 
-/* Touch devices — keep icons off compositor layers (branding row keeps transform for collapse) */
+/* Touch devices — crisp icons only; never reset transform on sticky shell (breaks sticky + collapse) */
 @media (hover: none) and (pointer: coarse) {
-    .mobile-header-shell,
-    .mobile-header-inner,
     .mobile-header-search-row,
     .mobile-header-category-row,
     .home-category-bar,
@@ -1015,6 +1024,10 @@ html.dark .mobile-header-shell > div {
         -webkit-transform: none !important;
         transform: none !important;
         will-change: auto !important;
+    }
+
+    .mobile-header-branding-row {
+        will-change: transform, opacity;
     }
 
     .crisp-icon,

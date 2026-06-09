@@ -3,6 +3,7 @@ const router = express.Router();
 
 const adminAuth = require('../middleware/adminAuth');
 const devOnly = require('../middleware/devOnly');
+const { adminAuthLimiter } = require('../middleware/rateLimiter');
 const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
 const adminSectionCtrl = require('../controllers/adminSectionController');
@@ -39,10 +40,18 @@ router.post('/clear-cache', adminAuth, (req, res) => {
 });
 
 // ===== ADMIN LOGIN =====
-router.post('/login', adminAuthCtrl.adminLogin);
+router.post('/login', adminAuthLimiter, adminAuthCtrl.adminLogin);
 
 // ===== REFRESH TOKEN ENDPOINT =====
-router.post('/refresh-token', adminAuthCtrl.refreshAdminToken);
+router.post('/refresh-token', adminAuthLimiter, adminAuthCtrl.refreshAdminToken);
+
+// ===== VERIFY SESSION (for admin SPA) =====
+router.get('/verify', adminAuth, (req, res) => {
+  res.json({
+    success: true,
+    admin: { email: req.user.email, role: req.user.role },
+  });
+});
 
 // ===== DASHBOARD =====
 router.get('/stats', adminAuth, async (req, res) => {

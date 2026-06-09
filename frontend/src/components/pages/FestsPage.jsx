@@ -278,7 +278,7 @@ export default function FestsPage() {
     const isEmpty = !loading && ongoingFests.length === 0 && upcomingFests.length === 0 && lastYearFests.length === 0;
 
     return (
-        <div className={`crwdctrl-page min-h-screen overflow-x-clip ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+        <div className={`crwdctrl-page min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
 
             <MobileStickyHeader
                 isDark={isDark}

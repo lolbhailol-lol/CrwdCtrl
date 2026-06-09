@@ -1,11 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { useAuth } from '../../context/AuthContext';
 
 import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { getPendingPayment, clearPendingPayment } from '../../utils/deepLinks';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
+const DEFAULT_TREK_FORM_FIELDS = [
+    { id: 'default_full_name', label: 'Full Name', fieldName: 'full_name', type: 'text', required: true, placeholder: 'Enter your full name' },
+    { id: 'default_contact', label: 'Contact No.', fieldName: 'contact_no', type: 'tel', required: true, placeholder: '10-digit mobile number' },
+    { id: 'default_email', label: 'E-mail', fieldName: 'email', type: 'email', required: true, placeholder: 'your@email.com' },
+    { id: 'default_id_proof', label: 'ID Proof', fieldName: 'id_proof', type: 'file', required: false, placeholder: 'Upload Aadhaar / PAN / Passport' },
+];
+
+function trekDraftKey(trekId) {
+    return `trek_booking_draft_${trekId}`;
+}
 
 function generateDates(baseDate) {
     const base = baseDate ? new Date(baseDate) : new Date();
@@ -25,18 +38,14 @@ export default function TrekBookingPage() {
     const location  = useLocation();
     const { id }    = useParams();
     const { isDark } = useDarkMode();
+    const { user } = useAuth();
+    const paymentResumeRef = useRef(false);
 
-    const trek      = location.state?.trek || {};
-    const trekName  = trek.trekName || trek.title || 'Trek';
-    const fee       = Number(trek.registrationFee) || 0;
-    const reg       = trek.registration || {};
-    const dates     = reg.availableDates?.length ? reg.availableDates : generateDates(trek.trekDate);
-    const times     = reg.timeSlots?.length ? reg.timeSlots : trek.departureTime ? [trek.departureTime] : ['6:00 AM', '8:30 AM'];
-    const maxPeople = reg.maxPeoplePerBooking || trek.maxParticipants || 15;
-
+    const [trek, setTrek] = useState(location.state?.trek || null);
+    const [loadingTrek, setLoadingTrek] = useState(!location.state?.trek);
     const [step,        setStep]       = useState(1);
-    const [selDate,     setSelDate]    = useState(dates[0] || '');
-    const [selTime,     setSelTime]    = useState(times[0] || '');
+    const [selDate,     setSelDate]    = useState('');
+    const [selTime,     setSelTime]    = useState('');
     const [people,      setPeople]     = useState(1);
     const [extraFields, setExtraFields] = useState({});
     const [error,       setError]      = useState('');
@@ -44,8 +53,111 @@ export default function TrekBookingPage() {
     const [payDone,     setPayDone]    = useState(false);
     const [paymentId,   setPaymentId]  = useState('');
 
-    const regSchema          = trek.registration?.formSchema || [];
-    const sheetsInstructions = trek.registration?.formInstructions || '';
+    const trekName  = trek?.trekName || trek?.title || 'Trek';
+    const fee       = Number(trek?.registrationFee) || 0;
+    const reg       = trek?.registration || {};
+    const dates = useMemo(
+        () => (reg.availableDates?.length ? reg.availableDates : generateDates(trek?.trekDate)),
+        [reg.availableDates, trek?.trekDate],
+    );
+    const times = useMemo(
+        () => (reg.timeSlots?.length ? reg.timeSlots : trek?.departureTime ? [trek.departureTime] : ['6:00 AM', '8:30 AM']),
+        [reg.timeSlots, trek?.departureTime],
+    );
+    const maxPeople = reg.maxPeoplePerBooking || trek?.maxParticipants || 15;
+
+    const regSchema = useMemo(() => {
+        const custom = (reg.formSchema || []).filter((f) => f?.label?.trim() && f?.fieldName?.trim());
+        return custom.length > 0 ? custom : DEFAULT_TREK_FORM_FIELDS;
+    }, [reg.formSchema]);
+
+    const sheetsInstructions = reg.formInstructions || '';
+
+    useEffect(() => {
+        const trekId = id || location.state?.trek?._id || location.state?.trek?.id;
+        if (!trekId) {
+            setLoadingTrek(false);
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            try {
+                const r = await fetch(`${API}/treks/${trekId}`);
+                const d = await r.json();
+                if (!cancelled && d.trek) {
+                    setTrek(d.trek);
+                } else if (!cancelled && location.state?.trek) {
+                    setTrek(location.state.trek);
+                }
+            } catch {
+                if (!cancelled && location.state?.trek) {
+                    setTrek(location.state.trek);
+                }
+            } finally {
+                if (!cancelled) setLoadingTrek(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [id, location.state?.trek]);
+
+    useEffect(() => {
+        if (!trek) return;
+        setSelDate((prev) => prev || dates[0] || '');
+        setSelTime((prev) => prev || times[0] || '');
+    }, [trek, dates, times]);
+
+    useEffect(() => {
+        const trekId = id || trek?._id || trek?.id;
+        if (!trekId) return;
+
+        const raw = sessionStorage.getItem(trekDraftKey(trekId));
+        if (!raw) return;
+        try {
+            const draft = JSON.parse(raw);
+            if (draft.extraFields) setExtraFields(draft.extraFields);
+            if (draft.selDate) setSelDate(draft.selDate);
+            if (draft.selTime) setSelTime(draft.selTime);
+            if (draft.people) setPeople(draft.people);
+            if (draft.step) setStep(draft.step);
+        } catch {
+            /* ignore corrupt draft */
+        }
+    }, [id, trek?._id, trek?.id]);
+
+    useEffect(() => {
+        const trekId = id || trek?._id || trek?.id;
+        if (!user || !trekId || sessionStorage.getItem(trekDraftKey(trekId))) return;
+        setExtraFields((prev) => {
+            if (Object.keys(prev).length > 0) return prev;
+            return {
+                full_name: user.name || user.fullName || '',
+                email: user.email || '',
+                contact_no: user.phone || user.mobile || '',
+            };
+        });
+    }, [user, id, trek?._id, trek?.id]);
+
+    const scrollFieldIntoView = useCallback((e) => {
+        const el = e.target;
+        window.setTimeout(() => {
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 280);
+    }, []);
+
+    const saveDraft = useCallback((overrides = {}) => {
+        const trekId = id || trek?._id || trek?.id;
+        if (!trekId) return;
+        sessionStorage.setItem(trekDraftKey(trekId), JSON.stringify({
+            extraFields,
+            selDate,
+            selTime,
+            people,
+            step,
+            ...overrides,
+        }));
+    }, [id, trek, extraFields, selDate, selTime, people, step]);
 
     const baseFee     = fee * people;
     const platformFee = fee > 0 ? Math.ceil(baseFee * 0.03) : 0;
@@ -62,12 +174,13 @@ export default function TrekBookingPage() {
                 <textarea rows={3} placeholder={field.placeholder || ''}
                     value={val}
                     onChange={e => onChange(e.target.value)}
+                    onFocus={scrollFieldIntoView}
                     className={`${inp} resize-none`} />
             );
         }
         if (field.type === 'select') {
             return (
-                <select value={val} onChange={e => onChange(e.target.value)} className={inp}>
+                <select value={val} onChange={e => onChange(e.target.value)} onFocus={scrollFieldIntoView} className={inp}>
                     <option value="">Select...</option>
                     {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -88,12 +201,20 @@ export default function TrekBookingPage() {
             <input type={field.type || 'text'} placeholder={field.placeholder || ''}
                 value={val}
                 onChange={e => onChange(e.target.value)}
+                onFocus={scrollFieldIntoView}
+                autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'name'}
                 className={inp} />
         );
     };
 
-    const submitTrekRegistration = async ({ paymentOrderId, paymentId, amountPaid }) => {
-        const trekId = id || trek._id || trek.id;
+    const submitTrekRegistration = async ({
+        paymentOrderId,
+        paymentId,
+        amountPaid,
+        formData = extraFields,
+        booking = {},
+    }) => {
+        const trekId = id || trek?._id || trek?.id;
         if (!trekId) throw new Error('Trek not found');
 
         const token = localStorage.getItem('crwdctrl_token');
@@ -104,11 +225,11 @@ export default function TrekBookingPage() {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify({
-                formData: extraFields,
+                formData,
                 bookingDetails: {
-                    date: selDate,
-                    time: selTime,
-                    people,
+                    date: booking.date ?? selDate,
+                    time: booking.time ?? selTime,
+                    people: booking.people ?? people,
                     amountPaid: amountPaid ?? 0,
                     paymentId: paymentId || '',
                     payment_order_id: paymentOrderId || '',
@@ -119,8 +240,71 @@ export default function TrekBookingPage() {
         if (!regRes.ok) {
             throw new Error(regData.message || 'Registration failed after payment');
         }
+        sessionStorage.removeItem(trekDraftKey(trekId));
         return regData;
     };
+
+    useEffect(() => {
+        const trekId = id || trek?._id || trek?.id;
+        if (!trekId || loadingTrek || paymentResumeRef.current) return;
+
+        const pending = getPendingPayment();
+        if (!pending?.orderId || pending.returnPath !== `/trek/${trekId}/book`) return;
+
+        paymentResumeRef.current = true;
+        setPaying(true);
+        setError('');
+
+        (async () => {
+            try {
+                let draft = {};
+                const rawDraft = sessionStorage.getItem(trekDraftKey(trekId));
+                if (rawDraft) {
+                    try { draft = JSON.parse(rawDraft); } catch { /* ignore */ }
+                }
+                if (draft.extraFields) setExtraFields(draft.extraFields);
+                if (draft.selDate) setSelDate(draft.selDate);
+                if (draft.selTime) setSelTime(draft.selTime);
+                if (draft.people) setPeople(draft.people);
+
+                const vRes = await fetch(`${API}/payment/trek-verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ payment_order_id: pending.orderId }),
+                });
+                const v = await vRes.json();
+                clearPendingPayment();
+
+                if (!v.verified) {
+                    setError(v.message || 'Payment verification failed after redirect. Contact support.');
+                    setPaying(false);
+                    return;
+                }
+
+                const verified = buildVerifiedPaymentFields(v, pending.orderId);
+                setPaymentId(verified.payment_id);
+                setPayDone(true);
+                await submitTrekRegistration({
+                    paymentOrderId: verified.payment_order_id || pending.orderId,
+                    paymentId: verified.payment_id,
+                    amountPaid: v.totalAmount ?? total,
+                    formData: draft.extraFields || extraFields,
+                    booking: {
+                        date: draft.selDate || selDate,
+                        time: draft.selTime || selTime,
+                        people: draft.people || people,
+                    },
+                });
+                setStep(3);
+                setTimeout(() => navigate('/booking'), 2000);
+            } catch (e) {
+                setError(e.message || 'Could not complete booking after payment');
+            } finally {
+                setPaying(false);
+            }
+        })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once after trek load + redirect
+    }, [id, trek, loadingTrek, navigate]);
 
     const next = async () => {
         setError('');
@@ -147,6 +331,8 @@ export default function TrekBookingPage() {
                 }
                 return;
             }
+
+            saveDraft({ step: 2 });
 
             setPaying(true);
             try {
@@ -175,7 +361,13 @@ export default function TrekBookingPage() {
                     return;
                 }
 
-                const checkoutResult = await openCashfreeCheckout({ paymentSessionId: order.paymentSessionId });
+                saveDraft({ step: 2, extraFields, selDate, selTime, people });
+
+                const checkoutResult = await openCashfreeCheckout({
+                    paymentSessionId: order.paymentSessionId,
+                    orderId: order.orderId,
+                    returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
+                });
                 const checkoutPaymentId =
                     checkoutResult?.paymentDetails?.paymentId ||
                     checkoutResult?.paymentDetails?.cf_payment_id ||
@@ -213,6 +405,24 @@ export default function TrekBookingPage() {
     };
 
     const back = () => step === 1 ? navigate(-1) : setStep(s => s - 1);
+
+    if (loadingTrek) {
+        return (
+            <div className={`crwdctrl-page min-h-dvh flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+                <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
+            </div>
+        );
+    }
+
+    if (!trek) {
+        return (
+            <div className={`crwdctrl-page min-h-dvh flex flex-col items-center justify-center gap-3 px-6 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+                <span className="text-4xl">⛰️</span>
+                <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Trek not found. Open booking from the trek page.</p>
+                <button type="button" onClick={() => navigate('/treks')} className="text-[#0ECCEE] text-sm font-semibold">Browse treks</button>
+            </div>
+        );
+    }
 
     // ── Success Screen ──
     if (step === 3) {
@@ -259,7 +469,7 @@ export default function TrekBookingPage() {
     }
 
     return (
-        <div className={`min-h-screen py-2 sm:py-4 pb-40 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`crwdctrl-page trek-booking-page min-h-dvh py-2 sm:py-4 pb-[max(6rem,env(safe-area-inset-bottom)+5rem)] ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
             <div className="max-w-lg mx-auto px-4 sm:px-6">
 
                 {/* Header */}
@@ -407,23 +617,17 @@ export default function TrekBookingPage() {
                                 </div>
                             )}
 
-                            {regSchema.length === 0 ? (
-                                <p className={`text-sm text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                    No form fields configured. Add fields in the admin trek form.
-                                </p>
-                            ) : (
-                                <div className="space-y-4">
-                                    {regSchema.map(field => (
-                                        <div key={field.id || field.fieldName}>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                {field.label}
-                                                {field.required && <span className="text-red-400 ml-1">*</span>}
-                                            </label>
-                                            {renderField(field)}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <div className="space-y-4">
+                                {regSchema.map(field => (
+                                    <div key={field.id || field.fieldName}>
+                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            {field.label}
+                                            {field.required && <span className="text-red-400 ml-1">*</span>}
+                                        </label>
+                                        {renderField(field)}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 

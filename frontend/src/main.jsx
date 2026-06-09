@@ -4,16 +4,19 @@ import './index.css'
 import App from './App.jsx'
 import { shouldShowBootSplash, removeHtmlBootSplash } from './utils/bootSplash'
 import { initThemeClass } from './utils/themeInit'
+import { initSentry } from './utils/sentry'
+import { isNativeApp } from './utils/capacitorPlatform'
 
 initThemeClass()
+initSentry()
 
 // OAuth / email flows — skip static HTML splash immediately
 if (!shouldShowBootSplash()) {
   removeHtmlBootSplash()
 }
 
-// Prod only — dev service-worker reload causes a flash between splash and app
-if (import.meta.env.PROD) {
+// PWA service worker — web only (not Capacitor native shell)
+if (import.meta.env.PROD && !isNativeApp()) {
   import('virtual:pwa-register').then(({ registerSW }) => {
     registerSW({
       immediate: true,

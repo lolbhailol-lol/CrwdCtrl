@@ -1265,7 +1265,11 @@ export default function FestRegistration() {
         if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
         const orderData = await orderRes.json();
 
-        await openCashfreeCheckout({ paymentSessionId: orderData.paymentSessionId });
+        await openCashfreeCheckout({
+          paymentSessionId: orderData.paymentSessionId,
+          orderId: orderData.orderId,
+          returnPath: window.location.pathname + window.location.search,
+        });
 
         const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
           method: 'POST',
@@ -1605,7 +1609,11 @@ export default function FestRegistration() {
       if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
       const orderData = await orderRes.json();
 
-      await openCashfreeCheckout({ paymentSessionId: orderData.paymentSessionId });
+      await openCashfreeCheckout({
+        paymentSessionId: orderData.paymentSessionId,
+        orderId: orderData.orderId,
+        returnPath: window.location.pathname + window.location.search,
+      });
 
       const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
         method: 'POST',

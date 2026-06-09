@@ -86,5 +86,8 @@ registrationSchema.index(
   { fest: 1, user: 1, competitionId: 1 }, 
   { unique: true, sparse: true }
 );
+registrationSchema.index({ user: 1, submittedAt: -1 });
+registrationSchema.index({ fest: 1, status: 1 });
+registrationSchema.index({ reminderSent: 1, status: 1 });
 
 module.exports = mongoose.model('Registration', registrationSchema);

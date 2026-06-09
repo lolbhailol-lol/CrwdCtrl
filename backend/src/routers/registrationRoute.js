@@ -12,6 +12,7 @@ const {
   updateRegistrationStatus,
   getUserRegistrations,
   getRegistrationDetails,
+  getTrekBookingDetails,
   testGoogleSheets,
   diagnoseGoogleSheets,
   upload
@@ -19,6 +20,8 @@ const {
 
 const { authenticateToken } = require('../middleware/authmiddleware');
 const authenticateAdmin = require('../middleware/adminAuth');
+const devOnly = require('../middleware/devOnly');
+const { registrationLimiter } = require('../middleware/rateLimiter');
 
 /* ======================
    USER ROUTES
@@ -27,6 +30,7 @@ const authenticateAdmin = require('../middleware/adminAuth');
 // Fest registration (dynamic form + files)
 router.post(
   '/fests/:festId/register',
+  registrationLimiter,
   authenticateToken,
   upload.any(),
   (req, res, next) => {
@@ -125,6 +129,7 @@ router.post('/upload', authenticateToken, upload.any(), async (req, res) => {
 router.get('/fests/:festId/registration', authenticateToken, getUserRegistration);
 router.get('/my-registrations', authenticateToken, getUserRegistrations);
 router.get('/details/:registrationId', authenticateToken, getRegistrationDetails);
+router.get('/trek-booking/:bookingId', authenticateToken, getTrekBookingDetails);
 
 /* ======================
    ADMIN ROUTES
@@ -140,7 +145,7 @@ router.get('/admin/fests/:festId/diagnose-google-sheets', authenticateAdmin, dia
    DEBUG (OPTIONAL)
 ====================== */
 
-router.get('/admin/debug/registration/:registrationId', authenticateAdmin, async (req, res) => {
+router.get('/admin/debug/registration/:registrationId', devOnly, authenticateAdmin, async (req, res) => {
   try {
     const Registration = require('../model/registration_model');
     const registration = await Registration.findById(req.params.registrationId);
@@ -160,7 +165,7 @@ router.get('/admin/debug/registration/:registrationId', authenticateAdmin, async
 });
 
 // Debug endpoint for user registrations
-router.get('/debug/user-registrations', authenticateToken, async (req, res) => {
+router.get('/debug/user-registrations', devOnly, authenticateToken, async (req, res) => {
   try {
     const Registration = require('../model/registration_model');
     const userId = req.user.userId;

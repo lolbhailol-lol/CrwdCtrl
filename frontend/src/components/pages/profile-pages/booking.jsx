@@ -375,15 +375,17 @@ function Booking() {
     };
 
     const handleViewDetails = (item) => {
-        if (item.id) {
-            navigate(`/registration-details/${item.id}`);
+        if (!item.id) return;
+        if (item.isTrek) {
+            navigate(`/registration-details/${item.id}?type=trek`);
+            return;
         }
+        navigate(`/registration-details/${item.id}`);
     };
 
     const handleDownloadTicket = (item) => {
-        if (item.id) {
-            navigate(`/qr-ticket/${item.id}`);
-        }
+        if (!item.id || item.isTrek) return;
+        navigate(`/qr-ticket/${item.id}`);
     };
 
     const upcomingBookings = allBookings.filter((item) => !isEventCompleted(item));

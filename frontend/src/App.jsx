@@ -21,6 +21,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
+import CapacitorInit from './components/CapacitorInit'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
 import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
 
@@ -69,6 +70,7 @@ const TrekDetailPage  = React.lazy(() => import('./components/pages/TrekDetailPa
 const TrekBookingPage = React.lazy(() => import('./components/pages/TrekBookingPage'))
 const QRTicketPage = React.lazy(() => import('./components/pages/QRTicketPage'))
 const PublicTreksPage = React.lazy(() => import('./components/pages/treks-page'))
+const PublicTheatrePage = React.lazy(() => import('./components/pages/theatre-page'))
 const CommunityDetailPage = React.lazy(() => import('./components/pages/CommunityDetailPage'))
 const TrekCategoryPage = React.lazy(() => import('./components/pages/TrekCategoryPage'))
 
@@ -203,7 +205,9 @@ function AppContent({
             <PageTransitionContent>
               <Suspense fallback={<LoadingBar />}>
                 <Routes>
+                <Route path="/payment/return" element={<Navigate to="/booking" replace />} />
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/login" element={<CrwdCtrlLogin />} />
                 <Route path="/admin/login" element={<CrwdCtrlLogin />} />
                 <Route path="/register" element={<CrwdCtrlRegister />} />
@@ -214,6 +218,7 @@ function AppContent({
                 <Route path="/sports" element={<SportsCategoryPage />} />
                 <Route path="/sports-fest" element={<SportsFestPage />} />
                 <Route path="/treks" element={<PublicTreksPage />} />
+                <Route path="/theatre" element={<PublicTheatrePage />} />
                 <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
                 <Route path="/treks/category/:category" element={<TrekCategoryPage />} />
                 <Route path="/trek/:id" element={<TrekDetailPage />} />
@@ -387,6 +392,7 @@ function App() {
             <NotificationsProvider>
               <Router>
                 <PageTransitionProvider>
+                  <CapacitorInit />
                   <RouteTracker />
                   <AdSenseLoader />
                   <PWAInstallPrompt />

@@ -1,3 +1,6 @@
+const { logger } = require('../utils/logger');
+const { captureException } = require('../config/sentry');
+
 function notFoundHandler(req, res) {
   res.status(404).json({
     success: false,
@@ -9,16 +12,18 @@ function notFoundHandler(req, res) {
 function errorHandler(err, req, res, _next) {
   const status = err.status || err.statusCode || 500;
 
-  console.error('API error:', {
+  logger.error('API error', {
     message: err.message,
     status,
     method: req.method,
     path: req.path,
-    timestamp: new Date().toISOString(),
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 
-  if (process.env.NODE_ENV === 'development') {
-    console.error(err.stack);
+  if (status >= 500) {
+    captureException(err, {
+      extra: { method: req.method, path: req.path },
+    });
   }
 
   res.status(status).json({

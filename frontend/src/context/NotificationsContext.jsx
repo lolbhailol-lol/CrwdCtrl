@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { requestNotificationPermission, onForegroundMessage } from '../firebase';
+import { registerNativePushToken, getPushDeviceType } from '../utils/nativePush';
+import { isNativeApp } from '../utils/capacitorPlatform';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -130,14 +132,23 @@ export const NotificationsProvider = ({ children }) => {
             fetchUnreadCount();
         }, 60000);
 
-        // Register FCM push token
+        // Register FCM push token (native Capacitor or web)
         const registerPush = async () => {
             try {
-                const fcmToken = await requestNotificationPermission();
+                if (!isNativeApp() && (!('serviceWorker' in navigator) || location.protocol !== 'https:' && location.hostname !== 'localhost')) {
+                    return;
+                }
+
+                let fcmToken = null;
+                if (isNativeApp()) {
+                    fcmToken = await registerNativePushToken();
+                } else if ('serviceWorker' in navigator) {
+                    fcmToken = await requestNotificationPermission();
+                }
                 if (fcmToken) {
                     await authFetchJSON('/notifications/register-push', {
                         method: 'POST',
-                        body: JSON.stringify({ token: fcmToken, device: 'web' }),
+                        body: JSON.stringify({ token: fcmToken, device: getPushDeviceType() }),
                     });
                 }
             } catch (err) {

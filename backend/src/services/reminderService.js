@@ -4,6 +4,7 @@ const Competition = require('../model/competition_model');
 const User = require('../model/usermodel');
 const { createNotification } = require('../controllers/notificationController');
 const { sendPushNotification } = require('./pushService');
+const { logger } = require('../utils/logger');
 
 /**
  * Initialize the event reminder cron job.
@@ -16,7 +17,7 @@ const initReminderCron = () => {
 
   const runReminders = async () => {
     try {
-      console.log('⏰ Running event reminder check...');
+      logger.info('Running event reminder check');
 
       const now = new Date();
       const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -47,11 +48,11 @@ const initReminderCron = () => {
       }
 
       if (festsToRemind.length === 0) {
-        console.log('⏰ No events to remind about right now');
+        logger.debug('No events to remind about right now');
         return;
       }
 
-      console.log(`⏰ Found ${festsToRemind.length} fests happening in next 24h`);
+      logger.info(`Found ${festsToRemind.length} fests happening in next 24h`);
 
       // Process each fest
       for (const fest of festsToRemind) {
@@ -64,7 +65,7 @@ const initReminderCron = () => {
 
           if (registrations.length === 0) continue;
 
-          console.log(`⏰ Sending reminders for "${fest.festName}" to ${registrations.length} users`);
+          logger.info(`Sending reminders for "${fest.festName}" to ${registrations.length} users`);
 
           // Send notifications to each registered user
           for (const reg of registrations) {
@@ -89,7 +90,7 @@ const initReminderCron = () => {
                 link: `/view-details/${fest._id}`,
                 type: 'reminder',
               }).catch(err => {
-                console.error('⚠️ Push reminder failed:', err.message);
+                logger.warn('Push reminder failed', { error: err.message });
               });
 
               // Mark reminder as sent
@@ -98,19 +99,19 @@ const initReminderCron = () => {
                 { reminderSent: true }
               );
             } catch (userErr) {
-              console.error(`⚠️ Failed to send reminder to user ${reg.user}:`, userErr.message);
+              logger.warn('Failed to send reminder to user', { userId: reg.user, error: userErr.message });
             }
           }
 
-          console.log(`✅ Reminders sent for "${fest.festName}"`);
+          logger.info(`Reminders sent for "${fest.festName}"`);
         } catch (festErr) {
-          console.error(`❌ Error processing reminders for fest ${fest._id}:`, festErr.message);
+          logger.error('Error processing reminders for fest', { festId: fest._id, error: festErr.message });
         }
       }
 
-      console.log('⏰ Reminder check completed');
+      logger.info('Reminder check completed');
     } catch (error) {
-      console.error('❌ Reminder cron error:', error);
+      logger.error('Reminder cron error', { error: error.message });
     }
   };
 
@@ -120,7 +121,7 @@ const initReminderCron = () => {
   // Then run every hour
   setInterval(runReminders, INTERVAL_MS);
 
-  console.log('⏰ Event reminder service initialized (runs every hour)');
+  logger.info('Event reminder service initialized (runs every hour)');
 };
 
 module.exports = { initReminderCron };

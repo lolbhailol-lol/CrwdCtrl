@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-const COLLAPSE_DISTANCE = 82;
+const DEFAULT_COLLAPSE_DISTANCE = 82;
 const MIN_COLLAPSE_DISTANCE = 28;
 const IDLE_MS = 220;
 const LERP_ACTIVE = 0.38;
@@ -19,14 +19,20 @@ function getSpeedFactor(velocityPxPerMs) {
     return Math.min(1, Math.abs(velocityPxPerMs) / FAST_SCROLL_VELOCITY);
 }
 
-function getEffectiveCollapseDistance(speedFactor) {
-    return COLLAPSE_DISTANCE - (COLLAPSE_DISTANCE - MIN_COLLAPSE_DISTANCE) * speedFactor;
+function getEffectiveCollapseDistance(baseDistance, speedFactor) {
+    return baseDistance - (baseDistance - MIN_COLLAPSE_DISTANCE) * speedFactor;
 }
 
-function getTargetProgress(scrollY, speedFactor) {
-    const distance = getEffectiveCollapseDistance(speedFactor);
+function getTargetProgress(scrollY, speedFactor, baseDistance) {
+    const distance = getEffectiveCollapseDistance(baseDistance, speedFactor);
     const raw = Math.min(1, Math.max(0, scrollY / distance));
     return smoothstep(raw);
+}
+
+function measureCollapseDistance(el) {
+    const row = el?.querySelector('.mobile-header-branding-row__inner');
+    const measured = row?.offsetHeight ?? 0;
+    return measured > 0 ? measured + 6 : DEFAULT_COLLAPSE_DISTANCE;
 }
 
 function getLerpFactor(isActivelyScrolling, speedFactor) {
@@ -58,6 +64,7 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
         let speedFactor = 0;
         let currentProgress = 0;
         let targetProgress = 0;
+        let collapseDistance = measureCollapseDistance(el);
 
         const apply = (progress) => {
             el.style.setProperty('--header-collapse', String(progress));
@@ -89,7 +96,7 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
                 if (Math.abs(speedFactor - prevSpeed) > 0.02) {
                     const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
                     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                        targetProgress = getTargetProgress(scrollY, speedFactor);
+                        targetProgress = getTargetProgress(scrollY, speedFactor, collapseDistance);
                     }
                 }
             }
@@ -129,8 +136,14 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
 
             const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             targetProgress = prefersReducedMotion
-                ? (scrollY > COLLAPSE_DISTANCE * 0.5 ? 1 : 0)
-                : getTargetProgress(scrollY, speedFactor);
+                ? (scrollY > collapseDistance * 0.5 ? 1 : 0)
+                : getTargetProgress(scrollY, speedFactor, collapseDistance);
+        };
+
+        const onResize = () => {
+            collapseDistance = measureCollapseDistance(el);
+            syncTarget();
+            apply(currentProgress);
         };
 
         const startLoop = () => {
@@ -157,10 +170,12 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
 
         window.addEventListener('scroll', startLoop, { passive: true });
         window.addEventListener('touchmove', startLoop, { passive: true });
+        window.addEventListener('resize', onResize, { passive: true });
 
         return () => {
             window.removeEventListener('scroll', startLoop);
             window.removeEventListener('touchmove', startLoop);
+            window.removeEventListener('resize', onResize);
             clearTimeout(idleTimer);
             loopActive = false;
             if (rafId != null) window.cancelAnimationFrame(rafId);

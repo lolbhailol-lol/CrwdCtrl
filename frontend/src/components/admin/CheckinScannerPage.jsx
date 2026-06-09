@@ -1,64 +1,35 @@
-﻿import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { Camera, CheckCircle, AlertTriangle, XCircle, RefreshCw, QrCode } from 'lucide-react';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { isNativeApp } from '../../utils/capacitorPlatform';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 const getAdminToken = () => localStorage.getItem('admin_token');
 
 export default function CheckinScannerPage() {
-  const [scanResult, setScanResult] = useState(null); // { status, data, message }
+  const [scanResult, setScanResult] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [manualHash, setManualHash] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [nativeScanAvailable, setNativeScanAvailable] = useState(false);
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const scanIntervalRef = useRef(null);
 
-  // Clean up camera on unmount
   useEffect(() => {
+    if (isNativeApp()) {
+      BarcodeScanner.isSupported()
+        .then(({ supported }) => setNativeScanAvailable(!!supported))
+        .catch(() => setNativeScanAvailable(false));
+    }
     return () => {
-      stopScanning();
+      stopWebScanning();
     };
   }, []);
 
-  const startScanning = async () => {
-    try {
-      setScanResult(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-      setIsScanning(true);
-
-      // Poll for QR codes using BarcodeDetector API (available in modern browsers)
-      if ('BarcodeDetector' in window) {
-        const detector = new BarcodeDetector({ formats: ['qr_code'] });
-        scanIntervalRef.current = setInterval(async () => {
-          if (!videoRef.current || videoRef.current.readyState < 2) return;
-          try {
-            const barcodes = await detector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              const rawData = barcodes[0].rawValue;
-              handleQRData(rawData);
-            }
-          } catch (_) { /* scanning... */ }
-        }, 500);
-      }
-    } catch (err) {
-      setScanResult({
-        status: 'error',
-        message: `Camera access denied: ${err.message}`,
-      });
-    }
-  };
-
-  const stopScanning = () => {
+  const stopWebScanning = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
     if (scanIntervalRef.current) {
@@ -68,36 +39,7 @@ export default function CheckinScannerPage() {
     setIsScanning(false);
   };
 
-  const handleQRData = async (rawData) => {
-    // Stop scanning while processing
-    stopScanning();
-    setIsProcessing(true);
-
-    try {
-      // Parse QR data
-      let parsed;
-      try {
-        parsed = JSON.parse(rawData);
-      } catch (_) {
-        // Might be just a hash string
-        parsed = { hash: rawData };
-      }
-
-      const hash = parsed.hash;
-      if (!hash) {
-        setScanResult({ status: 'error', message: 'Invalid QR code format' });
-        return;
-      }
-
-      await verifyHash(hash);
-    } catch (err) {
-      setScanResult({ status: 'error', message: err.message });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const verifyHash = async (hash) => {
+  const verifyHash = useCallback(async (hash) => {
     setIsProcessing(true);
     try {
       const token = getAdminToken();
@@ -121,6 +63,105 @@ export default function CheckinScannerPage() {
     } finally {
       setIsProcessing(false);
     }
+  }, []);
+
+  const handleQRData = useCallback(async (rawData) => {
+    stopWebScanning();
+    setIsProcessing(true);
+
+    try {
+      let parsed;
+      try {
+        parsed = JSON.parse(rawData);
+      } catch {
+        parsed = { hash: rawData };
+      }
+
+      const hash = parsed.hash;
+      if (!hash) {
+        setScanResult({ status: 'error', message: 'Invalid QR code format' });
+        return;
+      }
+
+      await verifyHash(hash);
+    } catch (err) {
+      setScanResult({ status: 'error', message: err.message });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [verifyHash]);
+
+  const startNativeScan = async () => {
+    try {
+      setScanResult(null);
+      const perm = await BarcodeScanner.requestPermissions();
+      if (perm.camera !== 'granted') {
+        setScanResult({ status: 'error', message: 'Camera permission denied' });
+        return;
+      }
+
+      document.body.classList.add('barcode-scanner-active');
+      const { barcodes } = await BarcodeScanner.scan({
+        formats: ['QR_CODE'],
+      });
+      document.body.classList.remove('barcode-scanner-active');
+
+      if (barcodes?.length > 0) {
+        await handleQRData(barcodes[0].rawValue || barcodes[0].displayValue);
+      }
+    } catch (err) {
+      document.body.classList.remove('barcode-scanner-active');
+      if (err.message?.includes('cancel')) return;
+      setScanResult({ status: 'error', message: err.message || 'Scan failed' });
+    }
+  };
+
+  const startWebScanning = async () => {
+    try {
+      setScanResult(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setIsScanning(true);
+
+      if ('BarcodeDetector' in window) {
+        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+        scanIntervalRef.current = setInterval(async () => {
+          if (!videoRef.current || videoRef.current.readyState < 2) return;
+          try {
+            const barcodes = await detector.detect(videoRef.current);
+            if (barcodes.length > 0) {
+              await handleQRData(barcodes[0].rawValue);
+            }
+          } catch {
+            /* scanning */
+          }
+        }, 500);
+      }
+    } catch (err) {
+      setScanResult({
+        status: 'error',
+        message: `Camera access denied: ${err.message}`,
+      });
+    }
+  };
+
+  const startScanning = () => {
+    if (isNativeApp() && nativeScanAvailable) {
+      startNativeScan();
+    } else {
+      startWebScanning();
+    }
+  };
+
+  const resetScanner = () => {
+    setScanResult(null);
+    setManualHash('');
   };
 
   const handleManualSubmit = (e) => {
@@ -130,31 +171,25 @@ export default function CheckinScannerPage() {
     }
   };
 
-  const resetScanner = () => {
-    setScanResult(null);
-    setManualHash('');
-  };
-
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Check-in Scanner</h1>
         <p className="text-sm text-gray-400 mt-1">Scan QR codes to check in attendees</p>
       </div>
 
-      {/* Scanner Area */}
       <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
         {!isScanning && !scanResult && (
           <div className="text-center py-12">
             <QrCode size={48} className="text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 mb-6">Point your camera at a QR code to check in an attendee</p>
             <button
+              type="button"
               onClick={startScanning}
               className="inline-flex items-center gap-2 px-6 py-3 bg-[#0ECCEE] text-black rounded-lg font-medium hover:bg-[#0ECCEE]/90 transition-colors"
             >
               <Camera size={18} />
-              Start Scanning
+              {isNativeApp() && nativeScanAvailable ? 'Scan with Camera' : 'Start Scanning'}
             </button>
           </div>
         )}
@@ -167,25 +202,24 @@ export default function CheckinScannerPage() {
               playsInline
               muted
             />
-            <canvas ref={canvasRef} className="hidden" />
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-48 h-48 border-2 border-[#0ECCEE] rounded-2xl opacity-70" />
             </div>
             <button
-              onClick={stopScanning}
+              type="button"
+              onClick={stopWebScanning}
               className="absolute top-3 right-3 px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium"
             >
               Stop
             </button>
             {!('BarcodeDetector' in window) && (
               <div className="absolute bottom-3 left-3 right-3 bg-yellow-500/90 text-black text-xs rounded-lg px-3 py-2 text-center">
-                Your browser doesn't support auto-scanning. Use manual entry below.
+                Auto-scan unavailable — use manual entry below.
               </div>
             )}
           </div>
         )}
 
-        {/* Processing indicator */}
         {isProcessing && (
           <div className="text-center py-8">
             <RefreshCw className="animate-spin text-[#0ECCEE] mx-auto mb-3" size={32} />
@@ -193,7 +227,6 @@ export default function CheckinScannerPage() {
           </div>
         )}
 
-        {/* Scan Result */}
         {scanResult && !isProcessing && (
           <div className={`rounded-xl p-6 text-center ${
             scanResult.status === 'checked_in' ? 'bg-green-500/10 border border-green-500/30' :
@@ -234,6 +267,7 @@ export default function CheckinScannerPage() {
             )}
 
             <button
+              type="button"
               onClick={resetScanner}
               className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-300 transition-colors"
             >
@@ -244,7 +278,6 @@ export default function CheckinScannerPage() {
         )}
       </div>
 
-      {/* Manual Entry */}
       <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
         <h3 className="font-semibold text-white mb-3">Manual Check-in</h3>
         <form onSubmit={handleManualSubmit} className="flex gap-3">

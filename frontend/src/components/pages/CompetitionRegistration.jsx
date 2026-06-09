@@ -817,6 +817,8 @@ export default function CompetitionRegistration() {
                 try {
                     await openCashfreeCheckout({
                         paymentSessionId: orderData.paymentSessionId,
+                        orderId: orderData.orderId,
+                        returnPath: window.location.pathname + window.location.search,
                     });
                 } catch (cfErr) {
                     throw cfErr;

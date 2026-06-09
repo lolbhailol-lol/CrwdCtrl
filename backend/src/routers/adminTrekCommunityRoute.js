@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
+const devOnly = require('../middleware/devOnly');
 const ctrl = require('../controllers/adminTrekCommunityController');
 
-// No-auth health check — hit /api/admin/trek-communities/ping to confirm routing
-router.get('/ping', (req, res) => {
+// Development-only routing check
+router.get('/ping', devOnly, (req, res) => {
     res.json({
         ok: true,
         route: 'trek-communities',

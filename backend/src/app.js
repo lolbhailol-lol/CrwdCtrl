@@ -9,6 +9,7 @@ const { securityHeaders } = require('./middleware/security');
 const { requestLogger } = require('./middleware/requestLogger');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { isDbReady } = require('./config/db');
 const apiRoutes = require('./routes');
 const { handleCashfreeWebhook } = require('./controllers/paymentWebhookController');
 
@@ -59,13 +60,30 @@ app.get('/', (_req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.status(200).json({
-    success: true,
-    status: 'OK',
-    message: 'CrwdCtrl API is running',
+  const dbConnected = mongoose.connection.readyState === 1;
+  res.status(dbConnected ? 200 : 503).json({
+    success: dbConnected,
+    status: dbConnected ? 'OK' : 'DEGRADED',
+    message: dbConnected ? 'CrwdCtrl API is running' : 'Database unavailable',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    database: dbConnected ? 'connected' : 'disconnected',
+  });
+});
+
+app.get('/api/ready', (_req, res) => {
+  const dbReady = isDbReady();
+  const checks = {
+    database: dbReady,
+    env: !!process.env.JWT_SECRET?.trim(),
+  };
+  const ready = Object.values(checks).every(Boolean);
+
+  res.status(ready ? 200 : 503).json({
+    success: ready,
+    ready,
+    checks,
+    timestamp: new Date().toISOString(),
   });
 });
 

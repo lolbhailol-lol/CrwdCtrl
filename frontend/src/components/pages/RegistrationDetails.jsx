@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Calendar, MapPin, User, Mail, Phone } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +9,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 export default function RegistrationDetails() {
   const { registrationId } = useParams();
+  const [searchParams] = useSearchParams();
+  const isTrekBooking = searchParams.get('type') === 'trek';
   const navigate = useNavigate();
   const { isDark } = useDarkMode();
   const { isAuthenticated } = useAuth();
@@ -24,14 +26,18 @@ export default function RegistrationDetails() {
     }
 
     fetchRegistrationDetails();
-  }, [registrationId, isAuthenticated, navigate]);
+  }, [registrationId, isAuthenticated, isTrekBooking, navigate]);
 
   const fetchRegistrationDetails = async () => {
     try {
       setLoading(true);
+      setError('');
       const token = localStorage.getItem('crwdctrl_token');
-      
-      const response = await fetch(`${API_BASE_URL}/registrations/details/${registrationId}`, {
+      const url = isTrekBooking
+        ? `${API_BASE_URL}/registrations/trek-booking/${registrationId}`
+        : `${API_BASE_URL}/registrations/details/${registrationId}`;
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -39,7 +45,7 @@ export default function RegistrationDetails() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch registration details');
+        throw new Error(isTrekBooking ? 'Trek booking not found' : 'Failed to fetch registration details');
       }
 
       const data = await response.json();
@@ -95,13 +101,20 @@ export default function RegistrationDetails() {
     );
   }
 
-  const isCompetitionRegistration = !!registration.competitionId;
-  const eventName = isCompetitionRegistration 
-    ? registration.competitionId?.name 
-    : registration.fest?.festName;
-  const eventImage = isCompetitionRegistration 
-    ? registration.competitionId?.coverImage 
-    : registration.fest?.coverImage;
+  const isCompetitionRegistration = !isTrekBooking && !!registration.competitionId;
+  const eventName = isTrekBooking
+    ? registration.trekId?.trekName || 'Trek'
+    : isCompetitionRegistration
+      ? registration.competitionId?.name
+      : registration.fest?.festName;
+  const eventImage = isTrekBooking
+    ? registration.trekId?.coverImage || registration.trekId?.images?.[0]
+    : isCompetitionRegistration
+      ? registration.competitionId?.coverImage
+      : registration.fest?.coverImage;
+  const formEntries = isTrekBooking
+    ? Object.entries(registration.formData || {})
+    : null;
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#111213]' : 'bg-gray-50'} py-4 sm:py-8`}>
@@ -121,7 +134,7 @@ export default function RegistrationDetails() {
               Registration Confirmed
             </h1>
             <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-0.5`}>
-              {isCompetitionRegistration ? 'Competition Registration' : 'Fest Registration'}
+              {isTrekBooking ? 'Trek Booking' : isCompetitionRegistration ? 'Competition Registration' : 'Fest Registration'}
             </p>
           </div>
         </div>
@@ -135,7 +148,7 @@ export default function RegistrationDetails() {
                 Registration Successful!
               </h3>
               <p className={`text-xs sm:text-sm ${isDark ? 'text-green-300' : 'text-green-700'} mt-0.5`}>
-                Your registration for {eventName} has been confirmed.
+                Your {isTrekBooking ? 'booking' : 'registration'} for {eventName} has been confirmed.
               </p>
             </div>
           </div>
@@ -164,17 +177,38 @@ export default function RegistrationDetails() {
               </h3>
               
               <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                {registration.fest?.collegeName && (
+                {isTrekBooking && registration.trekId?.city && (
                   <div className="flex items-center gap-2 text-gray-500">
-<MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
+                    <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
+                      {registration.trekId.city}
+                    </span>
+                  </div>
+                )}
+
+                {!isTrekBooking && registration.fest?.collegeName && (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
                       {registration.fest.collegeName}
                     </span>
                   </div>
                 )}
-                
-                {registration.fest?.festDate && (
+
+                {isTrekBooking && registration.bookingDetails?.date && (
                   <div className="flex items-center gap-2 text-gray-500">
-<Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+                    <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+                      {registration.bookingDetails.date}
+                      {registration.bookingDetails?.time ? ` · ${registration.bookingDetails.time}` : ''}
+                    </span>
+                  </div>
+                )}
+
+                {!isTrekBooking && registration.fest?.festDate && (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
                       {registration.fest.festDate}
                     </span>
                   </div>
@@ -191,13 +225,47 @@ export default function RegistrationDetails() {
             Registration Details
           </h2>
 
-          {registration.fest?.registration?.formSchema && (
+          {isTrekBooking && formEntries?.length > 0 && (
+            <div className="space-y-3 sm:space-y-4">
+              {formEntries.map(([key, value]) => (
+                <div key={key} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                    <div className="sm:w-1/3">
+                      <label className={`text-sm font-medium capitalize ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {key.replace(/_/g, ' ')}
+                      </label>
+                    </div>
+                    <div className="sm:w-2/3">
+                      <div className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {value || 'Not provided'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {registration.bookingDetails?.people > 1 && (
+                <div className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                    <div className="sm:w-1/3">
+                      <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>People</span>
+                    </div>
+                    <div className="sm:w-2/3">
+                      <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {registration.bookingDetails.people}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isTrekBooking && registration.fest?.registration?.formSchema && (
             <div className="space-y-3 sm:space-y-4">
               {registration.fest.registration.formSchema.map((field, index) => {
                 const value = registration.responses?.[field.fieldName];
                 const renderedValue = renderFieldValue(field, value);
-                
-                // Skip file/image fields
+
                 if (!renderedValue) return null;
 
                 return (
@@ -240,7 +308,7 @@ export default function RegistrationDetails() {
                   Submitted On:
                 </span>
                 <div className={isDark ? 'text-white' : 'text-gray-900'}>
-                  {new Date(registration.submittedAt).toLocaleString('en-IN', {
+                  {new Date(registration.submittedAt || registration.createdAt).toLocaleString('en-IN', {
                     timeZone: 'Asia/Kolkata',
                     year: 'numeric',
                     month: 'long',

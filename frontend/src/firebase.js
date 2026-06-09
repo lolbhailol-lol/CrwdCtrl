@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
+import { isNativeApp } from "./utils/capacitorPlatform";
 import {
     getAuth,
     GoogleAuthProvider,
@@ -32,14 +33,21 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+let analytics = null;
+if (!isNativeApp() && typeof window !== 'undefined') {
+    try {
+        analytics = getAnalytics(app);
+    } catch {
+        /* analytics unavailable */
+    }
+}
 const auth = getAuth(app);
 
 // ===== FIREBASE CLOUD MESSAGING (Push Notifications) =====
 let messaging = null;
 try {
-    // FCM only works in browsers that support service workers
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
+    // FCM only works in browsers that support service workers (not Capacitor native)
+    if (!isNativeApp() && 'serviceWorker' in navigator && 'PushManager' in window) {
         messaging = getMessaging(app);
         console.log('✅ Firebase Messaging initialized');
     }
@@ -54,30 +62,33 @@ try {
 export const requestNotificationPermission = async () => {
     try {
         if (!messaging) {
-            console.warn('⚠️ Firebase Messaging not initialized');
+            return null;
+        }
+
+        if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) {
             return null;
         }
 
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') {
-            console.log('🔕 Notification permission denied');
             return null;
         }
 
-        // Register the service worker
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        await navigator.serviceWorker.ready;
 
-        // Get the FCM token (uses VAPID key if set in env, otherwise auto-generated)
         const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || undefined;
         const fcmToken = await getToken(messaging, {
             vapidKey,
             serviceWorkerRegistration: registration,
         });
 
-        console.log('🔔 FCM Token obtained:', fcmToken ? 'yes' : 'no');
-        return fcmToken;
+        return fcmToken || null;
     } catch (error) {
-        console.error('❌ Error getting FCM token:', error);
+        // Common in dev / before SW is active — push is optional
+        if (import.meta.env.DEV) {
+            console.warn('Push notifications unavailable:', error?.message || error);
+        }
         return null;
     }
 };
@@ -283,9 +294,33 @@ const isInAppBrowser = () => {
 export const signInWithGoogle = async () => {
     console.log('🚀 Starting Google authentication...');
     
-    // Keep popup launches tied to the original tap; mobile browsers can block them
-    // if we await other async work before opening the auth window.
     ensurePersistenceStarted();
+
+    // Capacitor Android/iOS: redirect-only (popups fail in WebView)
+    if (isNativeApp()) {
+        try {
+            sessionStorage.setItem('auth_redirect_url', window.location.href);
+            sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+            sessionStorage.setItem('auth_redirect_type', 'google');
+            await signInWithRedirect(auth, googleProvider);
+            return {
+                success: true,
+                user: null,
+                credential: null,
+                needsVerification: false,
+                method: 'capacitor-redirect',
+                redirectInitiated: true,
+                message: 'Redirecting to Google sign-in...',
+            };
+        } catch (err) {
+            return {
+                success: false,
+                error: getGoogleAuthErrorMessage(err),
+                code: err.code,
+                method: 'capacitor-redirect-failed',
+            };
+        }
+    }
     
     const browser = getBrowserInfo();
     const isMobile = isMobileDevice();
@@ -573,8 +608,32 @@ const getGoogleAuthErrorMessage = (error) => {
 export const signInWithFacebook = async () => {
     console.log('🚀 Starting Facebook authentication...');
     
-    // Keep popup launches tied to the original tap event.
     ensurePersistenceStarted();
+
+    if (isNativeApp()) {
+        try {
+            sessionStorage.setItem('auth_redirect_url', window.location.href);
+            sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
+            sessionStorage.setItem('auth_redirect_type', 'facebook');
+            await signInWithRedirect(auth, facebookProvider);
+            return {
+                success: true,
+                user: null,
+                credential: null,
+                needsVerification: false,
+                method: 'capacitor-redirect',
+                redirectInitiated: true,
+                message: 'Redirecting to Facebook sign-in...',
+            };
+        } catch (err) {
+            return {
+                success: false,
+                error: err.message || 'Facebook sign-in failed',
+                code: err.code,
+                method: 'capacitor-redirect-failed',
+            };
+        }
+    }
     
     const isInApp = isInAppBrowser();
     

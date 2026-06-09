@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const festOrganizerController = require('../controllers/festOrganizerController');
+const devOnly = require('../middleware/devOnly');
 
 /**
  * Server-side sanitization: remove duplicated content blocks from descriptions.
@@ -280,8 +281,8 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
     }
 });
 
-// Debug route to check if fest exists
-router.get('/:id/debug', async (req, res) => {
+// Debug route — development only
+router.get('/:id/debug', devOnly, async (req, res) => {
     try {
         const { id } = req.params;
         const mongoose = require('mongoose');

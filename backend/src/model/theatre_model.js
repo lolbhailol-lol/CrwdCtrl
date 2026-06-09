@@ -42,5 +42,6 @@ const theatreSchema = new mongoose.Schema(
 theatreSchema.index({ theatreType: 1 });
 theatreSchema.index({ status: 1 });
 theatreSchema.index({ city: 1 });
+theatreSchema.index({ status: 1, theatreType: 1, city: 1 });
 
 module.exports = mongoose.model('Theatre', theatreSchema);

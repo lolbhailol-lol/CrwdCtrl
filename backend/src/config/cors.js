@@ -17,17 +17,25 @@ const corsOrigins = [
   'https://crwdctrl.firebaseapp.com',
   'https://crwdctrl.web.app',
   'capacitor://localhost',
+  'https://localhost',
+  'http://localhost:8080',
   'ionic://localhost',
   'http://localhost',
 ];
 
+const extraOrigins = (process.env.CORS_EXTRA_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([...corsOrigins, ...extraOrigins]);
+
 function corsOptionsDelegate(origin, callback) {
   if (!origin) return callback(null, true);
-  if (corsOrigins.includes(origin)) return callback(null, true);
+  if (allowedOrigins.has(origin)) return callback(null, true);
   if (isDev && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
     return callback(null, true);
   }
-  if (origin.endsWith('.vercel.app')) return callback(null, true);
   console.warn('CORS blocked origin:', origin);
   return callback(new Error('Not allowed by CORS'));
 }
@@ -50,4 +58,4 @@ const corsOptions = {
   maxAge: 86400,
 };
 
-module.exports = { corsOptions, corsOrigins };
+module.exports = { corsOptions, corsOrigins: [...allowedOrigins] };

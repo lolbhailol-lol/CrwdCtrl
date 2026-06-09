@@ -306,4 +306,9 @@ const festOrganizerSchema = new mongoose.Schema(
 { timestamps: true }
 );
 
+festOrganizerSchema.index({ status: 1 });
+festOrganizerSchema.index({ isApproved: 1, status: 1 });
+festOrganizerSchema.index({ festType: 1, status: 1 });
+festOrganizerSchema.index({ priority: 1 });
+
 module.exports = mongoose.model('FestOrganizer', festOrganizerSchema);
