@@ -6,6 +6,8 @@ const runClubSchema = new mongoose.Schema(
         basedIn: { type: String, trim: true, default: '' },
         organizer: { type: String, trim: true, default: '' },
         aboutUs: { type: String, trim: true, default: '' },
+        /** Filter chips on run club detail page — runs use matching runCategory */
+        runCategories: { type: [String], default: [] },
         coverImage: { type: String, trim: true, default: '' },
         galleryImages: { type: [String], default: [] },
         registrationLink: { type: String, trim: true, default: '' },
@@ -14,6 +16,8 @@ const runClubSchema = new mongoose.Schema(
         showOnSportsPage: { type: Boolean, default: true },
         showInRunClubs: { type: Boolean, default: true },
         runClubPriority: { type: Number, default: 999, min: 1, max: 999 },
+        homeSection: { type: String, enum: ['trending', 'happening', 'slide'], default: null },
+        priority: { type: Number, default: 999, min: 1, max: 999 },
         status: { type: String, enum: ['published', 'draft'], default: 'published' },
     },
     { timestamps: true }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
 export const HOME_CARD_GAP = 16;
 export const TRENDING_CARD_GAP = 16;
@@ -8,6 +8,13 @@ export function getHomeCardFallbackWidth(wideCard) {
     const vw = window.innerWidth;
     if (wideCard) return Math.min(384, Math.max(280, vw * 0.84));
     return Math.min(300, Math.max(260, vw * 0.78));
+}
+
+/** Slightly narrower than wide cards — leaves room for peeking slides on both sides */
+export function getUpcomingCardFallbackWidth() {
+    if (typeof window === 'undefined') return 300;
+    const vw = window.innerWidth;
+    return Math.min(336, Math.max(256, vw * 0.76));
 }
 
 /** Center a slide in a horizontal scroll container (accounts for padding + sub-pixel layout). */
@@ -70,4 +77,163 @@ export function useMeasuredCardWidth(trackRef, slideCount, fallbackWidth = 280) 
     }, [trackRef, slideCount, fallbackWidth]);
 
     return cardWidth;
+}
+
+export function buildLoopSlides(items, getItemId = (item) => item.id || item._id) {
+    if (items.length <= 1) {
+        return {
+            slides: items.map((item) => ({ item, key: String(getItemId(item)) })),
+            loop: false,
+            startIndex: 0,
+        };
+    }
+
+    const last = items[items.length - 1];
+    const first = items[0];
+
+    return {
+        loop: true,
+        startIndex: 1,
+        slides: [
+            { item: last, key: `loop-before-${getItemId(last)}` },
+            ...items.map((item) => ({ item, key: String(getItemId(item)) })),
+            { item: first, key: `loop-after-${getItemId(first)}` },
+        ],
+    };
+}
+
+function scrollToLoopSlide(scrollEl, trackEl, index) {
+    const slide = trackEl?.children?.[index];
+    if (!slide) return;
+    scrollCarouselToSlide(scrollEl, slide);
+}
+
+function getNearestSlideIndex(scrollEl, trackEl) {
+    const children = trackEl?.children;
+    if (!scrollEl || !children?.length) return 0;
+
+    const viewportCenter = scrollEl.scrollLeft + scrollEl.clientWidth / 2;
+    let nearest = 0;
+    let minDistance = Infinity;
+
+    for (let i = 0; i < children.length; i += 1) {
+        const slide = children[i];
+        const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
+        const distance = Math.abs(viewportCenter - slideCenter);
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearest = i;
+        }
+    }
+
+    return nearest;
+}
+
+/** Centered loop carousel — first real slide on load with peeking clones on both sides */
+export function useLoopCarousel(scrollRef, trackRef, items, getItemId = (item) => item.id || item._id) {
+    const { slides, loop, startIndex } = useMemo(
+        () => buildLoopSlides(items, getItemId),
+        [items, getItemId],
+    );
+    const [activeIndex, setActiveIndex] = useState(0);
+    const jumpingRef = useRef(false);
+    const itemsKey = useMemo(
+        () => items.map((item) => getItemId(item)).join('|'),
+        [items, getItemId],
+    );
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        const trackEl = trackRef.current;
+        if (!el || !trackEl || items.length === 0) return;
+
+        jumpingRef.current = true;
+        scrollToLoopSlide(el, trackEl, loop ? startIndex : 0);
+        setActiveIndex(0);
+        requestAnimationFrame(() => {
+            jumpingRef.current = false;
+        });
+    }, [itemsKey, loop, startIndex, scrollRef, trackRef, items.length]);
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        const trackEl = trackRef.current;
+        if (!el || !trackEl || items.length <= 1) return;
+
+        const syncActiveIndex = () => {
+            if (jumpingRef.current) return;
+
+            const slideIndex = getNearestSlideIndex(el, trackEl);
+            if (loop) {
+                setActiveIndex(Math.max(0, Math.min(items.length - 1, slideIndex - 1)));
+            } else {
+                setActiveIndex(Math.max(0, slideIndex));
+            }
+        };
+
+        const handleLoopWrap = () => {
+            if (!loop || jumpingRef.current) return;
+
+            const slideIndex = getNearestSlideIndex(el, trackEl);
+            const lastSlideIndex = items.length + 1;
+
+            if (slideIndex === 0) {
+                jumpingRef.current = true;
+                scrollToLoopSlide(el, trackEl, items.length);
+                setActiveIndex(items.length - 1);
+                requestAnimationFrame(() => {
+                    jumpingRef.current = false;
+                });
+                return;
+            }
+
+            if (slideIndex === lastSlideIndex) {
+                jumpingRef.current = true;
+                scrollToLoopSlide(el, trackEl, 1);
+                setActiveIndex(0);
+                requestAnimationFrame(() => {
+                    jumpingRef.current = false;
+                });
+            }
+        };
+
+        const snapToNearest = (behavior = 'smooth') => {
+            if (jumpingRef.current) return;
+            const slideIndex = getNearestSlideIndex(el, trackEl);
+            const slide = trackEl.children[slideIndex];
+            if (slide) scrollCarouselToSlide(el, slide, behavior);
+        };
+
+        let scrollEndTimer;
+        const onScroll = () => {
+            syncActiveIndex();
+            clearTimeout(scrollEndTimer);
+            scrollEndTimer = setTimeout(() => {
+                snapToNearest('smooth');
+                handleLoopWrap();
+            }, 120);
+        };
+
+        const onScrollEnd = () => {
+            clearTimeout(scrollEndTimer);
+            syncActiveIndex();
+            snapToNearest('smooth');
+            requestAnimationFrame(handleLoopWrap);
+        };
+
+        el.addEventListener('scroll', onScroll, { passive: true });
+        if ('onscrollend' in el) {
+            el.addEventListener('scrollend', onScrollEnd);
+        }
+
+        return () => {
+            clearTimeout(scrollEndTimer);
+            el.removeEventListener('scroll', onScroll);
+            if ('onscrollend' in el) {
+                el.removeEventListener('scrollend', onScrollEnd);
+            }
+        };
+    }, [items, loop, scrollRef, trackRef]);
+
+    return { slides, activeIndex };
 }

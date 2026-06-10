@@ -81,13 +81,13 @@ export default function TechFestPage() {
                         {featured.length > 0 && (
                             <section className="mb-6">
                                 <h2 className={`home-section-heading px-4 mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
-                                <div ref={scrollRef} className="carousel-scroll-center carousel-scroll-center--fest overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none' }}
+                                <div ref={scrollRef} className="carousel-scroll-gutter overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none' }}
                                     onScroll={(e) => setFeaturedPg(getCarouselScrollPage(e.currentTarget))}>
                                     <div className="flex gap-4 pb-1">
                                         {featured.map(fest => {
                                             const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
                                             return (
-                                                <div key={fest._id} className="card-surface card-carousel-fest rounded-2xl overflow-hidden snap-center">
+                                                <div key={fest._id} className="card-surface card-carousel-fest rounded-2xl overflow-hidden snap-start">
                                                     <div className="fest-card-image">
                                                         {img ? <img src={getImageUrl(img, { preset: 'cardLg' })} alt={fest.festName} className="w-full h-full object-cover" onError={e => handleImageErrorWithFallback(e, 320, 175, '#0a1628', fest.festName)} />
                                                             : <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}><span className="text-5xl">💻</span></div>}

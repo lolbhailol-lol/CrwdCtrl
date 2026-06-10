@@ -28,6 +28,13 @@ const sportsEventSchema = new mongoose.Schema(
         },
         prizes: { type: String, trim: true },
         routeMap: { type: String, trim: true },
+        /** Run distance label shown on detail page, e.g. "3k-5k Runs" */
+        distance: { type: String, trim: true, default: '' },
+        coverImage: { type: String, trim: true, default: '' },
+        inclusions: { type: [String], default: [] },
+        termsAndConditions: { type: [String], default: [] },
+        contactPhone: { type: String, trim: true, default: '' },
+        contactInstagram: { type: String, trim: true, default: '' },
         images: { type: [String], default: [] },
         sponsors: { type: [String], default: [] },
         registrationLink: { type: String, trim: true },
@@ -47,15 +54,32 @@ const sportsEventSchema = new mongoose.Schema(
         homeSection: { type: String, enum: ['trending', 'happening', 'slide'], default: null },
         homePriority: { type: Number, default: 999, min: 1, max: 999 },
         runClubId: { type: mongoose.Schema.Types.ObjectId, ref: 'RunClub', default: null },
+        /** Matches a label from the parent RunClub.runCategories */
+        runCategory: { type: String, trim: true, default: '' },
         status: {
             type: String,
             enum: ['draft', 'published', 'completed', 'cancelled'],
             default: 'published',
         },
+
+        registration: {
+            googleSheetsUrl: { type: String, default: '' },
+        },
+
+        /** Volunteer scanner login — event code + password → scan-only access (run clubs & sports events) */
+        scannerAccess: {
+            enabled: { type: Boolean, default: false },
+            code: { type: String, trim: true, uppercase: true },
+            passwordHash: { type: String, default: '' },
+            label: { type: String, default: '', trim: true },
+        },
+
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     },
     { timestamps: true }
 );
+
+sportsEventSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
 
 sportsEventSchema.index({ sportType: 1 });
 sportsEventSchema.index({ status: 1 });

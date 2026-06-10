@@ -17,12 +17,21 @@ const EMPTY = {
     contactPhone: '',
     contactInstagram: '',
     status: 'published',
-    homeSection: null,
-    priority: 999,
-    showOnTreks: true,
-    trekPageSection: 'communities',
-    trekPagePriority: 999,
 };
+
+function pickCommunityFormFields(source = {}) {
+    return {
+        name: source.name || '',
+        basedIn: source.basedIn || '',
+        aboutUs: source.aboutUs || '',
+        trekCategories: Array.isArray(source.trekCategories) ? source.trekCategories : [],
+        coverImage: normalizeImageUrl(source.coverImage),
+        galleryImages: normalizeImageList(source.galleryImages),
+        contactPhone: source.contactPhone || '',
+        contactInstagram: source.contactInstagram || '',
+        status: source.status || 'published',
+    };
+}
 
 const buildGalleryPreview = (coverImage, galleryImages) => {
     const seen = new Set();
@@ -96,15 +105,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
             setForm(EMPTY);
             return;
         }
-        setForm({
-            ...EMPTY,
-            ...community,
-            coverImage: normalizeImageUrl(community.coverImage),
-            galleryImages: normalizeImageList(community.galleryImages),
-            trekPageSection: community.trekPageSection || 'communities',
-            trekPagePriority: community.trekPagePriority ?? 999,
-            priority: community.priority ?? 999,
-        });
+        setForm(pickCommunityFormFields(community));
     }, [community]);
 
     const galleryPreview = useMemo(
@@ -174,11 +175,8 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
             if (!token) { setSaving(false); return; }
             const url = community ? `${API}/admin/trek-communities/${community._id}` : `${API}/admin/trek-communities`;
             const payload = {
-                ...form,
-                coverImage: normalizeImageUrl(form.coverImage),
-                galleryImages: normalizeImageList(form.galleryImages),
-                trekPagePriority: Number(form.trekPagePriority) || 999,
-                priority: Number(form.priority) || 999,
+                ...pickCommunityFormFields(form),
+                ...(community ? {} : { showOnTreks: true, trekPageSection: 'communities' }),
             };
             const res = await fetch(url, {
                 method: community ? 'PUT' : 'POST',
@@ -333,74 +331,9 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                         </div>
                     </AdminFormSection>
 
-                    <AdminFormSection title="Treks page placement" hint="Where this community appears on /treks">
-                        <div className={`flex items-center justify-between p-3 rounded-xl border ${form.showOnTreks ? 'border-[#0ECCEE] bg-[#0ECCEE]/5' : 'border-gray-600 bg-[#1D1E20]'}`}>
-                            <div>
-                                <p className="text-sm font-medium text-gray-200">Show on Treks Page</p>
-                                <p className="text-xs text-gray-500 mt-0.5">Hide completely when turned off</p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => set('showOnTreks', !form.showOnTreks)}
-                                className={`relative w-12 h-6 rounded-full transition-colors duration-200 shrink-0
-                                    ${form.showOnTreks ? 'bg-[#0ECCEE]' : 'bg-gray-600'}`}
-                            >
-                                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200
-                                    ${form.showOnTreks ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Treks Page Section</label>
-                                <select
-                                    value={form.showOnTreks ? (form.trekPageSection || 'communities') : 'hidden'}
-                                    onChange={e => set('trekPageSection', e.target.value)}
-                                    className={inp}
-                                    disabled={!form.showOnTreks}
-                                >
-                                    <option value="communities">Explore Communities</option>
-                                    <option value="comingSoon">Coming Soon</option>
-                                    <option value="both">Both sections</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Treks Page Priority <span className="text-gray-500 font-normal">(1 = top)</span></label>
-                                <input
-                                    type="number" min="1" max="999"
-                                    value={form.trekPagePriority ?? 999}
-                                    onChange={e => set('trekPagePriority', e.target.value === '' ? 999 : Math.min(999, Math.max(1, parseInt(e.target.value, 10) || 999)))}
-                                    className={inp}
-                                    disabled={!form.showOnTreks}
-                                />
-                            </div>
-                        </div>
-                        <p className="text-[11px] text-gray-600">To drag-reorder all communities at once, use Home &amp; Sections → Communities.</p>
-                    </AdminFormSection>
-
-                    <AdminFormSection title="Home page" hint="Optional placement on the home dashboard">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Home Page Section</label>
-                                <select value={form.homeSection || ''} onChange={e => set('homeSection', e.target.value || null)} className={inp}>
-                                    <option value="">None</option>
-                                    <option value="trending">Trending Now</option>
-                                    <option value="happening">Happening Near You</option>
-                                    <option value="slide">Home Slide</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Home Priority <span className="text-gray-500 font-normal">(1 = top)</span></label>
-                                <input
-                                    type="number" min="1" max="999"
-                                    value={form.priority ?? 999}
-                                    onChange={e => set('priority', e.target.value === '' ? 999 : Math.min(999, Math.max(1, parseInt(e.target.value, 10) || 999)))}
-                                    className={inp}
-                                    placeholder="999"
-                                />
-                            </div>
-                        </div>
-                    </AdminFormSection>
+                    <p className="text-[11px] text-gray-600 px-1">
+                        Visibility, carousel order &amp; home page placement → <span className="text-gray-500">Home &amp; Sections → Communities</span>
+                    </p>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>

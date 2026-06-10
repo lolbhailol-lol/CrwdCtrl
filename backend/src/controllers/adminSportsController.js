@@ -84,6 +84,20 @@ function sanitizeSportsPayload(body = {}) {
     if (body.skillLevel !== undefined && SKILL_LEVELS.has(body.skillLevel)) payload.skillLevel = body.skillLevel;
     if (body.prizes !== undefined) payload.prizes = String(body.prizes || '').trim();
     if (body.routeMap !== undefined) payload.routeMap = String(body.routeMap || '').trim();
+    if (body.distance !== undefined) payload.distance = String(body.distance || '').trim();
+    if (body.coverImage !== undefined) payload.coverImage = normalizeImageUrl(body.coverImage);
+    if (body.inclusions !== undefined) {
+        payload.inclusions = Array.isArray(body.inclusions)
+            ? body.inclusions.map((s) => String(s).trim()).filter(Boolean)
+            : [];
+    }
+    if (body.termsAndConditions !== undefined) {
+        payload.termsAndConditions = Array.isArray(body.termsAndConditions)
+            ? body.termsAndConditions.map((s) => String(s).trim()).filter(Boolean)
+            : [];
+    }
+    if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
+    if (body.contactInstagram !== undefined) payload.contactInstagram = String(body.contactInstagram || '').trim();
     if (body.images !== undefined) {
         payload.images = normalizeImageList(body.images);
     }
@@ -118,6 +132,7 @@ function sanitizeSportsPayload(body = {}) {
             ? body.runClubId
             : null;
     }
+    if (body.runCategory !== undefined) payload.runCategory = String(body.runCategory || '').trim();
     if (body.status !== undefined && STATUSES.has(body.status)) payload.status = body.status;
 
     return payload;

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Eye, Download, Filter, Search, Calendar, User, Mail, Phone } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Eye, Download, Filter, Search, Calendar, User, Mail, Phone, QrCode } from 'lucide-react';
+import FestScannerSetup from './FestScannerSetup';
 
 // Configure API base URL - Use Vite environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -19,7 +21,7 @@ export default function RegistrationsPage() {
 
   const fetchFests = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/fests`, {
+      const response = await fetch(`${API_BASE_URL}/admin/fests?limit=500`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('admin_token')}`
         },
@@ -104,6 +106,21 @@ export default function RegistrationsPage() {
         <h1 className="text-3xl font-bold mb-2">Registration Management</h1>
         <p className="text-gray-400">View and manage fest registrations</p>
       </div>
+
+      {!selectedFest ? (
+        <div className="bg-[#111213] border border-dashed border-gray-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <QrCode className="text-[#0ECCEE] shrink-0" size={24} />
+          <div className="flex-1 text-sm text-gray-400">
+            <span className="text-gray-200 font-medium">Organizer scanner login</span> — click a fest in the list below, or use{' '}
+            <Link to="/admin/scanner-access" className="text-[#0ECCEE] hover:underline">
+              Admin → Scanner Access
+            </Link>{' '}
+            to set fest code + password without selecting registrations.
+          </div>
+        </div>
+      ) : (
+        <FestScannerSetup festId={selectedFest._id} festName={selectedFest.festName} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Fests List */}

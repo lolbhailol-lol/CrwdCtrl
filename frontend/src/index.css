@@ -34,6 +34,7 @@
     --card-carousel: clamp(16.25rem, 78vw, 18.75rem);
     --card-carousel-sm: clamp(12.5rem, 62vw, 13.75rem);
     --card-carousel-wide: clamp(17.5rem, 84vw, 24rem);
+    --card-carousel-upcoming: clamp(16rem, 76vw, 21rem);
     --card-carousel-fest: clamp(17.5rem, 85vw, 20rem);
 
     /* Portrait & wide activity cards (treks, sports, communities) */
@@ -479,6 +480,11 @@
     /* Wide activity cards — weekend plans, sports activities */
     .card-wide {
         width: var(--card-wide-w);
+        flex-shrink: 0;
+    }
+
+    .card-upcoming {
+        width: var(--card-carousel-upcoming);
         flex-shrink: 0;
     }
 

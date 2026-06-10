@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const festOrganizerController = require('../controllers/festOrganizerController');
+const organizerCheckinController = require('../controllers/organizerCheckinController');
 const { authenticateToken, authorizeRoles } = require('../middleware/authmiddleware');
 
 // Apply auth + organizer role to all fest-organizer routes
@@ -15,6 +16,11 @@ router.get('/my-fests', festOrganizerController.getMyFests);
 
 // ✅ Get fest statistics for organizer
 router.get('/stats', festOrganizerController.getFestStats);
+
+// ✅ Fest-scoped QR check-in (organizer scanner)
+router.post('/:festId/checkin', organizerCheckinController.organizerCheckin);
+router.get('/:festId/checkin-stats', organizerCheckinController.organizerCheckinStats);
+router.get('/:festId/checkins/export', organizerCheckinController.exportOrganizerCheckins);
 
 // ✅ Update fest details
 router.put('/:id', festOrganizerController.updateFest);

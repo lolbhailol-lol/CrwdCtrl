@@ -22,6 +22,11 @@ function sanitizeRunClubBody(body = {}) {
     if (body.basedIn !== undefined) payload.basedIn = String(body.basedIn || '').trim();
     if (body.organizer !== undefined) payload.organizer = String(body.organizer || '').trim();
     if (body.aboutUs !== undefined) payload.aboutUs = String(body.aboutUs || '').trim();
+    if (body.runCategories !== undefined) {
+        payload.runCategories = Array.isArray(body.runCategories)
+            ? body.runCategories.map((c) => String(c).trim()).filter(Boolean)
+            : [];
+    }
     if (body.coverImage !== undefined) payload.coverImage = normalizeImageUrl(body.coverImage);
     if (body.galleryImages !== undefined) payload.galleryImages = normalizeImageList(body.galleryImages);
     if (body.registrationLink !== undefined) payload.registrationLink = String(body.registrationLink || '').trim();
@@ -32,6 +37,14 @@ function sanitizeRunClubBody(body = {}) {
     if (body.runClubPriority !== undefined) {
         const p = parseInt(body.runClubPriority, 10);
         payload.runClubPriority = Number.isNaN(p) ? 999 : Math.max(1, Math.min(999, p));
+    }
+    if (body.homeSection !== undefined) {
+        const allowed = ['trending', 'happening', 'slide', null, ''];
+        payload.homeSection = allowed.includes(body.homeSection) ? (body.homeSection || null) : null;
+    }
+    if (body.priority !== undefined) {
+        const p = parseInt(body.priority, 10);
+        payload.priority = Number.isNaN(p) ? 999 : Math.max(1, Math.min(999, p));
     }
     if (body.status !== undefined && ['published', 'draft'].includes(body.status)) {
         payload.status = body.status;

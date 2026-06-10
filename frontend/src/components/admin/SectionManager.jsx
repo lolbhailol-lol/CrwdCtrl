@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell } from 'lucide-react';
+import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell, Footprints } from 'lucide-react';
 import { buildHomeCarouselItems, normalizeHomeCarouselItem } from '../../utils/homeCarouselItems';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -38,16 +38,17 @@ const COMM_PAGE_OPTS = [
     { value: 'both',        label: '🌟 Both Sections' },
     { value: 'hidden',      label: '🚫 Hidden' },
 ];
+const RUN_CLUB_PAGE_OPTS = [
+    { value: 'run_clubs', label: '👟 Explore Run Clubs' },
+    { value: 'hidden',    label: '🚫 Hidden' },
+];
 const SPORTS_HOME_OPTS = [
     { value: '',          label: '— None —' },
     { value: 'trending',  label: '🔥 Trending Now' },
     { value: 'happening', label: '📍 Happening Near You' },
 ];
-const SPORTS_PAGE_OPTS = [
-    { value: '',         label: '— Auto —' },
+const RUN_PAGE_OPTS = [
     { value: 'upcoming', label: '🏃 Upcoming Activities' },
-    { value: 'run_clubs', label: '👟 Explore Run Clubs' },
-    { value: 'both',     label: '🌟 Both Sections' },
     { value: 'hidden',   label: '🚫 Hidden from Page' },
 ];
 
@@ -130,7 +131,8 @@ const PREVIEW_URL = {
     fest: (id) => `/view-details/${id}`,
     trek: (id) => `/trek/${id}`,
     community: (id) => `/treks/community/${id}`,
-    sport: () => '/sports',
+    sport: (id) => `/sports/run/${id}`,
+    runclub: (id) => `/sports/run-club/${id}`,
 };
 
 const FEST_PAGE_SECTIONS = [
@@ -151,6 +153,7 @@ const TYPE_BADGE = {
     trek: { label: 'Trek', cls: 'bg-emerald-500/20 text-emerald-300' },
     community: { label: 'Community', cls: 'bg-sky-500/20 text-sky-300' },
     sport: { label: 'Sport', cls: 'bg-orange-500/20 text-orange-300' },
+    runclub: { label: 'Run Club', cls: 'bg-cyan-500/20 text-cyan-300' },
 };
 
 function useCarouselDragDrop(items, onReorder) {
@@ -233,6 +236,7 @@ export default function SectionManager() {
     const [treks, setTreks]     = useState([]);
     const [comms, setComms]     = useState([]);
     const [sports, setSports]   = useState([]);
+    const [runClubs, setRunClubs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [errors, setErrors]   = useState({});
     const [saving, setSaving]   = useState({});
@@ -254,16 +258,18 @@ export default function SectionManager() {
             } catch (e) { setErrors(prev => ({ ...prev, [label]: e.message })); return null; }
         };
 
-        const [fd, td, cd, sd] = await Promise.all([
+        const [fd, td, cd, sd, rcd] = await Promise.all([
             safe(`${API}/admin/fests?limit=500`,            'fests'),
             safe(`${API}/admin/treks?limit=500`,            'treks'),
             safe(`${API}/admin/trek-communities?limit=500`, 'communities'),
             safe(`${API}/admin/sports?limit=500`,           'sports'),
+            safe(`${API}/admin/run-clubs?limit=500`,        'runclubs'),
         ]);
         if (fd) setFests(Array.isArray(fd.fests)       ? fd.fests       : []);
         if (td) setTreks(Array.isArray(td.treks)       ? td.treks       : []);
         if (cd) setComms(Array.isArray(cd.communities) ? cd.communities : []);
         if (sd) setSports(Array.isArray(sd.events)     ? sd.events      : []);
+        if (rcd) setRunClubs(Array.isArray(rcd.clubs) ? rcd.clubs : []);
         setLoading(false);
     }, []);
 
@@ -319,43 +325,41 @@ export default function SectionManager() {
             () => setComms(prev => prev.map(c => c._id === id ? { ...c, ...body, ...fields } : c)));
     }, [patch]);
 
+    const saveRunClub = useCallback((id, fields) => {
+        const body = fields.pageSection === 'hidden'
+            ? { showOnSportsPage: false, showInRunClubs: false }
+            : fields.pageSection === 'run_clubs'
+                ? { showOnSportsPage: true, showInRunClubs: true }
+                : fields;
+        patch(`${API}/admin/run-clubs/${id}`, `runclub-${id}-${Object.keys(fields)[0]}`, body,
+            () => setRunClubs(prev => prev.map(c => c._id === id ? { ...c, ...body, ...fields } : c)));
+    }, [patch]);
+
     const saveSports = useCallback((id, fields) => {
         patch(`${API}/admin/sports/${id}`, `sports-${id}-${Object.keys(fields)[0]}`, fields,
             () => setSports(prev => prev.map(s => s._id === id ? { ...s, ...fields } : s)));
     }, [patch]);
 
-    const saveSportsPage = useCallback((id, val, sportType) => {
+    const saveRunPage = useCallback((id, val) => {
         if (val === 'hidden') {
-            saveSports(id, { showOnSportsPage: false });
+            saveSports(id, { showOnSportsPage: false, showInUpcoming: false, showInRunClubs: false, featuredSection: null });
             return;
         }
-        if (val === 'upcoming') {
-            saveSports(id, { showOnSportsPage: true, featuredSection: 'upcoming', showInUpcoming: true, showInRunClubs: false });
-            return;
-        }
-        if (val === 'run_clubs') {
-            if (sportType !== 'run_club') return;
-            saveSports(id, { showOnSportsPage: true, featuredSection: 'run_clubs', showInUpcoming: false, showInRunClubs: true });
-            return;
-        }
-        if (val === 'both') {
-            if (sportType !== 'run_club') {
-                saveSports(id, { showOnSportsPage: true, featuredSection: 'upcoming', showInUpcoming: true, showInRunClubs: false });
-                return;
-            }
-            saveSports(id, { showOnSportsPage: true, featuredSection: 'both', showInUpcoming: true, showInRunClubs: true });
-            return;
-        }
-        saveSports(id, { showOnSportsPage: true, showInUpcoming: true, featuredSection: null });
+        saveSports(id, {
+            showOnSportsPage: true,
+            featuredSection: 'upcoming',
+            showInUpcoming: true,
+            showInRunClubs: false,
+        });
     }, [saveSports]);
 
     const trendingCarousel = useMemo(
-        () => buildHomeCarouselItems(fests, treks, comms, 'trending', sports),
-        [fests, treks, comms, sports],
+        () => buildHomeCarouselItems(fests, treks, comms, 'trending', sports, runClubs),
+        [fests, treks, comms, sports, runClubs],
     );
     const happeningCarousel = useMemo(
-        () => buildHomeCarouselItems(fests, treks, comms, 'happening', sports),
-        [fests, treks, comms, sports],
+        () => buildHomeCarouselItems(fests, treks, comms, 'happening', sports, runClubs),
+        [fests, treks, comms, sports, runClubs],
     );
 
     const applyLocalCarouselOrder = useCallback((section, orderedItems) => {
@@ -371,6 +375,8 @@ export default function SectionManager() {
                 setTreks((prev) => applyPriority(prev, item._id, 'priority', priority));
             } else if (item._type === 'sport') {
                 setSports((prev) => applyPriority(prev, item._id, 'homePriority', priority, { homeSection: section }));
+            } else if (item._type === 'runclub') {
+                setRunClubs((prev) => applyPriority(prev, item._id, 'priority', priority, { homeSection: section }));
             } else {
                 setComms((prev) => applyPriority(prev, item._id, 'priority', priority));
             }
@@ -407,6 +413,7 @@ export default function SectionManager() {
             }
             if (item._type === 'trek') return { type: 'trek', id: item._id, fields: { priority } };
             if (item._type === 'sport') return { type: 'sport', id: item._id, fields: { homePriority: priority, homeSection: section } };
+            if (item._type === 'runclub') return { type: 'runclub', id: item._id, fields: { priority, homeSection: section } };
             return { type: 'community', id: item._id, fields: { priority } };
         });
         applyLocalCarouselOrder(section, orderedItems);
@@ -450,15 +457,15 @@ export default function SectionManager() {
     const sportsPageCarousels = useMemo(() => {
         const norm = (s, pri) => ({ ...normalizeHomeCarouselItem('sport', s), _priority: pri });
         const upcoming = sports
-            .filter((s) => s.showOnSportsPage !== false && (s.showInUpcoming !== false || s.featuredSection === 'upcoming' || s.featuredSection === 'both'))
+            .filter((s) => s.runClubId && s.showOnSportsPage !== false && (s.showInUpcoming !== false || s.featuredSection === 'upcoming' || s.featuredSection === 'both'))
             .map((s) => norm(s, s.upcomingPriority ?? s.priority ?? 999))
             .sort((a, b) => a._priority - b._priority);
-        const runClubs = sports
-            .filter((s) => s.sportType === 'run_club' && s.showInRunClubs)
-            .map((s) => norm(s, s.runClubPriority ?? 999))
+        const runClubCarousel = runClubs
+            .filter((c) => c.showOnSportsPage !== false && c.showInRunClubs !== false)
+            .map((c) => ({ ...normalizeHomeCarouselItem('runclub', c), _priority: c.runClubPriority ?? 999 }))
             .sort((a, b) => a._priority - b._priority);
-        return { upcoming, run_clubs: runClubs };
-    }, [sports]);
+        return { upcoming, run_clubs: runClubCarousel };
+    }, [sports, runClubs]);
 
     const applyLocalFestPageOrder = useCallback((status, ordered) => {
         ordered.forEach((item, index) => {
@@ -477,7 +484,7 @@ export default function SectionManager() {
         ordered.forEach((item, index) => {
             const pri = index + 1;
             if (section === 'run_clubs') {
-                setSports((prev) => prev.map((s) => (s._id === item._id ? { ...s, runClubPriority: pri } : s)));
+                setRunClubs((prev) => prev.map((c) => (c._id === item._id ? { ...c, runClubPriority: pri } : c)));
             } else {
                 setSports((prev) => prev.map((s) => (s._id === item._id ? { ...s, upcomingPriority: pri, priority: pri } : s)));
             }
@@ -514,7 +521,7 @@ export default function SectionManager() {
         next.splice(toIndex, 0, moved);
         const updates = next.map((item, i) => {
             const pri = i + 1;
-            if (section === 'run_clubs') return { type: 'sport', id: item._id, fields: { runClubPriority: pri } };
+            if (section === 'run_clubs') return { type: 'runclub', id: item._id, fields: { runClubPriority: pri } };
             return { type: 'sport', id: item._id, fields: { upcomingPriority: pri, priority: pri } };
         });
         applyLocalSportsPageOrder(section, next);
@@ -547,50 +554,42 @@ export default function SectionManager() {
         comms.filter(c => !q || [c.name, c.basedIn].some(v => String(v || '').toLowerCase().includes(q)))
              .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
         [comms, q]);
-    const filteredSports = useMemo(() =>
-        sports.filter(s => !q || [s.title, s.city, s.organizer, s.displayType].some(v => String(v || '').toLowerCase().includes(q)))
-              .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
+    const filteredRuns = useMemo(() =>
+        sports
+            .filter((s) => s.runClubId)
+            .filter((s) => !q || [s.title, s.city, s.organizer, s.displayType].some((v) => String(v || '').toLowerCase().includes(q)))
+            .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
         [sports, q]);
+    const filteredRunClubs = useMemo(() =>
+        runClubs.filter(c => !q || [c.name, c.basedIn, c.organizer].some(v => String(v || '').toLowerCase().includes(q)))
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
+        [runClubs, q]);
 
     const getFestHomeVal = (f) => f.homeSection || (f.showOnHomeSlide ? 'movingSlide' : '');
 
-    const getSportsPageVal = (s) => {
-        if (s.showOnSportsPage === false) return 'hidden';
-        if (s.featuredSection === 'both' || (s.showInUpcoming && s.showInRunClubs && s.sportType === 'run_club')) return 'both';
-        if (s.featuredSection === 'run_clubs' || (s.showInRunClubs && s.sportType === 'run_club' && !s.showInUpcoming)) return 'run_clubs';
-        if (s.featuredSection === 'upcoming' || s.showInUpcoming !== false) return 'upcoming';
-        return '';
+    const getRunPageVal = (s) => {
+        if (s.showOnSportsPage === false || s.showInUpcoming === false) return 'hidden';
+        return 'upcoming';
     };
 
-    const getSportsPagePriority = (s) => {
-        const pageVal = getSportsPageVal(s);
-        if (pageVal === 'run_clubs') return s.runClubPriority;
-        if (pageVal === 'both') return s.upcomingPriority ?? s.priority;
-        return s.upcomingPriority ?? s.priority;
+    const getRunClubPageVal = (c) => {
+        if (c.showOnSportsPage === false || c.showInRunClubs === false) return 'hidden';
+        return 'run_clubs';
     };
 
-    const saveSportsPagePriority = useCallback((id, v, s) => {
-        const pageVal = getSportsPageVal(s);
-        if (pageVal === 'run_clubs') {
-            saveSports(id, { runClubPriority: v });
-        } else if (pageVal === 'both') {
-            saveSports(id, { upcomingPriority: v, priority: v, runClubPriority: v });
-        } else {
-            saveSports(id, { upcomingPriority: v, priority: v });
-        }
+    const getRunPagePriority = (s) => s.upcomingPriority ?? s.priority;
+
+    const saveRunPagePriority = useCallback((id, v) => {
+        saveSports(id, { upcomingPriority: v, priority: v });
     }, [saveSports]);
-
-    const sportsPageOptsFor = (sportType) => SPORTS_PAGE_OPTS.filter((o) => {
-        if (o.value === 'run_clubs' || o.value === 'both') return sportType === 'run_club';
-        return true;
-    });
 
     const tabs = [
         { id: 'home',        label: 'Home Carousels', icon: LayoutGrid, count: trendingCarousel.length + happeningCarousel.length },
         { id: 'fests',       label: 'Fests',          icon: Flag,       count: fests.length },
         { id: 'treks',       label: 'Treks',          icon: Mountain,   count: treks.length },
-        { id: 'sports',      label: 'Sports',         icon: Dumbbell,   count: sports.length },
         { id: 'communities', label: 'Communities',    icon: Users,      count: comms.length },
+        { id: 'runclubs',    label: 'Run Clubs',      icon: Footprints, count: runClubs.length },
+        { id: 'runs',        label: 'Runs',           icon: Dumbbell,   count: sports.filter((s) => s.runClubId).length },
     ];
 
     return (
@@ -650,10 +649,20 @@ export default function SectionManager() {
                 <div className="flex items-center gap-3 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-600">
                     <span className="w-10 shrink-0" />
                     <span className="flex-1">Name</span>
-                    {tab === 'sports' ? (
+                    {tab === 'runs' ? (
                         <>
                             <span className="w-52 text-center">🏠 Home Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
-                            <span className="w-52 text-center">⚽ Sports Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
+                            <span className="w-52 text-center">🏃 Sports Page <span className="text-gray-700 normal-case font-normal">(Upcoming · priority)</span></span>
+                        </>
+                    ) : tab === 'runclubs' ? (
+                        <>
+                            <span className="w-52 text-center">🏠 Home Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
+                            <span className="w-52 text-center">👟 Sports Page <span className="text-gray-700 normal-case font-normal">(Explore Run Clubs · priority)</span></span>
+                        </>
+                    ) : tab === 'communities' ? (
+                        <>
+                            <span className="w-52 text-center">🏠 Home Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
+                            <span className="w-52 text-center">🏔️ Treks Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
                         </>
                     ) : (
                         <>
@@ -684,14 +693,14 @@ export default function SectionManager() {
                         )}
                         <HomeCarouselPanel
                             title="🔥 Trending Now"
-                            subtitle="Left-to-right on home page · fests, treks, communities & sports mixed"
+                            subtitle="Left-to-right on home page · fests, treks, communities, run clubs & runs"
                             items={trendingCarousel}
                             onReorder={(from, to) => handleCarouselReorder('trending', from, to)}
                             isReordering={reordering}
                         />
                         <HomeCarouselPanel
                             title="📍 Happening Near You"
-                            subtitle="Left-to-right on home page · fests, treks, communities & sports mixed"
+                            subtitle="Left-to-right on home page · fests, treks, communities, run clubs & runs"
                             items={happeningCarousel}
                             onReorder={(from, to) => handleCarouselReorder('happening', from, to)}
                             isReordering={reordering}
@@ -740,21 +749,14 @@ export default function SectionManager() {
                                 ))}
                             </div>
                         )}
-                        {tab === 'sports' && (
+                        {tab === 'runs' && (
                             <div className="p-4 space-y-3 border-b border-white/6">
-                                <p className="text-[11px] text-gray-500">Drag to reorder sports-page sections (matches /sports)</p>
+                                <p className="text-[11px] text-gray-500">Drag to reorder Upcoming Activities on /sports (like trek-page sections on Treks tab)</p>
                                 <HomeCarouselPanel
                                     title="🏃 Upcoming Activities"
-                                    subtitle="Sports page carousel order"
+                                    subtitle="Sports page · runs from run clubs"
                                     items={sportsPageCarousels.upcoming}
                                     onReorder={(from, to) => handleSportsPageReorder('upcoming', from, to)}
-                                    isReordering={reordering}
-                                />
-                                <HomeCarouselPanel
-                                    title="👟 Run Clubs"
-                                    subtitle="Run clubs section order"
-                                    items={sportsPageCarousels.run_clubs}
-                                    onReorder={(from, to) => handleSportsPageReorder('run_clubs', from, to)}
                                     isReordering={reordering}
                                 />
                             </div>
@@ -855,16 +857,16 @@ export default function SectionManager() {
                         )}
 
                         {/* ── SPORTS ── */}
-                        {tab === 'sports' && (filteredSports.length === 0
-                            ? <EmptyState label="No sports events found" />
-                            : filteredSports.map(s => (
+                        {tab === 'runs' && (filteredRuns.length === 0
+                            ? <EmptyState label="No runs found — add runs inside a run club in Admin → Run Clubs" />
+                            : filteredRuns.map(s => (
                                 <div key={s._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
-                                    <Thumb src={s.images?.[0]} icon={Dumbbell} />
+                                    <Thumb src={s.images?.[0] || s.coverImage} icon={Footprints} />
                                     <PreviewLink type="sport" id={s._id} />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
                                         <p className="text-[11px] text-gray-600 truncate">
-                                            {[s.displayType || s.sportType, s.city, s.status].filter(Boolean).join(' · ') || '—'}
+                                            {[s.runCategory, s.city, s.status].filter(Boolean).join(' · ') || '—'}
                                         </p>
                                     </div>
                                     <Pill
@@ -877,16 +879,52 @@ export default function SectionManager() {
                                         saving={saving}
                                     />
                                     <Pill
-                                        selectValue={getSportsPageVal(s)}
-                                        selectOpts={sportsPageOptsFor(s.sportType)}
-                                        onSelect={v => saveSportsPage(s._id, v, s.sportType)}
-                                        priorityValue={getSportsPagePriority(s)}
-                                        onPriority={v => saveSportsPagePriority(s._id, v, s)}
+                                        selectValue={getRunPageVal(s)}
+                                        selectOpts={RUN_PAGE_OPTS}
+                                        onSelect={v => saveRunPage(s._id, v)}
+                                        priorityValue={getRunPagePriority(s)}
+                                        onPriority={v => saveRunPagePriority(s._id, v)}
                                         saveKey={`sports-${s._id}-page`}
                                         saving={saving}
                                     />
                                 </div>
                             ))
+                        )}
+
+                        {/* ── RUN CLUBS ── */}
+                        {tab === 'runclubs' && (filteredRunClubs.length === 0
+                            ? <EmptyState label="No run clubs found" />
+                            : filteredRunClubs.map(c => {
+                                const pageVal = getRunClubPageVal(c);
+                                return (
+                                    <div key={c._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
+                                        <Thumb src={c.coverImage} icon={Footprints} />
+                                        <PreviewLink type="runclub" id={c._id} />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
+                                            <p className="text-[11px] text-gray-600 truncate">{c.basedIn || c.organizer || '—'}</p>
+                                        </div>
+                                        <Pill
+                                            selectValue={c.homeSection || ''}
+                                            selectOpts={HOME_OPTS}
+                                            onSelect={v => saveRunClub(c._id, { homeSection: v || null })}
+                                            priorityValue={c.priority}
+                                            onPriority={v => saveRunClub(c._id, { priority: v })}
+                                            saveKey={`runclub-${c._id}-home`}
+                                            saving={saving}
+                                        />
+                                        <Pill
+                                            selectValue={pageVal}
+                                            selectOpts={RUN_CLUB_PAGE_OPTS}
+                                            onSelect={v => saveRunClub(c._id, { pageSection: v })}
+                                            priorityValue={c.runClubPriority}
+                                            onPriority={v => saveRunClub(c._id, { runClubPriority: v })}
+                                            saveKey={`runclub-${c._id}-page`}
+                                            saving={saving}
+                                        />
+                                    </div>
+                                );
+                            })
                         )}
 
                         {/* ── COMMUNITIES ── */}
@@ -933,7 +971,11 @@ export default function SectionManager() {
                 {!loading && tab !== 'home' && (
                     <div className="px-4 py-2 bg-black/20 border-t border-white/4">
                         <p className="text-[10px] text-gray-700">
-                            Drag panels above reorder page sections · Dropdowns save instantly · Priority 1 = first · blank = 999
+                            {tab === 'runclubs'
+                                ? 'Explore Run Clubs order uses priority below (like Communities on /treks) · Priority 1 = first'
+                                : tab === 'runs'
+                                  ? 'Drag panel above reorders Upcoming Activities · Dropdowns save instantly · Priority 1 = first'
+                                  : 'Drag panels above reorder page sections · Dropdowns save instantly · Priority 1 = first · blank = 999'}
                         </p>
                     </div>
                 )}

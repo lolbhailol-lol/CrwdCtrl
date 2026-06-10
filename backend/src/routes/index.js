@@ -23,6 +23,7 @@ const registrationRoutes = require('../routers/registrationRoute');
 const paymentRoutes = require('../routers/paymentRoute');
 const notificationRoutes = require('../routers/notificationRoute');
 const qrRoutes = require('../routers/qrRoute');
+const scannerRoutes = require('../routers/scannerRoute');
 const analyticsRoutes = require('../routers/analyticsRoute');
 const publicSearchRoutes = require('../routers/publicSearchRoute');
 const { authLimiter, paymentLimiter } = require('../middleware/rateLimiter');
@@ -52,6 +53,7 @@ router.use('/registrations', registrationRoutes);
 router.use('/payment', paymentLimiter, paymentRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/qr', qrRoutes);
+router.use('/scanner', scannerRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/search', publicSearchRoutes);
 

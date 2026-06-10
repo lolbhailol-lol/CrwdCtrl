@@ -302,9 +302,19 @@ const festOrganizerSchema = new mongoose.Schema(
     type: Boolean,
     default: true,
   },
+
+  /** Volunteer / university scanner login — fest code + password → scan-only access */
+  scannerAccess: {
+    enabled: { type: Boolean, default: false },
+    code: { type: String, trim: true, uppercase: true },
+    passwordHash: { type: String, default: '' },
+    label: { type: String, default: '', trim: true },
+  },
 },
 { timestamps: true }
 );
+
+festOrganizerSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
 
 festOrganizerSchema.index({ status: 1 });
 festOrganizerSchema.index({ isApproved: 1, status: 1 });

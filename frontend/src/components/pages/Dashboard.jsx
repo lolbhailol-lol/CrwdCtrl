@@ -285,6 +285,7 @@ const Dashboard = () => {
     const [homeCommunities, setHomeCommunities] = useState([]);
     const [homeTreks, setHomeTreks] = useState([]);
     const [homeSports, setHomeSports] = useState([]);
+    const [homeRunClubs, setHomeRunClubs] = useState([]);
     const [festError, setFestError] = useState(null);
     const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
     const [currentLocation, setCurrentLocation] = useState({
@@ -325,6 +326,10 @@ const Dashboard = () => {
         fetchJSON(`/sports?_cb=${cb}`).then(res => {
             const list = Array.isArray(res?.data?.events) ? res.data.events : [];
             setHomeSports(list);
+        }).catch(() => {});
+        fetchJSON(`/run-clubs?_cb=${cb}`).then(res => {
+            const list = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
+            setHomeRunClubs(list);
         }).catch(() => {});
     }, []);
 
@@ -574,6 +579,11 @@ const Dashboard = () => {
         fetchJSON(`/sports?_cb=${Date.now()}`).then(res => {
             const list = Array.isArray(res?.data?.events) ? res.data.events : [];
             setHomeSports(list);
+        }).catch(() => {});
+
+        fetchJSON(`/run-clubs?_cb=${Date.now()}`).then(res => {
+            const list = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
+            setHomeRunClubs(list);
         }).catch(() => {});
 
         return () => { cancelled = true; };
@@ -1043,7 +1053,7 @@ const Dashboard = () => {
     const byPriority = (a, b) => (a._priority || 999) - (b._priority || 999);
 
     const trendingItems = useMemo(() => {
-        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, 'trending', homeSports);
+        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, 'trending', homeSports, homeRunClubs);
         return raw.map((item) => {
             if (item._type === 'fest') {
                 const f = transformedFests.find((t) => t.id === item._id);
@@ -1056,16 +1066,27 @@ const Dashboard = () => {
                     subtitle: item.city || item.sportType || item._subtitle,
                     image: item.images?.[0] || item._image,
                     registrationLink: item.registrationLink,
+                    runClubId: item.runClubId,
                     _type: 'sport',
+                    _priority: item._priority,
+                };
+            }
+            if (item._type === 'runclub') {
+                return {
+                    _id: item._id,
+                    name: item.name || item._title,
+                    basedIn: item.basedIn || item._subtitle,
+                    coverImage: item.coverImage || item._image,
+                    _type: 'runclub',
                     _priority: item._priority,
                 };
             }
             return { ...item, _type: item._type, _priority: item._priority };
         }).filter(Boolean).sort(byPriority);
-    }, [fests, homeTreks, homeCommunities, homeSports, transformedFests]);
+    }, [fests, homeTreks, homeCommunities, homeSports, homeRunClubs, transformedFests]);
 
     const happeningItems = useMemo(() => {
-        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, 'happening', homeSports);
+        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, 'happening', homeSports, homeRunClubs);
         return raw.map((item) => {
             if (item._type === 'fest') {
                 const f = transformedFests.find((t) => t.id === item._id);
@@ -1078,13 +1099,24 @@ const Dashboard = () => {
                     subtitle: item.city || item.sportType || item._subtitle,
                     image: item.images?.[0] || item._image,
                     registrationLink: item.registrationLink,
+                    runClubId: item.runClubId,
                     _type: 'sport',
+                    _priority: item._priority,
+                };
+            }
+            if (item._type === 'runclub') {
+                return {
+                    _id: item._id,
+                    name: item.name || item._title,
+                    basedIn: item.basedIn || item._subtitle,
+                    coverImage: item.coverImage || item._image,
+                    _type: 'runclub',
                     _priority: item._priority,
                 };
             }
             return { ...item, _type: item._type, _priority: item._priority };
         }).filter(Boolean).sort(byPriority);
-    }, [fests, homeTreks, homeCommunities, homeSports, transformedFests]);
+    }, [fests, homeTreks, homeCommunities, homeSports, homeRunClubs, transformedFests]);
 
     const navigateToHomeItem = useCallback((item) => {
         if (item._type === 'fest') {
@@ -1103,12 +1135,19 @@ const Dashboard = () => {
                     },
                 },
             });
+        } else if (item._type === 'runclub') {
+            navigate(`/sports/run-club/${item._id}`, {
+                state: {
+                    club: {
+                        _id: item._id,
+                        name: item.name,
+                        basedIn: item.basedIn,
+                        coverImage: item.coverImage,
+                    },
+                },
+            });
         } else if (item._type === 'sport') {
-            if (item.registrationLink) {
-                window.open(item.registrationLink, '_blank', 'noopener,noreferrer');
-            } else {
-                navigate('/sports');
-            }
+            navigate(`/sports/run/${item.id || item._id}`);
         }
     }, [navigate]);
 
@@ -1117,7 +1156,8 @@ const Dashboard = () => {
         if (item._type === 'fest') return `${origin}/view-details/${item.id}`;
         if (item._type === 'trek') return `${origin}/trek/${item._id}`;
         if (item._type === 'community') return `${origin}/treks/community/${item._id}`;
-        if (item._type === 'sport') return item.registrationLink || `${origin}/sports`;
+        if (item._type === 'runclub') return `${origin}/sports/run-club/${item._id}`;
+        if (item._type === 'sport') return `${origin}/sports/run/${item.id || item._id}`;
         return `${origin}/view-details/${item.id || item._id}`;
     }, []);
 

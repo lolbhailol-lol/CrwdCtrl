@@ -79,6 +79,27 @@ exports.getMyRegistrations = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        if (registrations.length > 0) {
+            const sportsIds = [
+                ...new Set(
+                    registrations
+                        .filter((r) => r.category === 'sports')
+                        .map((r) => String(r.eventId)),
+                ),
+            ];
+            if (sportsIds.length > 0) {
+                const events = await SportsEvent.find({ _id: { $in: sportsIds } })
+                    .select('title eventDate venue city sportType images status')
+                    .lean();
+                const eventMap = Object.fromEntries(events.map((e) => [String(e._id), e]));
+                registrations.forEach((reg) => {
+                    if (reg.category === 'sports') {
+                        reg.event = eventMap[String(reg.eventId)] || null;
+                    }
+                });
+            }
+        }
+
         res.json({ registrations });
     } catch (error) {
         console.error('categoryRegistration getMyRegistrations error:', error);

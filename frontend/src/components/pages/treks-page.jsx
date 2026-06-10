@@ -424,12 +424,12 @@ function TreksPage() {
                             <EmptyState label="No communities added yet" />
                         ) : (
                             <div
-                                className="carousel-scroll-center carousel-scroll-center--portrait overflow-x-auto scrollbar-hide"
+                                className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
                                 <div className="flex gap-4 pb-2">
                                     {exploreCommunities.map((comm) => (
-                                        <div key={comm.id} className="snap-center shrink-0">
+                                        <div key={comm.id} className="shrink-0">
                                             <CommunityCard
                                                 trek={comm}
                                                 isDark={isDark}

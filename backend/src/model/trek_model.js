@@ -85,11 +85,21 @@ const trekSchema = new mongoose.Schema(
             enum: ['draft', 'published', 'completed', 'cancelled'],
             default: 'published',
         },
+
+        /** Volunteer trek leader scanner login — trek code + password → scan-only access */
+        scannerAccess: {
+            enabled: { type: Boolean, default: false },
+            code: { type: String, trim: true, uppercase: true },
+            passwordHash: { type: String, default: '' },
+            label: { type: String, default: '', trim: true },
+        },
+
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     },
     { timestamps: true }
 );
 
+trekSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
 trekSchema.index({ difficultyLevel: 1 });
 trekSchema.index({ status: 1 });
 trekSchema.index({ trekDate: 1 });

@@ -64,7 +64,7 @@ const AdminFestsPage = React.lazy(() => import('./components/admin/FestsPage'))
 const CompetitionsPage = React.lazy(() => import('./components/admin/CompetitionsPage'))
 const RegistrationsPage = React.lazy(() => import('./components/admin/RegistrationsPage'))
 const AnalyticsDashboardPage = React.lazy(() => import('./components/admin/AnalyticsDashboardPage'))
-const CheckinScannerPage = React.lazy(() => import('./components/admin/CheckinScannerPage'))
+const ScannerAccessPage = React.lazy(() => import('./components/admin/ScannerAccessPage'))
 const SportsPage = React.lazy(() => import('./components/admin/SportsPage'))
 const TreksPage = React.lazy(() => import('./components/admin/TreksPage'))
 const TheatrePage = React.lazy(() => import('./components/admin/TheatrePage'))
@@ -76,8 +76,17 @@ const PaymentInvoicePage = React.lazy(() => import('./components/pages/PaymentIn
 const PublicTreksPage = React.lazy(() => import('./components/pages/treks-page'))
 const PublicTheatrePage = React.lazy(() => import('./components/pages/theatre-page'))
 const CommunityDetailPage = React.lazy(() => import('./components/pages/CommunityDetailPage'))
+const RunClubDetailPage = React.lazy(() => import('./components/pages/RunClubDetailPage'))
+const RunEventDetailPage = React.lazy(() => import('./components/pages/RunEventDetailPage'))
+const RunEventBookingPage = React.lazy(() => import('./components/pages/RunEventBookingPage'))
 const TrekCategoryPage = React.lazy(() => import('./components/pages/TrekCategoryPage'))
 const PaymentCheckoutPage = React.lazy(() => import('./components/pages/PaymentCheckoutPage'))
+const OrganizerProtectedRoute = React.lazy(() => import('./components/organizer/OrganizerProtectedRoute'))
+const OrganizerFestListPage = React.lazy(() => import('./components/organizer/OrganizerFestListPage'))
+const OrganizerCheckinPage = React.lazy(() => import('./components/organizer/OrganizerCheckinPage'))
+const OrganizerScannerLoginPage = React.lazy(() => import('./components/organizer/OrganizerScannerLoginPage'))
+const OrganizerScanPage = React.lazy(() => import('./components/organizer/OrganizerScanPage'))
+const OrganizerEntryPage = React.lazy(() => import('./components/organizer/OrganizerEntryPage'))
 
 // Component to conditionally render MobileBottomNav
 function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick, onProfileClose }) {
@@ -90,9 +99,12 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname === '/verify-email' ||
     location.pathname === '/notifications' ||
     location.pathname.startsWith('/admin') ||
+    location.pathname.startsWith('/organizer') ||
     location.pathname.startsWith('/view-details') ||
     location.pathname.startsWith('/trek/') ||
     location.pathname.startsWith('/treks/community/') ||
+    location.pathname.startsWith('/sports/run-club/') ||
+    location.pathname.startsWith('/sports/run/') ||
     location.pathname.startsWith('/competitions-view-details') ||
     location.pathname.startsWith('/competition') ||
     location.pathname.includes('/fest/') && location.pathname.includes('/register') ||
@@ -122,12 +134,15 @@ function ConditionalFooter() {
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
     location.pathname.startsWith('/admin') ||
+    location.pathname.startsWith('/organizer') ||
     location.pathname.startsWith('/competition-registration') ||
     location.pathname.startsWith('/qr-ticket') ||
     location.pathname.startsWith('/payment-invoice') ||
     (location.pathname.includes('/fest/') && location.pathname.includes('/register')) ||
     location.pathname.startsWith('/trek/') ||
-    location.pathname.startsWith('/treks/community/');
+    location.pathname.startsWith('/treks/community/') ||
+    location.pathname.startsWith('/sports/run-club/') ||
+    location.pathname.startsWith('/sports/run/');
 
   if (shouldHideFooter) {
     return null;
@@ -230,6 +245,9 @@ function AppContent({
                 <Route path="/treks" element={<PublicTreksPage />} />
                 <Route path="/theatre" element={<PublicTheatrePage />} />
                 <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
+                <Route path="/sports/run-club/:id" element={<RunClubDetailPage />} />
+                <Route path="/sports/run/:id" element={<RunEventDetailPage />} />
+                <Route path="/sports/run/:id/book" element={<RunEventBookingPage />} />
                 <Route path="/treks/category/:category" element={<TrekCategoryPage />} />
                 <Route path="/trek/:id" element={<TrekDetailPage />} />
                 <Route path="/trek/:id/book" element={<TrekBookingPage />} />
@@ -259,6 +277,25 @@ function AppContent({
                 <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
                 <Route path="/qr-ticket/:registrationId" element={<QRTicketPage />} />
                 <Route path="/payment-invoice/:id" element={<PaymentInvoicePage />} />
+                <Route path="/organizer/login" element={<OrganizerScannerLoginPage />} />
+                <Route path="/organizer/scan" element={<OrganizerScanPage />} />
+                <Route path="/organizer" element={<OrganizerEntryPage />} />
+                <Route
+                  path="/organizer/account"
+                  element={
+                    <OrganizerProtectedRoute>
+                      <OrganizerFestListPage />
+                    </OrganizerProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/organizer/:festId/checkin"
+                  element={
+                    <OrganizerProtectedRoute>
+                      <OrganizerCheckinPage />
+                    </OrganizerProtectedRoute>
+                  }
+                />
                 <Route
                   path="/admin"
                   element={
@@ -272,7 +309,7 @@ function AppContent({
                   <Route path="competitions" element={<CompetitionsPage />} />
                   <Route path="registrations" element={<RegistrationsPage />} />
                   <Route path="analytics" element={<AnalyticsDashboardPage />} />
-                  <Route path="checkin" element={<CheckinScannerPage />} />
+                  <Route path="scanner-access" element={<ScannerAccessPage />} />
                   <Route path="sports" element={<SportsPage />} />
                   <Route path="treks" element={<TreksPage />} />
                   <Route path="theatre" element={<TheatrePage />} />

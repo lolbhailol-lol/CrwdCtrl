@@ -21,7 +21,7 @@ const QUICK_LINKS = [
   { label: 'Competitions', path: '/admin/competitions', description: 'Competition forms, rounds, and QR' },
   { label: 'Home & Sections', path: '/admin/sections', description: 'Carousels, page placement, priorities' },
   { label: 'Registrations', path: '/admin/registrations', description: 'Review fest sign-ups' },
-  { label: 'Check-in Scanner', path: '/admin/checkin', description: 'QR check-in at events' },
+  { label: 'Scanner Access', path: '/admin/scanner-access', description: 'Volunteer scanner codes for events' },
   { label: 'Analytics', path: '/admin/analytics', description: 'Views, signups, and device stats' },
 ];
 

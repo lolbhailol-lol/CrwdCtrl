@@ -9,6 +9,9 @@ router.get('/', async (req, res) => {
         const filter = { status: 'published', showOnSportsPage: { $ne: false } };
         if (req.query.sportType) filter.sportType = req.query.sportType;
         if (req.query.city) filter.city = { $regex: req.query.city, $options: 'i' };
+        if (req.query.runClubId && mongoose.Types.ObjectId.isValid(req.query.runClubId)) {
+            filter.runClubId = req.query.runClubId;
+        }
 
         const events = await SportsEvent.find(filter)
             .sort({ priority: 1, eventDate: 1, createdAt: -1 })
@@ -29,8 +32,14 @@ router.get('/:id', async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid sports event ID' });
         }
-        const event = await SportsEvent.findOne({ _id: id, status: 'published' }).lean();
+        const event = await SportsEvent.findOne({ _id: id, status: 'published' })
+            .populate('runClubId', 'name basedIn contactPhone contactInstagram')
+            .lean();
         if (!event) return res.status(404).json({ message: 'Sports event not found' });
+        if (event.runClubId && typeof event.runClubId === 'object') {
+            event.runClub = event.runClubId;
+            event.runClubId = event.runClub._id;
+        }
         res.json({ event });
     } catch (error) {
         console.error('publicSports getById error:', error);

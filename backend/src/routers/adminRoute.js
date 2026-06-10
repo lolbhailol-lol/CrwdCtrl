@@ -96,6 +96,14 @@ router.post('/sections/reorder', adminAuth, adminSectionCtrl.batchReorder);
 router.post('/fests/broadcast-announcement', adminAuth, adminFestCtrl.triggerEventAnnouncement);
 router.post('/fests', adminAuth, adminFestCtrl.createFest);
 router.get('/fests', adminAuth, adminFestCtrl.getAllFests);
+const {
+  getAdminScannerAccess,
+  setAdminScannerAccess,
+} = require('../controllers/scannerAccessController');
+
+router.get('/fests/:festId/scanner-access', adminAuth, getAdminScannerAccess);
+router.put('/fests/:festId/scanner-access', adminAuth, setAdminScannerAccess);
+
 // Generic ID routes at the bottom of the section
 router.put('/fests/:id', (req, res, next) => {
   console.log('🟡 Generic PUT route matched! ID:', req.params.id);

@@ -42,12 +42,12 @@ export default function AdminLayout() {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', exact: true },
     { icon: Calendar, label: 'Fests', path: '/admin/fests' },
     { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
-    { icon: Dumbbell, label: 'Sports', path: '/admin/sports' },
+    { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },
     { icon: Theater, label: 'Theatre', path: '/admin/theatre' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
     { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
-    { icon: QrCode, label: 'Check-in', path: '/admin/checkin' },
+    { icon: QrCode, label: 'Scanner Access', path: '/admin/scanner-access', exact: true },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   ];
 

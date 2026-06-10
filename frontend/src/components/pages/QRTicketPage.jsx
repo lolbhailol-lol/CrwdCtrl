@@ -20,7 +20,9 @@ const formatTicketDate = (date) => {
 export default function QRTicketPage() {
   const { registrationId } = useParams();
   const [searchParams] = useSearchParams();
-  const isTrekTicket = searchParams.get('type') === 'trek';
+  const ticketType = searchParams.get('type');
+  const isTrekTicket = ticketType === 'trek';
+  const isSportsTicket = ticketType === 'sports';
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,7 +33,9 @@ export default function QRTicketPage() {
         const token = getToken();
         const url = isTrekTicket
           ? `${API_BASE_URL}/qr/trek-bookings/${registrationId}/qr`
-          : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
+          : isSportsTicket
+            ? `${API_BASE_URL}/qr/sports-registrations/${registrationId}/qr`
+            : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
@@ -48,7 +52,7 @@ export default function QRTicketPage() {
     };
 
     fetchTicket();
-  }, [registrationId, isTrekTicket]);
+  }, [registrationId, isTrekTicket, isSportsTicket]);
 
   if (loading) {
     return (
@@ -71,8 +75,14 @@ export default function QRTicketPage() {
 
   const eventTitle = isTrekTicket
     ? ticket.trekName || ticket.festName || 'Trek'
-    : ticket.festName || 'Event';
-  const ticketLabel = isTrekTicket ? 'Trek Ticket' : 'Event Ticket';
+    : isSportsTicket
+      ? ticket.eventTitle || ticket.festName || 'Sports Event'
+      : ticket.festName || 'Event';
+  const ticketLabel = isTrekTicket
+    ? 'Trek Ticket'
+    : isSportsTicket
+      ? 'Sports Ticket'
+      : 'Event Ticket';
   const formattedDate = formatTicketDate(ticket.festDate);
 
   return (
@@ -156,7 +166,11 @@ export default function QRTicketPage() {
                   data={{
                     hash: ticket.qrHash,
                     registrationId: ticket.registrationId,
-                    type: isTrekTicket ? 'crwdctrl-trek-checkin' : 'crwdctrl-checkin',
+                    type: isTrekTicket
+                      ? 'crwdctrl-trek-checkin'
+                      : isSportsTicket
+                        ? 'crwdctrl-sports-checkin'
+                        : 'crwdctrl-checkin',
                   }}
                   size={200}
                 />

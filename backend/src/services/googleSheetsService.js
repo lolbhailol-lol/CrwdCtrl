@@ -745,11 +745,109 @@ const appendPaymentOnlyToSheets = async (googleSheetsUrl, { name, email, phone, 
   }
 };
 
+const CHECKIN_SHEET_TITLE = 'Check-ins';
+const CHECKIN_HEADERS = [
+  'Checked In At',
+  'Name',
+  'Email',
+  'Fest',
+  'Competition',
+  'Ticket Type',
+  'Registration ID',
+  'Status',
+  'Scanned By',
+];
+
+async function ensureCheckinSheet(sheets, spreadsheetId) {
+  const spreadsheetInfo = await sheets.spreadsheets.get({ spreadsheetId });
+  let sheet = spreadsheetInfo.data.sheets.find(
+    (s) => s.properties.title === CHECKIN_SHEET_TITLE,
+  );
+
+  if (!sheet) {
+    const addRes = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      resource: {
+        requests: [{ addSheet: { properties: { title: CHECKIN_SHEET_TITLE } } }],
+      },
+    });
+    const newSheetId = addRes.data.replies?.[0]?.addSheet?.properties?.sheetId;
+    sheet = { properties: { title: CHECKIN_SHEET_TITLE, sheetId: newSheetId } };
+  }
+
+  return sheet.properties.title;
+}
+
+/**
+ * Log a successful QR check-in to a dedicated "Check-ins" tab (created if missing).
+ */
+const appendCheckinToGoogleSheets = async (googleSheetsUrl, checkinData) => {
+  try {
+    const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
+    if (!spreadsheetId) {
+      return { success: false, error: 'Invalid Google Sheets URL' };
+    }
+
+    const auth = await getGoogleAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+    const sheetName = await ensureCheckinSheet(sheets, spreadsheetId);
+
+    let existingHeaders = [];
+    try {
+      const headerResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${sheetName}!1:1`,
+      });
+      existingHeaders = headerResponse.data.values ? headerResponse.data.values[0] : [];
+    } catch {
+      existingHeaders = [];
+    }
+
+    if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, CHECKIN_HEADERS)) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${sheetName}!1:1`,
+        valueInputOption: 'RAW',
+        resource: { values: [CHECKIN_HEADERS] },
+      });
+    }
+
+    const rowData = [
+      checkinData.checkedInAt
+        ? new Date(checkinData.checkedInAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+        : new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+      checkinData.userName || '',
+      checkinData.userEmail || '',
+      checkinData.festName || '',
+      checkinData.competitionName || '',
+      checkinData.ticketType || 'fest',
+      checkinData.registrationId ? String(checkinData.registrationId) : '',
+      checkinData.status || 'Completed',
+      checkinData.scannedBy || '',
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${sheetName}!A:A`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      resource: { values: [rowData] },
+    });
+
+    console.log('✅ Check-in logged to Google Sheets tab:', CHECKIN_SHEET_TITLE);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ appendCheckinToGoogleSheets error:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   appendToGoogleSheets,
   appendToCompetitionGoogleSheets,
   appendPaymentOnlyToSheets,
+  appendCheckinToGoogleSheets,
   validateGoogleSheetsUrl,
   testGoogleSheetsConnection,
-  extractSpreadsheetId
+  extractSpreadsheetId,
 };

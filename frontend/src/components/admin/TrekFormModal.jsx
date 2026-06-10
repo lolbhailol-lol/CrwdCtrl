@@ -33,7 +33,7 @@ const EMPTY = {
     startingPoint: '', destination: '', meetingLocation: '', departureTime: '',
     returnTime: '', fitnessRequirements: '', ageRestrictions: '', trekLeader: '',
     emergencyContact: '', contactInstagram: '', registrationFee: 0, registrationLink: '', maxParticipants: 0,
-    trekDate: '', city: '', trekCategory: '', featuredSection: '', homeSection: null, priority: 999, status: 'published',
+    trekDate: '', city: '', trekCategory: '', status: 'published',
     registration: { googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [] },
     inclusions: '', exclusions: '', thingsToCarry: '', termsAndConditions: '',
     itinerary: [],
@@ -276,6 +276,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
             delete payload.featuredSection;
             delete payload.homeSection;
             delete payload.priority;
+            delete payload.trekPagePriority;
+            delete payload.homePriority;
             const url = trek ? `${API}/admin/treks/${trek._id}` : `${API}/admin/treks`;
             const method = trek ? 'PUT' : 'POST';
             const res = await fetch(url, {
@@ -610,6 +612,10 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                             </div>
                         </div>
                     </div>
+
+                    <p className="text-[11px] text-gray-600 px-1">
+                        Treks page sections, order &amp; home carousel → <span className="text-gray-500">Home &amp; Sections → Treks</span>
+                    </p>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>

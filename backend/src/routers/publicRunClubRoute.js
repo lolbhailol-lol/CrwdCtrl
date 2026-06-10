@@ -19,4 +19,19 @@ router.get('/', async (req, res) => {
     }
 });
 
+router.get('/:id', async (req, res) => {
+    try {
+        const club = await RunClub.findOne({
+            _id: req.params.id,
+            status: 'published',
+            showOnSportsPage: { $ne: false },
+        }).lean();
+        if (!club) return res.status(404).json({ message: 'Run club not found' });
+        res.json({ club });
+    } catch (err) {
+        console.error('publicRunClub getById error:', err.message);
+        res.status(500).json({ message: 'Failed to fetch run club' });
+    }
+});
+
 module.exports = router;

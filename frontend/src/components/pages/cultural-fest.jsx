@@ -96,7 +96,7 @@ export default function CulturalFestPage() {
                                 <h2 className={`home-section-heading px-4 mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
                                 <div
                                     ref={scrollRef}
-                                    className="carousel-scroll-center carousel-scroll-center--fest overflow-x-auto scrollbar-hide"
+                                    className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                     style={{ scrollbarWidth: 'none' }}
                                     onScroll={(e) => setFeaturedPg(getCarouselScrollPage(e.currentTarget))}
                                 >
@@ -105,7 +105,7 @@ export default function CulturalFestPage() {
                                             const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
                                             return (
                                                 <div key={fest._id}
-                                                    className="card-surface card-carousel-fest rounded-2xl overflow-hidden snap-center">
+                                                    className="card-surface card-carousel-fest rounded-2xl overflow-hidden snap-start">
                                                     {/* Image */}
                                                     <div className="fest-card-image">
                                                         {img ? (

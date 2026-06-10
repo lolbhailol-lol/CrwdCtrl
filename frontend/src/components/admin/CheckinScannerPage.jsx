@@ -1,4 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, CheckCircle, AlertTriangle, XCircle, RefreshCw, QrCode, Upload } from 'lucide-react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import jsQR from 'jsqr';
@@ -6,13 +7,136 @@ import { isNativeApp } from '../../utils/capacitorPlatform';
 import { extractCheckinHash } from '../../utils/qrCheckin';
 import { getApiBaseUrl } from '../../config/apiBase';
 
-const getAdminToken = () => localStorage.getItem('admin_token');
+const getDefaultAdminToken = () => localStorage.getItem('admin_token');
+const getDefaultUserToken = () =>
+  localStorage.getItem('crwdctrl_token') || localStorage.getItem('token');
 const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const isMobileDevice = () =>
-  typeof window !== 'undefined' &&
-  (window.innerWidth < 768 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+const acquireCameraStream = async () => {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('Camera not supported. Use Photo of QR or manual entry.');
+  }
 
-export default function CheckinScannerPage() {
+  const attempts = [
+    { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+    { video: { facingMode: 'environment' }, audio: false },
+    { video: { facingMode: 'user' }, audio: false },
+    { video: true, audio: false },
+  ];
+
+  let lastError;
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('Could not open camera');
+};
+
+const bindVideoStream = async (video, stream) => {
+  video.srcObject = stream;
+  video.muted = true;
+  video.playsInline = true;
+  video.setAttribute('playsinline', 'true');
+  video.setAttribute('webkit-playsinline', 'true');
+
+  await new Promise((resolve) => {
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      resolve();
+      return;
+    }
+    const onReady = () => {
+      video.removeEventListener('loadedmetadata', onReady);
+      resolve();
+    };
+    video.addEventListener('loadedmetadata', onReady);
+    setTimeout(resolve, 2500);
+  });
+
+  for (let i = 0; i < 4; i += 1) {
+    try {
+      await video.play();
+      if (video.videoWidth > 0) return;
+    } catch {
+      /* retry */
+    }
+    await waitMs(150);
+  }
+
+  if (video.videoWidth === 0) {
+    throw new Error('Camera preview failed to start. Tap Open Camera again.');
+  }
+};
+
+export default function CheckinScannerPage({
+  mode = 'admin',
+  festId = null,
+  trekId = null,
+  sportEventId = null,
+  festName = '',
+  getAuthToken,
+  checkinUrl,
+  title,
+  subtitle,
+  showStats = false,
+  statsUrl = null,
+  exportUrl = null,
+  embedded = false,
+}) {
+  const isVolunteerScanner =
+    mode === 'scanner' || mode === 'trek_scanner' || mode === 'sport_scanner';
+  const resolvedGetToken =
+    getAuthToken ||
+    (isVolunteerScanner
+      ? null
+      : mode === 'organizer'
+        ? getDefaultUserToken
+        : getDefaultAdminToken);
+  const resolvedCheckinUrl =
+    checkinUrl ||
+    (mode === 'sport_scanner' && sportEventId
+      ? `${getApiBaseUrl()}/scanner/sport/${sportEventId}/checkin`
+      : mode === 'trek_scanner' && trekId
+        ? `${getApiBaseUrl()}/scanner/trek/${trekId}/checkin`
+        : mode === 'scanner' && festId
+          ? `${getApiBaseUrl()}/scanner/${festId}/checkin`
+          : mode === 'organizer' && festId
+            ? `${getApiBaseUrl()}/fest-organizer/${festId}/checkin`
+            : `${getApiBaseUrl()}/qr/checkin`);
+  const resolvedStatsUrl =
+    statsUrl ||
+    (mode === 'sport_scanner' && sportEventId
+      ? `${getApiBaseUrl()}/scanner/sport/${sportEventId}/stats`
+      : mode === 'trek_scanner' && trekId
+        ? `${getApiBaseUrl()}/scanner/trek/${trekId}/stats`
+        : mode === 'scanner' && festId
+          ? `${getApiBaseUrl()}/scanner/${festId}/stats`
+          : mode === 'organizer' && festId
+            ? `${getApiBaseUrl()}/fest-organizer/${festId}/checkin-stats`
+            : null);
+  const resolvedTitle =
+    title ||
+    (mode === 'sport_scanner'
+      ? 'Sports Check-in'
+      : mode === 'trek_scanner'
+        ? 'Trek Check-in'
+        : mode === 'scanner'
+          ? 'Scan Tickets'
+          : mode === 'organizer'
+            ? 'Fest Check-in'
+            : 'Check-in Scanner');
+  const resolvedSubtitle =
+    subtitle ||
+    (mode === 'sport_scanner'
+      ? `Scan sports/run club tickets for ${festName || 'your event'} — check-ins log to Google Sheets`
+      : mode === 'trek_scanner'
+        ? `Scan trek tickets for ${festName || 'your trek'} — check-ins log to Google Sheets`
+        : mode === 'scanner'
+          ? 'Scan attendee QR codes — check-ins save to Google Sheets'
+          : mode === 'organizer'
+            ? `Scan tickets for ${festName || 'your fest'} — check-ins log to Google Sheets`
+            : 'Scan ticket QR from My Bookings — allow camera when prompted');
   const [scanResult, setScanResult] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [manualHash, setManualHash] = useState('');
@@ -20,14 +144,17 @@ export default function CheckinScannerPage() {
   const [nativeScanAvailable, setNativeScanAvailable] = useState(false);
   const [scannerHint, setScannerHint] = useState('');
   const [scanSession, setScanSession] = useState(0);
+  const [checkinStats, setCheckinStats] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const streamRef = useRef(null);
+  const pendingStreamRef = useRef(null);
   const scanIntervalRef = useRef(null);
   const scanLockRef = useRef(false);
   const nativeListenerRef = useRef(null);
   const mountedRef = useRef(true);
+  const videoWatchdogRef = useRef(null);
 
   const useNativeScanner = isNativeApp() && nativeScanAvailable;
 
@@ -62,6 +189,11 @@ export default function CheckinScannerPage() {
       scanIntervalRef.current = null;
     }
 
+    if (videoWatchdogRef.current) {
+      clearTimeout(videoWatchdogRef.current);
+      videoWatchdogRef.current = null;
+    }
+
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.srcObject = null;
@@ -71,6 +203,7 @@ export default function CheckinScannerPage() {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    pendingStreamRef.current = null;
 
     await clearNativeListener();
     scanLockRef.current = false;
@@ -97,6 +230,27 @@ export default function CheckinScannerPage() {
     };
   }, [releaseCamera]);
 
+  const fetchCheckinStats = useCallback(async () => {
+    if (!showStats || (!festId && !trekId && !sportEventId)) return;
+    const token = resolvedGetToken();
+    if (!token) return;
+    try {
+      const res = await fetch(resolvedStatsUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCheckinStats(data);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [showStats, festId, trekId, sportEventId, resolvedGetToken, resolvedStatsUrl]);
+
+  useEffect(() => {
+    fetchCheckinStats();
+  }, [fetchCheckinStats]);
+
   const verifyQrPayload = useCallback(async (rawData) => {
     const trimmed = String(rawData || '').trim();
     if (!trimmed) {
@@ -104,18 +258,23 @@ export default function CheckinScannerPage() {
       return;
     }
 
-    const token = getAdminToken();
+    const token = resolvedGetToken();
     if (!token) {
       setScanResult({
         status: 'error',
-        message: 'Admin session expired — log in again at /admin/login',
+        message:
+          isVolunteerScanner
+            ? 'Scanner session expired — log in again at /organizer/login'
+            : mode === 'organizer'
+              ? 'Session expired — log in again to use the scanner.'
+              : 'Admin session expired — log in again at /admin/login',
       });
       return;
     }
 
     setIsProcessing(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/qr/checkin`, {
+      const res = await fetch(resolvedCheckinUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,6 +299,9 @@ export default function CheckinScannerPage() {
         message: data.message || data.error || 'Check-in failed',
         data: data.data,
       });
+      if (data.status === 'checked_in' || data.status === 'already_checked_in') {
+        fetchCheckinStats();
+      }
     } catch (err) {
       setScanResult({
         status: 'error',
@@ -149,7 +311,7 @@ export default function CheckinScannerPage() {
       setIsProcessing(false);
       scanLockRef.current = false;
     }
-  }, []);
+  }, [resolvedGetToken, resolvedCheckinUrl, mode, fetchCheckinStats]);
 
   const handleQRData = useCallback(async (rawData) => {
     if (scanLockRef.current) return;
@@ -209,83 +371,44 @@ export default function CheckinScannerPage() {
     }, 200);
   }, [decodeFrame, handleQRData]);
 
-  useEffect(() => {
-    if (!isScanning || useNativeScanner) return undefined;
+  const attachVideoRef = useCallback(async (el) => {
+    videoRef.current = el;
+    if (!el) return;
+    if (!pendingStreamRef.current || scanLockRef.current) return;
 
-    let cancelled = false;
+    try {
+      await bindVideoStream(el, pendingStreamRef.current);
+      if (!mountedRef.current) return;
 
-    const bootCamera = async () => {
-      setScannerHint('Opening camera...');
+      setScannerHint('Hold the ticket QR inside the frame');
+      startScanLoop();
 
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error('Camera not supported. Use Upload QR Image or manual entry.');
-        }
-
-        let stream;
-        const mobile = isMobileDevice();
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: mobile ? { ideal: 'environment' } : 'environment',
-              width: { ideal: mobile ? 1280 : 1280 },
-              height: { ideal: mobile ? 720 : 720 },
-            },
-            audio: false,
-          });
-        } catch {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        }
-
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-
-        let video = videoRef.current;
-        for (let i = 0; i < 8 && !video; i += 1) {
-          await waitMs(50);
-          video = videoRef.current;
-        }
-        if (!video) throw new Error('Camera preview failed. Tap Open Camera again.');
-
-        video.srcObject = stream;
-        video.muted = true;
-        video.playsInline = true;
-        video.setAttribute('webkit-playsinline', 'true');
-
-        await new Promise((resolve, reject) => {
-          const onReady = () => {
-            video.removeEventListener('loadedmetadata', onReady);
-            resolve();
-          };
-          video.addEventListener('loadedmetadata', onReady);
-          video.play().catch(reject);
-        });
-
-        if (cancelled) return;
-
-        setScannerHint('Hold the ticket QR inside the frame');
-        startScanLoop();
-      } catch (err) {
-        if (cancelled) return;
-        await stopWebScanning();
+      if (videoWatchdogRef.current) clearTimeout(videoWatchdogRef.current);
+      videoWatchdogRef.current = setTimeout(() => {
+        if (!videoRef.current || videoRef.current.videoWidth > 0 || scanLockRef.current) return;
+        stopWebScanning();
         setScanResult({
           status: 'error',
-          message: err?.message?.includes('Permission') || err?.name === 'NotAllowedError'
-            ? 'Allow camera permission for this site in phone settings, then retry.'
-            : `Camera error: ${err.message}`,
+          message: 'Camera opened but preview is blank. Allow camera for crwdctrl.in in browser settings, then retry.',
         });
-      }
-    };
+      }, 4000);
+    } catch (err) {
+      await stopWebScanning();
+      setScanResult({
+        status: 'error',
+        message: err?.message?.includes('Permission') || err?.name === 'NotAllowedError'
+          ? 'Allow camera permission for this site in phone settings, then retry.'
+          : `Camera error: ${err.message}`,
+      });
+    }
+  }, [startScanLoop, stopWebScanning]);
 
-    bootCamera();
+  useEffect(() => {
+    if (!isScanning || useNativeScanner) return undefined;
     return () => {
-      cancelled = true;
+      releaseCamera();
     };
-  }, [isScanning, scanSession, startScanLoop, stopWebScanning, useNativeScanner]);
+  }, [isScanning, useNativeScanner, releaseCamera]);
 
   const startNativeOneShotScan = async () => {
     setScanResult(null);
@@ -371,11 +494,27 @@ export default function CheckinScannerPage() {
   };
 
   const startWebScanning = async () => {
-    await stopWebScanning();
     setScanResult(null);
     scanLockRef.current = false;
-    setScanSession((n) => n + 1);
-    setIsScanning(true);
+    setScannerHint('Opening camera...');
+
+    try {
+      await releaseCamera();
+      const stream = await acquireCameraStream();
+      pendingStreamRef.current = stream;
+      streamRef.current = stream;
+      setScanSession((n) => n + 1);
+      setIsScanning(true);
+    } catch (err) {
+      setIsScanning(false);
+      setScannerHint('');
+      setScanResult({
+        status: 'error',
+        message: err?.message?.includes('Permission') || err?.name === 'NotAllowedError'
+          ? 'Allow camera permission for this site in phone settings, then retry.'
+          : `Camera error: ${err.message}`,
+      });
+    }
   };
 
   const startScanning = async () => {
@@ -440,6 +579,39 @@ export default function CheckinScannerPage() {
   const showStartPanel = !isScanning && !scanResult && !isProcessing;
   const showWebCamera = isScanning && !useNativeScanner;
 
+  const webCameraOverlay = showWebCamera
+    ? createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+          <div className="relative flex-1 min-h-0 w-full">
+            <video
+              key={`camera-${scanSession}`}
+              ref={attachVideoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: 'translateZ(0)' }}
+              playsInline
+              muted
+            />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-56 h-56 sm:w-64 sm:h-64 border-2 border-[#0ECCEE] rounded-2xl opacity-80" />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={stopWebScanning}
+            className="absolute top-4 right-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium z-10"
+          >
+            Stop
+          </button>
+          {scannerHint && (
+            <div className="absolute bottom-6 left-4 right-4 bg-black/80 text-gray-100 text-sm rounded-lg px-4 py-3 text-center z-10">
+              {scannerHint}
+            </div>
+          )}
+        </div>,
+        document.body,
+      )
+    : null;
+
   return (
     <>
       <style>{`
@@ -452,15 +624,104 @@ export default function CheckinScannerPage() {
         }
       `}</style>
 
-      <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6 pb-8">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Check-in Scanner</h1>
-          <p className="text-sm text-gray-400 mt-1">
-            {useNativeScanner
-              ? 'Using phone camera scanner (app mode)'
-              : 'Scan ticket QR from My Bookings'}
+      {webCameraOverlay}
+
+      <div className={`mx-auto space-y-4 sm:space-y-5 pb-8 ${embedded ? 'w-full' : 'max-w-2xl'}`}>
+        {!embedded && (
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">{resolvedTitle}</h1>
+            <p className="text-sm text-gray-400 mt-1">
+              {useNativeScanner ? 'Using phone camera scanner (app mode)' : resolvedSubtitle}
+            </p>
+            {festName && mode === 'organizer' && (
+              <p className="text-sm text-[#0ECCEE] mt-1 font-medium">{festName}</p>
+            )}
+          </div>
+        )}
+
+        {embedded && (
+          <p className="text-sm text-gray-400 text-center">
+            {useNativeScanner ? 'App camera mode' : resolvedSubtitle}
           </p>
-        </div>
+        )}
+
+        {checkinStats && (
+          <div className="rounded-xl border border-gray-800 bg-[#111213] p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Check-ins today</p>
+                <p className="text-lg font-bold text-white mt-0.5">
+                  {checkinStats.totalCheckedIn}
+                  <span className="text-gray-500 font-normal text-sm">
+                    {' '}
+                    / {checkinStats.totalRegistered}
+                  </span>
+                </p>
+              </div>
+              {checkinStats.totalRegistered > 0 && (
+                <span className="text-sm font-semibold text-[#0ECCEE]">
+                  {checkinStats.checkinRate ?? Math.round((checkinStats.totalCheckedIn / checkinStats.totalRegistered) * 100)}%
+                </span>
+              )}
+            </div>
+            <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden">
+              <div
+                className="h-full bg-[#0ECCEE] rounded-full transition-all duration-500"
+                style={{
+                  width: `${
+                    checkinStats.totalRegistered > 0
+                      ? Math.min(100, (checkinStats.totalCheckedIn / checkinStats.totalRegistered) * 100)
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-gray-500">
+              <span>
+                {checkinStats.hasGoogleSheet ? (
+                  <span className="text-green-400">● Sheets connected</span>
+                ) : (
+                  <span className="text-amber-400">● No sheet URL</span>
+                )}
+              </span>
+              {exportUrl && (
+                <button
+                  type="button"
+                  className="text-[#0ECCEE] hover:underline"
+                  onClick={async () => {
+                    const authToken = resolvedGetToken();
+                    if (!authToken) return;
+                    try {
+                      const res = await fetch(exportUrl, {
+                        headers: { Authorization: `Bearer ${authToken}` },
+                      });
+                      if (!res.ok) return;
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${festName || 'event'}_checkins.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  Download CSV
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!embedded && checkinStats && !exportUrl && (
+          <p className="text-xs text-gray-500">
+            {checkinStats.hasGoogleSheet
+              ? 'Check-ins log to Google Sheets automatically.'
+              : 'Add a Google Sheet URL in Admin → Scanner Access.'}
+          </p>
+        )}
 
         <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
         <input
@@ -472,69 +733,50 @@ export default function CheckinScannerPage() {
           onChange={handleImageUpload}
         />
 
-        <div className="bg-[#111213] rounded-xl border border-gray-800 p-4 sm:p-5">
+        <div className="bg-[#111213] rounded-2xl border border-gray-800 p-5 sm:p-6">
           {showStartPanel && (
-            <div className="text-center py-8 sm:py-12">
-              <QrCode size={48} className="text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 mb-6 text-sm px-2">
-                Scan attendee ticket QR, or take a photo of the QR code
+            <div className="text-center py-6 sm:py-10">
+              <div className="w-20 h-20 rounded-2xl bg-[#0ECCEE]/10 border border-[#0ECCEE]/20 flex items-center justify-center mx-auto mb-5">
+                <QrCode size={36} className="text-[#0ECCEE]" />
+              </div>
+              <p className="text-gray-300 font-medium mb-1">
+                {embedded ? 'Ready to scan' : 'Check-in scanner'}
               </p>
-              <div className="flex flex-col gap-3 max-w-xs mx-auto">
+              <p className="text-gray-500 mb-8 text-sm px-2 max-w-xs mx-auto">
+                Point at the ticket QR from My Bookings, or upload a photo
+              </p>
+              <div className="flex flex-col gap-3 max-w-sm mx-auto">
                 <button
                   type="button"
                   onClick={startScanning}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#0ECCEE] text-black rounded-lg font-medium hover:bg-[#0ECCEE]/90 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-4 bg-[#0ECCEE] text-black rounded-xl font-semibold hover:opacity-90 transition-opacity text-base"
                 >
-                  <Camera size={18} />
+                  <Camera size={20} />
                   {useNativeScanner ? 'Scan QR Code' : 'Open Camera'}
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 border border-gray-600 text-gray-200 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 border border-gray-700 text-gray-300 rounded-xl font-medium hover:bg-gray-800/80 transition-colors"
                 >
                   <Upload size={18} />
-                  Photo of QR
+                  Upload QR photo
                 </button>
               </div>
             </div>
           )}
 
           {showWebCamera && (
-            <div
-              className={
-                isMobileDevice()
-                  ? 'fixed inset-0 z-50 bg-black flex flex-col'
-                  : 'relative'
-              }
-            >
-              <video
-                key={`camera-${scanSession}`}
-                ref={videoRef}
-                className={
-                  isMobileDevice()
-                    ? 'flex-1 w-full object-cover'
-                    : 'w-full min-h-[320px] rounded-lg bg-black object-cover'
-                }
-                playsInline
-                muted
-                autoPlay
-              />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-56 h-56 border-2 border-[#0ECCEE] rounded-2xl opacity-80" />
-              </div>
+            <div className="text-center py-10">
+              <RefreshCw className="animate-spin text-[#0ECCEE] mx-auto mb-3" size={32} />
+              <p className="text-gray-300">{scannerHint || 'Camera active — point at ticket QR'}</p>
               <button
                 type="button"
                 onClick={stopWebScanning}
-                className="absolute top-4 right-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium z-10"
+                className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm"
               >
-                Stop
+                Stop Camera
               </button>
-              {scannerHint && (
-                <div className="absolute bottom-6 left-4 right-4 bg-black/80 text-gray-100 text-sm rounded-lg px-4 py-3 text-center z-10">
-                  {scannerHint}
-                </div>
-              )}
             </div>
           )}
 
@@ -561,12 +803,12 @@ export default function CheckinScannerPage() {
 
           {scanResult && !isProcessing && (
             <div
-              className={`rounded-xl p-5 sm:p-6 text-center ${
+              className={`rounded-2xl p-6 sm:p-8 text-center ${
                 scanResult.status === 'checked_in'
-                  ? 'bg-green-500/10 border border-green-500/30'
+                  ? 'bg-green-500/10 border border-green-500/25'
                   : scanResult.status === 'already_checked_in'
-                    ? 'bg-yellow-500/10 border border-yellow-500/30'
-                    : 'bg-red-500/10 border border-red-500/30'
+                    ? 'bg-amber-500/10 border border-amber-500/25'
+                    : 'bg-red-500/10 border border-red-500/25'
               }`}
             >
               <div className="mb-3">
@@ -610,42 +852,67 @@ export default function CheckinScannerPage() {
               <button
                 type="button"
                 onClick={scanAnother}
-                className="mt-5 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#0ECCEE] text-black rounded-lg text-sm font-semibold hover:opacity-90"
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-[#0ECCEE] text-black rounded-xl text-sm font-semibold hover:opacity-90"
               >
-                <RefreshCw size={14} />
-                Scan Another
+                <RefreshCw size={16} />
+                Scan next ticket
               </button>
             </div>
           )}
         </div>
 
-        <div className="bg-[#111213] rounded-xl border border-gray-800 p-4 sm:p-5">
-          <h3 className="font-semibold text-white mb-2">Manual Check-in</h3>
-          <p className="text-xs text-gray-500 mb-3">
-            Paste QR JSON or hash if camera fails
-          </p>
-          <form onSubmit={handleManualSubmit} className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              value={manualHash}
-              onChange={(e) => setManualHash(e.target.value)}
-              placeholder='{"hash":"..."}'
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#0ECCEE]"
-            />
-            <button
-              type="submit"
-              disabled={!manualHash.trim() || isProcessing}
-              className="px-5 py-3 bg-[#0ECCEE] text-black rounded-lg font-medium text-sm disabled:opacity-50"
-            >
-              Verify
-            </button>
-          </form>
-          {manualHash && extractCheckinHash(manualHash) && (
-            <p className="text-xs text-gray-500 mt-2">
-              Hash: {extractCheckinHash(manualHash).slice(0, 8)}…
-            </p>
-          )}
-        </div>
+        {isVolunteerScanner ? (
+          <details className="group bg-[#111213] rounded-xl border border-gray-800">
+            <summary className="px-4 py-3 text-xs text-gray-500 cursor-pointer hover:text-gray-400 list-none flex items-center justify-between">
+              Manual entry (if camera fails)
+              <span className="text-gray-600 group-open:rotate-180 transition-transform">▾</span>
+            </summary>
+            <div className="px-4 pb-4 pt-1 border-t border-gray-800">
+              <form onSubmit={handleManualSubmit} className="flex flex-col gap-2">
+                <input
+                  type="text"
+                  value={manualHash}
+                  onChange={(e) => setManualHash(e.target.value)}
+                  placeholder="Paste QR data or hash"
+                  className="w-full bg-[#1D1E20] border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#0ECCEE]"
+                />
+                <button
+                  type="submit"
+                  disabled={!manualHash.trim() || isProcessing}
+                  className="px-4 py-2.5 bg-gray-800 text-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700"
+                >
+                  Verify manually
+                </button>
+              </form>
+            </div>
+          </details>
+        ) : (
+          <div className="bg-[#111213] rounded-xl border border-gray-800 p-4 sm:p-5">
+            <h3 className="font-semibold text-white mb-1 text-sm">Manual check-in</h3>
+            <p className="text-xs text-gray-500 mb-3">Paste QR JSON or hash if the camera fails</p>
+            <form onSubmit={handleManualSubmit} className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                value={manualHash}
+                onChange={(e) => setManualHash(e.target.value)}
+                placeholder='{"hash":"..."}'
+                className="flex-1 bg-[#1D1E20] border border-gray-700 rounded-lg px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#0ECCEE]"
+              />
+              <button
+                type="submit"
+                disabled={!manualHash.trim() || isProcessing}
+                className="px-5 py-3 bg-[#0ECCEE] text-black rounded-lg font-medium text-sm disabled:opacity-50"
+              >
+                Verify
+              </button>
+            </form>
+            {manualHash && extractCheckinHash(manualHash) && (
+              <p className="text-xs text-gray-500 mt-2">
+                Hash: {extractCheckinHash(manualHash).slice(0, 8)}…
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

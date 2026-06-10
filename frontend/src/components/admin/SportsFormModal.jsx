@@ -1,20 +1,9 @@
 ﻿import { useState, useEffect } from 'react';
 import { X, ImagePlus } from 'lucide-react';
-import { deriveFeaturedSection, normalizeSportsSections } from '../../constants/sportsPage';
-import { getBrowseCategoryForSportType, SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
+import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
 import { normalizeImageList, parseUploadedUrls } from '../../utils/uploadUrls';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-
-const SPORT_TYPES = [
-    { value: 'run_club', label: 'Run Club', browse: 'Run Clubs' },
-    { value: 'football', label: 'Football', browse: 'Sport Clubs' },
-    { value: 'cricket', label: 'Cricket', browse: 'Sport Clubs' },
-    { value: 'badminton', label: 'Badminton', browse: 'Sport Clubs' },
-    { value: 'marathon', label: 'Marathon', browse: 'Marathon' },
-    { value: 'gymkhana', label: 'Gymkhana', browse: 'Sport Clubs' },
-    { value: 'other', label: 'Other', browse: 'Others' },
-];
 
 const EMPTY = {
     title: '',
@@ -36,13 +25,14 @@ const EMPTY = {
     sponsors: '',
     registrationLink: '',
     description: '',
-    showInUpcoming: true,
-    showInRunClubs: false,
-    upcomingPriority: 999,
-    runClubPriority: 999,
-    showOnSportsPage: true,
     status: 'published',
     runClubId: null,
+    runCategory: '',
+    distance: '',
+    inclusions: '',
+    termsAndConditions: '',
+    contactPhone: '',
+    contactInstagram: '',
 };
 
 function SectionBlock({ title, hint, children }) {
@@ -57,46 +47,59 @@ function SectionBlock({ title, hint, children }) {
     );
 }
 
-export default function SportsFormModal({ event, runClubId, onClose, onSaved }) {
+export default function SportsFormModal({ event, runClubId, clubName, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [parentRunCategories, setParentRunCategories] = useState([]);
 
     useEffect(() => {
         if (event) {
-            const normalized = normalizeSportsSections(event);
             setForm({
                 ...EMPTY,
-                ...normalized,
+                ...event,
+                sportType: 'run_club',
                 eventDate: event.eventDate ? new Date(event.eventDate).toISOString().slice(0, 10) : '',
                 sponsors: Array.isArray(event.sponsors) ? event.sponsors.join(', ') : (event.sponsors || ''),
                 images: normalizeImageList(event.images || []),
                 displayType: event.displayType || '',
-                upcomingPriority: normalized.upcomingPriority ?? 999,
-                runClubPriority: normalized.runClubPriority ?? 999,
-                showInUpcoming: normalized.showInUpcoming !== false,
-                showInRunClubs: normalized.showInRunClubs !== false,
-                showOnSportsPage: event.showOnSportsPage !== false,
                 runClubId: event.runClubId || runClubId || null,
+                runCategory: event.runCategory || '',
+                distance: event.distance || '',
+                inclusions: Array.isArray(event.inclusions) ? event.inclusions.join(', ') : '',
+                termsAndConditions: Array.isArray(event.termsAndConditions) ? event.termsAndConditions.join('\n') : '',
+                contactPhone: event.contactPhone || '',
+                contactInstagram: event.contactInstagram || '',
             });
         } else {
-            setForm({ ...EMPTY, runClubId: runClubId || null, showInUpcoming: true, showInRunClubs: false });
+            setForm({
+                ...EMPTY,
+                runClubId: runClubId || null,
+                sportType: 'run_club',
+            });
         }
     }, [event, runClubId]);
 
     useEffect(() => {
-        if (form.sportType === 'run_club' && !event) {
-            setForm((f) => ({ ...f, showInRunClubs: true }));
+        const clubId = form.runClubId || runClubId;
+        if (!clubId) {
+            setParentRunCategories([]);
+            return;
         }
-        if (form.sportType && form.sportType !== 'run_club') {
-            setForm((f) => (f.showInRunClubs ? { ...f, showInRunClubs: false } : f));
-        }
-    }, [form.sportType, event]);
+        const token = localStorage.getItem('admin_token');
+        fetch(`${API}/admin/run-clubs/${clubId}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                const cats = Array.isArray(data?.club?.runCategories) ? data.club.runCategories : [];
+                setParentRunCategories(cats.length ? cats : RUN_CATEGORY_OPTIONS);
+            })
+            .catch(() => setParentRunCategories(RUN_CATEGORY_OPTIONS));
+    }, [form.runClubId, runClubId]);
 
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-    const selectedSport = SPORT_TYPES.find((s) => s.value === form.sportType);
 
     const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
@@ -125,56 +128,58 @@ export default function SportsFormModal({ event, runClubId, onClose, onSaved }) 
         }
     };
 
-    const applyPlacementPreset = (preset) => {
-        const isRunClub = form.sportType === 'run_club';
-        if (preset === 'upcoming') {
-            setForm((f) => ({ ...f, showOnSportsPage: true, showInUpcoming: true, showInRunClubs: false }));
-        } else if (preset === 'run_clubs') {
-            setForm((f) => ({
-                ...f,
-                showOnSportsPage: true,
-                showInUpcoming: false,
-                showInRunClubs: isRunClub,
-            }));
-        } else if (preset === 'both') {
-            setForm((f) => ({
-                ...f,
-                showOnSportsPage: true,
-                showInUpcoming: true,
-                showInRunClubs: isRunClub,
-            }));
-        } else if (preset === 'hidden') {
-            setForm((f) => ({ ...f, showOnSportsPage: false, showInUpcoming: false, showInRunClubs: false }));
-        }
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        if (!form.title.trim() || !form.sportType) {
-            setError('Title and Sport Type are required.');
+        if (!form.title.trim()) {
+            setError('Run title is required.');
+            return;
+        }
+        if (!runClubId && !form.runClubId) {
+            setError('Run must belong to a run club.');
             return;
         }
         setSaving(true);
         try {
             const token = localStorage.getItem('admin_token');
-            const showInUpcoming = form.showOnSportsPage && form.showInUpcoming;
-            const showInRunClubs = !form.runClubId && form.showOnSportsPage && form.sportType === 'run_club' && form.showInRunClubs;
             const payload = {
-                ...form,
+                title: form.title.trim(),
+                sportType: 'run_club',
                 runClubId: form.runClubId || runClubId || null,
-                sponsors: form.sponsors ? form.sponsors.split(',').map((s) => s.trim()).filter(Boolean) : [],
-                registrationFee: Number(form.registrationFee) || 0,
-                maxParticipants: Number(form.maxParticipants) || 0,
-                upcomingPriority: Number(form.upcomingPriority) || 999,
-                runClubPriority: Number(form.runClubPriority) || 999,
-                priority: Number(form.upcomingPriority) || 999,
-                eventDate: form.eventDate || null,
                 displayType: form.displayType?.trim() || '',
+                organizer: form.organizer?.trim() || '',
+                venue: form.venue?.trim() || '',
+                city: form.city?.trim() || '',
+                eventDate: form.eventDate || null,
+                reportingTime: form.reportingTime?.trim() || '',
+                registrationFee: Number(form.registrationFee) || 0,
+                dressCode: form.dressCode?.trim() || '',
+                participationType: form.participationType,
+                maxParticipants: Number(form.maxParticipants) || 0,
+                skillLevel: form.skillLevel,
+                prizes: form.prizes?.trim() || '',
+                routeMap: form.routeMap?.trim() || '',
                 images: normalizeImageList(form.images),
-                showInUpcoming,
-                showInRunClubs,
-                featuredSection: deriveFeaturedSection({ showInUpcoming, showInRunClubs }),
+                sponsors: form.sponsors ? form.sponsors.split(',').map((s) => s.trim()).filter(Boolean) : [],
+                registrationLink: form.registrationLink?.trim() || '',
+                description: form.description?.trim() || '',
+                runCategory: form.runCategory?.trim() || '',
+                distance: form.distance?.trim() || '',
+                inclusions: form.inclusions
+                    ? form.inclusions.split(',').map((s) => s.trim()).filter(Boolean)
+                    : [],
+                termsAndConditions: form.termsAndConditions
+                    ? form.termsAndConditions.split('\n').map((s) => s.trim()).filter(Boolean)
+                    : [],
+                contactPhone: form.contactPhone?.trim() || '',
+                contactInstagram: form.contactInstagram?.trim() || '',
+                status: form.status,
+                ...(event ? {} : {
+                    showOnSportsPage: true,
+                    showInUpcoming: true,
+                    showInRunClubs: false,
+                    featuredSection: 'upcoming',
+                }),
             };
             const url = event ? `${API}/admin/sports/${event._id}` : `${API}/admin/sports`;
             const method = event ? 'PUT' : 'POST';
@@ -214,9 +219,11 @@ export default function SportsFormModal({ event, runClubId, onClose, onSaved }) 
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 sticky top-0 bg-[#111213] z-10">
                     <div>
                         <h2 className="text-lg font-bold text-white">
-                            {event ? 'Edit Sports Event' : runClubId ? 'Add Event to Run Club' : 'Create Sports Event'}
+                            {event ? 'Edit Run' : 'Add Run'}
                         </h2>
-                        <p className="text-xs text-gray-500 mt-0.5">All fields map to the Sports category page (/sports)</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            {clubName ? `${clubName} · ` : ''}Shown on run club detail & Upcoming Activities (/sports)
+                        </p>
                     </div>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
                         <X size={20} />
@@ -230,52 +237,15 @@ export default function SportsFormModal({ event, runClubId, onClose, onSaved }) 
                         </div>
                     )}
 
-                    <SectionBlock title="Basic Info" hint="Shown as card title and type on the Sports page">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Field label="Title" required>
-                                <input type="text" value={form.title} onChange={(e) => set('title', e.target.value)} className={inp} placeholder="e.g. Sunday Morning Run" />
-                            </Field>
-                            <Field label="Sport Type" required hint="Also picks the Browse by Categories icon on /sports">
-                                <select value={form.sportType} onChange={(e) => set('sportType', e.target.value)} className={inp}>
-                                    <option value="">Select...</option>
-                                    {SPORT_TYPES.map((s) => (
-                                        <option key={s.value} value={s.value}>
-                                            {s.label} · {s.browse}
-                                        </option>
-                                    ))}
-                                </select>
-                            </Field>
-                        </div>
-                        <div>
-                            <p className="text-xs font-medium text-gray-400 mb-2">Browse by Categories (on /sports)</p>
-                            <div className="flex flex-wrap gap-4">
-                                {SPORTS_BROWSE_CATEGORIES.map((cat) => {
-                                    const selected = getBrowseCategoryForSportType(form.sportType)?.id === cat.id;
-                                    return (
-                                        <div
-                                            key={cat.id}
-                                            className={`flex flex-col items-center w-[72px] ${selected ? 'opacity-100' : 'opacity-50'}`}
-                                        >
-                                            <div
-                                                className={`size-16 rounded-full overflow-hidden bg-slate-100 ${
-                                                    selected ? 'ring-2 ring-[#0ECCEE] ring-offset-2 ring-offset-[#111213]' : ''
-                                                }`}
-                                            >
-                                                <img src={cat.image} alt={cat.label} className="w-full h-full object-cover" />
-                                            </div>
-                                            <span className={`mt-1.5 text-[11px] font-medium text-center ${selected ? 'text-[#0ECCEE]' : 'text-gray-400'}`}>
-                                                {cat.label}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                    <SectionBlock title="Basic Info" hint="Run name on club detail page and Upcoming Activities carousel">
+                        <Field label="Run Title" required>
+                            <input type="text" value={form.title} onChange={(e) => set('title', e.target.value)} className={inp} placeholder="e.g. Sunday Morning Run" />
+                        </Field>
                         <Field
-                            label="Display Type (card subtitle)"
-                            hint='Optional. Overrides the default type label on cards (e.g. "cultural", "marathon"). Leave blank to use sport type.'
+                            label="Card Subtitle"
+                            hint="Optional label on Upcoming Activities cards (defaults to Run Club)"
                         >
-                            <input type="text" value={form.displayType} onChange={(e) => set('displayType', e.target.value)} className={inp} placeholder={selectedSport?.label || 'e.g. Run Club'} />
+                            <input type="text" value={form.displayType} onChange={(e) => set('displayType', e.target.value)} className={inp} placeholder="e.g. Social Run" />
                         </Field>
                         <Field label="Description">
                             <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Full event description" />
@@ -302,6 +272,25 @@ export default function SportsFormModal({ event, runClubId, onClose, onSaved }) 
                         <Field label="Reporting Time">
                             <input type="text" value={form.reportingTime} onChange={(e) => set('reportingTime', e.target.value)} className={inp} placeholder="e.g. 6:00 AM" />
                         </Field>
+                        {(form.runClubId || runClubId) && (
+                            <Field
+                                label="Run Category"
+                                hint="Must match a category chip on the parent run club detail page"
+                            >
+                                <select
+                                    value={form.runCategory}
+                                    onChange={(e) => set('runCategory', e.target.value)}
+                                    className={inp}
+                                >
+                                    <option value="">Select category...</option>
+                                    {parentRunCategories.map((cat) => (
+                                        <option key={cat} value={cat}>
+                                            {cat}
+                                        </option>
+                                    ))}
+                                </select>
+                            </Field>
+                        )}
                     </SectionBlock>
 
                     <SectionBlock title="Registration">
@@ -333,6 +322,29 @@ export default function SportsFormModal({ event, runClubId, onClose, onSaved }) 
                         <Field label="Registration Link" hint="Opens when user taps the activity card">
                             <input type="url" value={form.registrationLink} onChange={(e) => set('registrationLink', e.target.value)} className={inp} placeholder="https://..." />
                         </Field>
+                    </SectionBlock>
+
+                    <SectionBlock
+                        title="Run detail page"
+                        hint="Shown on /sports/run/:id — matches trek detail layout"
+                    >
+                        <Field label="Distance" hint='e.g. "3k-5k Runs"'>
+                            <input type="text" value={form.distance} onChange={(e) => set('distance', e.target.value)} className={inp} placeholder="e.g. 3k-5k Runs" />
+                        </Field>
+                        <Field label="Experience Included" hint="Comma-separated — Breakfast, Games">
+                            <input type="text" value={form.inclusions} onChange={(e) => set('inclusions', e.target.value)} className={inp} placeholder="Breakfast, Games" />
+                        </Field>
+                        <Field label="Terms & Conditions" hint="One point per line">
+                            <textarea value={form.termsAndConditions} onChange={(e) => set('termsAndConditions', e.target.value)} rows={4} className={`${inp} resize-none`} placeholder="Cancellation policy..." />
+                        </Field>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Field label="Contact Phone" hint="Overrides run club contact on detail page">
+                                <input type="tel" value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} className={inp} placeholder="+91..." />
+                            </Field>
+                            <Field label="Contact Instagram">
+                                <input type="text" value={form.contactInstagram} onChange={(e) => set('contactInstagram', e.target.value)} className={inp} placeholder="@handle" />
+                            </Field>
+                        </div>
                     </SectionBlock>
 
                     <SectionBlock title="Event Details">
@@ -385,162 +397,9 @@ export default function SportsFormModal({ event, runClubId, onClose, onSaved }) 
                         </label>
                     </SectionBlock>
 
-                    <SectionBlock
-                        title="Where on /sports?"
-                        hint={
-                            form.runClubId
-                                ? 'This event belongs to a run club and appears under Upcoming Activities when enabled.'
-                                : 'Upcoming Activities and Explore Run Clubs are managed separately. Browse by Categories uses Sport Type automatically.'
-                        }
-                    >
-                        {!form.runClubId ? (
-                        <>
-                        <div className="flex flex-wrap gap-2">
-                            {[
-                                { id: 'upcoming', label: 'Upcoming only' },
-                                { id: 'run_clubs', label: 'Run Club only' },
-                                { id: 'both', label: 'Both sections' },
-                                { id: 'hidden', label: 'Hidden from page' },
-                            ].map((preset) => (
-                                <button
-                                    key={preset.id}
-                                    type="button"
-                                    onClick={() => applyPlacementPreset(preset.id)}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-600 text-gray-300 hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors"
-                                >
-                                    {preset.label}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div
-                                className={`rounded-xl border p-4 transition-colors ${
-                                    form.showInUpcoming && form.showOnSportsPage
-                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/5'
-                                        : 'border-gray-600 bg-[#1D1E20]'
-                                }`}
-                            >
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={form.showInUpcoming && form.showOnSportsPage}
-                                        onChange={(e) => set('showInUpcoming', e.target.checked)}
-                                        disabled={!form.showOnSportsPage}
-                                        className="accent-[#0ECCEE] mt-1"
-                                    />
-                                    <div className="flex-1">
-                                        <p className="text-sm font-semibold text-white">Upcoming Activities</p>
-                                        <p className="text-[10px] text-gray-500 mt-0.5">Center carousel · events, marathons, fests mix</p>
-                                    </div>
-                                </label>
-                                {form.showInUpcoming && form.showOnSportsPage && (
-                                    <div className="mt-3 pt-3 border-t border-white/10">
-                                        <label className="block text-[11px] text-gray-400 mb-1">Display priority (1 = first)</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            max="999"
-                                            value={form.upcomingPriority}
-                                            onChange={(e) => set('upcomingPriority', e.target.value)}
-                                            className={inp}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-
-                            <div
-                                className={`rounded-xl border p-4 transition-colors ${
-                                    form.sportType !== 'run_club'
-                                        ? 'border-gray-700 bg-[#151617] opacity-60'
-                                        : form.showInRunClubs && form.showOnSportsPage
-                                          ? 'border-[#0ECCEE] bg-[#0ECCEE]/5'
-                                          : 'border-gray-600 bg-[#1D1E20]'
-                                }`}
-                            >
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={form.showInRunClubs && form.showOnSportsPage}
-                                        onChange={(e) => set('showInRunClubs', e.target.checked)}
-                                        disabled={!form.showOnSportsPage || form.sportType !== 'run_club'}
-                                        className="accent-[#0ECCEE] mt-1"
-                                    />
-                                    <div className="flex-1">
-                                        <p className="text-sm font-semibold text-white">Explore Run Clubs</p>
-                                        <p className="text-[10px] text-gray-500 mt-0.5">
-                                            {form.sportType === 'run_club'
-                                                ? 'Horizontal scroll · city & organizer shown'
-                                                : 'Set Sport Type to Run Club to enable'}
-                                        </p>
-                                    </div>
-                                </label>
-                                {form.sportType === 'run_club' && form.showInRunClubs && form.showOnSportsPage && (
-                                    <div className="mt-3 pt-3 border-t border-white/10">
-                                        <label className="block text-[11px] text-gray-400 mb-1">Display priority (1 = first)</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            max="999"
-                                            value={form.runClubPriority}
-                                            onChange={(e) => set('runClubPriority', e.target.value)}
-                                            className={inp}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        </>
-                        ) : (
-                            <div
-                                className={`rounded-xl border p-4 transition-colors ${
-                                    form.showInUpcoming && form.showOnSportsPage
-                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/5'
-                                        : 'border-gray-600 bg-[#1D1E20]'
-                                }`}
-                            >
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={form.showInUpcoming && form.showOnSportsPage}
-                                        onChange={(e) => set('showInUpcoming', e.target.checked)}
-                                        disabled={!form.showOnSportsPage}
-                                        className="accent-[#0ECCEE] mt-1"
-                                    />
-                                    <div className="flex-1">
-                                        <p className="text-sm font-semibold text-white">Show in Upcoming Activities</p>
-                                        <p className="text-[10px] text-gray-500 mt-0.5">Runs, sessions & events for this club</p>
-                                    </div>
-                                </label>
-                                {form.showInUpcoming && form.showOnSportsPage && (
-                                    <div className="mt-3 pt-3 border-t border-white/10">
-                                        <label className="block text-[11px] text-gray-400 mb-1">Display priority (1 = first)</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            max="999"
-                                            value={form.upcomingPriority}
-                                            onChange={(e) => set('upcomingPriority', e.target.value)}
-                                            className={inp}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <label className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer ${form.showOnSportsPage ? 'border-[#0ECCEE] bg-[#0ECCEE]/5' : 'border-gray-600 bg-[#1D1E20]'}`}>
-                            <div>
-                                <p className="text-sm font-medium text-gray-200">Visible on Sports Page</p>
-                                <p className="text-[10px] text-gray-500 mt-0.5">Turn off to hide from /sports while keeping the record</p>
-                            </div>
-                            <input
-                                type="checkbox"
-                                checked={form.showOnSportsPage}
-                                onChange={(e) => set('showOnSportsPage', e.target.checked)}
-                                className="accent-[#0ECCEE] w-4 h-4"
-                            />
-                        </label>
-                    </SectionBlock>
+                    <p className="text-[11px] text-gray-600 px-1">
+                        Upcoming Activities visibility, order &amp; home carousel → <span className="text-gray-500">Home &amp; Sections → Runs</span>
+                    </p>
 
                     <SectionBlock title="Status">
                         <div className="flex flex-wrap gap-4">
@@ -565,7 +424,7 @@ export default function SportsFormModal({ event, runClubId, onClose, onSaved }) 
                             Cancel
                         </button>
                         <button type="submit" disabled={saving || uploading} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
-                            {saving ? 'Saving...' : event ? 'Update Event' : 'Create Event'}
+                            {saving ? 'Saving...' : event ? 'Update Run' : 'Add Run'}
                         </button>
                     </div>
                 </form>
