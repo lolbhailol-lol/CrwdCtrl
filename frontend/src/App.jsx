@@ -72,6 +72,7 @@ const SectionManager = React.lazy(() => import('./components/admin/SectionManage
 const TrekDetailPage  = React.lazy(() => import('./components/pages/TrekDetailPage'))
 const TrekBookingPage = React.lazy(() => import('./components/pages/TrekBookingPage'))
 const QRTicketPage = React.lazy(() => import('./components/pages/QRTicketPage'))
+const PaymentInvoicePage = React.lazy(() => import('./components/pages/PaymentInvoicePage'))
 const PublicTreksPage = React.lazy(() => import('./components/pages/treks-page'))
 const PublicTheatrePage = React.lazy(() => import('./components/pages/theatre-page'))
 const CommunityDetailPage = React.lazy(() => import('./components/pages/CommunityDetailPage'))
@@ -123,6 +124,7 @@ function ConditionalFooter() {
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/competition-registration') ||
     location.pathname.startsWith('/qr-ticket') ||
+    location.pathname.startsWith('/payment-invoice') ||
     (location.pathname.includes('/fest/') && location.pathname.includes('/register')) ||
     location.pathname.startsWith('/trek/') ||
     location.pathname.startsWith('/treks/community/');
@@ -256,6 +258,7 @@ function AppContent({
                 <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
                 <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
                 <Route path="/qr-ticket/:registrationId" element={<QRTicketPage />} />
+                <Route path="/payment-invoice/:id" element={<PaymentInvoicePage />} />
                 <Route
                   path="/admin"
                   element={

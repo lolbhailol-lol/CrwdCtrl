@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -7,16 +7,35 @@ import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
 import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import {
+  getPendingPayment,
+  clearPendingPayment,
+  isTrekPaymentPending,
+  shouldResumePendingPayment,
+} from '../../utils/deepLinks';
 import { parseTicketPrice } from '../../utils/platformFee';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
+function getInitialFestRegistrationUi(pathname, search) {
+  const currentPath = `${pathname}${search}`;
+  const resumingPayment = shouldResumePendingPayment(
+    getPendingPayment(),
+    currentPath,
+    search,
+  );
+  return { completingPayment: resumingPayment };
+}
+
 export default function FestRegistration() {
   const { festId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const paymentResumeRef = useRef(false);
   const competitionId = searchParams.get('competition');
+  const initialUi = getInitialFestRegistrationUi(location.pathname, location.search);
   const { isAuthenticated, isLoading: authLoading, token: authToken, isAuthProcessing, isRedirectProcessing } = useAuth();
   const { refreshNotifications } = useNotifications();
 
@@ -31,6 +50,7 @@ export default function FestRegistration() {
   const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
   const [, setRegistrationId] = useState(null);
   const [uploadingFiles, setUploadingFiles] = useState({});
   // Cashfree verified payment fields
@@ -63,7 +83,93 @@ export default function FestRegistration() {
     if (isAuthenticated && showRegister) setShowRegister(false);
   }, [isAuthenticated, showLogin, showRegister]);
 
+  // Resume fest pay-and-register after Cashfree redirect checkout
+  useEffect(() => {
+    if (paymentResumeRef.current || loading || authLoading) return;
+    if (isCompetitionRegistration || !fest || !(fest.feeAmount > 0)) return;
 
+    const pending = getPendingPayment();
+    if (!pending?.orderId || isTrekPaymentPending(pending)) return;
+
+    const currentPath = location.pathname + location.search;
+    if (!shouldResumePendingPayment(pending, currentPath, location.search)) return;
+
+    paymentResumeRef.current = true;
+    setCompletingPayment(true);
+    setPaymentLoading(true);
+    setPaymentError('');
+    setSubmissionProgress('Verifying payment...');
+
+    (async () => {
+      try {
+        const token = authToken || localStorage.getItem('crwdctrl_token');
+        if (!token) {
+          setCompletingPayment(false);
+          setShowLogin(true);
+          setPaymentError('Please log in to complete your registration.');
+          return;
+        }
+
+        const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ payment_order_id: pending.orderId }),
+        });
+        if (!verifyRes.ok) throw new Error('Payment verification failed. Please contact support.');
+
+        const verifyData = await verifyRes.json();
+        if (!verifyData.verified) {
+          throw new Error(verifyData.message || 'Payment could not be verified.');
+        }
+
+        const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ payment_order_id: pending.orderId }),
+        });
+        if (!regRes.ok) {
+          const errData = await regRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'Registration failed after payment. Please contact support.');
+        }
+
+        clearPendingPayment();
+        const regData = await regRes.json().catch(() => ({}));
+        const regId = regData._id || regData.registration?._id || regData.registrationId;
+        setRegistrationId(regId);
+        setCompletingPayment(false);
+        setSuccess(true);
+        refreshNotifications();
+        setTimeout(() => refreshNotifications(), 1500);
+        setTimeout(() => {
+          navigate(regId ? `/qr-ticket/${regId}` : '/booking');
+        }, 2000);
+      } catch (err) {
+        clearPendingPayment();
+        setCompletingPayment(false);
+        setPaymentError(err.message || 'Could not complete registration after payment.');
+      } finally {
+        setPaymentLoading(false);
+        setSubmissionProgress('');
+      }
+    })();
+  }, [
+    loading,
+    authLoading,
+    fest,
+    festId,
+    isCompetitionRegistration,
+    location.pathname,
+    location.search,
+    authToken,
+    navigate,
+    refreshNotifications,
+  ]);
 
   useEffect(() => {
     const initializeRegistration = async () => {
@@ -1286,11 +1392,20 @@ export default function FestRegistration() {
         if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
         const orderData = await orderRes.json();
 
-        await openCashfreeCheckout({
+        const checkoutResult = await openCashfreeCheckout({
           paymentSessionId: orderData.paymentSessionId,
           orderId: orderData.orderId,
           returnPath: window.location.pathname + window.location.search,
+          cashfreeMode: orderData.cashfreeMode,
         });
+
+        if (checkoutResult?.redirectDeferred) {
+          setSubmitting(false);
+          return;
+        }
+
+        setCompletingPayment(true);
+        setSubmissionProgress('Verifying payment...');
 
         const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
           method: 'POST',
@@ -1561,13 +1676,16 @@ export default function FestRegistration() {
       setSubmissionProgress('Registration completed successfully!');
       const regId = result._id || result.registration?._id || result.registrationId;
       setRegistrationId(regId);
+      setCompletingPayment(false);
       setSuccess(true);
       refreshNotifications();
+      setTimeout(() => refreshNotifications(), 1500);
       setTimeout(() => {
         navigate(regId ? `/qr-ticket/${regId}` : '/booking');
       }, 2000);
 
     } catch (err) {
+      setCompletingPayment(false);
       console.error('❌ Registration error:', err);
       console.error('❌ Error name:', err.name);
       console.error('❌ Error message:', err.message);
@@ -1610,6 +1728,42 @@ export default function FestRegistration() {
   };
 
   const hasAuth = isAuthenticated || !!authToken || !!localStorage.getItem('crwdctrl_token');
+
+  if (completingPayment && !success) {
+    return (
+      <div className={`min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
+        <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+          {submissionProgress || 'Completing your registration...'}
+        </p>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+        <div className="text-center max-w-md mx-auto p-8">
+          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
+          <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>🎉 Registration Successful!</h1>
+          <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            Your registration for <span className="text-[#0ECCEE] font-semibold">
+              {isCompetitionRegistration ? competition?.name : fest?.festName}
+            </span> has been submitted successfully.
+          </p>
+          <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            Redirecting to your ticket...
+          </p>
+          <button
+            onClick={() => navigate('/booking')}
+            className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+          >
+            View My Bookings
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || authLoading || isAuthProcessing || isRedirectProcessing) {
     return (
@@ -1654,6 +1808,7 @@ export default function FestRegistration() {
   // ─── CASHFREE DIRECT PAYMENT: if fest has a feeAmount, bypass the form ───
   const handleCashfreeFestRegister = async () => {
     setPaymentLoading(true);
+    setCompletingPayment(true);
     setPaymentError('');
     try {
       const token = authToken || localStorage.getItem('crwdctrl_token');
@@ -1665,11 +1820,21 @@ export default function FestRegistration() {
       if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
       const orderData = await orderRes.json();
 
-      await openCashfreeCheckout({
+      const checkoutResult = await openCashfreeCheckout({
         paymentSessionId: orderData.paymentSessionId,
         orderId: orderData.orderId,
         returnPath: window.location.pathname + window.location.search,
+        cashfreeMode: orderData.cashfreeMode,
       });
+
+      if (checkoutResult?.redirectDeferred) {
+        setPaymentLoading(false);
+        setCompletingPayment(false);
+        return;
+      }
+
+      setCompletingPayment(true);
+      setSubmissionProgress('Confirming payment and registering...');
 
       const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
         method: 'POST',
@@ -1684,18 +1849,22 @@ export default function FestRegistration() {
       const regData = await regRes.json().catch(() => ({}));
       const regId = regData._id || regData.registration?._id || regData.registrationId;
       setRegistrationId(regId);
+      setCompletingPayment(false);
       setSuccess(true);
       refreshNotifications();
+      setTimeout(() => refreshNotifications(), 1500);
       setTimeout(() => {
         navigate(regId ? `/qr-ticket/${regId}` : '/booking');
       }, 2000);
     } catch (err) {
+      setCompletingPayment(false);
       if (err.message !== 'Payment cancelled') {
         setPaymentError(err.message || 'Payment failed. Please try again.');
         setTimeout(() => setPaymentError(''), 5000);
       }
     } finally {
       setPaymentLoading(false);
+      setSubmissionProgress('');
     }
   };
 
@@ -1887,33 +2056,6 @@ export default function FestRegistration() {
   }
 
 
-
-  if (success) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
-        <div className="text-center max-w-md mx-auto p-8">
-          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
-          <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>🎉 Registration Successful!</h1>
-          <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            Your registration for <span className="text-[#0ECCEE] font-semibold">
-              {isCompetitionRegistration ? competition?.name : fest.festName}
-            </span> has been submitted successfully.
-          </p>
-
-          <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            Redirecting to your ticket...
-          </p>
-
-          <button
-            onClick={() => navigate('/booking')}
-            className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
-          >
-            View My Bookings
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={`min-h-screen py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>

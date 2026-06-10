@@ -8,7 +8,11 @@ import CrwdCtrlLogin from './login';
 import CrwdCtrlRegister from './register';
 
 import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
-import { getPendingPayment, clearPendingPayment } from '../../utils/deepLinks';
+import {
+    getPendingPayment,
+    clearPendingPayment,
+    shouldResumePendingPayment,
+} from '../../utils/deepLinks';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -36,10 +40,63 @@ function generateDates(baseDate) {
 
 const STEPS = ['Date & Time', 'Your Details', 'Confirm'];
 
+function getInitialTrekBookingUi(trekId, search) {
+    const defaults = {
+        step: 1,
+        payDone: false,
+        paying: false,
+        selDate: '',
+        selTime: '',
+        people: 1,
+        extraFields: {},
+    };
+    if (!trekId) return defaults;
+
+    let draft = {};
+    const raw = sessionStorage.getItem(trekDraftKey(trekId));
+    if (raw) {
+        try {
+            draft = JSON.parse(raw);
+        } catch {
+            draft = {};
+        }
+    }
+
+    const returnPath = `/trek/${trekId}/book`;
+    const resumingPayment = shouldResumePendingPayment(
+        getPendingPayment(),
+        returnPath,
+        search,
+    );
+
+    if (resumingPayment) {
+        return {
+            step: 3,
+            payDone: false,
+            paying: true,
+            selDate: draft.selDate || '',
+            selTime: draft.selTime || '',
+            people: draft.people || 1,
+            extraFields: draft.extraFields || {},
+        };
+    }
+
+    return {
+        step: draft.step || 1,
+        payDone: false,
+        paying: false,
+        selDate: draft.selDate || '',
+        selTime: draft.selTime || '',
+        people: draft.people || 1,
+        extraFields: draft.extraFields || {},
+    };
+}
+
 export default function TrekBookingPage() {
     const navigate  = useNavigate();
     const location  = useLocation();
     const { id }    = useParams();
+    const initialUi = getInitialTrekBookingUi(id, location.search);
     const { isDark } = useDarkMode();
     const {
         user,
@@ -81,14 +138,14 @@ export default function TrekBookingPage() {
 
     const [trek, setTrek] = useState(location.state?.trek || null);
     const [loadingTrek, setLoadingTrek] = useState(!location.state?.trek);
-    const [step,        setStep]       = useState(1);
-    const [selDate,     setSelDate]    = useState('');
-    const [selTime,     setSelTime]    = useState('');
-    const [people,      setPeople]     = useState(1);
-    const [extraFields, setExtraFields] = useState({});
+    const [step,        setStep]       = useState(initialUi.step);
+    const [selDate,     setSelDate]    = useState(initialUi.selDate);
+    const [selTime,     setSelTime]    = useState(initialUi.selTime);
+    const [people,      setPeople]     = useState(initialUi.people);
+    const [extraFields, setExtraFields] = useState(initialUi.extraFields);
     const [error,       setError]      = useState('');
-    const [paying,      setPaying]     = useState(false);
-    const [payDone,     setPayDone]    = useState(false);
+    const [paying,      setPaying]     = useState(initialUi.paying);
+    const [payDone,     setPayDone]    = useState(initialUi.payDone);
     const [paymentId,   setPaymentId]  = useState('');
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
@@ -150,6 +207,11 @@ export default function TrekBookingPage() {
         const trekId = id || trek?._id || trek?.id;
         if (!trekId) return;
 
+        const returnPath = `/trek/${trekId}/book`;
+        if (shouldResumePendingPayment(getPendingPayment(), returnPath, location.search)) {
+            return;
+        }
+
         const raw = sessionStorage.getItem(trekDraftKey(trekId));
         if (!raw) return;
         try {
@@ -162,7 +224,7 @@ export default function TrekBookingPage() {
         } catch {
             /* ignore corrupt draft */
         }
-    }, [id, trek?._id, trek?.id]);
+    }, [id, trek?._id, trek?.id, location.search]);
 
     useEffect(() => {
         const trekId = id || trek?._id || trek?.id;
@@ -284,6 +346,7 @@ export default function TrekBookingPage() {
         }
         sessionStorage.removeItem(trekDraftKey(trekId));
         refreshNotifications();
+        setTimeout(() => refreshNotifications(), 1500);
         return regData;
     };
 
@@ -292,9 +355,12 @@ export default function TrekBookingPage() {
         if (!trekId || loadingTrek || paymentResumeRef.current) return;
 
         const pending = getPendingPayment();
-        if (!pending?.orderId || pending.returnPath !== `/trek/${trekId}/book`) return;
+        const returnPath = `/trek/${trekId}/book`;
+        if (!shouldResumePendingPayment(pending, returnPath, location.search)) return;
 
         paymentResumeRef.current = true;
+        setStep(3);
+        setPayDone(false);
         setPaying(true);
         setError('');
 
@@ -310,19 +376,36 @@ export default function TrekBookingPage() {
                 if (draft.selTime) setSelTime(draft.selTime);
                 if (draft.people) setPeople(draft.people);
 
-                const vRes = await fetch(`${API}/payment/trek-verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ payment_order_id: pending.orderId }),
-                });
-                const v = await vRes.json();
-                clearPendingPayment();
+                let v = null;
+                const maxAttempts = 5;
+                for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                    const vRes = await fetch(`${API}/payment/trek-verify`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ payment_order_id: pending.orderId }),
+                    });
+                    v = await vRes.json();
+                    if (v.verified) break;
+                    const retryable = /pending|ACTIVE|not found|not successful/i.test(v.message || '');
+                    if (!retryable || attempt === maxAttempts - 1) break;
+                    await new Promise((r) => setTimeout(r, 2000));
+                }
 
                 if (!v.verified) {
-                    setError(v.message || 'Payment verification failed after redirect. Contact support.');
+                    clearPendingPayment();
+                    const unpaid = /pending|ACTIVE|not found|not successful/i.test(v.message || '');
+                    setStep(2);
+                    setPayDone(false);
+                    setError(
+                        unpaid
+                            ? 'Payment was not completed. Tap Pay to try again.'
+                            : (v.message || 'Payment verification failed after redirect. Contact support.'),
+                    );
                     setPaying(false);
                     return;
                 }
+
+                clearPendingPayment();
 
                 const verified = buildVerifiedPaymentFields(v, pending.orderId);
                 setPaymentId(verified.payment_id);
@@ -338,16 +421,17 @@ export default function TrekBookingPage() {
                         people: draft.people || people,
                     },
                 });
-                setStep(3);
                 setTimeout(() => navigate('/booking'), 2000);
             } catch (e) {
+                setStep(2);
+                setPayDone(false);
                 setError(e.message || 'Could not complete booking after payment');
             } finally {
                 setPaying(false);
             }
         })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once after trek load + redirect
-    }, [id, trek, loadingTrek, navigate]);
+    }, [id, trek, loadingTrek, navigate, location.search]);
 
     const next = async () => {
         setError('');
@@ -373,6 +457,8 @@ export default function TrekBookingPage() {
                 try {
                     await submitTrekRegistration({ amountPaid: 0 });
                     setStep(3);
+                    setPayDone(true);
+                    setPaying(false);
                     setTimeout(() => navigate('/booking'), 2000);
                 } catch (e) {
                     setError(e.message || 'Registration failed');
@@ -416,12 +502,17 @@ export default function TrekBookingPage() {
                     orderId: order.orderId,
                     returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
                     entityType: 'trek',
+                    cashfreeMode: order.cashfreeMode,
                 });
 
-                if (checkoutResult?.trekDeferred) {
+                if (checkoutResult?.redirectDeferred) {
                     setPaying(false);
                     return;
                 }
+
+                setStep(3);
+                setPaying(true);
+
                 const checkoutPaymentId =
                     checkoutResult?.paymentDetails?.paymentId ||
                     checkoutResult?.paymentDetails?.cf_payment_id ||
@@ -439,28 +530,35 @@ export default function TrekBookingPage() {
                 if (v.verified) {
                     const verified = buildVerifiedPaymentFields(v, order.orderId);
                     setPaymentId(verified.payment_id);
-                    setPayDone(true);
                     await submitTrekRegistration({
                         paymentOrderId: verified.payment_order_id || order.orderId,
                         paymentId: verified.payment_id,
                         amountPaid: order.totalAmount ?? total,
                     });
-                    setStep(3);
+                    setPayDone(true);
+                    setPaying(false);
                     setTimeout(() => navigate('/booking'), 2000);
                 } else {
+                    setStep(2);
+                    setPayDone(false);
+                    setPaying(false);
                     setError(v.message || 'Payment verification failed. Contact support.');
                 }
-                setPaying(false);
             } catch (e) {
-                setError('Payment error: ' + e.message);
+                setStep(2);
+                setPayDone(false);
                 setPaying(false);
+                setError('Payment error: ' + e.message);
             }
         }
     };
 
     const back = () => step === 1 ? navigate(-1) : setStep(s => s - 1);
 
-    if (loadingTrek || authLoading || isAuthProcessing || isRedirectProcessing) {
+    const showProcessing = step === 3 && paying;
+    const showSuccess = step === 3 && payDone && !paying;
+
+    if ((loadingTrek || authLoading || isAuthProcessing || isRedirectProcessing) && !showSuccess && !showProcessing) {
         return (
             <div className={`crwdctrl-page min-h-dvh flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                 <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
@@ -468,7 +566,7 @@ export default function TrekBookingPage() {
         );
     }
 
-    if (!trek) {
+    if (!trek && !showSuccess && !showProcessing) {
         return (
             <div className={`crwdctrl-page min-h-dvh flex flex-col items-center justify-center gap-3 px-6 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                 <span className="text-4xl">⛰️</span>
@@ -478,8 +576,19 @@ export default function TrekBookingPage() {
         );
     }
 
+    if (showProcessing) {
+        return (
+            <div className={`min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+                <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
+                <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Verifying payment and confirming your booking...
+                </p>
+            </div>
+        );
+    }
+
     // ── Success Screen ──
-    if (step === 3) {
+    if (showSuccess) {
         return (
             <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                 <div className="text-center max-w-md mx-auto p-8 w-full">

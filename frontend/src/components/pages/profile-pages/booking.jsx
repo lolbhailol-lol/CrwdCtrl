@@ -26,7 +26,7 @@ const isEventCompleted = (item) => {
     return eventDate < new Date();
 };
 
-function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, showDownload = true }) {
+function BookingCard({ item, isDark, onViewBooking, onDownloadTicket }) {
     return (
         <div
             className={`rounded-2xl p-3 sm:p-4 h-40 flex flex-col shadow-lg transition-all duration-300 ${
@@ -90,23 +90,13 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, showDownlo
                 >
                     View Booking
                 </button>
-                {showDownload ? (
-                    <button
-                        type="button"
-                        onClick={() => onDownloadTicket(item)}
-                        className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-black text-base font-medium font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
-                    >
-                        Download ticket
-                    </button>
-                ) : (
-                    <span
-                        className={`flex-1 h-11 rounded-2xl flex items-center justify-center text-sm font-medium ${
-                            isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'
-                        }`}
-                    >
-                        Confirmed
-                    </span>
-                )}
+                <button
+                    type="button"
+                    onClick={() => onDownloadTicket(item)}
+                    className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-black text-base font-medium font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
+                >
+                    Download ticket
+                </button>
             </div>
         </div>
     );
@@ -176,6 +166,10 @@ function Booking() {
                             isCompetition: true,
                             isTrek: false,
                             paymentAmount: reg.competitionId?.registrationFee || reg.fest?.ticketPrice || 'N/A',
+                            paymentStatus: reg.paymentStatus,
+                            amountPaid: reg.amountPaid || 0,
+                            paymentId: reg.payment_id || '',
+                            paymentOrderId: reg.payment_order_id || '',
                             registeredAt: reg.submittedAt
                         };
                     } else {
@@ -193,6 +187,10 @@ function Booking() {
                             isCompetition: false,
                             isTrek: false,
                             paymentAmount: reg.fest?.ticketPrice || 'N/A',
+                            paymentStatus: reg.paymentStatus,
+                            amountPaid: reg.amountPaid || 0,
+                            paymentId: reg.payment_id || '',
+                            paymentOrderId: reg.payment_order_id || '',
                             registeredAt: reg.submittedAt
                         };
                     }
@@ -215,6 +213,11 @@ function Booking() {
                     people: booking.bookingDetails?.people || 1,
                     amountPaid: booking.bookingDetails?.amountPaid || 0,
                     paymentId: booking.bookingDetails?.paymentId || '',
+                    paymentOrderId:
+                        booking.payment_order_id ||
+                        booking.bookingDetails?.payment_order_id ||
+                        '',
+                    paymentStatus: booking.bookingDetails?.amountPaid > 0 ? 'paid' : 'free',
                     difficulty: booking.trekId?.difficultyLevel || '',
                     registeredAt: booking.createdAt
                 }));
@@ -257,9 +260,8 @@ function Booking() {
                                 const isCompetitionRegistration = !!reg.competitionId;
                                 
                                 if (isCompetitionRegistration) {
-                                    // Show competition card
                                     return {
-                                        id: reg._id, // Use registration ID for details
+                                        id: reg._id,
                                         name: reg.competitionId?.name || 'Competition',
                                         image: reg.competitionId?.coverImage || reg.fest?.coverImage,
                                         date: reg.fest?.festDate,
@@ -270,24 +272,34 @@ function Booking() {
                                         status: reg.fest?.status || 'upcoming',
                                         registrationStatus: reg.status,
                                         registrationType: 'internal',
-                                        isCompetition: true
-                                    };
-                                } else {
-                                    // Show fest card
-                                    return {
-                                        id: reg._id, // Use registration ID for details
-                                        name: reg.fest?.festName,
-                                        image: reg.fest?.coverImage,
-                                        date: reg.fest?.festDate,
-                                        venue: reg.fest?.venue,
-                                        type: 'fest',
-                                        collegeName: reg.fest?.collegeName,
-                                        status: reg.fest?.status || 'upcoming',
-                                        registrationStatus: reg.status,
-                                        registrationType: 'internal',
-                                        isCompetition: false
+                                        isCompetition: true,
+                                        isTrek: false,
+                                        paymentStatus: reg.paymentStatus,
+                                        amountPaid: reg.amountPaid || 0,
+                                        paymentId: reg.payment_id || '',
+                                        paymentOrderId: reg.payment_order_id || '',
+                                        registeredAt: reg.submittedAt
                                     };
                                 }
+                                return {
+                                    id: reg._id,
+                                    name: reg.fest?.festName,
+                                    image: reg.fest?.coverImage,
+                                    date: reg.fest?.festDate,
+                                    venue: reg.fest?.venue,
+                                    type: 'fest',
+                                    collegeName: reg.fest?.collegeName,
+                                    status: reg.fest?.status || 'upcoming',
+                                    registrationStatus: reg.status,
+                                    registrationType: 'internal',
+                                    isCompetition: false,
+                                    isTrek: false,
+                                    paymentStatus: reg.paymentStatus,
+                                    amountPaid: reg.amountPaid || 0,
+                                    paymentId: reg.payment_id || '',
+                                    paymentOrderId: reg.payment_order_id || '',
+                                    registeredAt: reg.submittedAt
+                                };
                             });
                             
                             const trekBookings = registrationsData.trekBookings || [];
@@ -306,6 +318,13 @@ function Booking() {
                                 isTrek: true,
                                 people: booking.bookingDetails?.people || 1,
                                 amountPaid: booking.bookingDetails?.amountPaid || 0,
+                                paymentId: booking.bookingDetails?.paymentId || '',
+                                paymentOrderId:
+                                    booking.payment_order_id ||
+                                    booking.bookingDetails?.payment_order_id ||
+                                    '',
+                                paymentStatus: booking.bookingDetails?.amountPaid > 0 ? 'paid' : 'free',
+                                registeredAt: booking.createdAt
                             }));
                             const all = [...transformedFests, ...transformedTreks]
                                 .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
@@ -379,8 +398,9 @@ function Booking() {
     };
 
     const handleDownloadTicket = (item) => {
-        if (!item.id || item.isTrek) return;
-        navigate(`/qr-ticket/${item.id}`);
+        if (!item.id) return;
+        const typeQuery = item.isTrek ? '?type=trek' : '';
+        navigate(`/qr-ticket/${item.id}${typeQuery}`);
     };
 
     const upcomingBookings = allBookings.filter((item) => !isEventCompleted(item));
@@ -489,7 +509,6 @@ function Booking() {
                                         isDark={isDark}
                                         onViewBooking={handleViewDetails}
                                         onDownloadTicket={handleDownloadTicket}
-                                        showDownload={!item.isTrek}
                                     />
                                 ))}
                             </div>

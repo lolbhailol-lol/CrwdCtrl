@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Calendar, MapPin, User, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Calendar, MapPin, Receipt } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -116,6 +116,35 @@ export default function RegistrationDetails() {
     ? Object.entries(registration.formData || {})
     : null;
 
+  const paymentInfo = isTrekBooking
+    ? {
+        amountPaid: registration.bookingDetails?.amountPaid || 0,
+        paymentId: registration.bookingDetails?.paymentId || '',
+        orderId:
+          registration.payment_order_id ||
+          registration.bookingDetails?.payment_order_id ||
+          '',
+        gateway: 'cashfree',
+        status: registration.bookingDetails?.amountPaid > 0 ? 'paid' : 'free',
+      }
+    : {
+        amountPaid: registration.amountPaid || 0,
+        paymentId: registration.payment_id || '',
+        orderId: registration.payment_order_id || '',
+        gateway: registration.payment_gateway || '',
+        status: registration.paymentStatus || 'free',
+      };
+
+  const hasPaymentReceipt =
+    (paymentInfo.amountPaid > 0 || paymentInfo.status === 'paid') && !!paymentInfo.orderId;
+
+  const formatAmount = (amount) =>
+    `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const invoicePath = isTrekBooking
+    ? `/payment-invoice/${registrationId}?type=trek`
+    : `/payment-invoice/${registrationId}`;
+
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#111213]' : 'bg-gray-50'} py-4 sm:py-8`}>
       <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -218,6 +247,62 @@ export default function RegistrationDetails() {
             </div>
           </div>
         </div>
+
+        {hasPaymentReceipt && (
+          <div className={`${isDark ? 'bg-[#1D1E20]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
+            <div className="flex items-center gap-2 mb-4">
+              <Receipt className={`w-5 h-5 ${isDark ? 'text-[#0ECCEE]' : 'text-cyan-600'}`} />
+              <h2 className={`text-lg sm:text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Payment Details
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className={`font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Amount Paid</span>
+                <div className={`text-lg font-bold ${isDark ? 'text-[#0ECCEE]' : 'text-cyan-600'}`}>
+                  {formatAmount(paymentInfo.amountPaid)}
+                </div>
+              </div>
+              <div>
+                <span className={`font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Status</span>
+                <div className={`capitalize ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {paymentInfo.status}
+                </div>
+              </div>
+              {paymentInfo.gateway && (
+                <div>
+                  <span className={`font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Gateway</span>
+                  <div className={`uppercase ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {paymentInfo.gateway}
+                  </div>
+                </div>
+              )}
+              <div>
+                <span className={`font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Order ID</span>
+                <div className={`font-mono text-xs break-all ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
+                  {paymentInfo.orderId}
+                </div>
+              </div>
+              {paymentInfo.paymentId && (
+                <div className="sm:col-span-2">
+                  <span className={`font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Payment ID</span>
+                  <div className={`font-mono text-xs break-all ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
+                    {paymentInfo.paymentId}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate(invoicePath)}
+              className="mt-5 w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+            >
+              View & Download Receipt
+            </button>
+          </div>
+        )}
 
         {/* Registration Details */}
         <div className={`${isDark ? 'bg-[#1D1E20]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm`}>
@@ -323,7 +408,7 @@ export default function RegistrationDetails() {
         </div>
 
         {/* Action Buttons */}
-        <div className="mt-6 flex flex-col sm:flex-row gap-4">
+        <div className="mt-6 flex flex-col sm:flex-row flex-wrap gap-4">
           <button
             onClick={() => navigate('/booking')}
             className={`px-6 py-3 rounded-lg border transition-colors ${
@@ -335,10 +420,17 @@ export default function RegistrationDetails() {
             Back to Registered Events
           </button>
           <button
-            onClick={() => window.print()}
-            className="px-6 py-3 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors"
+            type="button"
+            onClick={() =>
+              navigate(
+                isTrekBooking
+                  ? `/qr-ticket/${registrationId}?type=trek`
+                  : `/qr-ticket/${registrationId}`
+              )
+            }
+            className="px-6 py-3 rounded-lg bg-[#0ECCEE] text-black font-medium hover:opacity-90 transition"
           >
-            Print Registration
+            Download Ticket
           </button>
         </div>
       </div>

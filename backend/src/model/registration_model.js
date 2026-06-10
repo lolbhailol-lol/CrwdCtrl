@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const registrationSchema = new mongoose.Schema({
   fest: {
@@ -89,5 +90,12 @@ registrationSchema.index(
 registrationSchema.index({ user: 1, submittedAt: -1 });
 registrationSchema.index({ fest: 1, status: 1 });
 registrationSchema.index({ reminderSent: 1, status: 1 });
+
+registrationSchema.pre('save', function assignQrCodeData(next) {
+  if (!this.qrCodeData) {
+    this.qrCodeData = crypto.randomBytes(16).toString('hex');
+  }
+  next();
+});
 
 module.exports = mongoose.model('Registration', registrationSchema);

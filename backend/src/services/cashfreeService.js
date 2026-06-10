@@ -3,8 +3,14 @@ const crypto = require('crypto');
 
 const API_VERSION = '2025-01-01';
 
+const getCashfreeServerEnv = () =>
+  process.env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox';
+
+/** Must match @cashfreepayments/cashfree-js `load({ mode })` on the frontend. */
+const getCashfreeClientMode = () => getCashfreeServerEnv();
+
 const getBaseUrl = () =>
-  process.env.CASHFREE_ENV === 'production'
+  getCashfreeServerEnv() === 'production'
     ? 'https://api.cashfree.com/pg'
     : 'https://sandbox.cashfree.com/pg';
 
@@ -151,4 +157,5 @@ module.exports = {
   verifyWebhookSignature,
   generateOrderId,
   normalizePhone,
+  getCashfreeClientMode,
 };

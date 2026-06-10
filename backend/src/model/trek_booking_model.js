@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const trekBookingSchema = new mongoose.Schema(
     {
@@ -18,6 +19,9 @@ const trekBookingSchema = new mongoose.Schema(
             payment_order_id: { type: String },
         },
         status: { type: String, enum: ['confirmed', 'cancelled'], default: 'confirmed' },
+        qrCodeData: { type: String, unique: true, sparse: true },
+        checkedIn: { type: Boolean, default: false },
+        checkedInAt: { type: Date, default: null },
     },
     { timestamps: true }
 );
@@ -25,5 +29,12 @@ const trekBookingSchema = new mongoose.Schema(
 trekBookingSchema.index({ userId: 1 });
 trekBookingSchema.index({ trekId: 1 });
 trekBookingSchema.index({ payment_order_id: 1 }, { unique: true, sparse: true });
+
+trekBookingSchema.pre('save', function assignQrCodeData(next) {
+    if (!this.qrCodeData) {
+        this.qrCodeData = crypto.randomBytes(16).toString('hex');
+    }
+    next();
+});
 
 module.exports = mongoose.models.TrekBooking || mongoose.model('TrekBooking', trekBookingSchema);

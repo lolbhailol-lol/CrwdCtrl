@@ -8,18 +8,21 @@ import {
 import {
   getPendingPayment,
   clearPendingPayment,
+  storePendingPayment,
+  markPaymentReturnExpected,
   isTrekPaymentPending,
 } from './deepLinks';
 
 let cashfreeInstance = null;
 let cashfreeMode = null;
 
-function getCashfreeMode() {
+function getCashfreeMode(override) {
+  if (override === 'production' || override === 'sandbox') return override;
   return import.meta.env.VITE_CASHFREE_MODE || 'sandbox';
 }
 
-async function getCashfree() {
-  const mode = getCashfreeMode();
+async function getCashfree(modeOverride) {
+  const mode = getCashfreeMode(modeOverride);
   if (!cashfreeInstance || cashfreeMode !== mode) {
     cashfreeInstance = await load({ mode });
     cashfreeMode = mode;
@@ -41,8 +44,8 @@ function shouldUseInAppWebSdkFallback(message = '') {
  * Cashfree JS modal inside the Capacitor WebView (https://localhost).
  * Whitelist https://localhost in Cashfree dashboard for production.
  */
-async function openInAppWebSdkCheckout({ paymentSessionId }) {
-  const cashfree = await getCashfree();
+async function openInAppWebSdkCheckout({ paymentSessionId, cashfreeMode }) {
+  const cashfree = await getCashfree(cashfreeMode);
   if (!cashfree) {
     throw new Error('Cashfree SDK not loaded. Please refresh and try again.');
   }
@@ -54,10 +57,10 @@ async function openInAppWebSdkCheckout({ paymentSessionId }) {
 
   if (result.error) {
     const hint =
-      getCashfreeMode() === 'production'
+      getCashfreeMode(cashfreeMode) === 'production'
         ? ' Whitelist https://localhost in Cashfree dashboard (Developers → Whitelisting).'
         : '';
-    throw new Error(`${result.error.message || 'Payment cancelled'}.${hint}`);
+    throw formatCashfreeCheckoutError(result.error.message, cashfreeMode, hint);
   }
 
   if (!result.paymentDetails) {
@@ -70,10 +73,21 @@ async function openInAppWebSdkCheckout({ paymentSessionId }) {
   };
 }
 
+function formatCashfreeCheckoutError(message, cashfreeMode, suffix = '') {
+  const msg = message || 'Payment cancelled';
+  if (/payment_session_id/i.test(msg)) {
+    return new Error(
+      `${msg}. Cashfree mode mismatch: backend created a ${getCashfreeMode(cashfreeMode)} session — ensure backend CASHFREE_ENV matches.${suffix}`,
+    );
+  }
+  return new Error(`${msg}${suffix}`);
+}
+
 async function openCapacitorCashfreeCheckout(opts) {
+  const { cashfreeMode } = opts;
   // Production native SDK requires Play Store install (Cashfree Integrity).
   // Sideloaded APKs: in-app JS modal inside the WebView works without Play Store.
-  if (getCashfreeMode() === 'production') {
+  if (getCashfreeMode(cashfreeMode) === 'production') {
     try {
       return await openInAppWebSdkCheckout(opts);
     } catch (webErr) {
@@ -105,38 +119,98 @@ export async function openCashfreeCheckout({
   orderId,
   returnPath,
   entityType,
+  cashfreeMode,
 }) {
   if (!paymentSessionId || typeof paymentSessionId !== 'string') {
     throw new Error('Payment session missing. Restart the payment and try again.');
   }
 
+  const resolvedMode = getCashfreeMode(cashfreeMode);
+
   if (isNativeApp()) {
-    return openCapacitorCashfreeCheckout({
-      paymentSessionId,
-      orderId,
-      returnPath,
-      entityType,
-    });
+    const resolvedReturnPath =
+      returnPath ||
+      (typeof window !== 'undefined'
+        ? window.location.pathname + window.location.search
+        : '/');
+
+    if (orderId) {
+      storePendingPayment({
+        orderId,
+        paymentSessionId,
+        returnPath: resolvedReturnPath,
+        entityType,
+      });
+    }
+
+    try {
+      const result = await openCapacitorCashfreeCheckout({
+        paymentSessionId,
+        orderId,
+        returnPath: resolvedReturnPath,
+        entityType,
+        cashfreeMode: resolvedMode,
+      });
+      clearPendingPayment();
+      return result;
+    } catch (nativeErr) {
+      clearPendingPayment();
+      throw nativeErr;
+    }
   }
 
-  const mode = getCashfreeMode();
+  const mode = resolvedMode;
   const useRedirect = prefersRedirectCheckout();
+  const resolvedReturnPath =
+    returnPath ||
+    (typeof window !== 'undefined'
+      ? window.location.pathname + window.location.search
+      : '/');
 
-  const cashfree = await getCashfree();
+  const cashfree = await getCashfree(resolvedMode);
   if (!cashfree) {
     throw new Error('Cashfree SDK not loaded. Please refresh the page and try again.');
   }
 
+  if (useRedirect && orderId) {
+    storePendingPayment({
+      orderId,
+      paymentSessionId,
+      returnPath: resolvedReturnPath,
+      entityType,
+    });
+
+    const result = await cashfree.checkout({
+      paymentSessionId,
+      redirectTarget: '_self',
+    });
+
+    if (result?.error) {
+      clearPendingPayment();
+      const domainHint =
+        mode === 'sandbox' ? ' Whitelist your domain in Cashfree sandbox dashboard.' : '';
+      throw formatCashfreeCheckoutError(result.error.message, mode, domainHint);
+    }
+
+    if (result?.paymentDetails) {
+      clearPendingPayment();
+      return result;
+    }
+
+    // Redirect checkout: page navigates away; TrekBookingPage / FestRegistration resume after return
+    markPaymentReturnExpected();
+    return { redirectDeferred: true };
+  }
+
   const result = await cashfree.checkout({
     paymentSessionId,
-    redirectTarget: useRedirect ? '_self' : '_modal',
+    redirectTarget: '_modal',
   });
 
   if (result.error) {
-    const msg = result.error.message || 'Payment cancelled';
     const domainHint =
       mode === 'sandbox' ? ' Whitelist your domain in Cashfree sandbox dashboard.' : '';
-    throw new Error(`${msg}.${domainHint}`);
+    throw formatCashfreeCheckoutError(result.error.message, mode, domainHint);
   }
 
   if (!result.paymentDetails) {

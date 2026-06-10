@@ -37,6 +37,7 @@
     "better-auth": "^1.4.3",
     "cordova-plugin-cashfree-pg": "^1.1.0-cap",
     "firebase": "^12.6.0",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.553.0",
     "qrcode": "^1.5.4",
     "react": "^19.1.1",

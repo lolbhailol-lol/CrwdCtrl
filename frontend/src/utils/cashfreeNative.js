@@ -5,13 +5,13 @@ import {
   isNativeCashfreeGatewayReady,
 } from './bootstrapCashfreeNative';
 
-function getCashfreeEnvironment() {
-  const mode = import.meta.env.VITE_CASHFREE_MODE || 'sandbox';
+function getCashfreeEnvironment(cashfreeMode) {
+  const mode = cashfreeMode || import.meta.env.VITE_CASHFREE_MODE || 'sandbox';
   return mode === 'production' ? 'PRODUCTION' : 'SANDBOX';
 }
 
 /** Android native SDK requires theme even though Cordova docs mark it optional. */
-function buildWebCheckoutPayload({ paymentSessionId, orderId }) {
+function buildWebCheckoutPayload({ paymentSessionId, orderId, cashfreeMode }) {
   return {
     theme: {
       navigationBarBackgroundColor: '#2563EB',
@@ -20,7 +20,7 @@ function buildWebCheckoutPayload({ paymentSessionId, orderId }) {
     session: {
       payment_session_id: paymentSessionId,
       orderID: orderId,
-      environment: getCashfreeEnvironment(),
+      environment: getCashfreeEnvironment(cashfreeMode),
     },
   };
 }
@@ -28,7 +28,7 @@ function buildWebCheckoutPayload({ paymentSessionId, orderId }) {
 /**
  * In-app Cashfree checkout via official Android/iOS SDK (cordova-plugin-cashfree-pg).
  */
-export async function openNativeCashfreeSdkCheckout({ paymentSessionId, orderId }) {
+export async function openNativeCashfreeSdkCheckout({ paymentSessionId, orderId, cashfreeMode }) {
   if (!paymentSessionId || !orderId) {
     throw new Error('Payment session missing. Restart the payment and try again.');
   }
@@ -36,7 +36,7 @@ export async function openNativeCashfreeSdkCheckout({ paymentSessionId, orderId 
   const gateway = await getNativeCashfreeGateway();
   const checkoutPromise = beginNativeCheckoutPromise();
 
-  gateway.doWebCheckoutPayment(buildWebCheckoutPayload({ paymentSessionId, orderId }));
+  gateway.doWebCheckoutPayment(buildWebCheckoutPayload({ paymentSessionId, orderId, cashfreeMode }));
 
   return checkoutPromise;
 }

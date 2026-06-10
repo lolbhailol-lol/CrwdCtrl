@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -17,9 +17,20 @@ import {
 } from 'lucide-react';
 
 export default function AdminLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth >= 1024) return;
+      setSidebarOpen(false);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
@@ -46,10 +57,19 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen bg-[#161718] text-white flex">
       {/* Sidebar */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <aside
-        className={`bg-[#111213] border-r border-gray-800 transition-all duration-300 ${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } fixed h-full z-40`}
+        className={`bg-[#111213] border-r border-gray-800 transition-all duration-300 fixed h-full z-40 ${
+          sidebarOpen ? 'w-64' : 'w-0 lg:w-20 overflow-hidden'
+        }`}
       >
         <div className="p-4 flex items-center justify-between border-b border-gray-800">
           {sidebarOpen && (
@@ -72,7 +92,10 @@ export default function AdminLayout() {
             return (
               <button
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => {
+                  navigate(item.path);
+                  if (window.innerWidth < 1024) setSidebarOpen(false);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
                     ? 'bg-[#0ECCEE] text-black font-semibold'
@@ -98,11 +121,19 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
+      <div className={`flex-1 transition-all duration-300 ml-0 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
         {/* Top Navbar */}
-        <header className="bg-[#111213] border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">
+        <header className="bg-[#111213] border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-800 shrink-0"
+              aria-label="Open menu"
+            >
+              <Menu size={20} />
+            </button>
+            <h2 className="text-lg sm:text-xl font-semibold truncate">
               {menuItems.find(item => isActivePath(item.path, item.exact))?.label || 'Admin Dashboard'}
             </h2>
           </div>
@@ -120,7 +151,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="p-6">
+        <main className="p-3 sm:p-6">
           <Outlet />
         </main>
       </div>

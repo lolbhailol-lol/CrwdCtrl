@@ -6,7 +6,11 @@ const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
-const { createCashfreeOrder, verifyCashfreePayment } = require('../services/cashfreeService');
+const {
+  createCashfreeOrder,
+  verifyCashfreePayment,
+  getCashfreeClientMode,
+} = require('../services/cashfreeService');
 const { extractPaymentFields } = require('../utils/paymentVerification');
 const { signPaymentProof } = require('../utils/paymentProof');
 
@@ -156,6 +160,7 @@ exports.createOrder = async (req, res) => {
     res.json({
       orderId: order.order_id,
       paymentSessionId: order.payment_session_id,
+      cashfreeMode: getCashfreeClientMode(),
       amount: order.order_amount,
       currency: order.order_currency,
       ticketPrice: pricing.ticketPrice,
@@ -285,6 +290,7 @@ exports.createTrekOrder = async (req, res) => {
     res.json({
       orderId: order.order_id,
       paymentSessionId: order.payment_session_id,
+      cashfreeMode: getCashfreeClientMode(),
       amount: order.order_amount,
       currency: order.order_currency,
       ticketPrice: ticketPricePerPerson,

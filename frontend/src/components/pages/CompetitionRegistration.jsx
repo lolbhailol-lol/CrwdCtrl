@@ -1,16 +1,35 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import {
+    getPendingPayment,
+    clearPendingPayment,
+    isTrekPaymentPending,
+    shouldResumePendingPayment,
+} from '../../utils/deepLinks';
 import { parseTicketPrice } from '../../utils/platformFee';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
+function getInitialCompetitionRegistrationUi(pathname, search) {
+    const currentPath = `${pathname}${search}`;
+    const resumingPayment = shouldResumePendingPayment(
+        getPendingPayment(),
+        currentPath,
+        search,
+    );
+    return { completingPayment: resumingPayment };
+}
+
 export default function CompetitionRegistration() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const paymentResumeRef = useRef(false);
+    const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search);
     const { isAuthenticated, isLoading: authLoading, token, isAuthProcessing, isRedirectProcessing } = useAuth();
 
     const [competition, setCompetition] = useState(null);
@@ -21,6 +40,7 @@ export default function CompetitionRegistration() {
     const [submissionProgress, setSubmissionProgress] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
     const [uploadingFiles, setUploadingFiles] = useState({});
     // ✅ NEW: Multi-step form state
     const [currentStep, setCurrentStep] = useState(1);
@@ -209,6 +229,66 @@ export default function CompetitionRegistration() {
 
         initializeRegistration();
     }, [competitionId, isAuthenticated, authLoading, isAuthProcessing, isRedirectProcessing, navigate, token, fetchCompetitionDetails]);
+
+    // Resume after Cashfree redirect — verify payment, then user must submit the form
+    useEffect(() => {
+        if (paymentResumeRef.current || loading || authLoading) return;
+
+        const pending = getPendingPayment();
+        if (!pending?.orderId || isTrekPaymentPending(pending)) return;
+
+        const currentPath = location.pathname + location.search;
+        if (!shouldResumePendingPayment(pending, currentPath, location.search)) return;
+
+        paymentResumeRef.current = true;
+        setCompletingPayment(true);
+        setSubmissionProgress('Verifying payment...');
+        setError('');
+
+        (async () => {
+            try {
+                const submitToken = token || localStorage.getItem('crwdctrl_token');
+                if (!submitToken) {
+                    setCompletingPayment(false);
+                    setError('Please log in to complete your registration.');
+                    return;
+                }
+
+                const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${submitToken}`,
+                    },
+                    body: JSON.stringify({ payment_order_id: pending.orderId }),
+                });
+                if (!verifyRes.ok) throw new Error('Payment verification failed. Please contact support.');
+
+                const verifyData = await verifyRes.json();
+                if (!verifyData.verified) {
+                    throw new Error(verifyData.message || 'Payment could not be verified.');
+                }
+
+                setPaymentFields(buildVerifiedPaymentFields(verifyData, pending.orderId));
+                clearPendingPayment();
+                setCompletingPayment(false);
+                setError('Payment confirmed. Submit the form below to complete your registration.');
+            } catch (err) {
+                clearPendingPayment();
+                setCompletingPayment(false);
+                setError(err.message || 'Could not verify payment after redirect.');
+            } finally {
+                setSubmissionProgress('');
+            }
+        })();
+    }, [
+        loading,
+        authLoading,
+        location.pathname,
+        location.search,
+        token,
+        competitionId,
+    ]);
 
     useEffect(() => {
         if (error) {
@@ -814,15 +894,20 @@ export default function CompetitionRegistration() {
 
                 const orderData = await orderRes.json();
 
-                try {
-                    await openCashfreeCheckout({
-                        paymentSessionId: orderData.paymentSessionId,
-                        orderId: orderData.orderId,
-                        returnPath: window.location.pathname + window.location.search,
-                    });
-                } catch (cfErr) {
-                    throw cfErr;
+                const checkoutResult = await openCashfreeCheckout({
+                    paymentSessionId: orderData.paymentSessionId,
+                    orderId: orderData.orderId,
+                    returnPath: window.location.pathname + window.location.search,
+                    cashfreeMode: orderData.cashfreeMode,
+                });
+
+                if (checkoutResult?.redirectDeferred) {
+                    setSubmitting(false);
+                    return;
                 }
+
+                setCompletingPayment(true);
+                setSubmissionProgress('Verifying payment...');
 
                 const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
                     method: 'POST',
@@ -1044,16 +1129,14 @@ export default function CompetitionRegistration() {
             console.log('✅ Registration successful:', result);
 
             const regId = result._id || result.registration?._id;
+            setCompletingPayment(false);
             setSuccess(true);
             setTimeout(() => {
                 navigate(regId ? `/qr-ticket/${regId}` : '/booking');
             }, 2000);
-            // ✅ FIXED: Redirect to registered events page (same as fest registration)
-            setTimeout(() => {
-                navigate('/booking');
-            }, 2000);
 
         } catch (err) {
+            setCompletingPayment(false);
             console.error('❌ Registration error:', err);
             
             // Enhanced error handling
@@ -1082,7 +1165,62 @@ export default function CompetitionRegistration() {
         }
     };
 
-    if (loading) {
+    if (completingPayment && !success) {
+        return (
+            <div className="min-h-screen bg-[#111213] flex flex-col items-center justify-center px-4">
+                <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
+                <p className="text-sm text-gray-300 text-center">
+                    {submissionProgress || 'Completing your registration...'}
+                </p>
+            </div>
+        );
+    }
+
+    if (success) {
+        return (
+            <div className="min-h-screen bg-[#111213] flex items-center justify-center px-4">
+                <div className="text-center max-w-md mx-auto p-6 bg-[#1D1E20] rounded-xl">
+                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                    <h1 className="text-xl font-bold text-white mb-2">Registration Submitted</h1>
+                    <p className="text-sm text-gray-300 mb-2">
+                        Event:{' '}
+                        <span className="font-semibold text-white">
+                            {competition?.name}
+                        </span>
+                    </p>
+                    {paymentFields ? (
+                        <p className="text-sm text-green-400 mb-3">
+                            Payment confirmed via Cashfree. You are registered!
+                        </p>
+                    ) : (
+                        <>
+                            <p className="text-sm text-yellow-300 mb-1">
+                                Status: Verification Pending
+                            </p>
+                            <p className="text-xs text-gray-400 mb-3">
+                                Our team will verify your payment within 24–48 hours and update your registration status.
+                            </p>
+                        </>
+                    )}
+                    <p className="text-xs text-gray-500 mb-4">Redirecting to your ticket...</p>
+                    <button
+                        onClick={() => navigate('/booking')}
+                        className="w-full px-4 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors mb-2"
+                    >
+                        View My Bookings
+                    </button>
+                    <button
+                        onClick={() => navigate('/')}
+                        className="w-full px-4 py-2 bg-transparent border border-gray-700 text-gray-200 rounded-lg text-sm hover:bg-gray-800"
+                    >
+                        Back to Home
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (loading || authLoading || isAuthProcessing || isRedirectProcessing) {
         return (
             <div className="min-h-screen bg-[#111213] flex items-center justify-center">
                 <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
@@ -1101,54 +1239,6 @@ export default function CompetitionRegistration() {
                         className="px-4 py-2 bg-[#0ECCEE] text-black rounded-lg hover:bg-[#0ECCEE]/80"
                     >
                         Go Back
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    if (success) {
-        return (
-            <div className="min-h-screen bg-[#111213] flex items-center justify-center px-4">
-                <div className="text-center max-w-md mx-auto p-6 bg-[#1D1E20] rounded-xl">
-                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                    <h1 className="text-xl font-bold text-white mb-2">Registration Submitted</h1>
-
-                    <p className="text-sm text-gray-300 mb-2">
-                        Event:{' '}
-                        <span className="font-semibold text-white">
-                            {competition?.name}
-                        </span>
-                    </p>
-
-                    {paymentFields ? (
-                        <p className="text-sm text-green-400 mb-3">
-                            Payment confirmed via Cashfree. You are registered!
-                        </p>
-                    ) : (
-                        <>
-                            <p className="text-sm text-yellow-300 mb-1">
-                                Status: Verification Pending
-                            </p>
-                            <p className="text-xs text-gray-400 mb-3">
-                                Our team will verify your payment within 24–48 hours and update your registration status.
-                            </p>
-                        </>
-                    )}
-
-                    <p className="text-xs text-gray-500 mb-4">Redirecting to your ticket...</p>
-
-                    <button
-                        onClick={() => navigate('/booking')}
-                        className="w-full px-4 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors mb-2"
-                    >
-                        View My Bookings
-                    </button>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="w-full px-4 py-2 bg-transparent border border-gray-700 text-gray-200 rounded-lg text-sm hover:bg-gray-800"
-                    >
-                        Back to Home
                     </button>
                 </div>
             </div>

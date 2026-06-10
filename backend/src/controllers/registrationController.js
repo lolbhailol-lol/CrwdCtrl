@@ -1761,6 +1761,123 @@ const getTrekBookingDetails = async (req, res) => {
   }
 };
 
+const formatInvoiceDate = (date) =>
+  new Date(date).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+const getPaymentInvoice = async (req, res) => {
+  try {
+    const { registrationId } = req.params;
+    const userId = req.user.userId;
+
+    const registration = await Registration.findOne({ _id: registrationId, user: userId })
+      .populate('fest', 'festName collegeName festDate venue')
+      .populate('competitionId', 'name registrationFee')
+      .populate('user', 'name email phoneNumber');
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Registration not found' });
+    }
+
+    const isPaid =
+      registration.paymentStatus === 'paid' ||
+      (registration.amountPaid && registration.amountPaid > 0);
+
+    if (!isPaid || !registration.payment_order_id) {
+      return res.status(404).json({ error: 'No payment receipt available for this registration' });
+    }
+
+    const isCompetition = !!registration.competitionId;
+    const eventName = isCompetition
+      ? registration.competitionId?.name
+      : registration.fest?.festName;
+
+    res.json({
+      success: true,
+      data: {
+        invoiceNumber: registration.payment_order_id,
+        registrationId: registration._id,
+        eventName: eventName || 'Event',
+        eventType: isCompetition ? 'Competition' : 'Fest',
+        festName: registration.fest?.festName || null,
+        eventDate: registration.fest?.festDate || null,
+        venue: registration.fest?.venue || registration.fest?.collegeName || null,
+        customerName: registration.user?.name || 'Customer',
+        customerEmail: registration.user?.email || '',
+        customerPhone: registration.user?.phoneNumber || '',
+        amountPaid: registration.amountPaid || 0,
+        currency: 'INR',
+        paymentId: registration.payment_id || '',
+        orderId: registration.payment_order_id || '',
+        paymentGateway: registration.payment_gateway || 'cashfree',
+        paidAt: registration.submittedAt || registration.createdAt,
+        paidAtFormatted: formatInvoiceDate(registration.submittedAt || registration.createdAt),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching payment invoice:', error);
+    res.status(500).json({ error: 'Failed to fetch payment receipt' });
+  }
+};
+
+const getTrekPaymentInvoice = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.userId;
+
+    const booking = await TrekBooking.findOne({ _id: bookingId, userId })
+      .populate('trekId', 'trekName city trekDate')
+      .populate('userId', 'name email phoneNumber');
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Trek booking not found' });
+    }
+
+    const amountPaid = booking.bookingDetails?.amountPaid || 0;
+    const orderId =
+      booking.payment_order_id ||
+      booking.bookingDetails?.payment_order_id ||
+      '';
+
+    if (amountPaid <= 0 || !orderId) {
+      return res.status(404).json({ error: 'No payment receipt available for this booking' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        invoiceNumber: orderId,
+        registrationId: booking._id,
+        eventName: booking.trekId?.trekName || 'Trek',
+        eventType: 'Trek',
+        festName: null,
+        eventDate: booking.bookingDetails?.date || booking.trekId?.trekDate || null,
+        venue: booking.trekId?.city || null,
+        customerName: booking.userId?.name || booking.userName || 'Customer',
+        customerEmail: booking.userId?.email || booking.userEmail || '',
+        customerPhone: booking.userId?.phoneNumber || '',
+        amountPaid,
+        currency: 'INR',
+        paymentId: booking.bookingDetails?.paymentId || '',
+        orderId,
+        paymentGateway: 'cashfree',
+        paidAt: booking.createdAt,
+        paidAtFormatted: formatInvoiceDate(booking.createdAt),
+        people: booking.bookingDetails?.people || 1,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching trek payment invoice:', error);
+    res.status(500).json({ error: 'Failed to fetch payment receipt' });
+  }
+};
+
 // Pay-and-register for FESTS: Cashfree payment flow, uses user profile data
 // POST /api/registrations/fests/:festId/pay-and-register
 const payAndRegisterFest = async (req, res) => {
@@ -1994,6 +2111,8 @@ module.exports = {
   getUserRegistrations,
   getRegistrationDetails,
   getTrekBookingDetails,
+  getPaymentInvoice,
+  getTrekPaymentInvoice,
   testGoogleSheets,
   diagnoseGoogleSheets,
   upload

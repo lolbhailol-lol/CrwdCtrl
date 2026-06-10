@@ -13,6 +13,8 @@ const {
   getUserRegistrations,
   getRegistrationDetails,
   getTrekBookingDetails,
+  getPaymentInvoice,
+  getTrekPaymentInvoice,
   testGoogleSheets,
   diagnoseGoogleSheets,
   upload
@@ -129,6 +131,8 @@ router.post('/upload', authenticateToken, upload.any(), async (req, res) => {
 router.get('/fests/:festId/registration', authenticateToken, getUserRegistration);
 router.get('/my-registrations', authenticateToken, getUserRegistrations);
 router.get('/details/:registrationId', authenticateToken, getRegistrationDetails);
+router.get('/invoice/:registrationId', authenticateToken, getPaymentInvoice);
+router.get('/trek-booking/:bookingId/invoice', authenticateToken, getTrekPaymentInvoice);
 router.get('/trek-booking/:bookingId', authenticateToken, getTrekBookingDetails);
 
 /* ======================

@@ -1,4 +1,6 @@
 const PENDING_PAYMENT_KEY = 'crwdctrl_pending_payment';
+const PAYMENT_RETURN_EXPECTED_KEY = 'crwdctrl_payment_return_expected';
+const PENDING_MAX_AGE_MS = 30 * 60 * 1000;
 
 export function resolvePaymentEntityType(returnPath, entityType) {
   if (entityType === 'trek' || entityType === 'fest') return entityType;
@@ -38,6 +40,49 @@ export function getPendingPayment() {
 
 export function clearPendingPayment() {
   sessionStorage.removeItem(PENDING_PAYMENT_KEY);
+  sessionStorage.removeItem(PAYMENT_RETURN_EXPECTED_KEY);
+}
+
+/** Set when redirect checkout is initiated — resume only after Cashfree return. */
+export function markPaymentReturnExpected() {
+  sessionStorage.setItem(PAYMENT_RETURN_EXPECTED_KEY, '1');
+}
+
+export function hasPaymentReturnExpected() {
+  return sessionStorage.getItem(PAYMENT_RETURN_EXPECTED_KEY) === '1';
+}
+
+export function pathsMatchPendingReturn(pendingPath, currentPath) {
+  if (!pendingPath || !currentPath) return false;
+  return pendingPath.split('?')[0] === currentPath.split('?')[0];
+}
+
+export function hasCashfreeReturnParams(search = '') {
+  const params = new URLSearchParams(search);
+  return (
+    params.has('order_id') ||
+    params.has('order_token') ||
+    params.has('cf_payment_id') ||
+    params.has('payment_id')
+  );
+}
+
+export function isStalePendingPayment(pending) {
+  if (!pending?.ts) return false;
+  return Date.now() - pending.ts > PENDING_MAX_AGE_MS;
+}
+
+/**
+ * Only auto-resume payment when user likely returned from Cashfree (not stale abandoned checkout).
+ */
+export function shouldResumePendingPayment(pending, currentPath, search = '') {
+  if (!pending?.orderId) return false;
+  if (!pathsMatchPendingReturn(pending.returnPath, currentPath)) return false;
+  if (isStalePendingPayment(pending)) {
+    clearPendingPayment();
+    return false;
+  }
+  return hasPaymentReturnExpected() || hasCashfreeReturnParams(search);
 }
 
 /**
