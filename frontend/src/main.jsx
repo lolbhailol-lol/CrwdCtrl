@@ -6,9 +6,14 @@ import { shouldShowBootSplash, removeHtmlBootSplash } from './utils/bootSplash'
 import { initThemeClass } from './utils/themeInit'
 import { initSentry } from './utils/sentry'
 import { isNativeApp } from './utils/capacitorPlatform'
+import { initCashfreeNativeGateway } from './utils/bootstrapCashfreeNative'
 
 initThemeClass()
 initSentry()
+
+if (isNativeApp()) {
+  initCashfreeNativeGateway().catch(() => {})
+}
 
 // OAuth / email flows — skip static HTML splash immediately
 if (!shouldShowBootSplash()) {

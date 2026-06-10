@@ -34,16 +34,14 @@ function CardsRow({ count, gap, className = '', children }) {
 
 /* ── Home carousel cards ── */
 export function HomeEventCardSkeleton({ tallCard = false, wideCard = false }) {
-    const { isDark } = useDarkMode();
     const isTrendingCard = tallCard && !wideCard;
     const cardRadius = 'rounded-2xl';
 
     return (
         <div
-            className={`shrink-0 overflow-hidden ${cardRadius}
+            className={`card-surface shrink-0 overflow-hidden ${cardRadius}
                 ${isTrendingCard ? 'pb-5' : 'pb-2.5'}
-                ${wideCard ? 'card-carousel-wide' : 'card-carousel'}
-                ${isDark ? 'bg-black' : 'bg-[#F2F4F7]'}`}
+                ${wideCard ? 'card-carousel-wide' : 'card-carousel'}`}
         >
             <div
                 className={`relative w-full overflow-hidden ${
@@ -59,7 +57,7 @@ export function HomeEventCardSkeleton({ tallCard = false, wideCard = false }) {
                     <Shimmer className="h-4 w-[85%] rounded-md" />
                     <Shimmer className="mt-1 h-3 w-[60%] rounded-md" />
                 </div>
-                <Shimmer className="size-8 shrink-0 rounded-full" />
+                <Shimmer className="size-4 shrink-0 rounded-sm" />
             </div>
         </div>
     );
@@ -83,7 +81,7 @@ export default function HomeCarouselCardsSkeleton({
     return (
         <div
             ref={scrollRef}
-            className={`overflow-x-auto scrollbar-hide ${className}`}
+            className={`home-carousel-scroll overflow-x-auto scrollbar-hide ${className}`}
             style={{
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
@@ -121,12 +119,9 @@ export function HeroBannerSkeleton({ className = 'px-6 lg:px-12 mb-6' }) {
 
 /* ── Fests page horizontal card ── */
 export function FestCardSkeleton() {
-    const { isDark } = useDarkMode();
-
     return (
         <div
-            className={`card-carousel-fest snap-start overflow-hidden rounded-2xl lg:rounded-3xl
-                ${isDark ? 'bg-[#111213]' : 'bg-white shadow-md lg:shadow-lg'}`}
+            className="card-surface card-carousel-fest snap-start overflow-hidden rounded-2xl lg:rounded-3xl"
         >
             <div className="fest-card-image">
                 <Shimmer className="absolute inset-0 rounded-none" />
@@ -158,7 +153,7 @@ export function FeaturedFestCardSkeleton() {
 
     return (
         <div
-            className={`card-carousel-fest snap-start overflow-hidden rounded-2xl shadow-sm
+            className={`card-surface card-carousel-fest snap-start overflow-hidden rounded-2xl
                 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}
         >
             <div className="fest-card-image">
@@ -187,7 +182,7 @@ export function FestListItemSkeleton() {
 
     return (
         <div
-            className={`flex overflow-hidden rounded-2xl shadow-sm
+            className={`card-surface flex overflow-hidden rounded-2xl
                 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}
         >
             <Shimmer className="list-card-thumb shrink-0 rounded-none" />
@@ -213,7 +208,7 @@ export function CompactPortraitCardSkeleton({ withShare = true }) {
                     <Shimmer className="h-4 w-[90%] rounded-md" />
                     <Shimmer className="mt-1 h-3.5 w-[70%] rounded-md" />
                 </div>
-                {withShare && <Shimmer className="mt-0.5 size-8 shrink-0 rounded-2xl" />}
+                {withShare && <Shimmer className="mt-0.5 size-4 shrink-0 rounded-sm" />}
             </div>
         </div>
     );
@@ -235,12 +230,9 @@ export function CompactPortraitCardsRowSkeleton({
 
 /* ── Weekend plans / sports activity card ── */
 export function WideActivityCardSkeleton() {
-    const { isDark } = useDarkMode();
-
     return (
         <div
-            className={`card-wide overflow-hidden rounded-2xl
-                ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
+            className="card-surface card-wide overflow-hidden rounded-2xl"
         >
             <div className="card-wide-image">
                 <Shimmer className="absolute inset-0 rounded-none" />
@@ -251,7 +243,7 @@ export function WideActivityCardSkeleton() {
                     <Shimmer className="h-5 w-[80%] rounded-md" />
                     <Shimmer className="mt-1 h-4 w-[50%] rounded-md" />
                 </div>
-                <Shimmer className="ml-3 size-8 shrink-0 rounded-2xl" />
+                <Shimmer className="ml-3 size-4 shrink-0 rounded-sm" />
             </div>
         </div>
     );
@@ -267,12 +259,9 @@ export function WideActivityCardsRowSkeleton({ count = 2, className = 'px-4' }) 
 
 /* ── Trek category list card ── */
 export function TrekListItemSkeleton() {
-    const { isDark } = useDarkMode();
-
     return (
         <div
-            className={`overflow-hidden rounded-2xl
-                ${isDark ? 'bg-[#111213]' : 'bg-[#F5F6FA]'}`}
+            className="card-surface overflow-hidden rounded-2xl"
         >
             <div className="card-wide-image w-full">
                 <Shimmer className="absolute inset-0 rounded-none" />
@@ -283,7 +272,7 @@ export function TrekListItemSkeleton() {
                     <Shimmer className="h-5 w-[75%] rounded-md" />
                     <Shimmer className="mt-1 h-4 w-[50%] rounded-md" />
                 </div>
-                <Shimmer className="ml-3 size-8 shrink-0 rounded-2xl" />
+                <Shimmer className="ml-3 size-4 shrink-0 rounded-sm" />
             </div>
         </div>
     );

@@ -15,14 +15,25 @@ const getCompetitionBaseFee = (registrationFee, feeAmount) => {
   return numericFeeAmount || parseTicketPrice(registrationFee);
 };
 
-// ===== ADMIN HEALTH CHECK =====
+// ===== ADMIN HEALTH CHECK (public liveness only — no config leakage) =====
 router.get('/health', (req, res) => {
-  console.log('✅ Admin health check endpoint called');
   res.json({
     success: true,
     message: 'Admin API is operational',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+  });
+});
+
+// Dev-only admin config diagnostics (never expose hash details publicly)
+router.get('/health/config', devOnly, adminAuth, (req, res) => {
+  const hash = (process.env.ADMIN_PASSWORD_HASH || '').trim();
+  res.json({
+    success: true,
+    adminConfig: {
+      emailSet: Boolean(process.env.ADMIN_EMAIL?.trim()),
+      hashConfigured: hash.length > 0,
+      hashLooksValid: /^\$2[aby]\$\d{2}\$.{53}$/.test(hash),
+    },
   });
 });
 

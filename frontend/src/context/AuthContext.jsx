@@ -6,6 +6,7 @@ import { withFirebaseIdToken } from '../utils/firebaseIdToken';
 import { hasPendingOAuthRedirect, restoreSessionFromStorage, clearOAuthRedirectMarkers } from '../utils/authBootstrap';
 import { isNativeAuthInProgress } from '../utils/nativeAuth';
 import { isNativeApp } from '../utils/capacitorPlatform';
+import { markFreshLogin } from '../utils/notificationPrompt';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -222,6 +223,7 @@ export const AuthProvider = ({ children }) => {
                         // Store in localStorage
                         localStorage.setItem('crwdctrl_user', JSON.stringify(userData));
                         localStorage.setItem('crwdctrl_token', userData.token);
+                        markFreshLogin();
                         
                         console.log('✅ Redirect session created successfully');
                         
@@ -297,6 +299,7 @@ export const AuthProvider = ({ children }) => {
                                 
                                 localStorage.setItem('crwdctrl_user', JSON.stringify(userData));
                                 localStorage.setItem('crwdctrl_token', userData.token);
+                                markFreshLogin();
                                 
                                 console.log('✅ Mobile fallback session created successfully');
                                 setIsRedirectProcessing(false);
@@ -383,6 +386,7 @@ export const AuthProvider = ({ children }) => {
         try {
             localStorage.setItem('crwdctrl_user', JSON.stringify(userInfo));
             localStorage.setItem('crwdctrl_token', userToken);
+            markFreshLogin();
             console.log('✅ [AUTH] Login completed, session stored in localStorage');
             console.log('✅ [AUTH] isAuthenticated should now be true');
         } catch (error) {

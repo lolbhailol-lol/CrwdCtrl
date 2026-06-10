@@ -157,3 +157,7 @@ public/uploads/
 sessions/
 # Firebase service account key
 firebase-service-account.json
+
+# Local scratch / test artifacts
+.tmp-*
+*.tmp-hash-test.txt

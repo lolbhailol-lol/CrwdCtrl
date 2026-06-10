@@ -3,7 +3,6 @@ import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenera
 import { getImageUrl } from '../../../utils/imageImports';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
-import { ArrowLeft } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
@@ -30,8 +29,8 @@ const isEventCompleted = (item) => {
 function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, showDownload = true }) {
     return (
         <div
-            className={`rounded-2xl border-[0.20px] p-3 sm:p-4 h-40 flex flex-col ${
-                isDark ? 'border-gray-700 bg-[#111213]' : 'border-black/20 bg-white'
+            className={`rounded-2xl p-3 sm:p-4 h-40 flex flex-col shadow-lg transition-all duration-300 ${
+                isDark ? 'border border-gray-800 bg-[#111213]' : 'border border-gray-100 bg-white'
             }`}
         >
             <div className="flex gap-3 sm:gap-4 min-h-0 flex-1">
@@ -370,10 +369,6 @@ function Booking() {
     // Use backend data if available, otherwise fall back to context data
     const allBookings = [...bookings];
 
-    const handleGoBack = () => {
-        navigate(-1);
-    };
-
     const handleViewDetails = (item) => {
         if (!item.id) return;
         if (item.isTrek) {
@@ -395,7 +390,7 @@ function Booking() {
     // Loading state
     if (loading) {
         return (
-            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} flex items-center justify-center`}>
+            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
                     <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading bookings...</h2>
@@ -407,7 +402,7 @@ function Booking() {
     // Error state
     if (error) {
         return (
-            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} flex items-center justify-center`}>
+            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
                 <div className="text-center">
                     <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>{error}</h2>
                     <button
@@ -424,7 +419,7 @@ function Booking() {
     return (
         <div
             className={`min-h-screen transition-colors duration-300 pb-24 lg:pb-8 ${
-                isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'
+                isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'
             }`}
         >
             <main className="px-4 pt-4 sm:px-6 lg:px-8">
@@ -432,20 +427,10 @@ function Booking() {
                     {/* Header + tabs — Figma: slate-100 shell */}
                     <div
                         className={`px-4 pt-4 ${
-                            isDark ? 'bg-[#111213]' : 'bg-slate-100'
+                            isDark ? 'bg-[#111213]' : 'bg-white'
                         }`}
                     >
-                        <div className="flex items-center gap-4 pb-8">
-                            <button
-                                type="button"
-                                onClick={handleGoBack}
-                                className={`size-8 rounded-full flex items-center justify-center transition-colors ${
-                                    isDark ? 'bg-[#161718] hover:bg-gray-800' : 'bg-white hover:bg-gray-50'
-                                }`}
-                                title="Go back"
-                            >
-                                <ArrowLeft className={`w-4 h-4 ${isDark ? 'text-white' : 'text-gray-900'}`} />
-                            </button>
+                        <div className="pb-8">
                             <h1
                                 className={`text-2xl font-medium font-inter leading-8 ${
                                     isDark ? 'text-white' : 'text-gray-900'
@@ -463,7 +448,7 @@ function Booking() {
                                     activeTab === 'upcoming'
                                         ? isDark
                                             ? 'bg-[#161718] text-blue-400'
-                                            : 'bg-[#F5F6FA] text-blue-700'
+                                            : 'bg-white text-blue-700'
                                         : isDark
                                           ? 'text-gray-400 hover:text-gray-200'
                                           : 'text-gray-900 hover:text-blue-700'
@@ -478,7 +463,7 @@ function Booking() {
                                     activeTab === 'completed'
                                         ? isDark
                                             ? 'bg-[#161718] text-blue-400'
-                                            : 'bg-[#F5F6FA] text-blue-700'
+                                            : 'bg-white text-blue-700'
                                         : isDark
                                           ? 'text-gray-400 hover:text-gray-200'
                                           : 'text-gray-900 hover:text-blue-700'
@@ -493,7 +478,7 @@ function Booking() {
                     <div
                         className={`px-2.5 py-6 sm:px-4 min-h-[420px] rounded-tr-2xl rounded-bl-2xl rounded-br-2xl ${
                             activeTab === 'completed' ? 'rounded-tl-2xl' : ''
-                        } ${isDark ? 'bg-[#161718]' : 'bg-[#F5F6FA]'}`}
+                        } ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
                     >
                         {visibleBookings.length > 0 ? (
                             <div className="space-y-4">

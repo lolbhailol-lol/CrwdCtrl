@@ -6,11 +6,14 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../HomeCategoryBar';
 import MobileStickyHeader from '../MobileStickyHeader';
 import HeroSearchBar from '../HeroSearchBar';
 import AppLogo from '../AppLogo';
-import ShareIcon from '../../assets/share.svg';
+import CardFavoriteButton from '../CardFavoriteButton';
+import CardShareButton from '../CardShareButton';
+import CarouselDotPagination from '../CarouselDotPagination';
 import {
     WideActivityCardsRowSkeleton,
     CompactPortraitCardsRowSkeleton,
@@ -143,31 +146,10 @@ function useActivityLoopCarousel(scrollRef, items, sidePad) {
     return { slides, activeIndex };
 }
 
-function DotRow({ total, active, isDark }) {
-    if (total <= 1) return null;
-    const shown = Math.min(total, 5);
-    return (
-        <div className="flex justify-center gap-1.5 mt-3">
-            {Array.from({ length: shown }).map((_, i) => (
-                <div
-                    key={i}
-                    className={`rounded-full transition-all duration-300 ${
-                        i === active % shown
-                            ? `h-2 w-5 ${isDark ? 'bg-white' : 'bg-[#0ECCEE]'}`
-                            : `size-2 bg-transparent border-2 ${isDark ? 'border-gray-600' : 'border-slate-300'}`
-                    }`}
-                />
-            ))}
-        </div>
-    );
-}
-
 function ActivityCard({ item, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div
-            className={`card-wide snap-center cursor-pointer active:scale-[0.98] transition-all duration-200 rounded-2xl overflow-hidden ${
-                isDark ? 'bg-[#111213]' : 'bg-[#F5F6FA]'
-            }`}
+            className="card-surface card-wide snap-center cursor-pointer active:scale-[0.98] transition-all duration-200 rounded-2xl overflow-hidden"
             onClick={onClick}
         >
             <div className="card-wide-image">
@@ -183,59 +165,28 @@ function ActivityCard({ item, isDark, isFavorite, onToggleFavorite, onClick }) {
                         <span className="text-6xl">⚽</span>
                     </div>
                 )}
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleFavorite?.();
-                    }}
-                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
-                    className="overlay-fav-btn overlay-fav-btn--tr"
-                >
-                    <span className={`overlay-fav-btn__icon border border-slate-100/80 transition-all active:scale-90 ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2" aria-hidden="true">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                        </svg>
-                    </span>
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
 
             {/* Name + Type + share */}
             <div className="flex items-center justify-between px-4 py-3">
                 <div className="min-w-0 flex-1">
-                    <p
-                        className={`text-lg font-medium font-inter leading-7 tracking-wide line-clamp-1 ${
-                            isDark ? 'text-white' : 'text-gray-900'
-                        }`}
-                    >
-                        {item.title}
+                    <p className={`card-event-title font-inter line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {toCardText(item.title)}
                     </p>
-                    <p
-                        className={`text-sm font-medium font-inter leading-5 tracking-tight capitalize ${
-                            isDark ? 'text-gray-400' : 'text-gray-500'
-                        }`}
-                    >
-                        {item.subtitle}
+                    <p className={`card-event-subtitle font-inter line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {toCardText(item.subtitle)}
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
+                <CardShareButton
+                    isDark={isDark}
+                    className="ml-3"
+                    onClick={() => {
                         if (navigator.share) {
                             navigator.share({ title: item.title, url: item.shareUrl }).catch(() => {});
                         }
                     }}
-                    className={`size-8 shrink-0 rounded-2xl flex items-center justify-center ml-3 ${
-                        isDark ? 'bg-[#1D1E20]' : 'bg-white shadow-sm'
-                    }`}
-                >
-                    <img
-                        src={ShareIcon}
-                        alt="Share"
-                        className={`w-3.5 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`}
-                    />
-                </button>
+                />
             </div>
         </div>
     );
@@ -243,7 +194,7 @@ function ActivityCard({ item, isDark, isFavorite, onToggleFavorite, onClick }) {
 
 function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
-        <div className="card-portrait snap-start cursor-pointer active:scale-95 transition-all" onClick={onClick}>
+        <div className="card-portrait snap-center cursor-pointer active:scale-95 transition-all" onClick={onClick}>
             <div className="card-portrait-image">
                 {club.image ? (
                     <img
@@ -257,35 +208,14 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
                         <span className="text-5xl">🏃</span>
                     </div>
                 )}
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleFavorite?.();
-                    }}
-                    className={`absolute top-2.5 right-2.5 size-6 rounded-full flex items-center justify-center border-[0.5px] border-slate-100 ${
-                        isFavorite ? 'bg-red-500/80' : 'bg-black/10'
-                    }`}
-                >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
-            <div className="mt-2">
-                <p
-                    className={`text-lg font-medium font-inter leading-7 tracking-wide line-clamp-1 ${
-                        isDark ? 'text-white' : 'text-gray-900'
-                    }`}
-                >
-                    {club.title}
+            <div className="mt-2 w-full min-w-0 max-w-[var(--card-portrait-w)]">
+                <p className={`card-event-title font-inter truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {toCardText(club.title)}
                 </p>
-                <p
-                    className={`text-sm font-medium font-inter leading-5 tracking-tight line-clamp-1 ${
-                        isDark ? 'text-gray-400' : 'text-gray-500'
-                    }`}
-                >
-                    {club.subtitle || 'Based in'}
+                <p className={`card-event-subtitle font-inter truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {toCardText(club.subtitle || 'Based in')}
                 </p>
             </div>
         </div>
@@ -448,7 +378,7 @@ export default function SportsCategoryPage() {
         }
     };
 
-    const sectionTitle = `text-xl font-semibold font-inter leading-7 px-4 mb-3 ${
+    const sectionTitle = `home-section-heading font-inter px-4 mb-3 ${
         isDark ? 'text-white' : 'text-black'
     }`;
 
@@ -459,7 +389,7 @@ export default function SportsCategoryPage() {
                 brandingRow={
                     <>
                         <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
-                        <div className="flex items-center gap-1">
+                        <div className="mobile-header-actions">
                             <button
                                 type="button"
                                 onClick={() => navigate('/')}
@@ -516,7 +446,7 @@ export default function SportsCategoryPage() {
                         <>
                             <div
                                 ref={activitiesScrollRef}
-                                className="overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+                                className="carousel-scroll-center carousel-scroll-center--wide overflow-x-auto scrollbar-hide"
                                 style={{
                                     scrollbarWidth: 'none',
                                     msOverflowStyle: 'none',
@@ -548,7 +478,7 @@ export default function SportsCategoryPage() {
                                     ))}
                                 </div>
                             </div>
-                            <DotRow total={filteredActivities.length} active={activitiesIdx} isDark={isDark} />
+                            <CarouselDotPagination total={filteredActivities.length} active={activitiesIdx} />
                         </>
                     )}
                 </section>
@@ -568,7 +498,7 @@ export default function SportsCategoryPage() {
                         </div>
                     ) : (
                         <div
-                            className="overflow-x-auto scrollbar-hide pl-4 pr-4 snap-x snap-proximity"
+                            className="carousel-scroll-center carousel-scroll-center--portrait overflow-x-auto scrollbar-hide"
                             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                         >
                             <div className="flex gap-4 pb-2">
@@ -600,20 +530,17 @@ export default function SportsCategoryPage() {
 
                 {/* ── Browse by Categories ── */}
                 <section className="mb-8 px-4">
-                    <h2 className={`text-xl font-semibold font-inter leading-7 mb-5 ${isDark ? 'text-white' : 'text-black'}`}>
+                    <h2 className={`home-section-heading font-inter mb-5 ${isDark ? 'text-white' : 'text-black'}`}>
                         Browse by Categories
                     </h2>
-                    <div
-                        className="flex justify-between gap-2 overflow-x-auto scrollbar-hide pb-1"
-                        style={{ scrollbarWidth: 'none' }}
-                    >
+                    <div className="grid grid-cols-4 gap-x-2 w-full">
                         {BROWSE_CATEGORIES.map((cat) => (
                             <div
                                 key={cat.id}
-                                className="touch-target flex flex-col items-center shrink-0 w-[clamp(4rem,18vw,4.5rem)]"
+                                className="touch-target flex flex-col items-center gap-1.5 min-w-0"
                             >
                                 <div
-                                    className={`size-20 rounded-full overflow-hidden ${
+                                    className={`size-[clamp(3.25rem,19vw,5rem)] rounded-full overflow-hidden ${
                                         isDark ? 'bg-[#111213]' : 'bg-slate-100'
                                     }`}
                                 >
@@ -624,7 +551,7 @@ export default function SportsCategoryPage() {
                                     />
                                 </div>
                                 <span
-                                    className={`mt-2 text-sm font-medium font-inter leading-5 tracking-tight text-center ${
+                                    className={`text-xs sm:text-sm font-medium font-inter leading-tight tracking-tight text-center truncate w-full ${
                                         isDark ? 'text-white' : 'text-black'
                                     }`}
                                 >

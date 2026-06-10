@@ -1,27 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const jwt = require('jsonwebtoken');
 const Trek = require('../model/trek_model');
 const TrekBooking = require('../model/trek_booking_model');
 const { appendToGoogleSheets } = require('../services/googleSheetsService');
-const { getJwtSecret } = require('../config/jwtSecret');
 const { verifyTrekBookingPayment } = require('../utils/trekPaymentVerification');
+const { createNotification } = require('../controllers/notificationController');
+const { sendPushNotification } = require('../services/pushService');
+const { authenticateToken } = require('../middleware/authmiddleware');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// Extract userId from optional Bearer token without blocking the request
-function optionalUserId(req) {
-    try {
-        const auth = req.headers.authorization;
-        if (!auth || !auth.startsWith('Bearer ')) return null;
-        const secret = getJwtSecret();
-        const decoded = jwt.verify(auth.split(' ')[1], secret);
-        return decoded.userId || decoded.id || null;
-    } catch {
-        return null;
-    }
-}
 
 function extractEmail(formData = {}) {
     return (
@@ -81,8 +69,8 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// POST /api/treks/:id/register — save booking (payment re-verified server-side for paid treks)
-router.post('/:id/register', async (req, res) => {
+// POST /api/treks/:id/register — save booking (login required; payment re-verified server-side for paid treks)
+router.post('/:id/register', authenticateToken, async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
             return res.status(400).json({ message: 'Invalid trek ID' });
@@ -132,11 +120,11 @@ router.post('/:id/register', async (req, res) => {
             paymentOrderId = paymentOrderId || bookingDetails.payment_order_id;
         }
 
-        const userId = optionalUserId(req);
+        const userId = req.user.userId;
 
         const booking = await TrekBooking.create({
             trekId: trek._id,
-            ...(userId ? { userId } : {}),
+            userId,
             userName,
             userEmail,
             formData,
@@ -178,6 +166,29 @@ router.post('/:id/register', async (req, res) => {
         }
 
         res.json({ success: true, message: 'Registration recorded', bookingId: booking._id });
+
+        const trekName = trek.trekName || 'your trek';
+        const link = `/registration-details/${booking._id}?type=trek`;
+        setImmediate(async () => {
+            try {
+                await createNotification({
+                    userId,
+                    title: 'Trek Booking Confirmed!',
+                    message: `You've successfully registered for ${trekName}.`,
+                    type: 'registration',
+                    link,
+                    metadata: { registrationId: booking._id },
+                });
+                sendPushNotification(userId, {
+                    title: 'Trek Booking Confirmed!',
+                    body: `You've registered for ${trekName}`,
+                    link,
+                    type: 'registration',
+                }).catch(() => {});
+            } catch (notifErr) {
+                console.error('[Trek Register] Notification error:', notifErr.message);
+            }
+        });
     } catch (err) {
         if (err.code === 11000) {
             return res.status(409).json({ message: 'This payment has already been used for a booking' });

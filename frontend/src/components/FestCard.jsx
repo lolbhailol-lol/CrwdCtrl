@@ -1,7 +1,8 @@
 import React from 'react';
-import { Heart, Zap, Clock, ArrowRight } from 'lucide-react';
-import ShareIcon from '../assets/share.svg';
+import { Zap, Clock, ArrowRight } from 'lucide-react';
 import ContentImage from './ContentImage';
+import CardFavoriteButton from './CardFavoriteButton';
+import CardShareButton from './CardShareButton';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 
 const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFavorite, onViewDetails, isDark, eventId, status }) => {
@@ -68,12 +69,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
 
     return (
         <div
-            className={`group relative rounded-2xl overflow-hidden cursor-pointer mb-6 mx-2 
-                       transition-all duration-300 ease-in-out
-                       ${isDark 
-                           ? 'bg-black/20 backdrop-blur-3xl border border-white/20 shadow-2xl shadow-black/50' 
-                           : 'bg-white/40 backdrop-blur-3xl border border-white/50 shadow-xl shadow-black/10'
-                       }`}
+            className="card-surface group relative rounded-2xl overflow-hidden cursor-pointer mb-6 mx-2 transition-all duration-300 ease-in-out"
             onClick={handleViewDetailsClick}
         >
             {/* Image Section with Overlay */}
@@ -104,34 +100,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                     </div>
                 )}
 
-                {/* Heart Icon with Premium Glass Effect */}
-                <button
-                    onClick={handleLike}
-                    className={`absolute top-3 right-3 w-10 h-10 rounded-full z-20
-                               transition-all duration-300 ease-in-out
-                               hover:scale-110 active:scale-95
-                               ${isDark 
-                                   ? 'bg-black/30 hover:bg-black/40 backdrop-blur-2xl border-2 border-white/30' 
-                                   : 'bg-white/50 hover:bg-white/70 backdrop-blur-2xl border-2 border-white/60'
-                               }
-                               shadow-xl hover:shadow-2xl
-                               ${isFavorite 
-                                   ? 'shadow-red-500/40 border-red-500/60 bg-red-500/20' 
-                                   : ''
-                               }`}
-                    aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                    title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                >
-                    <Heart
-                        className={`w-5 h-5 mx-auto transition-all duration-300 ease-in-out
-                                   ${isFavorite
-                                       ? 'text-red-500 fill-red-500 scale-110 animate-pulse' 
-                                       : isDark 
-                                           ? 'text-white hover:text-red-400 hover:scale-110' 
-                                           : 'text-gray-800 hover:text-red-500 hover:scale-110'
-                                   }`}
-                    />
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={handleLike} className="z-20" />
             </div>
 
             {/* Content Section with Perfect Glass Background */}
@@ -148,25 +117,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                         {title} {emoji}
                     </h3>
 
-                    {/* Share Button with Cool Glass Effect */}
-                    <button
-                        className={`w-8 h-8 flex items-center justify-center rounded-xl shrink-0 z-10
-                                   transition-all duration-200 ease-in-out
-                                   hover:scale-110 active:scale-95
-                                   ${isDark 
-                                       ? 'bg-white/10 hover:bg-white/20 backdrop-blur-xl border-2 border-white/30 shadow-lg' 
-                                       : 'bg-white/50 hover:bg-white/70 backdrop-blur-xl border-2 border-white/60 shadow-lg'
-                                   }`}
-                        onClick={handleShare}
-                        aria-label={`Share ${title}`}
-                    >
-                        <img
-                            src={ShareIcon}
-                            alt="Share"
-                            className={`w-4 h-4 transition-all duration-200
-                                       ${isDark ? 'filter brightness-0 invert opacity-90 hover:opacity-100' : 'opacity-70 hover:opacity-90'}`}
-                        />
-                    </button>
+                    <CardShareButton onClick={handleShare} isDark={isDark} className="z-10" />
                 </div>
 
                 {/* Meta Information with Glass Background */}

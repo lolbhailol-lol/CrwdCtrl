@@ -1,5 +1,6 @@
-import { Heart } from 'lucide-react';
 import ContentImage from './ContentImage';
+import CardFavoriteButton from './CardFavoriteButton';
+import { toCardText } from '../utils/cardText';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 
 export default function TrendingCard({ event, isDark, isFavorite, onToggleFavorite, onViewDetails }) {
@@ -10,12 +11,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
 
     return (
         <div
-            className={`card-carousel-sm rounded-2xl overflow-hidden cursor-pointer
-                        transition-all duration-200 active:scale-95
-                        ${isDark
-                            ? 'bg-[#111213] shadow-lg shadow-black/30'
-                            : 'bg-white shadow-md'
-                        }`}
+            className="card-surface card-carousel-sm rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-95"
             onClick={onViewDetails}
         >
             {/* Image */}
@@ -37,34 +33,17 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
                         {event.status}
                     </div>
                 )}
-                {/* Heart button */}
-                <button
-                    onClick={handleFav}
-                    className={`card-icon-btn absolute top-1.5 right-1.5 rounded-full
-                                transition-all duration-200 active:scale-90
-                                ${isFavorite
-                                    ? 'bg-red-500/90 border border-red-400'
-                                    : 'bg-black/40 backdrop-blur-sm border border-white/20'
-                                }`}
-                    aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                >
-                    <Heart
-                        size={14}
-                        className={isFavorite ? 'text-white fill-white' : 'text-white'}
-                    />
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={handleFav} />
             </div>
 
             {/* Content */}
             <div className="p-3">
-                <h3 className={`text-fluid-sm font-bold leading-tight mb-1 line-clamp-1
-                                ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {event.title}
+                <h3 className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {toCardText(event.title)}
                 </h3>
                 {event.subtitle && (
-                    <p className={`text-[11px] mb-3 line-clamp-1
-                                  ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {event.subtitle}
+                    <p className={`card-event-subtitle mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {toCardText(event.subtitle)}
                     </p>
                 )}
                 <button

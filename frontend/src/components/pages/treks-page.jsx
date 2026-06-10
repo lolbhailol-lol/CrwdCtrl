@@ -2,16 +2,22 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { Bell, MapPin } from 'lucide-react';
 import AppLogo from '../AppLogo';
-import ShareIcon from '../../assets/share.svg';
+import CardShareButton from '../CardShareButton';
 import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../HomeCategoryBar';
 import MobileStickyHeader from '../MobileStickyHeader';
 import HeroSearchBar from '../HeroSearchBar';
+import HeroSearchDropdown from '../HeroSearchDropdown';
+import { useHeroSearch } from '../../hooks/useHeroSearch';
+import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
+import CardFavoriteButton from '../CardFavoriteButton';
+import CarouselDotPagination from '../CarouselDotPagination';
 import HeroBanner from '../HeroBanner';
 import {
     HeroBannerSkeleton,
@@ -40,28 +46,15 @@ const fetchJSON = async (endpoint) => {
 /* Browse by Trek Categories — circular PNG icons */
 const TREK_CATEGORIES = TREK_BROWSE_CATEGORIES;
 
-/* ── Dot Pagination — active: solid pill, inactive: hollow ring (Figma spec) ── */
-function DotPagination({ total, current, isDark }) {
-    if (total <= 1) return null;
-    const shown = Math.min(total, 5);
-    return (
-        <div className="flex justify-center items-center gap-1.5 mt-3">
-            {Array.from({ length: shown }).map((_, i) => (
-                <div key={i} className={`rounded-full transition-all duration-300
-                    ${i === current % shown
-                        ? `h-2.5 w-6 ${isDark ? 'bg-white' : 'bg-[#0ECCEE]'}`
-                        : `size-2.5 bg-transparent border-2 ${isDark ? 'border-gray-500' : 'border-slate-400'}`
-                    }`}
-                />
-            ))}
-        </div>
-    );
-}
-
 /* ── Community Card — fluid portrait card, heart overlay, Name + Based in + share below ── */
 function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fullWidth = false }) {
     return (
-        <div className={`flex flex-col cursor-pointer active:scale-95 transition-all duration-200 ${fullWidth ? 'w-full' : 'card-portrait'}`} onClick={onClick}>
+        <div
+            className={`card-surface flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200 ${
+                fullWidth ? 'w-full' : 'card-portrait'
+            }`}
+            onClick={onClick}
+        >
             <div className={`relative overflow-hidden ${fullWidth ? 'w-full aspect-[5/3]' : 'card-portrait-image'}`}>
                 {trek.image ? (
                     <img
@@ -75,43 +68,25 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
                         <span className="text-5xl">🏔️</span>
                     </div>
                 )}
-                {/* Heart button — Figma: size-6 bg-black/10 rounded-full border-slate-100 */}
-                <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
-                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
-                    className="overlay-fav-btn overlay-fav-btn--tr"
-                >
-                    <span className={`overlay-fav-btn__icon border border-slate-100/80 transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2" aria-hidden="true">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                        </svg>
-                    </span>
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
 
-            <div className={`flex items-start justify-between mt-2 ${fullWidth ? 'w-full' : 'w-full max-w-[var(--card-portrait-w)]'}`}>
+            <div className={`flex items-start justify-between px-3 pb-3 pt-2 ${fullWidth ? 'w-full' : 'w-full'}`}>
                 <div className="flex-1 min-w-0 pr-1">
-                    <p className={`text-fluid-base font-medium leading-6 tracking-wide line-clamp-1
-                        ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {trek.title}
+                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {toCardText(trek.title)}
                     </p>
-                    <p className={`text-sm font-medium leading-5 tracking-tight line-clamp-1
-                        ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {trek.subtitle || 'Based in'}
+                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {toCardText(trek.subtitle || 'Based in')}
                     </p>
                 </div>
-                {/* Share: size-8 bg-white rounded-2xl */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
+                <CardShareButton
+                    isDark={isDark}
+                    className="mt-0.5 shrink-0"
+                    onClick={() => {
                         if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
                     }}
-                    className={`size-8 shrink-0 rounded-2xl flex items-center justify-center mt-0.5
-                        ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}
-                >
-                    <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
-                </button>
+                />
             </div>
         </div>
     );
@@ -121,9 +96,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
 function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div
-            className={`card-wide rounded-2xl overflow-hidden cursor-pointer
-                active:scale-[0.98] transition-all duration-200
-                ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
+            className="card-surface card-wide rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200"
             onClick={onClick}
         >
             <div className="card-wide-image">
@@ -139,42 +112,25 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                         <span className="text-6xl">🏔️</span>
                     </div>
                 )}
-                {/* Heart: size-6 bg-black/10 rounded-full */}
-                <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
-                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
-                    className="overlay-fav-btn overlay-fav-btn--tr"
-                >
-                    <span className={`overlay-fav-btn__icon border border-slate-100/80 transition-all active:scale-90 ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2" aria-hidden="true">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                        </svg>
-                    </span>
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
 
             <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex-1 min-w-0">
-                    <p className={`text-fluid-base font-medium leading-7 tracking-wide line-clamp-1
-                        ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {trek.title}
+                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {toCardText(trek.title)}
                     </p>
-                    <p className={`text-sm font-medium leading-5 tracking-tight
-                        ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {trek.type || 'Trek'}
+                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {toCardText(trek.type || 'Trek')}
                     </p>
                 </div>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
+                <CardShareButton
+                    isDark={isDark}
+                    className="ml-3"
+                    onClick={() => {
                         if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
                     }}
-                    className={`size-8 shrink-0 rounded-2xl flex items-center justify-center ml-3
-                        ${isDark ? 'bg-gray-700' : 'bg-white shadow-sm'}`}
-                >
-                    <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
-                </button>
+                />
             </div>
         </div>
     );
@@ -183,7 +139,10 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
 /* ── Beginner Card — portrait card, Name + Date + share below ── */
 function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
-        <div className="card-portrait flex flex-col cursor-pointer active:scale-95 transition-all duration-200" onClick={onClick}>
+        <div
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
+            onClick={onClick}
+        >
             <div className="card-portrait-image">
                 {trek.image ? (
                     <img
@@ -197,41 +156,25 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                         <span className="text-5xl">🏔️</span>
                     </div>
                 )}
-                <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
-                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
-                    className="overlay-fav-btn overlay-fav-btn--tr"
-                >
-                    <span className={`overlay-fav-btn__icon border border-slate-100/80 active:scale-90 ${isFavorite ? 'bg-red-500/80' : 'bg-black/10'}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill={isFavorite ? 'white' : 'none'} stroke="white" strokeWidth="2" aria-hidden="true">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                        </svg>
-                    </span>
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
 
-            <div className="flex items-start justify-between mt-2 w-full">
+            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full">
                 <div className="flex-1 min-w-0 pr-1">
-                    <p className={`text-fluid-base font-medium leading-6 tracking-wide line-clamp-1
-                        ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {trek.title}
+                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {toCardText(trek.title)}
                     </p>
-                    <p className={`text-sm font-medium leading-5 tracking-tight
-                        ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {trek.date || 'Date TBA'}
+                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {toCardText(trek.date || 'Date TBA')}
                     </p>
                 </div>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
+                <CardShareButton
+                    isDark={isDark}
+                    className="mt-0.5 shrink-0"
+                    onClick={() => {
                         if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
                     }}
-                    className={`size-8 shrink-0 rounded-2xl flex items-center justify-center mt-0.5
-                        ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}
-                >
-                    <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
-                </button>
+                />
             </div>
         </div>
     );
@@ -313,14 +256,56 @@ function TreksPage() {
         return () => window.removeEventListener('storage', handleAdminChange);
     }, [loadData]);
 
+    const trekQuickPicks = useMemo(
+        () => [
+            ...communities.slice(0, 5).map((c) => ({ ...c, resultType: 'community' })),
+            ...treks.slice(0, 5).map((t) => ({ ...t, resultType: 'trek' })),
+        ],
+        [communities, treks],
+    );
+
+    const handleTrekSearchNavigate = useCallback((result) => {
+        if (result.resultType === 'competition') {
+            navigate(`/competitions-view-details/${result.id}`);
+            return;
+        }
+        if (result.resultType === 'fest') {
+            navigate(`/view-details/${result.id}`);
+            return;
+        }
+        if (result.resultType === 'community' || result.type === 'Community') {
+            navigate(`/treks/community/${result.id}`, { state: { community: result } });
+            return;
+        }
+        navigate(`/trek/${result.id}`, {
+            state: { trek: { ...result, trekName: result.title, images: result.image ? [result.image] : [] } },
+        });
+    }, [navigate]);
+
+    const searchKeywordCatalog = useMemo(
+        () => buildSearchKeywordsFromCatalog({ treks, communities }),
+        [treks, communities],
+    );
+
+    const heroSearch = useHeroSearch({
+        quickPickItems: trekQuickPicks,
+        keywordCatalog: searchKeywordCatalog,
+        onResultNavigate: handleTrekSearchNavigate,
+    });
+
     const sortTrekPage = arr => [...arr].sort((a, b) => (a.trekPagePriority || 999) - (b.trekPagePriority || 999));
-    const beginnerTreks = sortTrekPage(treks.filter(t => t.featuredSection === 'beginner' || t.featuredSection === 'both'));
-    const heroTreks = sortTrekPage(treks.filter(t => t.featuredSection === 'hero' || t.featuredSection === 'both'));
-    const weekendTreks = sortTrekPage(treks.filter(t => t.featuredSection === 'weekend' || t.featuredSection === 'both'));
-    const comingSoonCommunities = sortTrekPage(communities.filter(c => c.trekPageSection === 'comingSoon' || c.trekPageSection === 'both'));
-    const exploreCommunities    = sortTrekPage(communities.filter(c => c.trekPageSection === 'communities' || c.trekPageSection === 'both' || !c.trekPageSection));
+    const matchesSearch = useCallback((item) => {
+        if (!heroSearch.searchQuery.trim()) return true;
+        const q = heroSearch.searchQuery.toLowerCase();
+        return (item.title || '').toLowerCase().includes(q) || (item.subtitle || '').toLowerCase().includes(q);
+    }, [heroSearch.searchQuery]);
+    const beginnerTreks = sortTrekPage(treks.filter(t => (t.featuredSection === 'beginner' || t.featuredSection === 'both') && matchesSearch(t)));
+    const heroTreks = sortTrekPage(treks.filter(t => (t.featuredSection === 'hero' || t.featuredSection === 'both') && matchesSearch(t)));
+    const weekendTreks = sortTrekPage(treks.filter(t => (t.featuredSection === 'weekend' || t.featuredSection === 'both') && matchesSearch(t)));
+    const comingSoonCommunities = sortTrekPage(communities.filter(c => (c.trekPageSection === 'comingSoon' || c.trekPageSection === 'both') && matchesSearch(c)));
+    const exploreCommunities    = sortTrekPage(communities.filter(c => (c.trekPageSection === 'communities' || c.trekPageSection === 'both' || !c.trekPageSection) && matchesSearch(c)));
     const heroItems = sortTrekPage([...heroTreks, ...comingSoonCommunities]);
-    const categoryTreks = activeCategory ? treks.filter(t => t.trekCategory === activeCategory) : [];
+    const categoryTreks = activeCategory ? treks.filter(t => t.trekCategory === activeCategory && matchesSearch(t)) : [];
 
     const heroBannerEvents = useMemo(() => heroItems.map(item => ({
         id: item.id,
@@ -366,7 +351,7 @@ function TreksPage() {
                 brandingRow={
                     <>
                         <AppLogo />
-                        <div className="flex items-center gap-1">
+                        <div className="mobile-header-actions">
                             <button
                                 className={`p-2 rounded-xl bg-transparent transition-colors
                                     ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}`}
@@ -388,7 +373,29 @@ function TreksPage() {
                         </div>
                     </>
                 }
-                searchRow={<HeroSearchBar readOnly isDark={isDark} />}
+                searchRow={
+                    <div className="relative" ref={heroSearch.searchRef}>
+                        <HeroSearchBar
+                            value={heroSearch.searchQuery}
+                            onChange={(e) => heroSearch.setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') heroSearch.handleEnter(); }}
+                            onClear={heroSearch.clearSearch}
+                            placeholder="search treks, communities"
+                            isDark={isDark}
+                        />
+                        <HeroSearchDropdown
+                            isOpen={heroSearch.isOpen}
+                            isSearching={heroSearch.isSearching}
+                            searchQuery={heroSearch.searchQuery}
+                            results={heroSearch.mergedResults}
+                            popularTerms={heroSearch.popularTerms}
+                            isDark={isDark}
+                            onResultClick={heroSearch.handleResultClick}
+                            onSuggestionClick={heroSearch.applySuggestion}
+                            className="absolute left-0 right-0 top-full mt-1"
+                        />
+                    </div>
+                }
                 categoryBar={<HomeCategoryBar isDark={isDark} activeCategory="treks" noPadding />}
             />
 
@@ -407,7 +414,7 @@ function TreksPage() {
 
                     {/* ── Explore the Communities — Figma: w-40 h-52 (160×208) cards ── */}
                     <section className="mb-6 mt-4">
-                        <h2 className={`text-xl font-semibold px-4 mb-3 font-inter leading-7
+                        <h2 className={`home-section-heading px-4 mb-3 font-inter
                             ${isDark ? 'text-white' : 'text-black'}`}>
                             Explore the Communities
                         </h2>
@@ -417,12 +424,12 @@ function TreksPage() {
                             <EmptyState label="No communities added yet" />
                         ) : (
                             <div
-                                className="overflow-x-auto scrollbar-hide pl-4"
+                                className="carousel-scroll-center carousel-scroll-center--portrait overflow-x-auto scrollbar-hide"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
-                                <div className="flex gap-4 pb-2 snap-x snap-proximity">
+                                <div className="flex gap-4 pb-2">
                                     {exploreCommunities.map((comm) => (
-                                        <div key={comm.id} className="snap-start shrink-0">
+                                        <div key={comm.id} className="snap-center shrink-0">
                                             <CommunityCard
                                                 trek={comm}
                                                 isDark={isDark}
@@ -439,7 +446,7 @@ function TreksPage() {
 
                     {/* ── Upcoming Weekend Plans — Figma: size-80 (320px) card ── */}
                     <section className="mb-6">
-                        <h2 className={`text-xl font-semibold px-4 mb-3 font-inter leading-7
+                        <h2 className={`home-section-heading px-4 mb-3 font-inter
                             ${isDark ? 'text-white' : 'text-black'}`}>
                             Upcoming Weekend Plans
                         </h2>
@@ -451,13 +458,13 @@ function TreksPage() {
                             <>
                                 <div
                                     ref={weekendScrollRef}
-                                    className="overflow-x-auto scrollbar-hide pl-4 pr-4"
+                                    className="carousel-scroll-center carousel-scroll-center--wide overflow-x-auto scrollbar-hide"
                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                                     onScroll={(e) => setWeekendPg(Math.round(e.target.scrollLeft / 328))}
                                 >
-                                    <div className="flex gap-4 pb-1 snap-x snap-mandatory">
+                                    <div className="flex gap-4 pb-1">
                                         {weekendTreks.map((trek) => (
-                                            <div key={trek.id} className="snap-start">
+                                            <div key={trek.id} className="snap-center">
                                                 <WeekendCard
                                                     trek={trek}
                                                     isDark={isDark}
@@ -469,25 +476,14 @@ function TreksPage() {
                                         ))}
                                     </div>
                                 </div>
-                                {weekendTreks.length > 1 && (
-                                    <div className="flex justify-center items-center gap-2 mt-3">
-                                        {weekendTreks.map((_, i) => (
-                                            <div key={i} className={`rounded-2xl transition-all duration-300
-                                                ${i === weekendPg
-                                                    ? `h-2.5 w-6 ${isDark ? 'bg-white' : 'bg-[#0ECCEE]'}`
-                                                    : `size-3 bg-transparent rounded-full border-2 ${isDark ? 'border-gray-600' : 'border-[#0ECCEE]'}`
-                                                }`}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
+                                <CarouselDotPagination total={weekendTreks.length} current={weekendPg} />
                             </>
                         )}
                     </section>
 
                     {/* ── Browse by Trek Categories — Figma: size-20 rounded-full circles ── */}
                     <section className="mb-6">
-                        <h2 className={`text-xl font-semibold px-4 mb-6 font-inter leading-7
+                        <h2 className={`home-section-heading px-4 mb-6 font-inter
                             ${isDark ? 'text-white' : 'text-black'}`}>
                             Browse by Trek Categories
                         </h2>
@@ -540,7 +536,7 @@ function TreksPage() {
                             <div className="mt-4">
                                 {categoryTreks.length > 0 ? (
                                     <div
-                                        className="overflow-x-auto scrollbar-hide pl-4 pr-4"
+                                        className="carousel-scroll-center carousel-scroll-center--portrait overflow-x-auto scrollbar-hide"
                                         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                                     >
                                         <div className="flex gap-4 pb-2">
@@ -568,7 +564,7 @@ function TreksPage() {
 
                     {/* ── Beginner Friendly — same w-40 h-52, Name + Date + share ── */}
                     <section className="mb-6">
-                        <h2 className={`text-xl font-semibold px-4 mb-3 font-inter leading-7
+                        <h2 className={`home-section-heading px-4 mb-3 font-inter
                             ${isDark ? 'text-white' : 'text-black'}`}>
                             Beginner Friendly
                         </h2>
@@ -578,12 +574,12 @@ function TreksPage() {
                             <EmptyState label="No beginner treks added yet" />
                         ) : (
                             <div
-                                className="overflow-x-auto scrollbar-hide pl-4 pr-4"
+                                className="carousel-scroll-center carousel-scroll-center--portrait overflow-x-auto scrollbar-hide"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
-                                <div className="flex gap-4 pb-2 snap-x snap-mandatory">
+                                <div className="flex gap-4 pb-2">
                                     {beginnerTreks.map((trek) => (
-                                        <div key={trek.id} className="snap-start">
+                                        <div key={trek.id} className="snap-center">
                                             <BeginnerCard
                                                 trek={trek}
                                                 isDark={isDark}

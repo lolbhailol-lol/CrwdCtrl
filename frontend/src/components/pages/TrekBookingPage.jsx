@@ -3,6 +3,9 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationsContext';
+import CrwdCtrlLogin from './login';
+import CrwdCtrlRegister from './register';
 
 import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { getPendingPayment, clearPendingPayment } from '../../utils/deepLinks';
@@ -38,8 +41,43 @@ export default function TrekBookingPage() {
     const location  = useLocation();
     const { id }    = useParams();
     const { isDark } = useDarkMode();
-    const { user } = useAuth();
+    const {
+        user,
+        isAuthenticated,
+        isLoading: authLoading,
+        token: authToken,
+        isAuthProcessing,
+        isRedirectProcessing,
+    } = useAuth();
+    const { refreshNotifications } = useNotifications();
     const paymentResumeRef = useRef(false);
+    const [showLogin, setShowLogin] = useState(false);
+    const [showRegister, setShowRegister] = useState(false);
+
+    const isAuthed = useCallback(() => {
+        return isAuthenticated || !!authToken || !!localStorage.getItem('crwdctrl_token');
+    }, [isAuthenticated, authToken]);
+
+    const handleCloseLogin = () => setShowLogin(false);
+    const handleCloseRegister = () => setShowRegister(false);
+    const handleSwitchToRegister = () => {
+        setShowLogin(false);
+        setShowRegister(true);
+    };
+    const handleSwitchToLogin = () => {
+        setShowRegister(false);
+        setShowLogin(true);
+    };
+
+    useEffect(() => {
+        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
+        if (!isAuthed()) setShowLogin(true);
+    }, [authLoading, isAuthProcessing, isRedirectProcessing, isAuthed]);
+
+    useEffect(() => {
+        if (isAuthenticated && showLogin) setShowLogin(false);
+        if (isAuthenticated && showRegister) setShowRegister(false);
+    }, [isAuthenticated, showLogin, showRegister]);
 
     const [trek, setTrek] = useState(location.state?.trek || null);
     const [loadingTrek, setLoadingTrek] = useState(!location.state?.trek);
@@ -218,6 +256,10 @@ export default function TrekBookingPage() {
         if (!trekId) throw new Error('Trek not found');
 
         const token = localStorage.getItem('crwdctrl_token');
+        if (!token) {
+            setShowLogin(true);
+            throw new Error('Please log in to complete your booking.');
+        }
         const regRes = await fetch(`${API}/treks/${trekId}/register`, {
             method: 'POST',
             headers: {
@@ -241,6 +283,7 @@ export default function TrekBookingPage() {
             throw new Error(regData.message || 'Registration failed after payment');
         }
         sessionStorage.removeItem(trekDraftKey(trekId));
+        refreshNotifications();
         return regData;
     };
 
@@ -308,6 +351,11 @@ export default function TrekBookingPage() {
 
     const next = async () => {
         setError('');
+        if (!isAuthed()) {
+            setShowLogin(true);
+            setError('Please log in to book this trek.');
+            return;
+        }
         if (step === 1) { setStep(2); return; }
 
         if (step === 2) {
@@ -412,7 +460,7 @@ export default function TrekBookingPage() {
 
     const back = () => step === 1 ? navigate(-1) : setStep(s => s - 1);
 
-    if (loadingTrek) {
+    if (loadingTrek || authLoading || isAuthProcessing || isRedirectProcessing) {
         return (
             <div className={`crwdctrl-page min-h-dvh flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                 <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
@@ -503,8 +551,23 @@ export default function TrekBookingPage() {
                     </div>
                 )}
 
+                {!isAuthed() && (
+                    <div className={`rounded-xl p-4 mb-4 border text-center ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-200'}`}>
+                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            Log in to book this trek and receive booking notifications.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setShowLogin(true)}
+                            className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                        >
+                            Log in to continue
+                        </button>
+                    </div>
+                )}
+
                 {/* Card */}
-                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'} ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
 
                     {/* Step Progress */}
                     <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
@@ -688,6 +751,18 @@ export default function TrekBookingPage() {
                     </div>
                 </div>
             </div>
+
+            {showLogin && (
+                <div className="fixed inset-0 z-50">
+                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                </div>
+            )}
+
+            {showRegister && (
+                <div className="fixed inset-0 z-50">
+                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                </div>
+            )}
         </div>
     );
 }

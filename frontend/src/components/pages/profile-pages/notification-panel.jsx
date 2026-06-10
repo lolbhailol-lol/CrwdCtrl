@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, ChevronLeft, Clock, Calendar } from 'lucide-react';
+import { Bell, Clock, Calendar, ArrowLeft } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useNotifications } from '../../../context/NotificationsContext';
@@ -54,25 +54,32 @@ function NotificationsPanel() {
     };
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
+        <div className={`min-h-screen flex transition-colors duration-300 pb-4 lg:pb-8 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
             <div className={`hidden lg:flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
-                <div className="flex-1 flex flex-col">
-                    <div className="p-4 sm:p-6 flex-1">
-                        <div className="max-w-2xl mx-auto">
-                            {/* Header */}
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <main className="flex-1 px-4 pt-4 sm:px-6 lg:px-8">
+                    <div className="mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl">
+                        <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-slate-100'}`}>
+                            <div className="flex items-center justify-between pb-8">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(-1)}
+                                        aria-label="Go back"
+                                        className={`shrink-0 p-1 rounded-lg transition-colors ${
+                                            isDark ? 'text-white hover:bg-gray-800' : 'text-gray-900 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        <ArrowLeft className="w-6 h-6" />
+                                    </button>
+                                    <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                         Notifications
                                     </h1>
-                                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                        {unreadCount > 0 ? `${unreadCount} unread notifications` : 'All caught up!'}
-                                    </p>
                                 </div>
                                 {unreadCount > 0 && (
                                     <button
+                                        type="button"
                                         onClick={markAllAsRead}
-                                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${isDark
+                                        className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${isDark
                                             ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
                                             : 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100'
                                             }`}
@@ -81,7 +88,13 @@ function NotificationsPanel() {
                                     </button>
                                 )}
                             </div>
-                            {/* Notifications List */}
+                        </div>
+                        <div className={`px-2.5 py-6 sm:px-4 min-h-[420px] rounded-2xl ${isDark ? 'bg-[#161718]' : 'bg-[#F5F6FA]'}`}>
+                            {unreadCount > 0 && (
+                                <p className={`mb-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
+                                </p>
+                            )}
                             <div className="space-y-4">
                                 {notifications.length > 0 ? (
                                     notifications.map((notification) => (
@@ -140,46 +153,49 @@ function NotificationsPanel() {
                             </div>
                         </div>
                     </div>
-                </div>
+                </main>
             </div>
 
-            {/* Mobile Layout - Shown only on Mobile */}
-            <div className="lg:hidden flex flex-1 flex-col">
-                {/* Mobile Header */}
-                <div className={`sticky top-0 z-40 backdrop-blur-sm border-b ${isDark ? 'bg-[#161718]/95 border-gray-800' : 'bg-white/95 border-gray-200'}`}>
-                    <div className="flex items-center justify-between p-4">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className={`p-2 rounded-xl transition-colors ${isDark
-                                ? 'hover:bg-gray-800 text-white'
-                                : 'hover:bg-gray-100 text-gray-900'
-                                }`}
-                        >
-                            <ChevronLeft className="w-6 h-6" />
-                        </button>
-                        <h1 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            Notifications
-                        </h1>
-                        {unreadCount > 0 && (
-                            <button
-                                onClick={markAllAsRead}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark
-                                    ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
-                                    : 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100'
-                                    }`}
-                            >
-                                Mark all read
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {/* Mobile Content */}
-                <div className="px-4 py-6">
-                    {unreadCount > 0 && (
-                        <div className={`mb-4 text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
+            {/* Mobile Layout */}
+            <div className="lg:hidden flex flex-1 flex-col w-full">
+                <main className="flex-1 px-4 pt-4 sm:px-6 pb-4">
+                    <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl">
+                        <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-slate-100'}`}>
+                            <div className="flex items-center justify-between pb-8">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(-1)}
+                                        aria-label="Go back"
+                                        className={`shrink-0 p-1 rounded-lg transition-colors ${
+                                            isDark ? 'text-white hover:bg-gray-800' : 'text-gray-900 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        <ArrowLeft className="w-6 h-6" />
+                                    </button>
+                                    <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        Notifications
+                                    </h1>
+                                </div>
+                                {unreadCount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={markAllAsRead}
+                                        className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark
+                                            ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
+                                            : 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100'
+                                            }`}
+                                    >
+                                        Mark all read
+                                    </button>
+                                )}
+                            </div>
                         </div>
+                        <div className={`px-2.5 py-6 sm:px-4 min-h-[420px] rounded-2xl ${isDark ? 'bg-[#161718]' : 'bg-[#F5F6FA]'}`}>
+                    {unreadCount > 0 && (
+                        <p className={`mb-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
+                        </p>
                     )}
                     <div className="space-y-3">
                         {notifications.length > 0 ? (
@@ -237,7 +253,9 @@ function NotificationsPanel() {
                             </div>
                         )}
                     </div>
-                </div>
+                        </div>
+                    </div>
+                </main>
             </div>
 
             {/* Profile Sidebar */}

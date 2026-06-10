@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { X, Heart, Calendar, MapPin, Clock, Sparkles, Filter, Trash2, ArrowLeft } from 'lucide-react';
+import { Heart, Calendar, MapPin, Clock, Sparkles, Filter, Trash2 } from 'lucide-react';
+import CardFavoriteButton from '../CardFavoriteButton';
+import CardShareButton from '../CardShareButton';
 import Sidebar from '../Sidebar';
 import Navbar from '../Navbar';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -29,14 +31,10 @@ const MobileFestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
                         e.target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80';
                     }}
                 />
-                {/* Remove Button - Circular at top-right of image */}
-                <button
+                <CardFavoriteButton
+                    isFavorite
                     onClick={() => onRemove(fest.id)}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500 backdrop-blur-sm flex items-center justify-center hover:bg-red-600 transition-all duration-200 shadow-lg"
-                    title="Remove from favorites"
-                >
-                    <X className="w-4 h-4 text-white" />
-                </button>
+                />
             </div>
 
             {/* Card Content */}
@@ -139,17 +137,10 @@ const FestCard = ({ fest, onRemove, onViewDetails, isDark }) => {
                     />
                 )}
 
-                {/* Remove Button */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onRemove(fest.id);
-                    }}
-                    className="absolute top-2 sm:top-3 right-2 sm:right-3 w-7 sm:w-9 h-7 sm:h-9 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center hover:bg-red-500/80 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-400"
-                    aria-label="Remove from favorites"
-                >
-                    <X className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" />
-                </button>
+                <CardFavoriteButton
+                    isFavorite
+                    onClick={() => onRemove(fest.id)}
+                />
             </div>
 
             <div className={`p-3 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
@@ -378,8 +369,15 @@ function FestFavoritesPage() {
 
     const favoriteCount = getFavoriteCount();
 
+    const handleShareFavorites = () => {
+        const url = `${window.location.origin}/favorites`;
+        if (navigator.share) {
+            navigator.share({ title: 'My Favourites on CrwdCtrl', url }).catch(() => {});
+        }
+    };
+
     return (
-        <div className={`crwdctrl-page min-h-screen flex transition-colors overflow-x-clip pb-24 lg:pb-0 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`crwdctrl-page min-h-screen flex transition-colors overflow-x-clip pb-24 lg:pb-0 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
             {/* Desktop Layout */}
             <div className={`hidden lg:flex lg:flex-1 lg:flex-col transition-all duration-300`}>
 
@@ -387,16 +385,18 @@ function FestFavoritesPage() {
                 <main className="flex-1 p-4 sm:p-6">
                     <div className="flex items-center justify-between mb-4">
                         <div>
-                            <h1 className={`text-2xl sm:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                Favorites
+                            <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                Favourites
                             </h1>
                             <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                 {favoriteCount} {favoriteCount === 1 ? 'event' : 'events'} saved
                             </p>
                         </div>
 
-                        {favoriteCount > 0 && (
-                            <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3">
+                            <CardShareButton isDark={isDark} size={22} onClick={handleShareFavorites} />
+                            {favoriteCount > 0 && (
+                                <>
                                 {/* Filter Button */}
                                 <div className="relative">
                                     <button
@@ -434,8 +434,9 @@ function FestFavoritesPage() {
                                         {showClearConfirm ? 'Confirm Clear All' : 'Clear All'}
                                     </span>
                                 </button>
-                            </div>
-                        )}
+                                </>
+                            )}
+                        </div>
                     </div>
                 </main>
 
@@ -491,30 +492,27 @@ function FestFavoritesPage() {
             </div>
 
             {/* Mobile Layout */}
-            <div className="lg:hidden flex flex-1 flex-col">
-                {/* Mobile Header */}
-                <div className={`sticky top-0 z-40 backdrop-blur-md  transition-all duration-300 ${isDark ? 'bg-[#161718]/90 border-gray-700' : 'bg-white/90 border-gray-200'
-                    }`}>
-                    <div className="flex items-center px-4 py-3">
-                        {/* Back Arrow */}
-                        <button
-                            onClick={() => navigate(-1)}
-                            className={`mr-3 p-2 rounded-xl transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-900 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                                }`}
+            <div className="lg:hidden flex flex-1 flex-col w-full">
+                <main className="flex-1 px-4 pt-4 sm:px-6 pb-4">
+                    <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl">
+                        <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
+                            <div className="flex items-center justify-between pb-8">
+                                <h1
+                                    className={`text-2xl font-medium font-inter leading-8 ${
+                                        isDark ? 'text-white' : 'text-gray-900'
+                                    }`}
+                                >
+                                    Favourites
+                                </h1>
+                                <CardShareButton isDark={isDark} size={22} onClick={handleShareFavorites} />
+                            </div>
+                        </div>
+
+                        <div
+                            className={`px-2.5 py-6 sm:px-4 min-h-[420px] rounded-2xl ${
+                                isDark ? 'bg-[#161718]' : 'bg-white'
+                            }`}
                         >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-
-                        {/* Title */}
-                        <h1 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'
-                            }`}>
-                            Favourites
-                        </h1>
-                    </div>
-                </div>
-
-                {/* Mobile Content */}
-                <main className="flex-1 px-4 py-4 pb-4">
                     {favoriteCount === 0 ? (
                         <div className="text-center py-16">
                             <Heart className={`mx-auto mb-4 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} size={48} />
@@ -554,8 +552,9 @@ function FestFavoritesPage() {
                             ))}
                         </div>
                     )}
+                        </div>
+                    </div>
                 </main>
-
             </div>
 
             {/* Login Modal */}

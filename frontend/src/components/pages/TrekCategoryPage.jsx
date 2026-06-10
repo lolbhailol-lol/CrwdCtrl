@@ -5,7 +5,8 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import ShareIcon from '../../assets/share.svg';
+import CardFavoriteButton from '../CardFavoriteButton';
+import CardShareButton from '../CardShareButton';
 import { TrekListSkeleton } from '../HomeEventCardSkeleton';
 import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import {
@@ -344,9 +345,7 @@ export default function TrekCategoryPage() {
                                 <div
                                     key={trek._id}
                                     onClick={() => navigate(`/trek/${trek._id}`, { state: { trek } })}
-                                    className={`rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all ${
-                                        isDark ? 'bg-[#111213]' : 'bg-[#F5F6FA]'
-                                    }`}
+                                    className="card-surface rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
                                 >
                                     {/* Image */}
                                     <div className="card-wide-image w-full">
@@ -362,17 +361,10 @@ export default function TrekCategoryPage() {
                                                 <span className="text-5xl">🏔️</span>
                                             </div>
                                         )}
-                                        {/* Heart */}
-                                        <button
-                                            onClick={e => { e.stopPropagation(); toggleFavorite(trek._id, trek); }}
-                                            className="absolute top-2.5 right-2.5 size-6 rounded-full bg-black/10 border-[0.5px] border-slate-100 flex items-center justify-center"
-                                        >
-                                            <svg width="12" height="12" viewBox="0 0 24 24"
-                                                fill={isFavorite(trek._id) ? '#ef4444' : 'none'}
-                                                stroke={isFavorite(trek._id) ? '#ef4444' : 'white'} strokeWidth="2">
-                                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                                            </svg>
-                                        </button>
+                                        <CardFavoriteButton
+                                            isFavorite={isFavorite(trek._id)}
+                                            onClick={() => toggleFavorite(trek._id, trek)}
+                                        />
                                     </div>
 
                                     {/* Info row */}
@@ -391,15 +383,13 @@ export default function TrekCategoryPage() {
                                                 </p>
                                             )}
                                         </div>
-                                        <button
-                                            onClick={e => {
-                                                e.stopPropagation();
+                                        <CardShareButton
+                                            isDark={isDark}
+                                            className="ml-3 shrink-0"
+                                            onClick={() => {
                                                 if (navigator.share) navigator.share({ title: trek.trekName, url: `${window.location.origin}/trek/${trek._id}` }).catch(() => {});
                                             }}
-                                            className={`size-8 rounded-2xl flex items-center justify-center ml-3 shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-white shadow-sm border border-gray-100'}`}
-                                        >
-                                            <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
-                                        </button>
+                                        />
                                     </div>
                                 </div>
                             );

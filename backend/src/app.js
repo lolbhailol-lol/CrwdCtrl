@@ -10,6 +10,7 @@ const { requestLogger } = require('./middleware/requestLogger');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { isDbReady } = require('./config/db');
+const { getFirebaseAdminStatus } = require('./config/firebaseAdmin');
 const apiRoutes = require('./routes');
 const { handleCashfreeWebhook } = require('./controllers/paymentWebhookController');
 
@@ -61,6 +62,7 @@ app.get('/', (_req, res) => {
 
 app.get('/api/health', (_req, res) => {
   const dbConnected = mongoose.connection.readyState === 1;
+  const firebase = getFirebaseAdminStatus();
   res.status(dbConnected ? 200 : 503).json({
     success: dbConnected,
     status: dbConnected ? 'OK' : 'DEGRADED',
@@ -68,14 +70,22 @@ app.get('/api/health', (_req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     database: dbConnected ? 'connected' : 'disconnected',
+    pushNotifications: firebase.configured ? 'ready' : 'disabled',
+    firebase: {
+      configured: firebase.configured,
+      projectId: firebase.projectId,
+      error: firebase.error,
+    },
   });
 });
 
 app.get('/api/ready', (_req, res) => {
   const dbReady = isDbReady();
+  const firebase = getFirebaseAdminStatus();
   const checks = {
     database: dbReady,
     env: !!process.env.JWT_SECRET?.trim(),
+    firebaseAdmin: firebase.configured,
   };
   const ready = Object.values(checks).every(Boolean);
 

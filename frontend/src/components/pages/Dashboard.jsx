@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock } from 'lucide-react';
+import CardFavoriteButton from '../CardFavoriteButton';
 import ShareIcon from '../../assets/share.svg';
 import AppLogo from '../AppLogo';
 import CulturalFestImage from '../../assets/mobile-icons/cultural-events-icon-02.svg';
@@ -13,9 +14,10 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { getImageUrl } from '../../utils/imageImports';
 import ContentImage from '../ContentImage';
-import { searchAll } from '../../services/searchService';
+import { useHeroSearch } from '../../hooks/useHeroSearch';
+import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
+import { clearSearchKeywordsCache } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlRegister from './register';
@@ -23,6 +25,7 @@ import { HeroBannerSkeleton } from '../HomeEventCardSkeleton';
 import { TRENDING_CARD_GAP } from '../../hooks/useHomeCarousel';
 import HeroBanner from '../HeroBanner';
 import HeroSearchBar from '../HeroSearchBar';
+import HeroSearchDropdown from '../HeroSearchDropdown';
 import HomeCategoryBar from '../HomeCategoryBar';
 import MobileStickyHeader from '../MobileStickyHeader';
 import HomeCarouselSection from '../HomeCarouselSection';
@@ -194,11 +197,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
     return (
         <div
             onClick={handleCardClick}
-            className={`card-carousel rounded-xl overflow-hidden duration-300 shadow-sm hover:shadow-md transition-shadow cursor-pointer
-    ${isDark
-                    ? 'bg-[#111213]'
-                    : 'bg-[#EDEDF2]'
-                }`}
+            className="card-surface card-carousel rounded-xl overflow-hidden duration-300 transition-shadow cursor-pointer"
         >
             <div className="relative aspect-[7/5] overflow-hidden rounded-t-xl">
                 {/* Loading placeholder */}
@@ -238,36 +237,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                     />
                 )}
 
-                {/* Heart Button with Premium Glass Effect - Same as FestCard */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleFavorite();
-                    }}
-                    className={`absolute top-2 sm:top-3 right-2 sm:right-3 w-7 sm:w-9 h-7 sm:h-9 rounded-full z-20
-                               transition-all duration-300 ease-in-out
-                               hover:scale-110 active:scale-95
-                               ${isDark 
-                                   ? 'bg-black/30 hover:bg-black/40 backdrop-blur-2xl border-2 border-white/30' 
-                                   : 'bg-white/50 hover:bg-white/70 backdrop-blur-2xl border-2 border-white/60'
-                               }
-                               shadow-xl hover:shadow-2xl
-                               ${isFavorite 
-                                   ? 'shadow-red-500/40 border-red-500/60 bg-red-500/20' 
-                                   : ''
-                               }`}
-                    aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                >
-                    <Heart
-                        className={`w-3.5 sm:w-4 h-3.5 sm:h-4 mx-auto transition-all duration-300 ease-in-out
-                                   ${isFavorite
-                                       ? 'text-red-500 fill-red-500 scale-110 animate-pulse' 
-                                       : isDark 
-                                           ? 'text-white hover:text-red-400 hover:scale-110' 
-                                           : 'text-gray-800 hover:text-red-500 hover:scale-110'
-                                   }`}
-                    />
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} className="z-20" />
 
             </div>
 
@@ -316,10 +286,6 @@ const Dashboard = () => {
     const [homeTreks, setHomeTreks] = useState([]);
     const [homeSports, setHomeSports] = useState([]);
     const [festError, setFestError] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState([]);
-    const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
-    const [isSearching, setIsSearching] = useState(false);
     const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
     const [currentLocation, setCurrentLocation] = useState({
         city: 'Pune', // Default fallback
@@ -333,7 +299,6 @@ const Dashboard = () => {
     const beyondCampusScrollRef = useRef(null);
     const upcomingScrollRef = useRef(null);
     const lastYearScrollRef = useRef(null);
-    const searchRef = useRef(null);
     const [searchParams, setSearchParams] = useSearchParams();
     
     // State for arrow visibility
@@ -367,6 +332,7 @@ const Dashboard = () => {
     const forceRefreshData = useCallback(() => {
         console.log('ðŸ”„ Force refreshing dashboard data...');
         clearCache();
+        clearSearchKeywordsCache();
         setFestError(null);
         refreshTreksAndComms();
 
@@ -858,89 +824,6 @@ const Dashboard = () => {
         }
     }, [isFestsLoading, ongoingEvents.length, beyondCampusEvents.length, upcomingEvents.length, lastYearEvents.length, checkScrollPosition]);
 
-    // Handle search functionality
-    const handleSearch = () => {
-        if (searchQuery.trim()) {
-            // Navigate to search results or filter current results
-            navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-        }
-    };
-
-    // Search functionality (same as desktop Navbar)
-    useEffect(() => {
-        const performSearch = async () => {
-            if (searchQuery.trim().length >= 2) {
-                setIsSearching(true);
-                try {
-                    console.log('ðŸ” Dashboard mobile search for:', searchQuery);
-                    const results = await searchAll(searchQuery);
-                    console.log('ðŸ” Dashboard search results received:', {
-                        fests: results.fests.length,
-                        competitions: results.competitions.length,
-                        total: results.total
-                    });
-                    
-                    // Combine fests and competitions, limit to 6 total results
-                    const combinedResults = [
-                        ...results.fests.map(fest => ({ ...fest, resultType: 'fest' })),
-                        ...results.competitions.map(comp => ({ ...comp, resultType: 'competition' }))
-                    ].slice(0, 6);
-                    
-                    console.log('ðŸ” Dashboard final combined results:', combinedResults.length, 'types:', combinedResults.map(r => r.resultType));
-                    
-                    setSearchResults(combinedResults);
-                    setIsSearchDropdownOpen(true);
-                } catch (error) {
-                    console.error('Dashboard search error:', error);
-                    setSearchResults([]);
-                    setIsSearchDropdownOpen(false);
-                } finally {
-                    setIsSearching(false);
-                }
-            } else {
-                setSearchResults([]);
-                setIsSearchDropdownOpen(false);
-                setIsSearching(false);
-            }
-        };
-
-        // Debounce search to avoid too many API calls
-        const timeoutId = setTimeout(performSearch, 300);
-        return () => clearTimeout(timeoutId);
-    }, [searchQuery]);
-
-    // Close search dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (searchRef.current && !searchRef.current.contains(event.target)) {
-                setIsSearchDropdownOpen(false);
-            }
-        };
-
-        if (isSearchDropdownOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }
-    }, [isSearchDropdownOpen]);
-
-    // Handle search result click
-    const handleSearchResultClick = (event) => {
-        console.log('ðŸ” Dashboard search result clicked:', event.resultType, event.id);
-        setSearchQuery('');
-        setIsSearchDropdownOpen(false);
-        
-        // Navigate based on result type
-        if (event.resultType === 'competition') {
-            // Navigate to competition details page
-            console.log('ðŸ” Navigating to competition:', `/competitions-view-details/${event.id}`);
-            navigate(`/competitions-view-details/${event.id}`);
-        } else {
-            // Navigate to fest details page
-            console.log('ðŸ” Navigating to fest:', `/view-details/${event.id}`);
-            navigate(`/view-details/${event.id}`);
-        }
-    };
-
     // Helper function to get city name from coordinates (for major Indian cities)
     const getCityFromCoordinates = (lat, lon) => {
         const cities = [
@@ -1240,6 +1123,48 @@ const Dashboard = () => {
 
     const getHomeItemId = (item) => item.id || item._id;
 
+    const searchQuickPicks = useMemo(
+        () => trendingItems.slice(0, 6).map((item) => ({
+            ...item,
+            id: item._id || item.id,
+            title: item._title,
+            subtitle: item._subtitle,
+            image: item._image,
+            resultType: item._type,
+        })),
+        [trendingItems],
+    );
+
+    const handleSearchNavigate = useCallback((result) => {
+        const type = result.resultType || result._type;
+        const id = result.id || result._id;
+        if (type === 'competition') {
+            navigate(`/competitions-view-details/${id}`);
+        } else if (type === 'fest') {
+            navigate(`/view-details/${id}`);
+        } else if (type === 'trek' || type === 'community' || type === 'sport') {
+            navigateToHomeItem(result);
+        } else {
+            navigate(`/view-details/${id}`);
+        }
+    }, [navigate, navigateToHomeItem]);
+
+    const searchKeywordCatalog = useMemo(
+        () => buildSearchKeywordsFromCatalog({
+            fests,
+            treks: homeTreks,
+            communities: homeCommunities,
+            sports: homeSports,
+        }),
+        [fests, homeTreks, homeCommunities, homeSports],
+    );
+
+    const heroSearch = useHeroSearch({
+        quickPickItems: searchQuickPicks,
+        keywordCatalog: searchKeywordCatalog,
+        onResultNavigate: handleSearchNavigate,
+    });
+
     // Error state
     if (error) {
         return (
@@ -1273,7 +1198,7 @@ const Dashboard = () => {
                     <AppLogo />
 
                     {/* Right icons */}
-                    <div className="flex items-center gap-1">
+                    <div className="mobile-header-actions">
                         {/* Location */}
                         <div className="relative">
                             <button
@@ -1350,57 +1275,25 @@ const Dashboard = () => {
                     </>
                 }
                 searchRow={
-                    <div className="relative" ref={searchRef}>
-                    <HeroSearchBar
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
-                        onClear={() => { setSearchQuery(''); setIsSearchDropdownOpen(false); }}
-                        isDark={isDark}
-                    />
-
-                        {/* Search dropdown */}
-                        {isSearchDropdownOpen && searchResults.length > 0 && (
-                            <div className={`absolute left-4 right-4 top-full mt-1 rounded-2xl shadow-2xl border z-50 overflow-hidden
-                                ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-200'}`}>
-                                {isSearching && (
-                                    <div className="flex items-center gap-2 px-4 py-3">
-                                        <Loader2 size={14} className="animate-spin text-gray-400" />
-                                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Searchingâ€¦</span>
-                                    </div>
-                                )}
-                                {searchResults.map((result) => (
-                                    <button
-                                        key={result.id}
-                                        onClick={() => handleSearchResultClick(result)}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
-                                            ${isDark ? 'hover:bg-gray-800 border-b border-gray-700/50' : 'hover:bg-gray-50 border-b border-gray-100'}`}
-                                    >
-                                        {result.coverImage || result.image ? (
-                                            <img
-                                                src={getImageUrl(result.coverImage || result.image, { preset: 'thumb' })}
-                                                alt={result.festName || result.name}
-                                                className="w-10 h-10 rounded-lg object-cover shrink-0"
-                                                onError={(e) => { e.target.style.display = 'none'; }}
-                                            />
-                                        ) : (
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0
-                                                ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                                                <Search size={14} className="text-gray-400" />
-                                            </div>
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                {result.festName || result.name}
-                                            </p>
-                                            <p className={`text-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                {result.resultType === 'competition' ? 'ðŸ† Competition' : 'ðŸŽ‰ Fest'} Â· {result.collegeName || result.fest?.festName || ''}
-                                            </p>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                    <div className="relative" ref={heroSearch.searchRef}>
+                        <HeroSearchBar
+                            value={heroSearch.searchQuery}
+                            onChange={(e) => heroSearch.setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') heroSearch.handleEnter(); }}
+                            onClear={heroSearch.clearSearch}
+                            isDark={isDark}
+                        />
+                        <HeroSearchDropdown
+                            isOpen={heroSearch.isOpen}
+                            isSearching={heroSearch.isSearching}
+                            searchQuery={heroSearch.searchQuery}
+                            results={heroSearch.mergedResults}
+                            popularTerms={heroSearch.popularTerms}
+                            isDark={isDark}
+                            onResultClick={heroSearch.handleResultClick}
+                            onSuggestionClick={heroSearch.applySuggestion}
+                            className="absolute left-0 right-0 top-full mt-1"
+                        />
                     </div>
                 }
                 categoryBar={<HomeCategoryBar isDark={isDark} noPadding />}
@@ -1436,14 +1329,14 @@ const Dashboard = () => {
                         emptyFallback={
                             festError && ongoingEvents.length === 0 ? (
                                 <section className="mb-8">
-                                    <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    <h2 className={`home-section-heading px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                         Trending Now
                                     </h2>
                                     <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
                                 </section>
                             ) : (
                                 <section className="mb-8">
-                                    <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    <h2 className={`home-section-heading px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                         Trending Now
                                     </h2>
                                     <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
@@ -1467,7 +1360,7 @@ const Dashboard = () => {
                         loading={isFestsLoading}
                         emptyFallback={
                             <section className="mb-8">
-                                <h2 className={`text-xl font-bold px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                <h2 className={`home-section-heading px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     Happening near you
                                 </h2>
                                 <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
@@ -1484,7 +1377,7 @@ const Dashboard = () => {
                     {/* Desktop-only: beyond campus grid */}
                     {beyondCampusEvents.length > 0 && (
                         <section className="hidden lg:block mb-8 px-4">
-                            <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <h2 className={`home-section-heading mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                 Beyond Campus
                             </h2>
                             <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">

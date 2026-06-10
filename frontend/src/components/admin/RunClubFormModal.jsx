@@ -9,7 +9,6 @@ const EMPTY = {
     organizer: '',
     aboutUs: '',
     coverImage: '',
-    galleryImages: [],
     registrationLink: '',
     contactPhone: '',
     contactInstagram: '',
@@ -31,9 +30,6 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                 ...EMPTY,
                 ...club,
                 coverImage: normalizeImageUrl(club.coverImage),
-                galleryImages: Array.isArray(club.galleryImages)
-                    ? club.galleryImages.map(normalizeImageUrl).filter(Boolean)
-                    : [],
             });
         } else {
             setForm(EMPTY);

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { requestNotificationPermission, onForegroundMessage } from '../firebase';
+import { requestNotificationPermission, getFcmTokenIfGranted, onForegroundMessage } from '../firebase';
 import { registerNativePushToken, getPushDeviceType } from '../utils/nativePush';
 import { isNativeApp } from '../utils/capacitorPlatform';
+import { shouldPromptForNotifications, markNotificationPromptAttempted } from '../utils/notificationPrompt';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -97,6 +98,42 @@ export const NotificationsProvider = ({ children }) => {
         }
     }, [showBrowserNotification]);
 
+    const registerPushToken = useCallback(async () => {
+        try {
+            if (!getToken()) return;
+
+            if (!isNativeApp() && (!('serviceWorker' in navigator) || (location.protocol !== 'https:' && location.hostname !== 'localhost'))) {
+                return;
+            }
+
+            const allowPrompt = shouldPromptForNotifications();
+            let fcmToken = null;
+
+            if (isNativeApp()) {
+                fcmToken = await registerNativePushToken({ allowPrompt });
+                if (allowPrompt) {
+                    markNotificationPromptAttempted();
+                }
+            } else if ('serviceWorker' in navigator) {
+                if (Notification.permission === 'granted') {
+                    fcmToken = await getFcmTokenIfGranted();
+                } else if (allowPrompt) {
+                    fcmToken = await requestNotificationPermission();
+                    markNotificationPromptAttempted();
+                }
+            }
+
+            if (fcmToken) {
+                await authFetchJSON('/notifications/register-push', {
+                    method: 'POST',
+                    body: JSON.stringify({ token: fcmToken, device: getPushDeviceType() }),
+                });
+            }
+        } catch (err) {
+            console.warn('Push registration skipped:', err.message);
+        }
+    }, []);
+
     // Fetch unread count (lightweight)
      
     const fetchUnreadCount = useCallback(async () => {
@@ -132,31 +169,8 @@ export const NotificationsProvider = ({ children }) => {
             fetchUnreadCount();
         }, 60000);
 
-        // Register FCM push token (native Capacitor or web)
-        const registerPush = async () => {
-            try {
-                if (!isNativeApp() && (!('serviceWorker' in navigator) || location.protocol !== 'https:' && location.hostname !== 'localhost')) {
-                    return;
-                }
-
-                let fcmToken = null;
-                if (isNativeApp()) {
-                    fcmToken = await registerNativePushToken();
-                } else if ('serviceWorker' in navigator) {
-                    fcmToken = await requestNotificationPermission();
-                }
-                if (fcmToken) {
-                    await authFetchJSON('/notifications/register-push', {
-                        method: 'POST',
-                        body: JSON.stringify({ token: fcmToken, device: getPushDeviceType() }),
-                    });
-                }
-            } catch (err) {
-                console.warn('Push registration skipped:', err.message);
-            }
-        };
         // Delay push registration to avoid blocking initial load
-        const pushTimer = setTimeout(registerPush, 5000);
+        const pushTimer = setTimeout(registerPushToken, 5000);
 
         // Listen for foreground FCM messages
         const unsubFCM = onForegroundMessage((payload) => {
@@ -184,7 +198,19 @@ export const NotificationsProvider = ({ children }) => {
             clearTimeout(pushTimer);
             if (typeof unsubFCM === 'function') unsubFCM();
         };
-    }, [fetchNotifications, fetchUnreadCount]);
+    }, [fetchNotifications, fetchUnreadCount, registerPushToken]);
+
+    // Re-run push registration after an active login in the same tab
+    useEffect(() => {
+        const onUserLogin = () => {
+            fetchNotifications();
+            fetchUnreadCount();
+            setTimeout(registerPushToken, 2000);
+        };
+
+        window.addEventListener('crwdctrl:user-login', onUserLogin);
+        return () => window.removeEventListener('crwdctrl:user-login', onUserLogin);
+    }, [fetchNotifications, fetchUnreadCount, registerPushToken]);
 
     // Listen for auth changes (login/logout)
     useEffect(() => {

@@ -71,7 +71,6 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
                 <div
                     className="bottom-nav-pill"
                     style={{
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'}`,
                         backgroundColor: isDark ? '#0A0A0A' : '#F5F6FA',
                     }}
                 >
@@ -90,11 +89,11 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
                                     style={{
                                         color: active
                                             ? '#00C2CB'
-                                            : isDark ? '#e5e7eb' : '#6b7280',
+                                            : isDark ? '#e5e7eb' : '#111827',
                                     }}
                                 >
                                     <span className="bottom-nav-item__icon crisp-icon-svg">
-                                        <IconComponent size={22} strokeWidth={2} />
+                                        <IconComponent size={26} strokeWidth={2} />
                                     </span>
                                 </button>
                             );

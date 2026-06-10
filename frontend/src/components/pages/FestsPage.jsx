@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MapPin, Bell } from 'lucide-react';
+import { MapPin, Bell } from 'lucide-react';
+import CardFavoriteButton from '../CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import ContentImage from '../ContentImage';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../HomeCategoryBar';
 import MobileStickyHeader from '../MobileStickyHeader';
 import HeroSearchBar from '../HeroSearchBar';
 import HeroBanner from '../HeroBanner';
 import AppLogo from '../AppLogo';
-import ShareIcon from '../../assets/share.svg';
+import CardShareButton from '../CardShareButton';
 import { FestCardsRowSkeleton } from '../HomeEventCardSkeleton';
 import CulturalIcon from '../../assets/mobile-icons/cul.svg';
 import TechIcon from '../../assets/mobile-icons/techhh.svg';
@@ -32,7 +34,7 @@ const SubcategoryTile = ({ cat, isDark, onClick }) => (
         onClick={onClick}
         aria-label={cat.label}
         style={{ WebkitTapHighlightColor: 'transparent' }}
-        className="flex flex-col items-center justify-center gap-2.5 py-5 lg:py-7 rounded-2xl lg:rounded-3xl
+        className="flex flex-col items-center justify-center gap-1.5 pt-1 pb-3 lg:pt-2 lg:pb-5 rounded-2xl lg:rounded-3xl
                    transition-opacity duration-150 active:opacity-80"
     >
         <img
@@ -44,46 +46,11 @@ const SubcategoryTile = ({ cat, isDark, onClick }) => (
             decoding="sync"
             className="crisp-icon category-icon-lg pointer-events-none"
         />
-        <span className={`text-fluid-xs lg:text-sm font-bold tracking-wide ${isDark ? 'text-white' : 'text-[#111827]'}`}>
-            {cat.label}
+        <span className={`text-fluid-xs lg:text-sm font-bold ${isDark ? 'text-white' : 'text-[#111827]'}`}>
+            {toCardText(cat.label)}
         </span>
     </button>
 );
-
-// ── Dot Pagination ──────────────────────────────────────────────────────────
-const DotRow = ({ total, active }) => {
-    if (total <= 1) return null;
-    const shown = Math.min(total, 5);
-    return (
-        <div className="flex justify-center gap-1.5 mt-3 lg:hidden">
-            {Array.from({ length: shown }).map((_, i) => (
-                <div
-                    key={i}
-                    className={`rounded-full transition-all duration-300 ${
-                        i === (active % shown) ? 'w-5 h-2 bg-[#0ECCEE]' : 'w-2 h-2 bg-gray-500/50'
-                    }`}
-                />
-            ))}
-        </div>
-    );
-};
-
-// ── Horizontal scroll hook (tracks active index from scroll position) ────────
-function useScrollIndex(ref, cardSelector = '.card-carousel-fest', gap = 12) {
-    const [idx, setIdx] = useState(0);
-    useEffect(() => {
-        const el = ref.current;
-        if (!el) return;
-        const handler = () => {
-            const card = el.querySelector(cardSelector);
-            const step = (card?.offsetWidth ?? 312) + gap;
-            setIdx(Math.round(el.scrollLeft / step));
-        };
-        el.addEventListener('scroll', handler, { passive: true });
-        return () => el.removeEventListener('scroll', handler);
-    }, [ref, cardSelector, gap]);
-    return idx;
-}
 
 // ── Fest Event Card ──────────────────────────────────────────────────────────
 const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetails }) => {
@@ -102,9 +69,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
     return (
         <div
-            className={`card-carousel-fest lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start
-                        transition-all duration-200 active:scale-[0.98]
-                        ${isDark ? 'bg-[#111213]' : 'bg-white shadow-md lg:shadow-lg'}`}
+            className="card-surface card-carousel-fest lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start shrink-0 transition-all duration-200 active:scale-[0.98]"
             onClick={onViewDetails}
         >
             {/* Image */}
@@ -116,45 +81,22 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
                     className="w-full h-full object-cover"
                     onError={(e) => handleImageErrorWithFallback(e, 320, 190, '#6366f1', fest.festName || 'Fest')}
                 />
-                {/* Heart */}
-                <button
-                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
-                    className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center
-                                transition-all duration-200 active:scale-90
-                                ${isFavorite
-                                    ? 'bg-red-500 shadow-lg shadow-red-500/40'
-                                    : 'bg-black/40 backdrop-blur-sm border border-white/20'
-                                }`}
-                    aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
-                >
-                    <Heart size={16} className={isFavorite ? 'fill-white text-white' : 'text-white'} />
-                </button>
+                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
 
             {/* Info */}
             <div className="px-3 pt-3 pb-3 lg:px-4 lg:pt-4 lg:pb-4">
-                <div className="flex items-start justify-between mb-1">
-                    <h3 className={`text-fluid-base lg:text-base font-bold leading-snug flex-1 pr-2 line-clamp-1
-                                   ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {fest.festName}
-                    </h3>
-                    <button
-                        onClick={handleShare}
-                        className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-colors
-                                   ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                        aria-label="Share"
-                    >
-                        <img
-                            src={ShareIcon}
-                            alt="Share"
-                            className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`}
-                        />
-                    </button>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="min-w-0 flex-1">
+                        <h3 className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {toCardText(fest.festName)}
+                        </h3>
+                        <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {toCardText(fest.collegeName)}
+                        </p>
+                    </div>
+                    <CardShareButton onClick={handleShare} isDark={isDark} className="shrink-0" />
                 </div>
-
-                <p className={`text-xs lg:text-sm mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {fest.collegeName}
-                </p>
 
                 <button
                     onClick={(e) => { e.stopPropagation(); onViewDetails(); }}
@@ -171,23 +113,19 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
 // ── Horizontal Section ───────────────────────────────────────────────────────
 const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite, navigate }) => {
-    const scrollRef = useRef(null);
-    const activeIdx = useScrollIndex(scrollRef, 312);
-
     if (!loading && fests.length === 0) return null;
 
     return (
         <section className="mb-8">
-            <h2 className={`text-xl lg:text-2xl font-bold px-[var(--page-gutter)] lg:px-10 mb-4 lg:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <h2 className={`home-section-heading px-[var(--page-gutter)] mb-4 lg:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {title}
             </h2>
 
             <div
-                ref={scrollRef}
-                className="overflow-x-auto lg:overflow-visible scrollbar-hide px-[var(--page-gutter)] lg:px-10"
+                className="carousel-scroll-gutter carousel-scroll-gutter--static-lg overflow-x-auto lg:overflow-visible scrollbar-hide"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
             >
-                <div className="flex gap-3 lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-6 pb-1 lg:pb-6 snap-x snap-mandatory lg:snap-none">
+                <div className="flex gap-3 lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-6 pb-1 lg:pb-6 lg:snap-none">
                     {loading
                         ? <FestCardsRowSkeleton count={2} />
                         : fests.map(fest => (
@@ -203,8 +141,6 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
                     }
                 </div>
             </div>
-
-            {!loading && <DotRow total={fests.length} active={activeIdx} />}
         </section>
     );
 };
@@ -278,14 +214,15 @@ export default function FestsPage() {
     const isEmpty = !loading && ongoingFests.length === 0 && upcomingFests.length === 0 && lastYearFests.length === 0;
 
     return (
-        <div className={`crwdctrl-page min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+        <div className={`crwdctrl-page fests-page min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
 
             <MobileStickyHeader
                 isDark={isDark}
+                shellClassName="fests-page-header"
                 brandingRow={
                     <>
                         <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
-                        <div className="flex items-center gap-1">
+                        <div className="mobile-header-actions">
                             <button
                                 onClick={() => navigate('/')}
                                 className={`p-2 rounded-xl bg-transparent transition-colors ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-black/5'}`}
@@ -320,7 +257,7 @@ export default function FestsPage() {
             <main className="pb-8 lg:pb-12">
 
                 {/* ── Desktop Search ── */}
-                <div className="hidden lg:block lg:px-10 lg:pt-6 lg:pb-4">
+                <div className="hidden lg:block px-[var(--page-gutter)] lg:pt-6 lg:pb-4">
                     <HeroSearchBar
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
@@ -330,10 +267,11 @@ export default function FestsPage() {
                     />
                 </div>
 
-                <div className="pt-6 lg:pt-0">
+                <div className="pt-4 lg:pt-0">
 
                 {/* ── Hero Banner ── */}
                 <HeroBanner
+                    className="mb-3 lg:mb-6"
                     events={[...ongoingFests, ...upcomingFests]
                         .filter(f => f.image || f.heroImage)
                         .slice(0, 5)
@@ -341,7 +279,6 @@ export default function FestsPage() {
                             id: f._id,
                             image: f.heroImage || f.image,
                             title: f.festName,
-                            subtitle: f.collegeName,
                             dateTime: f.festDate,
                             status: f.status || 'ongoing',
                         }))}
@@ -350,9 +287,9 @@ export default function FestsPage() {
                 />
 
                 {/* ── Sub-category tiles: Cultural / Tech / Sports ── */}
-                <div className="px-4 mb-6 lg:px-10 lg:mb-10">
-                    <div className="flex items-center justify-between mb-4 lg:mb-6">
-                        <h2 className={`text-xl lg:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <div className="px-[var(--page-gutter)] -mt-1 mb-6 lg:mt-0 lg:mb-10">
+                    <div className="flex items-center justify-between mb-2 lg:mb-6">
+                        <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                             Categories
                         </h2>
                     </div>
@@ -405,7 +342,7 @@ export default function FestsPage() {
 
                 {/* ── Empty state ── */}
                 {isEmpty && (
-                    <div className={`mx-4 lg:mx-10 text-center py-16 lg:py-20 rounded-2xl
+                    <div className={`mx-[var(--page-gutter)] text-center py-16 lg:py-20 rounded-2xl
                                    ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-500 shadow-sm'}`}>
                         <div className="text-5xl mb-3">🎪</div>
                         <p className="text-base lg:text-lg font-semibold mb-1">

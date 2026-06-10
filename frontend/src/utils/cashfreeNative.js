@@ -1,41 +1,28 @@
-import { Capacitor } from '@capacitor/core';
+import {
+  beginNativeCheckoutPromise,
+  getNativeCashfreeGateway,
+  initCashfreeNativeGateway,
+  isNativeCashfreeGatewayReady,
+} from './bootstrapCashfreeNative';
 
 function getCashfreeEnvironment() {
   const mode = import.meta.env.VITE_CASHFREE_MODE || 'sandbox';
   return mode === 'production' ? 'PRODUCTION' : 'SANDBOX';
 }
 
-function waitForCashfreeGateway(maxMs = 8000) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-
-    const tryResolve = () => {
-      if (typeof window !== 'undefined' && window.CFPaymentGateway?.doWebCheckoutPayment) {
-        resolve(window.CFPaymentGateway);
-        return true;
-      }
-      return false;
-    };
-
-    if (!Capacitor.isNativePlatform()) {
-      reject(new Error('Cashfree native SDK is only available in the mobile app.'));
-      return;
-    }
-
-    if (tryResolve()) return;
-
-    const poll = () => {
-      if (tryResolve()) return;
-      if (Date.now() - start >= maxMs) {
-        reject(new Error('Cashfree native SDK not loaded. Rebuild the app with cap sync.'));
-        return;
-      }
-      setTimeout(poll, 100);
-    };
-
-    document.addEventListener('deviceready', poll, { once: true });
-    poll();
-  });
+/** Android native SDK requires theme even though Cordova docs mark it optional. */
+function buildWebCheckoutPayload({ paymentSessionId, orderId }) {
+  return {
+    theme: {
+      navigationBarBackgroundColor: '#2563EB',
+      navigationBarTextColor: '#FFFFFF',
+    },
+    session: {
+      payment_session_id: paymentSessionId,
+      orderID: orderId,
+      environment: getCashfreeEnvironment(),
+    },
+  };
 }
 
 /**
@@ -46,39 +33,16 @@ export async function openNativeCashfreeSdkCheckout({ paymentSessionId, orderId 
     throw new Error('Payment session missing. Restart the payment and try again.');
   }
 
-  const gateway = await waitForCashfreeGateway();
+  const gateway = await getNativeCashfreeGateway();
+  const checkoutPromise = beginNativeCheckoutPromise();
 
-  return new Promise((resolve, reject) => {
-    gateway.setCallback({
-      onVerify(result) {
-        const verifiedOrderId =
-          typeof result === 'string' ? result : result?.orderID || result?.orderId || orderId;
-        resolve({
-          nativeCheckout: true,
-          paymentDetails: {
-            orderId: verifiedOrderId,
-            paymentId: result?.paymentId || result?.cf_payment_id || '',
-          },
-        });
-      },
-      onError(error) {
-        const message =
-          error?.message ||
-          (typeof error === 'string' ? error : 'Payment failed or was cancelled');
-        reject(new Error(message));
-      },
-    });
+  gateway.doWebCheckoutPayment(buildWebCheckoutPayload({ paymentSessionId, orderId }));
 
-    gateway.doWebCheckoutPayment({
-      session: {
-        payment_session_id: paymentSessionId,
-        orderID: orderId,
-        environment: getCashfreeEnvironment(),
-      },
-    });
-  });
+  return checkoutPromise;
 }
 
 export function isNativeCashfreeAvailable() {
-  return typeof window !== 'undefined' && Boolean(window.CFPaymentGateway?.doWebCheckoutPayment);
+  return isNativeCashfreeGatewayReady();
 }
+
+export { initCashfreeNativeGateway };

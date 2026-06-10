@@ -365,6 +365,27 @@ export const authAPI = {
     },
 
     /**
+     * Upload profile picture image to Cloudinary
+     */
+    async uploadProfileImage(token, file) {
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('folder', 'crwdctrl/profiles');
+
+        const response = await fetch(`${getApiBaseUrl()}/users/upload/image`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new ApiError(data.error || data.message || 'Failed to upload image', response.status, data);
+        }
+        return data;
+    },
+
+    /**
      * Update user profile
      */
     async updateProfile(token, updateData) {

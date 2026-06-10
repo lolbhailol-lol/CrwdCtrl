@@ -4,6 +4,7 @@ import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import MobileBottomNav from './MobileBottomNav';
+import ProfileAvatarUpload from './ProfileAvatarUpload';
 import { usePageTransition } from './PageTransition';
 
 export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowRegister: _onShowRegister }) {
@@ -86,50 +87,41 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                 {/* Sidebar */}
                 <div className={`fixed right-0 top-0 z-70 w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
                     }`}>
-                    <div className={`h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#111213] ' : 'bg-[#EDEDF2]'
+                    <div className={`h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#111213] ' : 'bg-white'
                         }`}>
                         {/* Header */}
-                        <div className={`px-6 py-6 border-b flex items-center justify-between ${isDark ? 'bg-[#111213] border-[#111213]' : 'bg-[#EDEDF2] border-[#EDEDF2]'}
-                            }`}>
-                            <div className="flex items-center gap-3">
+                        <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
+                            <div className="flex items-center justify-between pb-3">
+                                <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    Profile
+                                </h1>
                                 <button
+                                    type="button"
                                     onClick={onClose}
-                                    className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                                        }`}
+                                    className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                                    aria-label="Close profile"
                                 >
                                     <ChevronLeft className="w-6 h-6" />
                                 </button>
-                                <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    Profile
-                                </h1>
                             </div>
-                            {/* Dark Mode Toggle */}
-
                         </div>
 
                         {/* Profile Section */}
-                        <div className={`px-6 py-8 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+                        <div className={`px-6 pt-2 pb-6 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                             <div className="flex items-center gap-4">
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isAuthenticated
-                                    ? 'bg-linear-to-br from-[#007BFF] to-[#00C9A7]'
-                                    : isDark
-                                        ? 'bg-gray-700'
-                                        : 'bg-gray-200'
-                                    }`}>
-                                    {isAuthenticated && user?.name ? (
-                                        <span className="text-white text-2xl font-bold">
-                                            {user.name.charAt(0).toUpperCase()}
-                                        </span>
-                                    ) : (
-                                        <User className={`w-8 h-8 ${isDark ? 'text-gray-300' : 'text-gray-600'
-                                            }`} />
-                                    )}
-                                </div>
+                                <ProfileAvatarUpload
+                                    isDark={isDark}
+                                    sizeClass="w-20 h-20"
+                                    initialClass="text-3xl"
+                                    guestIconClass="w-10 h-10"
+                                    cameraBtnClass="w-7 h-7"
+                                    className="!items-start"
+                                />
                                 <div>
                                     <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                         {isAuthenticated && user?.name ? user.name : 'guest'}
                                     </h2>
-                                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    <p className={`text-base font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                         {isAuthenticated && user?.email ? user.email : 'student'}
                                     </p>
                                 </div>
@@ -142,8 +134,11 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                 <button
                                     key={index}
                                     onClick={() => handleMenuItemClick(item.label)}
-                                    className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors group ${isDark ? 'hover:bg-gray-700' : 'hover:bg-[#EDEDF2]'}
-                                        }`}
+                                    className={`w-full flex items-center justify-between p-4 rounded-2xl shadow-lg transition-all duration-300 group ${
+                                        isDark
+                                            ? 'border border-gray-800 bg-[#111213] hover:bg-gray-800'
+                                            : 'border border-gray-100 bg-white hover:bg-gray-50'
+                                    }`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-blue-900/50' : 'bg-blue-50'
@@ -168,8 +163,11 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                 <button
                                     key={index}
                                     onClick={() => handleMenuItemClick(item.label)}
-                                    className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors group ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-                                        }`}
+                                    className={`w-full flex items-center justify-between p-4 rounded-2xl shadow-lg transition-all duration-300 group ${
+                                        isDark
+                                            ? 'border border-gray-800 bg-[#111213] hover:bg-gray-800'
+                                            : 'border border-gray-100 bg-white hover:bg-gray-50'
+                                    }`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-blue-900/50' : 'bg-blue-50'
@@ -193,10 +191,11 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                             {isAuthenticated ? (
                                 <button
                                     onClick={handleLogout}
-                                    className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl transition-colors group ${isDark
-                                        ? 'bg-gray-700 hover:bg-gray-600'
-                                        : 'bg-[#EDEDF2] hover:bg-gray-100'
-                                        }`}
+                                    className={`w-full flex items-center justify-center gap-2 p-4 rounded-2xl shadow-lg transition-all duration-300 group ${
+                                        isDark
+                                            ? 'border border-gray-800 bg-[#111213] hover:bg-gray-800'
+                                            : 'border border-gray-100 bg-white hover:bg-gray-50'
+                                    }`}
                                 >
                                     <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                         Log Out
@@ -241,55 +240,43 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                 <div className={`fixed inset-0 z-9999 profile-sidebar-mobile ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                     {/* Scrollable content container */}
                     <div className="h-full overflow-y-auto scrollbar-hide pb-32">
-                        <div className="min-h-full">
-                            {/* Header */}
-                            <div className={`px-6 py-6 pt-12 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-                            <div className="flex items-center justify-between">
-                                <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    Profile
-                                </h1>
-                                {/* Dark Mode Toggle */}
-                                <button
-                                    onClick={toggleDarkMode}
-                                    className={`flex items-center gap-1 px-4 py-2 rounded-full transition-all duration-300 ${isDark
-                                        ? 'bg-gray-800 hover:bg-gray-700'
-                                        : 'bg-[#EDEDF2] hover:bg-gray-100 shadow-md'
-                                        }`}
-                                    aria-label="Toggle dark mode"
-                                >
-                                    <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ${isDark ? 'text-yellow-400' : 'text-gray-600'
-                                        }`}>
-                                        {isDark ? <Moon size={16} /> : <Sun size={16} />}
+                        <main className="min-h-full px-4 pt-4 sm:px-6">
+                            <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl">
+                                <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
+                                    <div className="flex items-center justify-between pb-3">
+                                        <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            Profile
+                                        </h1>
+                                        <button
+                                            type="button"
+                                            onClick={toggleDarkMode}
+                                            className={`flex items-center gap-1 px-4 py-2 rounded-full transition-all duration-300 ${isDark
+                                                ? 'bg-gray-800 hover:bg-gray-700'
+                                                : 'bg-white hover:bg-gray-50 shadow-sm'
+                                                }`}
+                                            aria-label="Toggle dark mode"
+                                        >
+                                            <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ${isDark ? 'text-yellow-400' : 'text-gray-600'}`}>
+                                                {isDark ? <Moon size={16} /> : <Sun size={16} />}
+                                            </div>
+                                            <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ${isDark ? 'text-gray-600' : 'text-yellow-500'}`}>
+                                                {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                                            </div>
+                                        </button>
                                     </div>
-                                    <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ${isDark ? 'text-gray-600' : 'text-yellow-500'
-                                        }`}>
-                                        {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
+                                </div>
 
+                                <div className={`rounded-2xl ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                         {/* Profile Avatar Section */}
-                        <div className={`px-6 py-8 flex flex-col items-center ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-                            <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 ${isAuthenticated
-                                ? 'bg-linear-to-br from-[#007BFF] to-[#00C9A7]'
-                                : isDark
-                                    ? 'bg-gray-700'
-                                    : 'bg-gray-200'
-                                }`}>
-                                {isAuthenticated && user?.name ? (
-                                    <span className="text-white text-3xl font-bold">
-                                        {user.name.charAt(0).toUpperCase()}
-                                    </span>
-                                ) : (
-                                    <User className={`w-12 h-12 ${isDark ? 'text-gray-300' : 'text-gray-600'
-                                        }`} />
-                                )}
-                            </div>
+                        <div className="px-6 pt-2 pb-6 flex flex-col items-center">
+                            <ProfileAvatarUpload
+                                isDark={isDark}
+                                className="mb-3"
+                            />
                             <h2 className={`text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                 {isAuthenticated && user?.name ? user.name : 'Guest'}
                             </h2>
-                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            <p className={`text-base font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 student
                             </p>
                         </div>
@@ -301,10 +288,11 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                     <button
                                         key={index}
                                         onClick={() => handleMenuItemClick(item.label)}
-                                        className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-200 ${isDark
-                                            ? 'bg-gray-700/50 hover:bg-gray-700 active:scale-95'
-                                            : 'bg-[#EDEDF2] hover:bg-gray-100 shadow-sm active:scale-95'
-                                            }`}
+                                        className={`w-full flex items-center justify-between p-4 rounded-2xl shadow-lg transition-all duration-300 active:scale-95 ${
+                                            isDark
+                                                ? 'border border-gray-800 bg-[#111213] hover:bg-gray-800'
+                                                : 'border border-gray-100 bg-white hover:bg-gray-50'
+                                        }`}
                                     >
                                         <div className="flex items-center gap-4">
                                             <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-100'
@@ -359,6 +347,9 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                 </button>
                             )}
                         </div>
+                                </div>
+                            </div>
+                        </main>
                     </div>
 
                     {/* Mobile Bottom Navigation - Fixed at actual bottom with proper z-index and safe-area */}
@@ -386,7 +377,6 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                             />
                         </div>
                     )}
-                    </div>
                 </div>
             </div>
         </>

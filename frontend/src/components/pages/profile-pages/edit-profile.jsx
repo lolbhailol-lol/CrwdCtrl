@@ -9,6 +9,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authAPI, handleApiError } from '../../../utils/api';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
+import ProfileAvatarUpload from '../../ProfileAvatarUpload';
 
 function EditProfile() {
     const { isDark } = useDarkMode();
@@ -333,81 +334,6 @@ function EditProfile() {
         }
     };
 
-    // Get user initials for avatar
-    const getUserInitials = () => {
-        if (user?.name) {
-            return user.name.split(' ').map(word => word.charAt(0).toUpperCase()).join('').slice(0, 2);
-        }
-        return 'U';
-    };
-
-    // Get user avatar source (profile pic or initials)
-    const getUserAvatar = () => {
-        console.log('Getting user avatar, profilePic:', user?.profilePic);
-
-        if (user?.profilePic) {
-            return (
-                <>
-                    <img
-                        src={user.profilePic}
-                        alt={user.name || 'Profile'}
-                        className="w-full h-full object-cover rounded-full"
-                        onError={(e) => {
-                            console.log('Profile image failed to load:', user.profilePic);
-                            // Hide image and show initials
-                            e.target.style.display = 'none';
-                            const parent = e.target.parentElement;
-                            if (parent) {
-                                const initialsSpan = document.createElement('span');
-                                initialsSpan.className = 'text-white text-4xl font-semibold';
-                                initialsSpan.textContent = getUserInitials();
-                                parent.appendChild(initialsSpan);
-                            }
-                        }}
-                        onLoad={() => {
-                            console.log('Profile image loaded successfully');
-                        }}
-                    />
-                    <span className="text-white text-4xl font-semibold" style={{ display: 'none' }}>{getUserInitials()} </span>
-                </>
-            );
-        }
-        return (
-            <span className="text-white text-4xl font-semibold">{getUserInitials()}</span>
-        );
-    };
-
-    // Get mobile user avatar source
-    const getMobileUserAvatar = () => {
-        if (user?.profilePic) {
-            return (
-                <>
-                    <img
-                        src={user.profilePic}
-                        alt={user.name || 'Profile'}
-                        className="w-full h-full object-cover rounded-full"
-                        onError={(e) => {
-                            console.log('Mobile profile image failed to load:', user.profilePic);
-                            // Hide image and show initials
-                            e.target.style.display = 'none';
-                            const parent = e.target.parentElement;
-                            if (parent) {
-                                const initialsSpan = document.createElement('span');
-                                initialsSpan.className = 'text-white text-3xl font-semibold';
-                                initialsSpan.textContent = getUserInitials();
-                                parent.appendChild(initialsSpan);
-                            }
-                        }}
-                    />
-                    <span className="text-white text-3xl font-semibold" style={{ display: 'none' }}>{getUserInitials()}</span>
-                </>
-            );
-        }
-        return (
-            <span className="text-white text-3xl font-semibold">{getUserInitials()}</span>
-        );
-    };
-
     // Show login modal if not authenticated
     if (!isAuthenticated && showLogin) {
         return (
@@ -472,9 +398,15 @@ function EditProfile() {
                         <div className={`hidden lg:block max-w-4xl mx-auto rounded-lg shadow-sm p-8 ${isDark ? 'bg-[#161718]' : 'bg-gray-100'}`}>
                             {/* Profile Section */}
                             <div className="flex items-center gap-4 mb-8">
-                                <div className="w-20 h-20 bg-linear-to-br from-[#007BFF] to-[#00C9A7] rounded-full flex items-center justify-center relative overflow-hidden">
-                                    {getUserAvatar()}
-                                </div>
+                                <ProfileAvatarUpload
+                                    isDark={isDark}
+                                    sizeClass="w-20 h-20"
+                                    initialClass="text-3xl"
+                                    guestIconClass="w-10 h-10"
+                                    cameraBtnClass="w-7 h-7"
+                                    className="!items-start"
+                                    onSuccess={() => setSuccess('Profile picture updated!')}
+                                />
                                 <div>
                                     <div className={`text-lg font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                         {user.name || 'User'}
@@ -755,9 +687,14 @@ function EditProfile() {
                         <div className={`lg:hidden rounded-lg shadow-sm p-4 ${isDark ? 'bg-[#161718]' : 'bg-gray-100'}`}>
                             {/* Mobile Profile Section */}
                             <div className="flex flex-col items-center text-center mb-6">
-                                <div className="w-24 h-24 bg-linear-to-br from-[#007BFF] to-[#00C9A7] rounded-full flex items-center justify-center mb-4 relative overflow-hidden">
-                                    {getMobileUserAvatar()}
-                                </div>
+                                <ProfileAvatarUpload
+                                    isDark={isDark}
+                                    sizeClass="w-24 h-24"
+                                    initialClass="text-3xl"
+                                    guestIconClass="w-12 h-12"
+                                    className="mb-4"
+                                    onSuccess={() => setSuccess('Profile picture updated!')}
+                                />
                                 <div className={`text-xl font-medium ${isDark ? 'text-white' : 'text-gray-900'} mb-1`}>
                                     {user.name || 'User'}
                                     {user.provider && (

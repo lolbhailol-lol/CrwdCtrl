@@ -10,6 +10,34 @@ const { sendPushNotification } = require('../services/pushService');
 const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const multer = require('multer');
 
+/** Create in-app notification + push (call after HTTP response is sent). */
+async function notifyRegistrationSuccess(userId, { title, message, body, link, metadata }) {
+  await createNotification({
+    userId,
+    title,
+    message,
+    type: 'registration',
+    link,
+    metadata,
+  });
+  sendPushNotification(userId, {
+    title,
+    body: body || message,
+    link,
+    type: 'registration',
+  }).catch(() => {});
+}
+
+function scheduleRegistrationNotification(userId, payload) {
+  setImmediate(async () => {
+    try {
+      await notifyRegistrationSuccess(userId, payload);
+    } catch (notifErr) {
+      console.error('❌ Notification creation error:', notifErr.message);
+    }
+  });
+}
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -349,6 +377,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     await registration.save();
     console.log('✅ Registration saved to database');
 
+    const customCompRegistrationLink = `/registration-details/${registration._id}`;
+
     // ✅ PERFORMANCE: Return success IMMEDIATELY to frontend - don't wait for emails/sheets
     res.status(201).json({
       success: true,
@@ -365,34 +395,22 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       }
     });
 
+    scheduleRegistrationNotification(userId, {
+      title: 'Registration Confirmed!',
+      message: `You've successfully registered for ${competition.name}.`,
+      body: `You've registered for ${competition.name}`,
+      link: customCompRegistrationLink,
+      metadata: {
+        competitionId: competition._id,
+        festId: competition.fest?._id,
+        registrationId: registration._id,
+      },
+    });
+
     // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
     // Email queue in emailService.js handles rate limiting automatically
     setImmediate(async () => {
       try {
-        // STEP 0: Create in-app notification + push
-        try {
-          await createNotification({
-            userId,
-            title: 'Registration Confirmed!',
-            message: `You've successfully registered for ${competition.name}.`,
-            type: 'registration',
-            link: `/registration-details/${registration._id}`,
-            metadata: {
-              competitionId: competition._id,
-              festId: competition.fest?._id,
-              registrationId: registration._id,
-            },
-          });
-          sendPushNotification(userId, {
-            title: 'Registration Confirmed!',
-            body: `You've registered for ${competition.name}`,
-            link: `/registration-details/${registration._id}`,
-            type: 'registration',
-          }).catch(() => {});
-        } catch (notifErr) {
-          console.error('❌ Notification creation error:', notifErr.message);
-        }
-
         // STEP 1: Send thank you email (queued automatically for rate limiting)
         try {
           console.log('📧 Sending thank you email (async)...');
@@ -808,6 +826,8 @@ const submitCompetitionRegistration = async (req, res) => {
     // Get user details for emails and Google Sheets
     const user = await User.findById(userId).select('name email');
 
+    const competitionRegistrationLink = `/registration-details/${registration._id}`;
+
     // ✅ CRITICAL: Send success response immediately to user (don't wait for emails)
     res.status(201).json({
       message: 'Registration successful',
@@ -816,34 +836,22 @@ const submitCompetitionRegistration = async (req, res) => {
       competitionName: competition.name
     });
 
+    scheduleRegistrationNotification(userId, {
+      title: 'Registration Successful!',
+      message: `You've registered for ${competition.name} at ${fest.festName}.`,
+      body: `You've registered for ${competition.name} at ${fest.festName}`,
+      link: competitionRegistrationLink,
+      metadata: {
+        festId: fest._id,
+        competitionId: competition._id,
+        registrationId: registration._id,
+      },
+    });
+
     // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
     // This allows the response to be sent immediately while emails sync in background
     setImmediate(async () => {
       try {
-        // STEP 0: Create in-app notification + push
-        try {
-          await createNotification({
-            userId,
-            title: 'Registration Successful!',
-            message: `You've registered for ${competition.name} at ${fest.festName}.`,
-            type: 'registration',
-            link: `/registration-details/${registration._id}`,
-            metadata: {
-              festId: fest._id,
-              competitionId: competition._id,
-              registrationId: registration._id,
-            },
-          });
-          sendPushNotification(userId, {
-            title: 'Registration Successful!',
-            body: `You've registered for ${competition.name} at ${fest.festName}`,
-            link: `/registration-details/${registration._id}`,
-            type: 'registration',
-          }).catch(() => {});
-        } catch (notifErr) {
-          console.error('❌ Notification creation error:', notifErr.message);
-        }
-
         // STEP 1: Send thank you email (async, non-blocking)
         try {
           console.log('📧 Sending thank you email for competition (async)...');
@@ -1210,6 +1218,8 @@ const submitRegistration = async (req, res) => {
     // Get user details for Google Sheets
     const user = await User.findById(userId).select('name email');
 
+    const registrationLink = `/registration-details/${registration._id}`;
+
     // ✅ CRITICAL: Send success response immediately to user
     res.status(201).json({
       message: 'Registration submitted successfully',
@@ -1221,33 +1231,18 @@ const submitRegistration = async (req, res) => {
       }
     });
 
+    scheduleRegistrationNotification(userId, {
+      title: 'Registration Submitted!',
+      message: `Your registration for ${fest.festName} has been submitted successfully.`,
+      body: `Your registration for ${fest.festName} has been submitted`,
+      link: registrationLink,
+      metadata: { festId: fest._id, registrationId: registration._id },
+    });
+
     // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
     // This allows the response to be sent immediately while emails and Google Sheets sync in background
     setImmediate(async () => {
       try {
-        // STEP 0: Create in-app notification + push
-        try {
-          await createNotification({
-            userId,
-            title: 'Registration Submitted!',
-            message: `Your registration for ${fest.festName} has been submitted successfully.`,
-            type: 'registration',
-            link: `/registration-details/${registration._id}`,
-            metadata: {
-              festId: fest._id,
-              registrationId: registration._id,
-            },
-          });
-          sendPushNotification(userId, {
-            title: 'Registration Submitted!',
-            body: `Your registration for ${fest.festName} has been submitted`,
-            link: `/registration-details/${registration._id}`,
-            type: 'registration',
-          }).catch(() => {});
-        } catch (notifErr) {
-          console.error('❌ Notification creation error:', notifErr.message);
-        }
-
         // FIRST: Process file uploads in background (don't block the response)
         console.log('📁 Starting background file uploads...');
         
@@ -1818,6 +1813,8 @@ const payAndRegisterFest = async (req, res) => {
     await registration.save();
     console.log('✅ Fest pay-and-register saved:', registration._id);
 
+    const festRegistrationLink = `/registration-details/${registration._id}`;
+
     res.status(201).json({
       success: true,
       message: 'Registration successful',
@@ -1826,22 +1823,16 @@ const payAndRegisterFest = async (req, res) => {
       amountPaid: fest.feeAmount,
     });
 
+    scheduleRegistrationNotification(userId, {
+      title: 'Fest Registration Confirmed!',
+      message: `You've successfully registered for ${fest.festName}.`,
+      body: `You've registered for ${fest.festName}`,
+      link: festRegistrationLink,
+      metadata: { festId: fest._id, registrationId: registration._id },
+    });
+
     setImmediate(async () => {
       try {
-        await createNotification({
-          userId,
-          title: 'Fest Registration Confirmed!',
-          message: `You've successfully registered for ${fest.festName}.`,
-          type: 'registration',
-          link: `/registration-details/${registration._id}`,
-          metadata: { festId: fest._id, registrationId: registration._id },
-        });
-        sendPushNotification(userId, {
-          title: 'Fest Registration Confirmed!',
-          body: `You've registered for ${fest.festName}`,
-          link: `/registration-details/${registration._id}`,
-          type: 'registration',
-        }).catch(() => {});
         await sendRegistrationThankYouEmail(user.email, user.name, fest.festName).catch(() => {});
         await sendRegistrationConfirmationEmail(
           user.email, user.name,
@@ -1933,6 +1924,8 @@ const payAndRegister = async (req, res) => {
     await registration.save();
     console.log('✅ Pay-and-register saved:', registration._id);
 
+    const payCompRegistrationLink = `/registration-details/${registration._id}`;
+
     res.status(201).json({
       success: true,
       message: 'Registration successful',
@@ -1941,24 +1934,21 @@ const payAndRegister = async (req, res) => {
       amountPaid: competitionTotalAmount,
     });
 
-    // Background: notifications + emails
+    scheduleRegistrationNotification(userId, {
+      title: 'Registration Confirmed!',
+      message: `You've successfully registered for ${competition.name}.`,
+      body: `You've registered for ${competition.name}`,
+      link: payCompRegistrationLink,
+      metadata: {
+        competitionId: competition._id,
+        festId: competition.fest?._id,
+        registrationId: registration._id,
+      },
+    });
+
+    // Background: emails + sheets
     setImmediate(async () => {
       try {
-        await createNotification({
-          userId,
-          title: 'Registration Confirmed!',
-          message: `You've successfully registered for ${competition.name}.`,
-          type: 'registration',
-          link: `/registration-details/${registration._id}`,
-          metadata: { competitionId: competition._id, festId: competition.fest?._id, registrationId: registration._id },
-        });
-        sendPushNotification(userId, {
-          title: 'Registration Confirmed!',
-          body: `You've registered for ${competition.name}`,
-          link: `/registration-details/${registration._id}`,
-          type: 'registration',
-        }).catch(() => {});
-
         await sendRegistrationThankYouEmail(user.email, user.name, competition.name).catch(() => {});
         await sendRegistrationConfirmationEmail(
           user.email, user.name,

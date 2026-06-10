@@ -24,6 +24,7 @@ const paymentRoutes = require('../routers/paymentRoute');
 const notificationRoutes = require('../routers/notificationRoute');
 const qrRoutes = require('../routers/qrRoute');
 const analyticsRoutes = require('../routers/analyticsRoute');
+const publicSearchRoutes = require('../routers/publicSearchRoute');
 const { authLimiter, paymentLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -52,5 +53,6 @@ router.use('/payment', paymentLimiter, paymentRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/qr', qrRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/search', publicSearchRoutes);
 
 module.exports = router;

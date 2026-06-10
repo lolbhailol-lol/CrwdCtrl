@@ -173,6 +173,36 @@ export const searchAll = async (query, filters = {}) => {
  * @param {Object} filters - Optional filters (festType, location, startDate, endDate)
  * @returns {Promise<Array>} Array of matching fests
  */
+let keywordsCache = null;
+let keywordsCacheAt = 0;
+const KEYWORDS_TTL_MS = 5 * 60 * 1000;
+
+export const clearSearchKeywordsCache = () => {
+    keywordsCache = null;
+    keywordsCacheAt = 0;
+};
+
+/**
+ * Fetch search suggestion keywords from DB (fests, treks, communities, sports, etc.)
+ */
+export const fetchSearchKeywords = async () => {
+    if (keywordsCache && Date.now() - keywordsCacheAt < KEYWORDS_TTL_MS) {
+        return keywordsCache;
+    }
+    try {
+        const response = await fetchWithIOSFix(`${API_BASE_URL}/search/keywords`);
+        if (!response.ok) return keywordsCache || [];
+        const data = await response.json();
+        const list = Array.isArray(data?.keywords) ? data.keywords.filter(Boolean) : [];
+        keywordsCache = list;
+        keywordsCacheAt = Date.now();
+        return list;
+    } catch (error) {
+        console.warn('Failed to fetch search keywords:', error);
+        return keywordsCache || [];
+    }
+};
+
 export const searchFests = async (query, filters = {}) => {
     try {
         const searchParams = new URLSearchParams();
@@ -279,6 +309,7 @@ export default {
     searchFests,
     searchCompetitions,
     searchAll,
+    fetchSearchKeywords,
     getAllPublicFests,
     getUpcomingFests
 };

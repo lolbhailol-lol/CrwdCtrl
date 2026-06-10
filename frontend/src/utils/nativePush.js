@@ -3,12 +3,14 @@ import { isNativeApp, isAndroid } from './capacitorPlatform';
 
 /**
  * Register for native push (FCM on Android). Returns FCM token or null.
+ * @param {{ allowPrompt?: boolean }} options - When false, skips the OS permission dialog.
  */
-export async function registerNativePushToken() {
+export async function registerNativePushToken({ allowPrompt = false } = {}) {
   if (!isNativeApp()) return null;
 
   let perm = await PushNotifications.checkPermissions();
   if (perm.receive === 'prompt') {
+    if (!allowPrompt) return null;
     perm = await PushNotifications.requestPermissions();
   }
   if (perm.receive !== 'granted') return null;

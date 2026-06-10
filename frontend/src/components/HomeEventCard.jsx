@@ -1,6 +1,8 @@
-import { Heart, Share2 } from 'lucide-react';
 import ContentImage from './ContentImage';
+import CardFavoriteButton from './CardFavoriteButton';
+import CardShareButton from './CardShareButton';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
+import { toCardText } from '../utils/cardText';
 
 export default function HomeEventCard({
     event,
@@ -42,11 +44,10 @@ export default function HomeEventCard({
 
     return (
         <div
-            className={`cursor-pointer overflow-hidden ${cardRadius}
+            className={`card-surface cursor-pointer overflow-hidden ${cardRadius}
                 ${wideCard ? 'card-carousel-wide' : 'card-carousel'}
                 transition-transform duration-200 active:scale-[0.98]
                 ${cardBottomPad}
-                ${isDark ? (prominentImage ? 'bg-black' : 'bg-[#1a1b1e]') : 'bg-[#F2F4F7]'}
                 ${className}`}
             onClick={onViewDetails}
         >
@@ -72,53 +73,27 @@ export default function HomeEventCard({
                     )}
                 />
                 {onToggleFavorite && (
-                    <button
-                        type="button"
-                        onClick={handleFav}
-                        className={`card-icon-btn absolute right-2 top-2 rounded-full
-                            transition-all duration-200 active:scale-90
-                            ${isFavorite
-                                ? 'bg-red-500/90'
-                                : 'border border-white/80 bg-black/20'
-                            }`}
-                        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                    >
-                        <Heart
-                            size={16}
-                            strokeWidth={2}
-                            className={`crisp-icon-svg ${isFavorite ? 'fill-white text-white' : 'text-white'}`}
-                        />
-                    </button>
+                    <CardFavoriteButton isFavorite={isFavorite} onClick={handleFav} />
                 )}
             </div>
 
             {/* Title + share */}
             <div className={`flex items-center justify-between ${titleRowClass}`}>
                 <div className="min-w-0 flex-1">
-                    <h3 className={`text-fluid-base leading-tight line-clamp-1
-                        ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {event.title}
+                    <h3 className={`card-event-title line-clamp-1${isTrendingCard ? ' card-event-title--prominent' : ''} ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                        {toCardText(event.title)}
                     </h3>
                     {event.subtitle && (
-                        <p className={`mt-1 text-xs leading-tight line-clamp-1
-                            ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {event.subtitle}
+                        <p className={`card-event-subtitle line-clamp-1 ${
+                            isDark ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                            {toCardText(event.subtitle)}
                         </p>
                     )}
                 </div>
-                <button
-                    type="button"
-                    onClick={handleShare}
-                    className={`card-icon-btn shrink-0 rounded-full active:opacity-80
-                        ${isDark ? 'bg-[#2a2b2e]' : 'bg-[#E4E7EC]'}`}
-                    aria-label={`Share ${event.title}`}
-                >
-                    <Share2
-                        size={16}
-                        strokeWidth={2}
-                        className={`crisp-icon-svg ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
-                    />
-                </button>
+                <CardShareButton onClick={handleShare} isDark={isDark} />
             </div>
         </div>
     );

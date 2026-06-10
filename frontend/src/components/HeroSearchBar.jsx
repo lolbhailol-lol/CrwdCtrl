@@ -1,33 +1,43 @@
-import { Search, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import HeroSearchIcon from './HeroSearchIcon';
 
 /**
- * Pill search bar — white capsule, blue icon, soft shadow (Google-style).
+ * Rounded search bar with District-style magnifier badge.
  */
 export default function HeroSearchBar({
     value = '',
     onChange,
     onKeyDown,
+    onFocus,
     onClear,
     placeholder = 'search college, fest',
     className = '',
     isDark = false,
     readOnly = false,
+    inputRef,
 }) {
     const barClass = isDark
         ? 'bg-[#1a1b1e] shadow-[0_2px_10px_rgba(0,0,0,0.4)]'
         : 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.1)]';
 
     return (
-        <div className={`hero-search-bar flex items-center gap-3 rounded-full ${barClass} ${className}`}>
-            <Search size={20} strokeWidth={2.25} className="crisp-icon-svg shrink-0 text-[#1A73E8]" aria-hidden />
+        <div className={`hero-search-bar flex items-center gap-4 ${barClass} ${className}`}>
+            <HeroSearchIcon isDark={isDark} />
             <input
-                type="text"
+                ref={inputRef}
+                type="search"
+                enterKeyHint="search"
+                inputMode="search"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
                 value={value}
                 onChange={onChange}
                 onKeyDown={onKeyDown}
+                onFocus={onFocus}
                 placeholder={placeholder}
                 readOnly={readOnly}
-                className={`flex-1 min-w-0 bg-transparent text-fluid-base leading-none outline-none lowercase placeholder:text-[#70757A] placeholder:lowercase ${
+                className={`flex-1 min-w-0 bg-transparent text-fluid-sm leading-none outline-none lowercase placeholder:text-[#70757A] placeholder:lowercase ${
                     isDark ? 'text-gray-100' : 'text-[#3c4043]'
                 }`}
             />

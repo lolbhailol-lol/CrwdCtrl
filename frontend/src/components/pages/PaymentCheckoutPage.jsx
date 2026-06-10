@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { load } from '@cashfreepayments/cashfree-js';
 
 /**
- * Hosted on crwdctrl.in (Cashfree-whitelisted domain).
- * Native app opens this page in the system browser to avoid https://localhost SDK block.
+ * Web redirect checkout (crwdctrl.in). The Android app uses in-app native SDK or
+ * in-app Cashfree JS modal — not this page.
  */
 export default function PaymentCheckoutPage() {
   const [searchParams] = useSearchParams();

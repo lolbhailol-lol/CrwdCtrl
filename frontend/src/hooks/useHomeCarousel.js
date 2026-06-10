@@ -11,7 +11,7 @@ export function getHomeCardFallbackWidth(wideCard) {
 }
 
 /** Center a slide in a horizontal scroll container (accounts for padding + sub-pixel layout). */
-export function scrollCarouselToSlide(scrollEl, slideEl) {
+export function scrollCarouselToSlide(scrollEl, slideEl, behavior = 'instant') {
     if (!scrollEl || !slideEl) return;
 
     const containerRect = scrollEl.getBoundingClientRect();
@@ -22,7 +22,7 @@ export function scrollCarouselToSlide(scrollEl, slideEl) {
 
     scrollEl.scrollTo({
         left: Math.max(0, targetScroll),
-        behavior: 'instant',
+        behavior,
     });
 }
 

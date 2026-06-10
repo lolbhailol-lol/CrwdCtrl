@@ -8,35 +8,9 @@ import {
     scrollCarouselToSlide,
     HOME_CARD_GAP,
 } from '../hooks/useHomeCarousel';
+import CarouselDotPagination from './CarouselDotPagination';
 
 const SKELETON_COUNT = 2;
-
-function CarouselDots({ total, active, isDark }) {
-    if (total <= 1) return null;
-    const shown = Math.min(total, 5);
-    const dotColor = isDark ? '#0ECCEE' : '#4285F4';
-
-    return (
-        <div className="mt-4 flex items-center justify-center gap-1.5">
-            {Array.from({ length: shown }).map((_, i) => (
-                <div
-                    key={i}
-                    className="rounded-full transition-all duration-300"
-                    style={
-                        i === active % shown
-                            ? { width: 20, height: 8, backgroundColor: dotColor }
-                            : {
-                                width: 8,
-                                height: 8,
-                                backgroundColor: 'transparent',
-                                border: `2px solid ${dotColor}`,
-                            }
-                    }
-                />
-            ))}
-        </div>
-    );
-}
 
 function getItemId(item) {
     return item.id || item._id;
@@ -156,17 +130,28 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
             }
         };
 
+        const snapToNearest = (behavior = 'smooth') => {
+            if (jumpingRef.current) return;
+            const slideIndex = getNearestSlideIndex(el, trackEl);
+            const slide = trackEl.children[slideIndex];
+            if (slide) scrollCarouselToSlide(el, slide, behavior);
+        };
+
         let scrollEndTimer;
         const onScroll = () => {
             syncActiveIndex();
             clearTimeout(scrollEndTimer);
-            scrollEndTimer = setTimeout(handleLoopWrap, 120);
+            scrollEndTimer = setTimeout(() => {
+                snapToNearest('smooth');
+                handleLoopWrap();
+            }, 120);
         };
 
         const onScrollEnd = () => {
             clearTimeout(scrollEndTimer);
             syncActiveIndex();
-            handleLoopWrap();
+            snapToNearest('smooth');
+            requestAnimationFrame(handleLoopWrap);
         };
 
         el.addEventListener('scroll', onScroll, { passive: true });
@@ -191,7 +176,7 @@ function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, g
     const id = getItemId(item);
 
     return (
-        <div className="shrink-0">
+        <div className="carousel-slide shrink-0">
             <HomeEventCard
                 event={{
                     id,
@@ -278,12 +263,12 @@ export default function HomeCarouselSection({
 
         return (
             <section className="mb-8">
-                <h2 className={`home-section-heading mb-3 px-4 text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <h2 className={`home-section-heading mb-3 px-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {title}
                 </h2>
                 <div
                     ref={scrollRef}
-                    className="overflow-x-auto scrollbar-hide"
+                    className="home-carousel-scroll overflow-x-auto scrollbar-hide"
                     style={scrollStyle}
                 >
                     <div
@@ -292,7 +277,7 @@ export default function HomeCarouselSection({
                         style={{ gap: cardGap }}
                     >
                         {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
-                            <div key={index} className="shrink-0">
+                            <div key={index} className="carousel-slide shrink-0">
                                 <HomeEventCardSkeleton tallCard={tallCard} wideCard={wideCard} />
                             </div>
                         ))}
@@ -308,7 +293,7 @@ export default function HomeCarouselSection({
 
     return (
         <section className="mb-8">
-            <h2 className={`home-section-heading mb-3 px-4 text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <h2 className={`home-section-heading mb-3 px-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {title}
             </h2>
             <div
@@ -336,7 +321,7 @@ export default function HomeCarouselSection({
                     ))}
                 </div>
             </div>
-            <CarouselDots total={items.length} active={activeIndex} isDark={isDark} />
+            <CarouselDotPagination total={items.length} active={activeIndex} className="mt-4" />
         </section>
     );
 }

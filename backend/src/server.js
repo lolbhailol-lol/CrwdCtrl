@@ -11,10 +11,22 @@ const connectDB = require('./config/db');
 const { logger } = require('./utils/logger');
 const { captureException } = require('./config/sentry');
 const { initReminderCron } = require('./services/reminderService');
+const { getFirebaseAdminStatus } = require('./config/firebaseAdmin');
 
 async function startServer() {
   try {
     await connectDB();
+
+    const firebaseStatus = getFirebaseAdminStatus();
+    if (firebaseStatus.configured) {
+      logger.info('Firebase Admin ready for push notifications', {
+        projectId: firebaseStatus.projectId,
+      });
+    } else {
+      logger.warn('Firebase Admin not configured — push notifications disabled', {
+        error: firebaseStatus.error,
+      });
+    }
 
     const app = require('./app');
     const PORT = process.env.PORT || 8080;

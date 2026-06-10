@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { initCapacitorApp } from '../utils/capacitorApp';
 import { initNativePushNavigation } from '../utils/nativePush';
+import { initCashfreeNativeGateway } from '../utils/bootstrapCashfreeNative';
 import { verifyPendingCashfreePayment } from '../utils/useCashfree';
 import { getPendingPayment, clearPendingPayment, isTrekPaymentPending } from '../utils/deepLinks';
 
@@ -12,6 +13,10 @@ const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 export default function CapacitorInit() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    initCashfreeNativeGateway().catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cleanup = () => {};

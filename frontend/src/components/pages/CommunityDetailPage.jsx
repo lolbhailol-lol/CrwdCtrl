@@ -1,12 +1,35 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, Phone, Instagram } from 'lucide-react';
-import ShareIcon from '../../assets/share.svg';
+import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import CardFavoriteButton from '../CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { CompactPortraitCardsRowSkeleton } from '../HomeEventCardSkeleton';
+
+const GALLERY_PREVIEW_COUNT = 4;
+
+const resolveGallerySrc = (url, preset = 'thumb') =>
+    getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
+
+const buildGalleryImages = (community) => {
+    if (!community) return [];
+    const seen = new Set();
+    const out = [];
+    const add = (url) => {
+        const normalized = normalizeImageUrl(url);
+        if (normalized && !seen.has(normalized)) {
+            seen.add(normalized);
+            out.push(normalized);
+        }
+    };
+    add(community.coverImage);
+    add(community.image);
+    normalizeImageList(community.galleryImages).forEach(add);
+    return out;
+};
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -37,24 +60,87 @@ const normalizeCategory = (label) => {
 
 const normalizeCommunity = (raw) => {
     if (!raw) return null;
+    const coverImage = normalizeImageUrl(raw.coverImage);
+    const galleryImages = normalizeImageList(raw.galleryImages);
     return {
         id: raw.id || raw._id,
         title: raw.title || raw.name || 'Community Name',
         subtitle: raw.subtitle || raw.basedIn || '',
-        image: raw.image || raw.coverImage || raw.galleryImages?.[0] || null,
+        coverImage,
+        image: normalizeImageUrl(raw.image) || coverImage || galleryImages[0] || null,
         aboutUs: raw.aboutUs || '',
         trekCategories: raw.trekCategories || [],
-        galleryImages: raw.galleryImages || [],
+        galleryImages,
         contactPhone: raw.contactPhone || '',
         contactInstagram: raw.contactInstagram || '',
     };
 };
 
-/* ── Trek Card (same as BeginnerCard) ── */
+function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
+    const current = images[index];
+    const hasPrev = index > 0;
+    const hasNext = index < images.length - 1;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex flex-col bg-black/95"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gallery viewer"
+        >
+            <div className="flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-3">
+                <p className="text-white text-sm font-medium">
+                    {index + 1} / {images.length}
+                </p>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close gallery"
+                    className="size-10 rounded-full bg-white/10 flex items-center justify-center"
+                >
+                    <X size={20} className="text-white" />
+                </button>
+            </div>
+
+            <div className="relative flex-1 flex items-center justify-center px-4 pb-4 min-h-0">
+                {hasPrev && (
+                    <button
+                        type="button"
+                        onClick={() => onIndexChange(index - 1)}
+                        aria-label="Previous image"
+                        className="absolute left-2 z-10 size-10 rounded-full bg-white/10 flex items-center justify-center"
+                    >
+                        <ChevronLeft size={22} className="text-white" />
+                    </button>
+                )}
+                {current && (
+                    <img
+                        src={resolveGallerySrc(current, 'detail')}
+                        alt={`${name} gallery ${index + 1}`}
+                        className="max-h-full max-w-full object-contain rounded-xl"
+                        onError={(e) => handleImageErrorWithFallback(e, 360, 360, '#1a3a2a', name)}
+                    />
+                )}
+                {hasNext && (
+                    <button
+                        type="button"
+                        onClick={() => onIndexChange(index + 1)}
+                        aria-label="Next image"
+                        className="absolute right-2 z-10 size-10 rounded-full bg-white/10 flex items-center justify-center"
+                    >
+                        <ChevronRight size={22} className="text-white" />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/* ── Trek Card — matches treks-page BeginnerCard (white surface + shadow) ── */
 function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
     return (
         <div
-            className="card-portrait flex flex-col cursor-pointer active:scale-95 transition-transform"
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
             onClick={onClick}
         >
             <div className="card-portrait-image">
@@ -70,28 +156,17 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
                         <span className="text-4xl">🏔️</span>
                     </div>
                 )}
-                <button
-                    onClick={onFav}
-                    className={`absolute top-2.5 right-2.5 size-6 rounded-full flex items-center justify-center
-                        border-[0.5px] border-slate-100 ${isFav ? 'bg-red-500/80' : 'bg-black/10'}`}
-                >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill={isFav ? 'white' : 'none'} stroke="white" strokeWidth="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
-                </button>
+                <CardFavoriteButton isFavorite={isFav} onClick={onFav} />
             </div>
-            <div className="flex items-start justify-between mt-2">
-                <div className="flex-1 min-w-0 pr-1">
-                    <p className={`text-[15px] font-medium leading-6 tracking-wide line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full min-w-0">
+                <div className="flex-1 min-w-0">
+                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {trek.title}
                     </p>
-                    <p className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {trek.date || 'Date TBA'}
                     </p>
                 </div>
-                <button className={`size-8 shrink-0 rounded-2xl flex items-center justify-center mt-0.5 ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}>
-                    <img src={ShareIcon} alt="Share" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'opacity-60'}`} />
-                </button>
             </div>
         </div>
     );
@@ -111,6 +186,8 @@ export default function CommunityDetailPage() {
     const [expanded, setExpanded] = useState(false);
     const [imgPg, _setImgPg] = useState(0);
     const [liked, setLiked] = useState(false);
+    const [galleryOpen, setGalleryOpen] = useState(false);
+    const [galleryIndex, setGalleryIndex] = useState(0);
 
     const communityId = community?.id || id || null;
 
@@ -175,6 +252,13 @@ export default function CommunityDetailPage() {
         ? treks.filter(trek => trek.trekCategory === activeCategory)
         : treks;
 
+    const galleryImages = useMemo(() => buildGalleryImages(community), [community]);
+
+    const openGallery = (index = 0) => {
+        setGalleryIndex(index);
+        setGalleryOpen(true);
+    };
+
     const handleShare = () => {
         if (navigator.share) navigator.share({ title: name, url: window.location.href }).catch(() => {});
     };
@@ -197,27 +281,40 @@ export default function CommunityDetailPage() {
                 <div className="absolute inset-0 bg-black/20" />
 
                 {/* Top action bar */}
-                <div className="absolute top-14 left-0 right-0 flex items-center justify-between px-4">
+                <div
+                    className="absolute top-0 left-0 right-0 flex items-center justify-between px-4"
+                    style={{ paddingTop: 'calc(max(env(safe-area-inset-top), 0px) + 2.5rem)' }}
+                >
                     {/* Back */}
                     <button
+                        type="button"
                         onClick={() => navigate(-1)}
-                        className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                        aria-label="Go back"
+                        className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
                     >
-                        <ArrowLeft size={16} className="text-white" />
+                        <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
                     {/* Right: Share + Heart */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                         <button
+                            type="button"
                             onClick={handleShare}
-                            className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            aria-label="Share"
+                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
                         >
-                            <Share2 size={15} className="text-white" />
+                            <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
                         <button
+                            type="button"
                             onClick={() => setLiked(l => !l)}
-                            className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            aria-label="Favourite"
+                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
                         >
-                            <Heart size={15} className={liked ? 'fill-red-500 text-red-500' : 'text-white'} />
+                            <Heart
+                                size={20}
+                                strokeWidth={2.25}
+                                className={liked ? 'fill-red-500 text-red-500' : 'text-white'}
+                            />
                         </button>
                     </div>
                 </div>
@@ -236,13 +333,13 @@ export default function CommunityDetailPage() {
             </div>
 
             {/* ── Content card — slides up over the image ── */}
-            <div className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-5 pb-24
+            <div className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
                 ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}>
 
-                {/* Community name + share */}
+                {/* Community name + call */}
                 <div className="flex items-start justify-between mb-1">
                     <div className="flex-1 min-w-0 pr-3">
-                        <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <h1 className={`text-3xl font-medium font-inter leading-9 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                             {name}
                         </h1>
                         <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -250,17 +347,25 @@ export default function CommunityDetailPage() {
                         </p>
                     </div>
                     <button
-                        onClick={handleShare}
-                        className={`size-8 shrink-0 rounded-full flex items-center justify-center mt-1
-                            ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}
+                        type="button"
+                        onClick={() => {
+                            if (community?.contactPhone) {
+                                window.location.href = `tel:${community.contactPhone}`;
+                            }
+                        }}
+                        disabled={!community?.contactPhone}
+                        aria-label="Call community"
+                        className={`size-8 shrink-0 rounded-full flex items-center justify-center mt-1 transition-opacity
+                            ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}
+                            ${!community?.contactPhone ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
                     >
-                        <Share2 size={14} className={isDark ? 'text-white' : 'text-gray-600'} />
+                        <Phone size={18} strokeWidth={2.25} className="text-[#0ECCEE]" />
                     </button>
                 </div>
 
                 {/* ── About Us ── */}
                 <div className="mt-5 mb-5">
-                    <h2 className={`text-lg font-semibold font-inter leading-7 tracking-wide mb-2
+                    <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-2
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         About Us
                     </h2>
@@ -279,7 +384,7 @@ export default function CommunityDetailPage() {
 
                 {/* ── Trek Category ── */}
                 <div className="mb-5">
-                    <h2 className={`text-lg font-semibold font-inter leading-7 tracking-wide mb-3
+                    <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         Trek Category
                     </h2>
@@ -293,6 +398,7 @@ export default function CommunityDetailPage() {
                                     return (
                                         <button
                                             key={option.value}
+                                            type="button"
                                             onClick={() => setActiveCategory(option.value)}
                                             className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 active:scale-95
                                                 ${isActive
@@ -316,7 +422,7 @@ export default function CommunityDetailPage() {
                         {loadingTreks ? (
                             <CompactPortraitCardsRowSkeleton count={3} className="px-0" />
                         ) : filteredTreks.length === 0 ? (
-                            <div className={`mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-600'}`}>
+                            <div className={`card-surface mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                 No treks in this category yet.
                             </div>
                         ) : (
@@ -338,7 +444,7 @@ export default function CommunityDetailPage() {
 
                 {/* ── Contact Details ── */}
                 <div className="mb-5">
-                    <h2 className={`text-lg font-semibold font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         Contact Details
                     </h2>
                     <div className="space-y-2.5">
@@ -377,7 +483,61 @@ export default function CommunityDetailPage() {
                     </div>
                 </div>
 
+                {/* ── Gallery ── */}
+                <div className="mb-2">
+                    <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Gallery
+                    </h2>
+                    {galleryImages.length > 0 ? (
+                        <div className="grid grid-cols-4 gap-2.5">
+                            {galleryImages.slice(0, GALLERY_PREVIEW_COUNT).map((img, i) => {
+                                const isOverflowTile = galleryImages.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
+                                const remainingCount = galleryImages.length - GALLERY_PREVIEW_COUNT;
+                                return (
+                                    <button
+                                        key={`${img}-${i}`}
+                                        type="button"
+                                        onClick={() => openGallery(i)}
+                                        aria-label={isOverflowTile ? `View all ${galleryImages.length} gallery images` : `View gallery image ${i + 1}`}
+                                        className={`relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-transform ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
+                                    >
+                                        <img
+                                            src={resolveGallerySrc(img, 'cardSm')}
+                                            alt={`${name} gallery ${i + 1}`}
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            loading="lazy"
+                                            decoding="async"
+                                            onError={(e) => handleImageErrorWithFallback(e, 120, 120, '#1a3a2a', name)}
+                                        />
+                                        {isOverflowTile && (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/55">
+                                                <span className="text-white text-base font-semibold tracking-wide">
+                                                    {remainingCount}+
+                                                </span>
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            No gallery images yet.
+                        </p>
+                    )}
+                </div>
+
             </div>
+
+            {galleryOpen && galleryImages.length > 0 && (
+                <GalleryLightbox
+                    images={galleryImages}
+                    index={galleryIndex}
+                    name={name}
+                    onClose={() => setGalleryOpen(false)}
+                    onIndexChange={setGalleryIndex}
+                />
+            )}
         </div>
     );
 }

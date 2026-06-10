@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Mountain, Calendar, Clock, Users, MapPin, Edit2, Trash2, Plus, Eye, EyeOff, Users2 } from 'lucide-react';
+import { Mountain, Calendar, Clock, Users, MapPin, Edit2, Trash2, Plus, Eye, EyeOff, Users2, ExternalLink, Phone, Images } from 'lucide-react';
 import TrekFormModal from './TrekFormModal';
 import TrekCommunityFormModal from './TrekCommunityFormModal';
 
@@ -23,6 +23,19 @@ const CATEGORY_LABELS = {
     hiking: '🥾 Hiking', trail: '🌲 Trail Walks', backpacking: '🎒 Backpacking',
     camping: '⛺ Camping', adventure: '🏔️ Adventure',
 };
+
+const TREK_PAGE_SECTION_LABELS = {
+    communities: 'Explore',
+    comingSoon: 'Coming Soon',
+    both: 'Both',
+};
+
+function galleryCount(c) {
+    const urls = new Set();
+    if (c.coverImage) urls.add(c.coverImage);
+    (c.galleryImages || []).filter(Boolean).forEach((url) => urls.add(url));
+    return urls.size;
+}
 
 function formatDate(d) {
     if (!d) return 'TBA';
@@ -271,13 +284,42 @@ export default function TreksPage() {
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-white font-bold text-sm line-clamp-1">{c.name}</h3>
                                         {c.basedIn && <p className="text-gray-500 text-xs">📍 {c.basedIn}</p>}
-                                        <p className="text-gray-600 text-[11px] mt-0.5">
-                                            {loading ? '…' : `${commTreks.length} trek${commTreks.length !== 1 ? 's' : ''}`}
-                                        </p>
+                                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                                            <span className="text-gray-600 text-[11px]">
+                                                {loading ? '…' : `${commTreks.length} trek${commTreks.length !== 1 ? 's' : ''}`}
+                                            </span>
+                                            {galleryCount(c) > 0 && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                                                    <Images size={10} /> {galleryCount(c)} photos
+                                                </span>
+                                            )}
+                                            {c.contactPhone && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                                                    <Phone size={10} /> contact
+                                                </span>
+                                            )}
+                                            {c.showOnTreks !== false && (
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/20">
+                                                    {TREK_PAGE_SECTION_LABELS[c.trekPageSection] || 'Explore'}
+                                                </span>
+                                            )}
+                                            {c.showOnTreks === false && (
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-500">Hidden</span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Actions */}
                                     <div className="flex items-center gap-1.5 shrink-0">
+                                        <a
+                                            href={`/treks/community/${c._id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1.5 bg-gray-700 hover:bg-[#0ECCEE]/20 rounded-lg transition-colors"
+                                            title="Preview community page"
+                                        >
+                                            <ExternalLink size={13} className="text-[#0ECCEE]" />
+                                        </a>
                                         <button
                                             onClick={() => { setSelectedComm(c); setShowCommForm(true); }}
                                             className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded-lg transition-colors"

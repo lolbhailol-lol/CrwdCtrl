@@ -22,7 +22,7 @@ const ProfilePage = () => {
     };
 
     return (
-        <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
             <ProfileSidebar
                 isOpen={isOpen}
                 onClose={handleClose}

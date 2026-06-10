@@ -355,8 +355,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
                             {hasCategoryOptions
-                                ? 'Pulled from the selected community.'
-                                : 'Add trek categories in the community to enable this.'}
+                                ? 'Shown as trek cards under the matching category chip on the community detail page.'
+                                : 'Add trek categories in the community form to enable this.'}
                         </p>
                     </div>
 
@@ -461,7 +461,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
 
                     {/* Gallery Images */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Gallery Images <span className="text-gray-500 font-normal text-xs">(shown in the detail page slider)</span></label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Gallery Images <span className="text-gray-500 font-normal text-xs">(trek detail page image carousel)</span></label>
                         {form.images.length > 0 && (
                             <div className="flex flex-wrap gap-2 mb-2">
                                 {form.images.map((url, i) => (

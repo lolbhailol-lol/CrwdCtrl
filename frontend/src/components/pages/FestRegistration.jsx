@@ -3,6 +3,9 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { useNotifications } from '../../context/NotificationsContext';
+import CrwdCtrlLogin from './login';
+import CrwdCtrlRegister from './register';
 import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { parseTicketPrice } from '../../utils/platformFee';
 
@@ -15,6 +18,7 @@ export default function FestRegistration() {
   const [searchParams] = useSearchParams();
   const competitionId = searchParams.get('competition');
   const { isAuthenticated, isLoading: authLoading, token: authToken, isAuthProcessing, isRedirectProcessing } = useAuth();
+  const { refreshNotifications } = useNotifications();
 
   const { isDark } = useDarkMode();
   
@@ -38,8 +42,26 @@ export default function FestRegistration() {
   // Cashfree direct payment state
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [showLogin, setShowLogin] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
   const isCompetitionRegistration = !!competitionId;
+
+  const handleCloseLogin = () => setShowLogin(false);
+  const handleCloseRegister = () => setShowRegister(false);
+  const handleSwitchToRegister = () => {
+    setShowLogin(false);
+    setShowRegister(true);
+  };
+  const handleSwitchToLogin = () => {
+    setShowRegister(false);
+    setShowLogin(true);
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && showLogin) setShowLogin(false);
+    if (isAuthenticated && showRegister) setShowRegister(false);
+  }, [isAuthenticated, showLogin, showRegister]);
 
 
 
@@ -66,13 +88,12 @@ export default function FestRegistration() {
       const localToken = localStorage.getItem('crwdctrl_token');
       const hasAuth = isAuthenticated || !!authToken || !!localToken;
       
-      // If no authentication data at all (neither context nor localStorage), redirect to login
+      // If no authentication data at all (neither context nor localStorage), show login on this page
       if (!hasAuth) {
-        console.log('❌ No authentication data found, redirecting to login');
+        console.log('❌ No authentication data found, showing login modal');
         setError('Please log in to register for events');
-        // Save current URL for redirect after login
-        sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
-        setTimeout(() => navigate('/login', { replace: true }), 2000);
+        setShowLogin(true);
+        setLoading(false);
         return;
       }
 
@@ -1538,9 +1559,10 @@ export default function FestRegistration() {
       console.log('✅ Registration successful:', result);
 
       setSubmissionProgress('Registration completed successfully!');
-      const regId = result._id || result.registration?._id;
+      const regId = result._id || result.registration?._id || result.registrationId;
       setRegistrationId(regId);
       setSuccess(true);
+      refreshNotifications();
       setTimeout(() => {
         navigate(regId ? `/qr-ticket/${regId}` : '/booking');
       }, 2000);
@@ -1587,11 +1609,45 @@ export default function FestRegistration() {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
   };
 
-  if (loading || authLoading) {
+  const hasAuth = isAuthenticated || !!authToken || !!localStorage.getItem('crwdctrl_token');
+
+  if (loading || authLoading || isAuthProcessing || isRedirectProcessing) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
         <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
       </div>
+    );
+  }
+
+  if (!hasAuth) {
+    return (
+      <>
+        <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+          <div className={`w-full max-w-md rounded-2xl p-8 text-center shadow-xl ${isDark ? 'bg-[#1D1E20]' : 'bg-white'}`}>
+            <h1 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Log in to register</h1>
+            <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Please log in to register for this fest and receive booking notifications.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowLogin(true)}
+              className="w-full py-3 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+            >
+              Log in to continue
+            </button>
+          </div>
+        </div>
+        {showLogin && (
+          <div className="fixed inset-0 z-50">
+            <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+          </div>
+        )}
+        {showRegister && (
+          <div className="fixed inset-0 z-50">
+            <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+          </div>
+        )}
+      </>
     );
   }
 
@@ -1626,9 +1682,10 @@ export default function FestRegistration() {
       }
 
       const regData = await regRes.json().catch(() => ({}));
-      const regId = regData._id || regData.registration?._id;
+      const regId = regData._id || regData.registration?._id || regData.registrationId;
       setRegistrationId(regId);
       setSuccess(true);
+      refreshNotifications();
       setTimeout(() => {
         navigate(regId ? `/qr-ticket/${regId}` : '/booking');
       }, 2000);
@@ -2119,6 +2176,18 @@ export default function FestRegistration() {
           </form>
         </div>
       </div>
+
+      {showLogin && (
+        <div className="fixed inset-0 z-50">
+          <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+        </div>
+      )}
+
+      {showRegister && (
+        <div className="fixed inset-0 z-50">
+          <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+        </div>
+      )}
     </div>
   );
 }

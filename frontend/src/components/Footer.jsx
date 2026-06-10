@@ -14,7 +14,7 @@ export default function Footer() {
       <div className="crwdctrl-container max-w-7xl">
         <div className="flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-between">
           <div className="text-center md:text-left">
-            <h2 className="text-xl font-bold text-blue-600">CrwdCtrl</h2>
+            <h2 className="text-xl font-bold text-[#0ECCEE]">CrwdCtrl</h2>
             <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Fests, clubs &amp; meetups near you
             </p>
@@ -23,7 +23,7 @@ export default function Footer() {
               target="_blank"
               rel="noopener noreferrer"
               className={`mt-4 inline-flex items-center gap-2 text-sm transition-colors ${
-                isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-700 hover:text-blue-600'
+                isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-700 hover:text-[#0ECCEE]'
               }`}
             >
               <Instagram className="h-4 w-4 text-pink-600" />
@@ -31,24 +31,15 @@ export default function Footer() {
             </a>
           </div>
 
-          <nav className="flex flex-col items-center gap-2 md:items-end" aria-label="Legal and support">
-            {[
-              { to: '/contact-us', label: 'Contact Us' },
-              { to: '/terms-and-conditions', label: 'Terms & Conditions' },
-              { to: '/refunds-and-cancellations', label: 'Refunds & Cancellations' },
-              { to: '/products-and-services', label: 'Products & Services' },
-              { to: '/privacy-policy', label: 'Privacy Policy' },
-            ].map(({ to, label }) => (
-              <Link
-                key={to}
-                to={to}
-                className={`text-sm font-medium transition-colors ${
-                  isDark ? 'text-white hover:text-blue-400' : 'text-gray-900 hover:text-blue-600'
-                }`}
-              >
-                {label}
-              </Link>
-            ))}
+          <nav className="flex flex-col items-center gap-2 md:items-end" aria-label="Support">
+            <Link
+              to="/contact-us"
+              className={`text-sm font-medium transition-colors ${
+                isDark ? 'text-white hover:text-[#0ECCEE]' : 'text-gray-900 hover:text-[#0ECCEE]'
+              }`}
+            >
+              Contact Us
+            </Link>
           </nav>
         </div>
 

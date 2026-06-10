@@ -122,6 +122,46 @@ try {
     console.warn('⚠️ Firebase Messaging not available:', err.message);
 }
 
+const getFcmTokenWithRegistration = async () => {
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    await navigator.serviceWorker.ready;
+
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || undefined;
+    const fcmToken = await getToken(messaging, {
+        vapidKey,
+        serviceWorkerRegistration: registration,
+    });
+
+    return fcmToken || null;
+};
+
+/**
+ * Get FCM token when permission is already granted (no browser prompt).
+ * Returns the token string or null.
+ */
+export const getFcmTokenIfGranted = async () => {
+    try {
+        if (!messaging) {
+            return null;
+        }
+
+        if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) {
+            return null;
+        }
+
+        if (Notification.permission !== 'granted') {
+            return null;
+        }
+
+        return await getFcmTokenWithRegistration();
+    } catch (error) {
+        if (import.meta.env.DEV) {
+            console.warn('Push notifications unavailable:', error?.message || error);
+        }
+        return null;
+    }
+};
+
 /**
  * Request notification permission and get FCM token.
  * Returns the token string or null.
@@ -141,16 +181,7 @@ export const requestNotificationPermission = async () => {
             return null;
         }
 
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        await navigator.serviceWorker.ready;
-
-        const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || undefined;
-        const fcmToken = await getToken(messaging, {
-            vapidKey,
-            serviceWorkerRegistration: registration,
-        });
-
-        return fcmToken || null;
+        return await getFcmTokenWithRegistration();
     } catch (error) {
         // Common in dev / before SW is active — push is optional
         if (import.meta.env.DEV) {
