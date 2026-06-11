@@ -13,7 +13,6 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
 import AuthLoadingPage from './components/AuthLoadingPage'
-import AppLoadingPage from './components/AppLoadingPage'
 import LoadingBar from './components/LoadingBar'
 import { shouldShowBootSplash, removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
 import { isNativeApp } from './utils/capacitorPlatform'
@@ -37,7 +36,7 @@ const SportsCategoryPage = React.lazy(() => import('./components/pages/sports-ca
 const ViewDetailsPage = React.lazy(() => import('./components/pages/view-details'))
 const FavoritesPage = React.lazy(() => import('./components/pages/favorites'))
 const EditProfile = React.lazy(() => import('./components/pages/profile-pages/edit-profile'))
-const Booking = React.lazy(() => import('./components/pages/profile-pages/booking'))
+import Booking from './components/pages/profile-pages/booking'
 const HelpCenter = React.lazy(() => import('./components/pages/profile-pages/help-center'))
 const ListYourFest = React.lazy(() => import('./components/pages/profile-pages/list-your-fest'))
 const NotificationsPanel = React.lazy(() => import('./components/pages/profile-pages/notification-panel'))
@@ -69,6 +68,7 @@ const SportsPage = React.lazy(() => import('./components/admin/SportsPage'))
 const TreksPage = React.lazy(() => import('./components/admin/TreksPage'))
 const TheatrePage = React.lazy(() => import('./components/admin/TheatrePage'))
 const SectionManager = React.lazy(() => import('./components/admin/SectionManager'))
+const AdminEventsPage = React.lazy(() => import('./components/admin/EventsPage'))
 const TrekDetailPage  = React.lazy(() => import('./components/pages/TrekDetailPage'))
 const TrekBookingPage = React.lazy(() => import('./components/pages/TrekBookingPage'))
 const QRTicketPage = React.lazy(() => import('./components/pages/QRTicketPage'))
@@ -314,6 +314,7 @@ function AppContent({
                   <Route path="treks" element={<TreksPage />} />
                   <Route path="theatre" element={<TheatrePage />} />
                   <Route path="sections" element={<SectionManager />} />
+                  <Route path="events" element={<AdminEventsPage />} />
                 </Route>
                 </Routes>
               </Suspense>
@@ -427,9 +428,10 @@ function App() {
   };
 
   if (showBootSplash) {
+    // index.html #boot-splash is already visible — avoid stacking a second React logo
     return (
       <DarkModeProvider>
-        <AppLoadingPage />
+        <div className="sr-only" aria-live="polite">Loading CrwdCtrl</div>
       </DarkModeProvider>
     );
   }

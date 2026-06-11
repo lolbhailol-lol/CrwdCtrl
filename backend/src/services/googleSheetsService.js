@@ -10,12 +10,8 @@ const { google } = require('googleapis');
  */
 const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, competitionInfo, userInfo, formSchema) => {
   try {
-    console.log('\n🔥🔥🔥 COMPETITION GOOGLE SHEETS FUNCTION CALLED 🔥🔥🔥');
     console.log('📊 Starting Competition Google Sheets integration...');
-    console.log('📊 [CRITICAL DEBUG] Full responses object keys:', Object.keys(responses));
-    console.log('📊 [CRITICAL DEBUG] Transaction ID value:', responses['Transaction ID']);
-    console.log('📊 [CRITICAL DEBUG] Payment Receipt value:', responses['Payment Receipt']);
-    
+
     // Extract spreadsheet ID from URL
     const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
     if (!spreadsheetId) {
@@ -285,19 +281,8 @@ const appendToCompetitionGoogleSheets = async (googleSheetsUrl, responses, compe
  */
 const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userInfo) => {
   try {
-    console.log('\n🔥🔥🔥 GOOGLE SHEETS FUNCTION CALLED 🔥🔥🔥');
     console.log('📊 Starting Google Sheets integration...');
-    console.log('📊 [CRITICAL DEBUG] Full responses object keys:', Object.keys(responses));
-    console.log('📊 [CRITICAL DEBUG] Transaction ID value:', responses['Transaction ID']);
-    console.log('📊 [CRITICAL DEBUG] Payment Receipt value:', responses['Payment Receipt']);
-    console.log('📊 [CRITICAL DEBUG] Responses passed to Google Sheets:', {
-      hasPaymentReceipt: !!responses['Payment Receipt'],
-      paymentReceiptValue: responses['Payment Receipt'],
-      hasTransactionId: !!responses['Transaction ID'],
-      transactionIdValue: responses['Transaction ID'],
-      allKeys: Object.keys(responses).slice(0, 10) // Show first 10 keys
-    });
-    
+
     // Extract spreadsheet ID from URL
     const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
     if (!spreadsheetId) {
@@ -515,32 +500,7 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
       console.log('✅ Payment ID added to sheets row');
     }
 
-    console.log('📊 Row data prepared:', {
-      rowLength: rowData.length,
-      lastThreeElements: rowData.slice(-3),
-      hasPaymentLink: rowData.some(item => item?.includes('HYPERLINK'))
-    });
-    console.log('🔍 Field mapping debug:');
-    formSchema.forEach((field, index) => {
-      const possibleKeys = [
-        field.fieldName,
-        field.id,
-        `field_${field.id}`,
-        `field_${field.label?.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`
-      ].filter(Boolean);
-      
-      let foundKey = null;
-      let foundValue = null;
-      for (const key of possibleKeys) {
-        if (responses.hasOwnProperty(key)) {
-          foundKey = key;
-          foundValue = responses[key];
-          break;
-        }
-      }
-      
-      console.log(`  Field ${index + 1}: ${field.label} -> Key: ${foundKey || 'NOT_FOUND'}, Value: ${foundValue ? 'FOUND' : 'EMPTY'}`);
-    });
+    console.log('📊 Row data prepared:', { rowLength: rowData.length });
 
     // Append the new row
     const appendResponse = await sheets.spreadsheets.values.append({

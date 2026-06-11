@@ -148,30 +148,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       fieldsCount = steps.reduce((total, step) => total + (step.fields?.length || 0), 0);
     }
 
-    console.log('🔍 DETAILED FORM VALIDATION:', {
-      formType,
-      hasFormFields,
-      fieldsCount,
-      singleStepSchema: competition.registration?.formSchema?.length || 0,
-      multiStepCount: competition.registration?.steps?.length || 0,
-      multiStepFields: competition.registration?.steps?.map(s => ({ 
-        stepNumber: s.stepNumber, 
-        fieldsCount: s.fields?.length || 0 
-      }))
-    });
-
     if (!hasFormFields) {
-      console.log('❌ No form fields configured');
-      console.log('🔍 Debug info:', {
-        formType,
-        hasFormSchema: !!competition.registration?.formSchema,
-        schemaLength: competition.registration?.formSchema?.length,
-        stepsCount: competition.registration?.steps?.length,
-        fullRegistration: competition.registration,
-        competitionName: competition.name,
-        competitionId: competitionId,
-        allRegistrationKeys: Object.keys(competition.registration || {})
-      });
+      console.log('❌ No form fields configured:', { competitionId, formType, fieldsCount });
       return res.status(400).json({
         error: 'Registration form is not configured for this competition. Please add at least one form field in the admin panel.',
       });
@@ -188,10 +166,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       }, []);
     }
 
-    console.log('📝 Competition form type:', formType);
-    console.log('📝 Total form fields:', formSchemaToValidate.length);
-    console.log('📝 Form fields:', formSchemaToValidate.map(f => ({ id: f.id, fieldName: f.fieldName, label: f.label, required: f.required })));
-    console.log('📥 Received responses keys:', Object.keys(responses));
+    console.log('📝 Competition form:', { formType, fields: formSchemaToValidate.length, responseKeys: Object.keys(responses).length });
 
     // ✅ NEW: Handle file uploads - store file info in responses
     if (files.length > 0) {
@@ -552,40 +527,23 @@ const submitCompetitionRegistration = async (req, res) => {
     const { competitionId } = req.params;
     const userId = req.user.userId;
 
-    console.log('\n🏆🏆🏆 COMPETITION REGISTRATION CONTROLLER HIT 🏆🏆🏆');
-    console.log('🏆 Competition registration request:', { 
-      competitionId, 
-      userId, 
-      competitionIdType: typeof competitionId,
-      competitionIdLength: competitionId?.length,
-      competitionIdValue: competitionId
-    });
+    console.log('🏆 Competition registration request:', { competitionId, userId });
 
     // Check if competition exists and has started registration
     const Competition = require('../model/competition_model');
     const competition = await Competition.findById(competitionId).populate('fest');
-    
-    console.log('🔍 [DEBUG] Queried competition with ID:', competitionId);
-    console.log('🔍 [DEBUG] Found competition:', {
-      exists: !!competition,
-      name: competition?.name,
-      id: competition?._id,
-      registrationType: competition?.registrationType
-    });
 
-    console.log('🏆 Competition details:', {
-      name: competition.name,
-      registrationType: competition.registrationType,
-      registrationStatus: competition.registration?.status
-    });
+    if (!competition) {
+      return res.status(404).json({ error: 'Competition not found' });
+    }
 
     // Use the fest's form schema for validation and processing
     const fest = competition.fest;
-    
+
     // ✅ CRITICAL: Check registration based on competition type
     if (competition.registrationType === 'fest') {
       // Fest-based competitions use the fest's registration mode
-      if (fest.registration.mode !== 'INTERNAL_FORM') {
+      if (!fest || fest.registration?.mode !== 'INTERNAL_FORM') {
         return res.status(400).json({ error: 'Registration is not available for this competition' });
       }
     } else if (competition.registrationType === 'custom') {
@@ -597,16 +555,18 @@ const submitCompetitionRegistration = async (req, res) => {
       return res.status(400).json({ error: 'Invalid competition registration type' });
     }
     
+    if (!fest?.registration) {
+      return res.status(400).json({ error: 'Registration form is not configured for this competition' });
+    }
+
     // ✅ CRITICAL: Get form schema (support both single-step and multi-step forms)
     let formSchema = [];
     if (fest.registration?.formType === 'MULTI_STEP' && fest.registration.steps) {
       // For multi-step forms, flatten all fields from all steps
       formSchema = fest.registration.steps.flatMap(step => step.fields || []);
-      console.log('📝 Multi-step form schema:', formSchema.length, 'fields from', fest.registration.steps.length, 'steps');
     } else if (fest.registration?.formSchema) {
       // For single-step forms, use the direct formSchema
       formSchema = fest.registration.formSchema;
-      console.log('📝 Single-step form schema:', formSchema.length, 'fields');
     }
 
     if (!formSchema || formSchema.length === 0) {
@@ -761,15 +721,7 @@ const submitCompetitionRegistration = async (req, res) => {
     
     for (const field of requiredFields) {
       const value = processedResponses[field.fieldName];
-      
-      console.log('🔍 Validating field:', {
-        label: field.label,
-        fieldName: field.fieldName,
-        type: field.type,
-        value: value,
-        hasValue: !!value
-      });
-      
+
       if (field.type === 'file' || field.type === 'image') {
         if (!value || !value.uploaded || !value.cloudinaryLink) {
           console.error('❌ Required file field missing:', field.label);
@@ -1070,13 +1022,6 @@ const submitRegistration = async (req, res) => {
       const fileValidationErrors = [];
 
       for (const file of req.files) {
-        console.log('📤 Processing file:', {
-          fieldname: file.fieldname,
-          originalname: file.originalname,
-          mimetype: file.mimetype,
-          size: file.size
-        });
-
         // ✅ CRITICAL FIX: Enhanced field matching with multiple strategies
         const fieldSchema = formSchema.find(f => {
           // Strategy 1: Direct fieldName match (primary)
@@ -1103,13 +1048,6 @@ const submitRegistration = async (req, res) => {
           });
           continue;
         }
-
-        console.log('✅ Found matching field schema:', {
-          id: fieldSchema.id,
-          fieldName: fieldSchema.fieldName,
-          label: fieldSchema.label,
-          type: fieldSchema.type
-        });
 
         // Prepare upload promise
         const uploadPromise = uploadToCloudinary(
@@ -1177,16 +1115,7 @@ const submitRegistration = async (req, res) => {
       // Use fieldName as primary key, fallback to id
       const fieldKey = field.fieldName || field.id;
       const value = responses[fieldKey];
-      
-      console.log('🔍 Validating field:', {
-        fieldKey,
-        fieldName: field.fieldName,
-        label: field.label,
-        type: field.type,
-        hasValue: !!value,
-        value: field.type === 'file' || field.type === 'image' ? 'FILE_DATA' : value
-      });
-      
+
       // For file/image fields, just check that the file was received (don't check uploaded status yet)
       // Actual upload will happen in the background
       if (field.type === 'file' || field.type === 'image') {
@@ -1510,47 +1439,21 @@ const getUserRegistrations = async (req, res) => {
     const userId = req.user.userId;
     const { page = 1, limit = 10 } = req.query;
 
-    console.log('📋 Fetching registrations for user:', userId);
-
-    const registrations = await Registration.find({ user: userId })
-      .populate('fest', 'festName collegeName festDate venue status coverImage registration ticketPrice')
-      .populate('competitionId', 'name description coverImage registrationFee')
-      .sort({ submittedAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    console.log('📊 Found registrations:', registrations.length);
-    
-    // Debug competition vs fest registrations
-    const competitionCount = registrations.filter(reg => !!reg.competitionId).length;
-    const festCount = registrations.length - competitionCount;
-    console.log(`📈 Registration breakdown: ${competitionCount} competitions, ${festCount} fests`);
-    
-    // Debug what data is being sent to frontend
-    registrations.forEach((reg, i) => {
-        if (reg.competitionId) {
-            console.log(`🏆 Competition registration ${i + 1}:`, {
-                id: reg._id,
-                competitionId: reg.competitionId._id,
-                competitionName: reg.competitionId.name,
-                competitionCoverImage: reg.competitionId.coverImage,
-                festName: reg.fest.festName,
-                populatedCorrectly: !!(reg.competitionId.name)
-            });
-        } else {
-            console.log(`🎪 Fest registration ${i + 1}:`, {
-                id: reg._id,
-                festName: reg.fest.festName
-            });
-        }
-    });
-
-    // Also fetch trek bookings for this user
-    const trekBookings = await TrekBooking.find({ userId })
+    // Run all three queries in parallel for a faster bookings page
+    const [registrations, trekBookings, total] = await Promise.all([
+      Registration.find({ user: userId })
+        .populate('fest', 'festName collegeName festDate venue status coverImage registration ticketPrice')
+        .populate('competitionId', 'name description coverImage registrationFee')
+        .sort({ submittedAt: -1 })
+        .limit(limit * 1)
+        .skip((page - 1) * limit)
+        .lean(),
+      TrekBooking.find({ userId })
         .populate('trekId', 'trekName coverImage images registrationFee trekDate city difficultyLevel communityId')
-        .sort({ createdAt: -1 });
-
-    const total = await Registration.countDocuments({ user: userId });
+        .sort({ createdAt: -1 })
+        .lean(),
+      Registration.countDocuments({ user: userId }),
+    ]);
 
     res.json({
       registrations,

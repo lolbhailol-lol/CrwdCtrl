@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   Calendar,
+  CalendarDays,
   Dumbbell,
   Mountain,
   Theater,
@@ -45,6 +46,7 @@ export default function AdminLayout() {
     { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },
     { icon: Theater, label: 'Theatre', path: '/admin/theatre' },
+    { icon: CalendarDays, label: 'Events', path: '/admin/events' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
     { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
     { icon: QrCode, label: 'Scanner Access', path: '/admin/scanner-access', exact: true },
@@ -67,7 +69,7 @@ export default function AdminLayout() {
       )}
 
       <aside
-        className={`bg-[#111213] border-r border-gray-800 transition-all duration-300 fixed h-full z-40 ${
+        className={`bg-[#111213] border-r border-gray-800 transition-all duration-300 fixed h-full z-40 flex flex-col ${
           sidebarOpen ? 'w-64' : 'w-0 lg:w-20 overflow-hidden'
         }`}
       >
@@ -85,7 +87,7 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = isActivePath(item.path, item.exact);
@@ -109,7 +111,7 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        <div className="absolute bottom-4 left-4 right-4">
+        <div className="p-4 border-t border-gray-800 shrink-0">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-900/30 text-red-400 transition-colors"
@@ -137,15 +139,19 @@ export default function AdminLayout() {
               {menuItems.find(item => isActivePath(item.path, item.exact))?.label || 'Admin Dashboard'}
             </h2>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-gray-400">
-              Admin
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0ECCEE]/10 border border-[#0ECCEE]/20">
+              <span className="w-2 h-2 rounded-full bg-[#0ECCEE]" />
+              <span className="text-xs font-medium text-[#0ECCEE]">Admin</span>
             </div>
+            <div className="h-6 w-px bg-gray-800 hidden sm:block" />
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors text-sm font-medium"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-red-800/60 text-red-400 hover:bg-red-900/30 hover:border-red-700 transition-colors text-sm font-medium"
+              title="Log out of admin"
             >
-              Logout
+              <LogOut size={15} />
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </header>

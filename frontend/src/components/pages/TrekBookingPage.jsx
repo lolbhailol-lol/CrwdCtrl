@@ -13,6 +13,11 @@ import {
     clearPendingPayment,
     shouldResumePendingPayment,
 } from '../../utils/deepLinks';
+import {
+    goToBookings,
+    scheduleGoToBookings,
+    verifyPaymentWithRetry,
+} from '../../utils/paymentNavigation';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -346,7 +351,6 @@ export default function TrekBookingPage() {
         }
         sessionStorage.removeItem(trekDraftKey(trekId));
         refreshNotifications();
-        setTimeout(() => refreshNotifications(), 1500);
         return regData;
     };
 
@@ -376,22 +380,9 @@ export default function TrekBookingPage() {
                 if (draft.selTime) setSelTime(draft.selTime);
                 if (draft.people) setPeople(draft.people);
 
-                let v = null;
-                const maxAttempts = 5;
-                for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-                    const vRes = await fetch(`${API}/payment/trek-verify`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ payment_order_id: pending.orderId }),
-                    });
-                    v = await vRes.json();
-                    if (v.verified) break;
-                    const retryable = /pending|ACTIVE|not found|not successful/i.test(v.message || '');
-                    if (!retryable || attempt === maxAttempts - 1) break;
-                    await new Promise((r) => setTimeout(r, 2000));
-                }
+                const { ok, data: v } = await verifyPaymentWithRetry(API, pending.orderId, { kind: 'trek' });
 
-                if (!v.verified) {
+                if (!ok || !v?.verified) {
                     clearPendingPayment();
                     const unpaid = /pending|ACTIVE|not found|not successful/i.test(v.message || '');
                     setStep(2);
@@ -421,7 +412,7 @@ export default function TrekBookingPage() {
                         people: draft.people || people,
                     },
                 });
-                setTimeout(() => navigate('/booking'), 2000);
+                scheduleGoToBookings(navigate);
             } catch (e) {
                 setStep(2);
                 setPayDone(false);
@@ -459,7 +450,7 @@ export default function TrekBookingPage() {
                     setStep(3);
                     setPayDone(true);
                     setPaying(false);
-                    setTimeout(() => navigate('/booking'), 2000);
+                    scheduleGoToBookings(navigate);
                 } catch (e) {
                     setError(e.message || 'Registration failed');
                 }
@@ -537,7 +528,7 @@ export default function TrekBookingPage() {
                     });
                     setPayDone(true);
                     setPaying(false);
-                    setTimeout(() => navigate('/booking'), 2000);
+                    scheduleGoToBookings(navigate);
                 } else {
                     setStep(2);
                     setPayDone(false);
@@ -558,7 +549,10 @@ export default function TrekBookingPage() {
     const showProcessing = step === 3 && paying;
     const showSuccess = step === 3 && payDone && !paying;
 
-    if ((loadingTrek || authLoading || isAuthProcessing || isRedirectProcessing) && !showSuccess && !showProcessing) {
+    const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
+    const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
+
+    if ((loadingTrek || waitingOnAuth) && !showSuccess && !showProcessing) {
         return (
             <div className={`crwdctrl-page min-h-dvh flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                 <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
@@ -621,7 +615,8 @@ export default function TrekBookingPage() {
                     </div>
 
                     <button
-                        onClick={() => navigate('/booking')}
+                        type="button"
+                        onClick={() => goToBookings(navigate)}
                         className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
                     >
                         View My Bookings

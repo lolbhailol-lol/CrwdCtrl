@@ -53,9 +53,11 @@ router.get('/search', async (req, res) => {
         
         // Find competitions and populate fest data
         const competitions = await Competition.find(searchCriteria)
+            .select('name description competitionType subtitle venue coverImage dateTime createdAt fest')
             .populate('fest', 'festName collegeName venue festType')
             .limit(parseInt(limit))
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
         
         // Transform data for frontend
         const transformedCompetitions = competitions.map(comp => ({

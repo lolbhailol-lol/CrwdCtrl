@@ -17,8 +17,7 @@ import {
 import SportsFormModal from './SportsFormModal';
 import RunClubFormModal from './RunClubFormModal';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetchJSON } from '../../utils/adminApi';
 
 const STATUS_BADGE = {
     published: 'bg-green-900/60 text-green-300 border border-green-700',
@@ -130,40 +129,28 @@ export default function SportsPage() {
 
     const [clubs, setClubs] = useState([]);
     const [clubsLoading, setClubsLoading] = useState(true);
+    const [error, setError] = useState('');
     const [showClubForm, setShowClubForm] = useState(false);
     const [selectedClub, setSelectedClub] = useState(null);
     const [expandedClub, setExpandedClub] = useState(() => new Set());
 
     const fetchRuns = () => {
         setLoading(true);
-        fetch(`${API}/admin/sports?limit=200`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-        })
-            .then((r) => r.json())
+        adminFetchJSON('/admin/sports?limit=200')
             .then((d) => {
                 const all = d.events || [];
                 setRuns(all.filter((ev) => ev.runClubId));
             })
-            .catch((err) => console.error('Error fetching runs:', err))
+            .catch((err) => setError(err.message || 'Failed to load runs'))
             .finally(() => setLoading(false));
     };
 
     const fetchClubs = () => {
-        const token = localStorage.getItem('admin_token');
-        if (!token) return;
         setClubsLoading(true);
-        fetch(`${API}/admin/run-clubs?limit=100`, {
-            headers: { Authorization: `Bearer ${token}` },
-        })
-            .then((r) => {
-                if (r.status === 401) {
-                    window.location.href = '/admin/login';
-                    return null;
-                }
-                return r.json();
-            })
-            .then((d) => d && setClubs(d.clubs || []))
-            .catch((err) => console.error('Error fetching run clubs:', err))
+        setError('');
+        adminFetchJSON('/admin/run-clubs?limit=100')
+            .then((d) => setClubs(d.clubs || []))
+            .catch((err) => setError(err.message || 'Failed to load run clubs'))
             .finally(() => setClubsLoading(false));
     };
 
@@ -174,20 +161,22 @@ export default function SportsPage() {
 
     const deleteClub = async (id, name) => {
         if (!window.confirm(`Delete "${name}"? Runs inside will be removed from this club.`)) return;
-        await fetch(`${API}/admin/run-clubs/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-        });
+        try {
+            await adminFetchJSON(`/admin/run-clubs/${id}`, { method: 'DELETE' });
+        } catch (err) {
+            setError(err.message || 'Failed to delete run club');
+        }
         fetchClubs();
         fetchRuns();
     };
 
     const deleteRun = async (id, title) => {
         if (!window.confirm(`Delete "${title}"?`)) return;
-        await fetch(`${API}/admin/sports/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-        });
+        try {
+            await adminFetchJSON(`/admin/sports/${id}`, { method: 'DELETE' });
+        } catch (err) {
+            setError(err.message || 'Failed to delete run');
+        }
         fetchRuns();
     };
 
@@ -197,6 +186,11 @@ export default function SportsPage() {
         : null;
 
     return (
+        <div className="space-y-6">
+        <div>
+            <h1 className="text-3xl font-bold mb-2">Run Club Management</h1>
+            <p className="text-gray-400">Manage run clubs and the runs inside them</p>
+        </div>
         <div className="bg-[#111213] rounded-xl p-6">
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -215,6 +209,19 @@ export default function SportsPage() {
                     Add Run Club
                 </button>
             </div>
+
+            {error && (
+                <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3 mb-4 flex items-center justify-between gap-3">
+                    <span>{error}</span>
+                    <button
+                        type="button"
+                        onClick={() => { fetchClubs(); fetchRuns(); }}
+                        className="underline hover:text-red-200 shrink-0"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
 
             {clubsLoading ? (
                 <div className="space-y-3">
@@ -414,6 +421,7 @@ export default function SportsPage() {
                     }}
                 />
             )}
+        </div>
         </div>
     );
 }

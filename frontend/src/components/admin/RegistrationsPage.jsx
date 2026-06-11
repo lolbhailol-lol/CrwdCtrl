@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Download, Filter, Search, Calendar, User, Mail, Phone, QrCode } from 'lucide-react';
+import { Eye, Search, Calendar, User, Mail, Phone, QrCode } from 'lucide-react';
 import FestScannerSetup from './FestScannerSetup';
-
-// Configure API base URL - Use Vite environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetchJSON } from '../../utils/adminApi';
 
 export default function RegistrationsPage() {
   const [fests, setFests] = useState([]);
@@ -14,6 +12,8 @@ export default function RegistrationsPage() {
   const [registrationsLoading, setRegistrationsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [festSearch, setFestSearch] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchFests();
@@ -21,17 +21,11 @@ export default function RegistrationsPage() {
 
   const fetchFests = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/fests?limit=500`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setFests(data.fests || []);
-      }
-    } catch (error) {
-      console.error('Error fetching fests:', error);
+      const data = await adminFetchJSON('/admin/fests?limit=500');
+      setFests(data.fests || []);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Failed to load fests');
     } finally {
       setLoading(false);
     }
@@ -40,17 +34,11 @@ export default function RegistrationsPage() {
   const fetchRegistrations = async (festId) => {
     setRegistrationsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/registrations/admin/fests/${festId}/registrations`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setRegistrations(data.registrations || []);
-      }
-    } catch (error) {
-      console.error('Error fetching registrations:', error);
+      const data = await adminFetchJSON(`/registrations/admin/fests/${festId}/registrations`);
+      setRegistrations(data.registrations || []);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Failed to load registrations');
       setRegistrations([]);
     } finally {
       setRegistrationsLoading(false);
@@ -67,23 +55,25 @@ export default function RegistrationsPage() {
 
   const updateRegistrationStatus = async (registrationId, status) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/registrations/admin/registrations/${registrationId}/status`, {
+      await adminFetchJSON(`/registrations/admin/registrations/${registrationId}/status`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-        },
         body: JSON.stringify({ status }),
       });
-
-      if (response.ok) {
-        // Refresh registrations
-        fetchRegistrations(selectedFest._id);
-      }
-    } catch (error) {
-      console.error('Error updating registration status:', error);
+      fetchRegistrations(selectedFest._id);
+    } catch (err) {
+      setError(err.message || 'Failed to update registration status');
     }
   };
+
+  const filteredFests = useMemo(() => {
+    const q = festSearch.trim().toLowerCase();
+    if (!q) return fests;
+    return fests.filter(
+      (fest) =>
+        fest.festName?.toLowerCase().includes(q) ||
+        fest.collegeName?.toLowerCase().includes(q)
+    );
+  }, [fests, festSearch]);
 
   const filteredRegistrations = registrations.filter(reg => {
     const matchesSearch = reg.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -107,6 +97,15 @@ export default function RegistrationsPage() {
         <p className="text-gray-400">View and manage fest registrations</p>
       </div>
 
+      {error && (
+        <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError('')} className="underline hover:text-red-200 shrink-0">
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {!selectedFest ? (
         <div className="bg-[#111213] border border-dashed border-gray-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
           <QrCode className="text-[#0ECCEE] shrink-0" size={24} />
@@ -126,11 +125,25 @@ export default function RegistrationsPage() {
         {/* Fests List */}
         <div className="bg-[#111213] rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-4">Select Fest</h2>
+          <div className="relative mb-3">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search fests..."
+              value={festSearch}
+              onChange={(e) => setFestSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-[#1D1E20] border border-gray-700 rounded-lg text-sm focus:border-[#0ECCEE] focus:outline-none"
+            />
+          </div>
           {loading ? (
             <div className="text-center py-8 text-gray-400">Loading fests...</div>
+          ) : filteredFests.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              {fests.length === 0 ? 'No fests found.' : `No fests match "${festSearch}"`}
+            </div>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {fests.map((fest) => (
+              {filteredFests.map((fest) => (
                 <button
                   key={fest._id}
                   onClick={() => handleFestSelect(fest)}

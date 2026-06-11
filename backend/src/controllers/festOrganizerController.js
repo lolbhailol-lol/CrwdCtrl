@@ -339,18 +339,9 @@ exports.getFestById = async (req, res) => {
             return res.status(404).json({ message: 'Fest not found' });
         }
 
-        // ✅ DEBUG: Log fest details to check approval status and data integrity
-        console.log(`🔍 Fest found: ${fest.festName}, isApproved: ${fest.isApproved}, hasGalleryImages: ${fest.galleryImages?.length || 0}`);
-        
-        // Debug: Log contacts data
-        console.log('🔍 Public fest - contacts data:', fest.contacts);
-        console.log('🔍 Public fest - artistsHeading:', fest.artistsHeading);
-        console.log('🔍 Public fest - competitionsHeading:', fest.competitionsHeading);
-        console.log('🔍 Public fest - registration data:', fest.registration);
-        console.log('🔍 Public fest - registration.formType:', fest.registration?.formType);
-        console.log('🔍 Public fest - registration.formSchema:', fest.registration?.formSchema);
-        console.log('🔍 Public fest - registration.steps:', fest.registration?.steps);
-        
+        console.log(`🔍 Fest found: ${fest.festName}, isApproved: ${fest.isApproved}, formType: ${fest.registration?.formType}, schemaFields: ${fest.registration?.formSchema?.length || 0}, steps: ${fest.registration?.steps?.length || 0}`);
+
+
         // Add metadata
         fest.cached = false;
         fest.timestamp = new Date().toISOString();
@@ -516,8 +507,11 @@ exports.searchFests = async (req, res) => {
         }
 
         const fests = await FestOrganizer.find(filter)
+            .select('-registration.formSchema -registration.steps')
             .populate('organizer', 'name email college')
-            .sort({ startDate: 1 });
+            .sort({ startDate: 1 })
+            .limit(100)
+            .lean();
 
         res.status(200).json(fests);
     } catch (err) {
@@ -714,9 +708,11 @@ exports.getUpcomingFests = async (req, res) => {
             startDate: { $gte: currentDate },
             isApproved: true
         })
+            .select('-registration.formSchema -registration.steps')
             .populate('organizer', 'name email college')
             .sort({ startDate: 1 })
-            .limit(parseInt(limit));
+            .limit(parseInt(limit))
+            .lean();
 
         res.status(200).json(fests);
     } catch (err) {

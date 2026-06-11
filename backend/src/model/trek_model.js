@@ -91,6 +91,8 @@ const trekSchema = new mongoose.Schema(
             enabled: { type: Boolean, default: false },
             code: { type: String, trim: true, uppercase: true },
             passwordHash: { type: String, default: '' },
+            // Admin-retrievable copy so the credential can be re-shared with volunteers
+            password: { type: String, default: '' },
             label: { type: String, default: '', trim: true },
         },
 

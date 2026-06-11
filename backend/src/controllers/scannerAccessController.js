@@ -257,6 +257,7 @@ const getAdminScannerAccess = async (req, res) => {
       code: fest.scannerAccess?.code || '',
       label: fest.scannerAccess?.label || '',
       hasPassword: !!fest.scannerAccess?.passwordHash,
+      password: fest.scannerAccess?.password || '',
       googleSheetsUrl: fest.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!fest.registration?.googleSheetsUrl,
       loginPath: '/organizer/login',
@@ -334,6 +335,7 @@ const setAdminScannerAccess = async (req, res) => {
 
     if (password) {
       fest.scannerAccess.passwordHash = await bcrypt.hash(password, 10);
+      fest.scannerAccess.password = password;
     }
 
     if (googleSheetsUrl !== undefined) {
@@ -350,6 +352,7 @@ const setAdminScannerAccess = async (req, res) => {
       enabled: fest.scannerAccess.enabled,
       code: fest.scannerAccess.code,
       label: fest.scannerAccess.label,
+      password: fest.scannerAccess.password || '',
       googleSheetsUrl: fest.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!fest.registration?.googleSheetsUrl,
       message: password ? 'Scanner login updated' : 'Scanner settings saved (password unchanged)',

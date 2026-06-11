@@ -1,10 +1,9 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ExternalLink, Search } from 'lucide-react';
+import { ExternalLink, Loader, Search } from 'lucide-react';
 import FestFormModal from './FestFormModal';
 import CompetitionModal from './Competition_Modal';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 
 const STATUS_LABELS = {
   ongoing: { label: 'Featured', cls: 'bg-green-900/60 text-green-300' },
@@ -16,11 +15,7 @@ const STATUS_LABELS = {
 
 const clearServerCache = async () => {
   try {
-    const token = localStorage.getItem('admin_token');
-    await fetch(`${API_BASE_URL}/admin/clear-cache`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    await adminFetch('/admin/clear-cache', { method: 'POST' });
   } catch (_) { /* ignore */ }
 };
 
@@ -31,24 +26,29 @@ export default function FestTable() {
   const [showForm, setShowForm] = useState(false);
   const [selectedFest, setSelectedFest] = useState(null);
   const [showCompetition, setShowCompetition] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const fetchFests = () => {
-    fetch(`${API_BASE_URL}/admin/fests?limit=500`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-    })
-      .then((res) => res.json())
-      .then((data) => setFests(data.fests || data || []))
-      .catch((err) => console.error('Error fetching fests:', err));
+    setError('');
+    adminFetchJSON('/admin/fests?limit=500')
+      .then((data) => {
+        const list = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+        setFests(list);
+      })
+      .catch((err) => setError(err.message || 'Failed to load fests'))
+      .finally(() => setLoading(false));
   };
 
   useEffect(fetchFests, []);
 
   const deleteFest = async (id) => {
-    await fetch(`${API_BASE_URL}/admin/fests/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-    });
-    await clearServerCache();
+    try {
+      await adminFetchJSON(`/admin/fests/${id}`, { method: 'DELETE' });
+      await clearServerCache();
+    } catch (err) {
+      setError(err.message || 'Failed to delete fest');
+    }
     fetchFests();
   };
 
@@ -97,7 +97,18 @@ export default function FestTable() {
         />
       </div>
 
-      {filtered.length === 0 ? (
+      {error && (
+        <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3 mb-4 flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button type="button" onClick={fetchFests} className="underline hover:text-red-200 shrink-0">Retry</button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-gray-400">
+          <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400">No fests found.</div>
       ) : (
         <div className="overflow-x-auto">

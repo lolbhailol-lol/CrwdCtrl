@@ -1,5 +1,5 @@
 import LogoSplash from './LogoSplash';
 
-const AppLoadingPage = () => <LogoSplash size={152} large />;
+const AppLoadingPage = () => <LogoSplash large />;
 
 export default AppLoadingPage;

@@ -1,5 +1,6 @@
-import LogoSplash from './LogoSplash';
+import RouteLoader from './RouteLoader';
 
-const LoadingBar = () => <LogoSplash />;
+/** Route changes — thin bar only (no full-screen logo flash) */
+const LoadingBar = () => <RouteLoader />;
 
 export default LoadingBar;

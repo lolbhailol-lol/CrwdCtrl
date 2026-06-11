@@ -137,6 +137,7 @@ const getAdminTrekScannerAccess = async (req, res) => {
       code: trek.scannerAccess?.code || '',
       label: trek.scannerAccess?.label || '',
       hasPassword: !!trek.scannerAccess?.passwordHash,
+      password: trek.scannerAccess?.password || '',
       googleSheetsUrl: trek.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!trek.registration?.googleSheetsUrl,
       loginPath: '/organizer/login',
@@ -214,6 +215,7 @@ const setAdminTrekScannerAccess = async (req, res) => {
 
     if (password) {
       trek.scannerAccess.passwordHash = await bcrypt.hash(password, 10);
+      trek.scannerAccess.password = password;
     }
 
     if (googleSheetsUrl !== undefined) {
@@ -230,6 +232,7 @@ const setAdminTrekScannerAccess = async (req, res) => {
       enabled: trek.scannerAccess.enabled,
       code: trek.scannerAccess.code,
       label: trek.scannerAccess.label,
+      password: trek.scannerAccess.password || '',
       googleSheetsUrl: trek.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!trek.registration?.googleSheetsUrl,
       message: password ? 'Trek scanner login updated' : 'Trek scanner settings saved (password unchanged)',

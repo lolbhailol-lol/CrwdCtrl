@@ -64,12 +64,14 @@ async function startServer() {
       gracefulShutdown('uncaughtException');
     });
 
+    // Log + report unhandled rejections but keep the server alive — a single
+    // missed await in a background task should not take down every request.
     process.on('unhandledRejection', (reason) => {
       logger.error('Unhandled Rejection', {
         reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
       });
       if (reason instanceof Error) captureException(reason);
-      gracefulShutdown('unhandledRejection');
     });
   } catch (err) {
     logger.error('Failed to start server', { error: err.message });

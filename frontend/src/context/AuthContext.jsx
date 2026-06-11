@@ -7,6 +7,7 @@ import { hasPendingOAuthRedirect, restoreSessionFromStorage, clearOAuthRedirectM
 import { isNativeAuthInProgress } from '../utils/nativeAuth';
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { markFreshLogin } from '../utils/notificationPrompt';
+import { resolveAuthToken } from '../utils/authToken';
 
 // Configure API base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -44,7 +45,9 @@ export const AuthProvider = ({ children }) => {
             // ✅ FIX: AUTOMATIC SESSION RESTORATION when Firebase user exists but no local session
             // IMPORTANT: Do NOT check authInitialized here - this listener fires during initialization!
             // This listener runs immediately with cached user, so we must handle it regardless of initialization state
-            if (firebaseUser && !user && !token && !isAuthProcessing) {
+            // ✅ Re-sync when there's no session OR the stored backend JWT is expired/unusable
+            const hasUsableSession = !!user && !!resolveAuthToken(token);
+            if (firebaseUser && !hasUsableSession && !isAuthProcessing) {
                 if (isNativeAuthInProgress()) {
                     console.log('⏭️ Skipping auth listener sync — native login handler active');
                     return;
@@ -428,9 +431,10 @@ export const AuthProvider = ({ children }) => {
 
     // Function to get authorization headers for API requests
     const getAuthHeaders = () => {
-        if (token) {
+        const resolved = resolveAuthToken(token);
+        if (resolved) {
             return {
-                'Authorization': `Bearer ${token}`,
+                Authorization: `Bearer ${resolved}`,
                 'Content-Type': 'application/json',
             };
         }

@@ -1,24 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminStats from './AdminStatsCard';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-
-function isTokenExpired(token) {
-  if (!token) return true;
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return true;
-    const payload = JSON.parse(atob(parts[1]));
-    return Date.now() >= (payload.exp * 1000) - (5 * 60 * 1000);
-  } catch {
-    return true;
-  }
-}
+import { adminFetchJSON } from '../../utils/adminApi';
 
 const QUICK_LINKS = [
   { label: 'Manage Fests', path: '/admin/fests', description: 'Create, edit, and manage fests' },
   { label: 'Competitions', path: '/admin/competitions', description: 'Competition forms, rounds, and QR' },
+  { label: 'Run Clubs', path: '/admin/sports', description: 'Run clubs and run events' },
+  { label: 'Treks', path: '/admin/treks', description: 'Trek communities and trek listings' },
+  { label: 'Theatre', path: '/admin/theatre', description: 'Theatre shows and ticketing' },
+  { label: 'Events', path: '/admin/events', description: 'All platform events' },
   { label: 'Home & Sections', path: '/admin/sections', description: 'Carousels, page placement, priorities' },
   { label: 'Registrations', path: '/admin/registrations', description: 'Review fest sign-ups' },
   { label: 'Scanner Access', path: '/admin/scanner-access', description: 'Volunteer scanner codes for events' },
@@ -37,71 +28,10 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  async function refreshAdminToken(refreshToken) {
-    const response = await fetch(`${API_BASE_URL}/admin/refresh-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Token refresh failed');
-    }
-    const data = await response.json();
-    localStorage.setItem('admin_token', data.accessToken);
-    if (data.refreshToken) {
-      localStorage.setItem('admin_refresh_token', data.refreshToken);
-    }
-    return data.accessToken;
-  }
-
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        let adminToken = localStorage.getItem('admin_token');
-        const adminRefreshToken = localStorage.getItem('admin_refresh_token');
-
-        if (!adminToken) {
-          setError('No admin token found. Please log in again.');
-          setTimeout(() => { window.location.href = '/admin/login'; }, 1500);
-          return;
-        }
-
-        if (isTokenExpired(adminToken)) {
-          if (!adminRefreshToken) {
-            setError('Session expired. Please log in again.');
-            setTimeout(() => { window.location.href = '/admin/login'; }, 1500);
-            return;
-          }
-          try {
-            adminToken = await refreshAdminToken(adminRefreshToken);
-          } catch {
-            setError('Session expired. Please log in again.');
-            setTimeout(() => { window.location.href = '/admin/login'; }, 1500);
-            return;
-          }
-        }
-
-        const response = await fetch(`${API_BASE_URL}/admin/stats`, {
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem('admin_token');
-            localStorage.removeItem('admin_refresh_token');
-            setError('Admin session expired. Please log in again.');
-            setTimeout(() => { window.location.href = '/admin/login'; }, 1500);
-            return;
-          }
-          throw new Error(`Failed to fetch stats (HTTP ${response.status})`);
-        }
-
-        setStats(await response.json());
+        setStats(await adminFetchJSON('/admin/stats'));
         setError(null);
       } catch (err) {
         setError(err.message || 'Failed to load dashboard.');
@@ -111,7 +41,7 @@ export default function AdminDashboardPage() {
     };
 
     fetchStats();
-  }, [navigate]);
+  }, []);
 
   if (loading) {
     return (

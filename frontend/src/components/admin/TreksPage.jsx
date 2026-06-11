@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Mountain, Calendar, Clock, Users, MapPin, Edit2, Trash2, Plus, Eye, EyeOff, Users2, ExternalLink, Phone, Images } from 'lucide-react';
 import TrekFormModal from './TrekFormModal';
 import TrekCommunityFormModal from './TrekCommunityFormModal';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetchJSON } from '../../utils/adminApi';
 
 const DIFFICULTY_BADGE = {
     easy:     'bg-green-900/60 text-green-300 border border-green-700',
@@ -173,34 +172,25 @@ export default function TreksPage() {
 
     const [communities, setCommunities]   = useState([]);
     const [commLoading, setCommLoading]   = useState(true);
+    const [error, setError]               = useState('');
     const [showCommForm, setShowCommForm] = useState(false);
     const [selectedComm, setSelectedComm] = useState(null);
     const [expandedComm, setExpandedComm] = useState(() => new Set());
 
     const fetchTreks = () => {
         setLoading(true);
-        fetch(`${API}/admin/treks?limit=200`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-        })
-            .then(r => r.json())
+        adminFetchJSON('/admin/treks?limit=200')
             .then(d => setTreks(d.treks || []))
-            .catch(err => console.error('Error fetching treks:', err))
+            .catch(err => setError(err.message || 'Failed to load treks'))
             .finally(() => setLoading(false));
     };
 
     const fetchCommunities = () => {
-        const token = localStorage.getItem('admin_token');
-        if (!token) return;
         setCommLoading(true);
-        fetch(`${API}/admin/trek-communities?limit=100`, {
-            headers: { Authorization: `Bearer ${token}` },
-        })
-            .then(r => {
-                if (r.status === 401) { window.location.href = '/admin/login'; return null; }
-                return r.json();
-            })
-            .then(d => d && setCommunities(d.communities || []))
-            .catch(err => console.error('Error fetching communities:', err))
+        setError('');
+        adminFetchJSON('/admin/trek-communities?limit=100')
+            .then(d => setCommunities(d.communities || []))
+            .catch(err => setError(err.message || 'Failed to load communities'))
             .finally(() => setCommLoading(false));
     };
 
@@ -208,19 +198,22 @@ export default function TreksPage() {
 
     const deleteCommunity = async (id, name) => {
         if (!window.confirm(`Delete "${name}"?`)) return;
-        await fetch(`${API}/admin/trek-communities/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-        });
+        try {
+            await adminFetchJSON(`/admin/trek-communities/${id}`, { method: 'DELETE' });
+        } catch (err) {
+            setError(err.message || 'Failed to delete community');
+        }
         fetchCommunities();
+        fetchTreks();
     };
 
     const deleteTrek = async (id, name) => {
         if (!window.confirm(`Delete "${name}"?`)) return;
-        await fetch(`${API}/admin/treks/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-        });
+        try {
+            await adminFetchJSON(`/admin/treks/${id}`, { method: 'DELETE' });
+        } catch (err) {
+            setError(err.message || 'Failed to delete trek');
+        }
         fetchTreks();
     };
 
@@ -230,6 +223,11 @@ export default function TreksPage() {
         : null;
 
     return (
+        <div className="space-y-6">
+        <div>
+            <h1 className="text-3xl font-bold mb-2">Trek Management</h1>
+            <p className="text-gray-400">Manage trek communities and the treks inside them</p>
+        </div>
         <div className="bg-[#111213] rounded-xl p-6">
 
             {/* Header */}
@@ -244,6 +242,19 @@ export default function TreksPage() {
                     <Plus size={16} /> Add Community
                 </button>
             </div>
+
+            {error && (
+                <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3 mb-4 flex items-center justify-between gap-3">
+                    <span>{error}</span>
+                    <button
+                        type="button"
+                        onClick={() => { fetchCommunities(); fetchTreks(); }}
+                        className="underline hover:text-red-200 shrink-0"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
 
             {/* Community list */}
             {commLoading ? (
@@ -405,6 +416,7 @@ export default function TreksPage() {
                     onSaved={() => { setShowCommForm(false); fetchCommunities(); }}
                 />
             )}
+        </div>
         </div>
     );
 }

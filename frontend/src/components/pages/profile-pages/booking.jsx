@@ -3,7 +3,7 @@ import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenera
 import { getImageUrl } from '../../../utils/imageImports';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 
@@ -106,6 +106,7 @@ function Booking() {
     const { isDark } = useDarkMode();
     const { isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -113,6 +114,14 @@ function Booking() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('upcoming');
+    const [refreshTick, setRefreshTick] = useState(0);
+
+    useEffect(() => {
+        if (location.state?.refreshBookings) {
+            setRefreshTick((n) => n + 1);
+            navigate(location.pathname + location.search, { replace: true, state: {} });
+        }
+    }, [location.state?.refreshBookings, location.pathname, location.search, navigate]);
 
     // Fetch user's registered events from backend API
     useEffect(() => {
@@ -280,7 +289,7 @@ function Booking() {
         };
 
         fetchBookings();
-    }, [isAuthenticated, user]);
+    }, [isAuthenticated, user, refreshTick]);
 
     // Refetch data when component becomes visible (user navigates back)
     useEffect(() => {
@@ -452,14 +461,23 @@ function Booking() {
     const completedBookings = allBookings.filter((item) => isEventCompleted(item));
     const visibleBookings = activeTab === 'upcoming' ? upcomingBookings : completedBookings;
 
-    // Loading state
+    const pageShellClass = `min-h-screen transition-colors duration-300 pb-24 lg:pb-8 ${
+        isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'
+    }`;
+
     if (loading) {
         return (
-            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-                    <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading bookings...</h2>
-                </div>
+            <div className={pageShellClass}>
+                <main className="px-4 pt-4 sm:px-6 lg:px-8">
+                    <div className="mx-auto w-full max-w-md lg:max-w-2xl">
+                        <h1 className={`text-2xl font-medium font-inter leading-8 mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            My Bookings
+                        </h1>
+                        <div className="flex items-center justify-center py-16">
+                            <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#0ECCEE] border-t-transparent" />
+                        </div>
+                    </div>
+                </main>
             </div>
         );
     }
@@ -482,11 +500,7 @@ function Booking() {
     }
 
     return (
-        <div
-            className={`min-h-screen transition-colors duration-300 pb-24 lg:pb-8 ${
-                isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'
-            }`}
-        >
+        <div className={pageShellClass}>
             <main className="px-4 pt-4 sm:px-6 lg:px-8">
                 <div className="mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl">
                     {/* Header + tabs — Figma: slate-100 shell */}

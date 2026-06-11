@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Loader, Search } from 'lucide-react';
 import TheatreFormModal from './TheatreFormModal';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetchJSON } from '../../utils/adminApi';
 
 const TYPE_LABELS = {
     play: 'Play', musical: 'Musical', standup: 'Stand-up',
@@ -25,24 +24,26 @@ export default function TheatrePage() {
     const [search, setSearch] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [selected, setSelected] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     const fetchShows = () => {
-        fetch(`${API}/admin/theatre?limit=200`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-        })
-            .then(r => r.json())
+        setError('');
+        adminFetchJSON('/admin/theatre?limit=200')
             .then(d => setShows(d.shows || []))
-            .catch(err => console.error('Error fetching theatre events:', err));
+            .catch(err => setError(err.message || 'Failed to load theatre events'))
+            .finally(() => setLoading(false));
     };
 
     useEffect(fetchShows, []);
 
     const deleteShow = async (id, title) => {
         if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
-        await fetch(`${API}/admin/theatre/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-        });
+        try {
+            await adminFetchJSON(`/admin/theatre/${id}`, { method: 'DELETE' });
+        } catch (err) {
+            setError(err.message || 'Failed to delete show');
+        }
         fetchShows();
     };
 
@@ -54,10 +55,14 @@ export default function TheatrePage() {
         );
     }, [shows, q]);
 
+    const byDate = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+    const knownStatuses = ['published', 'completed', 'cancelled'];
     const byStatus = {
-        published: filteredShows.filter(s => s.status === 'published').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-        completed: filteredShows.filter(s => s.status === 'completed').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-        cancelled: filteredShows.filter(s => s.status === 'cancelled').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        published: filteredShows.filter(s => s.status === 'published').sort(byDate),
+        // Drafts (and any unknown status) must stay visible so admins can publish them
+        draft: filteredShows.filter(s => !knownStatuses.includes(s.status)).sort(byDate),
+        completed: filteredShows.filter(s => s.status === 'completed').sort(byDate),
+        cancelled: filteredShows.filter(s => s.status === 'cancelled').sort(byDate),
     };
 
     const ActionButtons = ({ show }) => (
@@ -115,9 +120,14 @@ export default function TheatrePage() {
     );
 
     return (
+        <div className="space-y-6">
+        <div>
+            <h1 className="text-3xl font-bold mb-2">Theatre Management</h1>
+            <p className="text-gray-400">Manage theatre shows, drafts, and ticketing</p>
+        </div>
         <div className="bg-[#111213] rounded-xl p-6">
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                <h2 className="text-xl font-semibold">Theatre</h2>
+                <h2 className="text-xl font-semibold">Shows</h2>
                 <button
                     onClick={() => { setSelected(null); setShowForm(true); }}
                     className="bg-[#0ECCEE] text-black px-4 py-2 rounded-lg font-semibold"
@@ -136,7 +146,18 @@ export default function TheatrePage() {
                 />
             </div>
 
-            {shows.length === 0 ? (
+            {error && (
+                <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3 mb-4 flex items-center justify-between gap-3">
+                    <span>{error}</span>
+                    <button type="button" onClick={fetchShows} className="underline hover:text-red-200 shrink-0">Retry</button>
+                </div>
+            )}
+
+            {loading ? (
+                <div className="flex items-center justify-center py-16 text-gray-400">
+                    <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
+                </div>
+            ) : shows.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                     No theatre events found. Create your first show!
                 </div>
@@ -152,6 +173,16 @@ export default function TheatrePage() {
                                 <span className="ml-2 text-sm text-gray-400">({byStatus.published.length} shows)</span>
                             </h3>
                             <SectionTable items={byStatus.published} />
+                        </div>
+                    )}
+
+                    {byStatus.draft.length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold mb-4 text-yellow-400 flex items-center">
+                                🟡 Drafts
+                                <span className="ml-2 text-sm text-gray-400">({byStatus.draft.length} shows)</span>
+                            </h3>
+                            <SectionTable items={byStatus.draft} />
                         </div>
                     )}
 
@@ -184,6 +215,7 @@ export default function TheatrePage() {
                     onSaved={() => { setShowForm(false); fetchShows(); }}
                 />
             )}
+        </div>
         </div>
     );
 }

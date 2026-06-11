@@ -5,21 +5,7 @@ import {
   Monitor, Smartphone, Tablet,
   BarChart3, RefreshCw
 } from 'lucide-react';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-
-const getAdminToken = () => localStorage.getItem('admin_token');
-
-const adminFetch = async (url) => {
-  const token = getAdminToken();
-  if (!token) throw new Error('No admin token');
-  const res = await fetch(`${API_BASE_URL}${url}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
-};
+import { adminFetchJSON as adminFetch } from '../../utils/adminApi';
 
 function StatCard({ icon, label, value, change, color }) {
   const isPositive = change > 0;

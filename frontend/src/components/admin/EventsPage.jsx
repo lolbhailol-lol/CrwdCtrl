@@ -1,8 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import EventFormModal from './EventFormModal';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetchJSON } from '../../utils/adminApi';
 
 const CATEGORY_COLORS = {
     fest: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
@@ -35,16 +34,10 @@ export default function EventsPage() {
         setLoading(true);
         setError('');
         try {
-            const token = localStorage.getItem('admin_token');
             const params = new URLSearchParams({ page, limit: 20 });
             if (categoryFilter) params.set('category', categoryFilter);
 
-            const res = await fetch(`${API}/admin/events?${params}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Failed to fetch events');
-
+            const data = await adminFetchJSON(`/admin/events?${params}`);
             setEvents(data.events || []);
             setPagination(data.pagination || null);
         } catch (err) {
@@ -77,15 +70,7 @@ export default function EventsPage() {
         if (!deleteTarget) return;
         setDeleteLoading(true);
         try {
-            const token = localStorage.getItem('admin_token');
-            const res = await fetch(`${API}/admin/events/${deleteTarget._id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Delete failed');
-            }
+            await adminFetchJSON(`/admin/events/${deleteTarget._id}`, { method: 'DELETE' });
             setDeleteTarget(null);
             fetchEvents();
         } catch (err) {

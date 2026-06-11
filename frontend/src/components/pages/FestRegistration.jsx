@@ -13,6 +13,24 @@ import {
   isTrekPaymentPending,
   shouldResumePendingPayment,
 } from '../../utils/deepLinks';
+import {
+  goToBookings,
+  scheduleGoToBookings,
+  verifyPaymentWithRetry,
+} from '../../utils/paymentNavigation';
+import {
+  clearRegistrationDraft,
+  festRegDraftKey,
+  loadRegistrationDraft,
+  saveRegistrationDraft,
+  scrollFieldIntoView,
+} from '../../utils/registrationDraft';
+import {
+  clearStoredAuthSession,
+  getBearerAuthHeaders,
+  hasUsableAuthToken,
+  resolveAuthToken,
+} from '../../utils/authToken';
 import { parseTicketPrice } from '../../utils/platformFee';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
@@ -36,7 +54,14 @@ export default function FestRegistration() {
   const paymentResumeRef = useRef(false);
   const competitionId = searchParams.get('competition');
   const initialUi = getInitialFestRegistrationUi(location.pathname, location.search);
-  const { isAuthenticated, isLoading: authLoading, token: authToken, isAuthProcessing, isRedirectProcessing } = useAuth();
+  const {
+    isAuthenticated,
+    isLoading: authLoading,
+    token: authToken,
+    firebaseUser,
+    isAuthProcessing,
+    isRedirectProcessing,
+  } = useAuth();
   const { refreshNotifications } = useNotifications();
 
   const { isDark } = useDarkMode();
@@ -49,6 +74,7 @@ export default function FestRegistration() {
   const [submitting, setSubmitting] = useState(false);
   const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [success, setSuccess] = useState(false);
   const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
   const [, setRegistrationId] = useState(null);
@@ -64,8 +90,39 @@ export default function FestRegistration() {
   const [paymentError, setPaymentError] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  // True once we've waited long enough for Firebase -> backend JWT sync to finish
+  const [authSyncExpired, setAuthSyncExpired] = useState(false);
+
+  useEffect(() => {
+    if (!firebaseUser || resolveAuthToken(authToken)) {
+      setAuthSyncExpired(false);
+      return;
+    }
+    const timer = setTimeout(() => setAuthSyncExpired(true), 5000);
+    return () => clearTimeout(timer);
+  }, [firebaseUser, authToken]);
 
   const isCompetitionRegistration = !!competitionId;
+  const draftKey = festRegDraftKey(festId, competitionId);
+
+  const restoreRegistrationDraft = () => {
+    const draft = loadRegistrationDraft(draftKey);
+    if (!draft) return;
+    if (draft.formData && Object.keys(draft.formData).length > 0) {
+      setFormData((prev) => ({ ...prev, ...draft.formData }));
+    }
+    if (draft.stepData && Object.keys(draft.stepData).length > 0) {
+      setStepData((prev) => {
+        const merged = { ...prev };
+        for (const [step, fields] of Object.entries(draft.stepData)) {
+          merged[step] = { ...(merged[step] || {}), ...fields };
+        }
+        return merged;
+      });
+    }
+    if (draft.currentStep) setCurrentStep(draft.currentStep);
+    if (draft.completedSteps?.length) setCompletedSteps(new Set(draft.completedSteps));
+  };
 
   const handleCloseLogin = () => setShowLogin(false);
   const handleCloseRegister = () => setShowRegister(false);
@@ -102,35 +159,27 @@ export default function FestRegistration() {
 
     (async () => {
       try {
-        const token = authToken || localStorage.getItem('crwdctrl_token');
+        const token = resolveAuthToken(authToken);
         if (!token) {
+          clearStoredAuthSession();
           setCompletingPayment(false);
           setShowLogin(true);
           setPaymentError('Please log in to complete your registration.');
           return;
         }
 
-        const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ payment_order_id: pending.orderId }),
-        });
-        if (!verifyRes.ok) throw new Error('Payment verification failed. Please contact support.');
-
-        const verifyData = await verifyRes.json();
-        if (!verifyData.verified) {
-          throw new Error(verifyData.message || 'Payment could not be verified.');
+        const { ok, data: verifyData } = await verifyPaymentWithRetry(
+          API_BASE_URL,
+          pending.orderId,
+          { token },
+        );
+        if (!ok || !verifyData?.verified) {
+          throw new Error(verifyData?.message || 'Payment could not be verified.');
         }
 
         const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
+          headers: getBearerAuthHeaders(authToken),
           body: JSON.stringify({ payment_order_id: pending.orderId }),
         });
         if (!regRes.ok) {
@@ -145,10 +194,8 @@ export default function FestRegistration() {
         setCompletingPayment(false);
         setSuccess(true);
         refreshNotifications();
-        setTimeout(() => refreshNotifications(), 1500);
-        setTimeout(() => {
-          navigate(regId ? `/qr-ticket/${regId}` : '/booking');
-        }, 2000);
+        clearRegistrationDraft(draftKey);
+        scheduleGoToBookings(navigate);
       } catch (err) {
         clearPendingPayment();
         setCompletingPayment(false);
@@ -190,25 +237,22 @@ export default function FestRegistration() {
         return;
       }
 
-      // ✅ FIX: Check AuthContext FIRST, then fallback to localStorage
-      const localToken = localStorage.getItem('crwdctrl_token');
-      const hasAuth = isAuthenticated || !!authToken || !!localToken;
-      
-      // If no authentication data at all (neither context nor localStorage), show login on this page
-      if (!hasAuth) {
-        console.log('❌ No authentication data found, showing login modal');
+      const usableToken = resolveAuthToken(authToken);
+
+      if (!usableToken) {
+        // Give the Firebase -> backend JWT sync a bounded window, then fall back to login
+        if (firebaseUser && !authSyncExpired) {
+          console.log('⏳ Firebase user present — waiting for backend session sync...');
+          return;
+        }
+        console.log('❌ No usable auth token, showing login modal');
         setError('Please log in to register for events');
         setShowLogin(true);
         setLoading(false);
         return;
       }
 
-      // ✅ User is authenticated via context or localStorage, proceed
-      console.log('✅ Authentication confirmed, proceeding with registration', {
-        viaContext: isAuthenticated,
-        viaToken: !!authToken,
-        viaLocalStorage: !!localToken
-      });
+      console.log('✅ Usable auth token confirmed, proceeding with registration');
       proceedWithRegistration();
     };
 
@@ -223,7 +267,60 @@ export default function FestRegistration() {
 
     initializeRegistration();
      
-  }, [festId, competitionId, authLoading, isAuthenticated, isAuthProcessing, isRedirectProcessing]);
+  }, [festId, competitionId, authLoading, authToken, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing]);
+
+  useEffect(() => {
+    if (loading || !fest) return;
+
+    const competitionBaseFee = competition
+      ? parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee)
+      : 0;
+
+    let pricingPayload = null;
+    if (isCompetitionRegistration && competitionBaseFee > 0) {
+      pricingPayload = { competitionId: competition?._id || competitionId };
+    } else if ((fest.feeAmount || 0) > 0) {
+      pricingPayload = { festId: fest._id || festId };
+    }
+
+    if (!pricingPayload) {
+      setPriceBreakdown(null);
+      return;
+    }
+
+    if (!resolveAuthToken(authToken) || isAuthProcessing) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const quote = await fetchPaymentQuote(pricingPayload);
+        if (!cancelled) setPriceBreakdown(quote);
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err?.message || '';
+        if (msg.includes('token') || msg.includes('401') || msg.includes('Unauthorized')) {
+          if (!firebaseUser) {
+            setShowLogin(true);
+            setError('Please log in to register for events');
+          }
+        } else {
+          console.warn('Payment quote failed:', msg);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [
+    fest,
+    competition,
+    festId,
+    competitionId,
+    isCompetitionRegistration,
+    authToken,
+    loading,
+    isAuthProcessing,
+    firebaseUser,
+  ]);
 
   useEffect(() => {
     if (error) {
@@ -428,7 +525,9 @@ export default function FestRegistration() {
             placeholder={field.placeholder}
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            onFocus={scrollFieldIntoView}
             required={field.required}
+            autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'on'}
             className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
           />
         );
@@ -441,6 +540,7 @@ export default function FestRegistration() {
             placeholder={field.placeholder}
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            onFocus={scrollFieldIntoView}
             required={field.required}
             rows={3}
             className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm resize-none transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
@@ -454,6 +554,7 @@ export default function FestRegistration() {
             name={fieldId}
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            onFocus={scrollFieldIntoView}
             required={field.required}
             className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
           >
@@ -810,10 +911,9 @@ export default function FestRegistration() {
 
 
   const fetchPaymentQuote = async (payload) => {
-    const token = authToken || localStorage.getItem('crwdctrl_token');
     const quoteRes = await fetch(`${API_BASE_URL}/payment/quote`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: getBearerAuthHeaders(authToken),
       body: JSON.stringify(payload),
     });
 
@@ -839,9 +939,6 @@ export default function FestRegistration() {
         throw new Error('Failed to fetch fest details');
       }
       const data = await response.json();
-      console.log('🔍 DEBUG - Raw API response:', data);
-      console.log('🔍 DEBUG - Raw registration data:', data.registration);
-      console.log('🔍 DEBUG - Raw steps data:', data.registration?.steps);
       
       // If the fest has a feeAmount, skip mode validation — payment replaces the form
       if (!data.feeAmount || data.feeAmount <= 0) {
@@ -854,12 +951,7 @@ export default function FestRegistration() {
       }
 
       setFest(data);
-      if (data.feeAmount > 0) {
-        setPriceBreakdown(await fetchPaymentQuote({ festId }));
-      } else {
-        setPriceBreakdown(null);
-      }
-      
+
       console.log('🔍 DEBUG - Fest registration data loaded:', {
         mode: data.registration?.mode,
         formType: data.registration?.formType,
@@ -894,6 +986,7 @@ export default function FestRegistration() {
         });
       }
       setFormData(initialData);
+      restoreRegistrationDraft();
       console.log('✅ Form initialized with', Object.keys(initialData).length, 'fields');
     } catch (err) {
       console.error('❌ Error fetching fest details:', err);
@@ -935,9 +1028,6 @@ export default function FestRegistration() {
         throw new Error('Failed to fetch fest details');
       }
       const festData = await festResponse.json();
-      console.log('🔍 DEBUG - Raw fest API response:', festData);
-      console.log('🔍 DEBUG - Raw fest registration data:', festData.registration);
-      console.log('🔍 DEBUG - Raw fest steps data:', festData.registration?.steps);
       
       // ✅ CRITICAL: Validate registration mode for competition registration
       if (competitionData.registrationType === 'fest') {
@@ -959,18 +1049,6 @@ export default function FestRegistration() {
       }
       
       setFest(festData);
-      const competitionBaseFee = parseTicketPrice(competitionData.feeAmount) || parseTicketPrice(competitionData.registrationFee);
-      const pricedRegistrationId = isCompetitionRegistration && competitionBaseFee > 0
-        ? { competitionId }
-        : festData.feeAmount > 0
-          ? { festId }
-          : null;
-
-      if (pricedRegistrationId) {
-        setPriceBreakdown(await fetchPaymentQuote(pricedRegistrationId));
-      } else {
-        setPriceBreakdown(null);
-      }
       console.log('🔍 DEBUG - Competition fest registration data loaded:', {
         mode: festData.registration?.mode,
         formType: festData.registration?.formType,
@@ -1004,6 +1082,7 @@ export default function FestRegistration() {
         });
       }
       setFormData(initialData);
+      restoreRegistrationDraft();
       console.log('✅ Form initialized with', Object.keys(initialData).length, 'fields');
     } catch (err) {
       console.error('❌ Error fetching competition/fest details:', err);
@@ -1252,21 +1331,21 @@ export default function FestRegistration() {
     try {
       setSubmissionProgress('Validating authentication...');
       // ✅ FIX: Use authToken from context FIRST, fallback to localStorage
-      const token = authToken || localStorage.getItem('crwdctrl_token');
+      const token = resolveAuthToken(authToken);
       const user = localStorage.getItem('crwdctrl_user');
-      
-      // ✅ NEW: Get all form data once at the beginning (single-step or combined multi-step)
+
       const allFormData = getAllFormData();
-      
-      console.log('🔑 Auth check for submission:', { 
-        hasToken: !!token, 
+
+      console.log('🔑 Auth check for submission:', {
+        hasToken: !!token,
         hasUser: !!user,
-        tokenSource: authToken ? 'context' : 'localStorage',
-        tokenLength: token?.length 
+        tokenLength: token?.length,
       });
-      
+
       if (!token) {
-        throw new Error('Authentication required. Please log in again.');
+        clearStoredAuthSession();
+        setShowLogin(true);
+        throw new Error('Your session has expired. Please log in again to continue.');
       }
 
       setSubmissionProgress('Checking registration availability...');
@@ -1381,15 +1460,22 @@ export default function FestRegistration() {
       let verifiedPaymentFields = paymentFields;
       if (effectiveFeeAmount > 0 && !verifiedPaymentFields) {
         setSubmissionProgress('Opening payment gateway...');
-        const tok = authToken || localStorage.getItem('crwdctrl_token');
 
         const orderNotes = isCompetitionRegistration ? { competitionId } : { festId };
         const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+          headers: getBearerAuthHeaders(authToken),
           body: JSON.stringify(orderNotes),
         });
-        if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
+        if (orderRes.status === 401) {
+          clearStoredAuthSession();
+          setShowLogin(true);
+          throw new Error('Session expired. Please log in again to complete payment.');
+        }
+        if (!orderRes.ok) {
+          const orderErr = await orderRes.json().catch(() => ({}));
+          throw new Error(orderErr.message || 'Could not create payment order. Please try again.');
+        }
         const orderData = await orderRes.json();
 
         const checkoutResult = await openCashfreeCheckout({
@@ -1400,6 +1486,12 @@ export default function FestRegistration() {
         });
 
         if (checkoutResult?.redirectDeferred) {
+          saveRegistrationDraft(draftKey, {
+            formData: getAllFormData(),
+            stepData,
+            currentStep,
+            completedSteps,
+          });
           setSubmitting(false);
           return;
         }
@@ -1407,14 +1499,15 @@ export default function FestRegistration() {
         setCompletingPayment(true);
         setSubmissionProgress('Verifying payment...');
 
-        const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
-          body: JSON.stringify({ payment_order_id: orderData.orderId }),
-        });
-        if (!verifyRes.ok) throw new Error('Payment verification failed. Please contact support.');
+        const { ok, data: verifyData } = await verifyPaymentWithRetry(
+          API_BASE_URL,
+          orderData.orderId,
+          { token },
+        );
+        if (!ok || !verifyData?.verified) {
+          throw new Error(verifyData?.message || 'Payment verification failed. Please contact support.');
+        }
 
-        const verifyData = await verifyRes.json();
         verifiedPaymentFields = buildVerifiedPaymentFields(verifyData, orderData.orderId);
         setPaymentFields(verifiedPaymentFields);
       }
@@ -1597,15 +1690,10 @@ export default function FestRegistration() {
       console.log('📤 FormData size:', submissionFormData.size || 'unknown');
       
       // ✅ FIX: Ensure we have a valid token before submission
-      const submitToken = token || localStorage.getItem('crwdctrl_token');
-      console.log('🔑 Authorization header check:', {
-        hasContextToken: !!token,
-        hasStorageToken: !!localStorage.getItem('crwdctrl_token'),
-        finalToken: submitToken ? submitToken.substring(0, 20) + '...' : 'NONE',
-        tokenLength: submitToken?.length
-      });
-      
+      const submitToken = token;
       if (!submitToken) {
+        clearStoredAuthSession();
+        setShowLogin(true);
         throw new Error('Authentication required. Please log in again to submit your registration.');
       }
 
@@ -1651,7 +1739,9 @@ export default function FestRegistration() {
           
           // Handle specific error cases
           if (response.status === 401) {
-            errorMessage = 'Authentication failed. Please log in again.';
+            clearStoredAuthSession();
+            setShowLogin(true);
+            errorMessage = 'Session expired. Please log in again.';
           } else if (response.status === 400 && errorData.error?.includes('registration')) {
             errorMessage = `Registration error: ${errorData.error}`;
           }
@@ -1679,10 +1769,8 @@ export default function FestRegistration() {
       setCompletingPayment(false);
       setSuccess(true);
       refreshNotifications();
-      setTimeout(() => refreshNotifications(), 1500);
-      setTimeout(() => {
-        navigate(regId ? `/qr-ticket/${regId}` : '/booking');
-      }, 2000);
+      clearRegistrationDraft(draftKey);
+      scheduleGoToBookings(navigate);
 
     } catch (err) {
       setCompletingPayment(false);
@@ -1698,15 +1786,16 @@ export default function FestRegistration() {
         console.log('ℹ️ Registration may have been saved on the server. Checking registered events...');
         setError('Registration is taking longer than expected. Your submission may have been saved. Please check your registered events in a moment. Contact support if needed.');
         // Don't prevent navigation - allow user to check registered events
-        setTimeout(() => navigate('/booking'), 2000);
-      } else if (err.message.includes('Authentication') || err.message.includes('session') || err.message.includes('token')) {
+        scheduleGoToBookings(navigate);
+      } else if (
+        err.message.includes('Authentication')
+        || err.message.includes('session')
+        || err.message.includes('token')
+        || err.message.includes('log in')
+      ) {
         setError('Your session has expired. Please log in again.');
-        // Clear invalid tokens
-        localStorage.removeItem('crwdctrl_token');
-        localStorage.removeItem('crwdctrl_user');
-        // Save current URL for redirect after login
-        sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
-        setTimeout(() => navigate('/login', { replace: true }), 2000);
+        clearStoredAuthSession();
+        setShowLogin(true);
       } else if (err.message.includes('registration') && err.message.includes('not available')) {
         setError('Registration is currently not available for this event. Please contact the organizers.');
       } else if (err.message.includes('required')) {
@@ -1727,7 +1816,7 @@ export default function FestRegistration() {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
   };
 
-  const hasAuth = isAuthenticated || !!authToken || !!localStorage.getItem('crwdctrl_token');
+  const hasAuth = hasUsableAuthToken(authToken);
 
   if (completingPayment && !success) {
     return (
@@ -1752,10 +1841,11 @@ export default function FestRegistration() {
             </span> has been submitted successfully.
           </p>
           <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            Redirecting to your ticket...
+            Redirecting to My Bookings...
           </p>
           <button
-            onClick={() => navigate('/booking')}
+            type="button"
+            onClick={() => goToBookings(navigate)}
             className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
           >
             View My Bookings
@@ -1765,7 +1855,12 @@ export default function FestRegistration() {
     );
   }
 
-  if (loading || authLoading || isAuthProcessing || isRedirectProcessing) {
+  const hasStoredSession = hasUsableAuthToken(authToken);
+  const waitingOnAuth = !hasStoredSession && (
+    authLoading || isAuthProcessing || isRedirectProcessing || (!!firebaseUser && !authSyncExpired)
+  );
+
+  if ((loading || waitingOnAuth) && !success && !completingPayment) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
         <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
@@ -1811,13 +1906,26 @@ export default function FestRegistration() {
     setCompletingPayment(true);
     setPaymentError('');
     try {
-      const token = authToken || localStorage.getItem('crwdctrl_token');
+      const token = resolveAuthToken(authToken);
+      if (!token) {
+        clearStoredAuthSession();
+        setShowLogin(true);
+        throw new Error('Please log in to continue with payment.');
+      }
       const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: getBearerAuthHeaders(authToken),
         body: JSON.stringify({ festId }),
       });
-      if (!orderRes.ok) throw new Error('Could not create payment order. Please try again.');
+      if (orderRes.status === 401) {
+        clearStoredAuthSession();
+        setShowLogin(true);
+        throw new Error('Session expired. Please log in again.');
+      }
+      if (!orderRes.ok) {
+        const orderErr = await orderRes.json().catch(() => ({}));
+        throw new Error(orderErr.message || 'Could not create payment order. Please try again.');
+      }
       const orderData = await orderRes.json();
 
       const checkoutResult = await openCashfreeCheckout({
@@ -1838,7 +1946,7 @@ export default function FestRegistration() {
 
       const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: getBearerAuthHeaders(authToken),
         body: JSON.stringify({ payment_order_id: orderData.orderId }),
       });
       if (!regRes.ok) {
@@ -1852,10 +1960,8 @@ export default function FestRegistration() {
       setCompletingPayment(false);
       setSuccess(true);
       refreshNotifications();
-      setTimeout(() => refreshNotifications(), 1500);
-      setTimeout(() => {
-        navigate(regId ? `/qr-ticket/${regId}` : '/booking');
-      }, 2000);
+      clearRegistrationDraft(draftKey);
+      scheduleGoToBookings(navigate);
     } catch (err) {
       setCompletingPayment(false);
       if (err.message !== 'Payment cancelled') {
@@ -1925,7 +2031,7 @@ export default function FestRegistration() {
             ) : !priceBreakdown ? (
               'Calculating Amount...'
             ) : (
-              `Pay ₹${priceBreakdown.totalAmount} & Register`
+              `Pay ₹${Number(priceBreakdown.totalAmount).toLocaleString('en-IN')} & Book`
             )}
           </button>
 
@@ -2081,7 +2187,11 @@ export default function FestRegistration() {
           </div>
         </div>
 
-        {/* Error Message */}
+        {notice && (
+          <div className={`rounded-lg p-3 mb-4 text-sm border ${isDark ? 'bg-green-900/20 border-green-700 text-green-400' : 'bg-green-50 border-green-300 text-green-700'}`}>
+            {notice}
+          </div>
+        )}
         {error && (
           <div className={`rounded-lg p-3 mb-4 text-sm border ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>
             {error}
@@ -2234,7 +2344,7 @@ export default function FestRegistration() {
                       <span>₹{priceBreakdown.totalAmount}</span>
                     </div>
                   </div>
-                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Cashfree secure payment — click Submit to pay and register.</p>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Cashfree secure payment — tap Pay to book.</p>
                 </div>
               );
             })()}
@@ -2245,7 +2355,7 @@ export default function FestRegistration() {
                 <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
                 <div>
                   <p className="text-sm font-semibold text-green-400">Payment Confirmed</p>
-                  <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Click Submit to complete your registration.</p>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Tap Confirm Booking to finish.</p>
                 </div>
               </div>
             )}
@@ -2271,8 +2381,8 @@ export default function FestRegistration() {
                 {submitting ? (
                   <>
                     <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                    <span className="hidden sm:inline">{submissionProgress || 'Submitting...'}</span>
-                    <span className="sm:hidden">Submitting...</span>
+                    <span className="hidden sm:inline">{submissionProgress || 'Processing...'}</span>
+                    <span className="sm:hidden">Processing...</span>
                     
                     {/* Progress indicator */}
                     {submissionProgress && (
@@ -2293,25 +2403,14 @@ export default function FestRegistration() {
                     )}
                   </>
                 ) : (() => {
-                  console.log('🔍 DEBUG - Button text logic:', {
-                    isMultiStep: isMultiStepForm(),
-                    currentStep,
-                    totalSteps: getTotalSteps(),
-                    baseSteps: fest.registration.steps?.length || 0,
-                    isNotFinalStep: currentStep < getTotalSteps(),
-                    shouldShowNextStep: isMultiStepForm() && currentStep < getTotalSteps(),
-                    hasFeeAmount: !!(isCompetitionRegistration ? competition?.feeAmount : fest.feeAmount),
-                    paymentDone: !!paymentFields
-                  });
-
                   if (isMultiStepForm() && currentStep < getTotalSteps()) {
                     return 'Next Step';
                   }
                   // Final step
                   if (priceBreakdown && !paymentFields) {
-                    return `Pay ₹${priceBreakdown.totalAmount} & Register`;
+                    return `Pay ₹${Number(priceBreakdown.totalAmount).toLocaleString('en-IN')} & Book`;
                   }
-                  return 'Submit Registration';
+                  return 'Confirm Booking';
                 })()}
               </button>
             </div>

@@ -176,7 +176,8 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
                 path: 'fest',
                 select: 'festName collegeName isApproved registration',
                 options: { strictPopulate: false }
-            });
+            })
+            .lean();
 
         if (!competition) {
             return res.status(404).json({ message: 'Competition not found' });
@@ -188,7 +189,7 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         }
 
         // Ensure competition has proper registration configuration
-        const competitionData = competition.toObject();
+        const competitionData = competition;
         
         // ✅ CRITICAL FIX: Ensure fest registration data is always complete
         if (competitionData.fest && competitionData.fest.registration) {

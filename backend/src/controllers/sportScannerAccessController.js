@@ -149,6 +149,7 @@ const getAdminSportScannerAccess = async (req, res) => {
       code: event.scannerAccess?.code || '',
       label: event.scannerAccess?.label || '',
       hasPassword: !!event.scannerAccess?.passwordHash,
+      password: event.scannerAccess?.password || '',
       googleSheetsUrl: event.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!event.registration?.googleSheetsUrl,
       loginPath: '/organizer/login',
@@ -232,6 +233,7 @@ const setAdminSportScannerAccess = async (req, res) => {
 
     if (password) {
       event.scannerAccess.passwordHash = await bcrypt.hash(password, 10);
+      event.scannerAccess.password = password;
     }
 
     if (googleSheetsUrl !== undefined) {
@@ -248,6 +250,7 @@ const setAdminSportScannerAccess = async (req, res) => {
       enabled: event.scannerAccess.enabled,
       code: event.scannerAccess.code,
       label: event.scannerAccess.label,
+      password: event.scannerAccess.password || '',
       googleSheetsUrl: event.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!event.registration?.googleSheetsUrl,
       message: password ? 'Sports scanner login updated' : 'Sports scanner settings saved (password unchanged)',

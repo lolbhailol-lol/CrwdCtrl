@@ -1,17 +1,9 @@
-import { useEffect, useState } from 'react';
-import { QrCode, Loader, Mountain, PartyPopper, Copy, Check, ChevronRight, Trophy } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { QrCode, Loader, Mountain, PartyPopper, Copy, Check, Trophy, Search } from 'lucide-react';
 import FestScannerSetup from './FestScannerSetup';
 import TrekScannerSetup from './TrekScannerSetup';
 import SportScannerSetup from './SportScannerSetup';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-
-const STEPS = [
-  'Pick a fest, trek, or sports event below',
-  'Set a unique code + password',
-  'Add Google Sheet URL (optional)',
-  'Share login link with organizers',
-];
+import { adminFetchJSON } from '../../utils/adminApi';
 
 export default function ScannerAccessPage() {
   const [tab, setTab] = useState('fests');
@@ -25,12 +17,10 @@ export default function ScannerAccessPage() {
   const [loadingTreks, setLoadingTreks] = useState(true);
   const [loadingSports, setLoadingSports] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetch(`${API}/admin/fests?limit=500`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-    })
-      .then((r) => r.json())
+    adminFetchJSON('/admin/fests?limit=500')
       .then((data) => {
         const list = data.fests || [];
         setFests(list);
@@ -41,10 +31,7 @@ export default function ScannerAccessPage() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API}/admin/treks?limit=500`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-    })
-      .then((r) => r.json())
+    adminFetchJSON('/admin/treks?limit=500')
       .then((data) => {
         const list = data.treks || [];
         setTreks(Array.isArray(list) ? list : []);
@@ -55,10 +42,7 @@ export default function ScannerAccessPage() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API}/admin/sports?limit=500`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
-    })
-      .then((r) => r.json())
+    adminFetchJSON('/admin/sports?limit=500')
       .then((data) => {
         const list = data.events || [];
         setSportsEvents(Array.isArray(list) ? list : []);
@@ -84,10 +68,46 @@ export default function ScannerAccessPage() {
   const isTrek = tab === 'treks';
   const isSport = tab === 'sports';
   const loading = isFest ? loadingFests : isTrek ? loadingTreks : loadingSports;
-  const empty = isFest ? fests.length === 0 : isTrek ? treks.length === 0 : sportsEvents.length === 0;
+
+  // Normalize the active tab's items into a single list shape for the picker
+  const items = useMemo(() => {
+    if (isFest) {
+      return fests.map((f) => ({ id: f._id, title: f.festName, subtitle: f.collegeName || '' }));
+    }
+    if (isTrek) {
+      return treks.map((t) => ({ id: t._id, title: t.trekName, subtitle: t.city || '' }));
+    }
+    return sportsEvents.map((s) => ({
+      id: s._id,
+      title: s.title,
+      subtitle: [s.city, s.sportType === 'run_club' ? 'Run club' : null].filter(Boolean).join(' · '),
+    }));
+  }, [isFest, isTrek, fests, treks, sportsEvents]);
+
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (item) =>
+        item.title?.toLowerCase().includes(q) || item.subtitle?.toLowerCase().includes(q)
+    );
+  }, [items, search]);
+
+  const selectedId = isFest ? selectedFestId : isTrek ? selectedTrekId : selectedSportId;
+  const selectItem = (id) => {
+    if (isFest) setSelectedFestId(id);
+    else if (isTrek) setSelectedTrekId(id);
+    else setSelectedSportId(id);
+  };
+
+  const TABS = [
+    { key: 'fests', label: 'Fests', icon: PartyPopper, count: fests.length },
+    { key: 'treks', label: 'Treks', icon: Mountain, count: treks.length },
+    { key: 'sports', label: 'Sports', icon: Trophy, count: sportsEvents.length },
+  ];
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-5xl space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -105,139 +125,111 @@ export default function ScannerAccessPage() {
         <button
           type="button"
           onClick={copyLogin}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 text-sm text-[#0ECCEE] hover:bg-[#0ECCEE]/10 shrink-0"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 text-sm text-[#0ECCEE] hover:bg-[#0ECCEE]/10 shrink-0 transition-colors"
         >
           {copied ? <Check size={16} /> : <Copy size={16} />}
           {copied ? 'Link copied' : 'Copy organizer login'}
         </button>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_220px] gap-6">
-        <div className="space-y-4">
-          <div className="inline-flex p-1 rounded-xl bg-[#111213] border border-gray-800">
-            <button
-              type="button"
-              onClick={() => setTab('fests')}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isFest ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <PartyPopper size={15} />
-              Fests
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('treks')}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isTrek ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <Mountain size={15} />
-              Treks
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('sports')}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isSport ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <Trophy size={15} />
-              Sports
-            </button>
+      <div className="space-y-4">
+        <div className="inline-flex p-1 rounded-xl bg-[#111213] border border-gray-800">
+            {TABS.map(({ key, label, icon: Icon, count }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { setTab(key); setSearch(''); }}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  tab === key ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Icon size={15} />
+                {label}
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    tab === key ? 'bg-black/15 text-black' : 'bg-gray-800 text-gray-400'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            ))}
           </div>
 
-          <div className="bg-[#111213] border border-gray-800 rounded-2xl p-5 sm:p-6 space-y-5">
-            <div>
-              <label className="text-sm font-medium text-white">
-                {isFest ? 'Select fest' : isTrek ? 'Select trek' : 'Select sports / run club event'}
-              </label>
+          <div className="grid md:grid-cols-[260px_1fr] gap-4">
+            {/* Event picker */}
+            <div className="bg-[#111213] border border-gray-800 rounded-2xl p-4 space-y-3 self-start">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={`Search ${isFest ? 'fests' : isTrek ? 'treks' : 'events'}...`}
+                  className="w-full pl-9 pr-3 py-2 bg-[#1D1E20] border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-[#0ECCEE] focus:outline-none"
+                />
+              </div>
+
               {loading ? (
-                <div className="mt-2 flex items-center gap-2 text-gray-400 text-sm">
+                <div className="flex items-center gap-2 text-gray-400 text-sm py-6 justify-center">
                   <Loader className="animate-spin" size={16} />
                   Loading…
                 </div>
-              ) : empty ? (
-                <p className="mt-2 text-sm text-gray-500">
-                  No {isFest ? 'fests' : isTrek ? 'treks' : 'sports events'} yet. Create one under Admin →{' '}
-                  {isFest ? 'Fests' : isTrek ? 'Treks' : 'Sports'}.
+              ) : items.length === 0 ? (
+                <p className="text-sm text-gray-500 py-4 text-center">
+                  No {isFest ? 'fests' : isTrek ? 'treks' : 'sports events'} yet. Create one under
+                  Admin → {isFest ? 'Fests' : isTrek ? 'Treks' : 'Run Clubs'}.
                 </p>
+              ) : filteredItems.length === 0 ? (
+                <p className="text-sm text-gray-500 py-4 text-center">No matches for "{search}"</p>
               ) : (
-                <select
-                  value={isFest ? selectedFestId : isTrek ? selectedTrekId : selectedSportId}
-                  onChange={(e) => {
-                    if (isFest) setSelectedFestId(e.target.value);
-                    else if (isTrek) setSelectedTrekId(e.target.value);
-                    else setSelectedSportId(e.target.value);
-                  }}
-                  className="mt-2 w-full bg-[#1D1E20] border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#0ECCEE]"
-                >
-                  {isFest
-                    ? fests.map((fest) => (
-                        <option key={fest._id} value={fest._id}>
-                          {fest.festName} — {fest.collegeName}
-                        </option>
-                      ))
-                    : isTrek
-                      ? treks.map((trek) => (
-                          <option key={trek._id} value={trek._id}>
-                            {trek.trekName}
-                            {trek.city ? ` — ${trek.city}` : ''}
-                          </option>
-                        ))
-                      : sportsEvents.map((event) => (
-                          <option key={event._id} value={event._id}>
-                            {event.title}
-                            {event.city ? ` — ${event.city}` : ''}
-                            {event.sportType === 'run_club' ? ' (Run club)' : ''}
-                          </option>
-                        ))}
-                </select>
+                <div className="space-y-1 max-h-[420px] overflow-y-auto pr-1">
+                  {filteredItems.map((item) => {
+                    const active = item.id === selectedId;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => selectItem(item.id)}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors border ${
+                          active
+                            ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/50'
+                            : 'border-transparent hover:bg-[#1D1E20]'
+                        }`}
+                      >
+                        <div className={`text-sm font-medium truncate ${active ? 'text-[#0ECCEE]' : 'text-white'}`}>
+                          {item.title}
+                        </div>
+                        {item.subtitle && (
+                          <div className="text-xs text-gray-500 truncate mt-0.5">{item.subtitle}</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
-            {isFest && selectedFest && (
-              <FestScannerSetup festId={selectedFest._id} festName={selectedFest.festName} />
-            )}
-            {isTrek && selectedTrek && (
-              <TrekScannerSetup trekId={selectedTrek._id} trekName={selectedTrek.trekName} />
-            )}
-            {isSport && selectedSport && (
-              <SportScannerSetup
-                sportEventId={selectedSport._id}
-                eventTitle={selectedSport.title}
-              />
-            )}
-          </div>
-        </div>
-
-        <aside className="hidden lg:block">
-          <div className="sticky top-6 bg-[#111213] border border-gray-800 rounded-2xl p-5 space-y-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Quick guide</p>
-            <ol className="space-y-3">
-              {STEPS.map((step, i) => (
-                <li key={step} className="flex gap-3 text-sm text-gray-400">
-                  <span className="shrink-0 w-6 h-6 rounded-full bg-[#0ECCEE]/15 text-[#0ECCEE] text-xs font-bold flex items-center justify-center">
-                    {i + 1}
-                  </span>
-                  <span className="pt-0.5">{step}</span>
-                </li>
-              ))}
-            </ol>
-            <div className="pt-3 border-t border-gray-800">
-              <p className="text-xs text-gray-500 mb-1">Organizer URL</p>
-              <p className="text-xs text-[#0ECCEE] break-all">{loginUrl}</p>
+            {/* Setup form */}
+            <div className="bg-[#111213] border border-gray-800 rounded-2xl p-5 sm:p-6">
+              {isFest && selectedFest ? (
+                <FestScannerSetup festId={selectedFest._id} festName={selectedFest.festName} />
+              ) : isTrek && selectedTrek ? (
+                <TrekScannerSetup trekId={selectedTrek._id} trekName={selectedTrek.trekName} />
+              ) : isSport && selectedSport ? (
+                <SportScannerSetup
+                  sportEventId={selectedSport._id}
+                  eventTitle={selectedSport.title}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-500 gap-2">
+                  <QrCode size={32} className="opacity-30" />
+                  <p className="text-sm">Select an event on the left to configure scanner access</p>
+                </div>
+              )}
             </div>
           </div>
-        </aside>
-      </div>
-
-      <div className="lg:hidden bg-[#111213] border border-gray-800 rounded-xl p-4">
-        <p className="text-xs font-medium text-gray-300 mb-2 flex items-center gap-1">
-          Organizer login <ChevronRight size={12} className="text-gray-600" />
-        </p>
-        <p className="text-xs text-[#0ECCEE] break-all">{loginUrl}</p>
-      </div>
+        </div>
     </div>
   );
 }

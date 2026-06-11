@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, Loader } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlLogin from './login';
+import { goToBookings, scheduleGoToBookings } from '../../utils/paymentNavigation';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -63,6 +64,7 @@ export default function RunEventBookingPage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Registration failed');
             setDone(true);
+            scheduleGoToBookings(navigate);
         } catch (err) {
             setError(err.message || 'Could not complete registration');
         } finally {
@@ -99,10 +101,11 @@ export default function RunEventBookingPage() {
                 <CheckCircle size={56} className="text-green-500" />
                 <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>You&apos;re registered!</h1>
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    See your ticket in My Bookings after the organiser confirms.
+                    Redirecting to My Bookings...
                 </p>
                 <button
-                    onClick={() => navigate('/booking')}
+                    type="button"
+                    onClick={() => goToBookings(navigate)}
                     className="px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm"
                 >
                     My Bookings

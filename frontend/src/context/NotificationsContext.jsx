@@ -3,6 +3,7 @@ import { requestNotificationPermission, getFcmTokenIfGranted, onForegroundMessag
 import { registerNativePushToken, getPushDeviceType } from '../utils/nativePush';
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { shouldPromptForNotifications, markNotificationPromptAttempted } from '../utils/notificationPrompt';
+import { resolveAuthToken } from '../utils/authToken';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -25,9 +26,9 @@ export const NotificationsProvider = ({ children }) => {
     const seenNotificationIdsRef = useRef(new Set());
     const hasInitializedRef = useRef(false);
 
-    // Helper: get auth token
+    // Helper: get auth token (skips expired / firebase fallback tokens to avoid 401 spam)
     const getToken = () => {
-        return localStorage.getItem('crwdctrl_token');
+        return resolveAuthToken();
     };
 
     // Helper: authenticated fetch
