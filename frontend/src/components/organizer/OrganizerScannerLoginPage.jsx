@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { QrCode, Loader, Mountain, PartyPopper, Trophy } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { QrCode, Loader, Mountain, PartyPopper, Trophy, Home } from 'lucide-react';
 import { getApiBaseUrl } from '../../config/apiBase';
 import { setFestScannerSession } from '../../utils/festScannerSession';
 
 export default function OrganizerScannerLoginPage() {
   const navigate = useNavigate();
-  const [code, setCode] = useState('');
+  const [searchParams] = useSearchParams();
+  const [code, setCode] = useState(() =>
+    (searchParams.get('code') || '').trim().toUpperCase(),
+  );
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -77,7 +80,7 @@ export default function OrganizerScannerLoginPage() {
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Check-in Scanner</h1>
           <p className="text-sm text-gray-400 mt-2 max-w-xs mx-auto leading-relaxed">
-            Enter the event code and password from your CrwdCtrl admin to start scanning tickets.
+            Enter the event code and password shared by your organizer to start scanning tickets.
           </p>
         </div>
 
@@ -152,10 +155,18 @@ export default function OrganizerScannerLoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-500 mt-6 leading-relaxed">
-          Don&apos;t have a code? Contact your CrwdCtrl admin — they set it up under{' '}
-          <span className="text-gray-400">Admin → Scanner Access</span>.
-        </p>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <p className="text-center text-xs text-gray-500 leading-relaxed">
+            Don&apos;t have a code? Ask your event organizer for the login details.
+          </p>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700 text-sm text-gray-300 hover:text-white hover:border-gray-500 hover:bg-[#111213] transition-colors"
+          >
+            <Home size={16} className="text-[#0ECCEE]" />
+            Back to CrwdCtrl
+          </Link>
+        </div>
       </div>
     </div>
   );
