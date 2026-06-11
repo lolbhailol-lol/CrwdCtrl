@@ -72,9 +72,12 @@ export const FavoritesProvider = ({ children }) => {
         return Boolean(favorites[eventId]);
     };
 
-    // Get all favorite events
+    // Get all favorite events (stored shape is normalized on write/migration)
     const getFavoriteEvents = () => {
-        return Object.entries(favorites).map(([id, data]) => normalizeFavoriteEntry(id, data));
+        return Object.entries(favorites).map(([id, data]) => ({
+            ...data,
+            id: data.id || id,
+        }));
     };
 
     // Get favorite count

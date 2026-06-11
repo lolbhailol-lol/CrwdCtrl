@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Heart, Calendar, Sparkles, Filter, Trash2, Plus, Share2 } from 'lucide-react';
 import CardFavoriteButton from '../CardFavoriteButton';
@@ -136,9 +136,7 @@ function EmptyFavorites({ onExplore, compact = false }) {
 
 function FestFavoritesPage() {
     const navigate = useNavigate();
-    const { getFavoriteEvents, removeFavorite, clearAllFavorites, getFavoriteCount, favorites } = useFavorites();
-    const [favoriteEvents, setFavoriteEvents] = useState([]);
-    const [filteredEvents, setFilteredEvents] = useState([]);
+    const { removeFavorite, clearAllFavorites, getFavoriteCount, favorites } = useFavorites();
     const [activeFilter, setActiveFilter] = useState('all');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -167,36 +165,37 @@ function FestFavoritesPage() {
         setShowLogin(true);
     };
 
-    useEffect(() => {
-        setFavoriteEvents(getFavoriteEvents());
-    }, [getFavoriteEvents, favorites]);
+    const favoriteEvents = useMemo(
+        () => Object.entries(favorites).map(([id, data]) => ({ ...data, id: data.id || id })),
+        [favorites],
+    );
 
-    useEffect(() => {
-        let filtered = favoriteEvents;
-
+    const filteredEvents = useMemo(() => {
         if (activeFilter === 'cultural') {
-            filtered = favoriteEvents.filter((event) =>
+            return favoriteEvents.filter((event) =>
                 event.type?.toLowerCase().includes('cultural')
                 || event.id?.toLowerCase().includes('cultural')
                 || event.title?.toLowerCase().includes('cultural'),
             );
-        } else if (activeFilter === 'tech') {
-            filtered = favoriteEvents.filter((event) =>
+        }
+        if (activeFilter === 'tech') {
+            return favoriteEvents.filter((event) =>
                 event.type?.toLowerCase().includes('tech')
                 || event.id?.toLowerCase().includes('tech')
                 || event.title?.toLowerCase().includes('tech'),
             );
-        } else if (activeFilter === 'sports') {
-            filtered = favoriteEvents.filter((event) =>
+        }
+        if (activeFilter === 'sports') {
+            return favoriteEvents.filter((event) =>
                 event.type?.toLowerCase().includes('sports')
                 || event.id?.toLowerCase().includes('sports')
                 || event.title?.toLowerCase().includes('sports'),
             );
-        } else if (activeFilter === 'trending') {
-            filtered = favoriteEvents.filter((event) => event.trending);
         }
-
-        setFilteredEvents(filtered);
+        if (activeFilter === 'trending') {
+            return favoriteEvents.filter((event) => event.trending);
+        }
+        return favoriteEvents;
     }, [favoriteEvents, activeFilter]);
 
     const handleRemove = (eventId) => {
@@ -210,7 +209,9 @@ function FestFavoritesPage() {
         }
         if (event.id) {
             navigate(`/view-details/${event.id}`);
+            return;
         }
+        navigate('/view-details');
     };
 
     const handleClearAll = () => {
