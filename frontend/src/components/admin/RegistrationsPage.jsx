@@ -1,378 +1,570 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Eye, Search, Calendar, User, Mail, Phone, QrCode } from 'lucide-react';
-import FestScannerSetup from './FestScannerSetup';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+    AlertCircle, Calendar, Flag, Footprints, Loader2,
+    Mail, Mountain, Phone, Search, User,
+} from 'lucide-react';
 import { adminFetchJSON } from '../../utils/adminApi';
+import { normalizeImageUrl } from '../../utils/uploadUrls';
 
-export default function RegistrationsPage() {
-  const [fests, setFests] = useState([]);
-  const [selectedFest, setSelectedFest] = useState(null);
-  const [registrations, setRegistrations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [registrationsLoading, setRegistrationsLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [festSearch, setFestSearch] = useState('');
-  const [error, setError] = useState('');
+const TABS = [
+    { id: 'fests', label: 'Fests', icon: Flag },
+    { id: 'treks', label: 'Treks', icon: Mountain },
+    { id: 'runs', label: 'Runs', icon: Footprints },
+];
 
-  useEffect(() => {
-    fetchFests();
-  }, []);
+const FEST_MODE_LABEL = {
+    INTERNAL_FORM: { label: 'Internal form', cls: 'bg-emerald-500/15 text-emerald-400' },
+    EXTERNAL_LINK: { label: 'External link', cls: 'bg-sky-500/15 text-sky-400' },
+    CLOSED: { label: 'Closed', cls: 'bg-red-500/15 text-red-400' },
+    NOT_STARTED: { label: 'Not started', cls: 'bg-white/8 text-gray-500' },
+};
 
-  const fetchFests = async () => {
-    try {
-      const data = await adminFetchJSON('/admin/fests?limit=500');
-      setFests(data.fests || []);
-      setError('');
-    } catch (err) {
-      setError(err.message || 'Failed to load fests');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchRegistrations = async (festId) => {
-    setRegistrationsLoading(true);
-    try {
-      const data = await adminFetchJSON(`/registrations/admin/fests/${festId}/registrations`);
-      setRegistrations(data.registrations || []);
-      setError('');
-    } catch (err) {
-      setError(err.message || 'Failed to load registrations');
-      setRegistrations([]);
-    } finally {
-      setRegistrationsLoading(false);
-    }
-  };
-
-  const handleFestSelect = (fest) => {
-    setSelectedFest(fest);
-    setRegistrations([]);
-    if (fest.registration?.mode === 'INTERNAL_FORM') {
-      fetchRegistrations(fest._id);
-    }
-  };
-
-  const updateRegistrationStatus = async (registrationId, status) => {
-    try {
-      await adminFetchJSON(`/registrations/admin/registrations/${registrationId}/status`, {
-        method: 'PUT',
-        body: JSON.stringify({ status }),
-      });
-      fetchRegistrations(selectedFest._id);
-    } catch (err) {
-      setError(err.message || 'Failed to update registration status');
-    }
-  };
-
-  const filteredFests = useMemo(() => {
-    const q = festSearch.trim().toLowerCase();
-    if (!q) return fests;
-    return fests.filter(
-      (fest) =>
-        fest.festName?.toLowerCase().includes(q) ||
-        fest.collegeName?.toLowerCase().includes(q)
-    );
-  }, [fests, festSearch]);
-
-  const filteredRegistrations = registrations.filter(reg => {
-    const matchesSearch = reg.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         reg.user?.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || reg.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'approved': return 'text-green-400 bg-green-900/20';
-      case 'rejected': return 'text-red-400 bg-red-900/20';
-      default: return 'text-yellow-400 bg-yellow-900/20';
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Registration Management</h1>
-        <p className="text-gray-400">View and manage fest registrations</p>
-      </div>
-
-      {error && (
-        <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-          <span>{error}</span>
-          <button type="button" onClick={() => setError('')} className="underline hover:text-red-200 shrink-0">
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {!selectedFest ? (
-        <div className="bg-[#111213] border border-dashed border-gray-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-          <QrCode className="text-[#0ECCEE] shrink-0" size={24} />
-          <div className="flex-1 text-sm text-gray-400">
-            <span className="text-gray-200 font-medium">Organizer scanner login</span> — click a fest in the list below, or use{' '}
-            <Link to="/admin/scanner-access" className="text-[#0ECCEE] hover:underline">
-              Admin → Scanner Access
-            </Link>{' '}
-            to set fest code + password without selecting registrations.
-          </div>
-        </div>
-      ) : (
-        <FestScannerSetup festId={selectedFest._id} festName={selectedFest.festName} />
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Fests List */}
-        <div className="bg-[#111213] rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-4">Select Fest</h2>
-          <div className="relative mb-3">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search fests..."
-              value={festSearch}
-              onChange={(e) => setFestSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-[#1D1E20] border border-gray-700 rounded-lg text-sm focus:border-[#0ECCEE] focus:outline-none"
-            />
-          </div>
-          {loading ? (
-            <div className="text-center py-8 text-gray-400">Loading fests...</div>
-          ) : filteredFests.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">
-              {fests.length === 0 ? 'No fests found.' : `No fests match "${festSearch}"`}
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredFests.map((fest) => (
-                <button
-                  key={fest._id}
-                  onClick={() => handleFestSelect(fest)}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${
-                    selectedFest?._id === fest._id
-                      ? 'bg-[#0ECCEE]/20 border border-[#0ECCEE]/50'
-                      : 'hover:bg-gray-800'
-                  }`}
-                >
-                  <div className="font-medium">{fest.festName}</div>
-                  <div className="text-sm text-gray-400">{fest.collegeName}</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      fest.registration?.mode === 'INTERNAL_FORM' 
-                        ? 'bg-green-900/20 text-green-400'
-                        : fest.registration?.mode === 'EXTERNAL_LINK'
-                        ? 'bg-blue-900/20 text-blue-400'
-                        : 'bg-gray-900/20 text-gray-400'
-                    }`}>
-                      {fest.registration?.mode === 'INTERNAL_FORM' ? 'Internal Form' :
-                       fest.registration?.mode === 'EXTERNAL_LINK' ? 'External Link' :
-                       'Not Started'}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Registrations */}
-        <div className="lg:col-span-2 bg-[#111213] rounded-xl p-6">
-          {!selectedFest ? (
-            <div className="text-center py-12 text-gray-400">
-              <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Select a fest to view registrations</p>
-            </div>
-          ) : selectedFest.registration?.mode !== 'INTERNAL_FORM' ? (
-            <div className="text-center py-12 text-gray-400">
-              <Eye className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>This fest uses {selectedFest.registration?.mode === 'EXTERNAL_LINK' ? 'external registration' : 'no registration system'}</p>
-              {selectedFest.registration?.mode === 'EXTERNAL_LINK' && (
-                <a 
-                  href={selectedFest.registration.externalLink} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[#0ECCEE] hover:underline mt-2 inline-block"
-                >
-                  View External Form
-                </a>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-semibold">{selectedFest.festName} Registrations</h2>
-                  <p className="text-gray-400">{filteredRegistrations.length} registrations</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search users..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 py-2 bg-[#1D1E20] border border-gray-700 rounded-lg focus:border-[#0ECCEE] focus:outline-none"
-                    />
-                  </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 bg-[#1D1E20] border border-gray-700 rounded-lg focus:border-[#0ECCEE] focus:outline-none"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </div>
-              </div>
-
-              {registrationsLoading ? (
-                <div className="text-center py-12 text-gray-400">Loading registrations...</div>
-              ) : filteredRegistrations.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No registrations found</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredRegistrations.map((registration) => (
-                    <div key={registration._id} className="bg-[#1D1E20] rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#0ECCEE]/20 rounded-full flex items-center justify-center">
-                            <User className="w-5 h-5 text-[#0ECCEE]" />
-                          </div>
-                          <div>
-                            <h3 className="font-medium">{registration.user?.name}</h3>
-                            <div className="flex items-center gap-4 text-sm text-gray-400">
-                              <span className="flex items-center gap-1">
-                                <Mail className="w-3 h-3" />
-                                {registration.user?.email}
-                              </span>
-                              {registration.user?.phone && (
-                                <span className="flex items-center gap-1">
-                                  <Phone className="w-3 h-3" />
-                                  {registration.user.phone}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap justify-end">
-                          {/* Online payment badge */}
-                          {registration.paymentStatus === 'paid' && (
-                            <span
-                              className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 font-medium cursor-help"
-                              title={`Payment ID: ${registration.payment_id || registration.payment_order_id || 'N/A'}`}
-                            >
-                              💳 Paid ₹{registration.amountPaid}
-                            </span>
-                          )}
-                          {registration.paymentStatus === 'free' && (
-                            <span className="px-2 py-1 rounded text-xs bg-gray-700 text-gray-400">
-                              Free
-                            </span>
-                          )}
-                          <span className={`px-2 py-1 rounded text-xs ${getStatusColor(registration.status)}`}>
-                            {registration.status.charAt(0).toUpperCase() + registration.status.slice(1)}
-                          </span>
-                          <select
-                            value={registration.status}
-                            onChange={(e) => updateRegistrationStatus(registration._id, e.target.value)}
-                            className="text-xs px-2 py-1 bg-[#111213] border border-gray-700 rounded focus:border-[#0ECCEE] focus:outline-none"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Registration Responses */}
-                      {registration.responses && Object.keys(registration.responses).length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-700">
-                          <h4 className="text-sm font-medium mb-2">Registration Details:</h4>
-                          
-                          {/* Debug info for development */}
-                          {import.meta.env.DEV && (
-                            <div className="mb-2 p-2 bg-gray-800 rounded text-xs">
-                              <strong>Debug:</strong> {JSON.stringify(registration.responses, null, 2)}
-                            </div>
-                          )}
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                            {Object.entries(registration.responses).map(([key, value]) => {
-                              // Check if this is a file upload field (value has uploaded property)
-                              const isFileField = value && typeof value === 'object' && value.uploaded;
-                              let displayValue;
-                              
-                              if (isFileField) {
-                                // Check for Cloudinary link first
-                                if (value.cloudinaryLink) {
-                                  displayValue = (
-                                    <a 
-                                      href={value.cloudinaryLink} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="text-blue-400 hover:text-blue-300 underline"
-                                    >
-                                      📁 View File
-                                    </a>
-                                  );
-                                } else if (value.driveLink && value.driveLink.startsWith('https://drive.google.com')) {
-                                  // Legacy Google Drive link support
-                                  displayValue = (
-                                    <a 
-                                      href={value.driveLink} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="text-blue-400 hover:text-blue-300 underline"
-                                    >
-                                      📁 View File
-                                    </a>
-                                  );
-                                } else {
-                                  // Generic uploaded status
-                                  displayValue = (
-                                    <span className="text-green-400">
-                                      ✅ File Uploaded
-                                    </span>
-                                  );
-                                }
-                              } else {
-                                // Regular text field
-                                displayValue = Array.isArray(value) ? value.join(', ') : 
-                                              value || 'Not provided';
-                              }
-                              
-                              return (
-                                <div key={key} className="flex">
-                                  <span className="text-gray-400 capitalize w-1/3">{key.replace(/_/g, ' ')}:</span>
-                                  <span className={`w-2/3 ${isFileField ? '' : 'text-white'}`}>
-                                    {displayValue}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="text-xs text-gray-500 mt-2">
-                        Submitted: {new Date(registration.submittedAt).toLocaleDateString()} at {new Date(registration.submittedAt).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function formatDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleString('en-IN', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
 }
 
+function normalizeResponses(responses) {
+    if (!responses) return [];
+    const entries = responses instanceof Map
+        ? [...responses.entries()]
+        : Object.entries(typeof responses === 'object' ? responses : {});
+    return entries.filter(([, v]) => v !== null && v !== undefined && v !== '');
+}
 
+function ResponseValue({ value }) {
+    const isFile = value && typeof value === 'object' && value.uploaded;
+    if (isFile) {
+        const link = value.cloudinaryLink || (value.driveLink?.startsWith('https://') ? value.driveLink : null);
+        if (link) {
+            return (
+                <a href={link} target="_blank" rel="noopener noreferrer" className="text-[#0ECCEE] hover:underline">
+                    View file
+                </a>
+            );
+        }
+        return <span className="text-emerald-400">File uploaded</span>;
+    }
+    if (Array.isArray(value)) return value.join(', ');
+    return String(value ?? '—');
+}
 
+function RegistrationCard({
+    name, email, phone, status, statusOptions, onStatusChange,
+    paymentStatus, amountPaid, paymentId, responses, extraRows, submittedAt,
+}) {
+    return (
+        <div className="rounded-xl border border-white/8 bg-[#121316] p-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#0ECCEE]/15 flex items-center justify-center shrink-0">
+                        <User size={18} className="text-[#0ECCEE]" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="font-semibold text-white truncate">{name || 'Unknown'}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-xs text-gray-500">
+                            {email && (
+                                <span className="flex items-center gap-1 truncate">
+                                    <Mail size={11} />{email}
+                                </span>
+                            )}
+                            {phone && (
+                                <span className="flex items-center gap-1">
+                                    <Phone size={11} />{phone}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap shrink-0">
+                    {paymentStatus === 'paid' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400"
+                            title={paymentId ? `Payment: ${paymentId}` : undefined}>
+                            Paid ₹{amountPaid ?? 0}
+                        </span>
+                    )}
+                    {paymentStatus === 'free' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/8 text-gray-500">Free</span>
+                    )}
+                    <select
+                        value={status}
+                        onChange={(e) => onStatusChange(e.target.value)}
+                        className="text-xs px-2.5 py-1.5 bg-[#0D0E10] border border-white/10 rounded-lg text-white focus:outline-none focus:border-[#0ECCEE]/50 capitalize"
+                    >
+                        {statusOptions.map((opt) => (
+                            <option key={opt} value={opt} className="bg-[#0D0E10] capitalize">{opt}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {extraRows?.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-white/6 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {extraRows.map(({ label, value }) => (
+                        <div key={label} className="flex gap-2">
+                            <span className="text-gray-500 shrink-0">{label}:</span>
+                            <span className="text-gray-300">{value}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {normalizeResponses(responses).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-white/6">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-600 mb-2">Form responses</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {normalizeResponses(responses).map(([key, value]) => (
+                            <div key={key} className="flex gap-2">
+                                <span className="text-gray-500 capitalize shrink-0 w-1/3">{key.replace(/_/g, ' ')}</span>
+                                <span className="text-gray-300 w-2/3 break-words"><ResponseValue value={value} /></span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {submittedAt && (
+                <p className="text-[10px] text-gray-600 mt-3">Submitted {formatDate(submittedAt)}</p>
+            )}
+        </div>
+    );
+}
+
+function EventPickerCard({ active, onClick, image, fallbackIcon: FallbackIcon, title, subtitle, badge }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`w-full text-left flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                active
+                    ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/8'
+                    : 'border-transparent hover:bg-white/3'
+            }`}
+        >
+            <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-[#1A1B1D] flex items-center justify-center">
+                {image ? (
+                    <img src={image} alt="" className="w-full h-full object-cover" />
+                ) : (
+                    <FallbackIcon size={18} className="text-gray-600" />
+                )}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{title}</p>
+                {subtitle && <p className="text-[11px] text-gray-500 truncate">{subtitle}</p>}
+                {badge && (
+                    <span className={`inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badge.cls}`}>
+                        {badge.label}
+                    </span>
+                )}
+            </div>
+        </button>
+    );
+}
+
+export default function RegistrationsPage() {
+    const [tab, setTab] = useState('fests');
+    const [loading, setLoading] = useState(true);
+    const [regsLoading, setRegsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const [fests, setFests] = useState([]);
+    const [treks, setTreks] = useState([]);
+    const [runs, setRuns] = useState([]);
+
+    const [selectedId, setSelectedId] = useState(null);
+    const [registrations, setRegistrations] = useState([]);
+    const [eventSearch, setEventSearch] = useState('');
+    const [userSearch, setUserSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+
+    const fetchLists = useCallback(async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const [festData, trekData, sportData] = await Promise.all([
+                adminFetchJSON('/admin/fests?limit=500'),
+                adminFetchJSON('/admin/treks?limit=500'),
+                adminFetchJSON('/admin/sports?limit=500'),
+            ]);
+            setFests(festData.fests || []);
+            setTreks(trekData.treks || []);
+            setRuns((sportData.events || []).filter((e) => e.runClubId));
+        } catch (err) {
+            setError(err.message || 'Failed to load events');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchLists(); }, [fetchLists]);
+
+    const currentList = tab === 'fests' ? fests : tab === 'treks' ? treks : runs;
+
+    const filteredEvents = useMemo(() => {
+        const q = eventSearch.trim().toLowerCase();
+        if (!q) return currentList;
+        return currentList.filter((item) => {
+            if (tab === 'fests') {
+                return [item.festName, item.collegeName].some((v) => String(v || '').toLowerCase().includes(q));
+            }
+            if (tab === 'treks') {
+                return [item.trekName, item.city, item.destination].some((v) => String(v || '').toLowerCase().includes(q));
+            }
+            return [item.title, item.city, item.runCategory].some((v) => String(v || '').toLowerCase().includes(q));
+        });
+    }, [currentList, eventSearch, tab]);
+
+    const selectedItem = useMemo(
+        () => currentList.find((item) => (item._id || item.id) === selectedId) || null,
+        [currentList, selectedId],
+    );
+
+    const fetchRegistrations = useCallback(async (type, id) => {
+        if (!id) return;
+        setRegsLoading(true);
+        setError('');
+        try {
+            if (type === 'fests') {
+                const data = await adminFetchJSON(`/registrations/admin/fests/${id}/registrations?limit=500`);
+                setRegistrations((data.registrations || []).map((r) => ({ ...r, _kind: 'fest' })));
+            } else if (type === 'treks') {
+                const data = await adminFetchJSON(`/admin/treks/${id}/bookings`);
+                setRegistrations((data.bookings || []).map((b) => ({ ...b, _kind: 'trek' })));
+            } else {
+                const data = await adminFetchJSON(`/category-registrations/admin/all?category=sports&eventId=${id}&limit=500`);
+                setRegistrations((data.registrations || []).map((r) => ({ ...r, _kind: 'run' })));
+            }
+        } catch (err) {
+            setError(err.message || 'Failed to load registrations');
+            setRegistrations([]);
+        } finally {
+            setRegsLoading(false);
+        }
+    }, []);
+
+    const handleTabChange = (nextTab) => {
+        setTab(nextTab);
+        setSelectedId(null);
+        setRegistrations([]);
+        setEventSearch('');
+        setUserSearch('');
+        setStatusFilter('all');
+    };
+
+    const handleSelectEvent = (item) => {
+        const id = item._id || item.id;
+        setSelectedId(id);
+        setUserSearch('');
+        setStatusFilter('all');
+        if (tab === 'fests' && item.registration?.mode !== 'INTERNAL_FORM') {
+            setRegistrations([]);
+            return;
+        }
+        fetchRegistrations(tab, id);
+    };
+
+    const updateStatus = async (regId, status, kind) => {
+        try {
+            if (kind === 'fest') {
+                await adminFetchJSON(`/registrations/admin/registrations/${regId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status }),
+                });
+            } else if (kind === 'trek') {
+                await adminFetchJSON(`/admin/treks/bookings/${regId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status }),
+                });
+            } else {
+                await adminFetchJSON(`/category-registrations/admin/${regId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status }),
+                });
+            }
+            if (selectedId) fetchRegistrations(tab, selectedId);
+        } catch (err) {
+            setError(err.message || 'Failed to update status');
+        }
+    };
+
+    const filteredRegistrations = useMemo(() => {
+        const q = userSearch.trim().toLowerCase();
+        return registrations.filter((reg) => {
+            const name = reg.user?.name || reg.userId?.name || reg.userName || '';
+            const email = reg.user?.email || reg.userId?.email || reg.userEmail || '';
+            const matchesSearch = !q || name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
+            const matchesStatus = statusFilter === 'all' || reg.status === statusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [registrations, userSearch, statusFilter]);
+
+    const statusOptions = tab === 'fests'
+        ? ['pending', 'approved', 'rejected']
+        : tab === 'treks'
+            ? ['confirmed', 'cancelled']
+            : ['pending', 'confirmed', 'cancelled'];
+
+    const panelTitle = selectedItem
+        ? (tab === 'fests' ? selectedItem.festName : tab === 'treks' ? selectedItem.trekName : selectedItem.title)
+        : null;
+
+    const festUsesExternal = tab === 'fests' && selectedItem && selectedItem.registration?.mode !== 'INTERNAL_FORM';
+
+    return (
+        <div className="max-w-6xl mx-auto space-y-5">
+            <div>
+                <h1 className="text-2xl font-bold text-white">Registrations</h1>
+                <p className="text-sm text-gray-500 mt-0.5">View sign-ups for fests, treks, and runs</p>
+            </div>
+
+            {error && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300">
+                    <AlertCircle size={16} className="shrink-0" />
+                    <span className="flex-1">{error}</span>
+                    <button type="button" onClick={() => setError('')} className="text-xs underline shrink-0">Dismiss</button>
+                </div>
+            )}
+
+            <div className="flex gap-1 bg-[#17181A] p-1 rounded-xl border border-white/8 w-fit">
+                {TABS.map((t) => (
+                    <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => handleTabChange(t.id)}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                            tab === t.id ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                    >
+                        <t.icon size={14} />
+                        {t.label}
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            tab === t.id ? 'bg-black/20 text-black' : 'bg-white/8 text-gray-500'
+                        }`}>
+                            {tab === 'fests' ? fests.length : tab === 'treks' ? treks.length : runs.length}
+                        </span>
+                    </button>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* Event picker */}
+                <div className="rounded-2xl border border-white/8 bg-[#17181A] overflow-hidden">
+                    <div className="px-4 py-3 border-b border-white/6">
+                        <h2 className="text-sm font-bold text-white">
+                            {tab === 'fests' ? 'Select fest' : tab === 'treks' ? 'Select trek' : 'Select run'}
+                        </h2>
+                        <div className="relative mt-2">
+                            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+                            <input
+                                type="text"
+                                value={eventSearch}
+                                onChange={(e) => setEventSearch(e.target.value)}
+                                placeholder={`Search ${tab}…`}
+                                className="w-full h-9 pl-9 pr-3 text-sm bg-[#0D0E10] border border-white/8 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-[#0ECCEE]/40"
+                            />
+                        </div>
+                    </div>
+                    <div className="max-h-[520px] overflow-y-auto p-2">
+                        {loading ? (
+                            <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500">
+                                <Loader2 size={16} className="animate-spin text-[#0ECCEE]" /> Loading…
+                            </div>
+                        ) : filteredEvents.length === 0 ? (
+                            <p className="text-center py-12 text-sm text-gray-600">No {tab} found</p>
+                        ) : (
+                            filteredEvents.map((item) => {
+                                const id = item._id || item.id;
+                                if (tab === 'fests') {
+                                    const mode = item.registration?.mode || 'NOT_STARTED';
+                                    const modeInfo = FEST_MODE_LABEL[mode] || FEST_MODE_LABEL.NOT_STARTED;
+                                    return (
+                                        <EventPickerCard
+                                            key={id}
+                                            active={selectedId === id}
+                                            onClick={() => handleSelectEvent(item)}
+                                            image={normalizeImageUrl(item.coverImage)}
+                                            fallbackIcon={Flag}
+                                            title={item.festName}
+                                            subtitle={item.collegeName}
+                                            badge={modeInfo}
+                                        />
+                                    );
+                                }
+                                if (tab === 'treks') {
+                                    return (
+                                        <EventPickerCard
+                                            key={id}
+                                            active={selectedId === id}
+                                            onClick={() => handleSelectEvent(item)}
+                                            image={normalizeImageUrl(item.coverImage || item.images?.[0])}
+                                            fallbackIcon={Mountain}
+                                            title={item.trekName}
+                                            subtitle={[item.city, item.difficultyLevel].filter(Boolean).join(' · ')}
+                                            badge={{
+                                                label: item.registrationFee > 0 ? `₹${item.registrationFee}` : 'Free',
+                                                cls: item.registrationFee > 0 ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'bg-emerald-500/15 text-emerald-400',
+                                            }}
+                                        />
+                                    );
+                                }
+                                return (
+                                    <EventPickerCard
+                                        key={id}
+                                        active={selectedId === id}
+                                        onClick={() => handleSelectEvent(item)}
+                                        image={normalizeImageUrl(item.images?.[0] || item.coverImage)}
+                                        fallbackIcon={Footprints}
+                                        title={item.title}
+                                        subtitle={[item.runCategory, item.city].filter(Boolean).join(' · ')}
+                                        badge={{
+                                            label: item.registrationFee > 0 ? `₹${item.registrationFee}` : 'Free',
+                                            cls: item.registrationFee > 0 ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'bg-emerald-500/15 text-emerald-400',
+                                        }}
+                                    />
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+
+                {/* Registrations panel */}
+                <div className="lg:col-span-2 rounded-2xl border border-white/8 bg-[#17181A] overflow-hidden flex flex-col min-h-[420px]">
+                    {!selectedItem ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-600 p-8">
+                            <Calendar size={40} className="mb-3 opacity-40" />
+                            <p className="text-sm">Select a {tab === 'fests' ? 'fest' : tab === 'treks' ? 'trek' : 'run'} to view registrations</p>
+                        </div>
+                    ) : festUsesExternal ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-8 text-center">
+                            <Flag size={40} className="mb-3 opacity-40" />
+                            <p className="text-sm font-medium text-gray-300">{panelTitle}</p>
+                            <p className="text-xs mt-1 max-w-sm">
+                                {selectedItem.registration?.mode === 'EXTERNAL_LINK'
+                                    ? 'This fest uses an external registration link — sign-ups are not stored here.'
+                                    : 'Registration is not enabled for this fest yet.'}
+                            </p>
+                            {selectedItem.registration?.externalLink && (
+                                <a
+                                    href={selectedItem.registration.externalLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-3 text-sm text-[#0ECCEE] hover:underline"
+                                >
+                                    Open external form
+                                </a>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            <div className="px-4 py-3 border-b border-white/6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div>
+                                    <h2 className="text-sm font-bold text-white">{panelTitle}</h2>
+                                    <p className="text-[11px] text-gray-500">{filteredRegistrations.length} registration{filteredRegistrations.length !== 1 ? 's' : ''}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600" />
+                                        <input
+                                            type="text"
+                                            value={userSearch}
+                                            onChange={(e) => setUserSearch(e.target.value)}
+                                            placeholder="Search name or email"
+                                            className="h-8 pl-8 pr-3 text-xs bg-[#0D0E10] border border-white/8 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-[#0ECCEE]/40 w-44"
+                                        />
+                                    </div>
+                                    <select
+                                        value={statusFilter}
+                                        onChange={(e) => setStatusFilter(e.target.value)}
+                                        className="h-8 px-2 text-xs bg-[#0D0E10] border border-white/8 rounded-lg text-white focus:outline-none focus:border-[#0ECCEE]/40 capitalize"
+                                    >
+                                        <option value="all" className="bg-[#0D0E10]">All status</option>
+                                        {statusOptions.map((s) => (
+                                            <option key={s} value={s} className="bg-[#0D0E10] capitalize">{s}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[520px]">
+                                {regsLoading ? (
+                                    <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
+                                        <Loader2 size={18} className="animate-spin text-[#0ECCEE]" /> Loading registrations…
+                                    </div>
+                                ) : filteredRegistrations.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-16 text-gray-600">
+                                        <User size={36} className="mb-2 opacity-40" />
+                                        <p className="text-sm">No registrations yet</p>
+                                    </div>
+                                ) : (
+                                    filteredRegistrations.map((reg) => {
+                                        if (reg._kind === 'fest') {
+                                            return (
+                                                <RegistrationCard
+                                                    key={reg._id}
+                                                    name={reg.user?.name}
+                                                    email={reg.user?.email}
+                                                    phone={reg.user?.phone}
+                                                    status={reg.status}
+                                                    statusOptions={statusOptions}
+                                                    onStatusChange={(s) => updateStatus(reg._id, s, 'fest')}
+                                                    paymentStatus={reg.paymentStatus}
+                                                    amountPaid={reg.amountPaid}
+                                                    paymentId={reg.payment_id || reg.payment_order_id}
+                                                    responses={reg.responses}
+                                                    submittedAt={reg.submittedAt || reg.createdAt}
+                                                />
+                                            );
+                                        }
+                                        if (reg._kind === 'trek') {
+                                            const bd = reg.bookingDetails || {};
+                                            return (
+                                                <RegistrationCard
+                                                    key={reg._id}
+                                                    name={reg.userId?.name || reg.userName}
+                                                    email={reg.userId?.email || reg.userEmail}
+                                                    phone={reg.userId?.phone}
+                                                    status={reg.status}
+                                                    statusOptions={statusOptions}
+                                                    onStatusChange={(s) => updateStatus(reg._id, s, 'trek')}
+                                                    paymentStatus={bd.amountPaid > 0 ? 'paid' : 'free'}
+                                                    amountPaid={bd.amountPaid}
+                                                    paymentId={bd.paymentId}
+                                                    responses={reg.formData}
+                                                    extraRows={[
+                                                        ...(bd.date ? [{ label: 'Date', value: bd.date }] : []),
+                                                        ...(bd.time ? [{ label: 'Time', value: bd.time }] : []),
+                                                        ...(bd.people ? [{ label: 'People', value: String(bd.people) }] : []),
+                                                    ]}
+                                                    submittedAt={reg.createdAt}
+                                                />
+                                            );
+                                        }
+                                        return (
+                                            <RegistrationCard
+                                                key={reg._id}
+                                                name={reg.user?.name}
+                                                email={reg.user?.email}
+                                                phone={reg.user?.phone}
+                                                status={reg.status}
+                                                statusOptions={statusOptions}
+                                                onStatusChange={(s) => updateStatus(reg._id, s, 'run')}
+                                                paymentStatus={reg.paymentStatus}
+                                                amountPaid={reg.amountPaid}
+                                                paymentId={reg.payment_id}
+                                                responses={reg.responses}
+                                                submittedAt={reg.submittedAt || reg.createdAt}
+                                            />
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

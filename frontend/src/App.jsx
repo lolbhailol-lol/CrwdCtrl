@@ -68,7 +68,7 @@ const SportsPage = React.lazy(() => import('./components/admin/SportsPage'))
 const TreksPage = React.lazy(() => import('./components/admin/TreksPage'))
 const TheatrePage = React.lazy(() => import('./components/admin/TheatrePage'))
 const SectionManager = React.lazy(() => import('./components/admin/SectionManager'))
-const AdminEventsPage = React.lazy(() => import('./components/admin/EventsPage'))
+const PageSectionsPage = React.lazy(() => import('./components/admin/PageSectionsPage'))
 const TrekDetailPage  = React.lazy(() => import('./components/pages/TrekDetailPage'))
 const TrekBookingPage = React.lazy(() => import('./components/pages/TrekBookingPage'))
 const QRTicketPage = React.lazy(() => import('./components/pages/QRTicketPage'))
@@ -314,7 +314,7 @@ function AppContent({
                   <Route path="treks" element={<TreksPage />} />
                   <Route path="theatre" element={<TheatrePage />} />
                   <Route path="sections" element={<SectionManager />} />
-                  <Route path="events" element={<AdminEventsPage />} />
+                  <Route path="page-sections" element={<PageSectionsPage />} />
                 </Route>
                 </Routes>
               </Suspense>

@@ -3,11 +3,15 @@ import {
   Users, FileText, Eye, Activity,
   TrendingUp, TrendingDown, Minus,
   Monitor, Smartphone, Tablet,
-  BarChart3, RefreshCw
+  BarChart3, RefreshCw, IndianRupee, Flag, Mountain, Footprints, Trophy,
 } from 'lucide-react';
 import { adminFetchJSON as adminFetch } from '../../utils/adminApi';
 
-function StatCard({ icon, label, value, change, color }) {
+function formatINR(amount) {
+  return `₹${(amount ?? 0).toLocaleString('en-IN')}`;
+}
+
+function StatCard({ icon, label, value, change, color, sublabel }) {
   const isPositive = change > 0;
   const isNeutral = change === 0 || change === undefined;
   return (
@@ -28,8 +32,9 @@ function StatCard({ icon, label, value, change, color }) {
           </div>
         )}
       </div>
-      <div className="text-2xl font-bold text-white">{value?.toLocaleString() ?? '—'}</div>
+      <div className="text-2xl font-bold text-white">{value}</div>
       <div className="text-sm text-gray-400 mt-1">{label}</div>
+      {sublabel && <div className="text-[11px] text-gray-600 mt-0.5">{sublabel}</div>}
     </div>
   );
 }
@@ -98,27 +103,36 @@ function DeviceBreakdown({ devices }) {
   );
 }
 
-function CategoryCard({ label, data, color }) {
+function RevenueCategoryCard({ label, icon: Icon, data, accent }) {
   if (!data) return null;
   return (
     <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-      <h3 className={`font-semibold mb-3 capitalize ${color}`}>{label}</h3>
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`p-2 rounded-lg ${accent}`}>
+          <Icon size={18} />
+        </div>
+        <h3 className="font-semibold text-white">{label}</h3>
+      </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="text-gray-500 text-xs">Active events</p>
-          <p className="text-white font-bold text-lg">{data.activeEvents ?? 0}</p>
+          <p className="text-gray-500 text-xs">Total sign-ups</p>
+          <p className="text-white font-bold text-lg">{data.registrations ?? 0}</p>
         </div>
         <div>
-          <p className="text-gray-500 text-xs">Registrations</p>
-          <p className="text-white font-bold text-lg">{data.totalRegistrations ?? 0}</p>
+          <p className="text-gray-500 text-xs">Paid transactions</p>
+          <p className="text-white font-bold text-lg">{data.paidCount ?? 0}</p>
         </div>
         <div>
-          <p className="text-gray-500 text-xs">Confirmed</p>
-          <p className="text-green-400 font-semibold">{data.confirmed ?? 0}</p>
+          <p className="text-gray-500 text-xs">Gross collected</p>
+          <p className="text-[#0ECCEE] font-semibold">{formatINR(data.grossCollected)}</p>
         </div>
         <div>
-          <p className="text-gray-500 text-xs">Revenue</p>
-          <p className="text-[#0ECCEE] font-semibold">₹{(data.revenue ?? 0).toLocaleString('en-IN')}</p>
+          <p className="text-gray-500 text-xs">Organizer share</p>
+          <p className="text-emerald-400 font-semibold">{formatINR(data.ticketRevenue)}</p>
+        </div>
+        <div className="col-span-2 pt-2 border-t border-gray-800">
+          <p className="text-gray-500 text-xs">Platform commission (3%)</p>
+          <p className="text-amber-400 font-semibold text-base">{formatINR(data.platformCommission)}</p>
         </div>
       </div>
     </div>
@@ -127,8 +141,8 @@ function CategoryCard({ label, data, color }) {
 
 export default function AnalyticsDashboardPage() {
   const [data, setData] = useState(null);
+  const [revenue, setRevenue] = useState(null);
   const [realtime, setRealtime] = useState(null);
-  const [categoryData, setCategoryData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -136,14 +150,14 @@ export default function AnalyticsDashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [analyticsRes, realtimeRes, categoryRes] = await Promise.all([
+      const [analyticsRes, revenueRes, realtimeRes] = await Promise.all([
         adminFetch('/analytics/dashboard'),
+        adminFetch('/analytics/revenue-summary').catch(() => null),
         adminFetch('/analytics/realtime').catch(() => ({ success: true, activeUsers: 0 })),
-        adminFetch('/analytics/category-summary').catch(() => null),
       ]);
       setData(analyticsRes);
+      setRevenue(revenueRes);
       setRealtime(realtimeRes);
-      setCategoryData(categoryRes?.categories || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -153,7 +167,6 @@ export default function AnalyticsDashboardPage() {
 
   useEffect(() => {
     fetchData();
-    // Refresh realtime every 30s
     const interval = setInterval(async () => {
       try {
         const rt = await adminFetch('/analytics/realtime');
@@ -183,14 +196,18 @@ export default function AnalyticsDashboardPage() {
   }
 
   const { stats, charts, recentRegistrations } = data || {};
+  const totals = revenue?.totals;
+  const last30 = revenue?.last30Days;
+  const categories = revenue?.categories;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Analytics</h1>
-          <p className="text-sm text-gray-400 mt-1">Platform performance overview</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Revenue, registrations, and platform performance from saved records
+          </p>
         </div>
         <button
           onClick={fetchData}
@@ -201,54 +218,116 @@ export default function AnalyticsDashboardPage() {
         </button>
       </div>
 
-      {/* Stat Cards */}
+      {/* Revenue overview */}
+      {totals && (
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-3">Revenue overview</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              icon={IndianRupee}
+              label="Gross collected"
+              value={formatINR(totals.grossCollected)}
+              sublabel="All paid transactions"
+              color="bg-cyan-500/20 text-cyan-400"
+            />
+            <StatCard
+              icon={Trophy}
+              label="Organizer share"
+              value={formatINR(totals.ticketRevenue)}
+              sublabel="Base ticket / registration fees"
+              color="bg-emerald-500/20 text-emerald-400"
+            />
+            <StatCard
+              icon={BarChart3}
+              label="Platform commission"
+              value={formatINR(totals.platformCommission)}
+              sublabel="3% convenience fee"
+              color="bg-amber-500/20 text-amber-400"
+            />
+            <StatCard
+              icon={FileText}
+              label="Paid transactions"
+              value={totals.paidCount ?? 0}
+              sublabel={last30 ? `${formatINR(last30.grossCollected)} in last 30 days` : undefined}
+              color="bg-violet-500/20 text-violet-400"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Fests · Treks · Runs */}
+      {categories && (
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-3">By category</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <RevenueCategoryCard
+              label="Fests"
+              icon={Flag}
+              data={categories.fests}
+              accent="bg-violet-500/20 text-violet-400"
+            />
+            <RevenueCategoryCard
+              label="Treks"
+              icon={Mountain}
+              data={categories.treks}
+              accent="bg-emerald-500/20 text-emerald-400"
+            />
+            <RevenueCategoryCard
+              label="Runs"
+              icon={Footprints}
+              data={categories.runs}
+              accent="bg-orange-500/20 text-orange-400"
+            />
+          </div>
+          {(categories.competitions?.paidCount > 0 || categories.competitions?.registrations > 0) && (
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <RevenueCategoryCard
+                label="Competitions"
+                icon={Trophy}
+                data={categories.competitions}
+                accent="bg-pink-500/20 text-pink-400"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Platform stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={Users}
-          label="Total Users"
+          label="Total users"
           value={stats?.totalUsers}
           change={stats?.userGrowth}
           color="bg-blue-500/20 text-blue-400"
         />
         <StatCard
           icon={FileText}
-          label="Total Registrations"
+          label="Total registrations"
           value={stats?.totalRegistrations}
           change={stats?.registrationGrowth}
+          sublabel={`${stats?.festRegistrations ?? 0} fests · ${stats?.trekBookings ?? 0} treks · ${stats?.categoryRegistrations ?? 0} runs/other`}
           color="bg-green-500/20 text-green-400"
         />
         <StatCard
           icon={Eye}
-          label="Page Views (7d)"
+          label="Page views (7d)"
           value={stats?.pageViews7d}
           color="bg-purple-500/20 text-purple-400"
         />
         <StatCard
           icon={Activity}
-          label="Active Now"
+          label="Active now"
           value={realtime?.activeUsers || 0}
           color="bg-cyan-500/20 text-cyan-400"
         />
       </div>
 
-      {categoryData && (
-        <div>
-          <h2 className="text-lg font-semibold text-white mb-3">Category Registrations</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <CategoryCard label="Sports" data={categoryData.sports} color="text-orange-400" />
-            <CategoryCard label="Treks" data={categoryData.trek} color="text-emerald-400" />
-            <CategoryCard label="Theatre" data={categoryData.theatre} color="text-pink-400" />
-          </div>
-        </div>
-      )}
-
-      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Registrations by Day */}
         <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 size={18} className="text-[#0ECCEE]" />
-            <h3 className="font-semibold text-white">Registrations (Last 30 Days)</h3>
+            <h3 className="font-semibold text-white">Fest registrations (last 30 days)</h3>
           </div>
           <SimpleBarChart
             data={charts?.registrationsByDay}
@@ -257,11 +336,10 @@ export default function AnalyticsDashboardPage() {
           />
         </div>
 
-        {/* Top Fests */}
         <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
           <div className="flex items-center gap-2 mb-4">
             <Eye size={18} className="text-[#0ECCEE]" />
-            <h3 className="font-semibold text-white">Top Fests by Views</h3>
+            <h3 className="font-semibold text-white">Top fests by views</h3>
           </div>
           <SimpleBarChart
             data={charts?.topFests}
@@ -272,11 +350,9 @@ export default function AnalyticsDashboardPage() {
         </div>
       </div>
 
-      {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* User Signups */}
         <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-          <h3 className="font-semibold text-white mb-4">User Signups (30d)</h3>
+          <h3 className="font-semibold text-white mb-4">User signups (30d)</h3>
           <SimpleBarChart
             data={charts?.userSignupsByDay}
             valueKey="count"
@@ -284,26 +360,24 @@ export default function AnalyticsDashboardPage() {
           />
         </div>
 
-        {/* Device Breakdown */}
         <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-          <h3 className="font-semibold text-white mb-4">Device Breakdown</h3>
+          <h3 className="font-semibold text-white mb-4">Device breakdown</h3>
           <DeviceBreakdown devices={stats?.devices} />
         </div>
 
-        {/* Recent Registrations */}
         <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-          <h3 className="font-semibold text-white mb-4">Recent Registrations</h3>
+          <h3 className="font-semibold text-white mb-4">Recent fest registrations</h3>
           <div className="space-y-3 max-h-64 overflow-y-auto">
             {recentRegistrations?.length > 0 ? (
               recentRegistrations.map((reg) => (
-                <div key={reg.id} className="flex items-center justify-between text-sm">
+                <div key={reg.id} className="flex items-center justify-between text-sm gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-white truncate">{reg.userName}</div>
                     <div className="text-gray-500 text-xs truncate">
                       {reg.festName}{reg.competitionName ? ` → ${reg.competitionName}` : ''}
                     </div>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ml-2 ${
+                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 capitalize ${
                     reg.status === 'approved' ? 'bg-green-500/20 text-green-400' :
                     reg.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
                     'bg-yellow-500/20 text-yellow-400'
@@ -318,6 +392,10 @@ export default function AnalyticsDashboardPage() {
           </div>
         </div>
       </div>
+
+      {revenue?.note && (
+        <p className="text-[11px] text-gray-600 text-center">{revenue.note}</p>
+      )}
     </div>
   );
 }

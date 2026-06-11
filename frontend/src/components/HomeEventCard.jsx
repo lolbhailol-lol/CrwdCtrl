@@ -15,6 +15,9 @@ export default function HomeEventCard({
     prominentImage = false,
     tallImage = false,
     wideCard = false,
+    miniCard = false,
+    portraitCard = false,
+    heroCard = false,
 }) {
     const handleShare = (e) => {
         e.stopPropagation();
@@ -33,31 +36,44 @@ export default function HomeEventCard({
         onToggleFavorite?.();
     };
 
-    const isTrendingCard = prominentImage && tallImage && !wideCard;
-    const cardRadius = prominentImage ? 'rounded-2xl' : 'rounded-3xl';
-    const cardBottomPad = isTrendingCard ? 'pb-5' : prominentImage ? 'pb-2.5' : 'p-4';
+    const isTrendingCard = prominentImage && tallImage && !wideCard && !miniCard && !portraitCard && !heroCard;
+    const cardRadius = portraitCard || prominentImage ? 'rounded-2xl' : 'rounded-3xl';
+    const cardBottomPad = isTrendingCard ? 'pb-5' : prominentImage ? 'pb-2.5' : portraitCard ? '' : 'p-4';
     const titleRowClass = isTrendingCard
         ? 'mt-4 gap-3.5 px-5'
         : prominentImage
         ? 'mt-2 gap-2 px-2.5'
+        : portraitCard
+        ? 'mt-2 gap-2 w-full min-w-0 max-w-[var(--card-portrait-w)]'
         : 'mt-3 gap-3';
+
+    const cardWidthClass = portraitCard
+        ? 'card-portrait'
+        : wideCard
+        ? 'card-carousel-wide'
+        : miniCard
+        ? 'card-carousel-sm'
+        : 'card-carousel';
 
     return (
         <div
             className={`card-surface cursor-pointer overflow-hidden ${cardRadius}
-                ${wideCard ? 'card-carousel-wide' : 'card-carousel'}
+                ${cardWidthClass}
                 transition-transform duration-200 active:scale-[0.98]
-                ${cardBottomPad}
+                ${portraitCard ? 'flex flex-col' : cardBottomPad}
                 ${className}`}
             onClick={onViewDetails}
         >
-            {/* Carousel cards: image flush to top + sides; others keep inset */}
             <div
-                className={`relative w-full overflow-hidden ${
-                    prominentImage
-                        ? (tallImage ? 'aspect-[11/10]' : 'aspect-[3/2]')
-                        : (tallImage ? 'aspect-[11/10]' : 'aspect-[4/3]')
-                } ${prominentImage ? '' : 'rounded-2xl'}`}
+                className={`relative overflow-hidden ${
+                    portraitCard
+                        ? 'card-portrait-image w-full'
+                        : `w-full ${prominentImage ? '' : 'rounded-2xl'} ${
+                            prominentImage
+                                ? (heroCard ? 'aspect-[2/1]' : tallImage ? 'aspect-[11/10]' : 'aspect-[3/2]')
+                                : (tallImage ? 'aspect-[11/10]' : 'aspect-[4/3]')
+                        }`
+                }`}
             >
                 <ContentImage
                     src={event.image}
@@ -66,8 +82,8 @@ export default function HomeEventCard({
                     className="absolute inset-0 h-full w-full object-cover object-center"
                     onError={(e) => handleImageErrorWithFallback(
                         e,
-                        prominentImage ? (wideCard ? 400 : 300) : 300,
-                        prominentImage ? (wideCard ? 267 : (tallImage ? 273 : 200)) : 225,
+                        portraitCard ? 160 : prominentImage ? (wideCard ? 400 : 300) : 300,
+                        portraitCard ? 200 : prominentImage ? (wideCard ? 267 : (tallImage ? 273 : 200)) : 225,
                         '#6366f1',
                         event.title || 'Event',
                     )}
@@ -77,7 +93,6 @@ export default function HomeEventCard({
                 )}
             </div>
 
-            {/* Title + share */}
             <div className={`flex items-center justify-between ${titleRowClass}`}>
                 <div className="min-w-0 flex-1">
                     <h3 className={`card-event-title line-clamp-1${isTrendingCard ? ' card-event-title--prominent' : ''} ${

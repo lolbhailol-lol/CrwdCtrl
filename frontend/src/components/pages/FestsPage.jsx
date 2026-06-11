@@ -9,6 +9,8 @@ import ContentImage from '../ContentImage';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../HomeCategoryBar';
+import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
+import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import MobileStickyHeader from '../MobileStickyHeader';
 import HeroSearchBar from '../HeroSearchBar';
 import HeroBanner from '../HeroBanner';
@@ -212,6 +214,7 @@ export default function FestsPage() {
     );
 
     const isEmpty = !loading && ongoingFests.length === 0 && upcomingFests.length === 0 && lastYearFests.length === 0;
+    const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
     return (
         <div className={`crwdctrl-page fests-page min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
@@ -325,6 +328,17 @@ export default function FestsPage() {
                     isFavorite={isFavorite}
                     toggleFavorite={toggleFavorite}
                     navigate={navigate}
+                />
+
+                <CustomPageSectionsRenderer
+                    targetPage="fests"
+                    fests={fests}
+                    isDark={isDark}
+                    loading={loading}
+                    isFavorite={isFavorite}
+                    onToggleFavorite={onSectionFav}
+                    onItemClick={onItemClick}
+                    getShareUrl={getShareUrl}
                 />
 
                 {/* ── Last Year Hits ── */}

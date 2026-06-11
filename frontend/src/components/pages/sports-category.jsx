@@ -13,6 +13,8 @@ import HeroSearchBar from '../HeroSearchBar';
 import AppLogo from '../AppLogo';
 import CardFavoriteButton from '../CardFavoriteButton';
 import HomeCarouselSection from '../HomeCarouselSection';
+import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
+import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { CompactPortraitCardsRowSkeleton } from '../HomeEventCardSkeleton';
 import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
 import {
@@ -205,6 +207,7 @@ export default function SportsCategoryPage() {
     const sectionTitle = `home-section-heading font-inter px-4 mb-3 ${
         isDark ? 'text-white' : 'text-black'
     }`;
+    const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
     return (
         <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
@@ -337,6 +340,19 @@ export default function SportsCategoryPage() {
                         </div>
                     )}
                 </section>
+
+                <CustomPageSectionsRenderer
+                    targetPage="sports"
+                    fests={sportsFests}
+                    sports={sportsEvents}
+                    runClubs={runClubEntities}
+                    isDark={isDark}
+                    loading={loading}
+                    isFavorite={isFavorite}
+                    onToggleFavorite={onSectionFav}
+                    onItemClick={onItemClick}
+                    getShareUrl={getShareUrl}
+                />
 
                 {/* ── Browse by Categories ── */}
                 <section className="mb-8 px-4">

@@ -16,13 +16,35 @@ const PRIORITY_FIELD = {
     runclub: 'priority',
 };
 
-export function normalizeHomeCarouselItem(type, raw) {
+function getCustomPagePriority(entity, targetPage, sectionSlug) {
+    const match = (entity.customPageSections || []).find(
+        (a) => a.page === targetPage && a.sectionSlug === sectionSlug,
+    );
+    return match?.priority ?? 999;
+}
+
+function entityMatchesPageSection(entity, type, targetPage, sectionSlug) {
+    if (targetPage === 'home') {
+        if (type === 'fest') return festHomeSection(entity) === sectionSlug;
+        return entity.homeSection === sectionSlug;
+    }
+    return (entity.customPageSections || []).some(
+        (a) => a.page === targetPage && a.sectionSlug === sectionSlug,
+    );
+}
+
+export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sectionSlug } = {}) {
     const field = PRIORITY_FIELD[type];
+    let priority = raw[field] ?? raw.priority ?? raw.homePriority ?? 999;
+    if (targetPage !== 'home' && sectionSlug) {
+        priority = getCustomPagePriority(raw, targetPage, sectionSlug);
+    }
+
     return {
         ...raw,
         _type: type,
         _id: raw._id || raw.id,
-        _priority: raw[field] ?? raw.priority ?? raw.homePriority ?? 999,
+        _priority: priority,
         _title: type === 'fest' ? (raw.festName || 'Untitled')
             : type === 'trek' ? (raw.trekName || 'Untitled')
             : type === 'sport' ? (raw.title || 'Untitled')
@@ -39,16 +61,35 @@ export function normalizeHomeCarouselItem(type, raw) {
 }
 
 export function buildHomeCarouselItems(fests, treks, communities, section, sportsEvents = [], runClubs = []) {
+    return buildPageCarouselItems(fests, treks, communities, 'home', section, sportsEvents, runClubs);
+}
+
+export function buildPageCarouselItems(
+    fests,
+    treks,
+    communities,
+    targetPage,
+    sectionSlug,
+    sportsEvents = [],
+    runClubs = [],
+) {
     const byPriority = (a, b) => {
         if (a._priority !== b._priority) return a._priority - b._priority;
         return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     };
 
+    const opts = { targetPage, sectionSlug };
+
     return [
-        ...(fests || []).filter((f) => festHomeSection(f) === section).map((f) => normalizeHomeCarouselItem('fest', f)),
-        ...(treks || []).filter((t) => t.homeSection === section).map((t) => normalizeHomeCarouselItem('trek', t)),
-        ...(communities || []).filter((c) => c.homeSection === section).map((c) => normalizeHomeCarouselItem('community', c)),
-        ...(runClubs || []).filter((c) => c.homeSection === section).map((c) => normalizeHomeCarouselItem('runclub', c)),
-        ...(sportsEvents || []).filter((s) => s.homeSection === section).map((s) => normalizeHomeCarouselItem('sport', s)),
+        ...(fests || []).filter((f) => entityMatchesPageSection(f, 'fest', targetPage, sectionSlug))
+            .map((f) => normalizeHomeCarouselItem('fest', f, opts)),
+        ...(treks || []).filter((t) => entityMatchesPageSection(t, 'trek', targetPage, sectionSlug))
+            .map((t) => normalizeHomeCarouselItem('trek', t, opts)),
+        ...(communities || []).filter((c) => entityMatchesPageSection(c, 'community', targetPage, sectionSlug))
+            .map((c) => normalizeHomeCarouselItem('community', c, opts)),
+        ...(runClubs || []).filter((c) => entityMatchesPageSection(c, 'runclub', targetPage, sectionSlug))
+            .map((c) => normalizeHomeCarouselItem('runclub', c, opts)),
+        ...(sportsEvents || []).filter((s) => entityMatchesPageSection(s, 'sport', targetPage, sectionSlug))
+            .map((s) => normalizeHomeCarouselItem('sport', s, opts)),
     ].sort(byPriority);
 }

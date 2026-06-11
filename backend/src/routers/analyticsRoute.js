@@ -7,6 +7,7 @@ const {
   getDashboardStats,
   getFestAnalytics,
   getRealtimeStats,
+  getRevenueSummary,
 } = require('../controllers/analyticsController');
 const { getJwtSecret } = require('../config/jwtSecret');
 
@@ -28,6 +29,7 @@ router.post('/track', (req, res, next) => {
 
 // Admin-only endpoints
 router.get('/dashboard', adminAuth, getDashboardStats);
+router.get('/revenue-summary', adminAuth, getRevenueSummary);
 router.get('/fests/:festId', adminAuth, getFestAnalytics);
 router.get('/realtime', adminAuth, getRealtimeStats);
 

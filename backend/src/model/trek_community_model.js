@@ -11,7 +11,12 @@ const trekCommunitySchema = new mongoose.Schema(
         contactPhone:      { type: String, trim: true, default: '' },
         contactInstagram:  { type: String, trim: true, default: '' },
         status:            { type: String, enum: ['published', 'draft'], default: 'published' },
-        homeSection:       { type: String, enum: ['trending', 'happening', 'slide'], default: null },
+        homeSection:       { type: String, default: null },
+        customPageSections: [{
+            page: { type: String, required: true },
+            sectionSlug: { type: String, required: true },
+            priority: { type: Number, default: 999, min: 1, max: 999 },
+        }],
         priority:          { type: Number, default: 999, min: 1, max: 999 },
         showOnTreks:       { type: Boolean, default: true },
         trekPageSection:   { type: String, enum: ['communities', 'comingSoon', 'both'], default: 'communities' },

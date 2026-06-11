@@ -31,6 +31,8 @@ import MobileStickyHeader from '../MobileStickyHeader';
 import HomeCarouselSection from '../HomeCarouselSection';
 import HomeEventCard from '../HomeEventCard';
 import { buildHomeCarouselItems } from '../../utils/homeCarouselItems';
+import { mapHomeCarouselDisplayItems } from '../../utils/mapHomeCarouselDisplayItems';
+import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
 // âœ… FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -1049,74 +1051,13 @@ const Dashboard = () => {
         }
     };
 
-    // Unified section arrays — merged fests, treks & communities, sorted by home priority
-    const byPriority = (a, b) => (a._priority || 999) - (b._priority || 999);
-
-    const trendingItems = useMemo(() => {
-        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, 'trending', homeSports, homeRunClubs);
-        return raw.map((item) => {
-            if (item._type === 'fest') {
-                const f = transformedFests.find((t) => t.id === item._id);
-                return f ? { ...f, _type: 'fest', _priority: item._priority } : null;
-            }
-            if (item._type === 'sport') {
-                return {
-                    id: item._id,
-                    title: item.title || item._title,
-                    subtitle: item.city || item.sportType || item._subtitle,
-                    image: item.images?.[0] || item._image,
-                    registrationLink: item.registrationLink,
-                    runClubId: item.runClubId,
-                    _type: 'sport',
-                    _priority: item._priority,
-                };
-            }
-            if (item._type === 'runclub') {
-                return {
-                    _id: item._id,
-                    name: item.name || item._title,
-                    basedIn: item.basedIn || item._subtitle,
-                    coverImage: item.coverImage || item._image,
-                    _type: 'runclub',
-                    _priority: item._priority,
-                };
-            }
-            return { ...item, _type: item._type, _priority: item._priority };
-        }).filter(Boolean).sort(byPriority);
+    const buildSectionItems = useCallback((section) => {
+        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, section, homeSports, homeRunClubs);
+        return mapHomeCarouselDisplayItems(raw, transformedFests);
     }, [fests, homeTreks, homeCommunities, homeSports, homeRunClubs, transformedFests]);
 
-    const happeningItems = useMemo(() => {
-        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, 'happening', homeSports, homeRunClubs);
-        return raw.map((item) => {
-            if (item._type === 'fest') {
-                const f = transformedFests.find((t) => t.id === item._id);
-                return f ? { ...f, _type: 'fest', _priority: item._priority } : null;
-            }
-            if (item._type === 'sport') {
-                return {
-                    id: item._id,
-                    title: item.title || item._title,
-                    subtitle: item.city || item.sportType || item._subtitle,
-                    image: item.images?.[0] || item._image,
-                    registrationLink: item.registrationLink,
-                    runClubId: item.runClubId,
-                    _type: 'sport',
-                    _priority: item._priority,
-                };
-            }
-            if (item._type === 'runclub') {
-                return {
-                    _id: item._id,
-                    name: item.name || item._title,
-                    basedIn: item.basedIn || item._subtitle,
-                    coverImage: item.coverImage || item._image,
-                    _type: 'runclub',
-                    _priority: item._priority,
-                };
-            }
-            return { ...item, _type: item._type, _priority: item._priority };
-        }).filter(Boolean).sort(byPriority);
-    }, [fests, homeTreks, homeCommunities, homeSports, homeRunClubs, transformedFests]);
+    const trendingItems = useMemo(() => buildSectionItems('trending'), [buildSectionItems]);
+    const happeningItems = useMemo(() => buildSectionItems('happening'), [buildSectionItems]);
 
     const navigateToHomeItem = useCallback((item) => {
         if (item._type === 'fest') {
@@ -1408,6 +1349,22 @@ const Dashboard = () => {
                                 </div>
                             </section>
                         }
+                        isFavorite={(id) => isFavorite(id)}
+                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
+                        onItemClick={navigateToHomeItem}
+                        getShareUrl={getHomeItemShareUrl}
+                    />
+
+                    <CustomPageSectionsRenderer
+                        targetPage="home"
+                        fests={fests}
+                        treks={homeTreks}
+                        communities={homeCommunities}
+                        sports={homeSports}
+                        runClubs={homeRunClubs}
+                        transformedFests={transformedFests}
+                        isDark={isDark}
+                        loading={isFestsLoading}
                         isFavorite={(id) => isFavorite(id)}
                         onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
                         onItemClick={navigateToHomeItem}

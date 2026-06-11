@@ -3,10 +3,17 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 export const HOME_CARD_GAP = 16;
 export const TRENDING_CARD_GAP = 16;
 
-export function getHomeCardFallbackWidth(wideCard) {
-    if (typeof window === 'undefined') return wideCard ? 360 : 280;
+export function getHomeCardFallbackWidth(wideCard, { miniCard = false, portraitCard = false, heroCard = false } = {}) {
+    if (typeof window === 'undefined') {
+        if (portraitCard) return 160;
+        if (heroCard || wideCard) return 360;
+        if (miniCard) return 220;
+        return 280;
+    }
     const vw = window.innerWidth;
-    if (wideCard) return Math.min(384, Math.max(280, vw * 0.84));
+    if (portraitCard) return Math.min(160, Math.max(144, vw * 0.42));
+    if (heroCard || wideCard) return Math.min(384, Math.max(280, vw * 0.84));
+    if (miniCard) return Math.min(220, Math.max(200, vw * 0.62));
     return Math.min(300, Math.max(260, vw * 0.78));
 }
 

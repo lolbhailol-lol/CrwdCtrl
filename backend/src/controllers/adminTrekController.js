@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Trek = require('../model/trek_model');
+const TrekBooking = require('../model/trek_booking_model');
 const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
 
 function normalizeTrekPayload(body) {
@@ -97,6 +98,53 @@ exports.updateTrek = async (req, res) => {
     } catch (error) {
         console.error('adminTrek updateTrek error:', error);
         res.status(500).json({ message: 'Failed to update trek', error: error.message });
+    }
+};
+
+exports.getTrekBookings = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid trek ID' });
+        }
+        const trek = await Trek.findById(id).select('trekName').lean();
+        if (!trek) return res.status(404).json({ message: 'Trek not found' });
+
+        const { status } = req.query;
+        const filter = { trekId: id };
+        if (status) filter.status = status;
+
+        const bookings = await TrekBooking.find(filter)
+            .populate('userId', 'name email phone')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.json({ bookings, total: bookings.length, trek });
+    } catch (error) {
+        console.error('adminTrek getTrekBookings error:', error);
+        res.status(500).json({ message: 'Failed to fetch trek bookings' });
+    }
+};
+
+exports.updateTrekBookingStatus = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const { status } = req.body;
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            return res.status(400).json({ message: 'Invalid booking ID' });
+        }
+        if (!['confirmed', 'cancelled'].includes(status)) {
+            return res.status(400).json({ message: 'status must be confirmed or cancelled' });
+        }
+        const booking = await TrekBooking.findByIdAndUpdate(
+            bookingId,
+            { status },
+            { new: true },
+        ).populate('userId', 'name email phone');
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+        res.json({ message: 'Booking status updated', booking });
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to update booking status' });
     }
 };
 

@@ -7,6 +7,7 @@ const { adminAuthLimiter } = require('../middleware/rateLimiter');
 const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
 const adminSectionCtrl = require('../controllers/adminSectionController');
+const homepageSectionCtrl = require('../controllers/homepageSectionController');
 const uploadCtrl = require('../controllers/uploadController');
 const { parseTicketPrice } = require('../utils/platformFee');
 
@@ -85,12 +86,16 @@ router.get('/stats', adminAuth, async (req, res) => {
 });
 
 // ===== FEST PRIORITY MANAGEMENT (must come BEFORE generic :id routes) =====
-router.put('/fests/:id/priority', (req, res, next) => {
-  console.log('🔴 Priority route matched! ID:', req.params.id);
-  next();
-}, adminAuth, adminFestCtrl.updateFestPriority);
+router.put('/fests/:id/priority', adminAuth, adminFestCtrl.updateFestPriority);
 router.post('/fests/reorder', adminAuth, adminFestCtrl.reorderFests);
 router.post('/sections/reorder', adminAuth, adminSectionCtrl.batchReorder);
+
+// ===== CUSTOM HOMEPAGE SECTIONS =====
+router.get('/homepage-sections', adminAuth, homepageSectionCtrl.listAdmin);
+router.post('/homepage-sections', adminAuth, homepageSectionCtrl.create);
+router.put('/homepage-sections/:id', adminAuth, homepageSectionCtrl.update);
+router.delete('/homepage-sections/:id', adminAuth, homepageSectionCtrl.remove);
+router.post('/homepage-sections/reorder', adminAuth, homepageSectionCtrl.reorder);
 
 // ===== FEST CRUD =====
 router.post('/fests/broadcast-announcement', adminAuth, adminFestCtrl.triggerEventAnnouncement);

@@ -3,7 +3,6 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   Calendar,
-  CalendarDays,
   Dumbbell,
   Mountain,
   Theater,
@@ -13,6 +12,7 @@ import {
   FileText,
   BarChart3,
   Layers,
+  LayoutGrid,
   Trophy,
   QrCode,
 } from 'lucide-react';
@@ -46,8 +46,8 @@ export default function AdminLayout() {
     { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },
     { icon: Theater, label: 'Theatre', path: '/admin/theatre' },
-    { icon: CalendarDays, label: 'Events', path: '/admin/events' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
+    { icon: LayoutGrid, label: 'Page Sections', path: '/admin/page-sections' },
     { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
     { icon: QrCode, label: 'Scanner Access', path: '/admin/scanner-access', exact: true },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },

@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle, Loader } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlLogin from './login';
-import { goToBookings, scheduleGoToBookings } from '../../utils/paymentNavigation';
+import { goToBookings } from '../../utils/paymentNavigation';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -19,6 +19,7 @@ export default function RunEventBookingPage() {
     const [loading, setLoading] = useState(!location.state?.event);
     const [submitting, setSubmitting] = useState(false);
     const [done, setDone] = useState(false);
+    const [registrationId, setRegistrationId] = useState(null);
     const [error, setError] = useState('');
     const [showLogin, setShowLogin] = useState(false);
 
@@ -63,8 +64,9 @@ export default function RunEventBookingPage() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Registration failed');
+            const regId = data.registration?._id || data.registration?.id || data._id;
+            if (regId) setRegistrationId(String(regId));
             setDone(true);
-            scheduleGoToBookings(navigate);
         } catch (err) {
             setError(err.message || 'Could not complete registration');
         } finally {
@@ -101,15 +103,32 @@ export default function RunEventBookingPage() {
                 <CheckCircle size={56} className="text-green-500" />
                 <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>You&apos;re registered!</h1>
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Redirecting to My Bookings...
+                    Download your ticket or view all bookings whenever you&apos;re ready.
                 </p>
-                <button
-                    type="button"
-                    onClick={() => goToBookings(navigate)}
-                    className="px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm"
-                >
-                    My Bookings
-                </button>
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                    {registrationId && (
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/qr-ticket/${registrationId}?type=sports`, { state: { refreshBookings: true } })}
+                            className="px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm"
+                        >
+                            Download Ticket
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => goToBookings(navigate)}
+                        className={`px-6 py-3 rounded-xl font-bold text-sm ${
+                            registrationId
+                                ? isDark
+                                    ? 'border border-gray-600 text-gray-200'
+                                    : 'border border-gray-300 text-gray-800'
+                                : 'bg-[#0ECCEE] text-black'
+                        }`}
+                    >
+                        View My Bookings
+                    </button>
+                </div>
             </div>
         );
     }

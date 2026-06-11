@@ -9,6 +9,8 @@ const {
 
 router.post('/', adminAuth, ctrl.createTrek);
 router.get('/', adminAuth, ctrl.getAllTreks);
+router.put('/bookings/:bookingId/status', adminAuth, ctrl.updateTrekBookingStatus);
+router.get('/:id/bookings', adminAuth, ctrl.getTrekBookings);
 router.get('/:id/scanner-access', adminAuth, getAdminTrekScannerAccess);
 router.put('/:id/scanner-access', adminAuth, setAdminTrekScannerAccess);
 router.get('/:id', adminAuth, ctrl.getTrekById);

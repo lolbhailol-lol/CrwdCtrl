@@ -2,7 +2,47 @@ const Analytics = require('../model/analytics_model');
 const User = require('../model/usermodel');
 const Registration = require('../model/registration_model');
 const FestOrganizer = require('../model/fest_organizer_model');
-const Competition = require('../model/competition_model');
+const TrekBooking = require('../model/trek_booking_model');
+const CategoryRegistration = require('../model/category_registration_model');
+const PaymentOrder = require('../model/payment_order_model');
+const { deriveRevenueFromPaidAmount } = require('../utils/platformFee');
+
+function sumRevenueRows(rows, amountKey, options = {}) {
+  return rows.reduce(
+    (acc, row) => {
+      const derived = deriveRevenueFromPaidAmount(row[amountKey], options);
+      acc.grossCollected += derived.grossCollected;
+      acc.ticketRevenue += derived.ticketPrice;
+      acc.platformCommission += derived.platformFee;
+      acc.paidCount += 1;
+      return acc;
+    },
+    { grossCollected: 0, ticketRevenue: 0, platformCommission: 0, paidCount: 0 },
+  );
+}
+
+function emptyRevenueBucket() {
+  return {
+    registrations: 0,
+    paidCount: 0,
+    grossCollected: 0,
+    ticketRevenue: 0,
+    platformCommission: 0,
+  };
+}
+
+function mergeRevenueBuckets(...buckets) {
+  return buckets.reduce(
+    (acc, b) => ({
+      registrations: acc.registrations + (b.registrations || 0),
+      paidCount: acc.paidCount + (b.paidCount || 0),
+      grossCollected: acc.grossCollected + (b.grossCollected || 0),
+      ticketRevenue: acc.ticketRevenue + (b.ticketRevenue || 0),
+      platformCommission: acc.platformCommission + (b.platformCommission || 0),
+    }),
+    emptyRevenueBucket(),
+  );
+}
 
 // ===== POST: Track an analytics event (public — no auth required for page views) =====
 const trackEvent = async (req, res) => {
@@ -47,7 +87,10 @@ const getDashboardStats = async (req, res) => {
     // Parallel aggregations for performance
     const [
       totalUsers,
-      totalRegistrations,
+      festRegistrations,
+      competitionRegistrations,
+      trekBookings,
+      categoryRegistrations,
       pageViews7d,
       pageViews30d,
       previousPeriodUsers,
@@ -61,8 +104,10 @@ const getDashboardStats = async (req, res) => {
       // Total users
       User.countDocuments(),
 
-      // Total registrations
-      Registration.countDocuments(),
+      Registration.countDocuments({ competitionId: null }),
+      Registration.countDocuments({ competitionId: { $ne: null } }),
+      TrekBooking.countDocuments({ status: 'confirmed' }),
+      CategoryRegistration.countDocuments(),
 
       // Page views last 7 days
       Analytics.countDocuments({
@@ -184,6 +229,9 @@ const getDashboardStats = async (req, res) => {
       ? Math.round(((currentPeriodRegistrations - previousPeriodRegistrations) / previousPeriodRegistrations) * 100)
       : currentPeriodRegistrations > 0 ? 100 : 0;
 
+    const totalRegistrations =
+      festRegistrations + competitionRegistrations + trekBookings + categoryRegistrations;
+
     // Format device breakdown
     const devices = {};
     deviceBreakdown.forEach(d => {
@@ -195,6 +243,10 @@ const getDashboardStats = async (req, res) => {
       stats: {
         totalUsers,
         totalRegistrations,
+        festRegistrations,
+        competitionRegistrations,
+        trekBookings,
+        categoryRegistrations,
         pageViews7d,
         pageViews30d,
         userGrowth,
@@ -294,9 +346,151 @@ const getRealtimeStats = async (req, res) => {
   }
 };
 
+// ===== GET: Revenue summary from saved payment records =====
+const getRevenueSummary = async (req, res) => {
+  try {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      festPaidRegs,
+      competitionPaidRegs,
+      trekPaidBookings,
+      sportsPaidRegs,
+      theatrePaidRegs,
+      paidPaymentOrders,
+      festRegCount,
+      competitionRegCount,
+      trekBookingCount,
+      sportsRegCount,
+      theatreRegCount,
+      recentFestPaid,
+      recentCompetitionPaid,
+      recentTrekPaid,
+      recentSportsPaid,
+    ] = await Promise.all([
+      Registration.find({ paymentStatus: 'paid', amountPaid: { $gt: 0 }, competitionId: null })
+        .select('amountPaid createdAt')
+        .lean(),
+      Registration.find({ paymentStatus: 'paid', amountPaid: { $gt: 0 }, competitionId: { $ne: null } })
+        .select('amountPaid createdAt')
+        .lean(),
+      TrekBooking.find({ status: 'confirmed', 'bookingDetails.amountPaid': { $gt: 0 } })
+        .select('bookingDetails.amountPaid createdAt')
+        .lean(),
+      CategoryRegistration.find({ category: 'sports', paymentStatus: 'paid', amountPaid: { $gt: 0 } })
+        .select('amountPaid createdAt')
+        .lean(),
+      CategoryRegistration.find({ category: 'theatre', paymentStatus: 'paid', amountPaid: { $gt: 0 } })
+        .select('amountPaid createdAt')
+        .lean(),
+      PaymentOrder.find({ status: 'PAID' })
+        .select('ticketPrice platformFee totalAmount entityType createdAt')
+        .lean(),
+      Registration.countDocuments({ competitionId: null }),
+      Registration.countDocuments({ competitionId: { $ne: null } }),
+      TrekBooking.countDocuments({ status: 'confirmed' }),
+      CategoryRegistration.countDocuments({ category: 'sports' }),
+      CategoryRegistration.countDocuments({ category: 'theatre' }),
+      Registration.find({
+        paymentStatus: 'paid',
+        amountPaid: { $gt: 0 },
+        competitionId: null,
+        createdAt: { $gte: thirtyDaysAgo },
+      }).select('amountPaid').lean(),
+      Registration.find({
+        paymentStatus: 'paid',
+        amountPaid: { $gt: 0 },
+        competitionId: { $ne: null },
+        createdAt: { $gte: thirtyDaysAgo },
+      }).select('amountPaid').lean(),
+      TrekBooking.find({
+        status: 'confirmed',
+        'bookingDetails.amountPaid': { $gt: 0 },
+        createdAt: { $gte: thirtyDaysAgo },
+      }).select('bookingDetails.amountPaid createdAt').lean(),
+      CategoryRegistration.find({
+        category: 'sports',
+        paymentStatus: 'paid',
+        amountPaid: { $gt: 0 },
+        createdAt: { $gte: thirtyDaysAgo },
+      }).select('amountPaid').lean(),
+    ]);
+
+    const festRevenue = sumRevenueRows(festPaidRegs, 'amountPaid', { feeIsTicketOnly: true });
+    const competitionRevenue = sumRevenueRows(competitionPaidRegs, 'amountPaid');
+    const trekRevenue = sumRevenueRows(
+      trekPaidBookings.map((b) => ({ amountPaid: b.bookingDetails?.amountPaid || 0 })),
+      'amountPaid',
+    );
+    const runsRevenue = sumRevenueRows(sportsPaidRegs, 'amountPaid');
+    const theatreRevenue = sumRevenueRows(theatrePaidRegs, 'amountPaid');
+
+    const festBucket = { ...festRevenue, registrations: festRegCount };
+    const competitionBucket = { ...competitionRevenue, registrations: competitionRegCount };
+    const treksBucket = { ...trekRevenue, registrations: trekBookingCount };
+    const runsBucket = { ...runsRevenue, registrations: sportsRegCount };
+    const theatreBucket = { ...theatreRevenue, registrations: theatreRegCount };
+
+    const categories = {
+      fests: festBucket,
+      competitions: competitionBucket,
+      treks: treksBucket,
+      runs: runsBucket,
+      theatre: theatreBucket,
+    };
+
+    const totals = mergeRevenueBuckets(
+      festBucket,
+      competitionBucket,
+      treksBucket,
+      runsBucket,
+      theatreBucket,
+    );
+
+    const last30Fest = sumRevenueRows(recentFestPaid, 'amountPaid', { feeIsTicketOnly: true });
+    const last30Competition = sumRevenueRows(recentCompetitionPaid, 'amountPaid');
+    const last30Trek = sumRevenueRows(
+      recentTrekPaid.map((b) => ({ amountPaid: b.bookingDetails?.amountPaid || 0 })),
+      'amountPaid',
+    );
+    const last30Runs = sumRevenueRows(recentSportsPaid, 'amountPaid');
+    const last30Days = mergeRevenueBuckets(last30Fest, last30Competition, last30Trek, last30Runs);
+
+    const paymentOrdersSummary = paidPaymentOrders.reduce(
+      (acc, order) => {
+        acc.count += 1;
+        acc.grossCollected += order.totalAmount || 0;
+        acc.ticketRevenue += order.ticketPrice || 0;
+        acc.platformCommission += order.platformFee || 0;
+        return acc;
+      },
+      { count: 0, grossCollected: 0, ticketRevenue: 0, platformCommission: 0 },
+    );
+
+    res.json({
+      success: true,
+      platformFeeRate: 0.03,
+      totals: {
+        ...totals,
+        registrations:
+          festRegCount + competitionRegCount + trekBookingCount + sportsRegCount + theatreRegCount,
+      },
+      last30Days,
+      categories,
+      paymentOrders: paymentOrdersSummary,
+      note: 'Gross collected is derived from saved amountPaid fields. Fest fees stored as ticket price include estimated 3% platform fee.',
+    });
+  } catch (error) {
+    console.error('❌ Revenue summary error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch revenue summary' });
+  }
+};
+
 module.exports = {
   trackEvent,
   getDashboardStats,
   getFestAnalytics,
   getRealtimeStats,
+  getRevenueSummary,
 };

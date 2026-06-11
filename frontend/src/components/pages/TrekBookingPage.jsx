@@ -15,7 +15,6 @@ import {
 } from '../../utils/deepLinks';
 import {
     goToBookings,
-    scheduleGoToBookings,
     verifyPaymentWithRetry,
 } from '../../utils/paymentNavigation';
 
@@ -152,6 +151,7 @@ export default function TrekBookingPage() {
     const [paying,      setPaying]     = useState(initialUi.paying);
     const [payDone,     setPayDone]    = useState(initialUi.payDone);
     const [paymentId,   setPaymentId]  = useState('');
+    const [bookingId,   setBookingId]  = useState('');
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
     const fee       = Number(trek?.registrationFee) || 0;
@@ -351,6 +351,8 @@ export default function TrekBookingPage() {
         }
         sessionStorage.removeItem(trekDraftKey(trekId));
         refreshNotifications();
+        const savedBookingId = regData.bookingId || regData._id || '';
+        if (savedBookingId) setBookingId(String(savedBookingId));
         return regData;
     };
 
@@ -412,7 +414,7 @@ export default function TrekBookingPage() {
                         people: draft.people || people,
                     },
                 });
-                scheduleGoToBookings(navigate);
+                setStep(3);
             } catch (e) {
                 setStep(2);
                 setPayDone(false);
@@ -450,7 +452,6 @@ export default function TrekBookingPage() {
                     setStep(3);
                     setPayDone(true);
                     setPaying(false);
-                    scheduleGoToBookings(navigate);
                 } catch (e) {
                     setError(e.message || 'Registration failed');
                 }
@@ -528,7 +529,6 @@ export default function TrekBookingPage() {
                     });
                     setPayDone(true);
                     setPaying(false);
-                    scheduleGoToBookings(navigate);
                 } else {
                     setStep(2);
                     setPayDone(false);
@@ -594,7 +594,7 @@ export default function TrekBookingPage() {
                         Your booking for <span className="text-[#0ECCEE] font-semibold">{trekName}</span> has been confirmed.
                     </p>
                     <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        Redirecting to My Bookings...
+                        Download your ticket or view all bookings whenever you&apos;re ready.
                     </p>
 
                     <div className={`rounded-xl p-5 mb-6 text-left ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
@@ -614,13 +614,39 @@ export default function TrekBookingPage() {
                         ))}
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() => goToBookings(navigate)}
-                        className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
-                    >
-                        View My Bookings
-                    </button>
+                    <div className="flex flex-col gap-3">
+                        {bookingId && (
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/qr-ticket/${bookingId}?type=trek`, { state: { refreshBookings: true } })}
+                                className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                            >
+                                Download Ticket
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => goToBookings(navigate)}
+                            className={`w-full py-3.5 rounded-xl font-semibold transition ${
+                                bookingId
+                                    ? isDark
+                                        ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
+                                        : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                                    : 'text-black bg-[#0ECCEE] hover:opacity-90'
+                            }`}
+                        >
+                            View My Bookings
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/treks')}
+                            className={`w-full py-2.5 rounded-xl text-sm font-medium transition ${
+                                isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            Browse more treks
+                        </button>
+                    </div>
                 </div>
             </div>
         );

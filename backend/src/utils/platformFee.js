@@ -31,8 +31,55 @@ const buildPriceBreakdown = (ticketPrice) => {
   };
 };
 
+/** Total charged for a ticket price: ticket + ceil(3% fee). Monotonic in ticket. */
+const totalForTicketPrice = (ticketPrice) => {
+  const ticket = normalizeAmount(ticketPrice);
+  return ticket + calculatePlatformFee(ticket);
+};
+
+/** Inverse of totalForTicketPrice — O(log paid) binary search instead of O(paid) scan. */
+function findTicketPriceForPaidTotal(paid) {
+  let low = 0;
+  let high = paid;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const total = totalForTicketPrice(mid);
+    if (total === paid) return mid;
+    if (total < paid) low = mid + 1;
+    else high = mid - 1;
+  }
+  return null;
+}
+
+/** Split a customer-paid total into ticket + 3% platform fee (when total includes fee). */
+function deriveRevenueFromPaidAmount(amountPaid, { feeIsTicketOnly = false } = {}) {
+  const paid = normalizeAmount(amountPaid);
+  if (paid <= 0) {
+    return { ticketPrice: 0, platformFee: 0, grossCollected: 0 };
+  }
+
+  if (feeIsTicketOnly) {
+    const platformFee = calculatePlatformFee(paid);
+    return {
+      ticketPrice: paid,
+      platformFee,
+      grossCollected: paid + platformFee,
+    };
+  }
+
+  const ticketPrice = findTicketPriceForPaidTotal(paid);
+  if (ticketPrice !== null) {
+    const platformFee = calculatePlatformFee(ticketPrice);
+    return { ticketPrice, platformFee, grossCollected: paid };
+  }
+
+  return { ticketPrice: paid, platformFee: 0, grossCollected: paid };
+}
+
 module.exports = {
+  PLATFORM_FEE_RATE,
   calculatePlatformFee,
   buildPriceBreakdown,
   parseTicketPrice,
+  deriveRevenueFromPaidAmount,
 };

@@ -10,6 +10,8 @@ import { FestSubpageLoadingSkeleton } from '../HomeEventCardSkeleton';
 import CardFavoriteButton from '../CardFavoriteButton';
 import CarouselDotPagination from '../CarouselDotPagination';
 import { getCarouselScrollPage } from '../../utils/horizontalScroll';
+import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
+import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -60,6 +62,7 @@ export default function TechFestPage() {
 
     const featured = fests.filter(f => f.status === 'ongoing');
     const listed   = fests.filter(f => f.status !== 'ongoing');
+    const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
     const bg   = isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]';
     return (
         <div className={`crwdctrl-page crwdctrl-mobile-page min-h-screen ${bg}`}>
@@ -144,6 +147,17 @@ export default function TechFestPage() {
                                 </div>
                             )}
                         </section>
+
+                        <CustomPageSectionsRenderer
+                            targetPage="tech-fest"
+                            fests={fests}
+                            isDark={isDark}
+                            loading={loading}
+                            isFavorite={isFavorite}
+                            onToggleFavorite={onSectionFav}
+                            onItemClick={onItemClick}
+                            getShareUrl={getShareUrl}
+                        />
                     </>
                 )}
             </main>

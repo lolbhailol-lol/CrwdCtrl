@@ -24,6 +24,8 @@ import {
     CompactPortraitCardsRowSkeleton,
     WideActivityCardsRowSkeleton,
 } from '../HomeEventCardSkeleton';
+import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
+import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 const fetchJSON = async (endpoint) => {
@@ -189,6 +191,8 @@ function TreksPage() {
 
     const [treks, setTreks] = useState([]);
     const [communities, setCommunities] = useState([]);
+    const [rawTreks, setRawTreks] = useState([]);
+    const [rawCommunities, setRawCommunities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeCategory, _setActiveCategory] = useState(null);
     const [weekendPg, setWeekendPg] = useState(0);
@@ -203,6 +207,7 @@ function TreksPage() {
             ]);
             const commList = (Array.isArray(commData?.communities) ? commData.communities : [])
                 .filter(c => c.showOnTreks !== false);
+            setRawCommunities(commList);
             setCommunities(commList.map(c => ({
                 id: c._id,
                 title: c.name,
@@ -218,6 +223,7 @@ function TreksPage() {
                 type: 'Community',
             })));
             const list = Array.isArray(trekData?.treks) ? trekData.treks : [];
+            setRawTreks(list);
             setTreks(list.map(t => ({
                 id: t._id,
                 title: t.trekName,
@@ -335,6 +341,8 @@ function TreksPage() {
     const handleCommunityClick = useCallback((trek) => {
         navigate(`/treks/community/${trek.id}`, { state: { community: trek } });
     }, [navigate]);
+
+    const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
     /* empty state helper */
     const EmptyState = ({ label }) => (
@@ -593,6 +601,18 @@ function TreksPage() {
                             </div>
                         )}
                     </section>
+
+                    <CustomPageSectionsRenderer
+                        targetPage="treks"
+                        treks={rawTreks}
+                        communities={rawCommunities}
+                        isDark={isDark}
+                        loading={loading}
+                        isFavorite={isFavorite}
+                        onToggleFavorite={onSectionFav}
+                        onItemClick={onItemClick}
+                        getShareUrl={getShareUrl}
+                    />
 
                 </div>
             </main>

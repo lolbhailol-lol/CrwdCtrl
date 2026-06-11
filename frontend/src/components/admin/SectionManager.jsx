@@ -1,10 +1,11 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell, Footprints } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Layers, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell, Footprints } from 'lucide-react';
 import { buildHomeCarouselItems, normalizeHomeCarouselItem } from '../../utils/homeCarouselItems';
+import { getCardSizeLabel } from '../../utils/homeCardSize';
+import { getTargetPageLabel } from '../../utils/pageSections';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-
-const clamp = (v) => { const n = parseInt(v, 10); return isNaN(n) ? 999 : Math.max(1, Math.min(999, n)); };
 
 const authFetch = (url, opts = {}) => fetch(url, {
     ...opts,
@@ -52,6 +53,33 @@ const RUN_PAGE_OPTS = [
     { value: 'hidden',   label: '🚫 Hidden from Page' },
 ];
 
+const FEST_CUSTOM_PAGES = ['fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'theatre'];
+const TREK_CUSTOM_PAGES = ['treks', 'theatre'];
+const SPORTS_CUSTOM_PAGES = ['sports', 'theatre'];
+
+function parseCustomPageValue(val) {
+    if (!val || !val.includes(':')) return null;
+    const [page, ...rest] = val.split(':');
+    return { page, sectionSlug: rest.join(':') };
+}
+
+function getCustomPageValue(entity, pages) {
+    const match = (entity.customPageSections || []).find((a) => pages.includes(a.page));
+    return match ? `${match.page}:${match.sectionSlug}` : '';
+}
+
+function buildCustomPageOpts(sections, pages) {
+    return [
+        { value: '', label: '— None —' },
+        ...sections
+            .filter((s) => s.enabled !== false && pages.includes(s.targetPage || 'home'))
+            .map((s) => ({
+                value: `${s.targetPage}:${s.slug}`,
+                label: `✨ ${getTargetPageLabel(s.targetPage)} — ${s.title}`,
+            })),
+    ];
+}
+
 // ── Shared UI helpers ──────────────────────────────────────────────────────────
 const sel = 'flex-1 min-w-0 bg-transparent text-white text-xs focus:outline-none cursor-pointer';
 const opt = 'bg-[#0D0E10] text-white';
@@ -63,41 +91,79 @@ function SaveDot({ state }) {
     return <span className="w-3 shrink-0" />;
 }
 
-/* Pill = [dropdown | divider | priority input | save dot] */
-function Pill({ selectValue, selectOpts, onSelect, priorityValue, onPriority, saveKey, saving }) {
-    const [p, setP] = useState(priorityValue && Number(priorityValue) !== 999 ? String(priorityValue) : '');
-    useEffect(() => { setP(priorityValue && Number(priorityValue) !== 999 ? String(priorityValue) : ''); }, [priorityValue]);
-
-    const commitPriority = useCallback((val) => {
-        const v = val ?? p;
-        onPriority(v === '' ? 999 : clamp(v));
-    }, [p, onPriority]);
-
-    // Auto-save priority 700ms after typing stops
-    useEffect(() => {
-        if (p === '' || p === String(priorityValue)) return;
-        const t = setTimeout(() => commitPriority(p), 700);
-        return () => clearTimeout(t);
-    }, [p]);  
-
+/* Assign = section dropdown only (order is set in Reorder mode) */
+function AssignPill({ selectValue, selectOpts, onSelect, saveKey, saving }) {
     const isSet = selectValue && selectValue !== '';
-
     return (
-        <div className={`flex items-center gap-1.5 rounded-xl px-2 py-2 border transition-colors ${isSet ? 'bg-[#0ECCEE]/5 border-[#0ECCEE]/25' : 'bg-[#0D0E10] border-white/8'}`}>
+        <div className={`flex items-center gap-1.5 rounded-xl px-2 py-2 border transition-colors min-w-[11rem] ${isSet ? 'bg-[#0ECCEE]/5 border-[#0ECCEE]/25' : 'bg-[#0D0E10] border-white/8'}`}>
             <select value={selectValue} onChange={e => onSelect(e.target.value)}
                 className={`${sel} ${isSet ? 'text-[#0ECCEE]' : 'text-gray-400'}`}>
                 {selectOpts.map(o => <option key={o.value} value={o.value} className={opt}>{o.label}</option>)}
             </select>
-            <div className="w-px h-3.5 bg-white/10 shrink-0" />
-            <input
-                type="number" min="1" max="999" value={p} placeholder="—"
-                onChange={e => setP(e.target.value)}
-                onBlur={() => commitPriority()}
-                onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') setP(''); }}
-                className={`w-10 bg-transparent text-center text-xs font-bold focus:outline-none ${isSet ? 'text-[#0ECCEE]' : 'text-gray-500'} placeholder:text-gray-700`}
-                title="Priority (1 = first)"
-            />
             <SaveDot state={saving[saveKey]} />
+        </div>
+    );
+}
+
+const MODES = [
+    {
+        id: 'reorder',
+        label: 'Card order',
+        description: 'Drag cards left-to-right within each carousel on the website',
+        icon: GripVertical,
+    },
+    {
+        id: 'assign',
+        label: 'Assign cards',
+        description: 'Choose which home page and page sections each item appears in',
+        icon: Layers,
+    },
+];
+
+const REORDER_TABS = [
+    { id: 'home', label: 'Home', icon: LayoutGrid },
+    { id: 'fests', label: 'Fests', icon: Flag },
+    { id: 'treks', label: 'Treks', icon: Mountain },
+    { id: 'sports', label: 'Sports', icon: Dumbbell },
+];
+
+const ASSIGN_TABS = [
+    { id: 'fests', label: 'Fests', icon: Flag },
+    { id: 'treks', label: 'Treks', icon: Mountain },
+    { id: 'communities', label: 'Communities', icon: Users },
+    { id: 'runclubs', label: 'Run Clubs', icon: Footprints },
+    { id: 'runs', label: 'Runs', icon: Dumbbell },
+];
+
+function ModeSwitcher({ mode, onChange }) {
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {MODES.map((m) => {
+                const active = mode === m.id;
+                const Icon = m.icon;
+                return (
+                    <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => onChange(m.id)}
+                        className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                            active
+                                ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/10 ring-1 ring-[#0ECCEE]/30'
+                                : 'border-white/8 bg-[#17181A] hover:border-white/15 hover:bg-white/2'
+                        }`}
+                    >
+                        <div className="flex items-start gap-3">
+                            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-[#0ECCEE]/20 text-[#0ECCEE]' : 'bg-white/5 text-gray-500'}`}>
+                                <Icon size={18} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className={`text-sm font-bold ${active ? 'text-white' : 'text-gray-300'}`}>{m.label}</p>
+                                <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">{m.description}</p>
+                            </div>
+                        </div>
+                    </button>
+                );
+            })}
         </div>
     );
 }
@@ -231,7 +297,15 @@ function HomeCarouselPanel({ title, subtitle, items, onReorder, isReordering }) 
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SectionManager() {
-    const [tab, setTab]         = useState('home');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialMode = searchParams.get('mode') === 'assign' ? 'assign' : 'reorder';
+    const initialTab = searchParams.get('tab');
+    const [mode, setMode] = useState(initialMode);
+    const [tab, setTab] = useState(() => {
+        const tabs = initialMode === 'assign' ? ASSIGN_TABS : REORDER_TABS;
+        if (initialTab && tabs.some((t) => t.id === initialTab)) return initialTab;
+        return initialMode === 'assign' ? 'fests' : 'home';
+    });
     const [fests, setFests]     = useState([]);
     const [treks, setTreks]     = useState([]);
     const [comms, setComms]     = useState([]);
@@ -242,6 +316,7 @@ export default function SectionManager() {
     const [saving, setSaving]   = useState({});
     const [search, setSearch]   = useState('');
     const [reordering, setReordering] = useState(false);
+    const [customSections, setCustomSections] = useState([]);
 
     // ── Fetch ────────────────────────────────────────────────────────────────
     const fetchAll = useCallback(async () => {
@@ -258,22 +333,47 @@ export default function SectionManager() {
             } catch (e) { setErrors(prev => ({ ...prev, [label]: e.message })); return null; }
         };
 
-        const [fd, td, cd, sd, rcd] = await Promise.all([
+        const [fd, td, cd, sd, rcd, sectionData] = await Promise.all([
             safe(`${API}/admin/fests?limit=500`,            'fests'),
             safe(`${API}/admin/treks?limit=500`,            'treks'),
             safe(`${API}/admin/trek-communities?limit=500`, 'communities'),
             safe(`${API}/admin/sports?limit=500`,           'sports'),
             safe(`${API}/admin/run-clubs?limit=500`,        'runclubs'),
+            safe(`${API}/admin/homepage-sections`,          'sections'),
         ]);
         if (fd) setFests(Array.isArray(fd.fests)       ? fd.fests       : []);
         if (td) setTreks(Array.isArray(td.treks)       ? td.treks       : []);
         if (cd) setComms(Array.isArray(cd.communities) ? cd.communities : []);
         if (sd) setSports(Array.isArray(sd.events)     ? sd.events      : []);
         if (rcd) setRunClubs(Array.isArray(rcd.clubs) ? rcd.clubs : []);
+        if (sectionData) setCustomSections(Array.isArray(sectionData.sections) ? sectionData.sections : []);
         setLoading(false);
     }, []);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
+
+    const syncUrl = useCallback((nextMode, nextTab) => {
+        setSearchParams({ mode: nextMode, tab: nextTab }, { replace: true });
+    }, [setSearchParams]);
+
+    const handleModeChange = useCallback((nextMode) => {
+        setMode(nextMode);
+        setSearch('');
+        const tabs = nextMode === 'assign' ? ASSIGN_TABS : REORDER_TABS;
+        setTab((prev) => {
+            const nextTab = tabs.some((t) => t.id === prev)
+                ? prev
+                : (nextMode === 'assign' ? 'fests' : 'home');
+            syncUrl(nextMode, nextTab);
+            return nextTab;
+        });
+    }, [syncUrl]);
+
+    const handleTabChange = useCallback((nextTab) => {
+        setTab(nextTab);
+        setSearch('');
+        syncUrl(mode, nextTab);
+    }, [mode, syncUrl]);
 
     // ── Save helpers ─────────────────────────────────────────────────────────
     const flash = useCallback((key) => {
@@ -362,6 +462,87 @@ export default function SectionManager() {
         [fests, treks, comms, sports, runClubs],
     );
 
+    const customHomeOpts = useMemo(
+        () => customSections
+            .filter((s) => s.enabled !== false && (s.targetPage || 'home') === 'home')
+            .map((s) => ({ value: s.slug, label: `✨ ${s.title}` })),
+        [customSections],
+    );
+
+    const festCustomPageOpts = useMemo(
+        () => buildCustomPageOpts(customSections, FEST_CUSTOM_PAGES),
+        [customSections],
+    );
+    const trekCustomPageOpts = useMemo(
+        () => buildCustomPageOpts(customSections, TREK_CUSTOM_PAGES),
+        [customSections],
+    );
+    const sportsCustomPageOpts = useMemo(
+        () => buildCustomPageOpts(customSections, SPORTS_CUSTOM_PAGES),
+        [customSections],
+    );
+
+    const festHomeSelectOpts = useMemo(
+        () => [
+            { value: '', label: '— None —' },
+            { value: 'movingSlide', label: '🎠 Moving Slide' },
+            { value: 'trending', label: '🔥 Trending Now' },
+            { value: 'happening', label: '📍 Happening Near You' },
+            ...customHomeOpts,
+        ],
+        [customHomeOpts],
+    );
+
+    const entityHomeSelectOpts = useMemo(
+        () => [...HOME_OPTS, ...customHomeOpts],
+        [customHomeOpts],
+    );
+
+    const sportsHomeSelectOpts = useMemo(
+        () => [...SPORTS_HOME_OPTS, ...customHomeOpts],
+        [customHomeOpts],
+    );
+
+    const customCarousels = useMemo(
+        () => customSections
+            .filter((s) => (s.targetPage || 'home') === 'home')
+            .map((section) => ({
+                section,
+                items: buildHomeCarouselItems(fests, treks, comms, section.slug, sports, runClubs),
+            })),
+        [customSections, fests, treks, comms, sports, runClubs],
+    );
+
+    const saveEntityCustomPage = useCallback((entityType, id, entity, pages, val, priorityField) => {
+        const parsed = parseCustomPageValue(val);
+        const pagesToClear = pages;
+        let next = [...(entity.customPageSections || [])].filter((a) => !pagesToClear.includes(a.page));
+        if (parsed) {
+            next = [...next, {
+                page: parsed.page,
+                sectionSlug: parsed.sectionSlug,
+                priority: priorityField ? (entity[priorityField] ?? 999) : 999,
+            }];
+        }
+        const body = { customPageSections: next };
+        if (entityType === 'fest') {
+            patch(`${API}/admin/fests/${id}`, `fest-${id}-custom`, body,
+                () => setFests((prev) => prev.map((f) => ((f._id || f.id) === id ? { ...f, ...body } : f))));
+        } else if (entityType === 'trek') {
+            patch(`${API}/admin/treks/${id}`, `trek-${id}-custom`, body,
+                () => setTreks((prev) => prev.map((t) => (t._id === id ? { ...t, ...body } : t))));
+        } else if (entityType === 'community') {
+            patch(`${API}/admin/trek-communities/${id}`, `comm-${id}-custom`, body,
+                () => setComms((prev) => prev.map((c) => (c._id === id ? { ...c, ...body } : c))));
+        } else if (entityType === 'sport') {
+            patch(`${API}/admin/sports/${id}`, `sports-${id}-custom`, body,
+                () => setSports((prev) => prev.map((s) => (s._id === id ? { ...s, ...body } : s))));
+        } else if (entityType === 'runclub') {
+            patch(`${API}/admin/run-clubs/${id}`, `runclub-${id}-custom`, body,
+                () => setRunClubs((prev) => prev.map((c) => (c._id === id ? { ...c, ...body } : c))));
+        }
+    }, [patch]);
+
     const applyLocalCarouselOrder = useCallback((section, orderedItems) => {
         const applyPriority = (prev, id, field, priority, extra = {}) =>
             prev.map((row) => ((row._id || row.id) === id ? { ...row, [field]: priority, ...extra } : row));
@@ -420,15 +601,21 @@ export default function SectionManager() {
         await batchReorder(updates);
     }, [applyLocalCarouselOrder, batchReorder]);
 
+    const getCarouselBySection = useCallback((section) => {
+        if (section === 'trending') return trendingCarousel;
+        if (section === 'happening') return happeningCarousel;
+        return buildHomeCarouselItems(fests, treks, comms, section, sports, runClubs);
+    }, [trendingCarousel, happeningCarousel, fests, treks, comms, sports, runClubs]);
+
     const handleCarouselReorder = useCallback((section, fromIndex, toIndex) => {
         if (fromIndex === toIndex || reordering) return;
-        const source = section === 'trending' ? trendingCarousel : happeningCarousel;
+        const source = getCarouselBySection(section);
         const next = [...source];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
         applyLocalCarouselOrder(section, next);
         persistCarouselOrder(section, next);
-    }, [trendingCarousel, happeningCarousel, applyLocalCarouselOrder, persistCarouselOrder, reordering]);
+    }, [getCarouselBySection, applyLocalCarouselOrder, persistCarouselOrder, reordering]);
 
     const movingSlideFests = useMemo(
         () => fests.filter((f) => f.showOnHomeSlide).map((f) => normalizeHomeCarouselItem('fest', f))
@@ -577,31 +764,153 @@ export default function SectionManager() {
         return 'run_clubs';
     };
 
-    const getRunPagePriority = (s) => s.upcomingPriority ?? s.priority;
+    const activeTabs = mode === 'assign' ? ASSIGN_TABS : REORDER_TABS;
+    const tabCounts = {
+        home: trendingCarousel.length + happeningCarousel.length,
+        fests: fests.length,
+        treks: treks.length,
+        communities: comms.length,
+        runclubs: runClubs.length,
+        runs: sports.filter((s) => s.runClubId).length,
+        sports: sportsPageCarousels.upcoming.length + sportsPageCarousels.run_clubs.length,
+    };
 
-    const saveRunPagePriority = useCallback((id, v) => {
-        saveSports(id, { upcomingPriority: v, priority: v });
-    }, [saveSports]);
-
-    const tabs = [
-        { id: 'home',        label: 'Home Carousels', icon: LayoutGrid, count: trendingCarousel.length + happeningCarousel.length },
-        { id: 'fests',       label: 'Fests',          icon: Flag,       count: fests.length },
-        { id: 'treks',       label: 'Treks',          icon: Mountain,   count: treks.length },
-        { id: 'communities', label: 'Communities',    icon: Users,      count: comms.length },
-        { id: 'runclubs',    label: 'Run Clubs',      icon: Footprints, count: runClubs.length },
-        { id: 'runs',        label: 'Runs',           icon: Dumbbell,   count: sports.filter((s) => s.runClubId).length },
-    ];
+    const renderReorderContent = () => {
+        if (tab === 'home') {
+            return (
+                <div className="p-4 space-y-4">
+                    {reordering && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0ECCEE]/10 border border-[#0ECCEE]/20 text-xs text-[#0ECCEE]">
+                            <Loader2 size={14} className="animate-spin" /> Saving carousel order…
+                        </div>
+                    )}
+                    <HomeCarouselPanel
+                        title="🔥 Trending Now"
+                        subtitle="Home page · drag to set left-to-right order"
+                        items={trendingCarousel}
+                        onReorder={(from, to) => handleCarouselReorder('trending', from, to)}
+                        isReordering={reordering}
+                    />
+                    <HomeCarouselPanel
+                        title="📍 Happening Near You"
+                        subtitle="Home page · drag to set left-to-right order"
+                        items={happeningCarousel}
+                        onReorder={(from, to) => handleCarouselReorder('happening', from, to)}
+                        isReordering={reordering}
+                    />
+                    {customCarousels.map(({ section, items }) => (
+                        <HomeCarouselPanel
+                            key={section._id}
+                            title={`✨ ${section.title}`}
+                            subtitle={`Custom home section · ${getCardSizeLabel(section.cardSize)}`}
+                            items={items}
+                            onReorder={(from, to) => handleCarouselReorder(section.slug, from, to)}
+                            isReordering={reordering}
+                        />
+                    ))}
+                    <HomeCarouselPanel
+                        title="🎠 Moving Hero Slides"
+                        subtitle="Hero banner slides · fests with Moving Slide enabled"
+                        items={movingSlideFests}
+                        onReorder={handleMovingSlideReorder}
+                        isReordering={reordering}
+                    />
+                </div>
+            );
+        }
+        if (tab === 'fests') {
+            return (
+                <div className="p-4 space-y-3">
+                    {reordering && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0ECCEE]/10 border border-[#0ECCEE]/20 text-xs text-[#0ECCEE]">
+                            <Loader2 size={14} className="animate-spin" /> Saving order…
+                        </div>
+                    )}
+                    <p className="text-[11px] text-gray-500">Fest page sections on /fests — drag within each row</p>
+                    {FEST_PAGE_SECTIONS.map(({ key, label }) => (
+                        <HomeCarouselPanel
+                            key={key}
+                            title={label}
+                            subtitle="Left-to-right order on fest page"
+                            items={festPageCarousels[key] || []}
+                            onReorder={(from, to) => handleFestPageReorder(key, from, to)}
+                            isReordering={reordering}
+                        />
+                    ))}
+                </div>
+            );
+        }
+        if (tab === 'treks') {
+            return (
+                <div className="p-4 space-y-3">
+                    {reordering && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0ECCEE]/10 border border-[#0ECCEE]/20 text-xs text-[#0ECCEE]">
+                            <Loader2 size={14} className="animate-spin" /> Saving order…
+                        </div>
+                    )}
+                    <p className="text-[11px] text-gray-500">Treks page sections on /treks — drag within each row</p>
+                    {TREK_PAGE_SECTIONS.map(({ key, label }) => (
+                        <HomeCarouselPanel
+                            key={key}
+                            title={label}
+                            subtitle="Left-to-right order on treks page"
+                            items={trekPageCarousels[key] || []}
+                            onReorder={(from, to) => handleTrekPageReorder(key, from, to)}
+                            isReordering={reordering}
+                        />
+                    ))}
+                </div>
+            );
+        }
+        if (tab === 'sports') {
+            return (
+                <div className="p-4 space-y-3">
+                    {reordering && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0ECCEE]/10 border border-[#0ECCEE]/20 text-xs text-[#0ECCEE]">
+                            <Loader2 size={14} className="animate-spin" /> Saving order…
+                        </div>
+                    )}
+                    <p className="text-[11px] text-gray-500">Sports page sections on /sports — drag within each row</p>
+                    <HomeCarouselPanel
+                        title="🏃 Upcoming Activities"
+                        subtitle="Runs shown on sports page"
+                        items={sportsPageCarousels.upcoming}
+                        onReorder={(from, to) => handleSportsPageReorder('upcoming', from, to)}
+                        isReordering={reordering}
+                    />
+                    <HomeCarouselPanel
+                        title="👟 Explore Run Clubs"
+                        subtitle="Run clubs carousel on sports page"
+                        items={sportsPageCarousels.run_clubs}
+                        onReorder={(from, to) => handleSportsPageReorder('run_clubs', from, to)}
+                        isReordering={reordering}
+                    />
+                </div>
+            );
+        }
+        return null;
+    };
 
     return (
         <div className="max-w-5xl mx-auto space-y-5">
 
             {/* Header */}
-            <div className="flex items-center justify-between gap-4 px-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-white/8 bg-[#17181A] px-5 py-4">
                 <div>
-                    <h1 className="text-xl font-bold text-white">Section Manager</h1>
-                    <p className="text-xs text-gray-500 mt-0.5">Drag cards to match Trending Now & Happening near you order on the home page</p>
+                    <h1 className="text-xl font-bold text-white">Home &amp; Sections</h1>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                        {mode === 'reorder'
+                            ? 'Drag cards to change order within each section on the site'
+                            : 'Assign each item to home page sections and its own page'}
+                    </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                        to="/admin/page-sections"
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0ECCEE] hover:bg-[#3dd8f5] rounded-xl text-xs font-bold text-black transition-colors"
+                    >
+                        <LayoutGrid size={13} /> Page Sections
+                    </Link>
                     <a href="/" target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-gray-300 transition-colors">
                         <ExternalLink size={13} /> Preview site
@@ -624,57 +933,67 @@ export default function SectionManager() {
                 </div>
             )}
 
-            {/* Tabs + Search */}
+            <ModeSwitcher mode={mode} onChange={handleModeChange} />
+
+            {/* Page tabs + Search */}
             <div className="flex items-center gap-3">
-                <div className="flex gap-1 bg-[#17181A] p-1 rounded-xl border border-white/8">
-                    {tabs.map(t => (
-                        <button key={t.id} onClick={() => { setTab(t.id); setSearch(''); }}
-                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all
+                <div className="flex gap-1 bg-[#17181A] p-1 rounded-xl border border-white/8 overflow-x-auto">
+                    {activeTabs.map((t) => (
+                        <button key={t.id} type="button" onClick={() => handleTabChange(t.id)}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap
                                 ${tab === t.id ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
                             <t.icon size={13} />{t.label}
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-black/20 text-black' : 'bg-white/8 text-gray-500'}`}>{t.count}</span>
+                            {tabCounts[t.id] != null && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-black/20 text-black' : 'bg-white/8 text-gray-500'}`}>
+                                    {tabCounts[t.id]}
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>
-                <div className="relative flex-1">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder={tab === 'home' ? 'Search disabled on this tab' : `Search ${tab}…`}
-                        disabled={tab === 'home'}
-                        className="w-full h-10 bg-[#17181A] border border-white/8 rounded-xl pl-8 pr-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#0ECCEE]/50 disabled:opacity-40" />
-                </div>
+                {mode === 'assign' && (
+                    <div className="relative flex-1 min-w-0">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${tab}…`}
+                            className="w-full h-10 bg-[#17181A] border border-white/8 rounded-xl pl-8 pr-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#0ECCEE]/50" />
+                    </div>
+                )}
             </div>
 
-            {/* Column headers */}
-            {!loading && tab !== 'home' && (
+            {/* Column headers — assign mode only */}
+            {!loading && mode === 'assign' && (
                 <div className="flex items-center gap-3 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-600">
                     <span className="w-10 shrink-0" />
                     <span className="flex-1">Name</span>
                     {tab === 'runs' ? (
                         <>
-                            <span className="w-52 text-center">🏠 Home Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
-                            <span className="w-52 text-center">🏃 Sports Page <span className="text-gray-700 normal-case font-normal">(Upcoming · priority)</span></span>
+                            <span className="w-44 text-center">🏠 Home page</span>
+                            <span className="w-44 text-center">🏃 Sports page</span>
                         </>
                     ) : tab === 'runclubs' ? (
                         <>
-                            <span className="w-52 text-center">🏠 Home Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
-                            <span className="w-52 text-center">👟 Sports Page <span className="text-gray-700 normal-case font-normal">(Explore Run Clubs · priority)</span></span>
+                            <span className="w-44 text-center">🏠 Home page</span>
+                            <span className="w-44 text-center">👟 Sports page</span>
                         </>
                     ) : tab === 'communities' ? (
                         <>
-                            <span className="w-52 text-center">🏠 Home Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
-                            <span className="w-52 text-center">🏔️ Treks Page <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
+                            <span className="w-44 text-center">🏠 Home page</span>
+                            <span className="w-44 text-center">🏔️ Treks page</span>
                         </>
                     ) : (
                         <>
-                            <span className="w-52 text-center">🏠 Home Page  <span className="text-gray-700 normal-case font-normal">(section · priority)</span></span>
-                            <span className="w-52 text-center">
-                                {tab === 'fests' ? '🎭 Fest Section' : tab === 'treks' ? '🏔️ Treks Page' : '🏔️ Treks Page'}
-                                <span className="text-gray-700 normal-case font-normal">
-                                    {tab === 'fests' ? ' (Featured / Listed)' : ' (section · priority)'}
-                                </span>
+                            <span className="w-44 text-center">🏠 Home page</span>
+                            <span className="w-44 text-center">
+                                {tab === 'fests' ? '🎭 Fest page' : '🏔️ Own page'}
                             </span>
                         </>
                     )}
+                    {(tab === 'fests' && festCustomPageOpts.length > 1)
+                        || (tab === 'treks' && trekCustomPageOpts.length > 1)
+                        || (tab === 'communities' && trekCustomPageOpts.length > 1)
+                        || ((tab === 'runs' || tab === 'runclubs') && sportsCustomPageOpts.length > 1) ? (
+                        <span className="w-44 text-center">✨ Custom section</span>
+                    ) : null}
                 </div>
             )}
 
@@ -684,84 +1003,17 @@ export default function SectionManager() {
                     <div className="flex items-center justify-center gap-3 py-20 text-gray-500 text-sm">
                         <Loader2 size={20} className="animate-spin text-[#0ECCEE]" /> Loading…
                     </div>
-                ) : tab === 'home' ? (
-                    <div className="p-4 space-y-4">
-                        {reordering && (
-                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0ECCEE]/10 border border-[#0ECCEE]/20 text-xs text-[#0ECCEE]">
-                                <Loader2 size={14} className="animate-spin" /> Saving carousel order…
-                            </div>
-                        )}
-                        <HomeCarouselPanel
-                            title="🔥 Trending Now"
-                            subtitle="Left-to-right on home page · fests, treks, communities, run clubs & runs"
-                            items={trendingCarousel}
-                            onReorder={(from, to) => handleCarouselReorder('trending', from, to)}
-                            isReordering={reordering}
-                        />
-                        <HomeCarouselPanel
-                            title="📍 Happening Near You"
-                            subtitle="Left-to-right on home page · fests, treks, communities, run clubs & runs"
-                            items={happeningCarousel}
-                            onReorder={(from, to) => handleCarouselReorder('happening', from, to)}
-                            isReordering={reordering}
-                        />
-                        <HomeCarouselPanel
-                            title="🎠 Moving Hero Slides"
-                            subtitle="Fests with Moving Slide enabled · order by home priority"
-                            items={movingSlideFests}
-                            onReorder={handleMovingSlideReorder}
-                            isReordering={reordering}
-                        />
-                        <p className="text-[10px] text-gray-600 px-1">
-                            Fests without an explicit home section use status fallback (Featured → Trending, Listed/Beyond Campus → Happening).
-                            Assign section + priority in the tabs below, then drag here to fine-tune order.
-                        </p>
-                    </div>
+                ) : mode === 'reorder' ? (
+                    <>
+                        {renderReorderContent()}
+                        <div className="px-4 py-3 border-t border-white/4 bg-black/20">
+                            <p className="text-[10px] text-gray-600">
+                                Card order saves when you drop a row. To add cards to a section, switch to <button type="button" onClick={() => handleModeChange('assign')} className="text-[#0ECCEE] hover:underline">Assign cards</button>.
+                            </p>
+                        </div>
+                    </>
                 ) : (
-                    <div className="max-h-[640px] overflow-y-auto">
-                        {tab === 'fests' && (
-                            <div className="p-4 space-y-3 border-b border-white/6">
-                                <p className="text-[11px] text-gray-500">Drag to reorder within each fest-page section (matches /fests)</p>
-                                {FEST_PAGE_SECTIONS.map(({ key, label }) => (
-                                    <HomeCarouselPanel
-                                        key={key}
-                                        title={label}
-                                        subtitle="Fest page section order"
-                                        items={festPageCarousels[key] || []}
-                                        onReorder={(from, to) => handleFestPageReorder(key, from, to)}
-                                        isReordering={reordering}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                        {tab === 'treks' && (
-                            <div className="p-4 space-y-3 border-b border-white/6">
-                                <p className="text-[11px] text-gray-500">Drag to reorder trek-page sections (matches /treks)</p>
-                                {TREK_PAGE_SECTIONS.map(({ key, label }) => (
-                                    <HomeCarouselPanel
-                                        key={key}
-                                        title={label}
-                                        subtitle="Treks page section order"
-                                        items={trekPageCarousels[key] || []}
-                                        onReorder={(from, to) => handleTrekPageReorder(key, from, to)}
-                                        isReordering={reordering}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                        {tab === 'runs' && (
-                            <div className="p-4 space-y-3 border-b border-white/6">
-                                <p className="text-[11px] text-gray-500">Drag to reorder Upcoming Activities on /sports (like trek-page sections on Treks tab)</p>
-                                <HomeCarouselPanel
-                                    title="🏃 Upcoming Activities"
-                                    subtitle="Sports page · runs from run clubs"
-                                    items={sportsPageCarousels.upcoming}
-                                    onReorder={(from, to) => handleSportsPageReorder('upcoming', from, to)}
-                                    isReordering={reordering}
-                                />
-                            </div>
-                        )}
-                    <div className="divide-y divide-white/4">
+                    <div className="max-h-[640px] overflow-y-auto divide-y divide-white/4">
 
                         {/* ── FESTS ── */}
                         {tab === 'fests' && (() => {
@@ -798,24 +1050,29 @@ export default function SectionManager() {
                                                     <p className="text-sm font-semibold text-white truncate">{f.festName || 'Untitled'}</p>
                                                     <p className="text-[11px] text-gray-600 truncate">{f.collegeName || '—'}</p>
                                                 </div>
-                                                <Pill
+                                                <AssignPill
                                                     selectValue={getFestHomeVal(f)}
-                                                    selectOpts={[{ value: '', label: '— None —' }, { value: 'movingSlide', label: '🎠 Moving Slide' }, { value: 'trending', label: '🔥 Trending Now' }, { value: 'happening', label: '📍 Happening Near You' }]}
+                                                    selectOpts={festHomeSelectOpts}
                                                     onSelect={v => saveFestHome(id, v)}
-                                                    priorityValue={f.homePriority}
-                                                    onPriority={v => saveFest(id, { homePriority: v })}
                                                     saveKey={`fest-${id}-home`}
                                                     saving={saving}
                                                 />
-                                                <Pill
+                                                <AssignPill
                                                     selectValue={f.status || 'upcoming'}
                                                     selectOpts={FEST_PAGE_OPTS}
                                                     onSelect={v => saveFest(id, { status: v })}
-                                                    priorityValue={f.priority}
-                                                    onPriority={v => saveFest(id, { priority: v })}
                                                     saveKey={`fest-${id}-page`}
                                                     saving={saving}
                                                 />
+                                                {festCustomPageOpts.length > 1 && (
+                                                    <AssignPill
+                                                        selectValue={getCustomPageValue(f, FEST_CUSTOM_PAGES)}
+                                                        selectOpts={festCustomPageOpts}
+                                                        onSelect={(v) => saveEntityCustomPage('fest', id, f, FEST_CUSTOM_PAGES, v)}
+                                                        saveKey={`fest-${id}-custom`}
+                                                        saving={saving}
+                                                    />
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -834,24 +1091,29 @@ export default function SectionManager() {
                                         <p className="text-sm font-semibold text-white truncate">{t.trekName || 'Untitled'}</p>
                                         <p className="text-[11px] text-gray-600 truncate">{[t.city, t.difficultyLevel].filter(Boolean).join(' · ') || '—'}</p>
                                     </div>
-                                    <Pill
+                                    <AssignPill
                                         selectValue={t.homeSection || ''}
-                                        selectOpts={HOME_OPTS}
+                                        selectOpts={entityHomeSelectOpts}
                                         onSelect={v => saveTrek(t._id, { homeSection: v || null })}
-                                        priorityValue={t.priority}
-                                        onPriority={v => saveTrek(t._id, { priority: v })}
                                         saveKey={`trek-${t._id}-home`}
                                         saving={saving}
                                     />
-                                    <Pill
+                                    <AssignPill
                                         selectValue={t.featuredSection || ''}
                                         selectOpts={TREK_PAGE_OPTS}
                                         onSelect={v => saveTrek(t._id, { featuredSection: v || null })}
-                                        priorityValue={t.trekPagePriority}
-                                        onPriority={v => saveTrek(t._id, { trekPagePriority: v })}
                                         saveKey={`trek-${t._id}-page`}
                                         saving={saving}
                                     />
+                                    {trekCustomPageOpts.length > 1 && (
+                                        <AssignPill
+                                            selectValue={getCustomPageValue(t, TREK_CUSTOM_PAGES)}
+                                            selectOpts={trekCustomPageOpts}
+                                            onSelect={(v) => saveEntityCustomPage('trek', t._id, t, TREK_CUSTOM_PAGES, v)}
+                                            saveKey={`trek-${t._id}-custom`}
+                                            saving={saving}
+                                        />
+                                    )}
                                 </div>
                             ))
                         )}
@@ -869,24 +1131,29 @@ export default function SectionManager() {
                                             {[s.runCategory, s.city, s.status].filter(Boolean).join(' · ') || '—'}
                                         </p>
                                     </div>
-                                    <Pill
+                                    <AssignPill
                                         selectValue={s.homeSection || ''}
-                                        selectOpts={SPORTS_HOME_OPTS}
+                                        selectOpts={sportsHomeSelectOpts}
                                         onSelect={v => saveSports(s._id, { homeSection: v || null })}
-                                        priorityValue={s.homePriority}
-                                        onPriority={v => saveSports(s._id, { homePriority: v })}
                                         saveKey={`sports-${s._id}-home`}
                                         saving={saving}
                                     />
-                                    <Pill
+                                    <AssignPill
                                         selectValue={getRunPageVal(s)}
                                         selectOpts={RUN_PAGE_OPTS}
                                         onSelect={v => saveRunPage(s._id, v)}
-                                        priorityValue={getRunPagePriority(s)}
-                                        onPriority={v => saveRunPagePriority(s._id, v)}
                                         saveKey={`sports-${s._id}-page`}
                                         saving={saving}
                                     />
+                                    {sportsCustomPageOpts.length > 1 && (
+                                        <AssignPill
+                                            selectValue={getCustomPageValue(s, SPORTS_CUSTOM_PAGES)}
+                                            selectOpts={sportsCustomPageOpts}
+                                            onSelect={(v) => saveEntityCustomPage('sport', s._id, s, SPORTS_CUSTOM_PAGES, v)}
+                                            saveKey={`sports-${s._id}-custom`}
+                                            saving={saving}
+                                        />
+                                    )}
                                 </div>
                             ))
                         )}
@@ -904,24 +1171,29 @@ export default function SectionManager() {
                                             <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
                                             <p className="text-[11px] text-gray-600 truncate">{c.basedIn || c.organizer || '—'}</p>
                                         </div>
-                                        <Pill
+                                        <AssignPill
                                             selectValue={c.homeSection || ''}
-                                            selectOpts={HOME_OPTS}
+                                            selectOpts={entityHomeSelectOpts}
                                             onSelect={v => saveRunClub(c._id, { homeSection: v || null })}
-                                            priorityValue={c.priority}
-                                            onPriority={v => saveRunClub(c._id, { priority: v })}
                                             saveKey={`runclub-${c._id}-home`}
                                             saving={saving}
                                         />
-                                        <Pill
+                                        <AssignPill
                                             selectValue={pageVal}
                                             selectOpts={RUN_CLUB_PAGE_OPTS}
                                             onSelect={v => saveRunClub(c._id, { pageSection: v })}
-                                            priorityValue={c.runClubPriority}
-                                            onPriority={v => saveRunClub(c._id, { runClubPriority: v })}
                                             saveKey={`runclub-${c._id}-page`}
                                             saving={saving}
                                         />
+                                        {sportsCustomPageOpts.length > 1 && (
+                                            <AssignPill
+                                                selectValue={getCustomPageValue(c, SPORTS_CUSTOM_PAGES)}
+                                                selectOpts={sportsCustomPageOpts}
+                                                onSelect={(v) => saveEntityCustomPage('runclub', c._id, c, SPORTS_CUSTOM_PAGES, v)}
+                                                saveKey={`runclub-${c._id}-custom`}
+                                                saving={saving}
+                                            />
+                                        )}
                                     </div>
                                 );
                             })
@@ -940,42 +1212,43 @@ export default function SectionManager() {
                                             <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
                                             <p className="text-[11px] text-gray-600 truncate">{c.basedIn || '—'}</p>
                                         </div>
-                                        <Pill
+                                        <AssignPill
                                             selectValue={c.homeSection || ''}
-                                            selectOpts={HOME_OPTS}
+                                            selectOpts={entityHomeSelectOpts}
                                             onSelect={v => saveComm(c._id, { homeSection: v || null })}
-                                            priorityValue={c.priority}
-                                            onPriority={v => saveComm(c._id, { priority: v })}
                                             saveKey={`comm-${c._id}-home`}
                                             saving={saving}
                                         />
-                                        <Pill
+                                        <AssignPill
                                             selectValue={pageVal}
                                             selectOpts={COMM_PAGE_OPTS}
                                             onSelect={v => saveComm(c._id, { pageSection: v })}
-                                            priorityValue={c.trekPagePriority}
-                                            onPriority={v => saveComm(c._id, { trekPagePriority: v })}
                                             saveKey={`comm-${c._id}-page`}
                                             saving={saving}
                                         />
+                                        {trekCustomPageOpts.length > 1 && (
+                                            <AssignPill
+                                                selectValue={getCustomPageValue(c, TREK_CUSTOM_PAGES)}
+                                                selectOpts={trekCustomPageOpts}
+                                                onSelect={(v) => saveEntityCustomPage('community', c._id, c, TREK_CUSTOM_PAGES, v)}
+                                                saveKey={`comm-${c._id}-custom`}
+                                                saving={saving}
+                                            />
+                                        )}
                                     </div>
                                 );
                             })
                         )}
 
                     </div>
-                    </div>
                 )}
 
-                {/* Footer hint */}
-                {!loading && tab !== 'home' && (
+                {/* Footer hint — assign mode */}
+                {!loading && mode === 'assign' && (
                     <div className="px-4 py-2 bg-black/20 border-t border-white/4">
-                        <p className="text-[10px] text-gray-700">
-                            {tab === 'runclubs'
-                                ? 'Explore Run Clubs order uses priority below (like Communities on /treks) · Priority 1 = first'
-                                : tab === 'runs'
-                                  ? 'Drag panel above reorders Upcoming Activities · Dropdowns save instantly · Priority 1 = first'
-                                  : 'Drag panels above reorder page sections · Dropdowns save instantly · Priority 1 = first · blank = 999'}
+                        <p className="text-[10px] text-gray-600">
+                            Dropdowns save instantly. To change left-to-right order within a section, switch to{' '}
+                            <button type="button" onClick={() => handleModeChange('reorder')} className="text-[#0ECCEE] hover:underline">Card order</button>.
                         </p>
                     </div>
                 )}

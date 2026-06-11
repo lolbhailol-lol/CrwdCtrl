@@ -26,6 +26,7 @@ const qrRoutes = require('../routers/qrRoute');
 const scannerRoutes = require('../routers/scannerRoute');
 const analyticsRoutes = require('../routers/analyticsRoute');
 const publicSearchRoutes = require('../routers/publicSearchRoute');
+const publicHomepageSectionRoutes = require('../routers/publicHomepageSectionRoute');
 const { authLimiter, paymentLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -56,5 +57,7 @@ router.use('/qr', qrRoutes);
 router.use('/scanner', scannerRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/search', publicSearchRoutes);
+router.use('/homepage-sections', publicHomepageSectionRoutes);
+router.use('/page-sections', publicHomepageSectionRoutes);
 
 module.exports = router;

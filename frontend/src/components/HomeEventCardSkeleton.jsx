@@ -33,19 +33,33 @@ function CardsRow({ count, gap, className = '', children }) {
 }
 
 /* ── Home carousel cards ── */
-export function HomeEventCardSkeleton({ tallCard = false, wideCard = false }) {
-    const isTrendingCard = tallCard && !wideCard;
+export function HomeEventCardSkeleton({ tallCard = false, wideCard = false, miniCard = false, portraitCard = false, heroCard = false }) {
+    const isTrendingCard = tallCard && !wideCard && !miniCard && !portraitCard && !heroCard;
     const cardRadius = 'rounded-2xl';
+
+    if (portraitCard) {
+        return (
+            <div className="card-portrait shrink-0">
+                <div className="card-portrait-image">
+                    <Shimmer className="h-full w-full rounded-2xl" />
+                </div>
+                <div className="mt-2 w-full min-w-0 max-w-[var(--card-portrait-w)] space-y-1.5">
+                    <Shimmer className="h-3.5 w-3/4" />
+                    <Shimmer className="h-3 w-1/2" />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
             className={`card-surface shrink-0 overflow-hidden ${cardRadius}
                 ${isTrendingCard ? 'pb-5' : 'pb-2.5'}
-                ${wideCard ? 'card-carousel-wide' : 'card-carousel'}`}
+                ${wideCard ? 'card-carousel-wide' : miniCard ? 'card-carousel-sm' : 'card-carousel'}`}
         >
             <div
                 className={`relative w-full overflow-hidden ${
-                    tallCard ? 'aspect-[11/10]' : 'aspect-[3/2]'
+                    heroCard ? 'aspect-[2/1]' : tallCard ? 'aspect-[11/10]' : 'aspect-[3/2]'
                 }`}
             >
                 <Shimmer className="absolute inset-0 rounded-none" />

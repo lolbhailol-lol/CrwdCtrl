@@ -15,7 +15,6 @@ import {
 } from '../../utils/deepLinks';
 import {
   goToBookings,
-  scheduleGoToBookings,
   verifyPaymentWithRetry,
 } from '../../utils/paymentNavigation';
 import {
@@ -52,6 +51,8 @@ export default function FestRegistration() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const paymentResumeRef = useRef(false);
+  const competitionPaymentResumeRef = useRef(false);
+  const handleSubmitRef = useRef(null);
   const competitionId = searchParams.get('competition');
   const initialUi = getInitialFestRegistrationUi(location.pathname, location.search);
   const {
@@ -77,7 +78,7 @@ export default function FestRegistration() {
   const [notice, setNotice] = useState('');
   const [success, setSuccess] = useState(false);
   const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
-  const [, setRegistrationId] = useState(null);
+  const [registrationId, setRegistrationId] = useState(null);
   const [uploadingFiles, setUploadingFiles] = useState({});
   // Cashfree verified payment fields
   const [paymentFields, setPaymentFields] = useState(null);
@@ -92,6 +93,7 @@ export default function FestRegistration() {
   const [showRegister, setShowRegister] = useState(false);
   // True once we've waited long enough for Firebase -> backend JWT sync to finish
   const [authSyncExpired, setAuthSyncExpired] = useState(false);
+  const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
 
   useEffect(() => {
     if (!firebaseUser || resolveAuthToken(authToken)) {
@@ -142,7 +144,7 @@ export default function FestRegistration() {
 
   // Resume fest pay-and-register after Cashfree redirect checkout
   useEffect(() => {
-    if (paymentResumeRef.current || loading || authLoading) return;
+    if (paymentResumeRef.current || authLoading || isAuthProcessing || isRedirectProcessing) return;
     if (isCompetitionRegistration || !fest || !(fest.feeAmount > 0)) return;
 
     const pending = getPendingPayment();
@@ -195,7 +197,6 @@ export default function FestRegistration() {
         setSuccess(true);
         refreshNotifications();
         clearRegistrationDraft(draftKey);
-        scheduleGoToBookings(navigate);
       } catch (err) {
         clearPendingPayment();
         setCompletingPayment(false);
@@ -217,6 +218,119 @@ export default function FestRegistration() {
     navigate,
     refreshNotifications,
   ]);
+
+  // Resume competition registration after Cashfree redirect checkout
+  useEffect(() => {
+    if (competitionPaymentResumeRef.current || authLoading || isAuthProcessing || isRedirectProcessing) return;
+    if (!isCompetitionRegistration || !competitionId) return;
+
+    const pending = getPendingPayment();
+    if (!pending?.orderId || isTrekPaymentPending(pending)) return;
+
+    const currentPath = location.pathname + location.search;
+    if (!shouldResumePendingPayment(pending, currentPath, location.search)) return;
+
+    competitionPaymentResumeRef.current = true;
+    setCompletingPayment(true);
+    setSubmissionProgress('Verifying payment...');
+    setPaymentError('');
+    setError('');
+
+    (async () => {
+      let scheduledAutoSubmit = false;
+      try {
+        const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
+        if (!submitToken) {
+          setCompletingPayment(false);
+          setLoading(false);
+          setPaymentError('Please log in to complete your registration.');
+          return;
+        }
+
+        const { ok, data: verifyData } = await verifyPaymentWithRetry(
+          API_BASE_URL,
+          pending.orderId,
+          { token: submitToken },
+        );
+        if (!ok || !verifyData?.verified) {
+          throw new Error(verifyData?.message || 'Payment could not be verified.');
+        }
+
+        const verifiedFields = buildVerifiedPaymentFields(verifyData, pending.orderId);
+        setPaymentFields(verifiedFields);
+        clearPendingPayment();
+
+        const draft = loadRegistrationDraft(draftKey);
+        const hasDraftAnswers = draft && (
+          Object.keys(draft.formData || {}).length > 0
+          || Object.keys(draft.stepData || {}).length > 0
+        );
+
+        if (hasDraftAnswers) {
+          restoreRegistrationDraft();
+          setSubmissionProgress('Submitting your registration...');
+          scheduledAutoSubmit = true;
+          setPendingAutoSubmit(true);
+          return;
+        }
+
+        setSubmissionProgress('Completing registration...');
+        const regRes = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/pay-and-register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getBearerAuthHeaders(submitToken),
+          },
+          body: JSON.stringify({
+            payment_order_id: verifiedFields.payment_order_id,
+            payment_id: verifiedFields.payment_id,
+          }),
+        });
+        if (!regRes.ok) {
+          const errData = await regRes.json().catch(() => ({}));
+          throw new Error(errData.error || errData.message || 'Registration failed after payment.');
+        }
+        const regData = await regRes.json().catch(() => ({}));
+        const regId = regData._id || regData.registration?._id || regData.registrationId;
+        if (regId) setRegistrationId(regId);
+        clearRegistrationDraft(draftKey);
+        setCompletingPayment(false);
+        setSuccess(true);
+        refreshNotifications();
+      } catch (err) {
+        clearPendingPayment();
+        setCompletingPayment(false);
+        setPaymentError(err.message || 'Could not complete registration after payment.');
+      } finally {
+        if (!scheduledAutoSubmit) {
+          setSubmissionProgress('');
+        }
+      }
+    })();
+  }, [
+    authLoading,
+    isAuthProcessing,
+    isRedirectProcessing,
+    isCompetitionRegistration,
+    competitionId,
+    location.pathname,
+    location.search,
+    authToken,
+    draftKey,
+    navigate,
+    refreshNotifications,
+  ]);
+
+  useEffect(() => {
+    if (!pendingAutoSubmit || !paymentFields || !competition || !fest || submitting) return;
+    setPendingAutoSubmit(false);
+    setCompletingPayment(true);
+    setSubmissionProgress('Submitting your registration...');
+    const timer = setTimeout(() => {
+      handleSubmitRef.current?.({ preventDefault: () => {} });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [pendingAutoSubmit, paymentFields, competition, fest, submitting]);
 
   useEffect(() => {
     const initializeRegistration = async () => {
@@ -1770,7 +1884,6 @@ export default function FestRegistration() {
       setSuccess(true);
       refreshNotifications();
       clearRegistrationDraft(draftKey);
-      scheduleGoToBookings(navigate);
 
     } catch (err) {
       setCompletingPayment(false);
@@ -1784,9 +1897,7 @@ export default function FestRegistration() {
         const elapsedTime = ((Date.now() - formSubmissionStartTime) / 1000).toFixed(1);
         console.error('❌ Request was aborted/timed out after', elapsedTime, 'seconds');
         console.log('ℹ️ Registration may have been saved on the server. Checking registered events...');
-        setError('Registration is taking longer than expected. Your submission may have been saved. Please check your registered events in a moment. Contact support if needed.');
-        // Don't prevent navigation - allow user to check registered events
-        scheduleGoToBookings(navigate);
+        setError('Registration is taking longer than expected. Your submission may have been saved. Please check My Bookings in a moment. Contact support if needed.');
       } else if (
         err.message.includes('Authentication')
         || err.message.includes('session')
@@ -1816,6 +1927,8 @@ export default function FestRegistration() {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
   };
 
+  handleSubmitRef.current = handleSubmit;
+
   const hasAuth = hasUsableAuthToken(authToken);
 
   if (completingPayment && !success) {
@@ -1841,15 +1954,39 @@ export default function FestRegistration() {
             </span> has been submitted successfully.
           </p>
           <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            Redirecting to My Bookings...
+            Download your ticket or view all bookings whenever you&apos;re ready.
           </p>
-          <button
-            type="button"
-            onClick={() => goToBookings(navigate)}
-            className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
-          >
-            View My Bookings
-          </button>
+          <div className="flex flex-col gap-3">
+            {registrationId && (
+              <button
+                type="button"
+                onClick={() => navigate(`/qr-ticket/${registrationId}`, { state: { refreshBookings: true } })}
+                className="w-full px-6 py-3 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+              >
+                Download Ticket
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => goToBookings(navigate)}
+              className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
+                registrationId
+                  ? isDark
+                    ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
+                    : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                  : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
+              }`}
+            >
+              View My Bookings
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className={`w-full py-2 text-sm font-medium ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Back to Home
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1961,7 +2098,6 @@ export default function FestRegistration() {
       setSuccess(true);
       refreshNotifications();
       clearRegistrationDraft(draftKey);
-      scheduleGoToBookings(navigate);
     } catch (err) {
       setCompletingPayment(false);
       if (err.message !== 'Payment cancelled') {

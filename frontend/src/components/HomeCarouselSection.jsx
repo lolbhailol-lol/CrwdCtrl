@@ -171,7 +171,7 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
     return { slides, activeIndex };
 }
 
-function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, getShareUrl, tallCard, wideCard }) {
+function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, getShareUrl, tallCard, wideCard, miniCard, portraitCard, heroCard }) {
     const item = slide.item;
     const id = getItemId(item);
 
@@ -189,9 +189,12 @@ function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, g
                 onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(item) : undefined}
                 onViewDetails={() => onItemClick?.(item)}
                 shareUrl={getShareUrl?.(item)}
-                prominentImage
+                prominentImage={!portraitCard}
                 tallImage={tallCard}
                 wideCard={wideCard}
+                miniCard={miniCard}
+                portraitCard={portraitCard}
+                heroCard={heroCard}
             />
         </div>
     );
@@ -210,6 +213,9 @@ export default function HomeCarouselSection({
     emptyFallback = null,
     tallCard = false,
     wideCard = false,
+    miniCard = false,
+    portraitCard = false,
+    heroCard = false,
     cardGap = HOME_CARD_GAP,
 }) {
     const scrollRef = useRef(null);
@@ -218,7 +224,7 @@ export default function HomeCarouselSection({
     const slideCount = loading
         ? SKELETON_COUNT
         : (items.length <= 1 ? items.length : items.length + 2);
-    const fallbackWidth = getHomeCardFallbackWidth(wideCard);
+    const fallbackWidth = getHomeCardFallbackWidth(wideCard, { miniCard, portraitCard, heroCard });
     const cardWidth = useMeasuredCardWidth(trackRef, slideCount, fallbackWidth);
     const sidePad = useCenteredCarouselSidePad(scrollRef, cardWidth);
 
@@ -278,7 +284,7 @@ export default function HomeCarouselSection({
                     >
                         {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
                             <div key={index} className="carousel-slide shrink-0">
-                                <HomeEventCardSkeleton tallCard={tallCard} wideCard={wideCard} />
+                                <HomeEventCardSkeleton tallCard={tallCard} wideCard={wideCard} miniCard={miniCard} portraitCard={portraitCard} heroCard={heroCard} />
                             </div>
                         ))}
                     </div>
@@ -317,6 +323,9 @@ export default function HomeCarouselSection({
                             getShareUrl={getShareUrl}
                             tallCard={tallCard}
                             wideCard={wideCard}
+                            miniCard={miniCard}
+                            portraitCard={portraitCard}
+                            heroCard={heroCard}
                         />
                     ))}
                 </div>

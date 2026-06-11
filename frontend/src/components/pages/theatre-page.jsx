@@ -8,6 +8,10 @@ import MobileStickyHeader from '../MobileStickyHeader';
 import HeroSearchBar from '../HeroSearchBar';
 import AppLogo from '../AppLogo';
 import { CompactPortraitCardsRowSkeleton } from '../HomeEventCardSkeleton';
+import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
+import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
+import { useFavorites } from '../../context/FavoritesContext';
+import { useNavigate } from 'react-router-dom';
 
 const THEATRE_TYPE_LABELS = {
   play: 'Play',
@@ -62,7 +66,14 @@ function ShowCard({ show, isDark, onBook }) {
 
 export default function TheatrePage() {
   const { isDark } = useDarkMode();
+  const navigate = useNavigate();
+  const { toggleFavorite, isFavorite } = useFavorites();
   const [shows, setShows] = useState([]);
+  const [carouselFests, setCarouselFests] = useState([]);
+  const [carouselTreks, setCarouselTreks] = useState([]);
+  const [carouselCommunities, setCarouselCommunities] = useState([]);
+  const [carouselSports, setCarouselSports] = useState([]);
+  const [carouselRunClubs, setCarouselRunClubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -70,14 +81,40 @@ export default function TheatrePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API}/theatre?_cb=${Date.now()}`, {
-          headers: { Accept: 'application/json' },
-          credentials: 'omit',
-          mode: 'cors',
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!cancelled) setShows(data.shows || []);
+        const [theatreRes, festsRes, treksRes, commRes, sportsRes, clubsRes] = await Promise.all([
+          fetch(`${API}/theatre?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
+          fetch(`${API}/fests/all?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
+          fetch(`${API}/treks?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
+          fetch(`${API}/trek-communities?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
+          fetch(`${API}/sports?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
+          fetch(`${API}/run-clubs?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
+        ]);
+        if (!cancelled) {
+          if (theatreRes.ok) {
+            const data = await theatreRes.json();
+            setShows(data.shows || []);
+          }
+          if (festsRes.ok) {
+            const data = await festsRes.json();
+            setCarouselFests(Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : []);
+          }
+          if (treksRes.ok) {
+            const data = await treksRes.json();
+            setCarouselTreks(Array.isArray(data?.treks) ? data.treks : []);
+          }
+          if (commRes.ok) {
+            const data = await commRes.json();
+            setCarouselCommunities(Array.isArray(data?.communities) ? data.communities : []);
+          }
+          if (sportsRes.ok) {
+            const data = await sportsRes.json();
+            setCarouselSports(Array.isArray(data?.events) ? data.events : []);
+          }
+          if (clubsRes.ok) {
+            const data = await clubsRes.json();
+            setCarouselRunClubs(Array.isArray(data?.clubs) ? data.clubs : []);
+          }
+        }
       } catch {
         if (!cancelled) setShows([]);
       } finally {
@@ -102,6 +139,8 @@ export default function TheatrePage() {
       window.open(show.bookingLink, '_blank', 'noopener,noreferrer');
     }
   };
+
+  const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
   return (
     <div className={`min-h-screen pb-24 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
@@ -141,6 +180,21 @@ export default function TheatrePage() {
             ))}
           </div>
         )}
+
+        <CustomPageSectionsRenderer
+          targetPage="theatre"
+          fests={carouselFests}
+          treks={carouselTreks}
+          communities={carouselCommunities}
+          sports={carouselSports}
+          runClubs={carouselRunClubs}
+          isDark={isDark}
+          loading={loading}
+          isFavorite={isFavorite}
+          onToggleFavorite={onSectionFav}
+          onItemClick={onItemClick}
+          getShareUrl={getShareUrl}
+        />
       </main>
     </div>
   );

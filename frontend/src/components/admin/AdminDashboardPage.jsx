@@ -9,11 +9,11 @@ const QUICK_LINKS = [
   { label: 'Run Clubs', path: '/admin/sports', description: 'Run clubs and run events' },
   { label: 'Treks', path: '/admin/treks', description: 'Trek communities and trek listings' },
   { label: 'Theatre', path: '/admin/theatre', description: 'Theatre shows and ticketing' },
-  { label: 'Events', path: '/admin/events', description: 'All platform events' },
   { label: 'Home & Sections', path: '/admin/sections', description: 'Carousels, page placement, priorities' },
-  { label: 'Registrations', path: '/admin/registrations', description: 'Review fest sign-ups' },
+  { label: 'Page Sections', path: '/admin/page-sections', description: 'Create custom scrolling sections for any page' },
+  { label: 'Registrations', path: '/admin/registrations', description: 'Fest, trek, and run sign-ups' },
   { label: 'Scanner Access', path: '/admin/scanner-access', description: 'Volunteer scanner codes for events' },
-  { label: 'Analytics', path: '/admin/analytics', description: 'Views, signups, and device stats' },
+  { label: 'Analytics', path: '/admin/analytics', description: 'Revenue, commissions, and sign-ups' },
 ];
 
 export default function AdminDashboardPage() {

@@ -11,10 +11,10 @@ import {
 } from '../../utils/deepLinks';
 import {
     goToBookings,
-    scheduleGoToBookings,
     verifyPaymentWithRetry,
 } from '../../utils/paymentNavigation';
 import {
+    applyRegistrationDraft,
     clearRegistrationDraft,
     competitionRegDraftKey,
     loadRegistrationDraft,
@@ -46,6 +46,7 @@ export default function CompetitionRegistration() {
     const navigate = useNavigate();
     const location = useLocation();
     const paymentResumeRef = useRef(false);
+    const handleSubmitRef = useRef(null);
     const draftKey = competitionRegDraftKey(competitionId);
     const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search);
     const {
@@ -66,6 +67,7 @@ export default function CompetitionRegistration() {
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [success, setSuccess] = useState(false);
+    const [registrationId, setRegistrationId] = useState(null);
     const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
     const [uploadingFiles, setUploadingFiles] = useState({});
     // ✅ NEW: Multi-step form state
@@ -76,6 +78,7 @@ export default function CompetitionRegistration() {
     const [paymentFields, setPaymentFields] = useState(null);
     const [paymentReceiptUrl] = useState('');
     const [transactionId] = useState('');
+    const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
     // True once we've waited long enough for Firebase -> backend JWT sync to finish
     const [authSyncExpired, setAuthSyncExpired] = useState(false);
 
@@ -251,6 +254,8 @@ export default function CompetitionRegistration() {
                 }
                 console.log('❌ CompReg: No usable auth token, redirecting to login');
                 setError('Please log in to register for competitions');
+                setLoading(false);
+                setCompletingPayment(false);
                 sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
                 setTimeout(() => navigate('/login', { replace: true }), 2000);
                 return;
@@ -291,9 +296,32 @@ export default function CompetitionRegistration() {
         return () => { cancelled = true; };
     }, [competition, competitionId, token, loading, isAuthProcessing, fetchPaymentQuote]);
 
-    // Resume after Cashfree redirect — verify payment, then user must submit the form
+    const completePayOnlyRegistration = useCallback(async (verifiedFields, submitToken) => {
+        const regRes = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/pay-and-register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${submitToken}`,
+            },
+            body: JSON.stringify({
+                payment_order_id: verifiedFields.payment_order_id,
+                payment_id: verifiedFields.payment_id,
+            }),
+        });
+        if (!regRes.ok) {
+            const errData = await regRes.json().catch(() => ({}));
+            throw new Error(errData.error || errData.message || 'Registration failed after payment.');
+        }
+        const regData = await regRes.json().catch(() => ({}));
+        const regId = regData._id || regData.registration?._id || regData.registrationId;
+        if (regId) setRegistrationId(regId);
+        clearRegistrationDraft(draftKey);
+        setSuccess(true);
+    }, [competitionId, draftKey]);
+
+    // Resume after Cashfree redirect — verify payment, then auto-complete registration
     useEffect(() => {
-        if (paymentResumeRef.current || loading || authLoading) return;
+        if (paymentResumeRef.current || authLoading || isAuthProcessing || isRedirectProcessing) return;
 
         const pending = getPendingPayment();
         if (!pending?.orderId || isTrekPaymentPending(pending)) return;
@@ -305,12 +333,15 @@ export default function CompetitionRegistration() {
         setCompletingPayment(true);
         setSubmissionProgress('Verifying payment...');
         setError('');
+        setNotice('');
 
         (async () => {
+            let scheduledAutoSubmit = false;
             try {
-                const submitToken = token || localStorage.getItem('crwdctrl_token');
+                const submitToken = resolveAuthToken(token) || localStorage.getItem('crwdctrl_token');
                 if (!submitToken) {
                     setCompletingPayment(false);
+                    setLoading(false);
                     setError('Please log in to complete your registration.');
                     return;
                 }
@@ -324,29 +355,69 @@ export default function CompetitionRegistration() {
                     throw new Error(verifyData?.message || 'Payment could not be verified.');
                 }
 
-                setPaymentFields(buildVerifiedPaymentFields(verifyData, pending.orderId));
+                const verifiedFields = buildVerifiedPaymentFields(verifyData, pending.orderId);
+                setPaymentFields(verifiedFields);
                 clearPendingPayment();
-                setCompletingPayment(false);
-                setError('');
-                setNotice(
-                    'Payment confirmed. Your answers were restored — tap Confirm Booking to finish. Re-upload any files if required.',
+
+                const draft = loadRegistrationDraft(draftKey);
+                const hasDraftAnswers = draft && (
+                    Object.keys(draft.formData || {}).length > 0
+                    || Object.keys(draft.stepData || {}).length > 0
                 );
+
+                if (hasDraftAnswers) {
+                    applyRegistrationDraft(draft, {
+                        setFormData,
+                        setStepData,
+                        setCurrentStep,
+                        setCompletedSteps,
+                    });
+                    setSubmissionProgress('Submitting your registration...');
+                    scheduledAutoSubmit = true;
+                    setPendingAutoSubmit(true);
+                    return;
+                }
+
+                setSubmissionProgress('Completing registration...');
+                await completePayOnlyRegistration(verifiedFields, submitToken);
+                setCompletingPayment(false);
             } catch (err) {
                 clearPendingPayment();
                 setCompletingPayment(false);
-                setError(err.message || 'Could not verify payment after redirect.');
+                setError(err.message || 'Could not complete registration after payment.');
             } finally {
-                setSubmissionProgress('');
+                if (!scheduledAutoSubmit) {
+                    setSubmissionProgress('');
+                }
             }
         })();
     }, [
-        loading,
         authLoading,
+        isAuthProcessing,
+        isRedirectProcessing,
         location.pathname,
         location.search,
         token,
         competitionId,
+        draftKey,
+        completePayOnlyRegistration,
     ]);
+
+    // Auto-submit form after redirect payment when draft answers were restored
+    useEffect(() => {
+        if (!pendingAutoSubmit || !paymentFields || !competition || submitting) return;
+
+        setPendingAutoSubmit(false);
+        setNotice('');
+        setCompletingPayment(true);
+        setSubmissionProgress('Submitting your registration...');
+
+        const timer = setTimeout(() => {
+            handleSubmitRef.current?.({ preventDefault: () => {} });
+        }, 100);
+
+        return () => clearTimeout(timer);
+    }, [pendingAutoSubmit, paymentFields, competition, submitting]);
 
     useEffect(() => {
         if (error) {
@@ -1192,10 +1263,10 @@ export default function CompetitionRegistration() {
             console.log('✅ Registration successful:', result);
 
             const regId = result._id || result.registration?._id;
+            if (regId) setRegistrationId(regId);
             setCompletingPayment(false);
             setSuccess(true);
             clearRegistrationDraft(draftKey);
-            scheduleGoToBookings(navigate);
 
         } catch (err) {
             setCompletingPayment(false);
@@ -1223,9 +1294,13 @@ export default function CompetitionRegistration() {
             }
         } finally {
             setSubmitting(false);
-            setSubmissionProgress('');
+            if (!pendingAutoSubmit) {
+                setSubmissionProgress('');
+            }
         }
     };
+
+    handleSubmitRef.current = handleSubmit;
 
     if (completingPayment && !success) {
         return (
@@ -1264,11 +1339,26 @@ export default function CompetitionRegistration() {
                             </p>
                         </>
                     )}
-                    <p className="text-xs text-gray-500 mb-4">Redirecting to My Bookings...</p>
+                    <p className="text-xs text-gray-500 mb-4">
+                        Download your ticket or view all bookings whenever you&apos;re ready.
+                    </p>
+                    {registrationId && (
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/qr-ticket/${registrationId}`, { state: { refreshBookings: true } })}
+                            className="w-full px-4 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors mb-2"
+                        >
+                            Download Ticket
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => goToBookings(navigate)}
-                        className="w-full px-4 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors mb-2"
+                        className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors mb-2 ${
+                            registrationId
+                                ? 'bg-transparent border border-gray-700 text-gray-200 hover:bg-gray-800'
+                                : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
+                        }`}
                     >
                         View My Bookings
                     </button>

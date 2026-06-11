@@ -236,8 +236,13 @@ const festOrganizerSchema = new mongoose.Schema(
   },
 
   showOnHomeSlide: { type: Boolean, default: false },
-  homeSection:     { type: String, enum: ['trending', 'happening', 'slide'], default: null },
+  homeSection:     { type: String, default: null },
   homePriority:    { type: Number, default: 999, min: 1, max: 999 },
+  customPageSections: [{
+    page: { type: String, required: true },
+    sectionSlug: { type: String, required: true },
+    priority: { type: Number, default: 999, min: 1, max: 999 },
+  }],
 
   status: {
     type: String,
