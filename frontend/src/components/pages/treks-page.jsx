@@ -335,7 +335,16 @@ function TreksPage() {
     }, [heroItems, navigate]);
 
     const handleFav = useCallback((trek) => {
-        toggleFavorite(trek.id, { id: trek.id, title: trek.title, image: trek.image, type: 'Trek' });
+        toggleFavorite(trek.id, {
+            ...trek,
+            id: trek.id,
+            _id: trek.id,
+            _type: 'trek',
+            type: 'trek',
+            title: trek.title || trek.trekName,
+            subtitle: trek.basedIn || trek.location,
+            image: trek.image || trek.coverImage,
+        });
     }, [toggleFavorite]);
 
     const handleCommunityClick = useCallback((trek) => {

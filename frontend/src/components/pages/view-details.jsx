@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar, MapPin, Heart } from "lucide-react";
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Bell, User, Home, ChevronRight,ChevronLeft, Sun, Moon, Phone, Instagram, Mail, ArrowLeft, Share, MoreHorizontal } from 'lucide-react';
+import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import shareIcon from '../../assets/share.svg';
 import calendarIcon from '../../assets/calendar.svg';
 import locationIcon from '../../assets/location-.svg';
-import Sidebar from '../Sidebar';
-import Navbar from '../Navbar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
+import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl, aarohanLogoImg } from '../../utils/imageImports';
+import CardFavoriteButton from '../CardFavoriteButton';
+import CardShareButton from '../CardShareButton';
 import {
   transformFestPublicData,
   buildCompetitionNavPayload,
@@ -72,10 +73,111 @@ const fetchJSON = async (endpoint, options = {}) => {
     return attemptFetch();
 };
 
+function formatCompetitionTabLabel(tab) {
+  if (!tab || tab === 'OTHER') return 'Other';
+  return tab.charAt(0) + tab.slice(1).toLowerCase();
+}
+
+function formatCompFee(fee) {
+  if (fee == null || fee === '' || fee === 'Free') return 'Free';
+  if (typeof fee === 'object') return 'TBA';
+  const str = String(fee);
+  return str.startsWith('₹') ? str : `₹${str}`;
+}
+
+function getPrimaryPhone(contacts = []) {
+  for (const contact of contacts) {
+    if (!contact?.phone) continue;
+    const entry = contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean)[0];
+    if (entry) return entry.replace(/\s*\([^)]*\)/, '').trim();
+  }
+  return null;
+}
+
+function getPrimaryInstagram(contacts = []) {
+  for (const contact of contacts) {
+    if (contact?.instagramId) return contact.instagramId.replace('@', '');
+  }
+  return null;
+}
+
+function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onClick }) {
+  const compName = typeof comp.name === 'string' ? comp.name : 'Competition';
+  const feeLabel = formatCompFee(comp.fee);
+  const feeIsFree = feeLabel === 'Free';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`card-surface w-[11.5rem] shrink-0 text-left rounded-2xl overflow-hidden transition active:scale-[0.98] flex flex-col ${
+        isDark ? '!bg-black' : 'bg-white'
+      }`}
+    >
+      <div className="relative h-[12rem] w-full shrink-0">
+        <img
+          src={getImageUrl(comp.image, { preset: 'cardSm' })}
+          alt={compName}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={(e) => {
+            handleImageErrorWithFallback(e, 184, 192, '#0ea5e9', compName);
+          }}
+        />
+        <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
+      </div>
+      <div className={`px-4 pt-3 pb-4 flex flex-col gap-2.5 ${isDark ? 'bg-black' : 'bg-white'}`}>
+        <h3 className={`text-[15px] font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          {compName}
+        </h3>
+        <p
+          className={`text-[15px] font-bold tracking-wide ${
+            feeIsFree
+              ? isDark ? 'text-emerald-400' : 'text-emerald-600'
+              : isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'
+          }`}
+        >
+          {feeLabel}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function FestRegisterCard({
+  isDark,
+  registrationOpen,
+  registered,
+  registerLabel,
+  registerButtonClass,
+  onRegister,
+  className = '',
+}) {
+  return (
+    <div className={className}>
+      {registrationOpen && !registered && (
+        <p className={`text-xs font-medium text-center mb-2 flex items-center justify-center gap-2 ${isDark ? 'text-[#0ECCEE]' : 'text-sky-700'}`}>
+          <span aria-hidden>📋</span>
+          Registrations open for competition
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={onRegister}
+        disabled={!registrationOpen}
+        className={`w-full h-[60px] px-6 font-semibold flex items-center justify-center gap-2 transition rounded-[60px] shadow-lg ${registerButtonClass}`}
+      >
+        {registerLabel}
+        {registrationOpen && !registered && <ChevronRight size={18} />}
+      </button>
+    </div>
+  );
+}
+
 function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { isAuthenticated } = useAuth();
   const { isRegistered } = useRegisteredEvents();
+  const { toggleFavorite, isFavorite } = useFavorites();
   const { eventId } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('GROUP');
@@ -351,14 +453,52 @@ function EventDetailsPage() {
     setShowFullOverview(!showFullOverview);
   };
 
-  const handleViewAllCompetitions = () => {
-    navigate(`/competition-list/${eventData.id}`, {
-      state: {
-        eventData: eventData,
-        initialTab: activeTab
-      }
+  const primaryPhone = getPrimaryPhone(eventData.contacts);
+  const primaryInstagram = getPrimaryInstagram(eventData.contacts);
+  const galleryPreview = eventData.galleryImages || [];
+  const galleryExtraCount = Math.max(0, galleryPreview.length - 3);
+  const registrationOpen = !isFestRegistrationDisabled(eventData?.registration?.mode);
+  const registerLabel = eventData?.registration?.mode === 'NOT_STARTED'
+    ? 'Registrations Not Started'
+    : eventData?.registration?.mode === 'CLOSED'
+    ? 'Registration Closed'
+    : isRegistered(eventData.id)
+    ? 'Registered'
+    : 'Register Now';
+
+  const handleFestFavorite = () => {
+    toggleFavorite(eventData.id, {
+      ...eventData,
+      id: eventData.id,
+      _id: eventData.id,
+      _type: 'fest',
+      type: 'fest',
+      title: eventData.title,
+      festName: eventData.title,
+      subtitle: eventData.collegeName || eventData.subtitle,
+      collegeName: eventData.collegeName || eventData.subtitle,
+      heroImage: eventData.heroImage || eventData.image,
+      coverImage: eventData.heroImage || eventData.image,
+      venue: eventData.venue,
+      dateTime: eventData.dateTime,
     });
   };
+
+  const handleArtistShare = (artist) => {
+    if (navigator.share) {
+      navigator.share({
+        title: artist.name,
+        text: `${artist.name} at ${eventData.title}`,
+        url: window.location.href,
+      }).catch(() => {});
+    }
+  };
+
+  const registerButtonClass = registrationOpen && !isRegistered(eventData.id)
+    ? 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-95'
+    : isRegistered(eventData.id)
+    ? 'bg-green-600 text-white'
+    : 'bg-gray-400 text-white cursor-not-allowed';
 
   return (
     <div className={`crwdctrl-page min-h-screen overflow-x-clip ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} transition-colors duration-300`}>
@@ -411,7 +551,7 @@ function EventDetailsPage() {
 
                 {/* Fest Overview */}
                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
-                  <h2 className={`text-xl sm:text-2xl font-bold mb-3 sm:mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Event Overview</h2>
+                  <h2 className={`text-xl sm:text-2xl font-bold mb-3 sm:mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
                   <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} leading-relaxed text-sm sm:text-base`}>
                     {showFullOverview ? eventData.overview : `${eventData.overview.substring(0, 200)}...`}
                     {eventData.overview.length > 200 && (
@@ -432,63 +572,46 @@ function EventDetailsPage() {
                       {eventData.competitionsHeading || "Competitions"}
                     </h2>
 
-                    {/* Tabs */}
-                    <div className={`flex space-x-6 border-b ${isDark ? 'border-gray-600' : 'border-gray-200'} mb-6 overflow-x-auto`}>
+                    {/* Category pills */}
+                    <div className="flex flex-wrap gap-2 mb-6">
                       {availableTabs.map(tab => (
                         <button
                           key={tab}
+                          type="button"
                           onClick={() => setActiveTab(tab)}
-                          className={`pb-2 font-semibold whitespace-nowrap transition-colors duration-200 ${activeTab === tab
-                            ? 'text-blue-600 border-b-2 border-blue-600'
-                            : isDark
-                              ? 'text-gray-300 hover:text-blue-400'
-                              : 'text-gray-600 hover:text-blue-600'
-                            }`}
+                          className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                            activeTab === tab
+                              ? isDark
+                                ? 'border border-[#0ECCEE] text-[#0ECCEE] bg-[#0ECCEE]/10'
+                                : 'border border-sky-400 text-sky-600 bg-white'
+                              : isDark
+                              ? 'text-gray-400 hover:text-gray-200'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
                         >
-                          {tab}
+                          {formatCompetitionTabLabel(tab)}
                         </button>
                       ))}
                     </div>
 
-                    {/* Competition Cards */}
-                    <div className={`${eventData.competitions[activeTab]?.length > 4 ? 'max-h-96 overflow-y-auto pr-2' : ''}`} style={{ scrollbarWidth: 'thin' }}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {eventData.competitions[activeTab]?.map((comp, idx) => {
-                          return (
-                            <div key={idx} className={`${isDark ? 'bg-[#161718] hover:bg-gray-600' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300 h-full flex flex-col`}>
-                              <div className="flex space-x-4 flex-1">
-                                <img
-                                  src={getImageUrl(comp.image, { preset: 'cardSm' })}
-                                  alt={comp.name}
-                                  className="w-24 h-24 rounded-lg object-cover shrink-0"
-                                  onError={(e) => {
-                                    handleImageErrorWithFallback(e, 100, 100, '#0ea5e9', comp.name || 'Competition');
-                                  }}
-                                />
-                                <div className="flex-1 flex flex-col justify-between">
-                                  <div>
-                                    <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'} mb-1`}>
-                                      {typeof comp.name === 'string' ? comp.name : 'Competition'}
-                                    </h3>
-
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      Fee: ₹{typeof comp.fee === 'object' ? JSON.stringify(comp.fee) : comp.fee || 'TBA'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                              {/* Always show View details button for competitions */}
-                              <button
-                                onClick={() => handleCompetitionRegister(comp)}
-                                className="w-full mt-3 bg-cyan-400 hover:bg-cyan-500 text-gray-900 font-semibold py-2 rounded-lg transition"
-                              >
-                                View details
-                              </button>
-                            </div>
-                          );
-                        })}
+                    {/* Competition Cards — horizontal scroll */}
+                    <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
+                      <div className="flex gap-4 pb-1">
+                        {eventData.competitions[activeTab]?.map((comp, idx) => (
+                          <CompetitionScrollCard
+                            key={comp.id || idx}
+                            comp={comp}
+                            isDark={isDark}
+                            isFavorite={isFavorite(comp.id)}
+                            onToggleFavorite={() => toggleFavorite(comp.id, {
+                              id: comp.id,
+                              title: comp.name,
+                              image: comp.image,
+                              type: 'Competition',
+                            })}
+                            onClick={() => handleCompetitionRegister(comp)}
+                          />
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -751,340 +874,292 @@ function EventDetailsPage() {
       </div>
 
       {/* Mobile Version - Show below 768px */}
-      <div className="md:hidden">
-        {/* Mobile Content */}
-        <div>
-          {/* Header Icons */}
-          <div className="relative z-20">
-            <div className="flex items-center justify-between px-4 py-3 bg-linear-to-b from-black/20 to-transparent">
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => navigate(-1)}
-                  className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
-                  title="Go Back"
-                >
-                  <ArrowLeft size={20} />
-                </button>
-                 
-              </div>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={handleShare}
-                  className="p-2 bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 rounded-full transition"
-                >
-                  <Share size={20} />
-                </button>
-              </div>
+      <div className="md:hidden pb-8">
+        {/* Hero with overlay controls */}
+        <div className="relative h-[240px]">
+          <img
+            src={getImageUrl(currentHeroImage, { preset: 'hero' })}
+            alt={eventData.title}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => {
+              handleImageErrorWithFallback(e, 400, 240, '#6366f1', eventData.title || 'Event');
+            }}
+          />
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleShare}
+                className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
+                aria-label="Share"
+              >
+                <Share size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={handleFestFavorite}
+                className="p-2 rounded-full bg-black/30 backdrop-blur-sm"
+                aria-label={isFavorite(eventData.id) ? 'Remove from favourites' : 'Add to favourites'}
+              >
+                <Heart
+                  size={20}
+                  className={isFavorite(eventData.id) ? 'fill-red-500 text-red-500' : 'text-white'}
+                />
+              </button>
             </div>
           </div>
+        </div>
 
-          {/* Event Banner with Thumbnails */}
-          {/* Wrapper to match page background */}
-          <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
-            {/* Event Banner */}
-            <div className="relative -mt-16 rounded-b-4xl">
-              <img
-                src={getImageUrl(currentHeroImage, { preset: 'hero' })}
-                alt={eventData.title}
-                className="w-full h-64 object-cover rounded-b-4xl"
-                style={{
-                  filter: isDark ? 'brightness(0.85)' : 'none',
-                }}
-                onError={(e) => {
-                  handleImageErrorWithFallback(e, 400, 256, '#6366f1', eventData.title || 'Event');
-                }}
-              />
-              {eventData.id === 'fest_001' && (
-                <div className="absolute top-20 left-4 z-10 pt-30">
-                  <img
-                    src={aarohanLogoImg}
-                    alt="Aarohan Logo"
-                    className="w-16 h-16 object-contain bg-white/90 rounded-lg p-2 shadow-sm"
-                  />
-                </div>
-              )}
-
-              {/* Thumbnail Gallery */}
-              {eventData.galleryImages && eventData.galleryImages.length > 0 && (
-                <div className="absolute top-20 right-4 flex flex-col space-y-2 z-10">
-                  {eventData.galleryImages.slice(0, 4).map((img, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleGalleryImageClick(img)}
-                      className={`w-14 h-14 rounded-lg overflow-hidden shadow-sm transition-all duration-200 backdrop-blur-sm${currentHeroImage === img ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${isDark ? 'bg-[#232326] hover:ring-blue-400' : 'bg-white/90 hover:ring-blue-500'}`}
-                    >
-                      <img
-                        src={getImageUrl(img, { preset: 'thumb' })}
-                        alt={`Gallery ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                        style={{
-                          filter: isDark ? 'brightness(0.85)' : 'none',
-                        }}
-                        onError={(e) => {
-                          handleImageErrorWithFallback(e, 56, 56, '#6366f1', 'Gallery');
-                        }}
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Event Info Card */}
-          <div className={`${isDark ? 'bg-[#161718]' : 'bg-gray-50'} p-5`}>
-            {/* Event Logo and Name Section */}
-            <div className="flex items-center space-x-4 mb-5 pt-10">
-              <div className="flex-1">
-                <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} leading-tight`}>
-                  {eventData.title}
-                </h1>
-                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
-                  {eventData.subtitle}
-                </p>
-                {eventData.displaySubtitle && eventData.collegeName && eventData.displaySubtitle !== eventData.collegeName && (
-                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'} mt-0.5`}>
-                    {eventData.collegeName}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Event Details - Information Rows */}
-            <div className="space-y-4 mb-5">
-              <div className="flex items-center space-x-3">
-  <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-    <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
-  </div>
-  <div>
-    <p className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-      {eventData.dateTime}
-    </p>
-  </div>
-</div>
-              <div className="flex items-center space-x-3">
-  <div className={`p-2 rounded-lg ${isDark ? 'bg-green-900/30' : 'bg-green-50'}`}>
-    <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
-  </div>
-  <div>
-    <p className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-      {eventData.venue}
-    </p>
-  </div>
-</div>
-            </div>
-
-            {/* Short Description */}
-            <div className="mt-5">
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} leading-relaxed`}>
-                {showFullOverview ? eventData.overview : `${eventData.overview.substring(0, 150)}...`}
-                {eventData.overview.length > 150 && (
-                  <button
-                    onClick={toggleReadMore}
-                    className="text-blue-500 ml-1 font-semibold hover:text-blue-600 transition-colors"
-                  >
-                    {showFullOverview ? ' read less' : ' read more'}
-                  </button>
-                )}
+        {/* Content sheet */}
+        <div className={`relative -mt-6 rounded-t-[28px] px-5 pt-6 pb-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div className="min-w-0 flex-1">
+              <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {eventData.title}
+              </h1>
+              <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>
+                {eventData.collegeName || eventData.subtitle}
               </p>
             </div>
+            {primaryPhone && (
+              <a
+                href={`tel:${primaryPhone.replace(/[\s-]/g, '')}`}
+                className="shrink-0 size-11 rounded-full bg-[#0ECCEE] flex items-center justify-center shadow-md"
+                aria-label="Call organizer"
+              >
+                <Phone size={20} className="text-black" />
+              </a>
+            )}
           </div>
 
-          {/* Artists You'll Love */}
-          {eventData.artists && eventData.artists.length > 0 && (
-            <div className={`${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} p-4`}>
-              <h2 className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {eventData.artistsHeading || "Artists You'll Love"}
-              </h2>
-              <div className="overflow-x-auto scrollbar-hide">
-                <div className="flex space-x-4">
-                  {eventData.artists.map((artist, idx) => (
-                    <div key={idx} className={`card-carousel ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl overflow-hidden transition-all duration-300`}>
-                      <div className="relative h-40">
-                        <img
-                          src={getImageUrl(artist.image, { preset: 'cardSm' })}
-                          alt={artist.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            handleImageErrorWithFallback(e, 280, 160, '#8b5cf6', artist.name || 'Artist');
-                          }}
-                        />
-                        <button className="absolute top-3 right-3 p-1.5 bg-black/30 backdrop-blur-sm rounded-full">
-                          <Share size={14} className="text-white" />
-                        </button>
-                      </div>
-                      <div className="p-3">
-                        <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {artist.name}
-                        </h3>
-                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {artist.genre}
-                        </p>
-                        <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {artist.message || 'No message available'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          <div className="space-y-3 mb-5">
+            <div className="flex items-center gap-3">
+              <Calendar size={18} className={isDark ? 'text-gray-500' : 'text-gray-400'} />
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{eventData.dateTime}</p>
             </div>
-          )}
+            <div className="flex items-center gap-3">
+              <MapPin size={18} className={isDark ? 'text-gray-500' : 'text-gray-400'} />
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{eventData.venue}</p>
+            </div>
+          </div>
 
-          {/* Competitions */}
-          {availableTabs.length > 0 && (
-            <div className={`${isDark ? 'bg-[#161718]' : 'bg-gray-50'} p-4`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {eventData.competitionsHeading || "Competitions"}
-                </h2>
+          <div>
+            <h2 className={`text-base font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
+            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {showFullOverview ? eventData.overview : `${eventData.overview.substring(0, 160)}${eventData.overview.length > 160 ? '...' : ''}`}
+              {eventData.overview.length > 160 && (
                 <button
-                  onClick={handleViewAllCompetitions}
-                  className="text-blue-500 hover:text-blue-600 text-sm font-medium transition-colors"
+                  type="button"
+                  onClick={toggleReadMore}
+                  className="text-[#0060DF] ml-1 font-semibold"
                 >
-                  View All
+                  {showFullOverview ? 'read less' : 'read more'}
                 </button>
-              </div>
-              <div className="overflow-x-auto md:overflow-visible scrollbar-hide">
-                <div className="flex space-x-4">
-                  {eventData.competitions[activeTab]?.slice(0, 3).map((comp, idx) => {
-                    return (
-                      <div key={idx} className={`card-carousel-sm ${isDark ? 'bg-[#111213] hover:bg-[#232326]' : 'bg-white hover:shadow-lg'} rounded-xl p-4 transition-all duration-300`}>
-                        <img
-                          src={getImageUrl(comp.image, { preset: 'cardSm' })}
-                          alt={comp.name}
-                          className="w-full h-32 rounded-lg object-cover mb-3"
-                          onError={(e) => {
-                            handleImageErrorWithFallback(e, 250, 128, '#0ea5e9', comp.name || 'Competition');
-                          }}
-                        />
-                        <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {typeof comp.name === 'string' ? comp.name : 'Competition'}
-                        </h3>
-                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-                          Fee: ₹{typeof comp.fee === 'object' ? JSON.stringify(comp.fee) : comp.fee || 'TBA'}
-                        </p>
+              )}
+            </p>
+          </div>
+        </div>
 
-                        {/* Always show View details button for competitions */}
-                        <button
-                          onClick={() => handleCompetitionRegister(comp)}
-                          className="w-full bg-cyan-400 hover:bg-cyan-500 text-gray-900 font-semibold py-2 rounded-lg text-sm transition"
-                        >
-                          View details
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Contact Details */}
-          {eventData.contacts && eventData.contacts.length > 0 && (
-            <div className={`${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} p-3 rounded-xl mt-4 mb-6`}>
-              <h3 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
-              <div className="space-y-2">
-                {eventData.contacts.map((contact, index) => (
-                  <div key={index} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-3`}>
-                    {/* Name - Role in one line */}
-                    <div className="mb-1">
-                      <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {contact.name || 'Contact Person'}
-                      </span>
-                      {contact.role && (
-                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} ml-2`}>
-                          - {contact.role}
-                        </span>
-                      )}
+        {/* Artists Over the Years */}
+        {eventData.artists && eventData.artists.length > 0 && (
+          <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+            <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {eventData.artistsHeading || 'Artist Over the Years'}
+            </h2>
+            <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
+              <div className="flex gap-4 pb-1">
+                {eventData.artists.map((artist, idx) => (
+                  <div
+                    key={idx}
+                    className={`card-surface w-[18rem] shrink-0 rounded-2xl overflow-hidden ${isDark ? '!bg-black' : 'bg-white'}`}
+                  >
+                    <div className="relative h-[11.5rem] w-full">
+                      <img
+                        src={getImageUrl(artist.image, { preset: 'card' })}
+                        alt={artist.name}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => {
+                          handleImageErrorWithFallback(e, 288, 184, '#8b5cf6', artist.name || 'Artist');
+                        }}
+                      />
                     </div>
-
-                    {/* Contact info in compact format */}
-                    <div className="space-y-1">
-                      {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
-                        const nameMatch = entry.match(/\(([^)]+)\)/);
-                        const name = nameMatch ? nameMatch[1].trim() : null;
-                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                        return (
-                          <div key={pi} className="flex items-start gap-1.5">
-                            <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 shrink-0`} />
-                            <div>
-                              {name && <span className={`text-fluid-2xs ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
-                              <a
-                                href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                                className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
-                              >
-                                {rawNumber}
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {contact.email && (
-                        <div className="flex items-center">
-                          <Mail size={12} className={`${isDark ? 'text-green-400' : 'text-green-600'} mr-2`} />
-                          <a
-                            href={`mailto:${contact.email}`}
-                            className={`text-xs ${isDark ? 'text-gray-300 hover:text-green-400' : 'text-gray-600 hover:text-green-600'} transition truncate`}
-                          >
-                            {contact.email}
-                          </a>
+                    <div className="px-4 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className={`text-base font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {artist.name}
+                          </h3>
+                          <p className={`text-sm font-medium mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {artist.genre || 'Artist'}
+                          </p>
+                          <p className={`text-sm mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            {artist.dateTime || eventData.dateTime}
+                          </p>
                         </div>
-                      )}
-
-                      {contact.instagramId && (
-                        <div className="flex items-center">
-                          <Instagram size={12} className={`${isDark ? 'text-pink-400' : 'text-pink-600'} mr-2`} />
-                          <a
-                            href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`text-xs ${isDark ? 'text-gray-300 hover:text-pink-400' : 'text-gray-600 hover:text-pink-600'} transition`}
-                          >
-                            {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
-                          </a>
-                        </div>
-                      )}
+                        <CardShareButton
+                          onClick={() => handleArtistShare(artist)}
+                          isDark={isDark}
+                          className="shrink-0 mt-0.5"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          )}
+          </section>
+        )}
 
-          {/* Spacer for fixed mobile footer */}
-          <div className="h-24 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
-        </div>
+        {/* Competitions */}
+        {availableTabs.length > 0 && (
+          <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+            <h2 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {eventData.competitionsHeading || 'Competitions'}
+            </h2>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4 pb-1">
+              {availableTabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                    activeTab === tab
+                      ? isDark
+                        ? 'border border-[#0ECCEE] text-[#0ECCEE] bg-[#0ECCEE]/10'
+                        : 'border border-sky-400 text-sky-600 bg-white'
+                      : isDark
+                      ? 'text-gray-400'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  {formatCompetitionTabLabel(tab)}
+                </button>
+              ))}
+            </div>
+            <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
+              <div className="flex gap-4 pb-1">
+                {eventData.competitions[activeTab]?.map((comp, idx) => (
+                  <CompetitionScrollCard
+                    key={comp.id || idx}
+                    comp={comp}
+                    isDark={isDark}
+                    isFavorite={isFavorite(comp.id)}
+                    onToggleFavorite={() => toggleFavorite(comp.id, {
+                      id: comp.id,
+                      title: comp.name,
+                      image: comp.image,
+                      type: 'Competition',
+                    })}
+                    onClick={() => handleCompetitionRegister(comp)}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Contact Details */}
+        {(primaryPhone || primaryInstagram || (eventData.contacts && eventData.contacts.length > 0)) && (
+          <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+            <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
+            <div className="flex items-center gap-4">
+              {primaryPhone && (
+                <a
+                  href={`tel:${primaryPhone.replace(/[\s-]/g, '')}`}
+                  className="size-11 rounded-full bg-[#0060DF] flex items-center justify-center"
+                  aria-label="Call"
+                >
+                  <Phone size={18} className="text-white" />
+                </a>
+              )}
+              {primaryInstagram && (
+                <a
+                  href={`https://instagram.com/${primaryInstagram}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="size-11 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center"
+                  aria-label="Instagram"
+                >
+                  <Instagram size={18} className="text-white" />
+                </a>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Gallery */}
+        {galleryPreview.length > 0 && (
+          <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+            <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Gallery</h2>
+            <div className="grid grid-cols-4 gap-2">
+              {galleryPreview.slice(0, 3).map((img, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleGalleryImageClick(img)}
+                  className={`aspect-square rounded-xl overflow-hidden ${currentHeroImage === img ? 'ring-2 ring-[#0ECCEE]' : ''}`}
+                >
+                  <img
+                    src={getImageUrl(img, { preset: 'thumb' })}
+                    alt={`Gallery ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      handleImageErrorWithFallback(e, 80, 80, '#6366f1', 'Gallery');
+                    }}
+                  />
+                </button>
+              ))}
+              {galleryPreview.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => handleGalleryImageClick(galleryPreview[3])}
+                  className="relative aspect-square rounded-xl overflow-hidden"
+                >
+                  <img
+                    src={getImageUrl(galleryPreview[3], { preset: 'thumb' })}
+                    alt="More gallery"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      handleImageErrorWithFallback(e, 80, 80, '#6366f1', 'Gallery');
+                    }}
+                  />
+                  {galleryExtraCount > 0 && (
+                    <span className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-sm font-bold">
+                      +{galleryExtraCount}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        <div className="h-36 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
       </div>
 
-      {/* Fixed mobile Register Now — stays visible while scrolling */}
+      {/* Fixed register card — bottom bar (mobile) */}
       <div
-        className={`fixed bottom-0 left-0 right-0 z-50 md:hidden border-t px-4 pt-3 ${
-          isDark ? 'bg-[#161718] border-gray-800' : 'bg-white border-gray-200'
+        className={`fixed bottom-0 left-0 right-0 z-50 md:hidden px-4 pt-3 backdrop-blur-md ${
+          isDark ? 'bg-[#161718]/95' : 'bg-white/95'
         }`}
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
       >
-        <button
-          type="button"
-          onClick={handleRegister}
-          disabled={isFestRegistrationDisabled(eventData?.registration?.mode)}
-          className={`w-full rounded-xl py-3 font-semibold transition ${
-            isFestRegistrationDisabled(eventData?.registration?.mode)
-              ? 'cursor-not-allowed bg-gray-500 text-white hover:bg-gray-600'
-              : isRegistered(eventData.id)
-              ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
-          }`}
-        >
-          {eventData?.registration?.mode === 'NOT_STARTED'
-            ? 'Registrations Not Started'
-            : eventData?.registration?.mode === 'CLOSED'
-            ? 'Registration Closed'
-            : isRegistered(eventData.id)
-            ? '✓ Registered'
-            : 'Register Now'}
-        </button>
+        <FestRegisterCard
+          isDark={isDark}
+          registrationOpen={registrationOpen}
+          registered={isRegistered(eventData.id)}
+          registerLabel={registerLabel}
+          registerButtonClass={registerButtonClass}
+          onRegister={handleRegister}
+        />
       </div>
 
       {/* Login Modal */}

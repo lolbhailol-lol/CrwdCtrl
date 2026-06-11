@@ -37,12 +37,8 @@ export function usePageSectionHandlers(navigate, { toggleFavorite } = {}) {
 
     const onToggleFavorite = useCallback((item) => {
         const id = item.id || item._id;
-        toggleFavorite?.(id, {
-            id,
-            title: item.title || item.festName || item.name || item._title,
-            image: item.image || item.coverImage || item._image,
-            type: item._type || 'Event',
-        });
+        if (!id) return;
+        toggleFavorite?.(id, { ...item, id, _id: id });
     }, [toggleFavorite]);
 
     const getShareUrl = useCallback((item) => {

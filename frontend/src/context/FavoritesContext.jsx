@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { normalizeFavoriteEntry } from '../utils/favoriteNormalize';
 
 const FavoritesContext = createContext();
 
@@ -28,6 +29,22 @@ export const FavoritesProvider = ({ children }) => {
         return {};
     });
 
+    // Migrate legacy favorites to normalized shape
+    useEffect(() => {
+        setFavorites((prev) => {
+            const next = {};
+            let changed = false;
+            for (const [key, value] of Object.entries(prev)) {
+                const normalized = normalizeFavoriteEntry(key, value);
+                next[key] = normalized;
+                if (JSON.stringify(normalized) !== JSON.stringify(value)) {
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, []);
+
     // Save to localStorage whenever favorites change
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -41,14 +58,9 @@ export const FavoritesProvider = ({ children }) => {
             const newFavorites = { ...prev };
 
             if (newFavorites[eventId]) {
-                // Remove from favorites
                 delete newFavorites[eventId];
             } else {
-                // Add to favorites - store the event data if provided
-                newFavorites[eventId] = eventData || {
-                    id: eventId,
-                    addedAt: new Date().toISOString()
-                };
+                newFavorites[eventId] = normalizeFavoriteEntry(eventId, eventData);
             }
 
             return newFavorites;
@@ -62,7 +74,7 @@ export const FavoritesProvider = ({ children }) => {
 
     // Get all favorite events
     const getFavoriteEvents = () => {
-        return Object.values(favorites);
+        return Object.entries(favorites).map(([id, data]) => normalizeFavoriteEntry(id, data));
     };
 
     // Get favorite count
