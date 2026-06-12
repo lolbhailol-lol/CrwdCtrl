@@ -2,6 +2,7 @@ import ContentImage from './ContentImage';
 import { toCardText } from '../utils/cardText';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 import CardShareButton from './CardShareButton';
+import { AnimatedCard } from '../motion';
 
 export default function HappeningCard({ event, _isDark, onViewDetails }) {
     const handleShare = (e) => {
@@ -16,8 +17,8 @@ export default function HappeningCard({ event, _isDark, onViewDetails }) {
     };
 
     return (
-        <div
-            className="card-carousel cursor-pointer active:scale-95 transition-all duration-200"
+        <AnimatedCard
+            className="card-carousel cursor-pointer"
             onClick={onViewDetails}
         >
             {/* Image card */}
@@ -46,6 +47,6 @@ export default function HappeningCard({ event, _isDark, onViewDetails }) {
                 </div>
             </div>
 
-        </div>
+        </AnimatedCard>
     );
 }

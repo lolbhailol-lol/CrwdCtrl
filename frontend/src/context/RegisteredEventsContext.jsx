@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const RegisteredEventsContext = createContext();
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useRegisteredEvents = () => {
     const context = useContext(RegisteredEventsContext);
     if (!context) {

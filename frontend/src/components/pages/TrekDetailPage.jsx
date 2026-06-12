@@ -4,6 +4,7 @@ import { ArrowLeft, Share2, Heart, ChevronRight } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { ScrollProgress, ScrollReveal, StickyCta } from '../../motion';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -219,7 +220,8 @@ export default function TrekDetailPage() {
     };
 
     return (
-        <div className={`crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-28 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <ScrollProgress />
 
             {/* ── HERO IMAGE ── */}
             <div className="relative w-full h-[280px] shrink-0 bg-gray-200">
@@ -274,8 +276,7 @@ export default function TrekDetailPage() {
             </div>
 
             {/* ── Sticky price + CTA bar ── */}
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}>
+        <StickyCta>
             <div className={`px-4 py-2.5 flex items-center gap-4 border-t
                 ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
 
@@ -314,22 +315,22 @@ export default function TrekDetailPage() {
                     </svg>
                 </button>
             </div>
-        </div>
+        </StickyCta>
 
         <div className={`flex-1 rounded-t-3xl -mt-5 relative z-10 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
 
                 {/* Trek name + community */}
-                <div className="px-4 pt-5 pb-3">
+                <ScrollReveal className="px-4 pt-5 pb-3">
                     <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {trek.trekName || trek.title || trek.name || 'Trek Name'}
                     </h1>
                     <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         {communityName || 'Community Name'}
                     </p>
-                </div>
+                </ScrollReveal>
 
                 {/* Meta: details LEFT, map RIGHT — side by side */}
-                <div className="px-4 flex items-start gap-3 mb-5">
+                <ScrollReveal className="px-4 flex items-start gap-3 mb-5" delay={0.05}>
 
                     {/* Left: 3 detail rows */}
                     <div className="flex-1 min-w-0 space-y-3.5">
@@ -380,10 +381,10 @@ export default function TrekDetailPage() {
                             </p>
                         )}
                     </div>
-                </div>
+                </ScrollReveal>
 
                 {/* ── Overview ── */}
-                <div className="px-4 mb-5">
+                <ScrollReveal className="px-4 mb-5" delay={0.08}>
                     <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Overview</h2>
                     <p className={`text-sm leading-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         {overviewExpanded ? desc : shortDesc}
@@ -397,11 +398,11 @@ export default function TrekDetailPage() {
                             </>
                         )}
                     </p>
-                </div>
+                </ScrollReveal>
 
 
                 {/* ── Trek Info Tabs ── */}
-                <div className="px-4 mb-5">
+                <ScrollReveal className="px-4 mb-5" delay={0.1}>
                     <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Trek Info</h2>
                     <div className={`rounded-2xl p-1 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
                     <div className="flex rounded-xl p-1">
@@ -508,7 +509,7 @@ export default function TrekDetailPage() {
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No exclusions listed.</p>
                         )}
                     </div>
-                </div>
+                </ScrollReveal>
 
                 {/* ── Terms & Conditions ── */}
                 {(() => {

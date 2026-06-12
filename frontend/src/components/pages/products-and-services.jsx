@@ -95,7 +95,9 @@ export default function ProductsAndServices() {
         <div className={`${card} border rounded-lg p-6`}>
           <h2 className="text-lg font-semibold mb-4">Services we offer</h2>
           <div className="space-y-4">
-            {SERVICES.map(({ icon: Icon, title, description, pricing }) => (
+            {SERVICES.map(({ icon, title, description, pricing }) => {
+              const Icon = icon;
+              return (
               <div
                 key={title}
                 className={`rounded-lg p-4 ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}
@@ -113,7 +115,8 @@ export default function ProductsAndServices() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

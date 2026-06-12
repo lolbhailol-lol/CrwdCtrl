@@ -3,7 +3,6 @@ import { normalizeFavoriteEntry } from '../utils/favoriteNormalize';
 
 const FavoritesContext = createContext();
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useFavorites = () => {
     const context = useContext(FavoritesContext);
     if (!context) {

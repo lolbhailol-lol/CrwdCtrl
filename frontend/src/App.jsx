@@ -13,8 +13,8 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
 import AuthLoadingPage from './components/AuthLoadingPage'
-import LoadingBar from './components/LoadingBar'
 import { shouldShowBootSplash, removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
+import { clearChunkReloadFlag } from './utils/chunkError'
 import { isNativeApp } from './utils/capacitorPlatform'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -23,70 +23,74 @@ import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
 import CapacitorInit from './components/CapacitorInit'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
+import PageTransitionSkeleton from './components/PageTransitionSkeleton'
 import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
+
+import { lazyWithRetry } from './utils/lazyWithRetry'
 
 import './App.css'
 
 // Home route eager-loaded for fastest first paint; other pages stay lazy
 import Dashboard from './components/pages/Dashboard'
-const CulturalFestPage = React.lazy(() => import('./components/pages/cultural-fest'))
-const TechFestPage = React.lazy(() => import('./components/pages/tech-fest'))
-const SportsFestPage = React.lazy(() => import('./components/pages/sports-fest'))
-const SportsCategoryPage = React.lazy(() => import('./components/pages/sports-category'))
-const ViewDetailsPage = React.lazy(() => import('./components/pages/view-details'))
-const FavoritesPage = React.lazy(() => import('./components/pages/favorites'))
-const EditProfile = React.lazy(() => import('./components/pages/profile-pages/edit-profile'))
 import Booking from './components/pages/profile-pages/booking'
-const HelpCenter = React.lazy(() => import('./components/pages/profile-pages/help-center'))
-const ListYourFest = React.lazy(() => import('./components/pages/profile-pages/list-your-fest'))
-const NotificationsPanel = React.lazy(() => import('./components/pages/profile-pages/notification-panel'))
-const ProfilePage = React.lazy(() => import('./components/pages/profile-page'))
-const CrwdCtrlLogin = React.lazy(() => import('./components/pages/login'))
-const CrwdCtrlRegister = React.lazy(() => import('./components/pages/register'))
-const EmailVerification = React.lazy(() => import('./components/pages/EmailVerification'))
-const CompetitionsViewDetails = React.lazy(() => import('./components/pages/Competitions-view-details'))
-const CompetitionListPage = React.lazy(() => import('./components/pages/competition-list'))
-const CompetitionRegisterPage = React.lazy(() => import('./components/pages/compition-register-page/compition-register-page'))
-const TermsAndConditions = React.lazy(() => import('./components/pages/terms-and-conditions'))
-const PrivacyPolicy = React.lazy(() => import('./components/pages/privacy-policy'))
-const ContactUs = React.lazy(() => import('./components/pages/contact-us'))
-const RefundsAndCancellations = React.lazy(() => import('./components/pages/refunds-and-cancellations'))
-const ProductsAndServices = React.lazy(() => import('./components/pages/products-and-services'))
-const About = React.lazy(() => import('./components/pages/about'))
-const FestsPage = React.lazy(() => import('./components/pages/FestsPage'))
-const FestRegistration = React.lazy(() => import('./components/pages/FestRegistration'))
-const CompetitionRegistration = React.lazy(() => import('./components/pages/CompetitionRegistration'))
-const RegistrationDetails = React.lazy(() => import('./components/pages/RegistrationDetails'))
-const AdminLayout = React.lazy(() => import('./components/admin/AdminLayout'))
-const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'))
-const AdminFestsPage = React.lazy(() => import('./components/admin/FestsPage'))
-const CompetitionsPage = React.lazy(() => import('./components/admin/CompetitionsPage'))
-const RegistrationsPage = React.lazy(() => import('./components/admin/RegistrationsPage'))
-const AnalyticsDashboardPage = React.lazy(() => import('./components/admin/AnalyticsDashboardPage'))
-const ScannerAccessPage = React.lazy(() => import('./components/admin/ScannerAccessPage'))
-const SportsPage = React.lazy(() => import('./components/admin/SportsPage'))
-const TreksPage = React.lazy(() => import('./components/admin/TreksPage'))
-const TheatrePage = React.lazy(() => import('./components/admin/TheatrePage'))
-const SectionManager = React.lazy(() => import('./components/admin/SectionManager'))
-const PageSectionsPage = React.lazy(() => import('./components/admin/PageSectionsPage'))
-const TrekDetailPage  = React.lazy(() => import('./components/pages/TrekDetailPage'))
-const TrekBookingPage = React.lazy(() => import('./components/pages/TrekBookingPage'))
-const QRTicketPage = React.lazy(() => import('./components/pages/QRTicketPage'))
-const PaymentInvoicePage = React.lazy(() => import('./components/pages/PaymentInvoicePage'))
-const PublicTreksPage = React.lazy(() => import('./components/pages/treks-page'))
-const PublicTheatrePage = React.lazy(() => import('./components/pages/theatre-page'))
-const CommunityDetailPage = React.lazy(() => import('./components/pages/CommunityDetailPage'))
-const RunClubDetailPage = React.lazy(() => import('./components/pages/RunClubDetailPage'))
-const RunEventDetailPage = React.lazy(() => import('./components/pages/RunEventDetailPage'))
-const RunEventBookingPage = React.lazy(() => import('./components/pages/RunEventBookingPage'))
-const TrekCategoryPage = React.lazy(() => import('./components/pages/TrekCategoryPage'))
-const PaymentCheckoutPage = React.lazy(() => import('./components/pages/PaymentCheckoutPage'))
-const OrganizerProtectedRoute = React.lazy(() => import('./components/organizer/OrganizerProtectedRoute'))
-const OrganizerFestListPage = React.lazy(() => import('./components/organizer/OrganizerFestListPage'))
-const OrganizerCheckinPage = React.lazy(() => import('./components/organizer/OrganizerCheckinPage'))
-const OrganizerScannerLoginPage = React.lazy(() => import('./components/organizer/OrganizerScannerLoginPage'))
-const OrganizerScanPage = React.lazy(() => import('./components/organizer/OrganizerScanPage'))
-const OrganizerEntryPage = React.lazy(() => import('./components/organizer/OrganizerEntryPage'))
+
+const CulturalFestPage = lazyWithRetry(() => import('./components/pages/cultural-fest'))
+const TechFestPage = lazyWithRetry(() => import('./components/pages/tech-fest'))
+const SportsFestPage = lazyWithRetry(() => import('./components/pages/sports-fest'))
+const SportsCategoryPage = lazyWithRetry(() => import('./components/pages/sports-category'))
+const ViewDetailsPage = lazyWithRetry(() => import('./components/pages/view-details'))
+const FavoritesPage = lazyWithRetry(() => import('./components/pages/favorites'))
+const EditProfile = lazyWithRetry(() => import('./components/pages/profile-pages/edit-profile'))
+const HelpCenter = lazyWithRetry(() => import('./components/pages/profile-pages/help-center'))
+const ListYourFest = lazyWithRetry(() => import('./components/pages/profile-pages/list-your-fest'))
+const NotificationsPanel = lazyWithRetry(() => import('./components/pages/profile-pages/notification-panel'))
+const ProfilePage = lazyWithRetry(() => import('./components/pages/profile-page'))
+const CrwdCtrlLogin = lazyWithRetry(() => import('./components/pages/login'))
+const CrwdCtrlRegister = lazyWithRetry(() => import('./components/pages/register'))
+const EmailVerification = lazyWithRetry(() => import('./components/pages/EmailVerification'))
+const CompetitionsViewDetails = lazyWithRetry(() => import('./components/pages/Competitions-view-details'))
+const CompetitionListPage = lazyWithRetry(() => import('./components/pages/competition-list'))
+const CompetitionRegisterPage = lazyWithRetry(() => import('./components/pages/compition-register-page/compition-register-page'))
+const TermsAndConditions = lazyWithRetry(() => import('./components/pages/terms-and-conditions'))
+const PrivacyPolicy = lazyWithRetry(() => import('./components/pages/privacy-policy'))
+const ContactUs = lazyWithRetry(() => import('./components/pages/contact-us'))
+const RefundsAndCancellations = lazyWithRetry(() => import('./components/pages/refunds-and-cancellations'))
+const ProductsAndServices = lazyWithRetry(() => import('./components/pages/products-and-services'))
+const About = lazyWithRetry(() => import('./components/pages/about'))
+const FestsPage = lazyWithRetry(() => import('./components/pages/FestsPage'))
+const FestRegistration = lazyWithRetry(() => import('./components/pages/FestRegistration'))
+const CompetitionRegistration = lazyWithRetry(() => import('./components/pages/CompetitionRegistration'))
+const RegistrationDetails = lazyWithRetry(() => import('./components/pages/RegistrationDetails'))
+const AdminLayout = lazyWithRetry(() => import('./components/admin/AdminLayout'))
+const AdminDashboardPage = lazyWithRetry(() => import('./components/admin/AdminDashboardPage'))
+const AdminFestsPage = lazyWithRetry(() => import('./components/admin/FestsPage'))
+const CompetitionsPage = lazyWithRetry(() => import('./components/admin/CompetitionsPage'))
+const RegistrationsPage = lazyWithRetry(() => import('./components/admin/RegistrationsPage'))
+const AnalyticsDashboardPage = lazyWithRetry(() => import('./components/admin/AnalyticsDashboardPage'))
+const ScannerAccessPage = lazyWithRetry(() => import('./components/admin/ScannerAccessPage'))
+const SportsPage = lazyWithRetry(() => import('./components/admin/SportsPage'))
+const TreksPage = lazyWithRetry(() => import('./components/admin/TreksPage'))
+const TheatrePage = lazyWithRetry(() => import('./components/admin/TheatrePage'))
+const SectionManager = lazyWithRetry(() => import('./components/admin/SectionManager'))
+const PageSectionsPage = lazyWithRetry(() => import('./components/admin/PageSectionsPage'))
+const TrekDetailPage  = lazyWithRetry(() => import('./components/pages/TrekDetailPage'))
+const TrekBookingPage = lazyWithRetry(() => import('./components/pages/TrekBookingPage'))
+const QRTicketPage = lazyWithRetry(() => import('./components/pages/QRTicketPage'))
+const PaymentInvoicePage = lazyWithRetry(() => import('./components/pages/PaymentInvoicePage'))
+const PublicTreksPage = lazyWithRetry(() => import('./components/pages/treks-page'))
+const PublicTheatrePage = lazyWithRetry(() => import('./components/pages/theatre-page'))
+const CommunityDetailPage = lazyWithRetry(() => import('./components/pages/CommunityDetailPage'))
+const RunClubDetailPage = lazyWithRetry(() => import('./components/pages/RunClubDetailPage'))
+const RunEventDetailPage = lazyWithRetry(() => import('./components/pages/RunEventDetailPage'))
+const RunEventBookingPage = lazyWithRetry(() => import('./components/pages/RunEventBookingPage'))
+const TrekCategoryPage = lazyWithRetry(() => import('./components/pages/TrekCategoryPage'))
+const PaymentCheckoutPage = lazyWithRetry(() => import('./components/pages/PaymentCheckoutPage'))
+const OrganizerProtectedRoute = lazyWithRetry(() => import('./components/organizer/OrganizerProtectedRoute'))
+const OrganizerFestListPage = lazyWithRetry(() => import('./components/organizer/OrganizerFestListPage'))
+const OrganizerCheckinPage = lazyWithRetry(() => import('./components/organizer/OrganizerCheckinPage'))
+const OrganizerScannerLoginPage = lazyWithRetry(() => import('./components/organizer/OrganizerScannerLoginPage'))
+const OrganizerScanPage = lazyWithRetry(() => import('./components/organizer/OrganizerScanPage'))
+const OrganizerEntryPage = lazyWithRetry(() => import('./components/organizer/OrganizerEntryPage'))
 
 // Component to conditionally render MobileBottomNav
 function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick, onProfileClose }) {
@@ -128,8 +132,10 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
 
 function ConditionalFooter() {
   const location = useLocation();
+  const { isTransitioning } = usePageTransition();
 
   const shouldHideFooter =
+    isTransitioning ||
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
@@ -149,6 +155,15 @@ function ConditionalFooter() {
   }
 
   return <Footer />;
+}
+
+function RouteSuspenseFallback() {
+  const location = useLocation();
+  const { isTransitioning } = usePageTransition();
+
+  if (isTransitioning) return null;
+
+  return <PageTransitionSkeleton pathname={location.pathname} />;
 }
 
 // Component to conditionally render Navbar and Sidebar
@@ -208,8 +223,8 @@ function AppContent({
     }
   }, [isAuthenticated, showLogin, showRegister, setShowLogin, setShowRegister]);
 
-  // Only block UI during OAuth return on web — native app uses native Google Sign-In
-  if (!isNativeApp() && (isRedirectProcessing || isAuthProcessing)) {
+  // Only block UI during an active OAuth redirect — not background session sync
+  if (!isNativeApp() && isRedirectProcessing) {
     return <AuthLoadingPage />;
   }
 
@@ -227,7 +242,7 @@ function AppContent({
         <div className={isAdminRoute ? '' : 'lg:pt-20'}>
           <ErrorBoundary>
             <PageTransitionContent>
-              <Suspense fallback={<LoadingBar />}>
+              <Suspense fallback={<RouteSuspenseFallback />}>
                 <Routes>
                 <Route path="/payment/checkout" element={<PaymentCheckoutPage />} />
                 <Route path="/payment/return" element={<Navigate to="/booking" replace />} />
@@ -365,6 +380,7 @@ function App() {
 
   useEffect(() => {
     if (showBootSplash) return undefined;
+    clearChunkReloadFlag();
     removeHtmlBootSplash();
     return undefined;
   }, [showBootSplash]);

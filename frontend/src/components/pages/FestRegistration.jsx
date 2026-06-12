@@ -75,7 +75,7 @@ export default function FestRegistration() {
   const [submitting, setSubmitting] = useState(false);
   const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice] = useState('');
   const [success, setSuccess] = useState(false);
   const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
   const [registrationId, setRegistrationId] = useState(null);

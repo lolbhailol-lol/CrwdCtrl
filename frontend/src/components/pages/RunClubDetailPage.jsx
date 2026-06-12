@@ -9,6 +9,13 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { CompactPortraitCardsRowSkeleton } from '../HomeEventCardSkeleton';
 import { normalizeRunCategory } from '../../constants/runClubCategories';
+import {
+    AnimatedCard,
+    AnimatedCounter,
+    ScrollProgress,
+    ScrollReveal,
+    StickyCta,
+} from '../../motion';
 
 const GALLERY_PREVIEW_COUNT = 4;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -131,8 +138,8 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
 
 function RunCard({ run, isDark, isFav, onFav, onClick }) {
     return (
-        <div
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
+        <AnimatedCard
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer"
             onClick={onClick}
         >
             <div className="card-portrait-image">
@@ -160,7 +167,7 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
                     </p>
                 </div>
             </div>
-        </div>
+        </AnimatedCard>
     );
 }
 
@@ -283,9 +290,10 @@ export default function RunClubDetailPage() {
     };
 
     return (
-        <div className={`flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`flex flex-col min-h-screen pb-24 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <ScrollProgress />
             {/* ── Cover image carousel (full width, 396px tall — matches trek community page) ── */}
-            <div className="relative w-full h-[396px] shrink-0">
+            <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
@@ -309,7 +317,25 @@ export default function RunClubDetailPage() {
                         ))}
                     </div>
                 </div>
-                <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/15 to-black/25 pointer-events-none" />
+
+                {/* Floating stats — Nike Run Club feel */}
+                <div className="absolute bottom-20 left-4 right-4 flex gap-2 pointer-events-none z-10">
+                    {[
+                        { label: 'Upcoming Runs', value: runs.length },
+                        { label: 'Categories', value: categoryOptions.length },
+                    ].map((stat) => (
+                        <div
+                            key={stat.label}
+                            className="rounded-2xl bg-black/45 backdrop-blur-md px-3 py-2 border border-white/10"
+                        >
+                            <p className="text-white text-lg font-bold leading-none">
+                                <AnimatedCounter value={stat.value} />
+                            </p>
+                            <p className="text-white/70 text-[10px] font-medium mt-0.5">{stat.label}</p>
+                        </div>
+                    ))}
+                </div>
 
                 <div
                     className="absolute top-0 left-0 right-0 flex items-center justify-between px-4"
@@ -396,7 +422,7 @@ export default function RunClubDetailPage() {
                     </button>
                 </div>
 
-                <div className="mt-5 mb-5">
+                <ScrollReveal className="mt-5 mb-5">
                     <h2
                         className={`text-lg font-medium font-inter leading-7 tracking-wide mb-2
                         ${isDark ? 'text-white' : 'text-gray-900'}`}
@@ -413,9 +439,9 @@ export default function RunClubDetailPage() {
                             </button>
                         )}
                     </p>
-                </div>
+                </ScrollReveal>
 
-                <div className="mb-5">
+                <ScrollReveal className="mb-5" delay={0.05}>
                     <h2
                         className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3
                         ${isDark ? 'text-white' : 'text-gray-900'}`}
@@ -480,9 +506,9 @@ export default function RunClubDetailPage() {
                             </div>
                         )}
                     </div>
-                </div>
+                </ScrollReveal>
 
-                <div className="mb-5">
+                <ScrollReveal className="mb-5" delay={0.08}>
                     <h2
                         className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}
                     >
@@ -533,9 +559,9 @@ export default function RunClubDetailPage() {
                             </div>
                         </a>
                     </div>
-                </div>
+                </ScrollReveal>
 
-                <div className="mb-2">
+                <ScrollReveal className="mb-2" delay={0.1}>
                     <h2
                         className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}
                     >
@@ -581,8 +607,28 @@ export default function RunClubDetailPage() {
                     ) : (
                         <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No gallery images yet.</p>
                     )}
-                </div>
+                </ScrollReveal>
             </div>
+
+            <StickyCta>
+                <div className={`px-4 py-3 border-t ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (club?.registrationLink) {
+                                window.open(club.registrationLink, '_blank', 'noopener,noreferrer');
+                            } else if (filteredRuns[0]) {
+                                handleRunClick(filteredRuns[0]);
+                            } else if (club?.contactPhone) {
+                                window.location.href = `tel:${club.contactPhone}`;
+                            }
+                        }}
+                        className="w-full py-3 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-[0.98] transition-transform"
+                    >
+                        Join Run Club
+                    </button>
+                </div>
+            </StickyCta>
 
             {galleryOpen && galleryImages.length > 0 && (
                 <GalleryLightbox

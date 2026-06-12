@@ -16,6 +16,7 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import ContentImage from '../ContentImage';
 import { useHeroSearch } from '../../hooks/useHeroSearch';
+import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
@@ -36,11 +37,13 @@ import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
 // âœ… FIX: Use native fetch instead of axios (axios XMLHttpRequest causes ERR_NETWORK on mobile)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
-console.log('ðŸ”§ Dashboard API Configuration:', {
-    VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
-    API_BASE_URL: API_BASE_URL,
-    MODE: import.meta.env.MODE
-});
+if (import.meta.env.DEV) {
+    console.log('Dashboard API Configuration:', {
+        VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+        API_BASE_URL,
+        MODE: import.meta.env.MODE,
+    });
+}
 
 // âœ… Fetch helper that works reliably on all mobile browsers
 const fetchJSON = async (endpoint, options = {}) => {
@@ -284,6 +287,7 @@ const Dashboard = () => {
     const [error] = useState(null);
     const [fests, setFests] = useState(readInitialFestsFromCache);
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
+    usePageContentLoading(isFestsLoading);
     const [homeCommunities, setHomeCommunities] = useState([]);
     const [homeTreks, setHomeTreks] = useState([]);
     const [homeSports, setHomeSports] = useState([]);

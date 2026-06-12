@@ -7,14 +7,14 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 const unusedVarRule = [
   'error',
   {
-    varsIgnorePattern: '^[A-Z_]|^_',
+    varsIgnorePattern: '^[A-Z_]|^motion$|^AnimatePresence$|^_',
     argsIgnorePattern: '^_',
     caughtErrors: 'none',
   },
 ]
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'android/**', 'node_modules/**']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -38,6 +38,7 @@ export default defineConfig([
       'no-unused-vars': unusedVarRule,
       'no-useless-catch': 'off',
       'react-hooks/exhaustive-deps': 'off',
+      'react-refresh/only-export-components': 'off',
     },
   },
   {

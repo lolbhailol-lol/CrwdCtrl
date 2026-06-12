@@ -103,7 +103,8 @@ function DeviceBreakdown({ devices }) {
   );
 }
 
-function RevenueCategoryCard({ label, icon: Icon, data, accent }) {
+function RevenueCategoryCard({ label, icon, data, accent }) {
+  const Icon = icon;
   if (!data) return null;
   return (
     <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">

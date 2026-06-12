@@ -423,7 +423,6 @@ export default function TrekBookingPage() {
                 setPaying(false);
             }
         })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once after trek load + redirect
     }, [id, trek, loadingTrek, navigate, location.search]);
 
     const next = async () => {

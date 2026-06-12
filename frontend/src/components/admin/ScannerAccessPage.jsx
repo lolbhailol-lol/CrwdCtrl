@@ -134,7 +134,9 @@ export default function ScannerAccessPage() {
 
       <div className="space-y-4">
         <div className="inline-flex p-1 rounded-xl bg-[#111213] border border-gray-800">
-            {TABS.map(({ key, label, icon: Icon, count }) => (
+            {TABS.map(({ key, label, icon, count }) => {
+              const Icon = icon;
+              return (
               <button
                 key={key}
                 type="button"
@@ -153,7 +155,8 @@ export default function ScannerAccessPage() {
                   {count}
                 </span>
               </button>
-            ))}
+              );
+            })}
           </div>
 
           <div className="grid md:grid-cols-[260px_1fr] gap-4">

@@ -4,6 +4,7 @@ import ContentImage from './ContentImage';
 import CardFavoriteButton from './CardFavoriteButton';
 import CardShareButton from './CardShareButton';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
+import { AnimatedCard } from '../motion';
 
 const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFavorite, onViewDetails, isDark, eventId, status }) => {
 
@@ -68,8 +69,8 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
     const StatusIcon = statusStyle.icon;
 
     return (
-        <div
-            className="card-surface group relative rounded-2xl overflow-hidden cursor-pointer mb-6 mx-2 transition-all duration-300 ease-in-out"
+        <AnimatedCard
+            className="card-surface group relative rounded-2xl overflow-hidden cursor-pointer mb-6 mx-2"
             onClick={handleViewDetailsClick}
         >
             {/* Image Section with Overlay */}
@@ -155,7 +156,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                     <span className="relative z-10">View Details</span>
                 </button>
             </div>
-        </div>
+        </AnimatedCard>
     );
 };
 

@@ -37,7 +37,8 @@ const VARIANT = {
 const inputClass =
   'w-full bg-[#1D1E20] border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#0ECCEE]';
 
-function SectionCard({ step, icon: Icon, title, badge, children }) {
+function SectionCard({ step, icon, title, badge, children }) {
+  const Icon = icon;
   return (
     <section className="rounded-2xl border border-gray-800 bg-[#141517] overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-800 bg-[#17181A]">

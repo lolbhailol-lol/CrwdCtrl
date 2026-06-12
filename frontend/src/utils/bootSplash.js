@@ -18,7 +18,7 @@ function hasPaymentReturnContext() {
 }
 
 /** Skip splash during OAuth / email verification returns */
-function hasAuthCallbackParams() {
+export function hasAuthCallbackParams() {
   try {
     const urlParams = new URLSearchParams(window.location.search);
     return (
@@ -61,8 +61,11 @@ export function removeHtmlBootSplash() {
   el.classList.add('boot-splash-out');
   const remove = () => el.remove();
   el.addEventListener('transitionend', remove, { once: true });
-  window.setTimeout(remove, 320);
+  window.setTimeout(remove, BOOT_SPLASH_FADE_MS + 80);
 }
 
-/** Brief branded moment — HTML splash handles visuals; React only holds the timer */
-export const BOOT_SPLASH_MS = 320;
+/** Total splash cycle — assemble, brief hold, fade (~1.9s) */
+export const BOOT_SPLASH_TOTAL_MS = 1900;
+export const BOOT_SPLASH_FADE_MS = 320;
+/** When fade-out starts and main app appears */
+export const BOOT_SPLASH_MS = BOOT_SPLASH_TOTAL_MS - BOOT_SPLASH_FADE_MS;

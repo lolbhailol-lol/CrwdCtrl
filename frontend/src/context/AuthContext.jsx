@@ -347,6 +347,18 @@ export const AuthProvider = ({ children }) => {
         initializeAuth();
     }, [authInitialized]);
 
+    // Never leave the app stuck on the auth loading screen
+    useEffect(() => {
+        if (!isRedirectProcessing && !isAuthProcessing) return undefined;
+        const timer = window.setTimeout(() => {
+            clearOAuthRedirectMarkers();
+            setIsRedirectProcessing(false);
+            setIsAuthProcessing(false);
+            setIsLoading(false);
+        }, 12000);
+        return () => window.clearTimeout(timer);
+    }, [isRedirectProcessing, isAuthProcessing]);
+
     // ✅ HELPER FUNCTION TO CLEAR LOCAL SESSION
     const clearLocalSession = () => {
         setUser(null);
@@ -537,7 +549,6 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {

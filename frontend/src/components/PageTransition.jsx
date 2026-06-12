@@ -1,9 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import PageTransitionSkeleton from './PageTransitionSkeleton';
+import { pageTransition } from '../motion/variants';
 
 const MIN_MS = 120;
-const TRANSITION_END_MS = MIN_MS + 180;
+const TRANSITION_END_MS = MIN_MS + 220;
+/** Never leave the full-screen skeleton overlay stuck */
+const TRANSITION_SAFETY_MS = 2500;
 
 function resetScrollToTop() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -56,10 +60,26 @@ export function PageTransitionProvider({ children }) {
     const prevLocationKey = useRef(location.key);
     const timers = useRef([]);
 
+    const finishTransition = useCallback(() => {
+        setContentVisible(true);
+        setIsTransitioning(false);
+    }, []);
+
     const clearTimers = useCallback(() => {
         timers.current.forEach(clearTimeout);
         timers.current = [];
     }, []);
+
+    const scheduleTransitionEnd = useCallback((onComplete) => {
+        timers.current.push(
+            setTimeout(() => setContentVisible(true), MIN_MS),
+            setTimeout(() => {
+                setIsTransitioning(false);
+                onComplete?.();
+            }, TRANSITION_END_MS),
+            setTimeout(finishTransition, TRANSITION_SAFETY_MS),
+        );
+    }, [finishTransition]);
 
     /** Skeleton first, then callback — used for profile overlay (no route change) */
     const startOverlayTransition = useCallback((pathname, onComplete) => {
@@ -67,14 +87,8 @@ export function PageTransitionProvider({ children }) {
         setSkeletonPath(pathname);
         setContentVisible(false);
         setIsTransitioning(true);
-        timers.current.push(
-            setTimeout(() => setContentVisible(true), MIN_MS),
-            setTimeout(() => {
-                setIsTransitioning(false);
-                onComplete?.();
-            }, TRANSITION_END_MS),
-        );
-    }, [clearTimers]);
+        scheduleTransitionEnd(onComplete);
+    }, [clearTimers, scheduleTransitionEnd]);
 
     useEffect(() => {
         if ('scrollRestoration' in window.history) {
@@ -86,6 +100,10 @@ export function PageTransitionProvider({ children }) {
         if (isFirstNavigation.current) {
             isFirstNavigation.current = false;
             prevLocationKey.current = location.key;
+            resetScrollToTop();
+            // Boot splash already shown — render home immediately, no skeleton overlay
+            setContentVisible(true);
+            setIsTransitioning(false);
             return clearTimers;
         }
 
@@ -108,13 +126,10 @@ export function PageTransitionProvider({ children }) {
         setSkeletonPath(location.pathname);
         setContentVisible(false);
         setIsTransitioning(true);
-        timers.current.push(
-            setTimeout(() => setContentVisible(true), MIN_MS),
-            setTimeout(() => setIsTransitioning(false), TRANSITION_END_MS),
-        );
+        scheduleTransitionEnd();
 
         return clearTimers;
-    }, [location.key, location.pathname, clearTimers]);
+    }, [location.key, location.pathname, clearTimers, scheduleTransitionEnd]);
 
     useEffect(() => {
         document.body.classList.toggle('page-transition-active', isTransitioning);
@@ -124,7 +139,19 @@ export function PageTransitionProvider({ children }) {
     return (
         <PageTransitionContext.Provider value={{ contentVisible, isTransitioning, startOverlayTransition }}>
             <TopProgressBar active={isTransitioning} />
-            {isTransitioning && <PageTransitionSkeleton pathname={skeletonPath} />}
+            <AnimatePresence mode="wait">
+                {isTransitioning && (
+                    <motion.div
+                        key={`skeleton-${skeletonPath}`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                    >
+                        <PageTransitionSkeleton pathname={skeletonPath} />
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {children}
         </PageTransitionContext.Provider>
     );
@@ -133,15 +160,25 @@ export function PageTransitionProvider({ children }) {
 /** Wrap route content (Suspense + Routes) for fade-in on every page */
 export function PageTransitionContent({ children }) {
     const { contentVisible } = useContext(PageTransitionContext);
+    const reducedMotion = useReducedMotion();
+
+    if (reducedMotion) {
+        return (
+            <div className={`page-transition-content ${contentVisible ? 'page-transition-enter' : 'page-transition-exit'}`}>
+                {children}
+            </div>
+        );
+    }
 
     return (
-        <div
-            className={`page-transition-content ${
-                contentVisible ? 'page-transition-enter' : 'page-transition-exit'
-            }`}
+        <motion.div
+            className="page-transition-content"
+            variants={pageTransition}
+            initial={false}
+            animate={contentVisible ? 'animate' : 'exit'}
         >
             {children}
-        </div>
+        </motion.div>
     );
 }
 

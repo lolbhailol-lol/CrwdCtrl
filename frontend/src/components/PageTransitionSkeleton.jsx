@@ -17,28 +17,68 @@ function Block({ className = '', isDark }) {
 
 function MobileHeaderSkeleton({ isDark }) {
     return (
-        <div
-            className={`mobile-header-inner lg:hidden rounded-b-[16px] px-4 pb-3 ${isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'}`}
-        >
-            <div className="mb-1 flex items-center justify-between">
-                <Block isDark={isDark} className="h-16 w-28 rounded-xl" />
-                <div className="flex gap-2">
-                    <Block isDark={isDark} className="h-10 w-10 rounded-xl" />
-                    <Block isDark={isDark} className="h-10 w-10 rounded-xl" />
+        <header className="lg:hidden sticky top-0 z-40 mobile-header-shell rounded-b-[16px] overflow-hidden">
+            <div
+                className={`mobile-header-inner rounded-b-[16px] px-[var(--page-gutter)] pb-3 ${
+                    isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
+                }`}
+            >
+                <div className="mb-1 flex items-center justify-between">
+                    <Block isDark={isDark} className="h-14 w-28 rounded-xl" />
+                    <div className="mobile-header-actions flex gap-1">
+                        <Block isDark={isDark} className="h-10 w-10 rounded-xl" />
+                        <Block isDark={isDark} className="h-10 w-10 rounded-xl" />
+                    </div>
+                </div>
+                <Block isDark={isDark} className="mb-3.5 h-12 w-full rounded-full" />
+                <div className="flex justify-between gap-1.5">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Block key={i} isDark={isDark} className="h-[72px] flex-1 rounded-2xl" />
+                    ))}
                 </div>
             </div>
-            <Block isDark={isDark} className="mb-3.5 h-12 w-full rounded-full" />
-            <div className="flex justify-between gap-1">
-                {Array.from({ length: 4 }).map((_, i) => (
-                    <Block key={i} isDark={isDark} className="h-[72px] flex-1 rounded-2xl" />
-                ))}
-            </div>
+        </header>
+    );
+}
+
+function DesktopCategoryBarSkeleton({ isDark }) {
+    return (
+        <div className="hidden lg:flex gap-2 overflow-hidden px-4 lg:px-10 pt-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+                <Block key={i} isDark={isDark} className="h-10 w-24 shrink-0 rounded-full" />
+            ))}
         </div>
     );
 }
 
 function SectionHeadingSkeleton({ isDark, width = 'w-36', className = '' }) {
-    return <Block isDark={isDark} className={`mb-4 h-6 ${width} ${className}`} />;
+    return <Block isDark={isDark} className={`h-6 ${width} ${className}`} />;
+}
+
+function HomePageSkeleton({ isDark }) {
+    return (
+        <>
+            <MobileHeaderSkeleton isDark={isDark} />
+            <main className="flex-1 pb-4">
+                <div className="mx-auto max-w-2xl pt-6 lg:max-w-7xl lg:pt-0">
+                    <DesktopCategoryBarSkeleton isDark={isDark} />
+                    <HeroBannerSkeleton className="mb-6 px-6 lg:mb-8 lg:px-12" />
+                    <section className="mb-8">
+                        <SectionHeadingSkeleton isDark={isDark} width="w-36" className="mb-4 px-4" />
+                        <HomeCarouselCardsSkeleton count={2} tallCard />
+                    </section>
+                    <section className="mb-8">
+                        <SectionHeadingSkeleton isDark={isDark} width="w-44" className="mb-4 px-4" />
+                        <HomeCarouselCardsSkeleton count={2} wideCard />
+                    </section>
+                    <section className="mb-8 px-4">
+                        <SectionHeadingSkeleton isDark={isDark} width="w-40" className="mb-4" />
+                        <Block isDark={isDark} className="h-28 w-full rounded-2xl lg:h-32" />
+                    </section>
+                </div>
+            </main>
+        </>
+    );
 }
 
 function HorizontalCardsSkeleton({ count = 2, tallCard = false, wideCard = false }) {
@@ -70,8 +110,8 @@ function CategoryTilesSkeleton({ isDark }) {
 
 function DetailPageSkeleton({ isDark }) {
     return (
-        <div className="px-4 pt-4">
-            <Block isDark={isDark} className="mb-4 h-[220px] w-full rounded-2xl" />
+        <div className="px-4 pt-4 pb-24">
+            <Block isDark={isDark} className="mb-4 h-[280px] w-full rounded-none lg:rounded-2xl" />
             <Block isDark={isDark} className="mb-3 h-7 w-4/5" />
             <Block isDark={isDark} className="mb-6 h-5 w-1/2" />
             <div className="mb-6 flex gap-2">
@@ -88,7 +128,7 @@ function DetailPageSkeleton({ isDark }) {
 
 function ListPageSkeleton({ isDark }) {
     return (
-        <div className="space-y-4 px-4 pt-4">
+        <div className="space-y-4 px-4 pt-4 pb-24">
             {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex gap-3">
                     <Block isDark={isDark} className="h-20 w-20 shrink-0 rounded-xl" />
@@ -105,7 +145,7 @@ function ListPageSkeleton({ isDark }) {
 
 function ProfilePageSkeleton({ isDark }) {
     return (
-        <div className="px-4 pt-6">
+        <div className="px-4 pt-6 pb-24">
             <div className="mb-8 flex flex-col items-center">
                 <Block isDark={isDark} className="mb-4 h-24 w-24 rounded-full" />
                 <Block isDark={isDark} className="mb-2 h-6 w-40" />
@@ -121,7 +161,7 @@ function ProfilePageSkeleton({ isDark }) {
 }
 
 function getSkeletonVariant(pathname) {
-    if (pathname === '/') return 'home';
+    if (pathname === '/' || pathname === '/dashboard') return 'home';
     if (
         pathname === '/fests' ||
         pathname.endsWith('-fest') ||
@@ -135,7 +175,9 @@ function getSkeletonVariant(pathname) {
         pathname.startsWith('/view-details') ||
         pathname.startsWith('/trek/') ||
         pathname.startsWith('/competitions-view-details') ||
-        pathname.startsWith('/treks/community/')
+        pathname.startsWith('/treks/community/') ||
+        pathname.startsWith('/sports/run-club/') ||
+        pathname.startsWith('/sports/run/')
     ) {
         return 'detail';
     }
@@ -159,31 +201,19 @@ export default function PageTransitionSkeleton({ pathname }) {
 
     return (
         <div
-            className={`fixed inset-0 z-100000 overflow-y-auto overscroll-none ${
+            className={`fixed inset-0 z-[100000] overflow-y-auto overscroll-none ${
                 isDark ? 'bg-[#161718]' : 'bg-white'
-            }`}
+            } ${variant === 'home' ? '' : 'pb-[var(--footer-nav-clearance)] lg:pb-0'}`}
             aria-hidden
             role="presentation"
         >
-            {(variant === 'home' || variant === 'category') && (
+            {variant === 'home' && <HomePageSkeleton isDark={isDark} />}
+
+            {variant !== 'home' && (variant === 'category') && (
                 <MobileHeaderSkeleton isDark={isDark} />
             )}
 
-            <div className="pb-8 pt-4 lg:pt-6">
-                {variant === 'home' && (
-                    <>
-                        <HeroBannerSkeleton />
-                        <div className="mb-6">
-                            <SectionHeadingSkeleton isDark={isDark} width="w-32" className="px-4" />
-                            <HorizontalCardsSkeleton count={2} tallCard />
-                        </div>
-                        <div className="mb-6">
-                            <SectionHeadingSkeleton isDark={isDark} width="w-44" className="px-4" />
-                            <HorizontalCardsSkeleton count={2} wideCard />
-                        </div>
-                    </>
-                )}
-
+            <div className={variant === 'home' ? 'hidden' : 'pb-8 pt-4 lg:pt-6'}>
                 {variant === 'category' && pathname === '/fests' && (
                     <>
                         <HeroBannerSkeleton />

@@ -1,6 +1,9 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, Search } from 'lucide-react';
 import { getImageUrl } from '../utils/imageImports';
 import { getSearchResultTitle } from '../utils/heroSearchSuggestions';
+import { searchPanel, searchResultRow, staggerContainer } from '../motion/variants';
+import { STAGGER } from '../motion/tokens';
 
 export { getSearchResultTitle };
 
@@ -15,28 +18,39 @@ export function getSearchResultSubtitle(result) {
     return org ? `${kind} · ${org}` : kind;
 }
 
-function SuggestionChip({ label, isDark, onClick }) {
+function SuggestionChip({ label, isDark, onClick, index = 0 }) {
     return (
-        <button
+        <motion.button
             type="button"
             onClick={onClick}
+            custom={index}
+            variants={searchResultRow}
+            initial="hidden"
+            animate="visible"
+            whileTap={{ scale: 0.96 }}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0
                 ${isDark
                     ? 'bg-[#1D1E20] text-gray-200 border border-gray-600 hover:border-[#0ECCEE]/50'
                     : 'bg-gray-100 text-gray-700 border border-gray-200 hover:border-[#0ECCEE]/40'}`}
         >
             {label}
-        </button>
+        </motion.button>
     );
 }
 
-function ResultRow({ result, isDark, onClick }) {
+function ResultRow({ result, isDark, onClick, index = 0 }) {
     const image = result.image || result.coverImage || result._image;
     const title = getSearchResultTitle(result);
     return (
-        <button
+        <motion.button
             type="button"
             onClick={onClick}
+            custom={index}
+            variants={searchResultRow}
+            initial="hidden"
+            animate="visible"
+            whileHover={{ x: 2 }}
+            whileTap={{ scale: 0.99 }}
             className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
                 ${isDark ? 'hover:bg-gray-800 border-b border-gray-700/50 last:border-b-0' : 'hover:bg-gray-50 border-b border-gray-100 last:border-b-0'}`}
         >
@@ -61,12 +75,12 @@ function ResultRow({ result, isDark, onClick }) {
                     {getSearchResultSubtitle(result)}
                 </p>
             </div>
-        </button>
+        </motion.button>
     );
 }
 
 /**
- * Search dropdown — only visible while typing (matching keywords + live results).
+ * Search dropdown — slide-in panel with staggered results.
  */
 export default function HeroSearchDropdown({
     isOpen,
@@ -80,57 +94,75 @@ export default function HeroSearchDropdown({
     className = 'absolute left-0 right-0 top-full mt-1',
 }) {
     const hasQuery = searchQuery.trim().length > 0;
-    if (!isOpen || !hasQuery) return null;
-
     const panelClass = `rounded-2xl shadow-2xl border z-50 overflow-hidden max-h-[min(70vh,420px)] overflow-y-auto ${
         isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-200'
     }`;
 
-    if (isSearching && !results.length && !popularTerms.length) {
-        return (
-            <div className={`${className} ${panelClass}`}>
-                <div className="flex items-center gap-2 px-4 py-3">
-                    <Loader2 size={14} className="animate-spin text-gray-400" />
-                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Searching…</span>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className={`${className} ${panelClass}`}>
-            {popularTerms.length > 0 && (
-                <div className="pb-1 border-b border-gray-700/30">
-                    <div className="flex flex-wrap gap-2 px-4 py-3">
-                        {popularTerms.map((term) => (
-                            <SuggestionChip
-                                key={term}
-                                label={term}
-                                isDark={isDark}
-                                onClick={() => onSuggestionClick?.(term)}
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
+        <AnimatePresence>
+            {isOpen && hasQuery && (
+                <motion.div
+                    className={`${className} ${panelClass}`}
+                    variants={searchPanel}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                >
+                    {isSearching && !results.length && !popularTerms.length ? (
+                        <div className="flex items-center gap-2 px-4 py-3">
+                            <Loader2 size={14} className="animate-spin text-gray-400" />
+                            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Searching…</span>
+                        </div>
+                    ) : (
+                        <>
+                            {popularTerms.length > 0 && (
+                                <div className="pb-1 border-b border-gray-700/30">
+                                    <motion.div
+                                        className="flex flex-wrap gap-2 px-4 py-3"
+                                        variants={staggerContainer(STAGGER.fast)}
+                                        initial="hidden"
+                                        animate="visible"
+                                    >
+                                        {popularTerms.map((term, i) => (
+                                            <SuggestionChip
+                                                key={term}
+                                                label={term}
+                                                isDark={isDark}
+                                                index={i}
+                                                onClick={() => onSuggestionClick?.(term)}
+                                            />
+                                        ))}
+                                    </motion.div>
+                                </div>
+                            )}
 
-            {results.length > 0 ? (
-                results.map((result) => (
-                    <ResultRow
-                        key={`${result.resultType || result._type}-${result.id || result._id}`}
-                        result={result}
-                        isDark={isDark}
-                        onClick={() => onResultClick?.(result)}
-                    />
-                ))
-            ) : !isSearching ? (
-                <div className="flex flex-col items-center gap-2 px-4 py-5 text-center">
-                    <Search size={20} className="text-gray-400" />
-                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        No results for &ldquo;{searchQuery.trim()}&rdquo;
-                    </p>
-                </div>
-            ) : null}
-        </div>
+                            {results.length > 0 ? (
+                                results.map((result, i) => (
+                                    <ResultRow
+                                        key={`${result.resultType || result._type}-${result.id || result._id}`}
+                                        result={result}
+                                        isDark={isDark}
+                                        index={i}
+                                        onClick={() => onResultClick?.(result)}
+                                    />
+                                ))
+                            ) : !isSearching ? (
+                                <motion.div
+                                    className="flex flex-col items-center gap-2 px-4 py-5 text-center"
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                >
+                                    <Search size={20} className="text-gray-400" />
+                                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        No results for &ldquo;{searchQuery.trim()}&rdquo;
+                                    </p>
+                                </motion.div>
+                            ) : null}
+                        </>
+                    )}
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 }

@@ -1,6 +1,5 @@
 import { load } from '@cashfreepayments/cashfree-js';
 import { prefersRedirectCheckout, isNativeApp } from './capacitorPlatform';
-import { getApiBaseUrl } from '../config/apiBase';
 import {
   openNativeCashfreeSdkCheckout,
   isNativeCashfreeAvailable,

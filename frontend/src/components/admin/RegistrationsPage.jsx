@@ -133,7 +133,8 @@ function RegistrationCard({
     );
 }
 
-function EventPickerCard({ active, onClick, image, fallbackIcon: FallbackIcon, title, subtitle, badge }) {
+function EventPickerCard({ active, onClick, image, fallbackIcon, title, subtitle, badge }) {
+    const FallbackIcon = fallbackIcon;
     return (
         <button
             type="button"

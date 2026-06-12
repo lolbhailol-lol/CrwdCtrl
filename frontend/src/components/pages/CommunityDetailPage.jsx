@@ -8,6 +8,13 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { CompactPortraitCardsRowSkeleton } from '../HomeEventCardSkeleton';
+import {
+    AnimatedCard,
+    AnimatedCounter,
+    ImmersiveHero,
+    ScrollReveal,
+    StickyCta,
+} from '../../motion';
 
 const GALLERY_PREVIEW_COUNT = 4;
 
@@ -139,8 +146,8 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
 /* ── Trek Card — matches treks-page BeginnerCard (white surface + shadow) ── */
 function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
     return (
-        <div
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
+        <AnimatedCard
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer"
             onClick={onClick}
         >
             <div className="card-portrait-image">
@@ -168,7 +175,7 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
                     </p>
                 </div>
             </div>
-        </div>
+        </AnimatedCard>
     );
 }
 
@@ -264,21 +271,34 @@ export default function CommunityDetailPage() {
     };
 
     return (
-        <div className={`flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className={`flex flex-col min-h-screen pb-24 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
 
-            {/* ── Cover image (full width, 396px tall) ── */}
-            <div className="relative w-full h-[396px] shrink-0">
-                {image ? (
-                    <img
-                        src={getImageUrl(image, { preset: 'hero' })}
-                        alt={name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}
-                    />
-                ) : (
-                    <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700" />
-                )}
-                <div className="absolute inset-0 bg-black/20" />
+            <ImmersiveHero
+                imageSrc={image ? getImageUrl(image, { preset: 'hero' }) : null}
+                imageAlt={name}
+                height="396px"
+                onImageError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}
+                fallback={
+                    <div className="absolute inset-0 bg-linear-to-br from-green-900 via-emerald-800 to-teal-700" />
+                }
+            >
+                {/* Floating stats */}
+                <div className="absolute bottom-20 left-4 right-4 flex gap-2 pointer-events-none">
+                    {[
+                        { label: 'Treks', value: treks.length },
+                        { label: 'Categories', value: categoryOptions.length },
+                    ].map((stat) => (
+                        <div
+                            key={stat.label}
+                            className="rounded-2xl bg-black/45 backdrop-blur-md px-3 py-2 border border-white/10"
+                        >
+                            <p className="text-white text-lg font-bold leading-none">
+                                <AnimatedCounter value={stat.value} />
+                            </p>
+                            <p className="text-white/70 text-[10px] font-medium mt-0.5">{stat.label}</p>
+                        </div>
+                    ))}
+                </div>
 
                 {/* Top action bar */}
                 <div
@@ -330,7 +350,7 @@ export default function CommunityDetailPage() {
                         />
                     ))}
                 </div>
-            </div>
+            </ImmersiveHero>
 
             {/* ── Content card — slides up over the image ── */}
             <div className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
@@ -364,7 +384,7 @@ export default function CommunityDetailPage() {
                 </div>
 
                 {/* ── About Us ── */}
-                <div className="mt-5 mb-5">
+                <ScrollReveal className="mt-5 mb-5">
                     <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-2
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         About Us
@@ -380,10 +400,10 @@ export default function CommunityDetailPage() {
                             </button>
                         )}
                     </p>
-                </div>
+                </ScrollReveal>
 
                 {/* ── Trek Category ── */}
-                <div className="mb-5">
+                <ScrollReveal className="mb-5" delay={0.05}>
                     <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3
                         ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         Trek Category
@@ -440,10 +460,10 @@ export default function CommunityDetailPage() {
                             </div>
                         )}
                     </div>
-                </div>
+                </ScrollReveal>
 
                 {/* ── Contact Details ── */}
-                <div className="mb-5">
+                <ScrollReveal className="mb-5" delay={0.08}>
                     <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         Contact Details
                     </h2>
@@ -481,10 +501,10 @@ export default function CommunityDetailPage() {
                             </div>
                         </a>
                     </div>
-                </div>
+                </ScrollReveal>
 
                 {/* ── Gallery ── */}
-                <div className="mb-2">
+                <ScrollReveal className="mb-2" delay={0.1}>
                     <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         Gallery
                     </h2>
@@ -525,9 +545,35 @@ export default function CommunityDetailPage() {
                             No gallery images yet.
                         </p>
                     )}
-                </div>
+                </ScrollReveal>
 
             </div>
+
+            <StickyCta>
+                <div className={`px-4 py-3 border-t ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (community?.contactPhone) {
+                                window.location.href = `tel:${community.contactPhone}`;
+                            } else if (filteredTreks[0]) {
+                                navigate(`/trek/${filteredTreks[0].id}`, {
+                                    state: {
+                                        trek: {
+                                            ...filteredTreks[0],
+                                            trekName: filteredTreks[0].title,
+                                            images: filteredTreks[0].image ? [filteredTreks[0].image] : [],
+                                        },
+                                    },
+                                });
+                            }
+                        }}
+                        className="w-full py-3 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-[0.98] transition-transform"
+                    >
+                        Join Community
+                    </button>
+                </div>
+            </StickyCta>
 
             {galleryOpen && galleryImages.length > 0 && (
                 <GalleryLightbox
