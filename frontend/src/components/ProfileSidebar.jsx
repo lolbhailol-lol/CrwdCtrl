@@ -11,7 +11,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
     const { isDark, toggleDarkMode } = useDarkMode();
     const { user, logout, isAuthenticated } = useAuth();
     const navigate = useNavigate();
-    const { isTransitioning } = usePageTransition();
+    const { showSkeleton } = usePageTransition();
 
     const handleLogout = () => {
         logout();
@@ -353,7 +353,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                     </div>
 
                     {/* Mobile Bottom Navigation - Fixed at actual bottom with proper z-index and safe-area */}
-                    {!isTransitioning && (
+                    {!showSkeleton && (
                     <div 
                         className="fixed bottom-0 left-0 right-0 z-10000"
                         style={{
