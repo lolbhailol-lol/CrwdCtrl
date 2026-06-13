@@ -4,6 +4,7 @@ import { authAPI } from '../utils/api';
 import { processSocialAuthUser } from '../utils/socialAuth';
 import { withFirebaseIdToken } from '../utils/firebaseIdToken';
 import { hasPendingOAuthRedirect, restoreSessionFromStorage, clearOAuthRedirectMarkers } from '../utils/authBootstrap';
+import { hasAuthCallbackParams } from '../utils/bootSplash';
 import { isNativeAuthInProgress } from '../utils/nativeAuth';
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { markFreshLogin } from '../utils/notificationPrompt';
@@ -14,15 +15,20 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 const AuthContext = createContext();
 
+function detectOAuthReturn() {
+    if (isNativeApp()) return false;
+    return hasPendingOAuthRedirect() || hasAuthCallbackParams();
+}
+
 export const AuthProvider = ({ children }) => {
-    const oauthReturn = !isNativeApp() && hasPendingOAuthRedirect();
-    const savedSession = oauthReturn ? null : restoreSessionFromStorage();
+    const isOAuthReturn = detectOAuthReturn();
+    const savedSession = isOAuthReturn ? null : restoreSessionFromStorage();
 
     const [user, setUser] = useState(() => savedSession?.user ?? null);
     const [token, setToken] = useState(() => savedSession?.token ?? null);
-    const [isLoading, setIsLoading] = useState(oauthReturn);
+    const [isLoading, setIsLoading] = useState(isOAuthReturn);
     const [isAuthProcessing, setIsAuthProcessing] = useState(false);
-    const [isRedirectProcessing, setIsRedirectProcessing] = useState(oauthReturn);
+    const [isRedirectProcessing, setIsRedirectProcessing] = useState(isOAuthReturn);
     const [firebaseUser, setFirebaseUser] = useState(null);
     const [isEmailVerified, setIsEmailVerified] = useState(false);
     const [authInitialized, setAuthInitialized] = useState(false);
@@ -172,7 +178,7 @@ export const AuthProvider = ({ children }) => {
                 // On mobile, after Google OAuth redirect, this is the ONLY way to get the user
                 console.log('🔍 Checking for pending redirect result (CRITICAL for mobile OAuth)...');
                 const isMobile = /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-                const pendingRedirect = hasPendingOAuthRedirect();
+                const pendingRedirect = hasPendingOAuthRedirect() || hasAuthCallbackParams();
 
                 if (pendingRedirect) {
                     setIsRedirectProcessing(true);
@@ -355,7 +361,7 @@ export const AuthProvider = ({ children }) => {
             setIsRedirectProcessing(false);
             setIsAuthProcessing(false);
             setIsLoading(false);
-        }, 12000);
+        }, 5000);
         return () => window.clearTimeout(timer);
     }, [isRedirectProcessing, isAuthProcessing]);
 

@@ -9,13 +9,44 @@ export function isChunkLoadError(error) {
         || message.includes('Importing a module script failed')
         || message.includes('error loading dynamically imported module')
         || message.includes('Loading chunk')
+        || message.includes('Unable to preload CSS')
     );
+}
+
+/** Hard recovery after deploy — drop stale service worker caches and reload fresh HTML */
+export async function recoverFromStaleDeploy() {
+    try {
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+        }
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+        }
+    } catch {
+        /* ignore cleanup errors */
+    }
+
+    try {
+        sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY);
+        sessionStorage.removeItem('crwdctrl_sw_reload');
+    } catch {
+        /* ignore */
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('_crwd', String(Date.now()));
+    window.location.replace(url.toString());
 }
 
 /** Reload once per session when a stale JS chunk fails after deploy */
 export function reloadOnceForChunkError() {
     try {
-        if (sessionStorage.getItem(CHUNK_RELOAD_SESSION_KEY)) return false;
+        if (sessionStorage.getItem(CHUNK_RELOAD_SESSION_KEY)) {
+            void recoverFromStaleDeploy();
+            return false;
+        }
         sessionStorage.setItem(CHUNK_RELOAD_SESSION_KEY, '1');
         window.location.reload();
         return true;
@@ -49,3 +80,4 @@ export function initGlobalErrorHandlers() {
         reloadOnceForChunkError();
     });
 }
+

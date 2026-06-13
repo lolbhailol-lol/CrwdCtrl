@@ -69,3 +69,9 @@ export const BOOT_SPLASH_TOTAL_MS = 1900;
 export const BOOT_SPLASH_FADE_MS = 320;
 /** When fade-out starts and main app appears */
 export const BOOT_SPLASH_MS = BOOT_SPLASH_TOTAL_MS - BOOT_SPLASH_FADE_MS;
+
+/** Matches DarkModeProvider / index.html inline theme script */
+export function getBootSplashIsDark() {
+  if (typeof document === 'undefined') return false;
+  return document.documentElement.classList.contains('dark');
+}

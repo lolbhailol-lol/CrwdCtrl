@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import HomeCarouselSection from './HomeCarouselSection';
+import HomeCarouselCardsSkeleton from './HomeEventCardSkeleton';
 import { buildPageCarouselItems } from '../utils/homeCarouselItems';
 import { mapHomeCarouselDisplayItems } from '../utils/mapHomeCarouselDisplayItems';
 import { getCardSizeProps } from '../utils/homeCardSize';
@@ -64,6 +65,19 @@ export default function CustomPageSectionsRenderer({
             }))
             .filter(({ items }) => items.length > 0);
     }, [sections, fests, treks, communities, sports, runClubs, transformedFests, targetPage]);
+
+    if (loading && !carousels.length) {
+        return (
+            <>
+                <section className="mb-8">
+                    <HomeCarouselCardsSkeleton tallCard className="mt-1" />
+                </section>
+                <section className="mb-8">
+                    <HomeCarouselCardsSkeleton wideCard className="mt-1" />
+                </section>
+            </>
+        );
+    }
 
     if (!carousels.length && !loading) return null;
 

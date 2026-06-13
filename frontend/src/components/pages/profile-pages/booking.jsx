@@ -4,6 +4,8 @@ import { getImageUrl } from '../../../utils/imageImports';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { BookingsPageLoadingSkeleton } from '../../HomeEventCardSkeleton';
+import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
 import CrwdCtrlLogin from '../login';
 import CrwdCtrlRegister from '../register';
 
@@ -465,21 +467,10 @@ function Booking() {
         isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'
     }`;
 
+    usePageContentLoading(loading);
+
     if (loading) {
-        return (
-            <div className={pageShellClass}>
-                <main className="px-4 pt-4 sm:px-6 lg:px-8">
-                    <div className="mx-auto w-full max-w-md lg:max-w-2xl">
-                        <h1 className={`text-2xl font-medium font-inter leading-8 mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            My Bookings
-                        </h1>
-                        <div className="flex items-center justify-center py-16">
-                            <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#0ECCEE] border-t-transparent" />
-                        </div>
-                    </div>
-                </main>
-            </div>
-        );
+        return <BookingsPageLoadingSkeleton isDark={isDark} />;
     }
 
     // Error state

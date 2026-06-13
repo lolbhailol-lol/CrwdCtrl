@@ -159,7 +159,7 @@ export default function RunEventDetailPage() {
 
     return (
         <div className={`crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
-            <div className="relative w-full h-[280px] shrink-0 bg-gray-200">
+            <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
@@ -171,12 +171,12 @@ export default function RunEventDetailPage() {
                             <div key={i} className="shrink-0 w-full h-full snap-start">
                                 {img ? (
                                     <img
-                                        src={getImageUrl(img, { preset: 'detail' })}
+                                        src={getImageUrl(img, { preset: 'hero' })}
                                         alt={event.title}
                                         className="w-full h-full object-cover content-image"
                                         loading="lazy"
                                         decoding="async"
-                                        onError={(e) => handleImageErrorWithFallback(e, 393, 280, '#14532d', event.title)}
+                                        onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#14532d', event.title)}
                                     />
                                 ) : (
                                     <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
@@ -188,36 +188,44 @@ export default function RunEventDetailPage() {
                     </div>
                 </div>
 
-                <div className="absolute top-12 left-0 right-0 flex items-center justify-between px-4">
+                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
+
+                <div
+                    className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
+                    style={{ paddingTop: 'calc(max(env(safe-area-inset-top), 0px) + 2.5rem)' }}
+                >
                     <button
                         onClick={() => navigate(-1)}
-                        className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                        aria-label="Go back"
+                        className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
                     >
-                        <ArrowLeft size={16} className="text-white" />
+                        <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                         <button
                             onClick={handleShare}
-                            className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            aria-label="Share"
+                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
                         >
-                            <Share2 size={15} className="text-white" />
+                            <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
                         <button
                             onClick={() => setLiked((l) => !l)}
-                            className="size-8 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            aria-label="Favourite"
+                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
                         >
-                            <Heart size={15} className={liked ? 'fill-red-400 text-red-400' : 'text-white'} />
+                            <Heart size={20} strokeWidth={2.25} className={liked ? 'fill-red-500 text-red-500' : 'text-white'} />
                         </button>
                     </div>
                 </div>
 
                 {images.length > 1 && (
-                    <div className="absolute bottom-3 left-0 right-0 flex justify-center items-center gap-2">
+                    <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-2 z-10">
                         {images.slice(0, 4).map((_, i) => (
                             <div
                                 key={i}
-                                className={`rounded-full transition-all duration-300
-                                    ${i === imgPg ? 'w-6 h-2.5 bg-white' : 'size-2.5 border-2 border-white/70 bg-transparent'}`}
+                                className={`rounded-2xl transition-all duration-300
+                                    ${i === imgPg ? 'h-2.5 w-6 bg-white' : 'size-2.5 bg-transparent border-2 border-white/60'}`}
                             />
                         ))}
                     </div>
@@ -262,7 +270,7 @@ export default function RunEventDetailPage() {
                 </div>
             </div>
 
-            <div className={`flex-1 rounded-t-3xl -mt-5 relative z-10 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}>
                 <div className="px-4 pt-5 pb-3">
                     <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {event.title || 'Run Name'}

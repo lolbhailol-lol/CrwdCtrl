@@ -411,7 +411,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                                         onClick={() => {
                                             setErrors({});
                                             // Focus on email input
-                                            document.querySelector('input[type="email"]')?.focus();
+                                            document.getElementById('login-email')?.focus();
                                         }}
                                         className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"
                                     >
@@ -424,7 +424,10 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         {/* Email Input */}
                         <div>
                             <input
+                                id="login-email"
+                                name="email"
                                 type="text"
+                                autoComplete="username"
                                 placeholder="Enter your Email"
                                 value={emailOrPhone}
                                 onChange={(e) => setEmailOrPhone(e.target.value)}
@@ -442,7 +445,10 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         <div>
                             <div className="relative">
                                 <input
+                                    id="login-password"
+                                    name="password"
                                     type={showPassword ? "text" : "password"}
+                                    autoComplete="current-password"
                                     placeholder="Password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}

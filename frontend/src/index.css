@@ -37,6 +37,10 @@
     --card-carousel-upcoming: clamp(16rem, 76vw, 21rem);
     --card-carousel-fest: clamp(17.5rem, 85vw, 20rem);
 
+    /* Dark discovery cards — matches bottom nav pill */
+    --card-surface-dark: #0a0a0a;
+    --card-surface-dark-border: #141414;
+
     /* Portrait & wide activity cards (treks, sports, communities) */
     --card-portrait-w: clamp(9rem, 42vw, 10rem);
     --card-wide-w: var(--card-carousel-wide);
@@ -268,10 +272,11 @@
             0 4px 6px -4px rgba(0, 0, 0, 0.1);
     }
 
+    html.dark .card-surface,
     .dark .card-surface {
-        background-color: #111213;
-        border: 1px solid #1f2937;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.35);
+        background-color: var(--card-surface-dark) !important;
+        border: 1px solid var(--card-surface-dark-border);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.45);
     }
 
     .card-surface .card-portrait-image,
@@ -288,9 +293,10 @@
             0 4px 6px -4px rgba(0, 0, 0, 0.1);
     }
 
+    html.dark .card-portrait-image,
     .dark .card-portrait-image {
-        border: 1px solid #1f2937;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--card-surface-dark-border);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.45);
     }
 
     /* Event card typography — name + college/location */
@@ -916,6 +922,11 @@ html:not(.dark) .crwdctrl-footer {
     min-height: 0;
 }
 
+body.page-transition-active .page-transition-content {
+    opacity: 0;
+    pointer-events: none;
+}
+
 .page-transition-exit {
     opacity: 0;
     pointer-events: none;
@@ -995,6 +1006,42 @@ html:not(.dark) .crwdctrl-footer {
 
     100% {
         background-position: -200% 0;
+    }
+}
+
+/* Skeleton cards — layout only, no real card surface/shadow */
+.skeleton-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.skeleton-card .card-portrait-image,
+.skeleton-card .fest-card-image,
+.skeleton-card .card-wide-image,
+.skeleton-card .list-card-thumb {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.skeleton-card .skeleton-shimmer-light,
+.skeleton-card .skeleton-shimmer-dark,
+.skeleton-shimmer.skeleton-shimmer-light,
+.skeleton-shimmer.skeleton-shimmer-dark {
+    display: block;
+    min-height: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer-light,
+    .skeleton-shimmer-dark {
+        animation: none;
+        background: #e8eaed;
+    }
+
+    .dark .skeleton-shimmer-dark,
+    html.dark .skeleton-shimmer-dark {
+        background: #35363a;
     }
 }
 
@@ -1154,20 +1201,38 @@ body.page-content-loading .crwdctrl-footer {
     max-height: clamp(6rem, 38vw, 9.5rem);
 }
 
-/* Boot splash — five vertical logo slices assemble */
-.boot-splash-screen {
+/* Boot splash — five vertical logo slices assemble (HTML + React) */
+.boot-splash-screen,
+#boot-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     background: #ffffff;
+}
+html.dark .boot-splash-screen,
+html.dark #boot-splash,
+.boot-splash-screen--dark {
+    background: #161718;
 }
 .boot-splash-screen--light {
     background: #ffffff;
 }
-.boot-splash-screen--dark {
-    background: #161718;
+.boot-splash-screen.boot-splash-out,
+#boot-splash.boot-splash-out {
+    opacity: 0;
+    transition: opacity 0.32s cubic-bezier(0.45, 0, 0.55, 1);
+    pointer-events: none;
 }
 .boot-splash-inner {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    z-index: 1;
 }
 .boot-logo-assemble {
     --boot-slice-count: 5;

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock } from 'lucide-react';
 import CardFavoriteButton from '../CardFavoriteButton';
 import ShareIcon from '../../assets/share.svg';
@@ -17,6 +17,7 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import ContentImage from '../ContentImage';
 import { useHeroSearch } from '../../hooks/useHeroSearch';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
+import PageTransitionSkeleton from '../PageTransitionSkeleton';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
@@ -246,7 +247,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
 
             </div>
 
-            <div className={`p-3 sm:p-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+            <div className={`p-3 sm:p-4 ${isDark ? 'bg-[#0a0a0a]' : 'bg-[#EDEDF2]'}`}>
                 {/* Artist Name */}
                 <div className="mb-2">
                     <h3 className={`text-base sm:text-lg font-bold mb-1 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -279,6 +280,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
 const Dashboard = () => {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
+    const location = useLocation();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
     const { isAuthenticated, isAuthProcessing, isLoading, isRedirectProcessing } = useAuth();
@@ -1149,6 +1151,27 @@ const Dashboard = () => {
         keywordCatalog: searchKeywordCatalog,
         onResultNavigate: handleSearchNavigate,
     });
+
+    const homeSkeletonPath = location.pathname === '/dashboard' ? '/dashboard' : '/';
+
+    // Full-page skeleton first — avoids real header/chrome flashing before content blocks load
+    if (isFestsLoading) {
+        return (
+            <>
+                <PageTransitionSkeleton pathname={homeSkeletonPath} />
+                {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
+                    <div className="fixed inset-0 z-100001">
+                        <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                    </div>
+                )}
+                {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
+                    <div className="fixed inset-0 z-100001">
+                        <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                    </div>
+                )}
+            </>
+        );
+    }
 
     // Error state
     if (error) {

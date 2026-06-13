@@ -675,7 +675,10 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                             
                             <input
-                                type="text"
+                                id="navbar-search"
+                                name="q"
+                                type="search"
+                                autoComplete="off"
                                 placeholder="search"
                                 value={searchQuery}
                                 onChange={handleSearchChange}

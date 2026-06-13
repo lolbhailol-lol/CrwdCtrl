@@ -53,8 +53,19 @@ export default defineConfig(({ mode }) => ({
         clientsClaim: true,
         skipWaiting: true,
         // Don't precache the firebase messaging sw
+        navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/firebase-messaging-sw\.js$/],
         runtimeCaching: [
+          {
+            // Always prefer network for HTML navigations after deploy
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pages-cache',
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 },
+            },
+          },
           {
             // Cache API responses (NetworkFirst)
             urlPattern: /^https?:\/\/.*\/api\/.*/i,

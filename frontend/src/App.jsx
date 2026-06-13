@@ -13,7 +13,7 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
 import AuthLoadingPage from './components/AuthLoadingPage'
-import { shouldShowBootSplash, removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
+import { removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
 import { clearChunkReloadFlag } from './utils/chunkError'
 import { isNativeApp } from './utils/capacitorPlatform'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
@@ -95,7 +95,7 @@ const OrganizerEntryPage = lazyWithRetry(() => import('./components/organizer/Or
 // Component to conditionally render MobileBottomNav
 function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick, onProfileClose }) {
   const location = useLocation();
-  const { isTransitioning } = usePageTransition();
+  const { showSkeleton } = usePageTransition();
 
   // Hide MobileBottomNav on specific pages where it shouldn't appear OR when profile sidebar is open
   const shouldHideMobileBottomNav = location.pathname === '/login' ||
@@ -114,7 +114,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.includes('/fest/') && location.pathname.includes('/register') ||
     location.pathname.startsWith('/competition-registration') ||
     isProfileOpen || // Hide when profile sidebar is open (ProfileSidebar has its own bottom nav)
-    isTransitioning; // Hide during page transitions on every route
+    showSkeleton; // Hide during page transitions on every route
 
   if (shouldHideMobileBottomNav) {
     return null;
@@ -132,10 +132,10 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
 
 function ConditionalFooter() {
   const location = useLocation();
-  const { isTransitioning } = usePageTransition();
+  const { showSkeleton } = usePageTransition();
 
   const shouldHideFooter =
-    isTransitioning ||
+    showSkeleton ||
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
@@ -159,9 +159,9 @@ function ConditionalFooter() {
 
 function RouteSuspenseFallback() {
   const location = useLocation();
-  const { isTransitioning } = usePageTransition();
+  const { showSkeleton } = usePageTransition();
 
-  if (isTransitioning) return null;
+  if (showSkeleton) return null;
 
   return <PageTransitionSkeleton pathname={location.pathname} />;
 }
@@ -223,7 +223,7 @@ function AppContent({
     }
   }, [isAuthenticated, showLogin, showRegister, setShowLogin, setShowRegister]);
 
-  // Only block UI during an active OAuth redirect — not background session sync
+  // Block UI immediately on OAuth/email callback — isRedirectProcessing is set synchronously in AuthProvider
   if (!isNativeApp() && isRedirectProcessing) {
     return <AuthLoadingPage />;
   }
@@ -376,23 +376,16 @@ function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [showBootSplash, setShowBootSplash] = useState(() => shouldShowBootSplash());
 
+  // HTML boot splash covers first paint — never defer mounting Router/Auth behind it
   useEffect(() => {
-    if (showBootSplash) return undefined;
-    clearChunkReloadFlag();
-    removeHtmlBootSplash();
-    return undefined;
-  }, [showBootSplash]);
-
-  useEffect(() => {
-    if (!showBootSplash) return undefined;
-    const timer = setTimeout(() => {
-      setShowBootSplash(false);
+    const delay = Math.max(0, BOOT_SPLASH_MS - performance.now());
+    const timer = window.setTimeout(() => {
       removeHtmlBootSplash();
-    }, BOOT_SPLASH_MS);
-    return () => clearTimeout(timer);
-  }, [showBootSplash]);
+      clearChunkReloadFlag();
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     // Fire-and-forget backend wake-up — never blocks first paint
@@ -442,15 +435,6 @@ function App() {
     setShowRegister(false);
     setShowLogin(true);
   };
-
-  if (showBootSplash) {
-    // index.html #boot-splash is already visible — avoid stacking a second React logo
-    return (
-      <DarkModeProvider>
-        <div className="sr-only" aria-live="polite">Loading CrwdCtrl</div>
-      </DarkModeProvider>
-    );
-  }
 
   return (
     <AuthProvider>

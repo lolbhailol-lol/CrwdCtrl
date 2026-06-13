@@ -112,6 +112,7 @@ export default function OrganizerScannerLoginPage() {
             </label>
             <input
               id="event-code"
+              name="eventCode"
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -129,6 +130,7 @@ export default function OrganizerScannerLoginPage() {
             </label>
             <input
               id="event-password"
+              name="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

@@ -11,7 +11,7 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
     const location = useLocation();
     const { isDark } = useDarkMode();
     const { isAuthenticated } = useAuth();
-    const { isTransitioning, contentVisible, startOverlayTransition } = usePageTransition();
+    const { showSkeleton, startOverlayTransition } = usePageTransition();
     const [mounted, setMounted] = useState(false);
     const lastTapRef = React.useRef(0);
 
@@ -45,8 +45,11 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
             if (isProfileOpen) {
                 const now = Date.now();
                 if (now - lastTapRef.current < 350) {
-                    onProfileClose?.();
-                    if (location.pathname === '/profile') navigate('/');
+                    const targetPath = location.pathname === '/profile' ? '/' : location.pathname;
+                    startOverlayTransition(targetPath, () => {
+                        onProfileClose?.();
+                        if (location.pathname === '/profile') navigate('/');
+                    });
                     lastTapRef.current = 0;
                     return;
                 }
@@ -56,11 +59,19 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
             startOverlayTransition('/profile', () => onProfileClick?.());
             return;
         }
+        // Profile overlay sits on the current route — no location.key change for Home on `/`
+        if (isProfileOpen) {
+            startOverlayTransition(path, () => {
+                onProfileClose?.();
+                if (location.pathname !== path) navigate(path);
+            });
+            return;
+        }
         navigate(path);
         onNavigate?.(path);
     };
 
-    if (!mounted || isTransitioning || !contentVisible) return null;
+    if (!mounted || showSkeleton) return null;
 
     // Portal renders directly into document.body — completely immune to ancestor
     // transforms, stacking contexts, or display:none that break position:fixed on iOS

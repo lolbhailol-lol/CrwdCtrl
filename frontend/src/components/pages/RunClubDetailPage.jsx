@@ -317,7 +317,7 @@ export default function RunClubDetailPage() {
                         ))}
                     </div>
                 </div>
-                <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/15 to-black/25 pointer-events-none" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
 
                 {/* Floating stats — Nike Run Club feel */}
                 <div className="absolute bottom-20 left-4 right-4 flex gap-2 pointer-events-none z-10">

@@ -70,6 +70,8 @@ export default function HeroSearchBar({
             <HeroSearchIcon isDark={isDark} />
             <div className="relative flex-1 min-w-0">
                 <input
+                    id="hero-search"
+                    name="q"
                     ref={inputRef}
                     type="search"
                     enterKeyHint="search"

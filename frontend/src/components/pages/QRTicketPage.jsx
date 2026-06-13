@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Ticket, CalendarDays, MapPin, Users } from 'lucide-react';
+import { useDarkMode } from '../../context/DarkModeContext';
 import LocalQRCode from '../LocalQRCode';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -18,6 +19,7 @@ const formatTicketDate = (date) => {
 };
 
 export default function QRTicketPage() {
+  const { isDark } = useDarkMode();
   const { registrationId } = useParams();
   const [searchParams] = useSearchParams();
   const ticketType = searchParams.get('type');
@@ -54,9 +56,24 @@ export default function QRTicketPage() {
     fetchTicket();
   }, [registrationId, isTrekTicket, isSportsTicket]);
 
+  const pageBgClass = isDark ? 'bg-[#161718]' : 'bg-white';
+  const cardClass = isDark
+    ? 'bg-[#111213] border-gray-800'
+    : 'bg-white border-gray-200 shadow-sm';
+  const sectionBorderClass = isDark ? 'border-gray-800' : 'border-gray-200';
+  const footerClass = isDark
+    ? 'border-gray-800 bg-gray-900/50'
+    : 'border-gray-200 bg-gray-50';
+  const titleClass = isDark ? 'text-white' : 'text-gray-900';
+  const bodyTextClass = isDark ? 'text-white' : 'text-gray-900';
+  const mutedTextClass = isDark ? 'text-gray-500' : 'text-gray-500';
+  const backLinkClass = isDark
+    ? 'text-gray-400 hover:text-white'
+    : 'text-gray-600 hover:text-gray-900';
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${pageBgClass}`}>
         <div className="animate-pulse text-gray-400">Loading ticket...</div>
       </div>
     );
@@ -64,7 +81,7 @@ export default function QRTicketPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className={`min-h-screen flex items-center justify-center px-4 ${pageBgClass}`}>
         <div className="text-center">
           <p className="text-red-400 mb-4">{error}</p>
           <Link to="/booking" className="text-[#0ECCEE] hover:underline">Back to Bookings</Link>
@@ -86,42 +103,44 @@ export default function QRTicketPage() {
   const formattedDate = formatTicketDate(ticket.festDate);
 
   return (
-    <div className="min-h-screen bg-[#111214] py-8 px-4">
+    <div className={`min-h-screen py-8 px-4 ${pageBgClass}`}>
       <div className="max-w-md mx-auto">
         <Link
           to="/booking"
-          className="inline-flex items-center gap-1.5 text-gray-400 hover:text-white mb-6 text-sm transition-colors"
+          className={`inline-flex items-center gap-1.5 mb-6 text-sm transition-colors ${backLinkClass}`}
         >
           <ArrowLeft size={16} />
           Back to Bookings
         </Link>
 
-        <div className="bg-[#111213] rounded-2xl border border-gray-800 overflow-hidden">
-          <div className="bg-linear-to-r from-[#0ECCEE]/20 to-[#0ECCEE]/5 px-6 py-4 border-b border-gray-800">
+        <div className={`rounded-2xl border overflow-hidden ${cardClass}`}>
+          <div className={`bg-linear-to-r from-[#0ECCEE]/20 to-[#0ECCEE]/5 px-6 py-4 border-b ${sectionBorderClass}`}>
             <div className="flex items-center gap-2 text-[#0ECCEE] mb-1">
               <Ticket size={18} />
               <span className="text-sm font-semibold uppercase tracking-wide">{ticketLabel}</span>
             </div>
-            <h1 className="text-xl font-bold text-white">{eventTitle}</h1>
+            <h1 className={`text-xl font-bold ${titleClass}`}>{eventTitle}</h1>
             {!isTrekTicket && ticket.competitionName && (
-              <p className="text-gray-400 text-sm mt-0.5">{ticket.competitionName}</p>
+              <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {ticket.competitionName}
+              </p>
             )}
           </div>
 
-          <div className="px-6 py-4 space-y-3 border-b border-gray-800">
+          <div className={`px-6 py-4 space-y-3 border-b ${sectionBorderClass}`}>
             {ticket.userName && (
               <div>
-                <p className="text-gray-500 text-xs uppercase tracking-wide">Attendee</p>
-                <p className="text-white font-medium">{ticket.userName}</p>
+                <p className={`text-xs uppercase tracking-wide ${mutedTextClass}`}>Attendee</p>
+                <p className={`font-medium ${bodyTextClass}`}>{ticket.userName}</p>
               </div>
             )}
             <div className="flex flex-wrap gap-6">
               {formattedDate && (
                 <div className="flex items-start gap-2">
-                  <CalendarDays size={14} className="text-gray-500 mt-0.5" />
+                  <CalendarDays size={14} className={`mt-0.5 ${mutedTextClass}`} />
                   <div>
-                    <p className="text-gray-500 text-xs uppercase tracking-wide">Date</p>
-                    <p className="text-white text-sm">
+                    <p className={`text-xs uppercase tracking-wide ${mutedTextClass}`}>Date</p>
+                    <p className={`text-sm ${bodyTextClass}`}>
                       {formattedDate}
                       {isTrekTicket && ticket.trekTime ? ` · ${ticket.trekTime}` : ''}
                     </p>
@@ -130,19 +149,19 @@ export default function QRTicketPage() {
               )}
               {ticket.venue && (
                 <div className="flex items-start gap-2">
-                  <MapPin size={14} className="text-gray-500 mt-0.5" />
+                  <MapPin size={14} className={`mt-0.5 ${mutedTextClass}`} />
                   <div>
-                    <p className="text-gray-500 text-xs uppercase tracking-wide">Location</p>
-                    <p className="text-white text-sm">{ticket.venue}</p>
+                    <p className={`text-xs uppercase tracking-wide ${mutedTextClass}`}>Location</p>
+                    <p className={`text-sm ${bodyTextClass}`}>{ticket.venue}</p>
                   </div>
                 </div>
               )}
               {isTrekTicket && ticket.people > 1 && (
                 <div className="flex items-start gap-2">
-                  <Users size={14} className="text-gray-500 mt-0.5" />
+                  <Users size={14} className={`mt-0.5 ${mutedTextClass}`} />
                   <div>
-                    <p className="text-gray-500 text-xs uppercase tracking-wide">People</p>
-                    <p className="text-white text-sm">{ticket.people}</p>
+                    <p className={`text-xs uppercase tracking-wide ${mutedTextClass}`}>People</p>
+                    <p className={`text-sm ${bodyTextClass}`}>{ticket.people}</p>
                   </div>
                 </div>
               )}
@@ -181,8 +200,8 @@ export default function QRTicketPage() {
             )}
           </div>
 
-          <div className="px-6 py-3 bg-gray-900/50 border-t border-gray-800">
-            <p className="text-center text-gray-600 text-xs">
+          <div className={`px-6 py-3 border-t ${footerClass}`}>
+            <p className={`text-center text-xs ${isDark ? 'text-gray-600' : 'text-gray-500'}`}>
               {isTrekTicket ? 'Booking' : 'Registration'} ID:{' '}
               {ticket.registrationId?.slice(-8) || registrationId?.slice(-8)}
             </p>

@@ -3,6 +3,10 @@ import { useLocation } from 'react-router-dom';
 
 const ADSENSE_CLIENT = 'ca-pub-9437984398379289';
 
+const isLocalHost =
+    typeof window !== 'undefined'
+    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 // Only load AdSense on pages with real, substantial publisher content.
 // Pages NOT in this list will never have Google ads injected.
 const CONTENT_PAGES = [
@@ -45,7 +49,8 @@ export default function AdSenseLoader() {
   const shouldLoad = isContentPage(pathname);
 
   useEffect(() => {
-    if (!shouldLoad) return;
+    // AdSense iframes (doubleclick.net) run in Quirks Mode — skip on localhost/dev audits
+    if (!shouldLoad || import.meta.env.DEV || isLocalHost) return;
     if (scriptInjected) return;
 
     // Dynamically inject the adsbygoogle script

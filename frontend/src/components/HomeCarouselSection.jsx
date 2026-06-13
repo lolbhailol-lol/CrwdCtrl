@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import HomeEventCard from './HomeEventCard';
-import { HomeEventCardSkeleton } from './HomeEventCardSkeleton';
+import { HomeEventCardSkeleton, CENTERED_SKELETON_COUNT } from './HomeEventCardSkeleton';
 import {
     useCenteredCarouselSidePad,
     useMeasuredCardWidth,
@@ -10,7 +10,7 @@ import {
 } from '../hooks/useHomeCarousel';
 import CarouselDotPagination from './CarouselDotPagination';
 
-const SKELETON_COUNT = 2;
+const SKELETON_COUNT = CENTERED_SKELETON_COUNT;
 
 function getItemId(item) {
     return item.id || item._id;
@@ -264,14 +264,23 @@ export default function HomeCarouselSection({
         scrollCarouselToSlide(el, slide);
     }, [cardWidth, sidePad, loading, items.length]);
 
+    // Center skeleton carousel — one card in middle, peers peeking on sides
+    useEffect(() => {
+        if (!loading) return;
+        const el = scrollRef.current;
+        const trackEl = trackRef.current;
+        if (!el || !trackEl) return;
+
+        const centerIndex = Math.floor(SKELETON_COUNT / 2);
+        const slide = trackEl.children[centerIndex];
+        if (slide) scrollCarouselToSlide(el, slide);
+    }, [loading, cardWidth, sidePad]);
+
     if (loading) {
         if (loadingFallback) return loadingFallback;
 
         return (
             <section className="mb-8">
-                <h2 className={`home-section-heading mb-3 px-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {title}
-                </h2>
                 <div
                     ref={scrollRef}
                     className="home-carousel-scroll overflow-x-auto scrollbar-hide"
@@ -283,7 +292,7 @@ export default function HomeCarouselSection({
                         style={{ gap: cardGap }}
                     >
                         {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
-                            <div key={index} className="carousel-slide shrink-0">
+                            <div key={index} className="carousel-slide shrink-0 snap-center">
                                 <HomeEventCardSkeleton tallCard={tallCard} wideCard={wideCard} miniCard={miniCard} portraitCard={portraitCard} heroCard={heroCard} />
                             </div>
                         ))}

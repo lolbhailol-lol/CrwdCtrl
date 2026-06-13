@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import PageTransitionSkeleton from './PageTransitionSkeleton';
 import { pageTransition } from '../motion/variants';
@@ -33,6 +33,7 @@ function shouldSkipPageTransition(pathname) {
 const PageTransitionContext = createContext({
     contentVisible: true,
     isTransitioning: false,
+    showSkeleton: false,
     startOverlayTransition: () => {},
 });
 
@@ -60,6 +61,11 @@ export function PageTransitionProvider({ children }) {
     const prevLocationKey = useRef(location.key);
     const timers = useRef([]);
 
+    /** True for one frame before layout effect — hide content immediately on route change */
+    const isRouteChanging = prevLocationKey.current !== location.key;
+    const showSkeleton = isTransitioning || isRouteChanging;
+    const effectiveContentVisible = contentVisible && !isRouteChanging;
+
     const finishTransition = useCallback(() => {
         setContentVisible(true);
         setIsTransitioning(false);
@@ -72,8 +78,8 @@ export function PageTransitionProvider({ children }) {
 
     const scheduleTransitionEnd = useCallback((onComplete) => {
         timers.current.push(
-            setTimeout(() => setContentVisible(true), MIN_MS),
             setTimeout(() => {
+                setContentVisible(true);
                 setIsTransitioning(false);
                 onComplete?.();
             }, TRANSITION_END_MS),
@@ -95,6 +101,11 @@ export function PageTransitionProvider({ children }) {
             window.history.scrollRestoration = 'manual';
         }
     }, []);
+
+    useLayoutEffect(() => {
+        document.body.classList.toggle('page-transition-active', showSkeleton);
+        return () => document.body.classList.remove('page-transition-active');
+    }, [showSkeleton]);
 
     useLayoutEffect(() => {
         if (isFirstNavigation.current) {
@@ -131,27 +142,17 @@ export function PageTransitionProvider({ children }) {
         return clearTimers;
     }, [location.key, location.pathname, clearTimers, scheduleTransitionEnd]);
 
-    useEffect(() => {
-        document.body.classList.toggle('page-transition-active', isTransitioning);
-        return () => document.body.classList.remove('page-transition-active');
-    }, [isTransitioning]);
-
     return (
-        <PageTransitionContext.Provider value={{ contentVisible, isTransitioning, startOverlayTransition }}>
-            <TopProgressBar active={isTransitioning} />
-            <AnimatePresence mode="wait">
-                {isTransitioning && (
-                    <motion.div
-                        key={`skeleton-${skeletonPath}`}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.15 }}
-                    >
-                        <PageTransitionSkeleton pathname={skeletonPath} />
-                    </motion.div>
-                )}
-            </AnimatePresence>
+        <PageTransitionContext.Provider value={{
+            contentVisible: effectiveContentVisible,
+            isTransitioning,
+            showSkeleton,
+            startOverlayTransition,
+        }}>
+            <TopProgressBar active={showSkeleton} />
+            {showSkeleton && (
+                <PageTransitionSkeleton pathname={skeletonPath} />
+            )}
             {children}
         </PageTransitionContext.Provider>
     );

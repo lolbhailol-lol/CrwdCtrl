@@ -35,19 +35,7 @@ if (!shouldShowBootSplash()) {
 // PWA service worker — web only (not Capacitor native shell)
 if (import.meta.env.PROD && !isNativeApp()) {
   import('virtual:pwa-register').then(({ registerSW }) => {
-    registerSW({
-      immediate: true,
-      onNeedRefresh() {
-        // Reload once per session — avoid infinite refresh loops on SW update
-        try {
-          if (sessionStorage.getItem('crwdctrl_sw_reload')) return
-          sessionStorage.setItem('crwdctrl_sw_reload', '1')
-        } catch {
-          /* ignore */
-        }
-        window.location.reload()
-      },
-    })
+    registerSW({ immediate: true })
   })
 }
 

@@ -2,23 +2,26 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfileSidebar from '../ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { usePageTransition } from '../PageTransition';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
+    const { startOverlayTransition } = usePageTransition();
 
     const [isOpen, setIsOpen] = useState(true);
     const { isDark } = useDarkMode();
 
-    const handleClose = () => {
+    const handleDismiss = () => {
         setIsOpen(false);
+    };
 
-        // Only navigate back to home after a delay, and only if we're still on profile page
-        setTimeout(() => {
-            // Check if we're still on the profile page (not navigated away)
+    const handleClose = () => {
+        handleDismiss();
+        startOverlayTransition('/', () => {
             if (window.location.pathname === '/profile') {
                 navigate('/');
             }
-        }, 300); // Wait for animation to complete
+        });
     };
 
     return (
@@ -26,6 +29,7 @@ const ProfilePage = () => {
             <ProfileSidebar
                 isOpen={isOpen}
                 onClose={handleClose}
+                onProfileClose={handleDismiss}
             />
         </div>
     );

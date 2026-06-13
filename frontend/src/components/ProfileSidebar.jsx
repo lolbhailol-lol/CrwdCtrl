@@ -7,7 +7,7 @@ import MobileBottomNav from './MobileBottomNav';
 import ProfileAvatarUpload from './ProfileAvatarUpload';
 import { usePageTransition } from './PageTransition';
 
-export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowRegister: _onShowRegister }) {
+export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClose, onShowLogin, onShowRegister: _onShowRegister }) {
     const { isDark, toggleDarkMode } = useDarkMode();
     const { user, logout, isAuthenticated } = useAuth();
     const navigate = useNavigate();
@@ -366,7 +366,7 @@ export default function ProfileSidebar({ isOpen, onClose, onShowLogin, onShowReg
                                 onShowLogin={onShowLogin}
                                 isProfileOpen
                                 onProfileClick={() => onClose()}
-                                onProfileClose={onClose}
+                                onProfileClose={onProfileClose}
                                 onNavigate={(path) => {
                                     // When other nav items are clicked, navigate and close sidebar
                                     if (path !== '/profile') {

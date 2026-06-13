@@ -418,7 +418,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 {/* Name */}
                                 <div>
                                     <input
+                                        id="register-name"
+                                        name="name"
                                         type="text"
+                                        autoComplete="name"
                                         placeholder="Enter your Name"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
@@ -435,7 +438,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 {/* Email */}
                                 <div>
                                     <input
+                                        id="register-email"
+                                        name="email"
                                         type="email"
+                                        autoComplete="email"
                                         placeholder="Enter your Email"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
@@ -453,7 +459,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 <div>
                                     <div className="relative">
                                         <input
+                                            id="register-password"
+                                            name="password"
                                             type={showPassword ? "text" : "password"}
+                                            autoComplete="new-password"
                                             placeholder="Password (min 6 characters)"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
@@ -491,7 +500,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 {/* Display Name (Read-only) */}
                                 <div>
                                     <input
+                                        id="register-name"
+                                        name="name"
                                         type="text"
+                                        autoComplete="name"
                                         placeholder="Name"
                                         value={name}
                                         readOnly
@@ -509,7 +521,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 {/* Display Email (Read-only) */}
                                 <div>
                                     <input
+                                        id="register-email"
+                                        name="email"
                                         type="email"
+                                        autoComplete="email"
                                         placeholder="Email"
                                         value={email}
                                         readOnly
@@ -529,7 +544,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                         {/* Phone - Always required */}
                         <div>
                             <input
+                                id="register-phone"
+                                name="phone"
                                 type="tel"
+                                autoComplete="tel"
                                 placeholder={showSocialFields ? "Phone Number (Required)*" : "Phone Number (10 digits only)*"}
                                 value={phone}
                                 onChange={(e) => {
@@ -556,7 +574,10 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                         {showSocialFields && (
                             <div>
                                 <input
+                                    id="register-date-of-birth"
+                                    name="dateOfBirth"
                                     type="date"
+                                    autoComplete="bday"
                                     placeholder="Date of Birth (Required)*"
                                     value={dateOfBirth}
                                     onChange={(e) => setDateOfBirth(e.target.value)}
