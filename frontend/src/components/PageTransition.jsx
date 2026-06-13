@@ -1,8 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import PageTransitionSkeleton from './PageTransitionSkeleton';
-import { pageTransition } from '../motion/variants';
 
 const MIN_MS = 120;
 const TRANSITION_END_MS = MIN_MS + 220;
@@ -61,10 +59,7 @@ export function PageTransitionProvider({ children }) {
     const prevLocationKey = useRef(location.key);
     const timers = useRef([]);
 
-    /** True for one frame before layout effect — hide content immediately on route change */
-    const isRouteChanging = prevLocationKey.current !== location.key;
-    const showSkeleton = isTransitioning || isRouteChanging;
-    const effectiveContentVisible = contentVisible && !isRouteChanging;
+    const showSkeleton = isTransitioning;
 
     const finishTransition = useCallback(() => {
         setContentVisible(true);
@@ -144,7 +139,7 @@ export function PageTransitionProvider({ children }) {
 
     return (
         <PageTransitionContext.Provider value={{
-            contentVisible: effectiveContentVisible,
+            contentVisible,
             isTransitioning,
             showSkeleton,
             startOverlayTransition,
@@ -158,29 +153,9 @@ export function PageTransitionProvider({ children }) {
     );
 }
 
-/** Wrap route content (Suspense + Routes) for fade-in on every page */
+/** Wrap route content — always visible; skeleton overlay handles route changes */
 export function PageTransitionContent({ children }) {
-    const { contentVisible } = useContext(PageTransitionContext);
-    const reducedMotion = useReducedMotion();
-
-    if (reducedMotion) {
-        return (
-            <div className={`page-transition-content ${contentVisible ? 'page-transition-enter' : 'page-transition-exit'}`}>
-                {children}
-            </div>
-        );
-    }
-
-    return (
-        <motion.div
-            className="page-transition-content"
-            variants={pageTransition}
-            initial={false}
-            animate={contentVisible ? 'animate' : 'exit'}
-        >
-            {children}
-        </motion.div>
-    );
+    return <div className="page-transition-content">{children}</div>;
 }
 
 export default PageTransitionProvider;

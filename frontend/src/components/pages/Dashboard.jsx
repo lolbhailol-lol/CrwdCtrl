@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock } from 'lucide-react';
 import CardFavoriteButton from '../CardFavoriteButton';
 import ShareIcon from '../../assets/share.svg';
@@ -17,7 +17,6 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import ContentImage from '../ContentImage';
 import { useHeroSearch } from '../../hooks/useHeroSearch';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import PageTransitionSkeleton from '../PageTransitionSkeleton';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
 import CrwdCtrlLogin from './login';
@@ -280,7 +279,6 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
 const Dashboard = () => {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
-    const location = useLocation();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
     const { isAuthenticated, isAuthProcessing, isLoading, isRedirectProcessing } = useAuth();
@@ -290,6 +288,14 @@ const Dashboard = () => {
     const [fests, setFests] = useState(readInitialFestsFromCache);
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
     usePageContentLoading(isFestsLoading);
+
+    // Never leave home on a blank screen if the API is slow or cold-starting
+    useEffect(() => {
+        if (!isFestsLoading) return undefined;
+        const timer = window.setTimeout(() => setIsFestsLoading(false), 6000);
+        return () => window.clearTimeout(timer);
+    }, [isFestsLoading]);
+
     const [homeCommunities, setHomeCommunities] = useState([]);
     const [homeTreks, setHomeTreks] = useState([]);
     const [homeSports, setHomeSports] = useState([]);
@@ -1151,27 +1157,6 @@ const Dashboard = () => {
         keywordCatalog: searchKeywordCatalog,
         onResultNavigate: handleSearchNavigate,
     });
-
-    const homeSkeletonPath = location.pathname === '/dashboard' ? '/dashboard' : '/';
-
-    // Full-page skeleton first — avoids real header/chrome flashing before content blocks load
-    if (isFestsLoading) {
-        return (
-            <>
-                <PageTransitionSkeleton pathname={homeSkeletonPath} />
-                {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
-                    <div className="fixed inset-0 z-100001">
-                        <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
-                    </div>
-                )}
-                {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
-                    <div className="fixed inset-0 z-100001">
-                        <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
-                    </div>
-                )}
-            </>
-        );
-    }
 
     // Error state
     if (error) {

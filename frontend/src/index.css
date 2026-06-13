@@ -917,19 +917,9 @@ html:not(.dark) .crwdctrl-footer {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Route change transitions */
+/* Route change transitions — skeleton overlay covers the page; never hide content (avoids blank screen) */
 .page-transition-content {
     min-height: 0;
-}
-
-body.page-transition-active .page-transition-content {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.page-transition-exit {
-    opacity: 0;
-    pointer-events: none;
 }
 
 .page-transition-enter {

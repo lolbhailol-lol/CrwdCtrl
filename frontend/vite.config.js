@@ -129,44 +129,34 @@ export default defineConfig(({ mode }) => ({
     // Rollup options for better optimization
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
-          // Vendor chunk for core React libraries
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'vendor-react';
-            }
-            // UI libraries chunk
-            if (id.includes('lucide-react') || id.includes('react-icons')) {
-              return 'vendor-ui';
-            }
-            // Firebase chunk
-            if (id.includes('firebase') || id.includes('better-auth')) {
-              return 'vendor-auth';
-            }
-            // Utilities chunk
-            if (id.includes('axios') || id.includes('react-responsive')) {
-              return 'vendor-utils';
-            }
-            // All other node_modules
-            return 'vendor-misc';
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+
+          // Auth / Firebase — large, rarely changes with UI deploys
+          if (id.includes('firebase') || id.includes('better-auth')) {
+            return 'vendor-auth';
           }
 
-          // Pages chunks - group related pages together
-          if (id.includes('/pages/profile-pages/')) {
-            return 'pages-profile';
+          // React ecosystem — keep together so createContext/JSX always resolve
+          if (
+            id.includes('/react/')
+            || id.includes('/react-dom/')
+            || id.includes('react-router')
+            || id.includes('framer-motion')
+            || id.includes('@sentry/react')
+            || id.includes('lucide-react')
+            || id.includes('react-icons')
+            || id.includes('react-responsive')
+            || id.includes('react-circular-progressbar')
+            || id.includes('scheduler/')
+          ) {
+            return 'vendor-react';
           }
-          if (id.includes('/pages/') && (id.includes('fest') || id.includes('competition'))) {
-            return 'pages-fest';
-          }
-          if (id.includes('/context/')) {
-            return 'app-context';
-          }
-          if (id.includes('/components/') && !id.includes('/pages/')) {
-            return 'app-components';
-          }
-        }
-      }
-    }
+
+          return 'vendor-misc';
+        },
+      },
+    },
   },
 
   // Strip console.log / debugger in production builds

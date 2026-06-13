@@ -207,12 +207,37 @@
     </div>
   </div>
   <div id="root"></div>
+  <div id="boot-fallback" hidden aria-live="polite" style="position:fixed;inset:0;z-index:2147483646;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1.5rem;text-align:center;font-family:Poppins,system-ui,sans-serif;background:#fff;color:#111;">
+    <p style="margin:0;font-size:1rem;font-weight:500;">CrwdCtrl is loading…</p>
+    <button type="button" id="boot-fallback-reload" style="border:0;border-radius:9999px;padding:0.75rem 1.5rem;font-weight:600;background:#0ECCEE;color:#000;cursor:pointer;">Reload app</button>
+  </div>
   <!-- Boot splash fallback + stale-deploy recovery (runs before React) -->
   <script>
     (function () {
       var FADE_MS = 320;
       var MAX_MS = 2500;
       var RECOVER_KEY = 'crwdctrl_boot_recover';
+      var fallback = document.getElementById('boot-fallback');
+      var reloadBtn = document.getElementById('boot-fallback-reload');
+
+      function showFallback() {
+        if (!fallback || fallback.hidden === false) return;
+        var dark = document.documentElement.classList.contains('dark');
+        fallback.style.background = dark ? '#161718' : '#ffffff';
+        fallback.style.color = dark ? '#ffffff' : '#111111';
+        fallback.hidden = false;
+      }
+
+      function hideFallback() {
+        if (fallback) fallback.hidden = true;
+      }
+
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', function () {
+          try { sessionStorage.removeItem(RECOVER_KEY); } catch (e) {}
+          window.location.reload();
+        });
+      }
 
       function dismissBootSplash() {
         var el = document.getElementById('boot-splash');
@@ -232,7 +257,10 @@
 
       function recoverStaleDeploy() {
         try {
-          if (sessionStorage.getItem(RECOVER_KEY)) return;
+          if (sessionStorage.getItem(RECOVER_KEY)) {
+            showFallback();
+            return;
+          }
           sessionStorage.setItem(RECOVER_KEY, '1');
         } catch (e) {}
 
@@ -267,10 +295,18 @@
 
       setTimeout(function () {
         var root = document.getElementById('root');
-        if (root && !root.childNodes.length) {
-          recoverStaleDeploy();
+        if (root && root.childNodes.length) {
+          hideFallback();
+          return;
         }
-      }, 4000);
+        showFallback();
+        recoverStaleDeploy();
+      }, 3200);
+
+      new MutationObserver(function () {
+        var root = document.getElementById('root');
+        if (root && root.childNodes.length) hideFallback();
+      }).observe(document.getElementById('root'), { childList: true });
     })();
   </script>
   <script type="module" src="/src/main.jsx"></script>

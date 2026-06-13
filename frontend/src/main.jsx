@@ -40,9 +40,20 @@ if (import.meta.env.PROD && !isNativeApp()) {
 }
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
+  import.meta.env.PROD ? (
     <ErrorBoundary>
       <App />
     </ErrorBoundary>
-  </StrictMode>,
+  ) : (
+    <StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </StrictMode>
+  ),
 )
+
+window.requestAnimationFrame(() => {
+  const fallback = document.getElementById('boot-fallback');
+  if (fallback) fallback.hidden = true;
+})
