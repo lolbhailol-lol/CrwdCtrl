@@ -12,7 +12,6 @@ import Footer from './components/Footer'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
-import AuthLoadingPage from './components/AuthLoadingPage'
 import { removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
 import { clearChunkReloadFlag } from './utils/chunkError'
 import { isNativeApp } from './utils/capacitorPlatform'
@@ -222,11 +221,6 @@ function AppContent({
       setShowRegister(false);
     }
   }, [isAuthenticated, showLogin, showRegister, setShowLogin, setShowRegister]);
-
-  // Block UI immediately on OAuth/email callback — isRedirectProcessing is set synchronously in AuthProvider
-  if (!isNativeApp() && isRedirectProcessing) {
-    return <AuthLoadingPage />;
-  }
 
   return (
     <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isAdminRoute ? (isDark ? 'bg-[#161718]' : 'bg-white') : ''}`}>

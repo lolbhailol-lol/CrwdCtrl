@@ -3,13 +3,27 @@ export const CHUNK_RELOAD_SESSION_KEY = 'crwdctrl_chunk_reload';
 export function isChunkLoadError(error) {
     if (!error) return false;
     const message = String(error.message || error);
+    const filename = String(error.filename || error.target?.src || '');
+
+    // Vercel SPA rewrite can serve index.html (200) for missing /assets/*.js after deploy
+    const isAssetScriptFailure = filename.includes('/assets/')
+        && (
+            message.includes("Unexpected token '<'")
+            || message.includes('Unexpected token \'<\'')
+            || message.includes('text/html')
+            || message.includes('MIME type')
+        );
+
     return (
         error.name === 'ChunkLoadError'
+        || isAssetScriptFailure
         || message.includes('Failed to fetch dynamically imported module')
         || message.includes('Importing a module script failed')
         || message.includes('error loading dynamically imported module')
         || message.includes('Loading chunk')
         || message.includes('Unable to preload CSS')
+        || message.includes("Unexpected token '<'")
+        || message.includes('Unexpected token \'<\'')
     );
 }
 
@@ -31,6 +45,7 @@ export async function recoverFromStaleDeploy() {
     try {
         sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY);
         sessionStorage.removeItem('crwdctrl_sw_reload');
+        sessionStorage.removeItem('crwdctrl_boot_recover');
     } catch {
         /* ignore */
     }
@@ -60,9 +75,19 @@ export function clearChunkReloadFlag() {
     try {
         sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY);
         sessionStorage.removeItem('crwdctrl_sw_reload');
+        sessionStorage.removeItem('crwdctrl_boot_recover');
     } catch {
         // ignore storage errors
     }
+}
+
+function handleScriptLoadFailure(event) {
+    const target = event?.target;
+    if (!target || target.tagName !== 'SCRIPT') return false;
+    const src = target.src || '';
+    if (!src.includes('/assets/') && !src.endsWith('.js')) return false;
+    reloadOnceForChunkError();
+    return true;
 }
 
 export function initGlobalErrorHandlers() {
@@ -75,9 +100,13 @@ export function initGlobalErrorHandlers() {
     });
 
     window.addEventListener('error', (event) => {
+        if (handleScriptLoadFailure(event)) {
+            event.preventDefault();
+            return;
+        }
         if (!isChunkLoadError(event.error || event.message)) return;
         event.preventDefault();
         reloadOnceForChunkError();
-    });
+    }, true);
 }
 

@@ -21,13 +21,21 @@ function hasPaymentReturnContext() {
 export function hasAuthCallbackParams() {
   try {
     const urlParams = new URLSearchParams(window.location.search);
-    return (
-      urlParams.has('apiKey') ||
-      urlParams.has('oobCode') ||
-      window.location.hash.includes('access_token') ||
-      urlParams.has('state') ||
-      urlParams.has('code')
-    );
+    const hash = window.location.hash || '';
+
+    // Firebase email verification / password reset
+    if (urlParams.has('oobCode') || urlParams.has('mode')) return true;
+
+    // Firebase auth handler redirect (mobile OAuth)
+    if (urlParams.has('apiKey') && (urlParams.has('state') || urlParams.has('code'))) return true;
+
+    // Implicit OAuth tokens in hash
+    if (hash.includes('access_token') || hash.includes('id_token')) return true;
+
+    // OAuth2 authorization code — require both params (avoid false positives from ?state= UTM links)
+    if (urlParams.has('code') && urlParams.has('state')) return true;
+
+    return false;
   } catch {
     return false;
   }

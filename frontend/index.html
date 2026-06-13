@@ -207,11 +207,13 @@
     </div>
   </div>
   <div id="root"></div>
-  <!-- Fallback: dismiss boot splash even if React fails to load -->
+  <!-- Boot splash fallback + stale-deploy recovery (runs before React) -->
   <script>
     (function () {
       var FADE_MS = 320;
       var MAX_MS = 2500;
+      var RECOVER_KEY = 'crwdctrl_boot_recover';
+
       function dismissBootSplash() {
         var el = document.getElementById('boot-splash');
         if (!el || el.dataset.removing === '1') return;
@@ -221,7 +223,54 @@
         el.addEventListener('transitionend', remove, { once: true });
         setTimeout(remove, FADE_MS + 80);
       }
+
+      function reloadFresh() {
+        var url = new URL(window.location.href);
+        url.searchParams.set('_crwd', String(Date.now()));
+        window.location.replace(url.toString());
+      }
+
+      function recoverStaleDeploy() {
+        try {
+          if (sessionStorage.getItem(RECOVER_KEY)) return;
+          sessionStorage.setItem(RECOVER_KEY, '1');
+        } catch (e) {}
+
+        var cleanup = ('caches' in window)
+          ? caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (key) { return caches.delete(key); }));
+            })
+          : Promise.resolve();
+
+        cleanup.finally(function () {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations()
+              .then(function (regs) {
+                return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
+              })
+              .finally(reloadFresh);
+          } else {
+            reloadFresh();
+          }
+        });
+      }
+
+      window.addEventListener('error', function (event) {
+        var target = event.target;
+        if (!target || target.tagName !== 'SCRIPT') return;
+        var src = target.src || '';
+        if (src.indexOf('/assets/') === -1 && src.indexOf('.js') === -1) return;
+        recoverStaleDeploy();
+      }, true);
+
       setTimeout(dismissBootSplash, MAX_MS);
+
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        if (root && !root.childNodes.length) {
+          recoverStaleDeploy();
+        }
+      }, 4000);
     })();
   </script>
   <script type="module" src="/src/main.jsx"></script>
