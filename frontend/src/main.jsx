@@ -10,10 +10,12 @@ import { initSentry } from './utils/sentry'
 import { isNativeApp } from './utils/capacitorPlatform'
 import { initCashfreeNativeGateway } from './utils/bootstrapCashfreeNative'
 import { initGlobalErrorHandlers } from './utils/chunkError'
+import { preloadAllCategoryNavIcons } from './constants/categoryNavIcons'
 
 initThemeClass()
 initSentry()
 initGlobalErrorHandlers()
+preloadAllCategoryNavIcons()
 
 // Stale OAuth markers make the app show the loading logo forever
 if (!hasAuthCallbackParams()) {

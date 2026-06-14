@@ -69,7 +69,8 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
         const apply = (progress) => {
             el.style.setProperty('--header-collapse', String(progress));
 
-            const scrolling = progress > 0.02;
+            const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
+            const scrolling = scrollY > 0.5 || progress > 0.02;
             if (el.dataset.scrolling !== (scrolling ? 'true' : 'false')) {
                 el.dataset.scrolling = scrolling ? 'true' : 'false';
             }
@@ -149,6 +150,12 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
         const startLoop = () => {
             lastScrollEvent = performance.now();
             syncTarget();
+
+            const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
+            if (scrollY > 0.5 && el.dataset.scrolling !== 'true') {
+                el.dataset.scrolling = 'true';
+            }
+
             clearTimeout(idleTimer);
 
             if (!loopActive) {

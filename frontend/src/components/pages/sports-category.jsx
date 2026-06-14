@@ -210,7 +210,7 @@ export default function SportsCategoryPage() {
     const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
     return (
-        <div className={`min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+        <div className="crwdctrl-page crwdctrl-page--white min-h-screen transition-colors">
             <MobileStickyHeader
                 isDark={isDark}
                 brandingRow={

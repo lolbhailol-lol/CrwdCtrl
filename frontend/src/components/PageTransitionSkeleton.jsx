@@ -19,12 +19,8 @@ function Block({ className = '', isDark }) {
 
 function MobileHeaderSkeleton({ isDark }) {
     return (
-        <header className="lg:hidden sticky top-0 z-40 mobile-header-shell rounded-b-[16px] overflow-hidden">
-            <div
-                className={`mobile-header-inner rounded-b-[16px] px-[var(--page-gutter)] pb-3 ${
-                    isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
-                }`}
-            >
+        <header className="lg:hidden sticky top-0 z-40 mobile-header-shell overflow-hidden">
+            <div className="mobile-header-inner px-[var(--page-gutter)] pb-3">
                 <div className="mb-1 flex items-center justify-between">
                     <Block isDark={isDark} className="h-14 w-28 rounded-xl" />
                     <div className="mobile-header-actions flex gap-1">

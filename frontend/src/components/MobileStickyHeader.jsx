@@ -22,14 +22,10 @@ export default function MobileStickyHeader({
             ref={headerRef}
             data-scrolling="false"
             style={{ '--header-collapse': 0 }}
-            className={`lg:hidden sticky top-0 z-40 mobile-header-shell rounded-b-[16px] overflow-hidden ${
-                isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
-            } ${shellClassName}`}
+            className={`lg:hidden sticky top-0 z-40 mobile-header-shell overflow-hidden ${shellClassName}`}
         >
             <div
-                className={`mobile-header-inner rounded-b-[16px] px-[var(--page-gutter)] ${
-                    isDark ? 'bg-[#0D0E10]' : 'bg-[#F2F4F7]'
-                } ${innerClassName}`}
+                className={`mobile-header-inner px-[var(--page-gutter)] ${innerClassName}`}
             >
                 <div className="mobile-header-branding-clip">
                     <div className="mobile-header-branding-row" aria-hidden="false">

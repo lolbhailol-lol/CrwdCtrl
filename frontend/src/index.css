@@ -52,6 +52,17 @@
 
     --detail-hero-h: clamp(12rem, 50vw, 17.5rem);
     --footer-nav-clearance: calc(5.25rem + max(var(--safe-bottom), 0.5rem));
+
+    /* Mobile chrome — upper section grey (light) / near-black (dark) */
+    --chrome-header-bg-light: #EBEEF3;
+    --chrome-header-bg-dark: #0D0E10;
+    --chrome-nav-bg-light: var(--chrome-header-bg-light);
+    --chrome-nav-bg-dark: #0A0A0A;
+    --chrome-page-bg-light: #ffffff;
+    --chrome-page-bg-dark: #161718;
+
+    --theme-switch-duration: 0.34s;
+    --theme-switch-ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @layer base {
@@ -77,7 +88,6 @@
         -webkit-overflow-scrolling: touch;
         -webkit-text-size-adjust: 100%;
         text-size-adjust: 100%;
-        transition: background-color 0.4s ease, color 0.3s ease;
         scrollbar-width: none;
         -ms-overflow-style: none;
     }
@@ -193,6 +203,19 @@
     .crwdctrl-page {
         width: 100%;
         max-width: 100%;
+        --header-bg: var(--chrome-header-bg-light);
+        --page-bg: var(--chrome-page-bg-light);
+        background-color: var(--page-bg);
+    }
+
+    html.dark .crwdctrl-page {
+        --header-bg: var(--chrome-header-bg-dark);
+        --page-bg: var(--chrome-page-bg-dark);
+    }
+
+    /* Legacy alias — same as default light page bg */
+    .crwdctrl-page.crwdctrl-page--white {
+        --page-bg: #ffffff;
     }
 
     .crwdctrl-container {
@@ -651,6 +674,14 @@
         overflow: hidden;
     }
 
+    html:not(.dark) .bottom-nav-pill {
+        background-color: var(--chrome-nav-bg-light) !important;
+    }
+
+    html.dark .bottom-nav-pill {
+        background-color: var(--chrome-nav-bg-dark) !important;
+    }
+
     .bottom-nav-pill__inner {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -671,10 +702,19 @@
         background: none;
         border: none;
         cursor: pointer;
+        color: #111827;
         -webkit-tap-highlight-color: transparent;
         -webkit-appearance: none;
         appearance: none;
         transition: color 0.2s ease;
+    }
+
+    html.dark .bottom-nav-item {
+        color: #e5e7eb;
+    }
+
+    .bottom-nav-item[aria-current="page"] {
+        color: #00c2cb;
     }
 
     .bottom-nav-item__icon {
@@ -775,9 +815,9 @@
 }
 
 /* Pause color transitions while scrolling — reduces jank on long pages */
-html.is-scrolling *:not(img):not(svg):not(.crisp-icon):not(.crisp-icon-svg):not(.category-icon):not(.category-icon-lg):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row):not(.skeleton-shimmer):not(.skeleton-shimmer-light):not(.skeleton-shimmer-dark):not(.route-progress-bar),
-html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row)::before,
-html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row)::after {
+html.is-scrolling *:not(img):not(svg):not(.crisp-icon):not(.crisp-icon-svg):not(.category-icon):not(.category-icon-lg):not(.category-icon-wrap):not(.home-category-bar):not(.category-card):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row):not(.mobile-header-category-row):not(.skeleton-shimmer):not(.skeleton-shimmer-light):not(.skeleton-shimmer-dark):not(.route-progress-bar),
+html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row):not(.mobile-header-category-row)::before,
+html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-header-inner):not(.mobile-header-branding-clip):not(.mobile-header-branding-row):not(.mobile-header-category-row)::after {
     transition-duration: 0.01ms !important;
 }
 
@@ -860,17 +900,49 @@ html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-head
     }
 }
 
-/* Ensure smooth transitions for all color changes — exclude icons (causes mobile blur) */
-*:not(img):not(svg):not(.crisp-icon):not(.crisp-icon-svg):not(.category-icon):not(.category-icon-lg),
-*:not(img):not(svg)::before,
-*:not(img):not(svg)::after {
-    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+/* Theme switch — one cross-fade (fast, in sync). No global * transitions (causes lag). */
+@supports (view-transition-name: none) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation-duration: var(--theme-switch-duration);
+        animation-timing-function: var(--theme-switch-ease);
+    }
 }
 
-/* Light mode — whole site background white */
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation-duration: 0.01ms !important;
+    }
+}
+
+/* Fallback when View Transitions unavailable — sync main shells only */
+html.theme-switching,
+html.theme-switching body,
+html.theme-switching #root,
+html.theme-switching .crwdctrl-page,
+html.theme-switching .bottom-nav-pill,
+html.theme-switching .bottom-nav-item,
+html.theme-switching .mobile-header-shell,
+html.theme-switching .mobile-header-inner,
+html.theme-switching .crwdctrl-footer,
+html.theme-switching .card-surface,
+html.theme-switching .hero-search-bar {
+    transition:
+        background-color var(--theme-switch-duration) var(--theme-switch-ease),
+        color var(--theme-switch-duration) var(--theme-switch-ease),
+        border-color var(--theme-switch-duration) var(--theme-switch-ease),
+        box-shadow var(--theme-switch-duration) var(--theme-switch-ease) !important;
+}
+
 html:not(.dark) body,
 html:not(.dark) #root {
     background-color: #ffffff;
+}
+
+html.dark body,
+html.dark #root {
+    background-color: #161718;
 }
 
 html:not(.dark) .bg-\[\#EDEDF2\] {
@@ -914,10 +986,8 @@ html:not(.dark) .crwdctrl-footer {
 
 /* Animation for theme transitions */
 .theme-transition {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
-
-/* Route change transitions — skeleton overlay covers the page; never hide content (avoids blank screen) */
 .page-transition-content {
     min-height: 0;
 }
@@ -1315,7 +1385,6 @@ html.dark #boot-splash,
 .category-icon-wrap {
     display: inline-flex;
     transition: transform 0.2s ease;
-    will-change: transform;
 }
 
 .category-card--active .category-icon-wrap,
@@ -1342,7 +1411,7 @@ html:not(.dark) .category-card--active .category-active-line {
     background: #111827;
 }
 
-/* Category bar icons — native SVG aspect (78×85), fluid scale */
+/* Category bar icons — native SVG aspect (78×85), fluid scale; 3× WebP src downscales sharply */
 .category-icon {
     width: clamp(4.375rem, 22vw, 5.8125rem);
     height: clamp(4.75rem, 24vw, 6.3125rem);
@@ -1354,7 +1423,8 @@ html:not(.dark) .category-card--active .category-active-line {
     object-fit: contain;
     object-position: center;
     opacity: 1 !important;
-    image-rendering: -webkit-optimize-contrast;
+    image-rendering: auto;
+    -webkit-font-smoothing: antialiased;
 }
 
 /* Fest sub-category icons — preserve 128×113 aspect ratio */
@@ -1395,31 +1465,108 @@ h3, h4, h5, h6 {
     font-weight: 400 !important;
 }
 
-/* Mobile header backgrounds — solid (no transparency / blur) */
-html:not(.dark) .mobile-header-shell,
-html:not(.dark) .mobile-header-shell > div {
-    background-color: #F2F4F7 !important;
+/* Mobile — grey only through SVG icon boxes, then fade to page bg */
+@media (max-width: 1023px) {
+    .crwdctrl-page {
+        --chrome-icon-h: clamp(4rem, 20vw, 5.375rem);
+        --chrome-top: calc(max(env(safe-area-inset-top) - 0.25rem, 0.375rem));
+        --chrome-logo-block: calc(var(--header-logo) + 0.5rem);
+        --chrome-search-block: calc(0.25rem + 3.125rem + 0.8125rem);
+        --chrome-category-block: calc(0.375rem + var(--chrome-icon-h));
+        --chrome-grey-end: calc(
+            var(--chrome-top)
+            + var(--chrome-logo-block)
+            + var(--chrome-search-block)
+            + var(--chrome-category-block)
+        );
+        --chrome-fade-length: 3rem;
+        --chrome-fade-end: calc(var(--chrome-grey-end) + var(--chrome-fade-length));
+        background-color: var(--page-bg) !important;
+        background-image: linear-gradient(
+            180deg,
+            var(--header-bg) 0,
+            var(--header-bg) var(--chrome-grey-end),
+            color-mix(in srgb, var(--header-bg) 90%, var(--page-bg)) calc(var(--chrome-grey-end) + 0.375rem),
+            color-mix(in srgb, var(--header-bg) 80%, var(--page-bg)) calc(var(--chrome-grey-end) + 0.75rem),
+            color-mix(in srgb, var(--header-bg) 70%, var(--page-bg)) calc(var(--chrome-grey-end) + 1.125rem),
+            color-mix(in srgb, var(--header-bg) 60%, var(--page-bg)) calc(var(--chrome-grey-end) + 1.5rem),
+            color-mix(in srgb, var(--header-bg) 50%, var(--page-bg)) calc(var(--chrome-grey-end) + 1.875rem),
+            color-mix(in srgb, var(--header-bg) 40%, var(--page-bg)) calc(var(--chrome-grey-end) + 2.25rem),
+            color-mix(in srgb, var(--header-bg) 30%, var(--page-bg)) calc(var(--chrome-grey-end) + 2.625rem),
+            color-mix(in srgb, var(--header-bg) 18%, var(--page-bg)) calc(var(--chrome-grey-end) + 2.85rem),
+            color-mix(in srgb, var(--header-bg) 8%, var(--page-bg)) calc(var(--chrome-grey-end) + 2.975rem),
+            var(--page-bg) var(--chrome-fade-end)
+        ) !important;
+        background-repeat: no-repeat !important;
+        background-size: 100% var(--chrome-fade-end) !important;
+    }
+
+    .crwdctrl-page.fests-page {
+        --chrome-search-block: calc(0.25rem + 3.125rem + 0.5rem);
+        --chrome-category-block: calc(0.25rem + var(--chrome-icon-h));
+    }
+
+    /* Light — cool grey upper section → white page */
+    html:not(.dark) .crwdctrl-page {
+        --header-bg: var(--chrome-header-bg-light);
+        --page-bg: var(--chrome-page-bg-light);
+    }
+
+    /* Dark — near-black header → charcoal page */
+    html.dark .crwdctrl-page {
+        --header-bg: var(--chrome-header-bg-dark);
+        --page-bg: var(--chrome-page-bg-dark);
+    }
+
+    /* At top — transparent header; page gradient shows through (no box edge) */
+    .mobile-header-shell,
+    .mobile-header-shell > .mobile-header-inner {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+    }
+
+    /* On scroll — solid header so content slides behind; no gradient flash */
+    html.is-scrolling .mobile-header-shell,
+    html.is-scrolling .mobile-header-shell > .mobile-header-inner,
+    .mobile-header-shell[data-scrolling="true"],
+    .mobile-header-shell.is-collapsed,
+    .mobile-header-shell[data-scrolling="true"] > .mobile-header-inner,
+    .mobile-header-shell.is-collapsed > .mobile-header-inner {
+        background: var(--header-bg) !important;
+    }
 }
 
-html.dark .mobile-header-shell,
-html.dark .mobile-header-shell > div {
-    background-color: #0D0E10 !important;
-}
-
+/* Mobile header layout — inherit page tokens; fallbacks for non-crwdctrl-page routes */
 .mobile-header-shell {
+    --header-bg: var(--chrome-header-bg-light);
+    --page-bg: var(--chrome-page-bg-light);
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }
 
+html.dark .mobile-header-shell {
+    --header-bg: var(--chrome-header-bg-dark);
+    --page-bg: var(--chrome-page-bg-dark);
+}
+
+.crwdctrl-page .mobile-header-shell {
+    --header-bg: inherit;
+    --page-bg: inherit;
+}
+
 .mobile-header-inner {
     --collapse: var(--header-collapse, 0);
+    position: relative;
     padding-top: calc(max(env(safe-area-inset-top) - 0.25rem, 0.375rem) + 0.625rem * var(--collapse));
-    padding-bottom: 0.625rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    padding-bottom: 0.25rem;
+    box-shadow: none;
+    border-bottom: none;
 }
 
 .mobile-header-shell.is-collapsed .mobile-header-inner {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    box-shadow: none;
 }
 
 /*
@@ -1480,7 +1627,29 @@ html.dark .mobile-header-shell > div {
 }
 
 .mobile-header-category-row {
+    position: relative;
+    isolation: isolate;
     padding-top: 0.375rem;
+}
+
+/* Stable grey plate behind SVG boxes — prevents flicker when header is transparent / fast scroll */
+.mobile-header-category-row::before {
+    content: '';
+    position: absolute;
+    left: calc(-1 * var(--page-gutter, 1rem));
+    right: calc(-1 * var(--page-gutter, 1rem));
+    top: 0;
+    bottom: 0;
+    background: var(--header-bg);
+    z-index: 0;
+    pointer-events: none;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.mobile-header-category-row .home-category-bar {
+    position: relative;
+    z-index: 1;
 }
 
 /* Fests page — slightly wider gutter (content shifted right) */
@@ -1501,7 +1670,7 @@ html.dark .mobile-header-shell > div {
 
 .fests-page-header .mobile-header-inner {
     overflow: visible;
-    padding-bottom: 0.75rem;
+    padding-bottom: 0.125rem;
 }
 
 .fests-page-header .mobile-header-search-row {
@@ -1534,6 +1703,8 @@ html.dark .mobile-header-shell > div {
     min-height: clamp(4rem, 20vw, 5.375rem);
     max-width: clamp(3.75rem, 19vw, 5rem);
     max-height: clamp(4rem, 20vw, 5.375rem);
+    aspect-ratio: 78 / 85;
+    object-fit: contain;
 }
 
 /* Trek booking — keep fields visible above mobile keyboard */
@@ -1552,9 +1723,6 @@ html.dark .mobile-header-shell > div {
 /* Touch devices — crisp icons only; never reset transform on sticky shell (breaks sticky + collapse) */
 @media (hover: none) and (pointer: coarse) {
     .mobile-header-search-row,
-    .mobile-header-category-row,
-    .home-category-bar,
-    .home-category-bar button,
     #crwdctrl-bottom-nav,
     #crwdctrl-bottom-nav .bottom-nav-pill,
     #crwdctrl-bottom-nav button {
@@ -1567,16 +1735,28 @@ html.dark .mobile-header-shell > div {
         will-change: transform, opacity;
     }
 
+    html.is-scrolling .mobile-header-branding-row,
+    .mobile-header-shell[data-scrolling="true"] .mobile-header-branding-row {
+        will-change: auto;
+    }
+
     .crisp-icon,
     .crisp-icon-svg,
-    .category-icon,
-    .category-icon-lg,
     .app-logo-mark {
         -webkit-transform: none !important;
         transform: none !important;
         -webkit-filter: none !important;
         filter: none !important;
         image-rendering: -webkit-optimize-contrast !important;
+    }
+
+    .category-icon,
+    .category-icon-lg {
+        -webkit-transform: none !important;
+        transform: none !important;
+        -webkit-filter: none !important;
+        filter: none !important;
+        image-rendering: auto !important;
     }
 
     .category-card--active .category-icon-wrap {
@@ -1604,7 +1784,7 @@ html.dark .mobile-header-shell > div {
         transform: none !important;
         -webkit-filter: none !important;
         filter: none !important;
-        image-rendering: -webkit-optimize-contrast !important;
+        image-rendering: auto !important;
         -webkit-backface-visibility: visible !important;
         backface-visibility: visible !important;
     }
@@ -1614,7 +1794,12 @@ html.dark .mobile-header-shell > div {
     .mobile-header-category-row {
         -webkit-transform: none !important;
         transform: none !important;
-        will-change: auto !important;
+    }
+
+    html.is-scrolling .category-icon-wrap,
+    .mobile-header-shell[data-scrolling="true"] .category-icon-wrap {
+        -webkit-transform: none !important;
+        transform: none !important;
     }
 
     .scrollbar-hide {

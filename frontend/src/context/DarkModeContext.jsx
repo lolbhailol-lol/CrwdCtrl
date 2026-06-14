@@ -1,6 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 
 const DarkModeContext = createContext();
+
+const THEME_SWITCH_MS = 340;
+
+function applyThemeToDocument(isDarkMode) {
+    const root = document.documentElement;
+    root.classList.toggle('dark', isDarkMode);
+    localStorage.setItem('crwdctrl-theme', isDarkMode ? 'dark' : 'light');
+}
 
 export const useDarkMode = () => {
     const context = useContext(DarkModeContext);
@@ -11,7 +20,6 @@ export const useDarkMode = () => {
 };
 
 export const DarkModeProvider = ({ children }) => {
-    // Sync with html.dark set in index.html inline script (avoids theme flash)
     const [isDark, setIsDark] = useState(() => {
         if (typeof window !== 'undefined') {
             return document.documentElement.classList.contains('dark');
@@ -19,20 +27,36 @@ export const DarkModeProvider = ({ children }) => {
         return false;
     });
 
-    // Apply dark mode to document and save to localStorage
+    // Keep document class in sync if isDark ever changes outside toggle
     useEffect(() => {
-        if (isDark) {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('crwdctrl-theme', 'dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-            localStorage.setItem('crwdctrl-theme', 'light');
-        }
+        applyThemeToDocument(isDark);
     }, [isDark]);
 
-    const toggleDarkMode = () => {
-        setIsDark(prev => !prev);
-    };
+    const toggleDarkMode = useCallback(() => {
+        const root = document.documentElement;
+        const nextDark = !root.classList.contains('dark');
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        const applyTheme = () => {
+            root.classList.add('theme-switching');
+            applyThemeToDocument(nextDark);
+            flushSync(() => setIsDark(nextDark));
+        };
+
+        const finish = () => {
+            window.setTimeout(() => root.classList.remove('theme-switching'), THEME_SWITCH_MS);
+        };
+
+        if (!prefersReducedMotion && typeof document.startViewTransition === 'function') {
+            document.startViewTransition(() => {
+                applyTheme();
+            }).finished.then(finish).catch(finish);
+            return;
+        }
+
+        applyTheme();
+        finish();
+    }, []);
 
     return (
         <DarkModeContext.Provider value={{ isDark, isDarkMode: isDark, toggleDarkMode }}>

@@ -18,10 +18,13 @@ export function useGlobalSmoothScroll() {
         };
 
         const onScroll = () => {
+            if (!root.classList.contains('is-scrolling')) {
+                setScrolling(true);
+            }
+
             if (!ticking) {
                 ticking = true;
                 requestAnimationFrame(() => {
-                    setScrolling(true);
                     ticking = false;
                 });
             }

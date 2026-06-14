@@ -217,7 +217,7 @@ export default function FestsPage() {
     const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
     return (
-        <div className={`crwdctrl-page fests-page min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#ffffff]'}`}>
+        <div className="crwdctrl-page fests-page crwdctrl-page--white min-h-screen">
 
             <MobileStickyHeader
                 isDark={isDark}

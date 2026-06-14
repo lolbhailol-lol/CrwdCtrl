@@ -2,14 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Heart, Calendar, User } from 'lucide-react';
-import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { usePageTransition } from './PageTransition';
 
 const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNavigate, isProfileOpen = false }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isDark } = useDarkMode();
     const { isAuthenticated } = useAuth();
     const { showSkeleton, startOverlayTransition } = usePageTransition();
     const [mounted, setMounted] = useState(false);
@@ -79,12 +77,7 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
         <>
             {/* ── Bottom nav rendered at body level via portal ── */}
             <div id="crwdctrl-bottom-nav" className="bottom-nav-shell">
-                <div
-                    className="bottom-nav-pill"
-                    style={{
-                        backgroundColor: isDark ? '#0A0A0A' : '#F5F6FA',
-                    }}
-                >
+                <div className="bottom-nav-pill">
                     <div className="bottom-nav-pill__inner">
                         {navItems.map((item) => {
                             const active = isItemActive(item.path, item.id);
@@ -97,11 +90,6 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
                                     aria-label={item.label}
                                     aria-current={active ? 'page' : undefined}
                                     className="bottom-nav-item touch-target"
-                                    style={{
-                                        color: active
-                                            ? '#00C2CB'
-                                            : isDark ? '#e5e7eb' : '#111827',
-                                    }}
                                 >
                                     <span className="bottom-nav-item__icon crisp-icon-svg">
                                         <IconComponent size={26} strokeWidth={2} />

@@ -5,20 +5,13 @@ import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { searchAll } from '../services/searchService';
-import FestsIcon from '../assets/mobile-icons/FEST.svg';
-import SportsIcon from '../assets/mobile-icons/SPORTS.svg';
-import TreksIcon from '../assets/mobile-icons/trek.svg';
-import TheatreIcon from '../assets/mobile-icons/THETRE.svg';
-import FestsDarkIcon from '../assets/mobile-icons/fest-dark.svg';
-import SportsDarkIcon from '../assets/mobile-icons/sports-dark.svg';
-import TreksDarkIcon from '../assets/mobile-icons/treks-dark.svg';
-import TheatreDarkIcon from '../assets/mobile-icons/theatre-dark.svg';
+import { CATEGORY_NAV_ICONS } from '../constants/categoryNavIcons';
 
 const NAV_ITEMS = [
-    { id: 'fests',   label: 'Fests',   path: '/fests',       icon: FestsIcon,   darkIcon: FestsDarkIcon },
-    { id: 'sports',  label: 'Sports',  path: '/sports', icon: SportsIcon,  darkIcon: SportsDarkIcon },
-    { id: 'treks',   label: 'Treks',   path: '/treks',       icon: TreksIcon,   darkIcon: TreksDarkIcon },
-    { id: 'theatre', label: 'Theatre', path: '/theatre',     icon: TheatreIcon, darkIcon: TheatreDarkIcon },
+    { id: 'fests',   label: 'Fests',   path: '/fests' },
+    { id: 'sports',  label: 'Sports',  path: '/sports' },
+    { id: 'treks',   label: 'Treks',   path: '/treks' },
+    { id: 'theatre', label: 'Theatre', path: '/theatre' },
 ];
 
 const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, className = '' }) => {
@@ -28,6 +21,8 @@ const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, classNam
         : isStacked
             ? 'w-8 h-8'
             : 'w-6 h-6';
+    const iconSet = isDark ? CATEGORY_NAV_ICONS.dark : CATEGORY_NAV_ICONS.light;
+    const iconSrc = iconSet[item.id];
     return (
         <button
             onClick={onClick}
@@ -36,10 +31,11 @@ const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, classNam
             aria-label={item.label}
         >
             <img
-                src={isDark && item.darkIcon ? item.darkIcon : item.icon}
+                src={iconSrc}
                 alt={`${item.label} icon`}
                 draggable={false}
                 decoding="async"
+                loading="eager"
                 className={`crisp-icon object-contain ${iconClass}`}
             />
             {(layout !== 'icon-only') && (

@@ -1178,7 +1178,7 @@ const Dashboard = () => {
     }
 
     return (
-        <div className={`crwdctrl-page flex flex-col min-h-screen transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page flex flex-col min-h-screen transition-colors">
           <div className="flex flex-col flex-1">
 
             <MobileStickyHeader
