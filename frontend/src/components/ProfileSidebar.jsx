@@ -1,17 +1,53 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import MobileBottomNav from './MobileBottomNav';
 import ProfileAvatarUpload from './ProfileAvatarUpload';
-import { usePageTransition } from './PageTransition';
+import ProfileSidebarLoadingSkeleton from './ProfileSidebarLoadingSkeleton';
+import { SKELETON_LOADING_MS } from '../constants/skeletonLoading';
 
-export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClose, onShowLogin, onShowRegister: _onShowRegister }) {
+export default function ProfileSidebar({
+    isOpen,
+    onClose,
+    onProfileClose = onClose,
+    onShowLogin,
+    onShowRegister: _onShowRegister,
+    embedBottomNav = true,
+}) {
     const { isDark, toggleDarkMode } = useDarkMode();
-    const { user, logout, isAuthenticated } = useAuth();
+    const { user, logout, isAuthenticated, isLoading, isAuthProcessing, isRedirectProcessing } = useAuth();
     const navigate = useNavigate();
-    const { showSkeleton } = usePageTransition();
+    const location = useLocation();
+    const [sidebarRevealReady, setSidebarRevealReady] = useState(false);
+
+    const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
+
+    useEffect(() => {
+        if (!isOpen) {
+            setSidebarRevealReady(false);
+            return undefined;
+        }
+
+        setSidebarRevealReady(false);
+        const revealTimer = window.setTimeout(() => setSidebarRevealReady(true), SKELETON_LOADING_MS);
+        return () => window.clearTimeout(revealTimer);
+    }, [isOpen]);
+
+    const isProfileLoading = isOpen && (!sidebarRevealReady || authPending);
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
+
+        const isMobile = window.matchMedia('(max-width: 1023px)').matches;
+        if (!isMobile) return undefined;
+
+        document.body.classList.add('profile-sidebar-open');
+        return () => {
+            document.body.classList.remove('profile-sidebar-open');
+        };
+    }, [isOpen]);
 
     const handleLogout = () => {
         logout();
@@ -20,10 +56,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
     };
 
     const handleMenuItemClick = (label) => {
-        console.log('Menu item clicked:', label); // Debug log
-
         if (label === 'Edit profile') {
-            console.log('Navigating to /edit-profile'); // Debug log
             navigate('/edit-profile');
             onClose();
         } else if (label === 'Bookings') {
@@ -43,21 +76,21 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
     };
 
     const menuItems = [
-        { icon: User, label: 'Edit profile', color: 'text-blue-500' },
-        { icon: Calendar, label: 'Bookings', color: 'text-blue-500' },
+        { icon: User, label: 'Edit profile' },
+        { icon: Calendar, label: 'Bookings' },
     ];
 
     const secondaryItems = [
-        { icon: HelpCircle, label: 'Help Center', color: 'text-blue-500' },
+        { icon: HelpCircle, label: 'Help Center' },
     ];
 
     // Mobile menu items - filtered based on authentication status
     const allMobileMenuItems = [
-        { icon: User, label: 'Edit profile', color: 'text-blue-500', requiresAuth: true },
-        { icon: Heart, label: 'Favourites', color: 'text-blue-500', requiresAuth: false },
-        { icon: Calendar, label: 'Bookings', color: 'text-blue-500', requiresAuth: false },
-        { icon: HelpCircle, label: 'Help Center', color: 'text-blue-500', requiresAuth: false },
-        { icon: Bell, label: 'Notifications', color: 'text-blue-500', requiresAuth: true },
+        { icon: User, label: 'Edit profile', requiresAuth: true },
+        { icon: Heart, label: 'Favourites', requiresAuth: false },
+        { icon: Calendar, label: 'Bookings', requiresAuth: false },
+        { icon: HelpCircle, label: 'Help Center', requiresAuth: false },
+        { icon: Bell, label: 'Notifications', requiresAuth: true },
     ];
 
     // Filter menu items based on authentication status for mobile view
@@ -77,7 +110,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
     return (
         <>
             {/* Desktop/Laptop View - Hidden on mobile */}
-            <div className="hidden md:block">
+            <div className="hidden md:block profile-sidebar-layer">
                 {/* Full Screen Overlay */}
                 <div
                     className={`fixed inset-0 backdrop-blur-sm z-60 transition-opacity duration-300 ${isDark ? 'bg-[#161718]/50' : 'bg-white/30'}`}
@@ -87,11 +120,11 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                 {/* Sidebar */}
                 <div className={`fixed right-0 top-0 z-70 w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
                     }`}>
-                    <div className={`h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#111213] ' : 'bg-white'
+                    <div className={`h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#161718]' : 'bg-white'
                         }`}>
                         {/* Header */}
-                        <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
-                            <div className="flex items-center justify-between pb-3">
+                        <div className="px-4 pt-4">
+                            <div className="flex items-center justify-between pb-8">
                                 <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     Profile
                                 </h1>
@@ -107,7 +140,11 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                         </div>
 
                         {/* Profile Section */}
-                        <div className={`px-6 pt-2 pb-6 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                        {isProfileLoading ? (
+                            <ProfileSidebarLoadingSkeleton variant="desktop" isDark={isDark} />
+                        ) : (
+                        <>
+                        <div className="px-6 pt-2 pb-6">
                             <div className="flex items-center gap-4">
                                 <ProfileAvatarUpload
                                     isDark={isDark}
@@ -115,7 +152,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                                     initialClass="text-3xl"
                                     guestIconClass="w-10 h-10"
                                     cameraBtnClass="w-7 h-7"
-                                    className="!items-start"
+                                    className="items-start!"
                                 />
                                 <div>
                                     <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -129,7 +166,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                         </div>
 
                         {/* Menu Items */}
-                        <div className="px-6 py-4 space-y-2">
+                        <div className="px-6 py-2 space-y-1.5">
                             {menuItems.map((item, index) => (
                                 <button
                                     key={index}
@@ -141,9 +178,9 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                                     }`}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-blue-900/50' : 'bg-blue-50'
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
                                             }`}>
-                                            <item.icon className={`w-5 h-5 ${item.color}`} />
+                                            <item.icon className="w-5 h-5 text-[#0ECCEE]" />
                                         </div>
                                         <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                             {item.label}
@@ -158,7 +195,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                         </div>
 
                         {/* Secondary Items */}
-                        <div className="px-6 py-4 space-y-2">
+                        <div className="px-6 pt-0 pb-2 space-y-1.5">
                             {secondaryItems.map((item, index) => (
                                 <button
                                     key={index}
@@ -170,9 +207,9 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                                     }`}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-blue-900/50' : 'bg-blue-50'
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
                                             }`}>
-                                            <item.icon className={`w-5 h-5 ${item.color}`} />
+                                            <item.icon className="w-5 h-5 text-[#0ECCEE]" />
                                         </div>
                                         <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                             {item.label}
@@ -187,7 +224,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                         </div>
 
                         {/* Log Out Button */}
-                        <div className="px-6 py-6">
+                        <div className="px-6 pt-2 pb-6">
                             {isAuthenticated ? (
                                 <button
                                     onClick={handleLogout}
@@ -213,46 +250,56 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                                             onClose();
                                         }
                                     }}
-                                    className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl transition-colors group ${isDark
-                                        ? 'bg-blue-600 hover:bg-blue-700'
-                                        : 'bg-blue-500 hover:bg-blue-600'
-                                        }`}
+                                    className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl transition-colors group bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 active:scale-[0.98]`}
                                 >
-                                    <span className="font-medium text-white">
+                                    <span className="font-medium text-black">
                                         Log In
                                     </span>
-                                    <User className="w-5 h-5 text-white" />
+                                    <User className="w-5 h-5 text-black" />
                                 </button>
                             )}
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* Mobile View - Visible only on mobile */}
-            <div className="block md:hidden">
-                {/* Overlay */}
-                <div
-                    className={`fixed inset-0 z-60 transition-opacity duration-300 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
-                />
-
+            <div className="block md:hidden profile-sidebar-layer">
                 {/* Mobile Profile Screen */}
-                <div className={`fixed inset-0 z-9999 profile-sidebar-mobile ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-                    {/* Scrollable content container */}
-                    <div className="h-full overflow-y-auto scrollbar-hide pb-32">
-                        <main className="min-h-full px-4 pt-4 sm:px-6">
-                            <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl">
-                                <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
-                                    <div className="flex items-center justify-between pb-3">
-                                        <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            Profile
-                                        </h1>
+                <div className={`fixed inset-0 z-9999 profile-sidebar-mobile flex flex-col h-dvh max-h-dvh overflow-hidden ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                    <div className="profile-sidebar-mobile__scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-hide">
+                        <main className="px-4 pt-4 sm:px-6 pb-4">
+                            <div
+                                className={`mx-auto w-full max-w-md rounded-2xl ${
+                                    isDark ? 'bg-[#161718]' : 'bg-white'
+                                }`}
+                            >
+                                <div className="px-4 pt-4">
+                                    <div className="flex items-start justify-between gap-3 pb-8">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={onClose}
+                                                className={`shrink-0 rounded-lg p-1 transition-colors touch-manipulation ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'}`}
+                                                aria-label="Close profile"
+                                            >
+                                                <ChevronLeft className="h-6 w-6" />
+                                            </button>
+                                            <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                Profile
+                                            </h1>
+                                        </div>
                                         <button
                                             type="button"
-                                            onClick={toggleDarkMode}
-                                            className={`flex items-center gap-1 px-4 py-2 rounded-full transition-all duration-300 ${isDark
-                                                ? 'bg-gray-800 hover:bg-gray-700'
-                                                : 'bg-white hover:bg-gray-50 shadow-sm'
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleDarkMode();
+                                            }}
+                                            className={`relative z-10 flex shrink-0 items-center gap-1 px-4 py-2 rounded-full transition-all duration-300 touch-manipulation ${isDark
+                                                ? 'bg-[#111213] hover:bg-gray-800'
+                                                : 'bg-gray-100 hover:bg-gray-200'
                                                 }`}
                                             aria-label="Toggle dark mode"
                                         >
@@ -266,9 +313,17 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                                     </div>
                                 </div>
 
-                                <div className={`rounded-2xl ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                                <div className="px-2.5 py-6 sm:px-4">
+                        {isProfileLoading ? (
+                            <ProfileSidebarLoadingSkeleton
+                                variant="mobile"
+                                menuCount={Math.max(mobileMenuItems.length, 3)}
+                                isDark={isDark}
+                            />
+                        ) : (
+                        <>
                         {/* Profile Avatar Section */}
-                        <div className="px-6 pt-2 pb-6 flex flex-col items-center">
+                        <div className="pb-6 flex flex-col items-center">
                             <ProfileAvatarUpload
                                 isDark={isDark}
                                 className="mb-3"
@@ -282,7 +337,7 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                         </div>
 
                         {/* Menu Items */}
-                        <div className="px-6 py-4">
+                        <div className="py-2">
                             <div className="space-y-3">
                                 {mobileMenuItems.map((item, index) => (
                                     <button
@@ -295,9 +350,9 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                                         }`}
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-100'
+                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
                                                 }`}>
-                                                <item.icon className={`w-6 h-6 ${item.color}`} />
+                                                <item.icon className="w-6 h-6 text-[#0ECCEE]" />
                                             </div>
                                             <span className={`font-medium text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                                 {item.label}
@@ -310,17 +365,14 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                         </div>
 
                         {/* Log Out Button */}
-                        <div className="px-6 py-6">
+                        <div className="pt-2 pb-2">
                             {isAuthenticated ? (
                                 <button
                                     onClick={handleLogout}
-                                    className={`w-full flex items-center justify-center gap-3 p-4 rounded-2xl transition-all duration-200 active:scale-95 ${isDark
-                                        ? 'bg-blue-600 hover:bg-blue-700'
-                                        : 'bg-blue-500 hover:bg-blue-600'
-                                        }`}
+                                    className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl transition-all duration-200 active:scale-95 bg-[#0ECCEE] hover:bg-[#0ECCEE]/90"
                                 >
-                                    <LogOut className="w-6 h-6 text-white" />
-                                    <span className="font-semibold text-white text-lg">
+                                    <LogOut className="w-6 h-6 text-black" />
+                                    <span className="font-semibold text-black text-lg">
                                         Log Out
                                     </span>
                                 </button>
@@ -335,47 +387,40 @@ export default function ProfileSidebar({ isOpen, onClose, onProfileClose = onClo
                                             onClose();
                                         }
                                     }}
-                                    className={`w-full flex items-center justify-center gap-3 p-4 rounded-2xl transition-all duration-200 active:scale-95 ${isDark
-                                        ? 'bg-blue-600 hover:bg-blue-700'
-                                        : 'bg-blue-500 hover:bg-blue-600'
-                                        }`}
+                                    className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl transition-all duration-200 active:scale-95 bg-[#0ECCEE] hover:bg-[#0ECCEE]/90"
                                 >
-                                    <User className="w-6 h-6 text-white" />
-                                    <span className="font-semibold text-white text-lg">
+                                    <User className="w-6 h-6 text-black" />
+                                    <span className="font-semibold text-black text-lg">
                                         Log In
                                     </span>
                                 </button>
                             )}
                         </div>
+                        </>
+                        )}
                                 </div>
                             </div>
                         </main>
                     </div>
 
-                    {/* Mobile Bottom Navigation - Fixed at actual bottom with proper z-index and safe-area */}
-                    {!showSkeleton && (
-                    <div 
-                        className="fixed bottom-0 left-0 right-0 z-10000"
-                        style={{
-                            paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
-                            paddingLeft: 'env(safe-area-inset-left)',
-                            paddingRight: 'env(safe-area-inset-right)'
+                    {embedBottomNav && (
+                    <MobileBottomNav
+                        onShowLogin={onShowLogin}
+                        isProfileOpen
+                        onProfileClose={onProfileClose}
+                        onNavigate={(path) => {
+                            if (path === '/profile') return;
+                            const alreadyThere = path === '/'
+                                ? location.pathname === '/' || location.pathname === '/dashboard'
+                                : location.pathname === path;
+                            if (alreadyThere) {
+                                onProfileClose?.();
+                                return;
+                            }
+                            onProfileClose?.();
+                            navigate(path);
                         }}
-                    >
-                            <MobileBottomNav 
-                                onShowLogin={onShowLogin}
-                                isProfileOpen
-                                onProfileClick={() => onClose()}
-                                onProfileClose={onProfileClose}
-                                onNavigate={(path) => {
-                                    // When other nav items are clicked, navigate and close sidebar
-                                    if (path !== '/profile') {
-                                        navigate(path);
-                                        onClose();
-                                    }
-                                }}
-                            />
-                        </div>
+                    />
                     )}
                 </div>
             </div>

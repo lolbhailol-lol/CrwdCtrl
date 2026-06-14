@@ -77,7 +77,7 @@ export default function RegistrationDetails() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#111213]' : 'bg-gray-50'} flex items-center justify-center`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
       </div>
     );
@@ -85,7 +85,7 @@ export default function RegistrationDetails() {
 
   if (error || !registration) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#111213]' : 'bg-gray-50'} flex items-center justify-center`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
             {error || 'Registration not found'}
@@ -146,7 +146,7 @@ export default function RegistrationDetails() {
     : `/payment-invoice/${registrationId}`;
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[#111213]' : 'bg-gray-50'} py-4 sm:py-8`}>
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen py-4 sm:py-8">
       <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-center gap-2 sm:gap-4 mb-6 sm:mb-8">

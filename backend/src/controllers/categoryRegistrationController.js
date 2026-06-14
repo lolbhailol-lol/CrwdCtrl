@@ -2,12 +2,12 @@ const mongoose = require('mongoose');
 const CategoryRegistration = require('../model/category_registration_model');
 const SportsEvent = require('../model/sports_model');
 const Trek = require('../model/trek_model');
-const Theatre = require('../model/theatre_model');
+const EventShow = require('../model/event_show_model');
 
 const MODEL_MAP = {
     sports: SportsEvent,
     trek: Trek,
-    theatre: Theatre,
+    events: EventShow,
 };
 
 /* =========================
@@ -18,7 +18,7 @@ exports.registerForEvent = async (req, res) => {
         const { category, eventId } = req.params;
 
         if (!MODEL_MAP[category]) {
-            return res.status(400).json({ message: 'Invalid category. Use: sports, trek, theatre' });
+            return res.status(400).json({ message: 'Invalid category. Use: sports, trek, events' });
         }
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return res.status(400).json({ message: 'Invalid event ID' });

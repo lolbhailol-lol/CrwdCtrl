@@ -12,8 +12,8 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../HomeCategoryBar';
 import MobileStickyHeader from '../MobileStickyHeader';
-import HeroSearchBar from '../HeroSearchBar';
-import HeroSearchDropdown from '../HeroSearchDropdown';
+import CategorySearchRow from '../CategorySearchRow';
+import MobileHeroSearchField from '../MobileHeroSearchField';
 import { useHeroSearch } from '../../hooks/useHeroSearch';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import CardFavoriteButton from '../CardFavoriteButton';
@@ -26,6 +26,7 @@ import {
 } from '../HomeEventCardSkeleton';
 import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
+import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 const fetchJSON = async (endpoint) => {
@@ -57,7 +58,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
             }`}
             onClick={onClick}
         >
-            <div className={`relative overflow-hidden ${fullWidth ? 'w-full aspect-[5/3]' : 'card-portrait-image'}`}>
+            <div className={`relative overflow-hidden ${fullWidth ? 'w-full aspect-5/3' : 'card-portrait-image'}`}>
                 {trek.image ? (
                     <img
                         src={getImageUrl(trek.image, { preset: 'cardLg' })}
@@ -196,6 +197,7 @@ function TreksPage() {
     const [loading, setLoading] = useState(true);
     const [activeCategory, _setActiveCategory] = useState(null);
     const [weekendPg, setWeekendPg] = useState(0);
+    usePageContentLoading(loading);
 
     const weekendScrollRef = useRef(null);
 
@@ -361,7 +363,7 @@ function TreksPage() {
     );
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--white min-h-screen transition-colors">
+        <div className="crwdctrl-page crwdctrl-page--hub min-h-screen transition-colors">
 
             <MobileStickyHeader
                 isDark={isDark}
@@ -391,33 +393,23 @@ function TreksPage() {
                     </>
                 }
                 searchRow={
-                    <div className="relative" ref={heroSearch.searchRef}>
-                        <HeroSearchBar
-                            value={heroSearch.searchQuery}
-                            onChange={(e) => heroSearch.setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') heroSearch.handleEnter(); }}
-                            onClear={heroSearch.clearSearch}
+                    <CategorySearchRow isDark={isDark}>
+                        <MobileHeroSearchField
+                            isDark={isDark}
                             placeholder="search treks, communities"
-                            isDark={isDark}
+                            quickPickItems={trekQuickPicks}
+                            keywordCatalog={searchKeywordCatalog}
+                            onResultNavigate={handleTrekSearchNavigate}
+                            desktopRef={heroSearch.searchRef}
+                            desktopSearch={heroSearch}
                         />
-                        <HeroSearchDropdown
-                            isOpen={heroSearch.isOpen}
-                            isSearching={heroSearch.isSearching}
-                            searchQuery={heroSearch.searchQuery}
-                            results={heroSearch.mergedResults}
-                            popularTerms={heroSearch.popularTerms}
-                            isDark={isDark}
-                            onResultClick={heroSearch.handleResultClick}
-                            onSuggestionClick={heroSearch.applySuggestion}
-                            className="absolute left-0 right-0 top-full mt-1"
-                        />
-                    </div>
+                    </CategorySearchRow>
                 }
                 categoryBar={<HomeCategoryBar isDark={isDark} activeCategory="treks" noPadding />}
             />
 
-            <main className="pb-28">
-                <div className="max-w-2xl lg:max-w-7xl mx-auto pt-6 lg:pt-0">
+            <main className="pb-8">
+                <div className="max-w-2xl lg:max-w-7xl mx-auto lg:pt-0 crwdctrl-hub-body">
 
                     {/* ── Hero Banner — same as Dashboard ── */}
                     {!loading && heroBannerEvents.length > 0 && (
@@ -427,12 +419,11 @@ function TreksPage() {
                             isDark={isDark}
                         />
                     )}
-                    {loading && <HeroBannerSkeleton className="mb-6 px-4" />}
+                    {loading && <HeroBannerSkeleton />}
 
                     {/* ── Explore the Communities — Figma: w-40 h-52 (160×208) cards ── */}
-                    <section className="mb-6 mt-4">
-                        <h2 className={`home-section-heading px-4 mb-3 font-inter
-                            ${isDark ? 'text-white' : 'text-black'}`}>
+                    <section className="home-section-block">
+                        <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
                             Explore the Communities
                         </h2>
                         {loading ? (
@@ -462,9 +453,8 @@ function TreksPage() {
                     </section>
 
                     {/* ── Upcoming Weekend Plans — Figma: size-80 (320px) card ── */}
-                    <section className="mb-6">
-                        <h2 className={`home-section-heading px-4 mb-3 font-inter
-                            ${isDark ? 'text-white' : 'text-black'}`}>
+                    <section className="home-section-block">
+                        <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
                             Upcoming Weekend Plans
                         </h2>
                         {loading ? (
@@ -499,9 +489,8 @@ function TreksPage() {
                     </section>
 
                     {/* ── Browse by Trek Categories — Figma: size-20 rounded-full circles ── */}
-                    <section className="mb-6">
-                        <h2 className={`home-section-heading px-4 mb-6 font-inter
-                            ${isDark ? 'text-white' : 'text-black'}`}>
+                    <section className="home-section-block">
+                        <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
                             Browse by Trek Categories
                         </h2>
                         <div
@@ -580,9 +569,8 @@ function TreksPage() {
                     </section>
 
                     {/* ── Beginner Friendly — same w-40 h-52, Name + Date + share ── */}
-                    <section className="mb-6">
-                        <h2 className={`home-section-heading px-4 mb-3 font-inter
-                            ${isDark ? 'text-white' : 'text-black'}`}>
+                    <section className="home-section-block">
+                        <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
                             Beginner Friendly
                         </h2>
                         {loading ? (

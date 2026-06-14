@@ -71,12 +71,11 @@ export default function CulturalFestPage() {
     const listed   = fests.filter(f => f.status !== 'ongoing');
     const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
-    const bg   = isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]';
     return (
-        <div className={`crwdctrl-page crwdctrl-mobile-page min-h-screen ${bg}`}>
+        <div className="crwdctrl-page crwdctrl-page--content crwdctrl-mobile-page min-h-screen">
 
             {/* ── Header ── */}
-            <div className={`sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
+            <div className={`crwdctrl-sticky-header sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center gap-3 mt-2">
                     <button type="button" onClick={() => navigate(-1)} aria-label="Go back"
@@ -96,7 +95,7 @@ export default function CulturalFestPage() {
                         {/* ── Featured Fests ── */}
                         {featured.length > 0 && (
                             <section className="mb-6">
-                                <h2 className={`home-section-heading px-4 mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
+                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
                                 <div
                                     ref={scrollRef}
                                     className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
@@ -147,7 +146,7 @@ export default function CulturalFestPage() {
 
                         {/* ── Listed Fest ── */}
                         <section className="px-4">
-                            <h2 className={`home-section-heading mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Listed Fest</h2>
+                            <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-black'}`}>Listed Fest</h2>
                             {listed.length === 0 && featured.length === 0 ? (
                                 <div className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                     <div className="text-4xl mb-2">🎭</div>

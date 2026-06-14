@@ -16,7 +16,7 @@ const PAGE_TAB_ICONS = {
     'sports-fest': '⚽',
     treks: '🏔️',
     sports: '🏃',
-    theatre: '🎬',
+    events: '🎬',
 };
 
 function SaveDot({ state }) {
@@ -29,7 +29,7 @@ function SaveDot({ state }) {
 function MiniCardPreview({ cardSize }) {
     const { tallCard, wideCard, miniCard, portraitCard, heroCard } = getCardSizeProps(cardSize);
     const w = portraitCard ? 'w-7' : heroCard || wideCard ? 'w-10' : miniCard ? 'w-8' : tallCard ? 'w-8' : 'w-9';
-    const aspect = portraitCard ? 'aspect-[3/4]' : heroCard ? 'aspect-[2/1]' : tallCard && !wideCard ? 'aspect-[11/10]' : wideCard ? 'aspect-[3/2]' : 'aspect-[4/3]';
+    const aspect = portraitCard ? 'aspect-3/4' : heroCard ? 'aspect-2/1' : tallCard && !wideCard ? 'aspect-11/10' : wideCard ? 'aspect-10/7' : 'aspect-4/3';
     return (
         <div className={`${w} rounded-md overflow-hidden border border-white/10 bg-[#0D0E10] shrink-0`}>
             <div className={`${aspect} bg-linear-to-br from-[#0ECCEE]/25 to-white/5`} />

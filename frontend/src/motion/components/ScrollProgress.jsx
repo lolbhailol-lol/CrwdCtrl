@@ -12,7 +12,7 @@ export default function ScrollProgress({ className = '' }) {
 
     return (
         <motion.div
-            className={`fixed top-0 left-0 right-0 z-[100002] h-[2px] origin-left pointer-events-none ${className}`}
+            className={`fixed top-0 left-0 right-0 z-100002 h-[2px] origin-left pointer-events-none ${className}`}
             style={{ scaleX, backgroundColor: BRAND.cyan }}
             aria-hidden="true"
         />

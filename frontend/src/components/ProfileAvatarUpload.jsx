@@ -119,7 +119,7 @@ export default function ProfileAvatarUpload({
                 )}
             </div>
             {uploadError && (
-                <p className="text-xs text-red-500 mt-1.5 text-center max-w-[10rem]">{uploadError}</p>
+                <p className="text-xs text-red-500 mt-1.5 text-center max-w-40">{uploadError}</p>
             )}
         </div>
     );

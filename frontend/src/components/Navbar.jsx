@@ -11,7 +11,7 @@ const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests' },
     { id: 'sports',  label: 'Sports',  path: '/sports' },
     { id: 'treks',   label: 'Treks',   path: '/treks' },
-    { id: 'theatre', label: 'Theatre', path: '/theatre' },
+    { id: 'events', label: 'Events', path: '/events' },
 ];
 
 const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, className = '' }) => {
@@ -50,7 +50,7 @@ const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, classNam
     );
 };
 
-const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
+const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) => {
     const { isDark } = useDarkMode();
     const { user, isAuthenticated } = useAuth();
     const { notifications, unreadCount, markAsRead } = useNotifications();
@@ -202,6 +202,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     }, []);
 
     const handleNavigation = (path) => {
+        if (location.pathname === path) return;
         navigate(path);
     };
 
@@ -918,7 +919,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                     if (onOpenProfile) onOpenProfile();
                                     else setIsProfileOpen(true);
                                 } else {
-                                    _setSearchParams({ showLogin: 'true' });
+                                    onShowLogin?.();
                                 }
                             }}
                             className={`w-8 lg:w-10 h-8 lg:h-10 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 ${isAuthenticated

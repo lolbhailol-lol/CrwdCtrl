@@ -5,7 +5,7 @@ function TrendingPreview({ selected }) {
     return (
         <div className={`mx-auto w-11 transition-transform ${selected ? 'scale-105' : ''}`}>
             <div className={`rounded-2xl overflow-hidden border ${selected ? 'border-[#0ECCEE]' : 'border-white/12'}`}>
-                <div className="aspect-[11/10] bg-linear-to-br from-indigo-500/40 to-[#0D0E10] relative">
+                <div className="aspect-11/10 bg-linear-to-br from-indigo-500/40 to-[#0D0E10] relative">
                     <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-white/20" />
                 </div>
                 <div className="px-2 py-2 space-y-1 bg-[#0D0E10]">
@@ -19,8 +19,8 @@ function TrendingPreview({ selected }) {
 
 function HeroBannerPreview({ selected }) {
     return (
-        <div className={`mx-auto w-full max-w-[5.5rem] transition-transform ${selected ? 'scale-105' : ''}`}>
-            <div className={`rounded-xl overflow-hidden border aspect-[2/1] relative ${selected ? 'border-[#0ECCEE]' : 'border-white/12'}`}>
+        <div className={`mx-auto w-full max-w-22 transition-transform ${selected ? 'scale-105' : ''}`}>
+            <div className={`rounded-xl overflow-hidden border aspect-2/1 relative ${selected ? 'border-[#0ECCEE]' : 'border-white/12'}`}>
                 <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/30 via-purple-600/20 to-[#0D0E10]" />
                 <div className="absolute inset-0 bg-linear-to-t from-black/50 to-transparent" />
                 <div className="absolute bottom-1 left-1.5 right-6">
@@ -33,14 +33,14 @@ function HeroBannerPreview({ selected }) {
     );
 }
 
-function HappeningPreview({ selected }) {
+function WeekendPlanPreview({ selected }) {
     return (
-        <div className={`mx-auto w-[4.75rem] transition-transform ${selected ? 'scale-105' : ''}`}>
+        <div className={`mx-auto w-19 transition-transform ${selected ? 'scale-105' : ''}`}>
             <div className={`rounded-2xl overflow-hidden border ${selected ? 'border-[#0ECCEE]' : 'border-white/12'}`}>
-                <div className="aspect-[3/2] bg-linear-to-br from-cyan-500/30 to-[#0D0E10] relative">
+                <div className="aspect-10/7 bg-linear-to-br from-cyan-500/30 to-[#0D0E10] relative">
                     <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-white/20" />
                 </div>
-                <div className="px-1.5 py-1.5 space-y-1 bg-[#0D0E10]">
+                <div className="px-2 py-1.5 space-y-1 bg-[#0D0E10]">
                     <div className={`h-1 rounded-full w-4/5 ${selected ? 'bg-[#0ECCEE]/40' : 'bg-white/20'}`} />
                     <div className="h-0.5 rounded-full w-1/2 bg-white/10" />
                 </div>
@@ -53,7 +53,7 @@ function PortraitPreview({ selected, variant }) {
     return (
         <div className={`mx-auto w-10 transition-transform ${selected ? 'scale-105' : ''}`}>
             <div className={`rounded-2xl overflow-hidden border ${selected ? 'border-[#0ECCEE]' : 'border-white/12'}`}>
-                <div className={`aspect-[3/4] relative ${variant === 'runclub' ? 'bg-linear-to-br from-emerald-600/40 to-[#0D0E10]' : 'bg-linear-to-br from-green-800/40 to-[#0D0E10]'}`}>
+                <div className={`aspect-3/4 relative ${variant === 'runclub' ? 'bg-linear-to-br from-emerald-600/40 to-[#0D0E10]' : 'bg-linear-to-br from-green-800/40 to-[#0D0E10]'}`}>
                     <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-white/20" />
                     {variant === 'runclub' && (
                         <span className="absolute inset-0 flex items-center justify-center text-sm opacity-60">🏃</span>
@@ -75,7 +75,7 @@ function CardPreview({ cardSize, selected }) {
         case 'hero':
             return <HeroBannerPreview selected={selected} />;
         case 'wide':
-            return <HappeningPreview selected={selected} />;
+            return <WeekendPlanPreview selected={selected} />;
         case 'explore':
             return <PortraitPreview selected={selected} variant="community" />;
         case 'runclub':
@@ -83,9 +83,9 @@ function CardPreview({ cardSize, selected }) {
         default: {
             const { tallCard, wideCard, portraitCard } = getCardSizeProps(cardSize);
             if (portraitCard) return <PortraitPreview selected={selected} variant="community" />;
-            if (wideCard) return <HappeningPreview selected={selected} />;
+            if (wideCard) return <WeekendPlanPreview selected={selected} />;
             if (tallCard) return <TrendingPreview selected={selected} />;
-            return <HappeningPreview selected={selected} />;
+            return <WeekendPlanPreview selected={selected} />;
         }
     }
 }

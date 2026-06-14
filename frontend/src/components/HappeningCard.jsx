@@ -22,7 +22,7 @@ export default function HappeningCard({ event, _isDark, onViewDetails }) {
             onClick={onViewDetails}
         >
             {/* Image card */}
-            <div className="card-surface relative aspect-[14/9] rounded-2xl overflow-hidden">
+            <div className="card-surface relative aspect-14/9 rounded-2xl overflow-hidden">
                 <ContentImage
                     src={event.image}
                     alt={event.title}

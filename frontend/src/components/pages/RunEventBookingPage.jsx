@@ -80,7 +80,7 @@ export default function RunEventBookingPage() {
 
     if (loading) {
         return (
-            <div className={`flex items-center justify-center min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
                 <Loader className="animate-spin text-[#0ECCEE]" size={32} />
             </div>
         );
@@ -88,7 +88,7 @@ export default function RunEventBookingPage() {
 
     if (!event) {
         return (
-            <div className={`flex flex-col items-center justify-center min-h-screen gap-3 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3">
                 <p className="text-gray-500 text-sm">Run not found</p>
                 <button onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">
                     Go back
@@ -99,7 +99,7 @@ export default function RunEventBookingPage() {
 
     if (done) {
         return (
-            <div className={`flex flex-col items-center justify-center min-h-screen gap-4 px-6 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-4 px-6">
                 <CheckCircle size={56} className="text-green-500" />
                 <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>You&apos;re registered!</h1>
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -139,7 +139,7 @@ export default function RunEventBookingPage() {
         : 'Date TBA';
 
     return (
-        <div className={`crwdctrl-page crwdctrl-mobile-page min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-mobile-page min-h-screen">
             <div className="px-4 pt-12 pb-4 flex items-center gap-3">
                 <button onClick={() => navigate(-1)} className="size-9 rounded-full bg-stone-900/10 flex items-center justify-center">
                     <ArrowLeft size={18} className={isDark ? 'text-white' : 'text-gray-900'} />

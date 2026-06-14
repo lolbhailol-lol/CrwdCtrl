@@ -3,11 +3,9 @@ import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenera
 import { getImageUrl } from '../../../utils/imageImports';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { BookingsPageLoadingSkeleton } from '../../HomeEventCardSkeleton';
 import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
-import CrwdCtrlLogin from '../login';
-import CrwdCtrlRegister from '../register';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -31,8 +29,8 @@ const isEventCompleted = (item) => {
 function BookingCard({ item, isDark, onViewBooking, onDownloadTicket }) {
     return (
         <div
-            className={`rounded-2xl p-3 sm:p-4 h-40 flex flex-col shadow-lg transition-all duration-300 ${
-                isDark ? 'border border-gray-800 bg-[#111213]' : 'border border-gray-100 bg-white'
+            className={`rounded-2xl p-3 sm:p-4 h-40 flex flex-col transition-all duration-300 ${
+                isDark ? 'card-surface' : 'border border-gray-100 bg-white shadow-lg'
             }`}
         >
             <div className="flex gap-3 sm:gap-4 min-h-0 flex-1">
@@ -86,7 +84,7 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket }) {
                     onClick={() => onViewBooking(item)}
                     className={`flex-1 h-11 rounded-2xl text-base font-medium font-inter leading-6 transition-colors ${
                         isDark
-                            ? 'bg-[#111213] border border-[#0ECCEE] text-[#0ECCEE] hover:bg-[#0ECCEE]/10'
+                            ? 'bg-[#161718] border border-[#0ECCEE] text-[#0ECCEE] hover:bg-[#0ECCEE]/10'
                             : 'bg-white border-[0.50px] border-[#0ECCEE] text-[#0ECCEE] hover:bg-[#0ECCEE]/5'
                     }`}
                 >
@@ -95,7 +93,7 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket }) {
                 <button
                     type="button"
                     onClick={() => onDownloadTicket(item)}
-                    className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-black text-base font-medium font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
+                    className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-white text-base font-medium font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
                 >
                     Download ticket
                 </button>
@@ -109,9 +107,6 @@ function Booking() {
     const { isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const [showLogin, setShowLogin] = useState(false);
-    const [showRegister, setShowRegister] = useState(false);
-    const [searchParams, setSearchParams] = useSearchParams();
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -399,49 +394,6 @@ function Booking() {
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, [isAuthenticated, user]);
 
-    // Check for login modal parameter
-    useEffect(() => {
-        if (searchParams.get('showLogin') === 'true') {
-            setShowLogin(true);
-        }
-    }, [searchParams]);
-
-    // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
-    useEffect(() => {
-        if (isAuthenticated && showLogin) {
-            console.log('✅ User authenticated, closing login modal in booking');
-            setShowLogin(false);
-        }
-        if (isAuthenticated && showRegister) {
-            console.log('✅ User authenticated, closing register modal in booking');
-            setShowRegister(false);
-        }
-    }, [isAuthenticated, showLogin, showRegister]);
-
-    // Handle login modal close
-    const handleCloseLogin = () => {
-        setShowLogin(false);
-        setSearchParams({}); // Clear URL parameters
-    };
-
-    // Handle register modal close
-    const handleCloseRegister = () => {
-        setShowRegister(false);
-    };
-
-    // Switch from login to register
-    const handleSwitchToRegister = () => {
-        setShowLogin(false);
-        setShowRegister(true);
-    };
-
-    // Switch from register to login
-    const handleSwitchToLogin = () => {
-        setShowRegister(false);
-        setShowLogin(true);
-    };
-
-    // Use backend data if available, otherwise fall back to context data
     const allBookings = [...bookings];
 
     const handleViewDetails = (item) => {
@@ -463,20 +415,23 @@ function Booking() {
     const completedBookings = allBookings.filter((item) => isEventCompleted(item));
     const visibleBookings = activeTab === 'upcoming' ? upcomingBookings : completedBookings;
 
-    const pageShellClass = `min-h-screen transition-colors duration-300 pb-24 lg:pb-8 ${
-        isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'
-    }`;
+    const pageShellClass =
+        'bookings-page crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300 pb-24 lg:pb-8';
 
     usePageContentLoading(loading);
 
     if (loading) {
-        return <BookingsPageLoadingSkeleton isDark={isDark} />;
+        return (
+            <div className={pageShellClass}>
+                <BookingsPageLoadingSkeleton isDark={isDark} />
+            </div>
+        );
     }
 
     // Error state
     if (error) {
         return (
-            <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-white text-gray-900'} flex items-center justify-center`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300 flex items-center justify-center">
                 <div className="text-center">
                     <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>{error}</h2>
                     <button
@@ -493,13 +448,12 @@ function Booking() {
     return (
         <div className={pageShellClass}>
             <main className="px-4 pt-4 sm:px-6 lg:px-8">
-                <div className="mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl">
-                    {/* Header + tabs — Figma: slate-100 shell */}
-                    <div
-                        className={`px-4 pt-4 ${
-                            isDark ? 'bg-[#111213]' : 'bg-white'
-                        }`}
-                    >
+                <div
+                    className={`mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl ${
+                        isDark ? 'bg-[#161718]' : 'bg-white'
+                    }`}
+                >
+                    <div className="px-4 pt-4">
                         <div className="pb-8">
                             <h1
                                 className={`text-2xl font-medium font-inter leading-8 ${
@@ -517,7 +471,7 @@ function Booking() {
                                 className={`h-11 min-w-32 rounded-t-2xl px-4 text-lg font-medium font-inter leading-7 tracking-wide transition-colors ${
                                     activeTab === 'upcoming'
                                         ? isDark
-                                            ? 'bg-[#161718] text-blue-400'
+                                            ? 'text-[#0ECCEE]'
                                             : 'bg-white text-blue-700'
                                         : isDark
                                           ? 'text-gray-400 hover:text-gray-200'
@@ -532,7 +486,7 @@ function Booking() {
                                 className={`h-11 min-w-32 rounded-t-2xl px-4 text-lg font-medium font-inter leading-7 tracking-wide transition-colors ${
                                     activeTab === 'completed'
                                         ? isDark
-                                            ? 'bg-[#161718] text-blue-400'
+                                            ? 'text-[#0ECCEE]'
                                             : 'bg-white text-blue-700'
                                         : isDark
                                           ? 'text-gray-400 hover:text-gray-200'
@@ -544,11 +498,14 @@ function Booking() {
                         </div>
                     </div>
 
-                    {/* Content panel — Figma: card-bg with connected corners */}
                     <div
-                        className={`px-2.5 py-6 sm:px-4 min-h-[420px] rounded-tr-2xl rounded-bl-2xl rounded-br-2xl ${
-                            activeTab === 'completed' ? 'rounded-tl-2xl' : ''
-                        } ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
+                        className={`px-2.5 py-6 sm:px-4 min-h-[420px] ${
+                            isDark
+                                ? ''
+                                : `rounded-tr-2xl rounded-bl-2xl rounded-br-2xl ${
+                                      activeTab === 'completed' ? 'rounded-tl-2xl' : ''
+                                  } bg-white`
+                        }`}
                     >
                         {visibleBookings.length > 0 ? (
                             <div className="space-y-4">
@@ -590,20 +547,6 @@ function Booking() {
                     </div>
                 </div>
             </main>
-
-            {/* Login Modal */}
-            {showLogin && (
-                <div className="fixed inset-0 z-50">
-                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
-                </div>
-            )}
-
-            {/* Register Modal */}
-            {showRegister && (
-                <div className="fixed inset-0 z-50">
-                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
-                </div>
-            )}
         </div>
     );
 }

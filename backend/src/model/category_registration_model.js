@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 
-// Unified registration model for Sports, Trek, and Theatre events.
+// Unified registration model for Sports, Trek, and Events (cultural shows).
 // Fest registrations continue using the existing Registration model unchanged.
 const categoryRegistrationSchema = new mongoose.Schema(
     {
         category: {
             type: String,
-            enum: ['sports', 'trek', 'theatre'],
+            enum: ['sports', 'trek', 'events'],
             required: true,
         },
         eventId: {

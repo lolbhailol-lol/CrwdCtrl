@@ -20,9 +20,7 @@
   <title>CrwdCtrl — Discover fests, clubs &amp; events</title>
   <meta name="description" content="CrwdCtrl helps you find college fests, tech and sports events, running clubs, gym communities, and meetups near you." />
   <meta name="application-name" content="CrwdCtrl" />
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#161718" media="(prefers-color-scheme: dark)" />
-  <meta name="theme-color" content="#0E0E0F" />
+  <meta name="color-scheme" content="light dark" />
   <link rel="canonical" href="https://www.crwdctrl.in/" />
 
   <!-- Favicon / site icon (shown in Google Search results) -->
@@ -89,14 +87,14 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
 
   <!-- Category nav icons — tiny WebP (~50 KB total); fetch during boot splash -->
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/fests-light.webp" fetchpriority="high" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/sports-light.webp" fetchpriority="high" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/treks-light.webp" fetchpriority="high" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/theatre-light.webp" fetchpriority="high" />
+  <link rel="preload" as="image" type="image/webp" href="/category-icons/fests-light.webp" />
+  <link rel="preload" as="image" type="image/webp" href="/category-icons/sports-light.webp" />
+  <link rel="preload" as="image" type="image/webp" href="/category-icons/treks-light.webp" />
+  <link rel="preload" as="image" type="image/webp" href="/category-icons/events-light.webp" />
   <link rel="preload" as="image" type="image/webp" href="/category-icons/fests-dark.webp" />
   <link rel="preload" as="image" type="image/webp" href="/category-icons/sports-dark.webp" />
   <link rel="preload" as="image" type="image/webp" href="/category-icons/treks-dark.webp" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/theatre-dark.webp" />
+  <link rel="preload" as="image" type="image/webp" href="/category-icons/events-dark.webp" />
 
   <!-- Poppins — app-wide font -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -106,10 +104,6 @@
   <!-- Instant boot splash — light / dark matches app theme -->
   <style>
     *, *::before, *::after { box-sizing: border-box; }
-    html {
-      -webkit-text-size-adjust: 100%;
-      text-size-adjust: 100%;
-    }
     html, body {
       margin: 0;
       overflow-x: clip;
@@ -179,8 +173,75 @@
       object-fit: contain;
       image-rendering: -webkit-optimize-contrast;
       pointer-events: none;
+      -webkit-user-select: none;
       user-select: none;
       margin-left: calc(var(--boot-slice-index) * -100%);
+    }
+    .boot-logo-slice:nth-child(1) {
+      --boot-slice-index: 0;
+      --boot-slice-x: -16%;
+      --boot-slice-y: 3%;
+      --boot-slice-delay: 0s;
+    }
+    .boot-logo-slice:nth-child(2) {
+      --boot-slice-index: 1;
+      --boot-slice-x: -9%;
+      --boot-slice-y: -2%;
+      --boot-slice-delay: 0.03s;
+    }
+    .boot-logo-slice:nth-child(3) {
+      --boot-slice-index: 2;
+      --boot-slice-x: 0%;
+      --boot-slice-y: 7%;
+      --boot-slice-delay: 0.06s;
+    }
+    .boot-logo-slice:nth-child(4) {
+      --boot-slice-index: 3;
+      --boot-slice-x: 9%;
+      --boot-slice-y: -2%;
+      --boot-slice-delay: 0.09s;
+    }
+    .boot-logo-slice:nth-child(5) {
+      --boot-slice-index: 4;
+      --boot-slice-x: 16%;
+      --boot-slice-y: 3%;
+      --boot-slice-delay: 0.12s;
+    }
+    #boot-fallback {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483646;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 1.5rem;
+      text-align: center;
+      font-family: Poppins, system-ui, sans-serif;
+      background: #fff;
+      color: #111;
+    }
+    #boot-fallback[hidden] {
+      display: none !important;
+    }
+    html.dark #boot-fallback {
+      background: #161718;
+      color: #fff;
+    }
+    #boot-fallback p {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+    #boot-fallback-reload {
+      border: 0;
+      border-radius: 9999px;
+      padding: 0.75rem 1.5rem;
+      font-weight: 600;
+      background: #0ECCEE;
+      color: #000;
+      cursor: pointer;
     }
     #boot-splash.boot-splash-out {
       opacity: 0;
@@ -198,28 +259,28 @@
   <div id="boot-splash" aria-hidden="true">
     <div class="boot-splash-inner">
       <div class="boot-logo-assemble">
-        <div class="boot-logo-slice" style="--boot-slice-index:0;--boot-slice-x:-16%;--boot-slice-y:3%;--boot-slice-delay:0s">
+        <div class="boot-logo-slice">
           <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
         </div>
-        <div class="boot-logo-slice" style="--boot-slice-index:1;--boot-slice-x:-9%;--boot-slice-y:-2%;--boot-slice-delay:0.03s">
+        <div class="boot-logo-slice">
           <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
         </div>
-        <div class="boot-logo-slice" style="--boot-slice-index:2;--boot-slice-x:0%;--boot-slice-y:7%;--boot-slice-delay:0.06s">
+        <div class="boot-logo-slice">
           <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
         </div>
-        <div class="boot-logo-slice" style="--boot-slice-index:3;--boot-slice-x:9%;--boot-slice-y:-2%;--boot-slice-delay:0.09s">
+        <div class="boot-logo-slice">
           <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
         </div>
-        <div class="boot-logo-slice" style="--boot-slice-index:4;--boot-slice-x:16%;--boot-slice-y:3%;--boot-slice-delay:0.12s">
+        <div class="boot-logo-slice">
           <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
         </div>
       </div>
     </div>
   </div>
   <div id="root"></div>
-  <div id="boot-fallback" hidden aria-live="polite" style="position:fixed;inset:0;z-index:2147483646;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1.5rem;text-align:center;font-family:Poppins,system-ui,sans-serif;background:#fff;color:#111;">
-    <p style="margin:0;font-size:1rem;font-weight:500;">CrwdCtrl is loading…</p>
-    <button type="button" id="boot-fallback-reload" style="border:0;border-radius:9999px;padding:0.75rem 1.5rem;font-weight:600;background:#0ECCEE;color:#000;cursor:pointer;">Reload app</button>
+  <div id="boot-fallback" hidden aria-live="polite">
+    <p>CrwdCtrl is loading…</p>
+    <button type="button" id="boot-fallback-reload">Reload app</button>
   </div>
   <!-- Boot splash fallback + stale-deploy recovery (runs before React) -->
   <script>

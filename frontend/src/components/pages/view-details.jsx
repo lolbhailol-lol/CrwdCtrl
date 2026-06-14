@@ -110,11 +110,11 @@ function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onC
     <button
       type="button"
       onClick={onClick}
-      className={`card-surface w-[11.5rem] shrink-0 text-left rounded-2xl overflow-hidden transition active:scale-[0.98] flex flex-col ${
-        isDark ? '!bg-black' : 'bg-white'
+      className={`card-surface w-46 shrink-0 text-left rounded-2xl overflow-hidden transition active:scale-[0.98] flex flex-col ${
+        isDark ? 'bg-black!' : 'bg-white'
       }`}
     >
-      <div className="relative h-[12rem] w-full shrink-0">
+      <div className="relative h-48 w-full shrink-0">
         <img
           src={getImageUrl(comp.image, { preset: 'cardSm' })}
           alt={compName}
@@ -367,7 +367,7 @@ function EventDetailsPage() {
   // Loading state
   if (loading) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} flex items-center justify-center`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
           <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading event...</h2>
@@ -379,7 +379,7 @@ function EventDetailsPage() {
   // Error state
   if (error || !eventData) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} flex items-center justify-center`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <div className="mb-6">
             <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? 'bg-red-900/20' : 'bg-red-100'}`}>
@@ -501,7 +501,7 @@ function EventDetailsPage() {
     : 'bg-gray-400 text-white cursor-not-allowed';
 
   return (
-    <div className={`crwdctrl-page min-h-screen overflow-x-clip ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} transition-colors duration-300`}>
+    <div className="crwdctrl-page min-h-screen overflow-x-clip transition-colors duration-300">
       {/* Desktop Version - Show at 768px and above */}
       <div className="hidden md:block">
         <div className={`transition-all duration-300`}>
@@ -979,9 +979,9 @@ function EventDetailsPage() {
                 {eventData.artists.map((artist, idx) => (
                   <div
                     key={idx}
-                    className={`card-surface w-[18rem] shrink-0 rounded-2xl overflow-hidden ${isDark ? '!bg-black' : 'bg-white'}`}
+                    className={`card-surface w-[18rem] shrink-0 rounded-2xl overflow-hidden ${isDark ? 'bg-black!' : 'bg-white'}`}
                   >
-                    <div className="relative h-[11.5rem] w-full">
+                    <div className="relative h-46 w-full">
                       <img
                         src={getImageUrl(artist.image, { preset: 'card' })}
                         alt={artist.name}

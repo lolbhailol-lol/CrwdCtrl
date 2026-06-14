@@ -4,6 +4,8 @@ export {
     fadeScale,
     staggerContainer,
     pageTransition,
+    mobileSearchPage,
+    mobileSearchHeader,
     splashLogo,
     searchPanel,
     searchResultRow,

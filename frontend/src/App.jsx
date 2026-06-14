@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, useCallback } from 'react'
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom'
-import { DarkModeProvider, useDarkMode } from './context/DarkModeContext'
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom'
+import { DarkModeProvider } from './context/DarkModeContext'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { RegisteredEventsProvider } from './context/RegisteredEventsContext'
@@ -13,8 +13,10 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import ProfileSidebar from './components/ProfileSidebar'
 import { removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
+import { isCategoryHubRoute } from './utils/categoryHubRoutes'
+import { MobileSearchProvider, useMobileSearchOptional } from './context/MobileSearchContext'
+import MobileSearchHost from './components/MobileSearchHost'
 import { clearChunkReloadFlag } from './utils/chunkError'
-import { isNativeApp } from './utils/capacitorPlatform'
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
@@ -24,6 +26,8 @@ import CapacitorInit from './components/CapacitorInit'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
 import PageTransitionSkeleton from './components/PageTransitionSkeleton'
 import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
+import LoginSuccessToast from './components/LoginSuccessToast'
+import { prepareLogin, resolvePostLoginRedirect, currentAppPath } from './utils/loginFlow'
 
 import { lazyWithRetry } from './utils/lazyWithRetry'
 
@@ -69,7 +73,7 @@ const AnalyticsDashboardPage = lazyWithRetry(() => import('./components/admin/An
 const ScannerAccessPage = lazyWithRetry(() => import('./components/admin/ScannerAccessPage'))
 const SportsPage = lazyWithRetry(() => import('./components/admin/SportsPage'))
 const TreksPage = lazyWithRetry(() => import('./components/admin/TreksPage'))
-const TheatrePage = lazyWithRetry(() => import('./components/admin/TheatrePage'))
+const AdminEventsPage = lazyWithRetry(() => import('./components/admin/AdminEventsPage'))
 const SectionManager = lazyWithRetry(() => import('./components/admin/SectionManager'))
 const PageSectionsPage = lazyWithRetry(() => import('./components/admin/PageSectionsPage'))
 const TrekDetailPage  = lazyWithRetry(() => import('./components/pages/TrekDetailPage'))
@@ -77,7 +81,7 @@ const TrekBookingPage = lazyWithRetry(() => import('./components/pages/TrekBooki
 const QRTicketPage = lazyWithRetry(() => import('./components/pages/QRTicketPage'))
 const PaymentInvoicePage = lazyWithRetry(() => import('./components/pages/PaymentInvoicePage'))
 const PublicTreksPage = lazyWithRetry(() => import('./components/pages/treks-page'))
-const PublicTheatrePage = lazyWithRetry(() => import('./components/pages/theatre-page'))
+const PublicEventsPage = lazyWithRetry(() => import('./components/pages/events-page'))
 const CommunityDetailPage = lazyWithRetry(() => import('./components/pages/CommunityDetailPage'))
 const RunClubDetailPage = lazyWithRetry(() => import('./components/pages/RunClubDetailPage'))
 const RunEventDetailPage = lazyWithRetry(() => import('./components/pages/RunEventDetailPage'))
@@ -94,13 +98,34 @@ const OrganizerEntryPage = lazyWithRetry(() => import('./components/organizer/Or
 // Component to conditionally render MobileBottomNav
 function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick, onProfileClose }) {
   const location = useLocation();
-  const { showSkeleton } = usePageTransition();
+  const navigate = useNavigate();
+  const mobileSearch = useMobileSearchOptional();
+  const { prepareRouteNavigation, startOverlayTransition } = usePageTransition();
 
-  // Hide MobileBottomNav on specific pages where it shouldn't appear OR when profile sidebar is open
+  const handleNavFromProfile = useCallback((path) => {
+    if (path === '/profile') return;
+
+    const alreadyThere = path === '/'
+      ? location.pathname === '/' || location.pathname === '/dashboard'
+      : location.pathname === path;
+
+    if (alreadyThere) {
+      startOverlayTransition(path, onProfileClose);
+      return;
+    }
+
+    prepareRouteNavigation(path);
+    navigate(path);
+    onProfileClose();
+  }, [location.pathname, navigate, onProfileClose, prepareRouteNavigation, startOverlayTransition]);
+
   const shouldHideMobileBottomNav = location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
+    location.pathname === '/profile' ||
     location.pathname === '/notifications' ||
+    isCategoryHubRoute(location.pathname) ||
+    mobileSearch?.isOpen ||
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/organizer') ||
     location.pathname.startsWith('/view-details') ||
@@ -111,9 +136,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/competitions-view-details') ||
     location.pathname.startsWith('/competition') ||
     location.pathname.includes('/fest/') && location.pathname.includes('/register') ||
-    location.pathname.startsWith('/competition-registration') ||
-    isProfileOpen || // Hide when profile sidebar is open (ProfileSidebar has its own bottom nav)
-    showSkeleton; // Hide during page transitions on every route
+    location.pathname.startsWith('/competition-registration');
 
   if (shouldHideMobileBottomNav) {
     return null;
@@ -125,16 +148,17 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
       onProfileClick={onProfileClick}
       onProfileClose={onProfileClose}
       isProfileOpen={isProfileOpen}
+      onNavigate={isProfileOpen ? handleNavFromProfile : undefined}
     />
   );
 }
 
 function ConditionalFooter() {
   const location = useLocation();
-  const { showSkeleton } = usePageTransition();
+  const { hideChrome } = usePageTransition();
 
   const shouldHideFooter =
-    showSkeleton ||
+    hideChrome ||
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
@@ -158,15 +182,11 @@ function ConditionalFooter() {
 
 function RouteSuspenseFallback() {
   const location = useLocation();
-  const { showSkeleton } = usePageTransition();
-
-  if (showSkeleton) return null;
-
   return <PageTransitionSkeleton pathname={location.pathname} />;
 }
 
 // Component to conditionally render Navbar and Sidebar
-function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile }) {
+function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile, onShowLogin }) {
   const location = useLocation();
 
   // Hide navigation on login, register, and email verification pages
@@ -184,7 +204,12 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile 
       </div>
       {/* Navbar - Fixed position for all pages except login/register */}
       <div className="hidden lg:block">
-        <Navbar isProfileOpen={isProfileOpen} setIsProfileOpen={setIsProfileOpen} onOpenProfile={onOpenProfile} />
+        <Navbar
+          isProfileOpen={isProfileOpen}
+          setIsProfileOpen={setIsProfileOpen}
+          onOpenProfile={onOpenProfile}
+          onShowLogin={onShowLogin}
+        />
       </div>
     </>
   );
@@ -200,18 +225,19 @@ function AppContent({
   handleCloseRegister,
   handleSwitchToRegister,
   handleSwitchToLogin,
+  openLoginFromProfile,
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
-  const { isDark } = useDarkMode();
-  const { startOverlayTransition } = usePageTransition();
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const [loginSuccessVisible, setLoginSuccessVisible] = useState(false);
 
   useGlobalSmoothScroll();
 
   const openProfile = useCallback(() => {
-    startOverlayTransition('/profile', () => setIsProfileOpen(true));
-  }, [startOverlayTransition, setIsProfileOpen]);
+    setIsProfileOpen(true);
+  }, [setIsProfileOpen]);
 
   useEffect(() => {
     if (isAuthenticated && showLogin) {
@@ -222,14 +248,48 @@ function AppContent({
     }
   }, [isAuthenticated, showLogin, showRegister, setShowLogin, setShowRegister]);
 
+  useEffect(() => {
+    if (location.pathname === '/favorites' || location.pathname === '/booking') {
+      setShowLogin(false);
+      setShowRegister(false);
+    }
+  }, [location.pathname, setShowLogin, setShowRegister]);
+
+  useEffect(() => {
+    let hideTimer;
+    const handler = () => {
+      if (hideTimer) window.clearTimeout(hideTimer);
+      setShowLogin(false);
+      setShowRegister(false);
+      setIsProfileOpen(false);
+
+      const destination = resolvePostLoginRedirect();
+      const here = currentAppPath();
+
+      if (destination && destination !== here) {
+        navigate(destination, { replace: true });
+      }
+
+      setLoginSuccessVisible(true);
+      hideTimer = window.setTimeout(() => setLoginSuccessVisible(false), 2600);
+    };
+
+    window.addEventListener('crwdctrl:user-login', handler);
+    return () => {
+      window.removeEventListener('crwdctrl:user-login', handler);
+      if (hideTimer) window.clearTimeout(hideTimer);
+    };
+  }, [navigate, setIsProfileOpen, setShowLogin, setShowRegister]);
+
   return (
-    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isAdminRoute ? (isDark ? 'bg-[#161718]' : 'bg-white') : ''}`}>
+    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isAdminRoute ? '' : ''}`}>
       {!isAdminRoute && <EmailVerificationBanner />}
 
       <ConditionalNavigation
         isProfileOpen={isProfileOpen}
         setIsProfileOpen={setIsProfileOpen}
         onOpenProfile={openProfile}
+        onShowLogin={openLoginFromProfile}
       />
 
       <div className={isAdminRoute ? '' : 'lg:ml-20'}>
@@ -241,7 +301,7 @@ function AppContent({
                 <Route path="/payment/checkout" element={<PaymentCheckoutPage />} />
                 <Route path="/payment/return" element={<Navigate to="/booking" replace />} />
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Navigate to="/" replace />} />
                 <Route path="/login" element={<CrwdCtrlLogin />} />
                 <Route path="/admin/login" element={<CrwdCtrlLogin />} />
                 <Route path="/register" element={<CrwdCtrlRegister />} />
@@ -252,7 +312,8 @@ function AppContent({
                 <Route path="/sports" element={<SportsCategoryPage />} />
                 <Route path="/sports-fest" element={<SportsFestPage />} />
                 <Route path="/treks" element={<PublicTreksPage />} />
-                <Route path="/theatre" element={<PublicTheatrePage />} />
+                <Route path="/events" element={<PublicEventsPage />} />
+                <Route path="/theatre" element={<Navigate to="/events" replace />} />
                 <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
                 <Route path="/sports/run-club/:id" element={<RunClubDetailPage />} />
                 <Route path="/sports/run/:id" element={<RunEventDetailPage />} />
@@ -321,7 +382,8 @@ function AppContent({
                   <Route path="scanner-access" element={<ScannerAccessPage />} />
                   <Route path="sports" element={<SportsPage />} />
                   <Route path="treks" element={<TreksPage />} />
-                  <Route path="theatre" element={<TheatrePage />} />
+                  <Route path="events" element={<AdminEventsPage />} />
+                  <Route path="theatre" element={<Navigate to="/admin/events" replace />} />
                   <Route path="sections" element={<SectionManager />} />
                   <Route path="page-sections" element={<PageSectionsPage />} />
                 </Route>
@@ -335,21 +397,24 @@ function AppContent({
 
       {!isAdminRoute && (
         <ConditionalMobileBottomNav
-          onShowLogin={() => setShowLogin(true)}
+          onShowLogin={openLoginFromProfile}
           isProfileOpen={isProfileOpen}
           onProfileClick={openProfile}
           onProfileClose={() => setIsProfileOpen(false)}
         />
       )}
 
-      {!isAdminRoute && (
+      {!isAdminRoute && location.pathname !== '/profile' && (
         <ProfileSidebar
           isOpen={isProfileOpen}
           onClose={() => setIsProfileOpen(false)}
-          onShowLogin={() => setShowLogin(true)}
+          onShowLogin={openLoginFromProfile}
           onShowRegister={() => setShowRegister(true)}
+          embedBottomNav={false}
         />
       )}
+
+      <LoginSuccessToast visible={loginSuccessVisible} />
 
       {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
         <div className="fixed inset-0 z-50">
@@ -370,6 +435,11 @@ function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+
+  const openLoginFromProfile = useCallback(() => {
+    prepareLogin({ fromProfile: true });
+    setShowLogin(true);
+  }, []);
 
   // HTML boot splash covers first paint — never defer mounting Router/Auth behind it
   useEffect(() => {
@@ -427,6 +497,13 @@ function App() {
 
   const handleSwitchToLogin = () => {
     setShowRegister(false);
+    try {
+      if (!sessionStorage.getItem('crwdctrl_login_context')) {
+        prepareLogin({ fromProfile: false });
+      }
+    } catch {
+      prepareLogin({ fromProfile: false });
+    }
     setShowLogin(true);
   };
 
@@ -437,11 +514,13 @@ function App() {
           <RegisteredEventsProvider>
             <NotificationsProvider>
               <Router>
+                <MobileSearchProvider>
                 <PageTransitionProvider>
                   <CapacitorInit />
                   <RouteTracker />
                   <AdSenseLoader />
                   <PWAInstallPrompt />
+                  <MobileSearchHost />
                   <AppContent
                     isProfileOpen={isProfileOpen}
                     setIsProfileOpen={setIsProfileOpen}
@@ -453,8 +532,10 @@ function App() {
                     handleCloseRegister={handleCloseRegister}
                     handleSwitchToRegister={handleSwitchToRegister}
                     handleSwitchToLogin={handleSwitchToLogin}
+                    openLoginFromProfile={openLoginFromProfile}
                   />
                 </PageTransitionProvider>
+                </MobileSearchProvider>
               </Router>
             </NotificationsProvider>
           </RegisteredEventsProvider>

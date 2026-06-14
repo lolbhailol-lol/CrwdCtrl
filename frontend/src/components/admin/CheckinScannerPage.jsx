@@ -581,13 +581,12 @@ export default function CheckinScannerPage({
 
   const webCameraOverlay = showWebCamera
     ? createPortal(
-        <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+        <div className="fixed inset-0 z-9999 bg-black flex flex-col">
           <div className="relative flex-1 min-h-0 w-full">
             <video
               key={`camera-${scanSession}`}
               ref={attachVideoRef}
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ transform: 'translateZ(0)' }}
+              className="absolute inset-0 w-full h-full object-cover transform-gpu"
               playsInline
               muted
             />

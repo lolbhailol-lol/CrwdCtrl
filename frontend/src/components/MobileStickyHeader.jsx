@@ -6,7 +6,7 @@ import { useMobileHeaderCollapse } from '../hooks/useMobileHeaderCollapse';
  * search bar and category chips stay pinned at the top.
  */
 export default function MobileStickyHeader({
-    isDark,
+    isDark: _isDark,
     brandingRow,
     searchRow,
     categoryBar,
@@ -21,11 +21,10 @@ export default function MobileStickyHeader({
         <header
             ref={headerRef}
             data-scrolling="false"
-            style={{ '--header-collapse': 0 }}
             className={`lg:hidden sticky top-0 z-40 mobile-header-shell overflow-hidden ${shellClassName}`}
         >
             <div
-                className={`mobile-header-inner px-[var(--page-gutter)] ${innerClassName}`}
+                className={`mobile-header-inner px-(--page-gutter) ${innerClassName}`}
             >
                 <div className="mobile-header-branding-clip">
                     <div className="mobile-header-branding-row" aria-hidden="false">

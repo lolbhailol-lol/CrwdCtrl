@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Heart, Calendar, Sparkles, Filter, Trash2, Plus, Share2 } from 'lucide-react';
 import CardFavoriteButton from '../CardFavoriteButton';
 import CardShareButton from '../CardShareButton';
@@ -7,8 +7,6 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import CrwdCtrlLogin from './login';
-import CrwdCtrlRegister from './register';
 
 function getCollegeLabel(fest) {
     const raw = fest.collegeName || fest.college || fest.subtitle || fest.basedIn || '';
@@ -44,7 +42,7 @@ function FavoriteGridCard({ fest, onRemove, onViewDetails, isDark }) {
             }}
             className="card-surface rounded-3xl overflow-hidden cursor-pointer transition active:scale-[0.98]"
         >
-            <div className="relative aspect-[4/5] w-full">
+            <div className="relative aspect-4/5 w-full">
                 <img
                     src={getImageUrl(fest.heroImage || fest.image, { preset: 'cardLg' })}
                     alt={title}
@@ -146,31 +144,6 @@ function FestFavoritesPage() {
     const [activeFilter, setActiveFilter] = useState('all');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
-    const [showLogin, setShowLogin] = useState(false);
-    const [showRegister, setShowRegister] = useState(false);
-    const [searchParams, setSearchParams] = useSearchParams();
-
-    useEffect(() => {
-        if (searchParams.get('showLogin') === 'true') {
-            setShowLogin(true);
-        }
-    }, [searchParams]);
-
-    const handleCloseLogin = () => {
-        setShowLogin(false);
-        setSearchParams({});
-    };
-
-    const handleCloseRegister = () => setShowRegister(false);
-    const handleSwitchToRegister = () => {
-        setShowLogin(false);
-        setShowRegister(true);
-    };
-    const handleSwitchToLogin = () => {
-        setShowRegister(false);
-        setShowLogin(true);
-    };
-
     const favoriteEvents = useMemo(
         () => Object.entries(favorites).map(([id, data]) => ({ ...data, id: data.id || id })),
         [favorites],
@@ -281,9 +254,7 @@ function FestFavoritesPage() {
         : 'size-10 rounded-full flex items-center justify-center bg-white text-gray-900 shadow-sm transition active:scale-95';
 
     return (
-        <div className={`crwdctrl-page min-h-screen overflow-x-clip pb-24 lg:pb-8 transition-colors ${
-            isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'
-        }`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen overflow-x-clip pb-24 lg:pb-8 transition-colors">
             <main className="px-4 pt-4 sm:px-6 lg:px-8">
                 <div className="mx-auto w-full max-w-md lg:max-w-6xl">
                     <div className="px-4 pt-4">
@@ -344,18 +315,6 @@ function FestFavoritesPage() {
                     </div>
                 </div>
             </main>
-
-            {showLogin && (
-                <div className="fixed inset-0 z-50">
-                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
-                </div>
-            )}
-
-            {showRegister && (
-                <div className="fixed inset-0 z-50">
-                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
-                </div>
-            )}
         </div>
     );
 }

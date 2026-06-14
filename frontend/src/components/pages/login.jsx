@@ -5,6 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../../services/authService';
 import { storage } from '../../utils/storage';
+import { prepareLogin, resolvePostLoginRedirect } from '../../utils/loginFlow';
 
 export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -21,45 +22,29 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const isModal = !!onClose;
     const isAdminLogin = location.pathname === '/admin/login';
 
-    // Get the intended destination after login
-    // Priority: 1) location.state.from, 2) sessionStorage redirect, 3) home
-    const getRedirectDestination = () => {
-        // Check if passed via router state
-        if (location.state?.from?.pathname) {
-            console.log('📍 [LOGIN] Redirect from router state:', location.state.from.pathname);
-            return location.state.from.pathname;
+    useEffect(() => {
+        if (!isModal) return;
+        try {
+            if (!sessionStorage.getItem('crwdctrl_login_context')) {
+                prepareLogin({ fromProfile: false });
+            }
+        } catch {
+            prepareLogin({ fromProfile: false });
         }
-        // Check sessionStorage for redirect URL (set before navigating to login)
-        const savedRedirect = sessionStorage.getItem('auth_redirect_url');
-        if (savedRedirect) {
-            console.log('📍 [LOGIN] Redirect from sessionStorage:', savedRedirect);
-            sessionStorage.removeItem('auth_redirect_url');
-            return savedRedirect;
-        }
-        // Default to home
-        console.log('📍 [LOGIN] No redirect found, going to home');
-        return '/';
-    };
+    }, [isModal]);
 
     // ✅ FIX: Redirect if user is already logged in (regular user)
     useEffect(() => {
         if (isAuthenticated && user && !isAdminLogin) {
             console.log('✅ [LOGIN] User already logged in, redirecting...');
             if (isModal && onClose) {
-                // Close the modal if user is already authenticated
                 onClose();
             } else {
-                // Navigate to home or intended destination if not a modal
-                // Check for intended destination
                 let destination = '/';
                 if (location.state?.from?.pathname) {
                     destination = location.state.from.pathname;
                 } else {
-                    const savedRedirect = sessionStorage.getItem('auth_redirect_url');
-                    if (savedRedirect) {
-                        destination = savedRedirect;
-                        sessionStorage.removeItem('auth_redirect_url');
-                    }
+                    destination = resolvePostLoginRedirect() || '/';
                 }
                 navigate(destination, { replace: true });
             }
@@ -121,11 +106,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                     
                     if (isModal && onClose) {
                         onClose();
-                    } else {
-                        // Not a modal - navigate to intended destination
-                        const destination = getRedirectDestination();
-                        console.log('🔐 [LOGIN] Not a modal - navigating to:', destination);
-                        navigate(destination, { replace: true });
                     }
                 }
             } else {
@@ -177,17 +157,9 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                     ...result.user,
                     token: result.token
                 }, result.firebaseUser);
-                console.log('🔐 [LOGIN] AuthContext login() completed');
 
                 if (isModal && onClose) {
-                    console.log('🔐 [LOGIN] Calling onClose() to close modal...');
                     onClose();
-                    console.log('🔐 [LOGIN] onClose() called');
-                } else {
-                    // Not a modal - navigate to intended destination
-                    const destination = getRedirectDestination();
-                    console.log('🔐 [LOGIN] Not a modal - navigating to:', destination);
-                    navigate(destination, { replace: true });
                 }
             } else {
                 setErrors({ general: result.error || 'Google sign-in failed. Please try again.' });
@@ -277,11 +249,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
                 if (isModal && onClose) {
                     onClose();
-                } else {
-                    // Not a modal - navigate to intended destination
-                    const destination = getRedirectDestination();
-                    console.log('🔐 [LOGIN] Not a modal - navigating to:', destination);
-                    navigate(destination, { replace: true });
                 }
             } else {
                 setErrors({ general: result.error || 'Facebook sign-in failed. Please try again.' });

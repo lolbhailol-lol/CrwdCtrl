@@ -15,7 +15,7 @@ const DEBOUNCE_MS = 250;
 /**
  * Hero search — suggestions appear only after the user starts typing.
  */
-export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResultNavigate } = {}) {
+export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResultNavigate, maxResults = 8 } = {}) {
     const [searchQuery, setSearchQueryState] = useState('');
     const [apiResults, setApiResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -59,8 +59,8 @@ export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResu
         };
         localMatches.forEach(add);
         apiResults.forEach(add);
-        return out.slice(0, 8);
-    }, [searchQuery, localMatches, apiResults]);
+        return out.slice(0, maxResults);
+    }, [searchQuery, localMatches, apiResults, maxResults]);
 
     const setSearchQuery = useCallback((value) => {
         setSearchQueryState(value);

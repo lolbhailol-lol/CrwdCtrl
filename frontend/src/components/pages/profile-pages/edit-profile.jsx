@@ -350,7 +350,7 @@ function EditProfile() {
         const storedToken = localStorage.getItem('crwdctrl_token');
 
         return (
-            <div className={`min-h-screen flex flex-col items-center justify-center ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin mb-4" />
                 <p className="text-sm text-gray-500 mb-4">Loading profile data...</p>
 
@@ -378,7 +378,7 @@ function EditProfile() {
     }
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Back Navigation */}
@@ -404,7 +404,7 @@ function EditProfile() {
                                     initialClass="text-3xl"
                                     guestIconClass="w-10 h-10"
                                     cameraBtnClass="w-7 h-7"
-                                    className="!items-start"
+                                    className="items-start!"
                                     onSuccess={() => setSuccess('Profile picture updated!')}
                                 />
                                 <div>

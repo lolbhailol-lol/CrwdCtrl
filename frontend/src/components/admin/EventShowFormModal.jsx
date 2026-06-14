@@ -3,7 +3,7 @@ import { X, Upload, Plus, Trash2 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
-const THEATRE_TYPES = [
+const EVENT_TYPE_OPTIONS = [
     { value: 'play', label: 'Play' },
     { value: 'musical', label: 'Musical' },
     { value: 'standup', label: 'Stand-up Comedy' },
@@ -13,14 +13,14 @@ const THEATRE_TYPES = [
 ];
 
 const EMPTY = {
-    title: '', description: '', theatreType: '', organizer: '', cast: '',
+    title: '', description: '', eventType: '', organizer: '', cast: '',
     venue: '', city: '', duration: '', language: '', ageRating: '',
     ticketPrice: 0, seatingCapacity: 0, performerDetails: '',
     sponsors: '', poster: '', trailerLink: '', bookingLink: '',
     showTimings: [], status: 'published',
 };
 
-export default function TheatreFormModal({ show, onClose, onSaved }) {
+export default function EventShowFormModal({ show, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -85,8 +85,8 @@ export default function TheatreFormModal({ show, onClose, onSaved }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        if (!form.title.trim() || !form.theatreType) {
-            setError('Title and Theatre Type are required.');
+        if (!form.title.trim() || !form.eventType) {
+            setError('Title and Event Type are required.');
             return;
         }
         setSaving(true);
@@ -100,7 +100,7 @@ export default function TheatreFormModal({ show, onClose, onSaved }) {
                 seatingCapacity: Number(form.seatingCapacity) || 0,
                 showTimings: form.showTimings.filter(s => s.date || s.time),
             };
-            const url = show ? `${API}/admin/theatre/${show._id}` : `${API}/admin/theatre`;
+            const url = show ? `${API}/admin/events/${show._id}` : `${API}/admin/events`;
             const method = show ? 'PUT' : 'POST';
             const res = await fetch(url, {
                 method,
@@ -123,7 +123,7 @@ export default function TheatreFormModal({ show, onClose, onSaved }) {
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 py-8 px-4">
             <div className="w-full max-w-2xl bg-[#111213] rounded-xl border border-gray-700 shadow-2xl">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-                    <h2 className="text-lg font-bold text-white">{show ? 'Edit Theatre Event' : 'Create Theatre Event'}</h2>
+                    <h2 className="text-lg font-bold text-white">{show ? 'Edit Event' : 'Create Event'}</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -135,10 +135,10 @@ export default function TheatreFormModal({ show, onClose, onSaved }) {
                             <input type="text" value={form.title} onChange={e => set('title', e.target.value)} className={inp} placeholder="Show title" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Theatre Type <span className="text-red-400">*</span></label>
-                            <select value={form.theatreType} onChange={e => set('theatreType', e.target.value)} className={inp}>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Event Type <span className="text-red-400">*</span></label>
+                            <select value={form.eventType} onChange={e => set('eventType', e.target.value)} className={inp}>
                                 <option value="">Select...</option>
-                                {THEATRE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                {EVENT_TYPE_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </select>
                         </div>
                     </div>

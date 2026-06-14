@@ -271,7 +271,7 @@ export default function CommunityDetailPage() {
     };
 
     return (
-        <div className={`flex flex-col min-h-screen pb-24 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-24">
 
             <ImmersiveHero
                 imageSrc={image ? getImageUrl(image, { preset: 'hero' }) : null}

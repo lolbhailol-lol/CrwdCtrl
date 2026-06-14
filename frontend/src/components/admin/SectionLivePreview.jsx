@@ -115,8 +115,8 @@ const PAGE_CONTEXT = {
         route: '/',
         pageClass: '',
         activeCategory: null,
-        before: [{ title: 'Trending Now', cardSize: 'trending', slug: 'trending', live: true }],
-        after: [{ title: 'Happening near you', cardSize: 'wide', slug: 'happening', live: true }],
+        before: [{ title: 'Ongoing Events', cardSize: 'trending', slug: 'trending', live: true }],
+        after: [{ title: 'Upcoming Weekend Plans', cardSize: 'wide', slug: 'happening', live: true }],
         showHero: true,
         showFestSubcats: false,
     },
@@ -177,11 +177,15 @@ const PAGE_CONTEXT = {
         showHero: true,
         showFestSubcats: false,
     },
-    theatre: {
-        route: '/theatre',
+    events: {
+        route: '/events',
         pageClass: '',
-        activeCategory: 'theatre',
-        before: [{ title: 'This Weekend', cardSize: 'explore' }],
+        activeCategory: 'events',
+        before: [
+            { title: 'In the Spotlight', cardSize: 'explore', live: true },
+            { title: 'Upcoming Shows', cardSize: 'wide', live: true },
+            { title: 'Community Events', cardSize: 'explore', live: true },
+        ],
         after: [],
         showHero: true,
         showFestSubcats: false,
@@ -216,7 +220,7 @@ function buildDemoItems(targetPage) {
         'sports-fest': ['Cricket Cup', 'Football Fest', 'Athletics Day'],
         treks: ['Himalayan Trek', 'Forest Trail', 'Sunrise Hike'],
         sports: ['5K Morning Run', 'Cycling Club', 'Yoga Session'],
-        theatre: ['Stand-up Night', 'Play Premiere', 'Open Stage'],
+        events: ['Stand-up Night', 'Play Premiere', 'Open Stage'],
     };
     const names = labels[targetPage] || labels.home;
     return names.map((name, i) => toPreviewItem(
@@ -230,7 +234,7 @@ function buildPreviewItems(targetPage, fests, treks, comms, sports) {
     let pool = [];
     if (targetPage === 'treks') pool = [...treks, ...comms];
     else if (targetPage === 'sports') pool = sports;
-    else if (['home', 'fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'theatre'].includes(targetPage)) {
+    else if (['home', 'fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'events'].includes(targetPage)) {
         pool = fests;
     } else {
         pool = [...fests, ...treks, ...comms];
@@ -316,11 +320,10 @@ function PreviewBottomNav({ activeId = 'home' }) {
                         return (
                             <div
                                 key={item.id}
-                                className="bottom-nav-item flex items-center justify-center min-h-[2.75rem]"
-                                style={{ color: active ? '#00C2CB' : '#e5e7eb' }}
+                                className={`bottom-nav-item flex items-center justify-center min-h-11 ${active ? 'text-[#00C2CB]' : 'text-gray-200'}`}
                             >
                                 <span className="bottom-nav-item__icon crisp-icon-svg">
-                                    <Icon size={24} strokeWidth={2} />
+                                    <Icon size={22} strokeWidth={2} />
                                 </span>
                             </div>
                         );
@@ -379,7 +382,7 @@ function IOSStatusBar({ notch = 'island' }) {
                     <circle cx="7" cy="8.5" r="1.2" />
                 </svg>
                 <div className="flex items-center gap-0.5">
-                    <div className="w-[20px] h-[9px] rounded-[2px] border border-white/80 p-[1px]">
+                    <div className="w-[20px] h-[9px] rounded-[2px] border border-white/80 p-px">
                         <div className="h-full w-[70%] rounded-[1px] bg-white" />
                     </div>
                 </div>
@@ -412,7 +415,7 @@ function getPlacementHint(targetPage, existingCount) {
         fests: 'After Upcoming Events',
         treks: 'After Beginner Friendly',
         sports: 'After Explore Run Clubs',
-        theatre: 'After page content',
+        events: 'After page content',
     };
     const base = hints[targetPage] || 'At bottom of page';
     if (existingCount > 0) {
@@ -519,10 +522,10 @@ function DeviceFrame({ device, children, bottomNav, scrollRef }) {
 
                     {isIOS && (
                         <>
-                            <div className="absolute -left-[2px] top-[88px] w-[3px] h-7 rounded-l-sm bg-[#333]" />
-                            <div className="absolute -left-[2px] top-[130px] w-[3px] h-12 rounded-l-sm bg-[#333]" />
-                            <div className="absolute -left-[2px] top-[178px] w-[3px] h-12 rounded-l-sm bg-[#333]" />
-                            <div className="absolute -right-[2px] top-[120px] w-[3px] h-16 rounded-r-sm bg-[#333]" />
+                            <div className="absolute left-[-2px] top-[88px] w-[3px] h-7 rounded-l-sm bg-[#333]" />
+                            <div className="absolute left-[-2px] top-[130px] w-[3px] h-12 rounded-l-sm bg-[#333]" />
+                            <div className="absolute left-[-2px] top-[178px] w-[3px] h-12 rounded-l-sm bg-[#333]" />
+                            <div className="absolute right-[-2px] top-[120px] w-[3px] h-16 rounded-r-sm bg-[#333]" />
                         </>
                     )}
                 </div>
@@ -673,7 +676,7 @@ function WebsitePreviewContent({
             className={`crwdctrl-page dark preview-device-scope ${ctx.pageClass} bg-[#161718] text-white`}
             style={previewVars}
         >
-            <header className="preview-chrome-header mobile-header-shell rounded-b-[14px] overflow-hidden bg-[#0D0E10] pointer-events-none select-none sticky top-0 z-20">
+            <header className="preview-chrome-header mobile-header-shell rounded-b-[16px] overflow-hidden bg-[#0D0E10] pointer-events-none select-none sticky top-0 z-20">
                 <div className="mobile-header-inner rounded-b-[14px] px-(--page-gutter) bg-[#0D0E10]">
                     <div className="flex items-center justify-between py-1">
                         <AppLogo className="pointer-events-none" />

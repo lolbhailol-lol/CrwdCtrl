@@ -60,6 +60,38 @@ export const splashLogo = {
     },
 };
 
+/** Full-screen mobile search — matches pageTransition feel */
+export const mobileSearchPage = {
+    initial: { opacity: 0, y: 14, scale: 0.992 },
+    animate: {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: { duration: DURATION.normal, ease: EASE.page },
+    },
+    exit: {
+        opacity: 0,
+        y: 10,
+        scale: 0.996,
+        transition: { duration: DURATION.fast, ease: EASE.inOut },
+    },
+};
+
+/** Mobile search header row — subtle follow-through */
+export const mobileSearchHeader = {
+    initial: { opacity: 0, y: -6 },
+    animate: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: DURATION.fast, ease: EASE.out, delay: 0.04 },
+    },
+    exit: {
+        opacity: 0,
+        y: -4,
+        transition: { duration: DURATION.instant, ease: EASE.inOut },
+    },
+};
+
 /** Search dropdown panel */
 export const searchPanel = {
     hidden: { opacity: 0, y: -8, scale: 0.98 },

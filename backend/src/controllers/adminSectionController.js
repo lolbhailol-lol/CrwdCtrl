@@ -4,6 +4,7 @@ const Trek = require('../model/trek_model');
 const TrekCommunity = require('../model/trek_community_model');
 const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
+const EventShow = require('../model/event_show_model');
 
 const MODEL_MAP = {
   fest: FestOrganizer,
@@ -11,6 +12,7 @@ const MODEL_MAP = {
   community: TrekCommunity,
   sport: SportsEvent,
   runclub: RunClub,
+  events: EventShow,
 };
 
 function clearCaches() {

@@ -69,10 +69,10 @@ export default function CustomPageSectionsRenderer({
     if (loading && !carousels.length) {
         return (
             <>
-                <section className="mb-8">
+                <section className="home-section-block">
                     <HomeCarouselCardsSkeleton tallCard className="mt-1" />
                 </section>
-                <section className="mb-8">
+                <section className="home-section-block">
                     <HomeCarouselCardsSkeleton wideCard className="mt-1" />
                 </section>
             </>

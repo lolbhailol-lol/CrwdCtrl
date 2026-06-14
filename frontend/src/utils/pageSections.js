@@ -7,7 +7,7 @@ export const TARGET_PAGE_OPTIONS = [
     { value: 'sports-fest', label: 'Sports Fests', route: '/sports-fest', description: 'Sports fest category' },
     { value: 'treks', label: 'Treks', route: '/treks', description: 'Treks & communities page' },
     { value: 'sports', label: 'Sports', route: '/sports', description: 'Run clubs & activities' },
-    { value: 'theatre', label: 'Theatre', route: '/theatre', description: 'Theatre shows page' },
+    { value: 'events', label: 'Events', route: '/events', description: 'Events & shows page' },
 ];
 
 export function getTargetPageLabel(targetPage) {

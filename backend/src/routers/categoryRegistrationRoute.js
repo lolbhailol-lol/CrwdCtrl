@@ -7,7 +7,7 @@ const ctrl = require('../controllers/categoryRegistrationController');
 // ===== USER ROUTES =====
 
 // POST /api/category-registrations/:category/:eventId/register
-// category = sports | trek | theatre
+// category = sports | trek | events
 router.post('/:category/:eventId/register', authenticateToken, ctrl.registerForEvent);
 
 // GET /api/category-registrations/my

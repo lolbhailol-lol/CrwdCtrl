@@ -1,9 +1,10 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Layers, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell, Footprints } from 'lucide-react';
+import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Layers, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell, Footprints, Theater } from 'lucide-react';
 import { buildHomeCarouselItems, normalizeHomeCarouselItem } from '../../utils/homeCarouselItems';
 import { getCardSizeLabel } from '../../utils/homeCardSize';
 import { getTargetPageLabel } from '../../utils/pageSections';
+import { EVENTS_PAGE_SECTION_OPTS } from '../../constants/eventsPage';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -15,7 +16,7 @@ const authFetch = (url, opts = {}) => fetch(url, {
 // ── Section options ────────────────────────────────────────────────────────────
 const HOME_OPTS = [
     { value: '',          label: '— None —' },
-    { value: 'trending',  label: '🔥 Trending Now' },
+    { value: 'trending',  label: 'Ongoing Events' },
     { value: 'happening', label: '📍 Happening Near You' },
     { value: 'slide',     label: '🎠 Featured Slide' },
 ];
@@ -45,7 +46,7 @@ const RUN_CLUB_PAGE_OPTS = [
 ];
 const SPORTS_HOME_OPTS = [
     { value: '',          label: '— None —' },
-    { value: 'trending',  label: '🔥 Trending Now' },
+    { value: 'trending',  label: 'Ongoing Events' },
     { value: 'happening', label: '📍 Happening Near You' },
 ];
 const RUN_PAGE_OPTS = [
@@ -53,9 +54,10 @@ const RUN_PAGE_OPTS = [
     { value: 'hidden',   label: '🚫 Hidden from Page' },
 ];
 
-const FEST_CUSTOM_PAGES = ['fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'theatre'];
-const TREK_CUSTOM_PAGES = ['treks', 'theatre'];
-const SPORTS_CUSTOM_PAGES = ['sports', 'theatre'];
+const FEST_CUSTOM_PAGES = ['fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'events'];
+const TREK_CUSTOM_PAGES = ['treks', 'events'];
+const SPORTS_CUSTOM_PAGES = ['sports', 'events'];
+const EVENTS_CUSTOM_PAGES = ['events'];
 
 function parseCustomPageValue(val) {
     if (!val || !val.includes(':')) return null;
@@ -95,7 +97,7 @@ function SaveDot({ state }) {
 function AssignPill({ selectValue, selectOpts, onSelect, saveKey, saving }) {
     const isSet = selectValue && selectValue !== '';
     return (
-        <div className={`flex items-center gap-1.5 rounded-xl px-2 py-2 border transition-colors min-w-[11rem] ${isSet ? 'bg-[#0ECCEE]/5 border-[#0ECCEE]/25' : 'bg-[#0D0E10] border-white/8'}`}>
+        <div className={`flex items-center gap-1.5 rounded-xl px-2 py-2 border transition-colors min-w-44 ${isSet ? 'bg-[#0ECCEE]/5 border-[#0ECCEE]/25' : 'bg-[#0D0E10] border-white/8'}`}>
             <select value={selectValue} onChange={e => onSelect(e.target.value)}
                 className={`${sel} ${isSet ? 'text-[#0ECCEE]' : 'text-gray-400'}`}>
                 {selectOpts.map(o => <option key={o.value} value={o.value} className={opt}>{o.label}</option>)}
@@ -125,6 +127,7 @@ const REORDER_TABS = [
     { id: 'fests', label: 'Fests', icon: Flag },
     { id: 'treks', label: 'Treks', icon: Mountain },
     { id: 'sports', label: 'Sports', icon: Dumbbell },
+    { id: 'events', label: 'Events', icon: Theater },
 ];
 
 const ASSIGN_TABS = [
@@ -133,6 +136,7 @@ const ASSIGN_TABS = [
     { id: 'communities', label: 'Communities', icon: Users },
     { id: 'runclubs', label: 'Run Clubs', icon: Footprints },
     { id: 'runs', label: 'Runs', icon: Dumbbell },
+    { id: 'events', label: 'Events', icon: Theater },
 ];
 
 function ModeSwitcher({ mode, onChange }) {
@@ -199,6 +203,7 @@ const PREVIEW_URL = {
     community: (id) => `/treks/community/${id}`,
     sport: (id) => `/sports/run/${id}`,
     runclub: (id) => `/sports/run-club/${id}`,
+    events: () => '/events',
 };
 
 const FEST_PAGE_SECTIONS = [
@@ -214,12 +219,20 @@ const TREK_PAGE_SECTIONS = [
     { key: 'beginner', label: '🌿 Beginner Friendly' },
 ];
 
+const EVENTS_PAGE_SECTIONS = [
+    { key: 'hero', label: '🎬 Hero Banner' },
+    { key: 'spotlight', label: '✨ In the Spotlight' },
+    { key: 'upcoming', label: '🎭 Upcoming Shows' },
+    { key: 'community', label: '🤝 Community Events' },
+];
+
 const TYPE_BADGE = {
     fest: { label: 'Fest', cls: 'bg-violet-500/20 text-violet-300' },
     trek: { label: 'Trek', cls: 'bg-emerald-500/20 text-emerald-300' },
     community: { label: 'Community', cls: 'bg-sky-500/20 text-sky-300' },
     sport: { label: 'Sport', cls: 'bg-orange-500/20 text-orange-300' },
     runclub: { label: 'Run Club', cls: 'bg-cyan-500/20 text-cyan-300' },
+    events: { label: 'Event', cls: 'bg-fuchsia-500/20 text-fuchsia-300' },
 };
 
 function useCarouselDragDrop(items, onReorder) {
@@ -311,6 +324,7 @@ export default function SectionManager() {
     const [comms, setComms]     = useState([]);
     const [sports, setSports]   = useState([]);
     const [runClubs, setRunClubs] = useState([]);
+    const [eventShows, setEventShows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [errors, setErrors]   = useState({});
     const [saving, setSaving]   = useState({});
@@ -333,12 +347,13 @@ export default function SectionManager() {
             } catch (e) { setErrors(prev => ({ ...prev, [label]: e.message })); return null; }
         };
 
-        const [fd, td, cd, sd, rcd, sectionData] = await Promise.all([
+        const [fd, td, cd, sd, rcd, thd, sectionData] = await Promise.all([
             safe(`${API}/admin/fests?limit=500`,            'fests'),
             safe(`${API}/admin/treks?limit=500`,            'treks'),
             safe(`${API}/admin/trek-communities?limit=500`, 'communities'),
             safe(`${API}/admin/sports?limit=500`,           'sports'),
             safe(`${API}/admin/run-clubs?limit=500`,        'runclubs'),
+            safe(`${API}/admin/events?limit=500`,           'events'),
             safe(`${API}/admin/homepage-sections`,          'sections'),
         ]);
         if (fd) setFests(Array.isArray(fd.fests)       ? fd.fests       : []);
@@ -346,6 +361,7 @@ export default function SectionManager() {
         if (cd) setComms(Array.isArray(cd.communities) ? cd.communities : []);
         if (sd) setSports(Array.isArray(sd.events)     ? sd.events      : []);
         if (rcd) setRunClubs(Array.isArray(rcd.clubs) ? rcd.clubs : []);
+        if (thd) setEventShows(Array.isArray(thd.shows) ? thd.shows : []);
         if (sectionData) setCustomSections(Array.isArray(sectionData.sections) ? sectionData.sections : []);
         setLoading(false);
     }, []);
@@ -440,6 +456,11 @@ export default function SectionManager() {
             () => setSports(prev => prev.map(s => s._id === id ? { ...s, ...fields } : s)));
     }, [patch]);
 
+    const saveEventShow = useCallback((id, fields) => {
+        patch(`${API}/admin/events/${id}`, `events-${id}-${Object.keys(fields)[0]}`, fields,
+            () => setEventShows(prev => prev.map(s => s._id === id ? { ...s, ...fields } : s)));
+    }, [patch]);
+
     const saveRunPage = useCallback((id, val) => {
         if (val === 'hidden') {
             saveSports(id, { showOnSportsPage: false, showInUpcoming: false, showInRunClubs: false, featuredSection: null });
@@ -454,12 +475,12 @@ export default function SectionManager() {
     }, [saveSports]);
 
     const trendingCarousel = useMemo(
-        () => buildHomeCarouselItems(fests, treks, comms, 'trending', sports, runClubs),
-        [fests, treks, comms, sports, runClubs],
+        () => buildHomeCarouselItems(fests, treks, comms, 'trending', sports, runClubs, eventShows),
+        [fests, treks, comms, sports, runClubs, eventShows],
     );
     const happeningCarousel = useMemo(
-        () => buildHomeCarouselItems(fests, treks, comms, 'happening', sports, runClubs),
-        [fests, treks, comms, sports, runClubs],
+        () => buildHomeCarouselItems(fests, treks, comms, 'happening', sports, runClubs, eventShows),
+        [fests, treks, comms, sports, runClubs, eventShows],
     );
 
     const customHomeOpts = useMemo(
@@ -481,12 +502,16 @@ export default function SectionManager() {
         () => buildCustomPageOpts(customSections, SPORTS_CUSTOM_PAGES),
         [customSections],
     );
+    const eventsCustomPageOpts = useMemo(
+        () => buildCustomPageOpts(customSections, EVENTS_CUSTOM_PAGES),
+        [customSections],
+    );
 
     const festHomeSelectOpts = useMemo(
         () => [
             { value: '', label: '— None —' },
             { value: 'movingSlide', label: '🎠 Moving Slide' },
-            { value: 'trending', label: '🔥 Trending Now' },
+            { value: 'trending', label: 'Ongoing Events' },
             { value: 'happening', label: '📍 Happening Near You' },
             ...customHomeOpts,
         ],
@@ -508,9 +533,9 @@ export default function SectionManager() {
             .filter((s) => (s.targetPage || 'home') === 'home')
             .map((section) => ({
                 section,
-                items: buildHomeCarouselItems(fests, treks, comms, section.slug, sports, runClubs),
+                items: buildHomeCarouselItems(fests, treks, comms, section.slug, sports, runClubs, eventShows),
             })),
-        [customSections, fests, treks, comms, sports, runClubs],
+        [customSections, fests, treks, comms, sports, runClubs, eventShows],
     );
 
     const saveEntityCustomPage = useCallback((entityType, id, entity, pages, val, priorityField) => {
@@ -540,6 +565,9 @@ export default function SectionManager() {
         } else if (entityType === 'runclub') {
             patch(`${API}/admin/run-clubs/${id}`, `runclub-${id}-custom`, body,
                 () => setRunClubs((prev) => prev.map((c) => (c._id === id ? { ...c, ...body } : c))));
+        } else if (entityType === 'events') {
+            patch(`${API}/admin/events/${id}`, `events-${id}-custom`, body,
+                () => setEventShows((prev) => prev.map((s) => (s._id === id ? { ...s, ...body } : s))));
         }
     }, [patch]);
 
@@ -558,6 +586,8 @@ export default function SectionManager() {
                 setSports((prev) => applyPriority(prev, item._id, 'homePriority', priority, { homeSection: section }));
             } else if (item._type === 'runclub') {
                 setRunClubs((prev) => applyPriority(prev, item._id, 'priority', priority, { homeSection: section }));
+            } else if (item._type === 'events') {
+                setEventShows((prev) => applyPriority(prev, item._id, 'homePriority', priority, { homeSection: section }));
             } else {
                 setComms((prev) => applyPriority(prev, item._id, 'priority', priority));
             }
@@ -595,6 +625,7 @@ export default function SectionManager() {
             if (item._type === 'trek') return { type: 'trek', id: item._id, fields: { priority } };
             if (item._type === 'sport') return { type: 'sport', id: item._id, fields: { homePriority: priority, homeSection: section } };
             if (item._type === 'runclub') return { type: 'runclub', id: item._id, fields: { priority, homeSection: section } };
+            if (item._type === 'events') return { type: 'events', id: item._id, fields: { homePriority: priority, homeSection: section } };
             return { type: 'community', id: item._id, fields: { priority } };
         });
         applyLocalCarouselOrder(section, orderedItems);
@@ -604,8 +635,8 @@ export default function SectionManager() {
     const getCarouselBySection = useCallback((section) => {
         if (section === 'trending') return trendingCarousel;
         if (section === 'happening') return happeningCarousel;
-        return buildHomeCarouselItems(fests, treks, comms, section, sports, runClubs);
-    }, [trendingCarousel, happeningCarousel, fests, treks, comms, sports, runClubs]);
+        return buildHomeCarouselItems(fests, treks, comms, section, sports, runClubs, eventShows);
+    }, [trendingCarousel, happeningCarousel, fests, treks, comms, sports, runClubs, eventShows]);
 
     const handleCarouselReorder = useCallback((section, fromIndex, toIndex) => {
         if (fromIndex === toIndex || reordering) return;
@@ -654,6 +685,20 @@ export default function SectionManager() {
         return { upcoming, run_clubs: runClubCarousel };
     }, [sports, runClubs]);
 
+    const eventsPageCarousels = useMemo(() => {
+        const norm = (s) => ({ ...normalizeHomeCarouselItem('events', s), _priority: s.pagePriority ?? 999 });
+        const inSection = (key) => eventShows
+            .filter((s) => s.pageSection === key)
+            .map(norm)
+            .sort((a, b) => a._priority - b._priority);
+        return {
+            hero: inSection('hero'),
+            spotlight: inSection('spotlight'),
+            upcoming: inSection('upcoming'),
+            community: inSection('community'),
+        };
+    }, [eventShows]);
+
     const applyLocalFestPageOrder = useCallback((status, ordered) => {
         ordered.forEach((item, index) => {
             const priority = index + 1;
@@ -675,6 +720,12 @@ export default function SectionManager() {
             } else {
                 setSports((prev) => prev.map((s) => (s._id === item._id ? { ...s, upcomingPriority: pri, priority: pri } : s)));
             }
+        });
+    }, []);
+
+    const applyLocalEventsPageOrder = useCallback((ordered) => {
+        ordered.forEach((item, index) => {
+            setEventShows((prev) => prev.map((s) => (s._id === item._id ? { ...s, pagePriority: index + 1 } : s)));
         });
     }, []);
 
@@ -715,6 +766,17 @@ export default function SectionManager() {
         batchReorder(updates);
     }, [sportsPageCarousels, reordering, applyLocalSportsPageOrder, batchReorder]);
 
+    const handleEventsPageReorder = useCallback((section, fromIndex, toIndex) => {
+        if (fromIndex === toIndex || reordering) return;
+        const source = eventsPageCarousels[section] || [];
+        const next = [...source];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        const updates = next.map((item, i) => ({ type: 'events', id: item._id, fields: { pagePriority: i + 1 } }));
+        applyLocalEventsPageOrder(next);
+        batchReorder(updates);
+    }, [eventsPageCarousels, reordering, applyLocalEventsPageOrder, batchReorder]);
+
     const handleMovingSlideReorder = useCallback((fromIndex, toIndex) => {
         if (fromIndex === toIndex || reordering) return;
         const next = [...movingSlideFests];
@@ -751,6 +813,10 @@ export default function SectionManager() {
         runClubs.filter(c => !q || [c.name, c.basedIn, c.organizer].some(v => String(v || '').toLowerCase().includes(q)))
                 .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
         [runClubs, q]);
+    const filteredEvents = useMemo(() =>
+        eventShows.filter(s => !q || [s.title, s.city, s.organizer, s.eventType].some(v => String(v || '').toLowerCase().includes(q)))
+            .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
+        [eventShows, q]);
 
     const getFestHomeVal = (f) => f.homeSection || (f.showOnHomeSlide ? 'movingSlide' : '');
 
@@ -773,6 +839,7 @@ export default function SectionManager() {
         runclubs: runClubs.length,
         runs: sports.filter((s) => s.runClubId).length,
         sports: sportsPageCarousels.upcoming.length + sportsPageCarousels.run_clubs.length,
+        events: eventShows.length,
     };
 
     const renderReorderContent = () => {
@@ -785,7 +852,7 @@ export default function SectionManager() {
                         </div>
                     )}
                     <HomeCarouselPanel
-                        title="🔥 Trending Now"
+                        title="Ongoing Events"
                         subtitle="Home page · drag to set left-to-right order"
                         items={trendingCarousel}
                         onReorder={(from, to) => handleCarouselReorder('trending', from, to)}
@@ -888,6 +955,28 @@ export default function SectionManager() {
                 </div>
             );
         }
+        if (tab === 'events') {
+            return (
+                <div className="p-4 space-y-3">
+                    {reordering && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0ECCEE]/10 border border-[#0ECCEE]/20 text-xs text-[#0ECCEE]">
+                            <Loader2 size={14} className="animate-spin" /> Saving order…
+                        </div>
+                    )}
+                    <p className="text-[11px] text-gray-500">Events page sections on /events — drag within each row</p>
+                    {EVENTS_PAGE_SECTIONS.map(({ key, label }) => (
+                        <HomeCarouselPanel
+                            key={key}
+                            title={label}
+                            subtitle="Left-to-right order on Events page"
+                            items={eventsPageCarousels[key] || []}
+                            onReorder={(from, to) => handleEventsPageReorder(key, from, to)}
+                            isReordering={reordering}
+                        />
+                    ))}
+                </div>
+            );
+        }
         return null;
     };
 
@@ -980,6 +1069,11 @@ export default function SectionManager() {
                             <span className="w-44 text-center">🏠 Home page</span>
                             <span className="w-44 text-center">🏔️ Treks page</span>
                         </>
+                    ) : tab === 'events' ? (
+                        <>
+                            <span className="w-44 text-center">🏠 Home page</span>
+                            <span className="w-44 text-center">🎭 Events page</span>
+                        </>
                     ) : (
                         <>
                             <span className="w-44 text-center">🏠 Home page</span>
@@ -991,6 +1085,7 @@ export default function SectionManager() {
                     {(tab === 'fests' && festCustomPageOpts.length > 1)
                         || (tab === 'treks' && trekCustomPageOpts.length > 1)
                         || (tab === 'communities' && trekCustomPageOpts.length > 1)
+                        || (tab === 'events' && eventsCustomPageOpts.length > 1)
                         || ((tab === 'runs' || tab === 'runclubs') && sportsCustomPageOpts.length > 1) ? (
                         <span className="w-44 text-center">✨ Custom section</span>
                     ) : null}
@@ -1238,6 +1333,46 @@ export default function SectionManager() {
                                     </div>
                                 );
                             })
+                        )}
+
+                        {/* ── EVENTS ── */}
+                        {tab === 'events' && (filteredEvents.length === 0
+                            ? <EmptyState label="No events found — create events in Admin → Events" />
+                            : filteredEvents.map((s) => (
+                                <div key={s._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
+                                    <Thumb src={s.poster} icon={Theater} />
+                                    <PreviewLink type="events" id={s._id} />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
+                                        <p className="text-[11px] text-gray-600 truncate">
+                                            {[s.city, s.eventType, s.status].filter(Boolean).join(' · ') || '—'}
+                                        </p>
+                                    </div>
+                                    <AssignPill
+                                        selectValue={s.homeSection || ''}
+                                        selectOpts={entityHomeSelectOpts}
+                                        onSelect={v => saveEventShow(s._id, { homeSection: v || null })}
+                                        saveKey={`events-${s._id}-home`}
+                                        saving={saving}
+                                    />
+                                    <AssignPill
+                                        selectValue={s.pageSection || ''}
+                                        selectOpts={EVENTS_PAGE_SECTION_OPTS}
+                                        onSelect={v => saveEventShow(s._id, { pageSection: v || null })}
+                                        saveKey={`events-${s._id}-page`}
+                                        saving={saving}
+                                    />
+                                    {eventsCustomPageOpts.length > 1 && (
+                                        <AssignPill
+                                            selectValue={getCustomPageValue(s, EVENTS_CUSTOM_PAGES)}
+                                            selectOpts={eventsCustomPageOpts}
+                                            onSelect={(v) => saveEntityCustomPage('events', s._id, s, EVENTS_CUSTOM_PAGES, v, 'pagePriority')}
+                                            saveKey={`events-${s._id}-custom`}
+                                            saving={saving}
+                                        />
+                                    )}
+                                </div>
+                            ))
                         )}
 
                     </div>

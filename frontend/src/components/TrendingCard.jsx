@@ -15,7 +15,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
             onClick={onViewDetails}
         >
             {/* Image */}
-            <div className="relative aspect-[11/8] overflow-hidden">
+            <div className="relative aspect-11/8 overflow-hidden">
                 <ContentImage
                     src={event.image}
                     alt={event.title}
@@ -48,7 +48,7 @@ export default function TrendingCard({ event, isDark, isFavorite, onToggleFavori
                 )}
                 <button
                     onClick={(e) => { e.stopPropagation(); onViewDetails?.(); }}
-                    className={`w-full min-h-[var(--touch-min)] py-2 rounded-lg text-fluid-xs font-bold transition-colors
+                    className={`w-full min-h-(--touch-min) py-2 rounded-lg text-fluid-xs font-bold transition-colors
                                 ${isDark
                                     ? 'bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/30 hover:bg-[#0ECCEE]/20'
                                     : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100'

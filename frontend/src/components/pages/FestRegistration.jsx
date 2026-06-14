@@ -1933,7 +1933,7 @@ export default function FestRegistration() {
 
   if (completingPayment && !success) {
     return (
-      <div className={`min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
         <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
         <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
           {submissionProgress || 'Completing your registration...'}
@@ -1944,7 +1944,7 @@ export default function FestRegistration() {
 
   if (success) {
     return (
-      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
         <div className="text-center max-w-md mx-auto p-8">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
           <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>🎉 Registration Successful!</h1>
@@ -1999,7 +1999,7 @@ export default function FestRegistration() {
 
   if ((loading || waitingOnAuth) && !success && !completingPayment) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
       </div>
     );
@@ -2008,7 +2008,7 @@ export default function FestRegistration() {
   if (!hasAuth) {
     return (
       <>
-        <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
           <div className={`w-full max-w-md rounded-2xl p-8 text-center shadow-xl ${isDark ? 'bg-[#1D1E20]' : 'bg-white'}`}>
             <h1 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Log in to register</h1>
             <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -2113,7 +2113,7 @@ export default function FestRegistration() {
   // Show Cashfree payment UI when fest has a feeAmount (only for fest-only registrations, not competition registrations)
   if (fest && !isCompetitionRegistration && fest.feeAmount > 0 && !success) {
     return (
-      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
         <div className={`w-full max-w-md rounded-2xl p-8 text-center shadow-xl ${isDark ? 'bg-[#1D1E20]' : 'bg-white'}`}>
           <div className="mb-6">
             {fest.coverImage && (
@@ -2184,7 +2184,7 @@ export default function FestRegistration() {
 
   if (!fest) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Fest Not Found</h1>
           <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>The requested fest could not be found or may have been removed.</p>
@@ -2202,7 +2202,7 @@ export default function FestRegistration() {
   // ✅ CRITICAL: Better registration mode validation with detailed error messages
   if (!isCompetitionRegistration && fest.registration?.mode !== 'INTERNAL_FORM') {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Registration Not Available</h1>
           <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -2244,7 +2244,7 @@ export default function FestRegistration() {
   if (isCompetitionRegistration) {
     if (competition?.registrationType === 'fest' && fest.registration?.mode !== 'INTERNAL_FORM') {
       return (
-        <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
           <div className="text-center max-w-md mx-auto p-6">
             <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Registration Not Available</h1>
             <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -2271,7 +2271,7 @@ export default function FestRegistration() {
     
     if (competition?.registrationType === 'custom' && competition?.registration?.status !== 'internal_form') {
       return (
-        <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
           <div className="text-center max-w-md mx-auto p-6">
             <h1 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Registration Not Available</h1>
             <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -2300,7 +2300,7 @@ export default function FestRegistration() {
 
 
   return (
-    <div className={`min-h-screen py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">

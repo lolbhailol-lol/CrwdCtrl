@@ -9,13 +9,15 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../HomeCategoryBar';
 import MobileStickyHeader from '../MobileStickyHeader';
-import HeroSearchBar from '../HeroSearchBar';
+import CategorySearchRow from '../CategorySearchRow';
+import MobileHeroSearchField from '../MobileHeroSearchField';
 import AppLogo from '../AppLogo';
 import CardFavoriteButton from '../CardFavoriteButton';
 import HomeCarouselSection from '../HomeCarouselSection';
 import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { CompactPortraitCardsRowSkeleton } from '../HomeEventCardSkeleton';
+import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
 import {
     SPORT_TYPE_LABELS,
@@ -24,6 +26,8 @@ import {
     sortUpcomingEvents,
 } from '../../constants/sportsPage';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
+import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
+import { navigateToSearchResult } from '../../utils/searchNavigation';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -47,7 +51,7 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
                 )}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
-            <div className="mt-2 w-full min-w-0 max-w-[var(--card-portrait-w)]">
+            <div className="mt-2 w-full min-w-0 max-w-(--card-portrait-w)">
                 <p className={`card-event-title font-inter truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {toCardText(club.title)}
                 </p>
@@ -69,7 +73,7 @@ export default function SportsCategoryPage() {
     const [sportsFests, setSportsFests] = useState([]);
     const [runClubEntities, setRunClubEntities] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
+    usePageContentLoading(loading);
 
     const loadData = useCallback(async () => {
         try {
@@ -166,15 +170,7 @@ export default function SportsCategoryPage() {
         return [...fromEvents, ...fromFests];
     }, [sportsEvents, sportsFests]);
 
-    const filteredActivities = useMemo(() => {
-        if (!searchQuery.trim()) return normalizedActivities;
-        const q = searchQuery.toLowerCase();
-        return normalizedActivities.filter(
-            (item) =>
-                item.title?.toLowerCase().includes(q) ||
-                item.subtitle?.toLowerCase().includes(q)
-        );
-    }, [normalizedActivities, searchQuery]);
+    const filteredActivities = normalizedActivities;
 
     const runClubs = useMemo(() => {
         return runClubEntities
@@ -204,13 +200,45 @@ export default function SportsCategoryPage() {
         }
     };
 
-    const sectionTitle = `home-section-heading font-inter px-4 mb-3 ${
-        isDark ? 'text-white' : 'text-black'
-    }`;
+    const sectionTitle = `home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`;
     const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
+    const sportsSearchQuickPicks = useMemo(
+        () => [
+            ...normalizedActivities.slice(0, 6).map((item) => ({
+                id: item.id,
+                title: item.title,
+                subtitle: item.subtitle,
+                image: item.image,
+                resultType: item.kind === 'fest' ? 'fest' : 'sport',
+            })),
+            ...runClubs.slice(0, 4).map((club) => ({
+                id: club.id,
+                title: club.title,
+                subtitle: club.subtitle,
+                image: club.image,
+                resultType: 'runclub',
+            })),
+        ],
+        [normalizedActivities, runClubs],
+    );
+
+    const sportsKeywordCatalog = useMemo(
+        () => buildSearchKeywordsFromCatalog({
+            fests: sportsFests,
+            sports: sportsEvents,
+            runClubs: runClubEntities,
+        }),
+        [sportsFests, sportsEvents, runClubEntities],
+    );
+
+    const handleSportsSearchNavigate = useCallback(
+        (result) => navigateToSearchResult(navigate, result),
+        [navigate],
+    );
+
     return (
-        <div className="crwdctrl-page crwdctrl-page--white min-h-screen transition-colors">
+        <div className="crwdctrl-page min-h-screen transition-colors">
             <MobileStickyHeader
                 isDark={isDark}
                 brandingRow={
@@ -244,19 +272,22 @@ export default function SportsCategoryPage() {
                     </>
                 }
                 searchRow={
-                    <HeroSearchBar
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onClear={() => setSearchQuery('')}
-                        isDark={isDark}
-                    />
+                    <CategorySearchRow isDark={isDark}>
+                        <MobileHeroSearchField
+                            isDark={isDark}
+                            placeholder="search sports, run clubs"
+                            quickPickItems={sportsSearchQuickPicks}
+                            keywordCatalog={sportsKeywordCatalog}
+                            onResultNavigate={handleSportsSearchNavigate}
+                        />
+                    </CategorySearchRow>
                 }
                 categoryBar={<HomeCategoryBar isDark={isDark} activeCategory="sports" noPadding />}
             />
 
-            <main className="pb-28">
+            <main className="pb-8">
                 <div className="max-w-2xl lg:max-w-7xl mx-auto">
-                {/* ── Upcoming Activities (same carousel as Happening Near You) ── */}
+                {/* ── Upcoming Activities (Weekend Plans card style) ── */}
                 <div className="mt-5">
                     <HomeCarouselSection
                         title="Upcoming Activities"
@@ -265,8 +296,8 @@ export default function SportsCategoryPage() {
                         wideCard
                         loading={loading}
                         emptyFallback={
-                            <section className="mb-8">
-                                <h2 className={`home-section-heading px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <section className="home-section-block">
+                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     Upcoming Activities
                                 </h2>
                                 <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
@@ -289,7 +320,7 @@ export default function SportsCategoryPage() {
                 </div>
 
                 {/* ── Explore Run Clubs ── */}
-                <section className="mb-8">
+                <section className="home-section-block">
                     <h2 className={sectionTitle}>Explore Run Clubs</h2>
                     {loading ? (
                         <CompactPortraitCardsRowSkeleton count={3} withShare={false} />
@@ -355,8 +386,8 @@ export default function SportsCategoryPage() {
                 />
 
                 {/* ── Browse by Categories ── */}
-                <section className="mb-8 px-4">
-                    <h2 className={`home-section-heading font-inter mb-5 ${isDark ? 'text-white' : 'text-black'}`}>
+                <section className="home-section-block">
+                    <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
                         Browse by Categories
                     </h2>
                     <div className="grid grid-cols-4 gap-x-2 w-full">

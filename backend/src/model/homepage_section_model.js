@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const CARD_SIZES = ['trending', 'hero', 'wide', 'explore', 'runclub', 'mini', 'default'];
-const TARGET_PAGES = ['home', 'fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'treks', 'sports', 'theatre'];
+const TARGET_PAGES = ['home', 'fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'treks', 'sports', 'events'];
 
 const customPageSectionAssignmentSchema = new mongoose.Schema(
     {

@@ -76,8 +76,8 @@ export default function HeroBanner({
     };
 
     return (
-        <div className={`px-[var(--page-gutter)] mb-6 lg:px-12 ${className}`}>
-            <div className="hero-banner-viewport relative rounded-2xl lg:rounded-3xl overflow-hidden hero-banner-height lg:h-[17.5rem] shadow-md">
+        <div className={`hero-banner-shell ${className}`}>
+            <div className="hero-banner-viewport relative rounded-2xl lg:rounded-3xl overflow-hidden hero-banner-height lg:h-70 shadow-md">
                 <div
                     ref={scrollRef}
                     className="hero-banner-track scrollbar-hide"
@@ -101,7 +101,7 @@ export default function HeroBanner({
                 </div>
 
                 {/* Soft bottom gradient for title legibility */}
-                <div className="pointer-events-none absolute inset-0 z-[1] bg-linear-to-t from-black/55 via-black/10 to-transparent" />
+                <div className="pointer-events-none absolute inset-0 z-1 bg-linear-to-t from-black/55 via-black/10 to-transparent" />
 
                 {/* Interactive layer — above image so taps register on iOS */}
                 <div className="absolute inset-0 z-10 pointer-events-none">

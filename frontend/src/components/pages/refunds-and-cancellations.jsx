@@ -11,9 +11,9 @@ export default function RefundsAndCancellations() {
 
   return (
     <div
-      className={`min-h-screen ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'} transition-colors duration-300`}
+      className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300"
     >
-      <div className={`${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b sticky top-0 z-10`}>
+      <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-center relative">
             <button
@@ -40,7 +40,7 @@ export default function RefundsAndCancellations() {
             <a href="https://www.crwdctrl.in" className="text-blue-500 underline">
               www.crwdctrl.in
             </a>
-            ) is a discovery and registration platform for college fests, competitions, treks, theatre
+            ) is a discovery and registration platform for college fests, competitions, treks, live events,
             shows, and community events. Refund and cancellation terms depend on the type of registration
             and the event organizer&apos;s policy. All amounts on CrwdCtrl are displayed and charged in{' '}
             <strong>Indian Rupees (INR / ₹)</strong>.

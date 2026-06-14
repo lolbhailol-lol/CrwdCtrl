@@ -20,7 +20,7 @@ function Block({ className = '', isDark }) {
 function MobileHeaderSkeleton({ isDark }) {
     return (
         <header className="lg:hidden sticky top-0 z-40 mobile-header-shell overflow-hidden">
-            <div className="mobile-header-inner px-[var(--page-gutter)] pb-3">
+            <div className="mobile-header-inner px-(--page-gutter) pb-3">
                 <div className="mb-1 flex items-center justify-between">
                     <Block isDark={isDark} className="h-14 w-28 rounded-xl" />
                     <div className="mobile-header-actions flex gap-1">
@@ -49,21 +49,21 @@ function DesktopCategoryBarSkeleton({ isDark }) {
     );
 }
 
-function HomePageSkeleton({ isDark }) {
+export function HomePageLoadingSkeleton({ isDark }) {
     return (
         <>
             <MobileHeaderSkeleton isDark={isDark} />
             <main className="flex-1 pb-4">
                 <div className="mx-auto max-w-2xl pt-6 lg:max-w-7xl lg:pt-0">
                     <DesktopCategoryBarSkeleton isDark={isDark} />
-                    <HeroBannerSkeleton className="mb-6 px-6 lg:mb-8 lg:px-12" />
-                    <section className="mb-8">
+                    <HeroBannerSkeleton />
+                    <section className="home-section-block">
                         <HomeCarouselCardsSkeleton tallCard />
                     </section>
-                    <section className="mb-8">
+                    <section className="home-section-block">
                         <HomeCarouselCardsSkeleton wideCard />
                     </section>
-                    <section className="mb-8 px-4">
+                    <section className="home-section-block px-4">
                         <Block isDark={isDark} className="h-28 w-full rounded-2xl lg:h-32" />
                     </section>
                 </div>
@@ -158,7 +158,7 @@ function getSkeletonVariant(pathname) {
         pathname.endsWith('-fest') ||
         pathname === '/sports' ||
         pathname === '/treks' ||
-        pathname === '/theatre'
+        pathname === '/events'
     ) {
         return 'category';
     }
@@ -189,16 +189,22 @@ function getSkeletonVariant(pathname) {
 export default function PageTransitionSkeleton({ pathname }) {
     const { isDark } = useDarkMode();
     const variant = getSkeletonVariant(pathname);
+    const pageShellClass =
+        variant === 'home' || variant === 'category'
+            ? 'crwdctrl-page'
+            : variant === 'booking' || variant === 'favorites'
+              ? ''
+              : 'crwdctrl-page crwdctrl-page--content';
 
     return (
         <div
-            className={`fixed inset-0 z-[100000] overflow-y-auto overscroll-none ${
+            className={`${pageShellClass} fixed inset-0 z-100010 overflow-y-auto overscroll-none transition-colors duration-300 ${
                 isDark ? 'bg-[#161718]' : 'bg-white'
-            } ${variant === 'home' ? '' : 'pb-[var(--footer-nav-clearance)] lg:pb-0'}`}
+            } ${variant === 'home' ? '' : 'pb-(--footer-nav-clearance) lg:pb-0'}`}
             aria-hidden
             role="presentation"
         >
-            {variant === 'home' && <HomePageSkeleton isDark={isDark} />}
+            {variant === 'home' && <HomePageLoadingSkeleton isDark={isDark} />}
             {variant === 'booking' && <BookingsPageLoadingSkeleton isDark={isDark} />}
             {variant === 'favorites' && <FavoritesPageLoadingSkeleton isDark={isDark} />}
 
@@ -224,7 +230,7 @@ export default function PageTransitionSkeleton({ pathname }) {
 
                 {variant === 'category' && pathname === '/treks' && (
                     <>
-                        <HeroBannerSkeleton className="mb-6 px-4" />
+                        <HeroBannerSkeleton />
                         <div className="mb-6">
                             <CompactPortraitCardsRowSkeleton count={3} />
                         </div>
@@ -248,6 +254,21 @@ export default function PageTransitionSkeleton({ pathname }) {
                     </>
                 )}
 
+                {variant === 'category' && pathname === '/events' && (
+                    <>
+                        <HeroBannerSkeleton />
+                        <div className="mb-6">
+                            <CompactPortraitCardsRowSkeleton count={3} />
+                        </div>
+                        <div className="mb-6">
+                            <WideActivityCardsRowSkeleton count={2} />
+                        </div>
+                        <div className="mb-6">
+                            <CompactPortraitCardsRowSkeleton count={3} />
+                        </div>
+                    </>
+                )}
+
                 {variant === 'category' && pathname.endsWith('-fest') && (
                     <FestSubpageLoadingSkeleton listedCount={2} />
                 )}
@@ -256,6 +277,7 @@ export default function PageTransitionSkeleton({ pathname }) {
                     && pathname !== '/fests'
                     && pathname !== '/treks'
                     && pathname !== '/sports'
+                    && pathname !== '/events'
                     && !pathname.endsWith('-fest') && (
                     <>
                         <HeroBannerSkeleton />

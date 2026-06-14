@@ -91,10 +91,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                 {/* Status Badge with Premium Glass Effect */}
                 {status && (
                     <div className="absolute top-3 left-3 z-20">
-                        <div className={`${statusStyle.gradient} ${statusStyle.glow} shadow-xl
-                                       text-white text-xs px-3 py-1.5 rounded-full font-semibold capitalize
-                                       flex items-center gap-1.5 backdrop-blur-2xl border-2 border-white/40
-                                       bg-white/20`}>
+                        <div className={`${statusStyle.gradient} ${statusStyle.glow} shadow-xl text-white text-xs px-3 py-1.5 rounded-full font-semibold capitalize flex items-center gap-1.5 backdrop-blur-2xl border-2 border-white/40 bg-white/20`}>
                             <StatusIcon className="w-3 h-3" />
                             {status}
                         </div>
@@ -139,19 +136,7 @@ const FestCard = ({ image, title, subtitle, emoji, venue, isFavorite, onToggleFa
                 {/* View Details Button with Blue 3D Effect */}
                 <button
                     onClick={handleViewDetailsClick}
-                    className="w-full px-4 py-3 rounded-lg text-sm font-bold text-white
-                               bg-linear-to-b from-blue-500 to-blue-600 
-                               hover:from-blue-600 hover:to-blue-700
-                               active:from-blue-700 active:to-blue-800
-                               shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40
-                               border-2 border-blue-400/50 hover:border-blue-300/60
-                               transform hover:scale-[1.02] active:scale-[0.98]
-                               transition-all duration-200 ease-out
-                               relative overflow-hidden
-                               before:absolute before:inset-0 before:bg-linear-to-r 
-                               before:from-transparent before:via-white/20 before:to-transparent
-                               before:translate-x-[-100%] hover:before:translate-x-[100%]
-                               before:transition-transform before:duration-700"
+                    className="w-full px-4 py-3 rounded-lg text-sm font-bold text-white bg-linear-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 active:from-blue-700 active:to-blue-800 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 border-2 border-blue-400/50 hover:border-blue-300/60 transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ease-out relative overflow-hidden before:absolute before:inset-0 before:bg-linear-to-r before:from-transparent before:via-white/20 before:to-transparent before:-translate-x-full hover:before:translate-x-full before:transition-transform before:duration-700"
                 >
                     <span className="relative z-10">View Details</span>
                 </button>

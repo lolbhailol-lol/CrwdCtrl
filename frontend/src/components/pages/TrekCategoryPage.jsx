@@ -209,14 +209,12 @@ export default function TrekCategoryPage() {
     const commName = (id) =>
         communities.find(c => String(c._id) === String(id))?.name || '';
 
-    const bg   = isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]';
-
     return (
-        <div className={`crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen ${bg}`}>
+        <div className="crwdctrl-page crwdctrl-page--content crwdctrl-mobile-page flex flex-col min-h-screen">
 
             {/* ── Sticky Header ── */}
             <div
-                className={`sticky top-0 z-40 rounded-b-2xl px-4 pb-4 ${isDark ? 'bg-black' : 'bg-slate-100'}`}
+                className={`crwdctrl-sticky-header sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 ${isDark ? 'bg-black' : 'bg-slate-100'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
             >
                 {/* Back + Title + Filter */}

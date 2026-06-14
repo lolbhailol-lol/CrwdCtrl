@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Bell } from 'lucide-react';
 import CardFavoriteButton from '../CardFavoriteButton';
@@ -12,7 +12,9 @@ import HomeCategoryBar from '../HomeCategoryBar';
 import CustomPageSectionsRenderer from '../CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import MobileStickyHeader from '../MobileStickyHeader';
+import CategorySearchRow from '../CategorySearchRow';
 import HeroSearchBar from '../HeroSearchBar';
+import MobileHeroSearchField from '../MobileHeroSearchField';
 import HeroBanner from '../HeroBanner';
 import AppLogo from '../AppLogo';
 import CardShareButton from '../CardShareButton';
@@ -20,6 +22,9 @@ import { FestCardsRowSkeleton } from '../HomeEventCardSkeleton';
 import CulturalIcon from '../../assets/mobile-icons/cul.svg';
 import TechIcon from '../../assets/mobile-icons/techhh.svg';
 import SportsIcon from '../../assets/mobile-icons/spor.svg';
+import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
+import { navigateToSearchResult } from '../../utils/searchNavigation';
+import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -36,8 +41,7 @@ const SubcategoryTile = ({ cat, isDark, onClick }) => (
         onClick={onClick}
         aria-label={cat.label}
         style={{ WebkitTapHighlightColor: 'transparent' }}
-        className="flex flex-col items-center justify-center gap-1.5 pt-1 pb-3 lg:pt-2 lg:pb-5 rounded-2xl lg:rounded-3xl
-                   transition-opacity duration-150 active:opacity-80"
+        className="flex flex-col items-center justify-center gap-1.5 pt-1 pb-3 lg:pt-2 lg:pb-5 rounded-2xl lg:rounded-3xl transition-opacity duration-150 active:opacity-80"
     >
         <img
             src={cat.icon}
@@ -75,7 +79,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
             onClick={onViewDetails}
         >
             {/* Image */}
-            <div className="relative aspect-[16/9] lg:aspect-[8/5] overflow-hidden">
+            <div className="relative aspect-video lg:aspect-8/5 overflow-hidden">
                 <ContentImage
                     src={img}
                     alt={fest.festName}
@@ -102,9 +106,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
                 <button
                     onClick={(e) => { e.stopPropagation(); onViewDetails(); }}
-                    className="w-full py-2.5 lg:py-3 rounded-xl text-sm lg:text-base font-bold text-white
-                               bg-blue-500 hover:bg-blue-600 active:bg-blue-700
-                               transition-colors shadow-lg shadow-blue-500/20"
+                    className="w-full py-2.5 lg:py-3 rounded-xl text-sm lg:text-base font-bold text-white bg-blue-500 hover:bg-blue-600 active:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
                 >
                     View details
                 </button>
@@ -118,8 +120,8 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
     if (!loading && fests.length === 0) return null;
 
     return (
-        <section className="mb-8">
-            <h2 className={`home-section-heading px-[var(--page-gutter)] mb-4 lg:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        <section className="home-section-block">
+            <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {title}
             </h2>
 
@@ -157,6 +159,7 @@ export default function FestsPage() {
     const [fests, setFests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    usePageContentLoading(loading);
 
     // Fetch all fests
     useEffect(() => {
@@ -216,8 +219,30 @@ export default function FestsPage() {
     const isEmpty = !loading && ongoingFests.length === 0 && upcomingFests.length === 0 && lastYearFests.length === 0;
     const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
+    const festsSearchQuickPicks = useMemo(
+        () => fests.slice(0, 10).map((fest) => ({
+            id: fest._id,
+            title: fest.festName,
+            subtitle: fest.collegeName,
+            description: fest.description,
+            image: fest.coverImage || fest.galleryImages?.[0],
+            resultType: 'fest',
+        })),
+        [fests],
+    );
+
+    const festsKeywordCatalog = useMemo(
+        () => buildSearchKeywordsFromCatalog({ fests }),
+        [fests],
+    );
+
+    const handleFestsSearchNavigate = useCallback(
+        (result) => navigateToSearchResult(navigate, result),
+        [navigate],
+    );
+
     return (
-        <div className="crwdctrl-page fests-page crwdctrl-page--white min-h-screen">
+        <div className="crwdctrl-page crwdctrl-page--hub fests-page min-h-screen">
 
             <MobileStickyHeader
                 isDark={isDark}
@@ -247,12 +272,15 @@ export default function FestsPage() {
                     </>
                 }
                 searchRow={
-                    <HeroSearchBar
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        onClear={() => setSearchQuery('')}
-                        isDark={isDark}
-                    />
+                    <CategorySearchRow isDark={isDark}>
+                        <MobileHeroSearchField
+                            isDark={isDark}
+                            placeholder="search college, fest"
+                            quickPickItems={festsSearchQuickPicks}
+                            keywordCatalog={festsKeywordCatalog}
+                            onResultNavigate={handleFestsSearchNavigate}
+                        />
+                    </CategorySearchRow>
                 }
                 categoryBar={<HomeCategoryBar isDark={isDark} activeCategory="fests" noPadding />}
             />
@@ -260,7 +288,7 @@ export default function FestsPage() {
             <main className="pb-8 lg:pb-12">
 
                 {/* ── Desktop Search ── */}
-                <div className="hidden lg:block px-[var(--page-gutter)] lg:pt-6 lg:pb-4">
+                <div className="hidden lg:block px-(--page-gutter) lg:pt-6 lg:pb-4">
                     <HeroSearchBar
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
@@ -270,11 +298,10 @@ export default function FestsPage() {
                     />
                 </div>
 
-                <div className="pt-4 lg:pt-0">
+                <div className="lg:pt-0 crwdctrl-hub-body">
 
                 {/* ── Hero Banner ── */}
                 <HeroBanner
-                    className="mb-3 lg:mb-6"
                     events={[...ongoingFests, ...upcomingFests]
                         .filter(f => f.image || f.heroImage)
                         .slice(0, 5)
@@ -290,8 +317,8 @@ export default function FestsPage() {
                 />
 
                 {/* ── Sub-category tiles: Cultural / Tech / Sports ── */}
-                <div className="px-[var(--page-gutter)] -mt-1 mb-6 lg:mt-0 lg:mb-10">
-                    <div className="flex items-center justify-between mb-2 lg:mb-6">
+                <div className="px-(--page-gutter) mt-3 mb-6 lg:mt-3 lg:mb-10">
+                    <div className="flex items-center justify-between">
                         <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                             Categories
                         </h2>
@@ -356,7 +383,7 @@ export default function FestsPage() {
 
                 {/* ── Empty state ── */}
                 {isEmpty && (
-                    <div className={`mx-[var(--page-gutter)] text-center py-16 lg:py-20 rounded-2xl
+                    <div className={`mx-(--page-gutter) text-center py-16 lg:py-20 rounded-2xl
                                    ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-500 shadow-sm'}`}>
                         <div className="text-5xl mb-3">🎪</div>
                         <p className="text-base lg:text-lg font-semibold mb-1">

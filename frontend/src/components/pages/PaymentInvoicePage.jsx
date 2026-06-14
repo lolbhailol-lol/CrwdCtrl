@@ -47,7 +47,7 @@ export default function PaymentInvoicePage() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#111214]' : 'bg-gray-50'}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-gray-400">Loading receipt...</div>
       </div>
     );
@@ -55,7 +55,7 @@ export default function PaymentInvoicePage() {
 
   if (error || !invoice) {
     return (
-      <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111214]' : 'bg-gray-50'}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-red-400 mb-4">{error || 'Receipt not found'}</p>
           <Link to="/booking" className="text-[#0ECCEE] hover:underline">
@@ -83,7 +83,7 @@ export default function PaymentInvoicePage() {
   ];
 
   return (
-    <div className={`min-h-screen py-8 px-4 print:py-0 print:px-0 ${isDark ? 'bg-[#111214]' : 'bg-gray-50'}`}>
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen py-8 px-4 print:py-0 print:px-0">
       <style>{`
         @media print {
           body * { visibility: hidden; }

@@ -37,7 +37,7 @@ function CardsRow({ count, gap, className = '', children }) {
 
 function getSkeletonWidthClass({ wideCard, miniCard, portraitCard }) {
     if (portraitCard) return 'card-portrait';
-    if (wideCard) return 'card-carousel-wide';
+    if (wideCard) return 'card-wide';
     if (miniCard) return 'card-carousel-sm';
     return 'card-carousel';
 }
@@ -51,7 +51,7 @@ export function HomeEventCardSkeleton({ tallCard = false, wideCard = false, mini
         return (
             <div className={`skeleton-card ${widthClass} shrink-0`}>
                 <Shimmer className="card-portrait-image w-full rounded-2xl" />
-                <div className="mt-2 w-full min-w-0 max-w-[var(--card-portrait-w)] space-y-1.5">
+                <div className="mt-2 w-full min-w-0 max-w-(--card-portrait-w) space-y-1.5">
                     <Shimmer className="h-3.5 w-3/4 rounded-md" />
                     <Shimmer className="h-3 w-1/2 rounded-md" />
                 </div>
@@ -59,7 +59,19 @@ export function HomeEventCardSkeleton({ tallCard = false, wideCard = false, mini
         );
     }
 
-    const imageAspect = heroCard ? 'aspect-[2/1]' : tallCard ? 'aspect-[11/10]' : 'aspect-[3/2]';
+    if (wideCard && !heroCard) {
+        return (
+            <div className={`skeleton-card ${widthClass} shrink-0 overflow-hidden rounded-2xl`}>
+                <Shimmer className="card-wide-image w-full" />
+                <div className="px-4 py-3 space-y-2">
+                    <Shimmer className="h-4 w-[85%] rounded-md" />
+                    <Shimmer className="h-3 w-[60%] rounded-md" />
+                </div>
+            </div>
+        );
+    }
+
+    const imageAspect = heroCard ? 'aspect-2/1' : tallCard ? 'aspect-11/10' : 'aspect-3/2';
     const textPad = isTrendingCard ? 'px-5 pt-4' : 'px-2.5 pt-2.5';
 
     return (
@@ -130,10 +142,10 @@ export default function HomeCarouselCardsSkeleton({
 }
 
 /* ── Hero banner ── */
-export function HeroBannerSkeleton({ className = 'px-6 lg:px-12 mb-6' }) {
+export function HeroBannerSkeleton({ className = 'hero-banner-shell' }) {
     return (
         <div className={className}>
-            <Shimmer className="hero-banner-height w-full rounded-2xl lg:h-[17.5rem] lg:rounded-3xl" />
+            <Shimmer className="hero-banner-height w-full rounded-2xl lg:h-70 lg:rounded-3xl" />
         </div>
     );
 }
@@ -288,9 +300,13 @@ export function FestSubpageLoadingSkeleton({ listedCount = 2 }) {
 }
 
 /* ── My Bookings page ── */
-export function BookingCardSkeleton() {
+export function BookingCardSkeleton({ isDark = false }) {
     return (
-        <div className="skeleton-card rounded-2xl p-3 sm:p-4 h-40 flex flex-col">
+        <div
+            className={`rounded-2xl p-3 sm:p-4 h-40 flex flex-col ${
+                isDark ? 'card-surface' : 'skeleton-card'
+            }`}
+        >
             <div className="flex gap-3 sm:gap-4 min-h-0 flex-1">
                 <Shimmer className="size-20 shrink-0 rounded-2xl" />
                 <div className="min-w-0 flex-1 pt-2 space-y-2">
@@ -308,10 +324,14 @@ export function BookingCardSkeleton() {
 
 export function BookingsPageLoadingSkeleton({ isDark, cardCount = 3 }) {
     return (
-        <div className={`min-h-screen pb-24 lg:pb-8 transition-colors ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+        <div className="bookings-page crwdctrl-page crwdctrl-page--content min-h-screen pb-24 lg:pb-8 transition-colors">
             <main className="px-4 pt-4 sm:px-6 lg:px-8">
-                <div className="mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl">
-                    <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
+                <div
+                    className={`mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl ${
+                        isDark ? 'bg-[#161718]' : 'bg-white'
+                    }`}
+                >
+                    <div className="px-4 pt-4">
                         <div className="pb-8">
                             <Shimmer className="h-8 w-40 rounded-md" />
                         </div>
@@ -320,14 +340,10 @@ export function BookingsPageLoadingSkeleton({ isDark, cardCount = 3 }) {
                             <Shimmer className="h-11 min-w-32 rounded-t-2xl" />
                         </div>
                     </div>
-                    <div
-                        className={`px-2.5 py-6 sm:px-4 min-h-[420px] rounded-tr-2xl rounded-bl-2xl rounded-br-2xl ${
-                            isDark ? 'bg-[#161718]' : 'bg-white'
-                        }`}
-                    >
+                    <div className="px-2.5 py-6 sm:px-4 min-h-[420px]">
                         <div className="space-y-4">
                             {Array.from({ length: cardCount }).map((_, index) => (
-                                <BookingCardSkeleton key={index} />
+                                <BookingCardSkeleton key={index} isDark={isDark} />
                             ))}
                         </div>
                     </div>
@@ -341,7 +357,7 @@ export function BookingsPageLoadingSkeleton({ isDark, cardCount = 3 }) {
 export function FavoriteGridCardSkeleton() {
     return (
         <div className="skeleton-card rounded-3xl overflow-hidden">
-            <Shimmer className="aspect-[4/5] w-full rounded-none" />
+            <Shimmer className="aspect-4/5 w-full rounded-none" />
             <div className="px-3.5 py-3.5 space-y-2">
                 <Shimmer className="h-4 w-[85%] rounded-md" />
                 <Shimmer className="h-3 w-[60%] rounded-md" />
@@ -350,9 +366,9 @@ export function FavoriteGridCardSkeleton() {
     );
 }
 
-export function FavoritesPageLoadingSkeleton({ isDark, cardCount = 6 }) {
+export function FavoritesPageLoadingSkeleton({ isDark: _isDark, cardCount = 6 }) {
     return (
-        <div className={`min-h-screen pb-24 lg:pb-8 transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen pb-24 lg:pb-8 transition-colors">
             <main className="px-4 pt-4 sm:px-6 lg:px-8">
                 <div className="mx-auto w-full max-w-md lg:max-w-6xl">
                     <div className="px-4 pt-4">

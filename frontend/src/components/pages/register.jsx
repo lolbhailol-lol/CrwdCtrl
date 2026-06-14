@@ -500,7 +500,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 {/* Display Name (Read-only) */}
                                 <div>
                                     <input
-                                        id="register-name"
+                                        id="register-social-name"
                                         name="name"
                                         type="text"
                                         autoComplete="name"
@@ -521,7 +521,7 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 {/* Display Email (Read-only) */}
                                 <div>
                                     <input
-                                        id="register-email"
+                                        id="register-social-email"
                                         name="email"
                                         type="email"
                                         autoComplete="email"

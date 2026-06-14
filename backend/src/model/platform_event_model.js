@@ -13,7 +13,7 @@ const platformEventSchema = new mongoose.Schema(
         },
         category: {
             type: String,
-            enum: ['fest', 'trek', 'sports', 'theatre', 'workshop'],
+            enum: ['fest', 'trek', 'sports', 'events', 'workshop'],
             required: true,
         },
         venue: {

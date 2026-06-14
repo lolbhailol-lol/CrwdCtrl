@@ -218,8 +218,7 @@ const EmailVerification = () => {
     };
 
     return (
-        <div className={`min-h-screen flex items-center justify-center p-4 ${isDark ? 'bg-gray-900' : 'bg-gray-50'
-            }`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center p-4">
             <div className={`max-w-md w-full rounded-2xl shadow-xl p-8 ${isDark ? 'bg-gray-800' : 'bg-white'
                 }`}>
                 {/* Logo */}

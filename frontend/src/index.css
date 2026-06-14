@@ -23,7 +23,14 @@
     --text-2xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem);
     --text-3xl: clamp(1.5rem, 1.25rem + 1.25vw, 1.875rem);
 
-    --page-gutter: clamp(0.875rem, 3vw, 1.5rem);
+    --page-gutter: clamp(1rem, 3.5vw, 1.625rem);
+    --section-heading-gap: 1.375rem;
+    --section-heading-gap-lg: 1.625rem;
+    --section-block-gap: 2.5rem;
+    --section-block-gap-lg: 3rem;
+    --hero-banner-pad-y: 0.75rem;
+    --hero-banner-mb: 2rem;
+    --hero-banner-mb-lg: 2.5rem;
     --touch-min: 2.75rem;
     --header-logo: clamp(3.75rem, 13vw, 5.25rem);
     --safe-top: env(safe-area-inset-top, 0px);
@@ -85,10 +92,6 @@
         overflow-x: clip;
         scroll-behavior: smooth;
         scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 4rem);
-        -webkit-overflow-scrolling: touch;
-        -webkit-text-size-adjust: 100%;
-        text-size-adjust: 100%;
-        scrollbar-width: none;
         -ms-overflow-style: none;
     }
 
@@ -108,7 +111,6 @@
         font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-        scrollbar-width: none;
         -ms-overflow-style: none;
     }
 
@@ -198,6 +200,11 @@
         width: 100%;
         max-width: 100%;
         overflow-x: clip;
+        background-color: var(--chrome-page-bg-light);
+    }
+
+    html.dark .crwdctrl-app-shell {
+        background-color: var(--chrome-page-bg-dark);
     }
 
     .crwdctrl-page {
@@ -206,16 +213,24 @@
         --header-bg: var(--chrome-header-bg-light);
         --page-bg: var(--chrome-page-bg-light);
         background-color: var(--page-bg);
+        color: var(--page-text-light, #111827);
     }
 
     html.dark .crwdctrl-page {
         --header-bg: var(--chrome-header-bg-dark);
         --page-bg: var(--chrome-page-bg-dark);
+        color: var(--page-text-dark, #ffffff);
     }
 
-    /* Legacy alias — same as default light page bg */
-    .crwdctrl-page.crwdctrl-page--white {
-        --page-bg: #ffffff;
+    /* Pages without hero — grey strip then shorter gradient to page bg */
+    .crwdctrl-page.crwdctrl-page--content {
+        --chrome-logo-block: 0;
+        --chrome-search-block: 0;
+        --chrome-category-block: 0;
+        --chrome-grey-end: calc(max(env(safe-area-inset-top), 0.75rem) + 2.25rem);
+        --chrome-fade-length: 1.75rem;
+        --chrome-fade-end: calc(var(--chrome-grey-end) + var(--chrome-fade-length));
+        --chrome-fade-span: calc(var(--chrome-fade-end) - var(--chrome-grey-end));
     }
 
     .crwdctrl-container {
@@ -359,9 +374,11 @@
         overflow-x: auto;
         overflow-y: hidden;
         scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
         overscroll-behavior-x: contain;
+    }
+
+    .hero-banner-track::-webkit-scrollbar {
+        display: none;
     }
 
     .hero-banner-slide {
@@ -642,8 +659,6 @@
     .horizontal-scroll-row {
         overflow-x: auto;
         overscroll-behavior-x: contain;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
         -ms-overflow-style: none;
         max-width: 100%;
     }
@@ -659,10 +674,26 @@
         left: 0;
         right: 0;
         z-index: 99999;
+        padding-top: 0.625rem;
         padding-bottom: max(var(--safe-bottom), 0.5rem);
         padding-left: max(var(--safe-left), clamp(0.625rem, 3vw, 1rem));
         padding-right: max(var(--safe-right), clamp(0.625rem, 3vw, 1rem));
         pointer-events: auto;
+        background-color: transparent;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+    }
+
+    html:not(.dark) .bottom-nav-shell {
+        background-color: transparent;
+    }
+
+    html.dark .bottom-nav-shell {
+        background-color: transparent;
+    }
+
+    .bottom-nav-shell--profile-open {
+        z-index: 100002;
     }
 
     .bottom-nav-pill {
@@ -714,15 +745,28 @@
     }
 
     .bottom-nav-item[aria-current="page"] {
-        color: #00c2cb;
+        color: #0eccee;
+    }
+
+    .bottom-nav-item[aria-current="page"] .bottom-nav-item__icon {
+        color: #0eccee;
+    }
+
+    html.dark .bottom-nav-item[aria-current="page"] {
+        color: #0eccee;
+    }
+
+    html.dark .bottom-nav-item[aria-current="page"] .bottom-nav-item__icon {
+        color: #0eccee;
     }
 
     .bottom-nav-item__icon {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 2.125rem;
-        height: 2.125rem;
+        width: 1.875rem;
+        height: 1.875rem;
+        border-radius: 9999px;
     }
 }
 
@@ -822,13 +866,7 @@ html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-head
 }
 
 /* Vertical nested scroll areas */
-.overflow-y-auto,
-.overflow-auto {
-    -webkit-overflow-scrolling: touch;
-}
-
 .home-carousel-scroll {
-    -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     scroll-behavior: auto;
     scroll-snap-type: x mandatory;
@@ -843,7 +881,6 @@ html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-head
 .carousel-scroll-center {
     --carousel-snap-card: var(--card-carousel);
     scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     scroll-padding-inline: calc(50% - var(--carousel-snap-card) / 2);
     padding-inline: calc(50% - var(--carousel-snap-card) / 2);
@@ -856,7 +893,6 @@ html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-head
 /* Left-aligned horizontal rows — matches search bar & section headings */
 .carousel-scroll-gutter {
     scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     scroll-padding-inline: var(--page-gutter);
     padding-inline: var(--page-gutter);
@@ -962,7 +998,6 @@ html:not(.dark) .crwdctrl-footer {
 /* Hide scrollbars site-wide — no cyan rail on the right; scrolling still works */
 .overflow-y-auto,
 .overflow-auto {
-    scrollbar-width: none;
     -ms-overflow-style: none;
 }
 
@@ -1043,7 +1078,7 @@ html:not(.dark) .crwdctrl-footer {
 
 .route-progress-bar {
     width: 40%;
-    animation: routeProgress 0.85s ease-in-out infinite;
+    animation: routeProgress 0.34s ease-in-out infinite;
 }
 
 /* Skeleton shimmer — District-style grey loading blocks */
@@ -1108,6 +1143,8 @@ html:not(.dark) .crwdctrl-footer {
 /* Hide chrome while route skeleton or page data is loading */
 body.page-transition-active #crwdctrl-bottom-nav,
 body.page-content-loading #crwdctrl-bottom-nav,
+body.page-transition-active .bottom-nav-spacer,
+body.page-content-loading .bottom-nav-spacer,
 body.page-transition-active .crwdctrl-footer,
 body.page-content-loading .crwdctrl-footer {
     opacity: 0 !important;
@@ -1148,7 +1185,6 @@ body.page-content-loading .crwdctrl-footer {
 
 .scrollbar-hide {
     -ms-overflow-style: none;
-    scrollbar-width: none;
 }
 
 /* Additional scrollbar hiding for horizontal scroll containers */
@@ -1160,7 +1196,6 @@ body.page-content-loading .crwdctrl-footer {
 
 .overflow-x-auto {
     -ms-overflow-style: none;
-    scrollbar-width: none;
 }
 
 /* Mobile responsive utilities */
@@ -1321,6 +1356,7 @@ html.dark #boot-splash,
     object-fit: contain;
     image-rendering: -webkit-optimize-contrast;
     pointer-events: none;
+    -webkit-user-select: none;
     user-select: none;
     margin-left: calc(var(--boot-slice-index) * -100%);
 }
@@ -1381,15 +1417,9 @@ html.dark #boot-splash,
     }
 }
 
-/* Category bar — pop up while active page; brief pop on tap */
+/* Category bar — flat icons, no pop/scale; underline indicates active */
 .category-icon-wrap {
     display: inline-flex;
-    transition: transform 0.2s ease;
-}
-
-.category-card--active .category-icon-wrap,
-.category-card:active .category-icon-wrap {
-    transform: translateY(-6px) scale(1.1);
 }
 
 .category-active-line {
@@ -1447,6 +1477,8 @@ h2.text-xl {
 .home-section-heading {
     font-size: var(--text-2xl);
     line-height: 1.3;
+    padding-inline: var(--page-gutter) !important;
+    margin-bottom: var(--section-heading-gap) !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -1454,9 +1486,35 @@ h2.text-xl {
     transform: none;
 }
 
+.home-section-block,
+.crwdctrl-page section.mb-6,
+.crwdctrl-page section.mb-8 {
+    margin-bottom: var(--section-block-gap) !important;
+}
+
+.hero-banner-shell {
+    padding-inline: var(--page-gutter);
+    padding-top: var(--hero-banner-pad-y);
+    margin-bottom: var(--hero-banner-mb);
+    background: transparent;
+}
+
 @media (min-width: 1024px) {
     .home-section-heading {
         font-size: var(--text-3xl);
+        margin-bottom: var(--section-heading-gap-lg) !important;
+    }
+
+    .home-section-block,
+    .crwdctrl-page section.mb-6,
+    .crwdctrl-page section.mb-8 {
+        margin-bottom: var(--section-block-gap-lg) !important;
+    }
+
+    .hero-banner-shell {
+        padding-inline: 3rem;
+        padding-top: 1rem;
+        margin-bottom: var(--hero-banner-mb-lg);
     }
 }
 
@@ -1465,7 +1523,7 @@ h3, h4, h5, h6 {
     font-weight: 400 !important;
 }
 
-/* Mobile — grey only through SVG icon boxes, then fade to page bg */
+/* Mobile — grey header chrome → gradient through half hero → solid page bg below */
 @media (max-width: 1023px) {
     .crwdctrl-page {
         --chrome-icon-h: clamp(4rem, 20vw, 5.375rem);
@@ -1479,26 +1537,69 @@ h3, h4, h5, h6 {
             + var(--chrome-search-block)
             + var(--chrome-category-block)
         );
-        --chrome-fade-length: 3rem;
+        --chrome-fade-length: 2.5rem;
         --chrome-fade-end: calc(var(--chrome-grey-end) + var(--chrome-fade-length));
+        --chrome-fade-span: calc(var(--chrome-fade-end) - var(--chrome-grey-end));
         background-color: var(--page-bg) !important;
         background-image: linear-gradient(
             180deg,
             var(--header-bg) 0,
             var(--header-bg) var(--chrome-grey-end),
-            color-mix(in srgb, var(--header-bg) 90%, var(--page-bg)) calc(var(--chrome-grey-end) + 0.375rem),
-            color-mix(in srgb, var(--header-bg) 80%, var(--page-bg)) calc(var(--chrome-grey-end) + 0.75rem),
-            color-mix(in srgb, var(--header-bg) 70%, var(--page-bg)) calc(var(--chrome-grey-end) + 1.125rem),
-            color-mix(in srgb, var(--header-bg) 60%, var(--page-bg)) calc(var(--chrome-grey-end) + 1.5rem),
-            color-mix(in srgb, var(--header-bg) 50%, var(--page-bg)) calc(var(--chrome-grey-end) + 1.875rem),
-            color-mix(in srgb, var(--header-bg) 40%, var(--page-bg)) calc(var(--chrome-grey-end) + 2.25rem),
-            color-mix(in srgb, var(--header-bg) 30%, var(--page-bg)) calc(var(--chrome-grey-end) + 2.625rem),
-            color-mix(in srgb, var(--header-bg) 18%, var(--page-bg)) calc(var(--chrome-grey-end) + 2.85rem),
-            color-mix(in srgb, var(--header-bg) 8%, var(--page-bg)) calc(var(--chrome-grey-end) + 2.975rem),
+            color-mix(in srgb, var(--header-bg) 82%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.18),
+            color-mix(in srgb, var(--header-bg) 58%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.42),
+            color-mix(in srgb, var(--header-bg) 32%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.65),
+            color-mix(in srgb, var(--header-bg) 10%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.88),
             var(--page-bg) var(--chrome-fade-end)
         ) !important;
         background-repeat: no-repeat !important;
         background-size: 100% var(--chrome-fade-end) !important;
+    }
+
+    .crwdctrl-hub-body {
+        padding-top: var(--chrome-body-gap, 0.5rem);
+    }
+
+    @media (min-width: 1024px) {
+        .crwdctrl-hub-body {
+            padding-top: 0;
+        }
+    }
+
+    /*
+     * Hub pages with hero — smooth grey→white gradient from header through
+     * top half of hero banner; pure page bg from hero midpoint downward.
+     */
+    .crwdctrl-page.crwdctrl-page--hub {
+        --chrome-body-gap: 0.5rem;
+        --chrome-hero-top: calc(var(--chrome-grey-end) + var(--chrome-body-gap) + var(--hero-banner-pad-y));
+        --chrome-fade-end: calc(var(--chrome-hero-top) + var(--hero-banner-h) / 2);
+        --chrome-fade-span: calc(var(--chrome-fade-end) - var(--chrome-grey-end));
+        background-image: linear-gradient(
+            180deg,
+            var(--header-bg) 0,
+            var(--header-bg) var(--chrome-grey-end),
+            color-mix(in srgb, var(--header-bg) 90%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.08),
+            color-mix(in srgb, var(--header-bg) 78%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.18),
+            color-mix(in srgb, var(--header-bg) 65%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.28),
+            color-mix(in srgb, var(--header-bg) 52%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.38),
+            color-mix(in srgb, var(--header-bg) 40%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.48),
+            color-mix(in srgb, var(--header-bg) 28%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.58),
+            color-mix(in srgb, var(--header-bg) 18%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.68),
+            color-mix(in srgb, var(--header-bg) 10%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.78),
+            color-mix(in srgb, var(--header-bg) 4%, var(--page-bg)) calc(var(--chrome-grey-end) + var(--chrome-fade-span) * 0.9),
+            var(--page-bg) var(--chrome-fade-end)
+        ) !important;
+        background-size: 100% var(--chrome-fade-end) !important;
+    }
+
+    /* Prevent Tailwind bg-* utilities from flattening the chrome gradient */
+    .crwdctrl-page.bg-\[\#111213\],
+    .crwdctrl-page.bg-\[\#111214\],
+    .crwdctrl-page.bg-\[\#161718\],
+    .crwdctrl-page.bg-\[\#EDEDF2\],
+    .crwdctrl-page.bg-white,
+    .crwdctrl-page.bg-gray-50 {
+        background-color: var(--page-bg) !important;
     }
 
     .crwdctrl-page.fests-page {
@@ -1518,6 +1619,14 @@ h3, h4, h5, h6 {
         --page-bg: var(--chrome-page-bg-dark);
     }
 
+    /* Bookings — flat grey page in dark mode; black cards only */
+    html.dark .bookings-page.crwdctrl-page {
+        --header-bg: #161718;
+        --page-bg: #161718;
+        background-color: #161718 !important;
+        background-image: none !important;
+    }
+
     /* At top — transparent header; page gradient shows through (no box edge) */
     .mobile-header-shell,
     .mobile-header-shell > .mobile-header-inner {
@@ -1527,11 +1636,17 @@ h3, h4, h5, h6 {
         border-radius: 0 !important;
     }
 
-    /* On scroll — solid header so content slides behind; no gradient flash */
+    /* On scroll — solid header so content slides behind; rounded bottom corners */
     html.is-scrolling .mobile-header-shell,
-    html.is-scrolling .mobile-header-shell > .mobile-header-inner,
     .mobile-header-shell[data-scrolling="true"],
-    .mobile-header-shell.is-collapsed,
+    .mobile-header-shell.is-collapsed {
+        background: var(--header-bg) !important;
+        border-bottom-left-radius: 16px !important;
+        border-bottom-right-radius: 16px !important;
+        overflow: hidden !important;
+    }
+
+    html.is-scrolling .mobile-header-shell > .mobile-header-inner,
     .mobile-header-shell[data-scrolling="true"] > .mobile-header-inner,
     .mobile-header-shell.is-collapsed > .mobile-header-inner {
         background: var(--header-bg) !important;
@@ -1540,6 +1655,7 @@ h3, h4, h5, h6 {
 
 /* Mobile header layout — inherit page tokens; fallbacks for non-crwdctrl-page routes */
 .mobile-header-shell {
+    --header-collapse: 0;
     --header-bg: var(--chrome-header-bg-light);
     --page-bg: var(--chrome-page-bg-light);
     -webkit-backdrop-filter: none !important;
@@ -1554,6 +1670,22 @@ html.dark .mobile-header-shell {
 .crwdctrl-page .mobile-header-shell {
     --header-bg: inherit;
     --page-bg: inherit;
+}
+
+/* Subpage / info sticky bars — 16px rounded bottom (matches hub header on scroll) */
+@media (max-width: 1023px) {
+    .crwdctrl-sticky-header {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        border-bottom-left-radius: 16px;
+        border-bottom-right-radius: 16px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    }
+
+    html.dark .crwdctrl-sticky-header {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+    }
 }
 
 .mobile-header-inner {
@@ -1626,6 +1758,47 @@ html.dark .mobile-header-shell {
     gap: 0.875rem;
 }
 
+/* Category hub — home chip left of search bar */
+.category-search-row {
+    width: 100%;
+}
+
+.category-home-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.125rem;
+    height: 3.125rem;
+    border: none;
+    border-radius: 1rem;
+    background: #ffffff;
+    color: #111827;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.category-home-btn:active {
+    transform: scale(0.97);
+}
+
+.category-home-btn--dark,
+html.dark .category-home-btn {
+    background: #1a1b1e;
+    color: #f3f4f6;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.category-home-btn__icon {
+    width: 1.375rem;
+    height: 1.375rem;
+    flex-shrink: 0;
+}
+
+.category-search-row__field .hero-search-bar {
+    width: 100%;
+}
+
 .mobile-header-category-row {
     position: relative;
     isolation: isolate;
@@ -1685,11 +1858,6 @@ html.dark .mobile-header-shell {
 
 .fests-page-header .mobile-header-category-row .home-category-bar {
     margin-bottom: 0;
-}
-
-.fests-page-header .category-card--active .category-icon-wrap,
-.fests-page-header .category-card:active .category-icon-wrap {
-    transform: scale(1.05);
 }
 
 .mobile-header-category-row .home-category-bar {
@@ -1759,15 +1927,12 @@ html.dark .mobile-header-shell {
         image-rendering: auto !important;
     }
 
-    .category-card--active .category-icon-wrap {
-        -webkit-transform: translateY(-6px) scale(1.1) !important;
-        transform: translateY(-6px) scale(1.1) !important;
-    }
-
+    .category-card--active .category-icon-wrap,
+    .category-card:active .category-icon-wrap,
     .fests-page-header .category-card--active .category-icon-wrap,
     .fests-page-header .category-card:active .category-icon-wrap {
-        -webkit-transform: scale(1.05) !important;
-        transform: scale(1.05) !important;
+        -webkit-transform: none !important;
+        transform: none !important;
     }
 }
 
@@ -1802,29 +1967,48 @@ html.dark .mobile-header-shell {
         transform: none !important;
     }
 
-    .scrollbar-hide {
-        -webkit-overflow-scrolling: touch;
+    .overflow-x-auto.scrollbar-hide,
+    .horizontal-scroll-row.scrollbar-hide,
+    .home-carousel-scroll.scrollbar-hide,
+    .hero-banner-track.scrollbar-hide,
+    .carousel-scroll-gutter.scrollbar-hide {
         scroll-snap-type: x proximity;
     }
+}
 
-    body {
-        -webkit-text-size-adjust: 100%;
-        text-size-adjust: 100%;
+/* Profile sidebar — vertical scroll (mobile overlay) */
+.profile-sidebar-mobile {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    pointer-events: auto;
+}
+
+body.profile-sidebar-open .profile-sidebar-layer {
+    pointer-events: auto;
+}
+
+.profile-sidebar-mobile__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scroll-snap-type: none;
+    touch-action: pan-y;
+    padding-bottom: var(--footer-nav-clearance);
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .profile-sidebar-mobile .mobile-bottom-nav {
+        padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
     }
 
-    /* iOS-specific safe area fix for ProfileSidebar bottom navigation */
-    @supports (padding-bottom: env(safe-area-inset-bottom)) {
-        .profile-sidebar-mobile .mobile-bottom-nav {
-            padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
-        }
-
-        .profile-sidebar-mobile + div[class*="z-10000"] {
-            z-index: 10001 !important;
-        }
-    }
-
-    .profile-sidebar-mobile {
-        -webkit-overflow-scrolling: touch;
+    .profile-sidebar-mobile + div[class*="z-10000"] {
+        z-index: 10001 !important;
     }
 }
 
@@ -1877,17 +2061,20 @@ html.dark .mobile-header-shell {
 .preview-device-scope .home-section-heading {
     font-size: 1.25rem !important;
     line-height: 1.3 !important;
-    margin-bottom: 0.625rem !important;
+    margin-bottom: 0.875rem !important;
 }
 
-.preview-device-scope section.mb-8 {
-    margin-bottom: 1.25rem !important;
+.preview-device-scope section.mb-6,
+.preview-device-scope section.mb-8,
+.preview-device-scope .home-section-block {
+    margin-bottom: 1.75rem !important;
 }
 
-.preview-device-scope .preview-hero-banner {
+.preview-device-scope .preview-hero-banner,
+.preview-device-scope .hero-banner-shell {
     padding-left: var(--page-gutter) !important;
     padding-right: var(--page-gutter) !important;
-    margin-bottom: 0.75rem !important;
+    margin-bottom: 1.25rem !important;
 }
 
 .preview-device-scope .preview-hero-banner .hero-banner-viewport.hero-banner-height {
@@ -1904,4 +2091,179 @@ html.dark .mobile-header-shell {
 .preview-device-scope .preview-chrome-header .mobile-header-actions svg {
     width: 1.125rem !important;
     height: 1.125rem !important;
+}
+
+/* ── Mobile full-screen search (tap search bar) ── */
+body.mobile-search-open {
+    overflow: hidden;
+    touch-action: none;
+}
+
+body.profile-sidebar-open {
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+@media (max-width: 1023px) {
+    .crwdctrl-app-shell {
+        transition:
+            transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+            filter 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    body.mobile-search-open .crwdctrl-app-shell {
+        transform: scale(0.975) translateZ(0);
+        transform-origin: top center;
+        filter: brightness(0.95);
+        pointer-events: none;
+        will-change: transform, filter;
+    }
+
+    body.profile-sidebar-open .crwdctrl-app-shell {
+        overflow: hidden;
+    }
+}
+
+.mobile-search-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    --mobile-search-top: calc(max(env(safe-area-inset-top) - 0.25rem, 0.375rem) + 1.125rem);
+    padding-top: var(--mobile-search-top);
+    will-change: transform, opacity;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.mobile-search-overlay--dark,
+html.dark .mobile-search-overlay {
+    background: #161718;
+}
+
+.mobile-search-overlay__header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.625rem 0.75rem 1rem;
+    flex-shrink: 0;
+}
+
+.mobile-search-overlay__back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    justify-self: start;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-search-overlay__header-spacer {
+    display: none;
+}
+
+.mobile-search-overlay__bar {
+    min-width: 0;
+    width: 100%;
+    justify-self: center;
+}
+
+.mobile-search-overlay__search-bar.hero-search-bar--overlay {
+    width: 100%;
+    min-height: 3.125rem;
+    border-radius: 1rem;
+    padding-inline: clamp(1rem, 3.5vw, 1.25rem);
+    box-shadow:
+        0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 4px 6px -4px rgba(0, 0, 0, 0.1) !important;
+}
+
+html.dark .mobile-search-overlay__search-bar.hero-search-bar--overlay {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.45) !important;
+}
+
+.mobile-search-overlay__search-bar.hero-search-bar--overlay.hero-search-bar--focused {
+    box-shadow:
+        0 10px 15px -3px rgba(0, 0, 0, 0.12),
+        0 4px 6px -4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.hero-search-bar__clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+html:not(.dark) .mobile-search-overlay__back {
+    color: #111827;
+}
+
+html.dark .mobile-search-overlay__back {
+    color: #f3f4f6;
+}
+
+
+.mobile-search-overlay__search-bar {
+    min-height: 3.125rem;
+}
+
+.mobile-search-overlay__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-top: 0.375rem;
+}
+
+.mobile-search-overlay__hint {
+    padding-top: 1.25rem !important;
+}
+
+.mobile-search-result__thumb {
+    width: 3.25rem;
+    height: 3.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .crwdctrl-app-shell {
+        transition: none !important;
+    }
+
+    body.mobile-search-open .crwdctrl-app-shell {
+        transform: none !important;
+        filter: none !important;
+    }
+
+    .mobile-search-overlay {
+        will-change: auto;
+    }
+}
+
+@media (min-width: 1024px) {
+    .mobile-search-overlay {
+        display: none !important;
+    }
+}
+
+/* Firefox scrollbar hiding — paired with ::-webkit-scrollbar rules above */
+@supports (scrollbar-width: none) {
+    html,
+    body,
+    .hero-banner-track,
+    .horizontal-scroll-row,
+    .overflow-y-auto,
+    .overflow-auto,
+    .scrollbar-hide,
+    .overflow-x-auto {
+        scrollbar-width: none;
+    }
 }

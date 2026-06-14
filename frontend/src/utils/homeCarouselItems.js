@@ -14,6 +14,7 @@ const PRIORITY_FIELD = {
     community: 'priority',
     sport: 'homePriority',
     runclub: 'priority',
+    events: 'homePriority',
 };
 
 function getCustomPagePriority(entity, targetPage, sectionSlug) {
@@ -48,20 +49,23 @@ export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sect
         _title: type === 'fest' ? (raw.festName || 'Untitled')
             : type === 'trek' ? (raw.trekName || 'Untitled')
             : type === 'sport' ? (raw.title || 'Untitled')
+            : type === 'events' ? (raw.title || 'Untitled')
             : (raw.name || 'Untitled'),
         _image: type === 'fest' ? raw.coverImage
             : type === 'trek' ? (raw.coverImage || raw.images?.[0])
             : type === 'sport' ? (raw.images?.[0] || raw.coverImage)
+            : type === 'events' ? raw.poster
             : raw.coverImage,
         _subtitle: type === 'fest' ? (raw.collegeName || '')
             : type === 'trek' ? (raw.city || '')
             : type === 'sport' ? (raw.city || raw.sportType || '')
+            : type === 'events' ? (raw.city || raw.organizer || '')
             : (raw.basedIn || raw.organizer || ''),
     };
 }
 
-export function buildHomeCarouselItems(fests, treks, communities, section, sportsEvents = [], runClubs = []) {
-    return buildPageCarouselItems(fests, treks, communities, 'home', section, sportsEvents, runClubs);
+export function buildHomeCarouselItems(fests, treks, communities, section, sportsEvents = [], runClubs = [], eventShows = []) {
+    return buildPageCarouselItems(fests, treks, communities, 'home', section, sportsEvents, runClubs, eventShows);
 }
 
 export function buildPageCarouselItems(
@@ -72,6 +76,7 @@ export function buildPageCarouselItems(
     sectionSlug,
     sportsEvents = [],
     runClubs = [],
+    eventShows = [],
 ) {
     const byPriority = (a, b) => {
         if (a._priority !== b._priority) return a._priority - b._priority;
@@ -91,5 +96,7 @@ export function buildPageCarouselItems(
             .map((c) => normalizeHomeCarouselItem('runclub', c, opts)),
         ...(sportsEvents || []).filter((s) => entityMatchesPageSection(s, 'sport', targetPage, sectionSlug))
             .map((s) => normalizeHomeCarouselItem('sport', s, opts)),
+        ...(eventShows || []).filter((t) => entityMatchesPageSection(t, 'events', targetPage, sectionSlug))
+            .map((t) => normalizeHomeCarouselItem('events', t, opts)),
     ].sort(byPriority);
 }

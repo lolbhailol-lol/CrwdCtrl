@@ -439,7 +439,7 @@ function CompetitionRegisterPage() {
     };
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
             {/* Desktop Sidebar */}
             <div className="hidden lg:block">
                 <Sidebar />

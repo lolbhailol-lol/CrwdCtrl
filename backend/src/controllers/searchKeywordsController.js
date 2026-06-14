@@ -5,7 +5,7 @@ const TrekCommunity = require('../model/trek_community_model');
 const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
 const Competition = require('../model/competition_model');
-const Theatre = require('../model/theatre_model');
+const EventShow = require('../model/event_show_model');
 const { buildSearchKeywords } = require('../utils/searchKeywords');
 
 const dbOk = () => mongoose.connection.readyState === 1;
@@ -16,7 +16,7 @@ exports.getKeywords = async (req, res) => {
             return res.status(503).json({ keywords: [] });
         }
 
-        const [fests, treks, communities, sports, runClubs, competitions, theatre] = await Promise.all([
+        const [fests, treks, communities, sports, runClubs, competitions, events] = await Promise.all([
             FestOrganizer.find({ isApproved: true })
                 .select('festName collegeName festType venue location highlights')
                 .sort({ homePriority: 1, createdAt: -1 })
@@ -47,8 +47,8 @@ exports.getKeywords = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .limit(80)
                 .lean(),
-            Theatre.find({ status: 'published' })
-                .select('title city theatreType')
+            EventShow.find({ status: 'published' })
+                .select('title city eventType')
                 .sort({ priority: 1, createdAt: -1 })
                 .limit(40)
                 .lean(),
@@ -61,7 +61,7 @@ exports.getKeywords = async (req, res) => {
             sports,
             runClubs,
             competitions,
-            theatre,
+            events,
         });
 
         res.set('Cache-Control', 'public, max-age=300');

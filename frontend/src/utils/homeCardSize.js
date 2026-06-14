@@ -2,10 +2,10 @@
 export const CARD_SIZE_OPTIONS = [
     {
         value: 'trending',
-        label: 'Same as Trending Now',
-        shortLabel: 'Trending Now',
+        label: 'Same as Ongoing Events',
+        shortLabel: 'Ongoing Events',
         description: 'Tall carousel cards on home',
-        reference: 'Trending Now',
+        reference: 'Ongoing Events',
         siteSection: 'Home',
     },
     {
@@ -18,11 +18,11 @@ export const CARD_SIZE_OPTIONS = [
     },
     {
         value: 'wide',
-        label: 'Same as Happening Near You',
-        shortLabel: 'Happening Near You',
-        description: 'Wide carousel cards on home',
-        reference: 'Happening Near You',
-        siteSection: 'Home',
+        label: 'Same as Upcoming Weekend Plans',
+        shortLabel: 'Weekend Plans',
+        description: 'Wide activity cards · Treks page',
+        reference: 'Upcoming Weekend Plans',
+        siteSection: 'Treks',
     },
     {
         value: 'explore',
@@ -73,4 +73,4 @@ export function getCardSizeShortLabel(cardSize) {
     return CARD_SIZE_OPTIONS.find((o) => o.value === cardSize)?.shortLabel
         || (cardSize === 'mini' ? 'Mini' : cardSize === 'default' ? 'Standard' : cardSize);
 }
-
+

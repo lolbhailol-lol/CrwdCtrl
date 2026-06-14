@@ -491,7 +491,7 @@ function EventPage() {
     // Loading state
     if (loading) {
         return (
-            <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} flex items-center justify-center`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
                     <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading competition...</h2>
@@ -503,7 +503,7 @@ function EventPage() {
     // Error state
     if (error || !competitionData) {
         return (
-            <div className={`min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} flex items-center justify-center`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto p-6">
                     <div className="mb-6">
                         <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? 'bg-red-900/20' : 'bg-red-100'}`}>
@@ -854,9 +854,9 @@ function EventPage() {
     };
 
     return (
-        <div className={`min-h-screen flex flex-col transition-colors ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col transition-colors">
 
-            <main className={`flex-1 pb-8 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <main className="flex-1 pb-8">
                     <div className="max-w-7xl mx-auto">
                         {/* Mobile/Narrow Layout - Only visible below 768px */}
                         <div className="block md:hidden">

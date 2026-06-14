@@ -19,7 +19,7 @@ async function syncProductionIndexes() {
     'Registration',
     'PaymentOrder',
     'FestOrganizer',
-    'Theatre',
+    'EventShow',
     'CategoryRegistration',
     'TrekBooking',
   ];

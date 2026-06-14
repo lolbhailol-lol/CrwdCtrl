@@ -44,7 +44,7 @@ function buildSearchKeywords({
     sports = [],
     runClubs = [],
     competitions = [],
-    theatre = [],
+    events = [],
 } = {}) {
     const seen = new Set();
     const bucket = [];
@@ -91,10 +91,10 @@ function buildSearchKeywords({
         if (comp.competitionType) addTerm(bucket, seen, `${comp.competitionType} competition`, 2);
     });
 
-    theatre.forEach((show) => {
+    events.forEach((show) => {
         addTerm(bucket, seen, show.title, 5);
         addCity(seen, bucket, show.city, 4);
-        addTerm(bucket, seen, show.theatreType, 3);
+        addTerm(bucket, seen, show.eventType, 3);
     });
 
     return finalizeKeywords(bucket);

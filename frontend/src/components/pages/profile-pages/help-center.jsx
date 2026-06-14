@@ -88,7 +88,7 @@ const HelpCenter = () => {
     ];
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 ${isDark ? 'bg-[#161718] text-white' : 'bg-[#EDEDF2] text-gray-900'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Mobile Header with Back Button */}

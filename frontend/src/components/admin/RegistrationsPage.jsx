@@ -119,7 +119,7 @@ function RegistrationCard({
                         {normalizeResponses(responses).map(([key, value]) => (
                             <div key={key} className="flex gap-2">
                                 <span className="text-gray-500 capitalize shrink-0 w-1/3">{key.replace(/_/g, ' ')}</span>
-                                <span className="text-gray-300 w-2/3 break-words"><ResponseValue value={value} /></span>
+                                <span className="text-gray-300 w-2/3 wrap-break-word"><ResponseValue value={value} /></span>
                             </div>
                         ))}
                     </div>

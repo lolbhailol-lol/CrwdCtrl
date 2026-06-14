@@ -36,19 +36,19 @@ router.get('/realtime', adminAuth, getRealtimeStats);
 // ===== CATEGORY ANALYTICS =====
 
 // GET /api/analytics/category-summary
-// Returns registrations count + revenue per category (sports, trek, theatre)
+// Returns registrations count + revenue per category (sports, trek, events)
 router.get('/category-summary', adminAuth, async (req, res) => {
     try {
         const CategoryRegistration = require('../model/category_registration_model');
         const SportsEvent = require('../model/sports_model');
         const Trek = require('../model/trek_model');
-        const Theatre = require('../model/theatre_model');
+        const EventShow = require('../model/event_show_model');
 
         const [
             regSummary,
             sportsTotal,
             treksTotal,
-            theatreTotal,
+            eventsTotal,
         ] = await Promise.all([
             CategoryRegistration.aggregate([
                 {
@@ -63,7 +63,7 @@ router.get('/category-summary', adminAuth, async (req, res) => {
             ]),
             SportsEvent.countDocuments({ status: 'published' }),
             Trek.countDocuments({ status: 'published' }),
-            Theatre.countDocuments({ status: 'published' }),
+            EventShow.countDocuments({ status: 'published' }),
         ]);
 
         // Build category map for easy lookup
@@ -86,12 +86,12 @@ router.get('/category-summary', adminAuth, async (req, res) => {
                     pending: regMap.trek?.pending || 0,
                     revenue: regMap.trek?.revenue || 0,
                 },
-                theatre: {
-                    activeEvents: theatreTotal,
-                    totalRegistrations: regMap.theatre?.totalRegistrations || 0,
-                    confirmed: regMap.theatre?.confirmed || 0,
-                    pending: regMap.theatre?.pending || 0,
-                    revenue: regMap.theatre?.revenue || 0,
+                events: {
+                    activeEvents: eventsTotal,
+                    totalRegistrations: regMap.events?.totalRegistrations || 0,
+                    confirmed: regMap.events?.confirmed || 0,
+                    pending: regMap.events?.pending || 0,
+                    revenue: regMap.events?.revenue || 0,
                 },
             },
         });

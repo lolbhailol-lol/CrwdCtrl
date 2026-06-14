@@ -35,9 +35,7 @@ class ErrorBoundary extends React.Component {
         && document.documentElement.classList.contains('dark');
 
       return (
-        <div className={`min-h-screen flex items-center justify-center p-4 ${
-          isDark ? 'bg-[#161718]' : 'bg-white'
-        }`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center p-4">
           <div className="text-center max-w-md">
             <div className="text-6xl mb-4">{chunkError ? '🔄' : '😕'}</div>
             <h1 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>

@@ -54,7 +54,7 @@ function NotificationsPanel() {
     };
 
     return (
-        <div className={`min-h-screen flex transition-colors duration-300 pb-4 lg:pb-8 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300 pb-4 lg:pb-8">
             <div className={`hidden lg:flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
                 <main className="flex-1 px-4 pt-4 sm:px-6 lg:px-8">
                     <div className="mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl">

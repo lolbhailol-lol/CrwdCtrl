@@ -1,36 +1,36 @@
 const mongoose = require('mongoose');
-const Theatre = require('../model/theatre_model');
+const EventShow = require('../model/event_show_model');
 
-exports.createTheatre = async (req, res) => {
+exports.createEventShow = async (req, res) => {
     try {
-        const { title, theatreType } = req.body;
-        if (!title || !theatreType) {
-            return res.status(400).json({ message: 'title and theatreType are required' });
+        const { title, eventType } = req.body;
+        if (!title || !eventType) {
+            return res.status(400).json({ message: 'title and eventType are required' });
         }
-        const show = new Theatre({ ...req.body, createdBy: req.user?._id || null });
+        const show = new EventShow({ ...req.body, createdBy: req.user?._id || null });
         await show.save();
-        res.status(201).json({ message: 'Theatre event created successfully', show });
+        res.status(201).json({ message: 'Event created successfully', show });
     } catch (error) {
-        console.error('adminTheatre createTheatre error:', error);
+        console.error('adminEventShow createEventShow error:', error);
         if (error.name === 'ValidationError') {
             return res.status(400).json({ message: 'Validation failed', details: error.message });
         }
-        res.status(500).json({ message: 'Failed to create theatre event', error: error.message });
+        res.status(500).json({ message: 'Failed to create event', error: error.message });
     }
 };
 
-exports.getAllTheatre = async (req, res) => {
+exports.getAllEventShows = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
         const filter = {};
-        if (req.query.theatreType) filter.theatreType = req.query.theatreType;
+        if (req.query.eventType) filter.eventType = req.query.eventType;
         if (req.query.status) filter.status = req.query.status;
 
-        const total = await Theatre.countDocuments(filter);
-        const shows = await Theatre.find(filter)
+        const total = await EventShow.countDocuments(filter);
+        const shows = await EventShow.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -47,50 +47,50 @@ exports.getAllTheatre = async (req, res) => {
             },
         });
     } catch (error) {
-        console.error('adminTheatre getAllTheatre error:', error);
-        res.status(500).json({ message: 'Failed to fetch theatre events' });
+        console.error('adminEventShow getAllEventShows error:', error);
+        res.status(500).json({ message: 'Failed to fetch events' });
     }
 };
 
-exports.getTheatreById = async (req, res) => {
+exports.getEventShowById = async (req, res) => {
     try {
         const { id } = req.params;
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid ID' });
         }
-        const show = await Theatre.findById(id).lean();
-        if (!show) return res.status(404).json({ message: 'Theatre event not found' });
+        const show = await EventShow.findById(id).lean();
+        if (!show) return res.status(404).json({ message: 'Event not found' });
         res.json({ show });
     } catch (error) {
-        res.status(500).json({ message: 'Failed to fetch theatre event', error: error.message });
+        res.status(500).json({ message: 'Failed to fetch event', error: error.message });
     }
 };
 
-exports.updateTheatre = async (req, res) => {
+exports.updateEventShow = async (req, res) => {
     try {
         const { id } = req.params;
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid ID' });
         }
-        const show = await Theatre.findByIdAndUpdate(id, req.body, { new: true, runValidators: true });
-        if (!show) return res.status(404).json({ message: 'Theatre event not found' });
-        res.json({ message: 'Theatre event updated successfully', show });
+        const show = await EventShow.findByIdAndUpdate(id, req.body, { new: true, runValidators: true });
+        if (!show) return res.status(404).json({ message: 'Event not found' });
+        res.json({ message: 'Event updated successfully', show });
     } catch (error) {
-        console.error('adminTheatre updateTheatre error:', error);
-        res.status(500).json({ message: 'Failed to update theatre event', error: error.message });
+        console.error('adminEventShow updateEventShow error:', error);
+        res.status(500).json({ message: 'Failed to update event', error: error.message });
     }
 };
 
-exports.deleteTheatre = async (req, res) => {
+exports.deleteEventShow = async (req, res) => {
     try {
         const { id } = req.params;
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid ID' });
         }
-        const show = await Theatre.findByIdAndDelete(id);
-        if (!show) return res.status(404).json({ message: 'Theatre event not found' });
-        res.json({ message: 'Theatre event deleted successfully' });
+        const show = await EventShow.findByIdAndDelete(id);
+        if (!show) return res.status(404).json({ message: 'Event not found' });
+        res.json({ message: 'Event deleted successfully' });
     } catch (error) {
-        res.status(500).json({ message: 'Failed to delete theatre event' });
+        res.status(500).json({ message: 'Failed to delete event' });
     }
 };

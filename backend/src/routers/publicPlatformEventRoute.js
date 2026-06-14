@@ -3,7 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const PlatformEvent = require('../model/platform_event_model');
 
-// GET /api/events — list published events, supports ?category=trek&city=pune
+// GET /api/platform-events — list published platform events, supports ?category=trek&city=pune
 router.get('/', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/events/:id — single event detail
+// GET /api/platform-events/:id — single platform event detail
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;

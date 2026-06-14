@@ -189,7 +189,7 @@ function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, g
                 onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(item) : undefined}
                 onViewDetails={() => onItemClick?.(item)}
                 shareUrl={getShareUrl?.(item)}
-                prominentImage={!portraitCard}
+                prominentImage={tallCard && !wideCard && !miniCard && !portraitCard && !heroCard}
                 tallImage={tallCard}
                 wideCard={wideCard}
                 miniCard={miniCard}
@@ -280,7 +280,7 @@ export default function HomeCarouselSection({
         if (loadingFallback) return loadingFallback;
 
         return (
-            <section className="mb-8">
+            <section className="home-section-block">
                 <div
                     ref={scrollRef}
                     className="home-carousel-scroll overflow-x-auto scrollbar-hide"
@@ -307,8 +307,8 @@ export default function HomeCarouselSection({
     }
 
     return (
-        <section className="mb-8">
-            <h2 className={`home-section-heading mb-3 px-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        <section className="home-section-block">
+            <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {title}
             </h2>
             <div

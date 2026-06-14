@@ -357,13 +357,13 @@ const getRevenueSummary = async (req, res) => {
       competitionPaidRegs,
       trekPaidBookings,
       sportsPaidRegs,
-      theatrePaidRegs,
+      eventsPaidRegs,
       paidPaymentOrders,
       festRegCount,
       competitionRegCount,
       trekBookingCount,
       sportsRegCount,
-      theatreRegCount,
+      eventsRegCount,
       recentFestPaid,
       recentCompetitionPaid,
       recentTrekPaid,
@@ -381,7 +381,7 @@ const getRevenueSummary = async (req, res) => {
       CategoryRegistration.find({ category: 'sports', paymentStatus: 'paid', amountPaid: { $gt: 0 } })
         .select('amountPaid createdAt')
         .lean(),
-      CategoryRegistration.find({ category: 'theatre', paymentStatus: 'paid', amountPaid: { $gt: 0 } })
+      CategoryRegistration.find({ category: 'events', paymentStatus: 'paid', amountPaid: { $gt: 0 } })
         .select('amountPaid createdAt')
         .lean(),
       PaymentOrder.find({ status: 'PAID' })
@@ -391,7 +391,7 @@ const getRevenueSummary = async (req, res) => {
       Registration.countDocuments({ competitionId: { $ne: null } }),
       TrekBooking.countDocuments({ status: 'confirmed' }),
       CategoryRegistration.countDocuments({ category: 'sports' }),
-      CategoryRegistration.countDocuments({ category: 'theatre' }),
+      CategoryRegistration.countDocuments({ category: 'events' }),
       Registration.find({
         paymentStatus: 'paid',
         amountPaid: { $gt: 0 },
@@ -424,20 +424,20 @@ const getRevenueSummary = async (req, res) => {
       'amountPaid',
     );
     const runsRevenue = sumRevenueRows(sportsPaidRegs, 'amountPaid');
-    const theatreRevenue = sumRevenueRows(theatrePaidRegs, 'amountPaid');
+    const eventsRevenue = sumRevenueRows(eventsPaidRegs, 'amountPaid');
 
     const festBucket = { ...festRevenue, registrations: festRegCount };
     const competitionBucket = { ...competitionRevenue, registrations: competitionRegCount };
     const treksBucket = { ...trekRevenue, registrations: trekBookingCount };
     const runsBucket = { ...runsRevenue, registrations: sportsRegCount };
-    const theatreBucket = { ...theatreRevenue, registrations: theatreRegCount };
+    const eventsBucket = { ...eventsRevenue, registrations: eventsRegCount };
 
     const categories = {
       fests: festBucket,
       competitions: competitionBucket,
       treks: treksBucket,
       runs: runsBucket,
-      theatre: theatreBucket,
+      events: eventsBucket,
     };
 
     const totals = mergeRevenueBuckets(
@@ -445,7 +445,7 @@ const getRevenueSummary = async (req, res) => {
       competitionBucket,
       treksBucket,
       runsBucket,
-      theatreBucket,
+      eventsBucket,
     );
 
     const last30Fest = sumRevenueRows(recentFestPaid, 'amountPaid', { feeIsTicketOnly: true });
@@ -474,7 +474,7 @@ const getRevenueSummary = async (req, res) => {
       totals: {
         ...totals,
         registrations:
-          festRegCount + competitionRegCount + trekBookingCount + sportsRegCount + theatreRegCount,
+          festRegCount + competitionRegCount + trekBookingCount + sportsRegCount + eventsRegCount,
       },
       last30Days,
       categories,

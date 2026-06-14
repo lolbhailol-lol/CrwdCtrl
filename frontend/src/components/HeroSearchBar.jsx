@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import HeroSearchIcon from './HeroSearchIcon';
@@ -26,7 +26,13 @@ export default function HeroSearchBar({
     isDark = false,
     readOnly = false,
     inputRef,
+    onClick,
+    alwaysShowClear = false,
+    variant = 'default',
+    inputId,
 }) {
+    const autoInputId = useId();
+    const resolvedInputId = inputId ?? `hero-search${autoInputId}`;
     const [focused, setFocused] = useState(false);
     const [placeholderIdx, setPlaceholderIdx] = useState(0);
 
@@ -39,6 +45,14 @@ export default function HeroSearchBar({
     const barClass = isDark
         ? 'bg-[#1a1b1e] shadow-[0_2px_10px_rgba(0,0,0,0.4)]'
         : 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.1)]';
+
+    const isOverlay = variant === 'overlay';
+    const showClearButton = alwaysShowClear || (value && onClear);
+
+    const handleClearClick = (e) => {
+        e.stopPropagation();
+        onClear?.();
+    };
 
     const handleFocus = (e) => {
         setFocused(true);
@@ -56,8 +70,9 @@ export default function HeroSearchBar({
 
     return (
         <motion.div
-            className={`hero-search-bar flex items-center gap-4 ${barClass} ${className} ${focused ? 'hero-search-bar--focused' : ''}`}
-            animate={{
+            className={`hero-search-bar flex items-center gap-4 ${barClass} ${className} ${focused ? 'hero-search-bar--focused' : ''} ${isOverlay ? 'hero-search-bar--overlay' : ''}`}
+            onClick={readOnly ? onClick : undefined}
+            animate={isOverlay ? undefined : {
                 scale: focused ? 1.015 : 1,
                 boxShadow: focused
                     ? `0 0 0 2px ${BRAND.cyan}40, 0 8px 24px ${BRAND.cyan}25`
@@ -65,12 +80,12 @@ export default function HeroSearchBar({
                       ? '0 2px 10px rgba(0,0,0,0.4)'
                       : '0 2px 8px rgba(0,0,0,0.1)',
             }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            transition={isOverlay ? undefined : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
         >
             <HeroSearchIcon isDark={isDark} />
             <div className="relative flex-1 min-w-0">
                 <input
-                    id="hero-search"
+                    id={resolvedInputId}
                     name="q"
                     ref={inputRef}
                     type="search"
@@ -91,15 +106,15 @@ export default function HeroSearchBar({
                     }`}
                 />
             </div>
-            {value && onClear && (
+            {showClearButton && onClear && (
                 <motion.button
                     type="button"
-                    onClick={onClear}
-                    aria-label="Clear search"
-                    className="touch-target shrink-0"
+                    onClick={handleClearClick}
+                    aria-label={value ? 'Clear search' : 'Close search'}
+                    className="touch-target shrink-0 hero-search-bar__clear"
                     whileTap={{ scale: 0.9 }}
                 >
-                    <X size={18} className="text-gray-400" />
+                    <X size={18} className={isDark ? 'text-gray-500' : value ? 'text-gray-400' : 'text-gray-300'} />
                 </motion.button>
             )}
         </motion.div>

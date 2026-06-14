@@ -8,7 +8,7 @@ const QUICK_LINKS = [
   { label: 'Competitions', path: '/admin/competitions', description: 'Competition forms, rounds, and QR' },
   { label: 'Run Clubs', path: '/admin/sports', description: 'Run clubs and run events' },
   { label: 'Treks', path: '/admin/treks', description: 'Trek communities and trek listings' },
-  { label: 'Theatre', path: '/admin/theatre', description: 'Theatre shows and ticketing' },
+  { label: 'Events', path: '/admin/events', description: 'Events and show ticketing' },
   { label: 'Home & Sections', path: '/admin/sections', description: 'Carousels, page placement, priorities' },
   { label: 'Page Sections', path: '/admin/page-sections', description: 'Create custom scrolling sections for any page' },
   { label: 'Registrations', path: '/admin/registrations', description: 'Fest, trek, and run sign-ups' },

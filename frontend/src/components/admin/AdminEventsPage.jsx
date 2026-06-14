@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Loader, Search } from 'lucide-react';
-import TheatreFormModal from './TheatreFormModal';
+import EventShowFormModal from './EventShowFormModal';
 import { adminFetchJSON } from '../../utils/adminApi';
-
-const TYPE_LABELS = {
-    play: 'Play', musical: 'Musical', standup: 'Stand-up',
-    improv: 'Improv', dance_drama: 'Dance Drama', other: 'Other',
-};
+import { EVENT_TYPE_LABELS } from '../../constants/eventsPage';
 
 function nextShowDate(showTimings) {
     if (!showTimings || showTimings.length === 0) return 'N/A';
@@ -19,7 +16,7 @@ function nextShowDate(showTimings) {
     return upcoming[0].toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function TheatrePage() {
+export default function AdminEventsPage() {
     const [shows, setShows] = useState([]);
     const [search, setSearch] = useState('');
     const [showForm, setShowForm] = useState(false);
@@ -29,9 +26,9 @@ export default function TheatrePage() {
 
     const fetchShows = () => {
         setError('');
-        adminFetchJSON('/admin/theatre?limit=200')
+        adminFetchJSON('/admin/events?limit=200')
             .then(d => setShows(d.shows || []))
-            .catch(err => setError(err.message || 'Failed to load theatre events'))
+            .catch(err => setError(err.message || 'Failed to load events'))
             .finally(() => setLoading(false));
     };
 
@@ -40,7 +37,7 @@ export default function TheatrePage() {
     const deleteShow = async (id, title) => {
         if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
         try {
-            await adminFetchJSON(`/admin/theatre/${id}`, { method: 'DELETE' });
+            await adminFetchJSON(`/admin/events/${id}`, { method: 'DELETE' });
         } catch (err) {
             setError(err.message || 'Failed to delete show');
         }
@@ -104,7 +101,7 @@ export default function TheatrePage() {
                             <td className="py-4 text-gray-300">{s.organizer || '—'}</td>
                             <td className="py-4">
                                 <span className="px-2 py-1 rounded text-xs bg-gray-700 capitalize">
-                                    {TYPE_LABELS[s.theatreType] || s.theatreType}
+                                    {EVENT_TYPE_LABELS[s.eventType] || s.eventType}
                                 </span>
                             </td>
                             <td className="py-4 text-gray-400 text-sm">{[s.venue, s.city].filter(Boolean).join(', ') || '—'}</td>
@@ -122,18 +119,26 @@ export default function TheatrePage() {
     return (
         <div className="space-y-6">
         <div>
-            <h1 className="text-3xl font-bold mb-2">Theatre Management</h1>
-            <p className="text-gray-400">Manage theatre shows, drafts, and ticketing</p>
+            <h1 className="text-3xl font-bold mb-2">Events Management</h1>
+            <p className="text-gray-400">Create and edit events here. Assign them to page sections in Home &amp; Sections.</p>
         </div>
         <div className="bg-[#111213] rounded-xl p-6">
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                <h2 className="text-xl font-semibold">Shows</h2>
-                <button
-                    onClick={() => { setSelected(null); setShowForm(true); }}
-                    className="bg-[#0ECCEE] text-black px-4 py-2 rounded-lg font-semibold"
-                >
-                    + Create Theatre Event
-                </button>
+                <h2 className="text-xl font-semibold">Events</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                        to="/admin/sections?mode=assign&tab=events"
+                        className="px-4 py-2 rounded-lg border border-[#0ECCEE]/40 text-[#0ECCEE] text-sm font-semibold hover:bg-[#0ECCEE]/10 transition-colors"
+                    >
+                        Assign to sections
+                    </Link>
+                    <button
+                        onClick={() => { setSelected(null); setShowForm(true); }}
+                        className="bg-[#0ECCEE] text-black px-4 py-2 rounded-lg font-semibold"
+                    >
+                        + Create Event
+                    </button>
+                </div>
             </div>
 
             <div className="relative max-w-md mb-4">
@@ -159,7 +164,7 @@ export default function TheatrePage() {
                 </div>
             ) : shows.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
-                    No theatre events found. Create your first show!
+                    No events found. Create your first event!
                 </div>
             ) : filteredShows.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">No shows match your search.</div>
@@ -209,10 +214,18 @@ export default function TheatrePage() {
             )}
 
             {showForm && (
-                <TheatreFormModal
+                <EventShowFormModal
                     show={selected}
                     onClose={() => setShowForm(false)}
-                    onSaved={() => { setShowForm(false); fetchShows(); }}
+                    onSaved={() => {
+                setShowForm(false);
+                fetchShows();
+                try {
+                    localStorage.setItem('admin_data_updated', String(Date.now()));
+                } catch {
+                    /* ignore */
+                }
+            }}
                 />
             )}
         </div>

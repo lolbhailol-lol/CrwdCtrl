@@ -113,7 +113,7 @@ export default function RunEventDetailPage() {
 
     if (loading) {
         return (
-            <div className={`flex items-center justify-center min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
                 <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
             </div>
         );
@@ -121,7 +121,7 @@ export default function RunEventDetailPage() {
 
     if (!event) {
         return (
-            <div className={`flex flex-col items-center justify-center min-h-screen gap-3 px-6 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
                 <span className="text-4xl">🏃</span>
                 <p className="text-gray-500 text-sm text-center">Run not found</p>
                 <button onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">
@@ -158,7 +158,7 @@ export default function RunEventDetailPage() {
     const eventId = id || event._id || event.id;
 
     return (
-        <div className={`crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen">
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}

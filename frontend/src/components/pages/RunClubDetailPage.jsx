@@ -290,7 +290,7 @@ export default function RunClubDetailPage() {
     };
 
     return (
-        <div className={`flex flex-col min-h-screen pb-24 ${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-24">
             <ScrollProgress />
             {/* ── Cover image carousel (full width, 396px tall — matches trek community page) ── */}
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">

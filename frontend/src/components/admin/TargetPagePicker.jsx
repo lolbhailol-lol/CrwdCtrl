@@ -9,13 +9,13 @@ const PAGE_ICONS = {
     'sports-fest': Trophy,
     treks: Mountain,
     sports: Dumbbell,
-    theatre: Theater,
+    events: Theater,
 };
 
 const PAGE_GROUPS = [
     {
         label: 'Main pages',
-        pages: ['home', 'fests', 'treks', 'sports', 'theatre'],
+        pages: ['home', 'fests', 'treks', 'sports', 'events'],
     },
     {
         label: 'Fest categories',

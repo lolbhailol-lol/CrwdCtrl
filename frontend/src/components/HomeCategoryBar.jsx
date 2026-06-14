@@ -5,7 +5,7 @@ const CATEGORIES = [
   { id: 'fests', label: 'Fests', path: '/fests' },
   { id: 'sports', label: 'Sports', path: '/sports' },
   { id: 'treks', label: 'Treks', path: '/treks' },
-  { id: 'theatre', label: 'Theatre', path: '/theatre' },
+  { id: 'events', label: 'Events', path: '/events' },
 ];
 
 function resolveActiveCategory(pathname, explicit) {
@@ -13,7 +13,7 @@ function resolveActiveCategory(pathname, explicit) {
   if (pathname.startsWith('/fests')) return 'fests';
   if (pathname.startsWith('/sports')) return 'sports';
   if (pathname.startsWith('/treks')) return 'treks';
-  if (pathname.startsWith('/theatre')) return 'theatre';
+  if (pathname.startsWith('/events') || pathname.startsWith('/theatre')) return 'events';
   return null;
 }
 
@@ -63,7 +63,10 @@ export default function HomeCategoryBar({ isDark = false, activeCategory = null,
             label={cat.label}
             isActive={currentCategory === cat.id}
             isDark={isDark}
-            onClick={() => navigate(cat.path)}
+            onClick={() => {
+              if (currentCategory === cat.id) return;
+              navigate(cat.path);
+            }}
           />
         ))}
       </div>

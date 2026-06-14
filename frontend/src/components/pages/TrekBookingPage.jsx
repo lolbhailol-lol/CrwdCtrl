@@ -553,7 +553,7 @@ export default function TrekBookingPage() {
 
     if ((loadingTrek || waitingOnAuth) && !showSuccess && !showProcessing) {
         return (
-            <div className={`crwdctrl-page min-h-dvh flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex items-center justify-center">
                 <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
             </div>
         );
@@ -561,7 +561,7 @@ export default function TrekBookingPage() {
 
     if (!trek && !showSuccess && !showProcessing) {
         return (
-            <div className={`crwdctrl-page min-h-dvh flex flex-col items-center justify-center gap-3 px-6 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <span className="text-4xl">⛰️</span>
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Trek not found. Open booking from the trek page.</p>
                 <button type="button" onClick={() => navigate('/treks')} className="text-[#0ECCEE] text-sm font-semibold">Browse treks</button>
@@ -571,7 +571,7 @@ export default function TrekBookingPage() {
 
     if (showProcessing) {
         return (
-            <div className={`min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
                 <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
                 <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     Verifying payment and confirming your booking...
@@ -583,7 +583,7 @@ export default function TrekBookingPage() {
     // ── Success Screen ──
     if (showSuccess) {
         return (
-            <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
                     <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -652,7 +652,7 @@ export default function TrekBookingPage() {
     }
 
     return (
-        <div className={`crwdctrl-page trek-booking-page min-h-dvh py-2 sm:py-4 pb-[max(6rem,env(safe-area-inset-bottom)+5rem)] ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+        <div className="crwdctrl-page crwdctrl-page--content trek-booking-page min-h-dvh py-2 sm:py-4 pb-[max(6rem,env(safe-area-inset-bottom)+5rem)]">
             <div className="max-w-lg mx-auto px-4 sm:px-6">
 
                 {/* Header */}

@@ -62,10 +62,10 @@ export default function SportsFestPage() {
     const featured = fests.filter(f => f.status === 'ongoing');
     const listed   = fests.filter(f => f.status !== 'ongoing');
     const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
-    const bg   = isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]';
+
     return (
-        <div className={`crwdctrl-page crwdctrl-mobile-page min-h-screen ${bg}`}>
-            <div className={`sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
+        <div className="crwdctrl-page crwdctrl-page--content crwdctrl-mobile-page min-h-screen">
+            <div className={`crwdctrl-sticky-header sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                 <div className="flex items-center gap-3 mt-2">
                     <button type="button" onClick={() => navigate(-1)} aria-label="Go back" className={`touch-target size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
@@ -82,7 +82,7 @@ export default function SportsFestPage() {
                     <>
                         {featured.length > 0 && (
                             <section className="mb-6">
-                                <h2 className={`home-section-heading px-4 mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
+                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
                                 <div ref={scrollRef} className="carousel-scroll-gutter overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none' }}
                                     onScroll={(e) => setFeaturedPg(getCarouselScrollPage(e.currentTarget))}>
                                     <div className="flex gap-4 pb-1">
@@ -114,7 +114,7 @@ export default function SportsFestPage() {
                         )}
 
                         <section className="px-4">
-                            <h2 className={`home-section-heading mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Listed Fest</h2>
+                            <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-black'}`}>Listed Fest</h2>
                             {listed.length === 0 && featured.length === 0 ? (
                                 <div className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                     <div className="text-4xl mb-2">⚽</div><p>No sports fests right now</p>

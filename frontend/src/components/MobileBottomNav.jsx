@@ -3,80 +3,106 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Heart, Calendar, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { usePageTransition } from './PageTransition';
+
+/** Prevent duplicate profile opens from double-tap. */
+const PROFILE_TAP_COOLDOWN_MS = 400;
+const profileTapGuard = { lastAt: 0 };
+
+/** Prevent duplicate route navigations from double-tap / ghost clicks. */
+const ROUTE_TAP_COOLDOWN_MS = 450;
+const routeTapGuard = { lastAt: 0, path: '' };
 
 const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNavigate, isProfileOpen = false }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { isAuthenticated } = useAuth();
-    const { showSkeleton, startOverlayTransition } = usePageTransition();
     const [mounted, setMounted] = useState(false);
-    const lastTapRef = React.useRef(0);
 
     useEffect(() => { setMounted(true); }, []);
 
+    const isSameRoute = (path, itemId) => {
+        if (itemId === 'home') {
+            return location.pathname === '/' || location.pathname === '/dashboard';
+        }
+        return location.pathname === path;
+    };
+
     const isItemActive = (itemPath, itemId) => {
         const p = location.pathname;
-        if (itemId === 'profile')    return isProfileOpen || p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications');
-        // Profile is an overlay — underlying route (e.g. /) must not stay highlighted
+        if (itemId === 'profile') {
+            return isProfileOpen || p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications');
+        }
         if (isProfileOpen) return false;
-        if (itemId === 'home')       return p === '/';
-        if (itemId === 'favorites')  return p === '/favorites';
+        if (itemId === 'home') return p === '/' || p === '/dashboard';
+        if (itemId === 'favorites') return p === '/favorites';
         if (itemId === 'booking') return p === '/booking';
         return p === itemPath;
     };
 
     const navItems = [
-        { id: 'home',       icon: Home,     label: 'Home',       path: '/' },
-        { id: 'favorites',  icon: Heart,    label: 'Favourite',  path: '/favorites' },
+        { id: 'home', icon: Home, label: 'Home', path: '/' },
+        { id: 'favorites', icon: Heart, label: 'Favourite', path: '/favorites' },
         { id: 'booking', icon: Calendar, label: 'Bookings', path: '/booking' },
-        { id: 'profile',    icon: User,     label: 'Profile',    path: '/profile' },
+        { id: 'profile', icon: User, label: 'Profile', path: '/profile' },
     ];
+
+    const shouldIgnoreRouteTap = (path) => {
+        const now = Date.now();
+        if (routeTapGuard.path === path && now - routeTapGuard.lastAt < ROUTE_TAP_COOLDOWN_MS) {
+            return true;
+        }
+        routeTapGuard.lastAt = now;
+        routeTapGuard.path = path;
+        return false;
+    };
 
     const handleNavClick = (path, itemId) => {
         if (itemId === 'profile' && !isAuthenticated) {
             onShowLogin?.();
             return;
         }
+
         if (itemId === 'profile') {
-            // Profile is a sidebar overlay — do not navigate (avoids skeleton flash over profile)
-            if (isProfileOpen) {
-                const now = Date.now();
-                if (now - lastTapRef.current < 350) {
-                    const targetPath = location.pathname === '/profile' ? '/' : location.pathname;
-                    startOverlayTransition(targetPath, () => {
-                        onProfileClose?.();
-                        if (location.pathname === '/profile') navigate('/');
-                    });
-                    lastTapRef.current = 0;
-                    return;
-                }
-                lastTapRef.current = now;
+            const now = Date.now();
+            if (now - profileTapGuard.lastAt < PROFILE_TAP_COOLDOWN_MS) {
                 return;
             }
-            startOverlayTransition('/profile', () => onProfileClick?.());
+            profileTapGuard.lastAt = now;
+
+            if (isProfileOpen) {
+                return;
+            }
+            onProfileClick?.();
             return;
         }
-        // Profile overlay sits on the current route — no location.key change for Home on `/`
+
+        if (shouldIgnoreRouteTap(path)) {
+            return;
+        }
+
         if (isProfileOpen) {
-            startOverlayTransition(path, () => {
-                onProfileClose?.();
-                if (location.pathname !== path) navigate(path);
-            });
+            if (onNavigate) {
+                onNavigate(path);
+                return;
+            }
+            onProfileClose?.();
+        }
+
+        if (isSameRoute(path, itemId)) {
             return;
         }
+
         navigate(path);
-        onNavigate?.(path);
     };
 
-    if (!mounted || showSkeleton) return null;
+    if (!mounted) return null;
 
-    // Portal renders directly into document.body — completely immune to ancestor
-    // transforms, stacking contexts, or display:none that break position:fixed on iOS
     return createPortal(
         <>
-            {/* ── Bottom nav rendered at body level via portal ── */}
-            <div id="crwdctrl-bottom-nav" className="bottom-nav-shell">
+            <div
+                id="crwdctrl-bottom-nav"
+                className={`bottom-nav-shell${isProfileOpen ? ' bottom-nav-shell--profile-open' : ''}`}
+            >
                 <div className="bottom-nav-pill">
                     <div className="bottom-nav-pill__inner">
                         {navItems.map((item) => {
@@ -92,7 +118,7 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
                                     className="bottom-nav-item touch-target"
                                 >
                                     <span className="bottom-nav-item__icon crisp-icon-svg">
-                                        <IconComponent size={26} strokeWidth={2} />
+                                        <IconComponent size={22} strokeWidth={2} />
                                     </span>
                                 </button>
                             );
@@ -101,8 +127,9 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
                 </div>
             </div>
 
-            {/* Spacer injected at body level so pages know to pad their content */}
-            <div className="bottom-nav-spacer" aria-hidden="true" />
+            {!isProfileOpen && (
+                <div className="bottom-nav-spacer" aria-hidden="true" />
+            )}
         </>,
         document.body
     );

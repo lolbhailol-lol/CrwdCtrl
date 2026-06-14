@@ -7,7 +7,7 @@ export default function Footer() {
 
   return (
     <footer
-      className={`crwdctrl-footer mt-auto w-full max-w-full overflow-x-clip border-t pt-8 pb-[var(--footer-nav-clearance)] md:pb-10 lg:pb-10 ${
+      className={`crwdctrl-footer mt-auto w-full max-w-full overflow-x-clip border-t pt-8 pb-(--footer-nav-clearance) md:pb-10 lg:pb-10 ${
         isDark ? 'border-gray-800 bg-[#161718]' : 'border-gray-200 bg-white'
       }`}
     >

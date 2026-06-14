@@ -56,7 +56,6 @@ export default function QRTicketPage() {
     fetchTicket();
   }, [registrationId, isTrekTicket, isSportsTicket]);
 
-  const pageBgClass = isDark ? 'bg-[#161718]' : 'bg-white';
   const cardClass = isDark
     ? 'bg-[#111213] border-gray-800'
     : 'bg-white border-gray-200 shadow-sm';
@@ -73,7 +72,7 @@ export default function QRTicketPage() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${pageBgClass}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-gray-400">Loading ticket...</div>
       </div>
     );
@@ -81,7 +80,7 @@ export default function QRTicketPage() {
 
   if (error) {
     return (
-      <div className={`min-h-screen flex items-center justify-center px-4 ${pageBgClass}`}>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-red-400 mb-4">{error}</p>
           <Link to="/booking" className="text-[#0ECCEE] hover:underline">Back to Bookings</Link>
@@ -103,7 +102,7 @@ export default function QRTicketPage() {
   const formattedDate = formatTicketDate(ticket.festDate);
 
   return (
-    <div className={`min-h-screen py-8 px-4 ${pageBgClass}`}>
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen py-8 px-4">
       <div className="max-w-md mx-auto">
         <Link
           to="/booking"

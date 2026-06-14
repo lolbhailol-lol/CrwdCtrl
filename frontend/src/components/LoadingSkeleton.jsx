@@ -9,12 +9,12 @@ const LoadingSkeleton = ({ count = 3 }) => {
             {Array.from({ length: count }).map((_, index) => (
                 <div
                     key={index}
-                    className={`card-carousel lg:min-w-[21.25rem] lg:w-[21.25rem] rounded-xl shadow-sm overflow-hidden animate-pulse ${
+                    className={`card-carousel lg:min-w-85 lg:w-85 rounded-xl shadow-sm overflow-hidden animate-pulse ${
                         isDark ? 'bg-[#111213]' : 'bg-white'
                     }`}
                 >
                     {/* Image Skeleton */}
-                    <div className={`aspect-[13/10] ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <div className={`aspect-13/10 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                         <div className="relative h-full">
                             {/* Status Badge Skeleton */}
                             <div className={`absolute top-2 left-2 w-16 h-6 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`}></div>

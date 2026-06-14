@@ -25,8 +25,7 @@ import CrwdCtrlRegister from './register';
 import { HeroBannerSkeleton } from '../HomeEventCardSkeleton';
 import { TRENDING_CARD_GAP } from '../../hooks/useHomeCarousel';
 import HeroBanner from '../HeroBanner';
-import HeroSearchBar from '../HeroSearchBar';
-import HeroSearchDropdown from '../HeroSearchDropdown';
+import MobileHeroSearchField from '../MobileHeroSearchField';
 import HomeCategoryBar from '../HomeCategoryBar';
 import MobileStickyHeader from '../MobileStickyHeader';
 import HomeCarouselSection from '../HomeCarouselSection';
@@ -204,7 +203,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
             onClick={handleCardClick}
             className="card-surface card-carousel rounded-xl overflow-hidden duration-300 transition-shadow cursor-pointer"
         >
-            <div className="relative aspect-[7/5] overflow-hidden rounded-t-xl">
+            <div className="relative aspect-7/5 overflow-hidden rounded-t-xl">
                 {/* Loading placeholder */}
                 {imageLoading && (
                     <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
@@ -1161,7 +1160,7 @@ const Dashboard = () => {
     // Error state
     if (error) {
         return (
-            <div className={`min-h-screen transition-colors flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-50'}`}>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto p-6">
                     <div className="text-6xl mb-4">⚠️</div>
                     <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-800'}`}>Something went wrong</h2>
@@ -1178,7 +1177,7 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="crwdctrl-page flex flex-col min-h-screen transition-colors">
+        <div className="crwdctrl-page crwdctrl-page--hub flex flex-col min-h-screen transition-colors">
           <div className="flex flex-col flex-1">
 
             <MobileStickyHeader
@@ -1268,33 +1267,22 @@ const Dashboard = () => {
                     </>
                 }
                 searchRow={
-                    <div className="relative" ref={heroSearch.searchRef}>
-                        <HeroSearchBar
-                            value={heroSearch.searchQuery}
-                            onChange={(e) => heroSearch.setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') heroSearch.handleEnter(); }}
-                            onClear={heroSearch.clearSearch}
-                            isDark={isDark}
-                        />
-                        <HeroSearchDropdown
-                            isOpen={heroSearch.isOpen}
-                            isSearching={heroSearch.isSearching}
-                            searchQuery={heroSearch.searchQuery}
-                            results={heroSearch.mergedResults}
-                            popularTerms={heroSearch.popularTerms}
-                            isDark={isDark}
-                            onResultClick={heroSearch.handleResultClick}
-                            onSuggestionClick={heroSearch.applySuggestion}
-                            className="absolute left-0 right-0 top-full mt-1"
-                        />
-                    </div>
+                    <MobileHeroSearchField
+                        isDark={isDark}
+                        placeholder="search college, fest"
+                        quickPickItems={searchQuickPicks}
+                        keywordCatalog={searchKeywordCatalog}
+                        onResultNavigate={handleSearchNavigate}
+                        desktopRef={heroSearch.searchRef}
+                        desktopSearch={heroSearch}
+                    />
                 }
                 categoryBar={<HomeCategoryBar isDark={isDark} noPadding />}
             />
 
             {/* Main content - shared mobile + desktop */}
             <main className="flex-1 pb-4">
-                <div className="max-w-2xl lg:max-w-7xl mx-auto pt-6 lg:pt-0">
+                <div className="max-w-2xl lg:max-w-7xl mx-auto lg:pt-0 crwdctrl-hub-body">
 
                     {/* Desktop-only category bar */}
                     <div className="hidden lg:block pt-3">
@@ -1311,9 +1299,9 @@ const Dashboard = () => {
                     )}
                     {isFestsLoading && <HeroBannerSkeleton />}
 
-                    {/* Trending Now */}
+                    {/* Ongoing Events */}
                     <HomeCarouselSection
-                        title="Trending Now"
+                        title="Ongoing Events"
                         items={trendingItems}
                         isDark={isDark}
                         tallCard
@@ -1321,19 +1309,19 @@ const Dashboard = () => {
                         loading={isFestsLoading}
                         emptyFallback={
                             festError && ongoingEvents.length === 0 ? (
-                                <section className="mb-8">
-                                    <h2 className={`home-section-heading px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        Trending Now
+                                <section className="home-section-block">
+                                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        Ongoing Events
                                     </h2>
                                     <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
                                 </section>
                             ) : (
-                                <section className="mb-8">
-                                    <h2 className={`home-section-heading px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        Trending Now
+                                <section className="home-section-block">
+                                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        Ongoing Events
                                     </h2>
                                     <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
-                                        <p className="text-sm">No trending events right now</p>
+                                        <p className="text-sm">No ongoing events right now</p>
                                     </div>
                                 </section>
                             )
@@ -1352,8 +1340,8 @@ const Dashboard = () => {
                         wideCard
                         loading={isFestsLoading}
                         emptyFallback={
-                            <section className="mb-8">
-                                <h2 className={`home-section-heading px-4 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <section className="home-section-block">
+                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     Happening near you
                                 </h2>
                                 <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
@@ -1385,8 +1373,8 @@ const Dashboard = () => {
 
                     {/* Desktop-only: beyond campus grid */}
                     {beyondCampusEvents.length > 0 && (
-                        <section className="hidden lg:block mb-8 px-4">
-                            <h2 className={`home-section-heading mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <section className="hidden lg:block home-section-block">
+                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                 Beyond Campus
                             </h2>
                             <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
