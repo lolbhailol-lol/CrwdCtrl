@@ -1,5 +1,5 @@
 import { Instagram } from 'lucide-react';
-import { useDarkMode } from '../context/DarkModeContext';
+import { useDarkMode } from '../../context/DarkModeContext';
 import { Link } from 'react-router-dom';
 
 export default function Footer() {

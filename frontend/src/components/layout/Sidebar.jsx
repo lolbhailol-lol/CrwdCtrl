@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Calendar, Heart, Ticket, Settings, HelpCircle, Sun, Moon, Menu, X, LogOut } from 'lucide-react';
-import { useDarkMode } from '../context/DarkModeContext';
-import { useFavorites } from '../context/FavoritesContext';
-import AppLogo from './AppLogo';
+import { useDarkMode } from '../../context/DarkModeContext';
+import { useFavorites } from '../../context/FavoritesContext';
+import AppLogo from '../AppLogo';
 
 const Sidebar = () => {
     const { isDark, toggleDarkMode } = useDarkMode();

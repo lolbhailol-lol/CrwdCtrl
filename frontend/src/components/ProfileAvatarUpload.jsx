@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Loader2, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { authAPI, handleApiError } from '../utils/api';
+import { authAPI, handleApiError } from '../services/api/auth.api';
 
 const MAX_SIZE_MB = 5;
 

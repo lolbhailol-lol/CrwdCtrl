@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChange, handleRedirectResult, signOut, auth, firebaseReady } from '../firebase';
-import { authAPI } from '../utils/api';
+import { authAPI, getUserAuthHeaders, userApiCall, validateUserToken } from '../services/api/auth.api';
 import { processSocialAuthUser } from '../utils/socialAuth';
 import { withFirebaseIdToken } from '../utils/firebaseIdToken';
 import { hasPendingOAuthRedirect, restoreSessionFromStorage, clearOAuthRedirectMarkers } from '../utils/authBootstrap';
@@ -9,9 +9,6 @@ import { isNativeAuthInProgress } from '../utils/nativeAuth';
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { markFreshLogin } from '../utils/notificationPrompt';
 import { resolveAuthToken } from '../utils/authToken';
-
-// Configure API base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 const AuthContext = createContext();
 
@@ -447,74 +444,9 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // Function to get authorization headers for API requests
-    const getAuthHeaders = () => {
-        const resolved = resolveAuthToken(token);
-        if (resolved) {
-            return {
-                Authorization: `Bearer ${resolved}`,
-                'Content-Type': 'application/json',
-            };
-        }
-        return {
-            'Content-Type': 'application/json',
-        };
-    };
-
-    // Function to make authenticated API requests
-    const apiCall = async (url, options = {}) => {
-        try {
-            const token = localStorage.getItem('crwdctrl_token'); // Ensure token is fetched from localStorage
-            const headers = {
-                'Content-Type': 'application/json',
-                ...(token && { Authorization: `Bearer ${token}` }), // Add token if available
-            };
-
-            console.log('🔍 Making API call:', { url, headers, options });
-
-            const response = await fetch(`${API_BASE_URL}${url}`, {
-                ...options,
-                headers: {
-                    ...headers,
-                    ...options.headers,
-                },
-                credentials: 'include', // ✅ FIX: Include cookies for production
-                mode: 'cors', // ✅ FIX: Enable CORS for production
-            });
-
-            if (response.status === 401) {
-                console.error('❌ Unauthorized (401). Clearing token and redirecting to login.');
-                localStorage.removeItem('crwdctrl_token');
-                localStorage.removeItem('crwdctrl_user');
-                window.location.href = '/login';
-                return response;
-            }
-
-            return response;
-        } catch (err) {
-            console.error('❌ API call failed:', err);
-            throw new Error('Failed to connect to the server. Please try again later.');
-        }
-    };
-
-    const validateToken = async () => {
-        if (!token) return false;
-        
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/validate`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include', // ✅ FIX: Include cookies for production
-                mode: 'cors', // ✅ FIX: Enable CORS for production
-            });
-            return response.ok;
-        } catch (error) {
-            console.error('Token validation error:', error);
-            return false;
-        }
-    };
+    const getAuthHeaders = () => getUserAuthHeaders(token);
+    const apiCall = userApiCall;
+    const validateToken = () => validateUserToken(token);
 
     const isAuthenticated = !!user && !!token;
     

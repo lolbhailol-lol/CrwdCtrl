@@ -6,8 +6,7 @@ import {
     getBudgetTier,
     DIFFICULTY_LEVEL_FILTER_OPTIONS,
 } from '../../constants/trekFilters';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 
 const CATEGORY_VALUE_MAP = {
     Camping: 'camping',
@@ -190,14 +189,9 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
         if (!files.length) return;
         setUploading(true);
         try {
-            const token = localStorage.getItem('admin_token');
             const fd = new FormData();
             files.forEach(f => fd.append('images', f));
-            const res = await fetch(`${API}/admin/upload/images`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: fd,
-            });
+            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
             const urls = (data.urls || data.imageUrls || []).map(u => u?.url || u).filter(Boolean);
@@ -215,14 +209,9 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
         if (!file) return;
         setUploadingCover(true);
         try {
-            const token = localStorage.getItem('admin_token');
             const fd = new FormData();
             fd.append('images', file);
-            const res = await fetch(`${API}/admin/upload/images`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: fd,
-            });
+            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
             const urlObj = (data.urls || data.imageUrls || [])[0];
@@ -258,7 +247,6 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
         }
         setSaving(true);
         try {
-            const token = localStorage.getItem('admin_token');
             const payload = {
                 ...form,
                 communityId: form.communityId || null,
@@ -278,15 +266,11 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
             delete payload.priority;
             delete payload.trekPagePriority;
             delete payload.homePriority;
-            const url = trek ? `${API}/admin/treks/${trek._id}` : `${API}/admin/treks`;
-            const method = trek ? 'PUT' : 'POST';
-            const res = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            const path = trek ? `/admin/treks/${trek._id}` : '/admin/treks';
+            const data = await adminFetchJSON(path, {
+                method: trek ? 'PUT' : 'POST',
                 body: JSON.stringify(payload),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Save failed');
             localStorage.setItem('admin_data_updated', Date.now().toString());
             setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
             onSaved(data.trek);

@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Upload } from 'lucide-react';
 import { normalizeImageList, normalizeImageUrl, parseUploadedUrls } from '../../utils/uploadUrls';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 
 const CATEGORY_OPTIONS = ['Camping', 'Trail Walks', 'Hiking', 'Backpacking', 'Adventure'];
 const GALLERY_PREVIEW_COUNT = 4;
@@ -122,29 +121,13 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
         );
     };
 
-    const getToken = () => {
-        const token = localStorage.getItem('admin_token');
-        if (!token) {
-            setError('Session expired. Please log in again.');
-            setTimeout(() => { window.location.href = '/admin/login'; }, 1500);
-            return null;
-        }
-        return token;
-    };
-
     const uploadImages = async (files, field) => {
         const isGallery = field === 'galleryImages';
         isGallery ? setUploadingGallery(true) : setUploading(true);
         try {
-            const token = getToken();
-            if (!token) return;
             const fd = new FormData();
             files.forEach(f => fd.append('images', f));
-            const res = await fetch(`${API}/admin/upload/images`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: fd,
-            });
+            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Upload failed');
             const urls = parseUploadedUrls(data);
@@ -171,27 +154,15 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
         }
         setSaving(true);
         try {
-            const token = getToken();
-            if (!token) { setSaving(false); return; }
-            const url = community ? `${API}/admin/trek-communities/${community._id}` : `${API}/admin/trek-communities`;
+            const path = community ? `/admin/trek-communities/${community._id}` : '/admin/trek-communities';
             const payload = {
                 ...pickCommunityFormFields(form),
                 ...(community ? {} : { showOnTreks: true, trekPageSection: 'communities' }),
             };
-            const res = await fetch(url, {
+            const data = await adminFetchJSON(path, {
                 method: community ? 'PUT' : 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify(payload),
             });
-            if (res.status === 401 || res.status === 403) {
-                localStorage.removeItem('admin_token');
-                localStorage.removeItem('admin_refresh_token');
-                setError('Session expired. Redirecting to login...');
-                setTimeout(() => { window.location.href = '/admin/login'; }, 1500);
-                return;
-            }
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Save failed');
             localStorage.setItem('admin_data_updated', Date.now().toString());
             setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
             onSaved(data.community);

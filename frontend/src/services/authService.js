@@ -6,7 +6,7 @@
  * Mobile-optimized with proper error handling and retry logic
  */
 
-import { authAPI } from '../utils/api';
+import { authAPI } from './api/auth.api.js';
 import { storage } from '../utils/storage';
 import { signInWithGoogle, signInWithFacebook, registerWithEmail, auth } from '../firebase';
 import { processSocialAuthUser } from '../utils/socialAuth';

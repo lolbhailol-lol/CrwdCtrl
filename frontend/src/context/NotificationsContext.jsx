@@ -4,8 +4,7 @@ import { registerNativePushToken, getPushDeviceType } from '../utils/nativePush'
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { shouldPromptForNotifications, markNotificationPromptAttempted } from '../utils/notificationPrompt';
 import { resolveAuthToken } from '../utils/authToken';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { userFetchJSON } from '../services/api/client';
 
 const NotificationsContext = createContext();
 
@@ -30,24 +29,10 @@ export const NotificationsProvider = ({ children }) => {
         return resolveAuthToken();
     };
 
-    // Helper: authenticated fetch
-    const authFetchJSON = async (url, options = {}) => {
-        const token = getToken();
-        if (!token) return null;
-
-        const res = await fetch(`${API_BASE_URL}${url}`, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                ...(options.headers || {}),
-            },
-            credentials: 'include',
-        });
-
-        if (!res.ok) return null;
-        return res.json();
-    };
+    const authFetchJSON = useCallback(
+        (path, options = {}) => userFetchJSON(path, { ...options, token: getToken() }),
+        [],
+    );
 
     const showBrowserNotification = useCallback((title, body) => {
         if (typeof Notification === 'undefined') return;

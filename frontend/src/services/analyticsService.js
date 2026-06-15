@@ -1,7 +1,7 @@
 // Analytics tracking service for CrwdCtrl
 // Uses navigator.sendBeacon for non-blocking tracking, falls back to fetch
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { resolveUrl } from './api/client.js';
 
 // Generate/retrieve session ID
 const getSessionId = () => {
@@ -35,7 +35,7 @@ const sendEvent = (eventType, metadata = {}) => {
       },
     });
 
-    const url = `${API_BASE_URL}/analytics/track`;
+    const url = resolveUrl('/analytics/track');
 
     // Prefer sendBeacon (non-blocking, survives page unload)
     if (navigator.sendBeacon) {

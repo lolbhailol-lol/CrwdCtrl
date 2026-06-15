@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon } from 'lucide-react';
-import { useDarkMode } from '../context/DarkModeContext';
-import { useAuth } from '../context/AuthContext';
+import { useDarkMode } from '../../context/DarkModeContext';
+import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import MobileBottomNav from './MobileBottomNav';
-import ProfileAvatarUpload from './ProfileAvatarUpload';
-import ProfileSidebarLoadingSkeleton from './ProfileSidebarLoadingSkeleton';
-import { SKELETON_LOADING_MS } from '../constants/skeletonLoading';
+import ProfileAvatarUpload from '../ProfileAvatarUpload';
+import ProfileSidebarLoadingSkeleton from '../ProfileSidebarLoadingSkeleton';
+import { SKELETON_LOADING_MS } from '../../constants/skeletonLoading';
 
 export default function ProfileSidebar({
     isOpen,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, resolveUrl } from '../services/api/client';
 
 const ConnectionStatus = () => {
     const [connectionStatus, setConnectionStatus] = useState({
@@ -23,7 +24,6 @@ const ConnectionStatus = () => {
         setConnectionStatus(prev => ({ ...prev, testing: true, error: null }));
 
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
             const tests = [
                 { test: 'Backend Health Check', endpoint: '/health' },
                 { test: 'API Base Connection', endpoint: '/' }
@@ -32,7 +32,7 @@ const ConnectionStatus = () => {
             const results = [];
             for (const testItem of tests) {
                 try {
-                    const response = await fetch(`${API_BASE_URL}${testItem.endpoint}`);
+                    const response = await fetch(resolveUrl(testItem.endpoint));
                     results.push({
                         test: testItem.test,
                         status: response.ok ? 'PASS' : 'FAIL',
@@ -65,8 +65,7 @@ const ConnectionStatus = () => {
         setManualTest(prev => ({ ...prev, loading: true, result: null }));
 
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-            const url = `${API_BASE_URL}${manualTest.endpoint}`;
+            const url = resolveUrl(manualTest.endpoint);
 
             const response = await fetch(url, {
                 method: manualTest.method,
@@ -93,7 +92,7 @@ const ConnectionStatus = () => {
                 loading: false,
                 result: {
                     error: error.message,
-                    url: `${import.meta.env.VITE_API_BASE_URL}${manualTest.endpoint}`
+                    url: resolveUrl(manualTest.endpoint)
                 }
             }));
         }
@@ -121,7 +120,7 @@ const ConnectionStatus = () => {
                 <h3 className="text-lg font-semibold mb-2">Environment Configuration</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                        <strong>API Base URL:</strong> {import.meta.env.VITE_API_BASE_URL}
+                        <strong>API Base URL:</strong> {API_BASE_URL}
                     </div>
                     <div>
                         <strong>Environment:</strong> {import.meta.env.MODE}

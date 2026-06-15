@@ -5,14 +5,11 @@ import { buildPageCarouselItems } from '../utils/homeCarouselItems';
 import { mapHomeCarouselDisplayItems } from '../utils/mapHomeCarouselDisplayItems';
 import { getCardSizeProps } from '../utils/homeCardSize';
 import { TRENDING_CARD_GAP } from '../hooks/useHomeCarousel';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { publicFetchJSONRetry } from '../services/api/client';
 
 async function fetchPageSections(targetPage) {
-    const res = await fetch(`${API_BASE_URL}/page-sections?page=${encodeURIComponent(targetPage)}&_cb=${Date.now()}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data.sections) ? data.sections : [];
+    const { data } = await publicFetchJSONRetry(`/page-sections?page=${encodeURIComponent(targetPage)}`, { cacheBust: true });
+    return Array.isArray(data?.sections) ? data.sections : [];
 }
 
 export default function CustomPageSectionsRenderer({

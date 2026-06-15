@@ -1,4 +1,5 @@
-// API utility functions for CrwdCtrl frontend
+// Legacy API client — login/register/profile flows still use this module.
+// New code should import from `services/api/*` (auth.api.js, client.js, etc.).
 import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
 import { getApiBaseUrl } from '../config/apiBase.js';
 

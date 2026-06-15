@@ -1,74 +1,6 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, Loader } from 'lucide-react';
-
-// Configure API base URL - Use Vite environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-
-console.log('🔧 FestFormModal - API_BASE_URL:', API_BASE_URL);
-
-// Helper function to check if token is expired
-function isTokenExpired(token) {
-  if (!token) {
-    console.error('❌ [isTokenExpired] No token provided');
-    return true;
-  }
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      console.error('❌ [isTokenExpired] Invalid token format');
-      return true;
-    }
-    const payload = JSON.parse(atob(parts[1]));
-    // Consider token expired if it expires within the next 5 minutes
-    const isExpired = Date.now() >= (payload.exp * 1000) - (5 * 60 * 1000);
-    console.log('🔐 [isTokenExpired] Token expiry check:', {
-      expiresAt: new Date(payload.exp * 1000).toISOString(),
-      isExpired,
-      expiresIn: Math.ceil(((payload.exp * 1000) - Date.now()) / 1000) + 's'
-    });
-    return isExpired;
-  } catch (err) {
-    console.error('❌ [isTokenExpired] Error parsing token:', err.message);
-    return true;
-  }
-}
-
-// Helper function to refresh admin token
-async function refreshAdminToken(refreshToken) {
-  try {
-    console.log('🔄 Attempting admin token refresh...');
-    const response = await fetch(`${API_BASE_URL}/admin/refresh-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    
-    console.log('🔄 Refresh response status:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('❌ Token refresh failed:', errorData);
-      throw new Error(errorData.message || 'Token refresh failed');
-    }
-    
-    const data = await response.json();
-    console.log('✅ Token refreshed successfully');
-    
-    // Store new access token
-    localStorage.setItem('admin_token', data.accessToken);
-    if (data.refreshToken) {
-      localStorage.setItem('admin_refresh_token', data.refreshToken);
-    }
-    
-    return data.accessToken;
-  } catch (err) {
-    console.error('❌ Token refresh error:', err.message);
-    // Clear tokens on refresh failure
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_refresh_token');
-    throw err;
-  }
-}
+import { adminFetch, adminFetchJSON, getAdminToken } from '../../utils/adminApi';
 
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -1325,11 +1257,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       formData.append('image', file);
       formData.append('folder', 'crwdctrl/fests');
 
-      const response = await fetch(`${API_BASE_URL}/admin/upload/image`, {
+      const response = await adminFetch('/admin/upload/image', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-        },
         body: formData,
       });
 
@@ -1372,11 +1301,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       });
       formData.append('folder', 'crwdctrl/fests');
 
-      const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
+      const response = await adminFetch('/admin/upload/images', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-        },
         body: formData,
       });
 
@@ -1406,38 +1332,11 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
   setLoading(true);
 
   try {
-    // Check if admin token exists
-    let adminToken = localStorage.getItem('admin_token');
-    const adminRefreshToken = localStorage.getItem('admin_refresh_token');
-    
-    console.log('🔑 Admin token check:', adminToken ? 'Present' : 'Missing');
+    const adminToken = await getAdminToken({ redirectOnFail: false });
     if (!adminToken) {
-      console.error('❌ No admin token found');
       setError('Admin session expired. Please log in again.');
       setLoading(false);
       return;
-    }
-
-    // Check if token is expired and refresh if needed
-    if (isTokenExpired(adminToken)) {
-      console.warn('⚠️ Admin token expired or expiring soon, attempting refresh...');
-      
-      if (!adminRefreshToken) {
-        console.error('❌ No refresh token available');
-        setError('Session expired. Please log in again.');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        adminToken = await refreshAdminToken(adminRefreshToken);
-        console.log('✅ Token refreshed successfully');
-      } catch (refreshErr) {
-        console.error('❌ Token refresh failed:', refreshErr.message);
-        setError('Session expired. Please log in again.');
-        setLoading(false);
-        return;
-      }
     }
 
     console.log('📋 Submitting fest form with data:', form);
@@ -1547,13 +1446,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       },
     };
 
-    const method = fest ? 'PUT' : 'POST';
-    const url = fest
-      ? `${API_BASE_URL}/admin/fests/${fest._id}`
-      : `${API_BASE_URL}/admin/fests`;
+    const path = fest ? `/admin/fests/${fest._id}` : '/admin/fests';
 
-    console.log('🌐 Making API call to:', url);
-    console.log('📤 Method:', method);
+    console.log('🌐 Making API call to:', path);
+    console.log('📤 Method:', fest ? 'PUT' : 'POST');
     console.log('📦 Payload:', payload);
     console.log('🔍 DEBUG - Registration data in payload:');
     console.log('  - registration.formType:', payload.registration.formType);
@@ -1591,92 +1487,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('  - form.registrationMode:', form.registrationMode, '(type:', typeof form.registrationMode, ')');
     console.log('🔑 Admin token:', adminToken ? `Present (${adminToken.substring(0, 20)}...)` : 'Missing');
 
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
+    const result = await adminFetchJSON(path, {
+      method: fest ? 'PUT' : 'POST',
       body: JSON.stringify(payload),
     });
-
-    console.log('📡 Response status:', response.status);
-    console.log('📡 Response ok:', response.ok);
-    console.log('📡 Response headers:', response.headers);
-
-    // Debug: Check what we actually received
-    let responseText = await response.text();
-    console.log('📡 Raw response:', responseText);
-
-    // ✅ FIX: Handle token expiration with auto-refresh and retry
-    if (response.status === 401) {
-      console.warn('⚠️ Token expired, attempting refresh...');
-      const refreshToken = localStorage.getItem('admin_refresh_token');
-      
-      if (refreshToken) {
-        try {
-          const newToken = await refreshAdminToken(refreshToken);
-          console.log('🔄 Retrying request with new token...');
-          
-          // Retry the request with new token
-          const retryResponse = await fetch(url, {
-            method,
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${newToken}`,
-            },
-            body: JSON.stringify(payload),
-          });
-          
-          console.log('📡 Retry response status:', retryResponse.status);
-          responseText = await retryResponse.text();
-          
-          if (!retryResponse.ok) {
-            let err;
-            try {
-              err = JSON.parse(responseText);
-            } catch (parseError) {
-              throw new Error(`HTTP ${retryResponse.status}: ${responseText.substring(0, 200)}`);
-            }
-            throw new Error(err.message || `Failed to save fest (${retryResponse.status})`);
-          }
-          
-          // Success! Continue processing below with retryResponse text
-          console.log('✅ Retry successful!');
-        } catch (refreshErr) {
-          console.error('❌ Token refresh failed:', refreshErr.message);
-          setError('Session expired. Please log in again.');
-          setTimeout(() => {
-            window.location.href = '/admin/login';
-          }, 1500);
-          return;
-        }
-      } else {
-        setError('Session expired. Please log in again.');
-        setTimeout(() => {
-          window.location.href = '/admin/login';
-        }, 1500);
-        return;
-      }
-    } else if (!response.ok) {
-      let err;
-      try {
-        err = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('❌ Failed to parse error response as JSON:', parseError);
-        throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 200)}`);
-      }
-      console.error('❌ API Error:', err);
-      throw new Error(err.message || 'Failed to save fest');
-    }
-
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ Failed to parse success response as JSON:', parseError);
-      throw new Error('Invalid JSON response from server');
-    }
     console.log('✅ Success result:', result);
 
     // ✅ CRITICAL: Add cache busting to ensure changes are visible immediately
@@ -1714,10 +1528,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
     // 5. Clear server-side cache so production website updates instantly
     try {
-      const token = localStorage.getItem('admin_token');
-      await fetch(`${API_BASE_URL}/admin/clear-cache`, {
+      await adminFetch('/admin/clear-cache', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         credentials: 'include',
       });
       console.log('✅ Server cache cleared');
@@ -2332,16 +2144,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                           
                           setUploadingImage(true);
                           try {
-                            const response = await fetch(`${API_BASE_URL}/registrations/admin/test-google-sheets`, {
+                            const result = await adminFetchJSON('/registrations/admin/test-google-sheets', {
                               method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                                Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-                              },
                               body: JSON.stringify({ googleSheetsUrl: form.googleSheetsUrl }),
                             });
-                            
-                            const result = await response.json();
                             
                             if (result.success) {
                               setError(`✅ Connection successful! Sheet: "${result.title}"`);

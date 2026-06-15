@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2 } from 'lucide-react';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 
 const EVENT_TYPE_OPTIONS = [
     { value: 'play', label: 'Play' },
@@ -50,14 +49,9 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
         if (!file) return;
         setUploading(true);
         try {
-            const token = localStorage.getItem('admin_token');
             const fd = new FormData();
             fd.append('image', file);
-            const res = await fetch(`${API}/admin/upload/image`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: fd,
-            });
+            const res = await adminFetch('/admin/upload/image', { method: 'POST', body: fd });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Upload failed');
             set('poster', data.url || data.imageUrl || '');
@@ -91,7 +85,6 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
         }
         setSaving(true);
         try {
-            const token = localStorage.getItem('admin_token');
             const payload = {
                 ...form,
                 cast: form.cast ? form.cast.split(',').map(s => s.trim()).filter(Boolean) : [],
@@ -100,15 +93,11 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                 seatingCapacity: Number(form.seatingCapacity) || 0,
                 showTimings: form.showTimings.filter(s => s.date || s.time),
             };
-            const url = show ? `${API}/admin/events/${show._id}` : `${API}/admin/events`;
-            const method = show ? 'PUT' : 'POST';
-            const res = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            const path = show ? `/admin/events/${show._id}` : '/admin/events';
+            const data = await adminFetchJSON(path, {
+                method: show ? 'PUT' : 'POST',
                 body: JSON.stringify(payload),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Save failed');
             onSaved(data.show);
         } catch (err) {
             setError(err.message);

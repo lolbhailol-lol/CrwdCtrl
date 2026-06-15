@@ -133,7 +133,7 @@ export default defineConfig(({ mode }) => ({
           if (!id.includes('node_modules')) return undefined;
 
           // Auth / Firebase — large, rarely changes with UI deploys
-          if (id.includes('firebase') || id.includes('better-auth')) {
+          if (id.includes('firebase')) {
             return 'vendor-auth';
           }
 
@@ -145,9 +145,6 @@ export default defineConfig(({ mode }) => ({
             || id.includes('framer-motion')
             || id.includes('@sentry/react')
             || id.includes('lucide-react')
-            || id.includes('react-icons')
-            || id.includes('react-responsive')
-            || id.includes('react-circular-progressbar')
             || id.includes('scheduler/')
           ) {
             return 'vendor-react';

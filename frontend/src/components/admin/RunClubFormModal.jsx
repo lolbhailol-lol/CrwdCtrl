@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { X, Upload } from 'lucide-react';
 import { normalizeImageList, normalizeImageUrl, parseUploadedUrls } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 const GALLERY_PREVIEW_COUNT = 4;
 
 const EMPTY = {
@@ -132,8 +131,6 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
         );
     };
 
-    const getToken = () => localStorage.getItem('admin_token');
-
     const uploadImages = async (files, field) => {
         const isGallery = field === 'galleryImages';
         isGallery ? setUploadingGallery(true) : setUploading(true);
@@ -141,11 +138,7 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
         try {
             const fd = new FormData();
             files.forEach((f) => fd.append('images', f));
-            const res = await fetch(`${API}/admin/upload/images`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${getToken()}` },
-                body: fd,
-            });
+            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
             const urls = parseUploadedUrls(data);
@@ -175,17 +168,14 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
         }
         setSaving(true);
         try {
-            const url = club ? `${API}/admin/run-clubs/${club._id}` : `${API}/admin/run-clubs`;
-            const res = await fetch(url, {
+            const path = club ? `/admin/run-clubs/${club._id}` : '/admin/run-clubs';
+            const data = await adminFetchJSON(path, {
                 method: club ? 'PUT' : 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
                 body: JSON.stringify({
                     ...pickClubFormFields(form),
                     ...(club ? {} : { showOnSportsPage: true, showInRunClubs: true }),
                 }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Save failed');
             localStorage.setItem('admin_data_updated', Date.now().toString());
             setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
             onSaved(data.club);

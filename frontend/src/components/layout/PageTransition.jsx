@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import PageTransitionSkeleton from './PageTransitionSkeleton';
-import { SKELETON_LOADING_MS, SKELETON_LOADING_SAFETY_MS } from '../constants/skeletonLoading';
+import PageTransitionSkeleton from '../PageTransitionSkeleton';
+import { SKELETON_LOADING_MS, SKELETON_LOADING_SAFETY_MS } from '../../constants/skeletonLoading';
 
 function resetScrollToTop() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });

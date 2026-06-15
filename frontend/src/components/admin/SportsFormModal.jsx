@@ -1,9 +1,8 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, ImagePlus } from 'lucide-react';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
 import { normalizeImageList, parseUploadedUrls } from '../../utils/uploadUrls';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 
 const EMPTY = {
     title: '',
@@ -87,11 +86,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
             setParentRunCategories([]);
             return;
         }
-        const token = localStorage.getItem('admin_token');
-        fetch(`${API}/admin/run-clubs/${clubId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-            .then((res) => res.json())
+        adminFetchJSON(`/admin/run-clubs/${clubId}`)
             .then((data) => {
                 const cats = Array.isArray(data?.club?.runCategories) ? data.club.runCategories : [];
                 setParentRunCategories(cats.length ? cats : RUN_CATEGORY_OPTIONS);
@@ -107,14 +102,9 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
         setUploading(true);
         setError('');
         try {
-            const token = localStorage.getItem('admin_token');
             const fd = new FormData();
             files.forEach((f) => fd.append('images', f));
-            const res = await fetch(`${API}/admin/upload/images`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: fd,
-            });
+            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
             const urls = parseUploadedUrls(data);
@@ -141,7 +131,6 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
         }
         setSaving(true);
         try {
-            const token = localStorage.getItem('admin_token');
             const payload = {
                 title: form.title.trim(),
                 sportType: 'run_club',
@@ -181,15 +170,11 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                     featuredSection: 'upcoming',
                 }),
             };
-            const url = event ? `${API}/admin/sports/${event._id}` : `${API}/admin/sports`;
-            const method = event ? 'PUT' : 'POST';
-            const res = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            const path = event ? `/admin/sports/${event._id}` : '/admin/sports';
+            const data = await adminFetchJSON(path, {
+                method: event ? 'PUT' : 'POST',
                 body: JSON.stringify(payload),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Save failed');
             localStorage.setItem('admin_data_updated', Date.now().toString());
             setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
             onSaved(data.event);

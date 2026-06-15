@@ -23,12 +23,4 @@ function signPaymentProof({ orderId, paymentId, trekId, totalAmount, people }) {
   );
 }
 
-function verifyPaymentProof(token) {
-  const decoded = jwt.verify(token, getJwtSecret());
-  if (decoded.type !== PROOF_TYPE) {
-    throw new Error('Invalid payment proof token');
-  }
-  return decoded;
-}
-
-module.exports = { signPaymentProof, verifyPaymentProof };
+module.exports = { signPaymentProof };

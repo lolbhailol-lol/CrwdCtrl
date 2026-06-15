@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, MapPin, Sun, Moon, Menu, Clock, Calendar, X, User, Navigation, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { useDarkMode } from '../context/DarkModeContext';
-import { useAuth } from '../context/AuthContext';
-import { useNotifications } from '../context/NotificationsContext';
-import { searchAll } from '../services/searchService';
-import { CATEGORY_NAV_ICONS } from '../constants/categoryNavIcons';
+import { useDarkMode } from '../../context/DarkModeContext';
+import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationsContext';
+import { searchAll } from '../../services/searchService';
+import { CATEGORY_NAV_ICONS } from '../../constants/categoryNavIcons';
 
 const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests' },

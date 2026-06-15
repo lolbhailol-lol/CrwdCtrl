@@ -1,12 +1,9 @@
-﻿import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
 import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
+import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 
-// Configure API base URL - Use Vite environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-console.log('🔧 Competition_Modal - API_BASE_URL:', API_BASE_URL);
-
-// Individual Form Field Component to prevent state sharing
+// Individual Form Field Component
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
   const handleInputChange = (fieldName, value) => {
     onUpdate(index, fieldName, value);
@@ -232,42 +229,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
 
   const fetchCompetitions = useCallback(async () => {
     try {
-      console.log('Frontend - Fetching competitions for fest:', fest._id);
-      const adminToken = localStorage.getItem('admin_token');
-      
-      if (!adminToken) {
-        console.error('❌ No admin token found in localStorage');
-        setError('Authentication expired. Please log in again.');
-        // Redirect to admin login
-        window.location.href = '/admin/login';
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/fests/${fest._id}/competitions`, {
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-        },
-        credentials: 'include', // ✅ FIX: Include cookies for production
-        mode: 'cors', // ✅ FIX: Enable CORS for production
-      });
-
-      console.log('Frontend - Fetch competitions response status:', response.status);
-
-      if (response.status === 401) {
-        console.error('❌ Admin token expired or invalid');
-        localStorage.removeItem('admin_token');
-        setError('Authentication expired. Please log in again.');
-        // Redirect to admin login
-        setTimeout(() => {
-          window.location.href = '/admin/login';
-        }, 1500);
-        return;
-      }
-
-      if (!response.ok) throw new Error('Failed to fetch competitions');
-
-      const data = await response.json();
-      console.log('Frontend - Competitions data received:', data);
+      const data = await adminFetchJSON(`/admin/fests/${fest._id}/competitions`);
       setCompetitions(data.competitions || []);
     } catch (err) {
       console.error('Error fetching competitions:', err);
@@ -285,17 +247,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
     if (!window.confirm('Are you sure you want to delete this competition?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/competitions/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-        },
-        credentials: 'include', // ✅ FIX: Include cookies for production
-        mode: 'cors', // ✅ FIX: Enable CORS for production
-      });
-
-      if (!response.ok) throw new Error('Failed to delete competition');
-
+      await adminFetchJSON(`/admin/competitions/${id}`, { method: 'DELETE' });
       fetchCompetitions();
     } catch (err) {
       console.error('Error deleting competition:', err);
@@ -424,37 +376,6 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
       </div>
     </div>
   );
-}
-
-// Helper to refresh admin token
-async function refreshAdminToken() {
-  const refreshToken = localStorage.getItem('admin_refresh_token');
-  if (!refreshToken) {
-    throw new Error('No refresh token available');
-  }
-  
-  console.log('🔄 Attempting admin token refresh...');
-  const response = await fetch(`${API_BASE_URL}/admin/refresh-token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    console.error('❌ Token refresh failed:', errorData);
-    throw new Error(errorData.message || 'Token refresh failed');
-  }
-  
-  const data = await response.json();
-  console.log('✅ Token refreshed successfully');
-  
-  localStorage.setItem('admin_token', data.accessToken);
-  if (data.refreshToken) {
-    localStorage.setItem('admin_refresh_token', data.refreshToken);
-  }
-  
-  return data.accessToken;
 }
 
 // Competition Form Component with Multi-Step Wizard
@@ -685,14 +606,10 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       });
       formData.append('folder', 'crwdctrl/competitions');
 
-      const response = await fetch(`${API_BASE_URL}/admin/upload/images`, {
+      const response = await adminFetch('/admin/upload/images', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-        },
         body: formData,
-        credentials: 'include', // ✅ FIX: Include cookies for production
-        mode: 'cors', // ✅ FIX: Enable CORS for production
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -1372,155 +1289,15 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       console.log('Frontend - QR Code Message in payload:', payload.registration?.qrCodeMessage);
       console.log('Frontend - WhatsApp Group Link in payload:', payload.registration?.whatsappGroupLink);
 
-      const method = competition ? 'PUT' : 'POST';
-      const url = competition
-        ? `${API_BASE_URL}/admin/competitions/${competition._id}`
-        : `${API_BASE_URL}/admin/fests/${fest._id}/competitions`;
+      const path = competition
+        ? `/admin/competitions/${competition._id}`
+        : `/admin/fests/${fest._id}/competitions`;
 
-      console.log('Frontend - Request URL:', url);
-      console.log('Frontend - Request method:', method);
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
-        },
+      const result = await adminFetchJSON(path, {
+        method: competition ? 'PUT' : 'POST',
         body: JSON.stringify(payload),
-        credentials: 'include', // ✅ FIX: Include cookies for production auth
-        mode: 'cors', // ✅ FIX: Enable CORS for production domains
+        credentials: 'include',
       });
-
-      console.log('Frontend - Response status:', response.status);
-      console.log('Frontend - Response headers:', [...response.headers.entries()]);
-
-      // Get response text first to debug
-      let responseText = await response.text();
-      console.log('Frontend - Raw response:', responseText.substring(0, 500));
-
-      // ✅ FIX: Handle token expiration with auto-refresh and retry
-      if (response.status === 401) {
-        console.warn('⚠️ Token expired, attempting refresh...');
-        try {
-          const newToken = await refreshAdminToken();
-          console.log('🔄 Retrying request with new token...');
-          
-          // Retry the request with new token
-          const retryResponse = await fetch(url, {
-            method,
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${newToken}`,
-            },
-            body: JSON.stringify(payload),
-            credentials: 'include',
-            mode: 'cors',
-          });
-          
-          console.log('Frontend - Retry response status:', retryResponse.status);
-          responseText = await retryResponse.text();
-          
-          if (!retryResponse.ok) {
-            let err;
-            try {
-              err = JSON.parse(responseText);
-            } catch (parseError) {
-              throw new Error(`HTTP ${retryResponse.status}: ${responseText.substring(0, 200)}`);
-            }
-            throw new Error(err.message || `Failed to save competition (${retryResponse.status})`);
-          }
-          
-          // Success on retry - continue with the result
-          let result;
-          try {
-            result = JSON.parse(responseText);
-          } catch (parseError) {
-            throw new Error('Invalid response from server');
-          }
-          
-          // Clear caches and dispatch events (same as success path below)
-          console.log('🔄 Clearing caches for competition update...');
-          localStorage.removeItem('crwdctrl_fests_cache');
-          localStorage.removeItem('crwdctrl_fests_timestamp');
-          localStorage.removeItem('crwdctrl_fest_details_cache');
-          
-          if ('caches' in window) {
-            try {
-              const cacheNames = await caches.keys();
-              await Promise.all(cacheNames.map(name => caches.delete(name)));
-            } catch (cacheError) {
-              console.warn('⚠️ Could not clear service worker caches:', cacheError);
-            }
-          }
-          
-          window.dispatchEvent(new CustomEvent('admin_fest_updated', {
-            detail: { festId: fest._id, competitionId: result._id, timestamp: Date.now() }
-          }));
-          
-          // Clear server-side cache
-          try {
-            const t = localStorage.getItem('admin_token');
-            await fetch(`${API_BASE_URL}/admin/clear-cache`, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${t}` },
-              credentials: 'include',
-            });
-          } catch (_) {
-            // no-op: cache clear failure should not block save flow
-          }
-          
-          onSaved();
-          return;
-        } catch (refreshErr) {
-          console.error('❌ Token refresh failed:', refreshErr.message);
-          localStorage.removeItem('admin_token');
-          localStorage.removeItem('admin_refresh_token');
-          setError('Session expired. Please log in again.');
-          setTimeout(() => {
-            window.location.href = '/admin/login';
-          }, 1500);
-          return;
-        }
-      }
-
-      if (!response.ok) {
-        let err;
-        try {
-          err = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error('Frontend - Failed to parse error response:', {
-            parseError: parseError.message,
-            rawResponse: responseText.substring(0, 500),
-            status: response.status,
-            url: url,
-            timestamp: new Date().toISOString()
-          });
-          throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 200)}`);
-        }
-        console.log('Frontend - Error response:', err);
-        
-        // ✅ Enhanced error message with validation details
-        let errorMessage = err.message || `Failed to save competition (${response.status})`;
-        
-        // If there are validation errors, include them
-        if (err.validationErrors && Array.isArray(err.validationErrors)) {
-          const fieldErrors = err.validationErrors.map(e => `${e.field}: ${e.message}`).join('; ');
-          errorMessage = `${errorMessage} - ${fieldErrors}`;
-        } else if (err.details) {
-          errorMessage = `${errorMessage} - ${err.details}`;
-        }
-        
-        console.error('Frontend - Final error message:', errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Frontend - Failed to parse success response:', parseError);
-        throw new Error('Invalid response from server');
-      }
       console.log('Frontend - Success response:', result);
 
       // ✅ CRITICAL: Clear caches to update website immediately
@@ -1562,10 +1339,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
 
       // 5. Clear server-side cache so production website updates instantly
       try {
-        const token = localStorage.getItem('admin_token');
-        await fetch(`${API_BASE_URL}/admin/clear-cache`, {
+        await adminFetch('/admin/clear-cache', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
           credentials: 'include',
         });
         console.log('✅ Server cache cleared');
