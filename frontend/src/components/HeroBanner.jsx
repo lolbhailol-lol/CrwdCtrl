@@ -77,7 +77,7 @@ export default function HeroBanner({
 
     return (
         <div className={`hero-banner-shell ${className}`}>
-            <div className="hero-banner-viewport relative rounded-2xl lg:rounded-3xl overflow-hidden hero-banner-height lg:h-70 shadow-md">
+            <div className="hero-banner-viewport relative rounded-2xl lg:rounded-3xl overflow-hidden hero-banner-height shadow-md">
                 <div
                     ref={scrollRef}
                     className="hero-banner-track scrollbar-hide"

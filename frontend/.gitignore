@@ -13,6 +13,12 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (never commit secrets — copy from .env.example)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

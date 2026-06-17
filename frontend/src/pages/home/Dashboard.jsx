@@ -15,7 +15,6 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import ContentImage from '../../components/ContentImage';
-import { useHeroSearch } from '../../hooks/useHeroSearch';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
@@ -719,26 +718,8 @@ const Dashboard = () => {
         }).filter(f => f.id);
     }, [fests]);
 
-    // Filter events by status and sort by priority within each section
-    // âœ… FIX: If no fests have status 'ongoing', fall back to showing 'upcoming' fests
-    //    so the Ongoing section isn't empty (status is set manually by admin)
-    const ongoingEvents = useMemo(() => {
-        const sortByPriority = (a, b) => {
-            const priorityA = a.priority || 999;
-            const priorityB = b.priority || 999;
-            if (priorityA !== priorityB) return priorityA - priorityB;
-            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-        };
-        const strictly = transformedFests.filter(f => f.status === 'ongoing');
-        if (strictly.length > 0) return strictly.sort(sortByPriority);
-        // Fallback: show upcoming fests in the Ongoing section so it's not empty
-        return transformedFests
-            .filter(f => f.status === 'upcoming' || f.status === 'ongoing')
-            .sort(sortByPriority);
-    }, [transformedFests]);
-
     const heroEvents = useMemo(() => {
-        const selectedSlides = transformedFests
+        return transformedFests
             .filter(f => f.showOnHomeSlide)
             .sort((a, b) => {
                 const priorityA = a.homePriority || 999;
@@ -746,70 +727,7 @@ const Dashboard = () => {
                 if (priorityA !== priorityB) return priorityA - priorityB;
                 return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
             });
-
-        return selectedSlides.length > 0 ? selectedSlides : ongoingEvents;
-    }, [ongoingEvents, transformedFests]);
-    
-    const beyondCampusEvents = useMemo(() => 
-        transformedFests
-            .filter(f => f.status === 'beyondcampus')
-            .sort((a, b) => {
-                // Sort by priority first (1 = highest priority), then by creation date
-                const priorityA = a.priority || 999;
-                const priorityB = b.priority || 999;
-                if (priorityA !== priorityB) {
-                    return priorityA - priorityB;
-                }
-                // If same priority, sort by date (newest first)
-                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            }), 
-        [transformedFests]
-    );
-    
-    const upcomingEvents = useMemo(() => 
-        transformedFests
-            .filter(f => f.status === 'upcoming')
-            .sort((a, b) => {
-                // Sort by priority first (1 = highest priority), then by creation date
-                const priorityA = a.priority || 999;
-                const priorityB = b.priority || 999;
-                if (priorityA !== priorityB) {
-                    return priorityA - priorityB;
-                }
-                // If same priority, sort by date (newest first)
-                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            }), 
-        [transformedFests]
-    );
-    
-    const lastYearEvents = useMemo(() => 
-        transformedFests.filter(f => f.status === 'lastyearhit'), 
-        [transformedFests]
-    );
-
-    // Check scroll position after events are loaded
-    useEffect(() => {
-        if (!isFestsLoading && ongoingEvents.length > 0) {
-            setTimeout(() => {
-                checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
-            }, 100);
-        }
-        if (!isFestsLoading && beyondCampusEvents.length > 0) {
-            setTimeout(() => {
-                checkScrollPosition(beyondCampusScrollRef, setBeyondCampusShowLeftArrow, setBeyondCampusShowRightArrow);
-            }, 100);
-        }
-        if (!isFestsLoading && upcomingEvents.length > 0) {
-            setTimeout(() => {
-                checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
-            }, 100);
-        }
-        if (!isFestsLoading && lastYearEvents.length > 0) {
-            setTimeout(() => {
-                checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
-            }, 100);
-        }
-    }, [isFestsLoading, ongoingEvents.length, beyondCampusEvents.length, upcomingEvents.length, lastYearEvents.length, checkScrollPosition]);
+    }, [transformedFests]);
 
     // Helper function to get city name from coordinates (for major Indian cities)
     const getCityFromCoordinates = (lat, lon) => {
@@ -1115,12 +1033,6 @@ const Dashboard = () => {
         [fests, homeTreks, homeCommunities, homeSports],
     );
 
-    const heroSearch = useHeroSearch({
-        quickPickItems: searchQuickPicks,
-        keywordCatalog: searchKeywordCatalog,
-        onResultNavigate: handleSearchNavigate,
-    });
-
     // Error state
     if (error) {
         return (
@@ -1237,8 +1149,6 @@ const Dashboard = () => {
                         quickPickItems={searchQuickPicks}
                         keywordCatalog={searchKeywordCatalog}
                         onResultNavigate={handleSearchNavigate}
-                        desktopRef={heroSearch.searchRef}
-                        desktopSearch={heroSearch}
                     />
                 }
                 categoryBar={<HomeCategoryBar isDark={isDark} noPadding />}
@@ -1246,23 +1156,17 @@ const Dashboard = () => {
 
             {/* Main content - shared mobile + desktop */}
             <main className="flex-1 pb-4">
-                <div className="max-w-2xl lg:max-w-7xl mx-auto lg:pt-0 crwdctrl-hub-body">
+                {/* Hero — full chrome width on desktop (aligns with navbar Pune → profile) */}
+                {!isFestsLoading && heroEvents.length > 0 && (
+                    <HeroBanner
+                        events={heroEvents}
+                        onEventClick={(id) => navigate(`/view-details/${id}`)}
+                        isDark={isDark}
+                    />
+                )}
+                {isFestsLoading && <HeroBannerSkeleton />}
 
-                    {/* Desktop-only category bar */}
-                    <div className="hidden lg:block pt-3">
-                        <HomeCategoryBar isDark={isDark} />
-                    </div>
-
-                    {/* Hero Banner */}
-                    {!isFestsLoading && heroEvents.length > 0 && (
-                        <HeroBanner
-                            events={heroEvents}
-                            onEventClick={(id) => navigate(`/view-details/${id}`)}
-                            isDark={isDark}
-                        />
-                    )}
-                    {isFestsLoading && <HeroBannerSkeleton />}
-
+                <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     {/* Ongoing Events */}
                     <HomeCarouselSection
                         title="Ongoing Events"
@@ -1272,7 +1176,7 @@ const Dashboard = () => {
                         cardGap={TRENDING_CARD_GAP}
                         loading={isFestsLoading}
                         emptyFallback={
-                            festError && ongoingEvents.length === 0 ? (
+                            festError && trendingItems.length === 0 ? (
                                 <section className="home-section-block">
                                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                         Ongoing Events
@@ -1334,31 +1238,6 @@ const Dashboard = () => {
                         onItemClick={navigateToHomeItem}
                         getShareUrl={getHomeItemShareUrl}
                     />
-
-                    {/* Desktop-only: beyond campus grid */}
-                    {beyondCampusEvents.length > 0 && (
-                            <section className="hidden lg:block home-section-block">
-                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                Beyond Campus
-                            </h2>
-                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
-                                {beyondCampusEvents.slice(0, 6).map((ev) => (
-                                    <HomeEventCard
-                                        key={ev.id}
-                                        event={ev}
-                                        isDark={isDark}
-                                        isFavorite={isFavorite(ev.id)}
-                                        onToggleFavorite={() => handleLike(ev.id, ev)}
-                                        onViewDetails={() => navigate(`/view-details/${ev.id}`)}
-                                        className="w-full shrink"
-                                    />
-                                ))}
-                            </div>
-                        </section>
-                    )}
-
-
-
 
                 </div>
             </main>

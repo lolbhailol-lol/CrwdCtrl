@@ -27,6 +27,7 @@
     --section-block-gap: 2.5rem;
     --section-block-gap-lg: 3rem;
     --hero-banner-pad-y: 0.75rem;
+    --hero-banner-pad-y-lg: 1.25rem;
     --hero-banner-mb: 2rem;
     --hero-banner-mb-lg: 2.5rem;
     --touch-min: 2.75rem;
@@ -62,6 +63,14 @@
     --chrome-nav-bg-dark: #0A0A0A;
     --chrome-page-bg-light: #ffffff;
     --chrome-page-bg-dark: #161718;
+
+    /* Desktop laptop — navbar + hero align to same horizontal chrome as Pune → profile */
+    --desktop-chrome-mx: 1rem;
+    --desktop-chrome-px: 1.5rem;
+    --desktop-chrome-pr: 1rem;
+    --desktop-chrome-inset-left: calc(var(--desktop-chrome-mx) + var(--desktop-chrome-px));
+    --desktop-chrome-inset-right: calc(var(--desktop-chrome-mx) + var(--desktop-chrome-px) + var(--desktop-chrome-pr));
+    --desktop-navbar-h: 7rem;
 
     --theme-switch-duration: 0.34s;
     --theme-switch-ease: cubic-bezier(0.4, 0, 0.2, 1);

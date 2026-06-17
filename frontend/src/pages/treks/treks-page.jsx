@@ -299,7 +299,7 @@ function TreksPage() {
     const heroTreks = sortTrekPage(treks.filter(t => (t.featuredSection === 'hero' || t.featuredSection === 'both') && matchesSearch(t)));
     const weekendTreks = sortTrekPage(treks.filter(t => (t.featuredSection === 'weekend' || t.featuredSection === 'both') && matchesSearch(t)));
     const comingSoonCommunities = sortTrekPage(communities.filter(c => (c.trekPageSection === 'comingSoon' || c.trekPageSection === 'both') && matchesSearch(c)));
-    const exploreCommunities    = sortTrekPage(communities.filter(c => (c.trekPageSection === 'communities' || c.trekPageSection === 'both' || !c.trekPageSection) && matchesSearch(c)));
+    const exploreCommunities    = sortTrekPage(communities.filter(c => (c.trekPageSection === 'communities' || c.trekPageSection === 'both') && matchesSearch(c)));
     const heroItems = sortTrekPage([...heroTreks, ...comingSoonCommunities]);
     const categoryTreks = activeCategory ? treks.filter(t => t.trekCategory === activeCategory && matchesSearch(t)) : [];
 
@@ -397,18 +397,16 @@ function TreksPage() {
             />
 
             <main className="pb-8">
-                <div className="max-w-2xl lg:max-w-7xl mx-auto lg:pt-0 crwdctrl-hub-body">
+                {!loading && heroBannerEvents.length > 0 && (
+                    <HeroBanner
+                        events={heroBannerEvents}
+                        onEventClick={handleHeroClick}
+                        isDark={isDark}
+                    />
+                )}
+                {loading && <HeroBannerSkeleton />}
 
-                    {/* ── Hero Banner — same as Dashboard ── */}
-                    {!loading && heroBannerEvents.length > 0 && (
-                        <HeroBanner
-                            events={heroBannerEvents}
-                            onEventClick={handleHeroClick}
-                            isDark={isDark}
-                        />
-                    )}
-                    {loading && <HeroBannerSkeleton />}
-
+                <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     {/* ── Explore the Communities — Figma: w-40 h-52 (160×208) cards ── */}
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>

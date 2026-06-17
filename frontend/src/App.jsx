@@ -225,8 +225,8 @@ function AppContent({
         onShowLogin={openLoginFromProfile}
       />
 
-      <div className={isAdminRoute ? '' : 'lg:ml-20'}>
-        <div className={isAdminRoute ? '' : 'lg:pt-20'}>
+        <div className={isAdminRoute ? '' : 'lg:ml-20'}>
+        <div className={isAdminRoute ? '' : 'desktop-navbar-clearance'}>
           <ErrorBoundary>
             <PageTransitionContent>
               <Suspense fallback={<RouteSuspenseFallback />}>

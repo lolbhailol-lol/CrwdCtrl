@@ -13,7 +13,6 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import MobileStickyHeader from '../../components/MobileStickyHeader';
 import CategorySearchRow from '../../components/CategorySearchRow';
-import HeroSearchBar from '../../components/HeroSearchBar';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import HeroBanner from '../../components/HeroBanner';
 import AppLogo from '../../components/AppLogo';
@@ -125,10 +124,10 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
             </h2>
 
             <div
-                className="carousel-scroll-gutter carousel-scroll-gutter--static-lg overflow-x-auto lg:overflow-visible scrollbar-hide"
+                className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
             >
-                <div className="flex gap-3 lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-6 pb-1 lg:pb-6 lg:snap-none">
+                <div className="flex gap-3 pb-1">
                     {loading
                         ? <FestCardsRowSkeleton count={2} />
                         : fests.map(fest => (
@@ -157,7 +156,6 @@ export default function FestsPage() {
 
     const [fests, setFests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
     usePageContentLoading(loading);
 
     // Fetch all fests
@@ -177,18 +175,7 @@ export default function FestsPage() {
         return () => { cancelled = true; };
     }, []);
 
-    // Filter by sub-category + search
-    const filtered = useMemo(() => {
-        let list = fests;
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            list = list.filter(f =>
-                f.festName?.toLowerCase().includes(q) ||
-                f.collegeName?.toLowerCase().includes(q)
-            );
-        }
-        return list;
-    }, [fests, searchQuery]);
+    const filtered = fests;
 
     const sortByPriority = (a, b) => (a.priority || 999) - (b.priority || 999);
 
@@ -277,21 +264,6 @@ export default function FestsPage() {
             />
 
             <main className="pb-8 lg:pb-12">
-
-                {/* ── Desktop Search ── */}
-                <div className="hidden lg:block px-(--page-gutter) lg:pt-6 lg:pb-4">
-                    <HeroSearchBar
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        onClear={() => setSearchQuery('')}
-                        isDark={isDark}
-                        className="lg:py-[18px]"
-                    />
-                </div>
-
-                <div className="lg:pt-0 crwdctrl-hub-body">
-
-                {/* ── Hero Banner ── */}
                 <HeroBanner
                     events={[...ongoingFests, ...upcomingFests]
                         .filter(f => f.image || f.heroImage)
@@ -307,13 +279,12 @@ export default function FestsPage() {
                     isDark={isDark}
                 />
 
+                <div className="crwdctrl-hub-body">
                 {/* ── Sub-category tiles: Cultural / Tech / Sports ── */}
-                <div className="px-(--page-gutter) mt-3 mb-6 lg:mt-3 lg:mb-10">
-                    <div className="flex items-center justify-between">
-                        <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            Categories
-                        </h2>
-                    </div>
+                <section className="home-section-block mt-3 mb-6 lg:mt-3 lg:mb-10">
+                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Categories
+                    </h2>
                     <div className="grid grid-cols-3 gap-3 lg:gap-6">
                         {SUBCATEGORIES.map(cat => (
                             <SubcategoryTile
@@ -324,7 +295,7 @@ export default function FestsPage() {
                             />
                         ))}
                     </div>
-                </div>
+                </section>
 
                 {/* ── Ongoing Events ── */}
                 <FestSection
@@ -378,16 +349,8 @@ export default function FestsPage() {
                                    ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-500 shadow-sm'}`}>
                         <div className="text-5xl mb-3">🎪</div>
                         <p className="text-base lg:text-lg font-semibold mb-1">
-                            {searchQuery ? 'No results found' : 'No fests available yet'}
+                            No fests available yet
                         </p>
-                        {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="mt-3 text-sm text-[#0ECCEE] font-medium"
-                            >
-                                Clear filters
-                            </button>
-                        )}
                     </div>
                 )}
                 </div>{/* end pt-5 wrapper */}

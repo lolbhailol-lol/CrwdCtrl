@@ -141,8 +141,8 @@ export default function SportsCategoryPage() {
     }, [loadData]);
 
     const normalizedActivities = useMemo(() => {
-        const fromEvents = sortUpcomingEvents(
-            sportsEvents.filter((e) => showsInUpcoming(e) && e.runClubId),
+        return sortUpcomingEvents(
+            sportsEvents.filter((e) => e.showOnSportsPage !== false && showsInUpcoming(e) && e.runClubId),
         ).map((e) => ({
             id: e._id,
             kind: 'event',
@@ -154,26 +154,13 @@ export default function SportsCategoryPage() {
             registrationLink: e.registrationLink,
             festId: null,
         }));
-
-        const fromFests = sportsFests.map((f) => ({
-            id: f._id,
-            kind: 'fest',
-            sportType: 'sport_fest',
-            title: f.festName,
-            subtitle: f.festType || 'sports',
-            image: f.coverImage || f.galleryImages?.[0] || f.festImages?.[0] || null,
-            shareUrl: `${window.location.origin}/view-details/${f._id}`,
-            registrationLink: null,
-            festId: f._id,
-        }));
-
-        return [...fromEvents, ...fromFests];
-    }, [sportsEvents, sportsFests]);
+    }, [sportsEvents]);
 
     const filteredActivities = normalizedActivities;
 
     const runClubs = useMemo(() => {
         return runClubEntities
+            .filter((c) => c.showOnSportsPage !== false && c.showInRunClubs !== false)
             .map((c) => ({
                 id: c._id,
                 kind: 'club',
@@ -286,7 +273,7 @@ export default function SportsCategoryPage() {
             />
 
             <main className="pb-8">
-                <div className="max-w-2xl lg:max-w-7xl mx-auto">
+                <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0">
                 {/* ── Upcoming Activities (Weekend Plans card style) ── */}
                 <div className="mt-5">
                     <HomeCarouselSection

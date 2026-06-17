@@ -6,6 +6,7 @@ import {
     useCenteredCarouselSidePad,
     useMeasuredCardWidth,
     scrollCarouselToSlide,
+    useIsLgUp,
 } from '../hooks/useHomeCarousel';
 export const FEST_CARD_GAP = 12;
 export const PORTRAIT_CARD_GAP = 16;
@@ -93,14 +94,18 @@ export default function HomeCarouselCardsSkeleton({
 }) {
     const scrollRef = useRef(null);
     const trackRef = useRef(null);
+    const isLgUp = useIsLgUp();
     const fallbackWidth = getHomeCardFallbackWidth(wideCard);
     const cardWidth = useMeasuredCardWidth(trackRef, count, fallbackWidth);
-    const sidePad = useCenteredCarouselSidePad(scrollRef, cardWidth);
-    const sidePadding = sidePad > 0
-        ? `${sidePad}px`
-        : `calc(50% - ${cardWidth / 2}px)`;
+    const sidePad = useCenteredCarouselSidePad(scrollRef, cardWidth, !isLgUp);
+    const sidePadding = isLgUp
+        ? undefined
+        : (sidePad > 0
+            ? `${sidePad}px`
+            : `calc(50% - ${cardWidth / 2}px)`);
 
     useEffect(() => {
+        if (isLgUp) return;
         const el = scrollRef.current;
         const trackEl = trackRef.current;
         if (!el || !trackEl || count < 2) return;
@@ -108,19 +113,21 @@ export default function HomeCarouselCardsSkeleton({
         const centerIndex = Math.floor(count / 2);
         const slide = trackEl.children[centerIndex];
         if (slide) scrollCarouselToSlide(el, slide);
-    }, [cardWidth, sidePad, count]);
+    }, [cardWidth, sidePad, count, isLgUp]);
 
     return (
         <div
             ref={scrollRef}
-            className={`home-carousel-scroll overflow-x-auto scrollbar-hide ${className}`}
+            className={`home-carousel-scroll overflow-x-auto scrollbar-hide${isLgUp ? ' home-carousel-scroll--desktop-gutter' : ''} ${className}`}
             style={{
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
                 overscrollBehaviorX: 'contain',
-                paddingInline: sidePadding,
-                scrollPaddingInline: sidePadding,
+                ...(sidePadding ? {
+                    paddingInline: sidePadding,
+                    scrollPaddingInline: sidePadding,
+                } : {}),
             }}
         >
             <div
@@ -129,7 +136,7 @@ export default function HomeCarouselCardsSkeleton({
                 style={{ gap: HOME_CARD_GAP }}
             >
                 {Array.from({ length: count }).map((_, index) => (
-                    <div key={index} className="carousel-slide shrink-0 snap-center">
+                    <div key={index} className={`carousel-slide shrink-0${isLgUp ? ' snap-start' : ' snap-center'}`}>
                         <HomeEventCardSkeleton
                             tallCard={tallCard}
                             wideCard={wideCard}
@@ -145,7 +152,7 @@ export default function HomeCarouselCardsSkeleton({
 export function HeroBannerSkeleton({ className = 'hero-banner-shell' }) {
     return (
         <div className={className}>
-            <Shimmer className="hero-banner-height w-full rounded-2xl lg:h-70 lg:rounded-3xl" />
+            <Shimmer className="hero-banner-height w-full rounded-2xl lg:rounded-3xl" />
         </div>
     );
 }

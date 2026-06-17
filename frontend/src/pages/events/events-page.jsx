@@ -367,12 +367,12 @@ export default function EventsPage() {
             />
 
             <main className="pb-8">
-                <div className="max-w-2xl lg:max-w-7xl mx-auto lg:pt-0 crwdctrl-hub-body">
-                    {!loading && heroBannerEvents.length > 0 && (
-                        <HeroBanner events={heroBannerEvents} onEventClick={handleHeroClick} />
-                    )}
-                    {loading && <HeroBannerSkeleton />}
+                {!loading && heroBannerEvents.length > 0 && (
+                    <HeroBanner events={heroBannerEvents} onEventClick={handleHeroClick} />
+                )}
+                {loading && <HeroBannerSkeleton />}
 
+                <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
                             In the Spotlight

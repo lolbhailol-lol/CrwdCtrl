@@ -6,6 +6,8 @@ import {
     useMeasuredCardWidth,
     getHomeCardFallbackWidth,
     scrollCarouselToSlide,
+    scrollCarouselToSlideStart,
+    useIsLgUp,
     HOME_CARD_GAP,
 } from '../hooks/useHomeCarousel';
 import CarouselDotPagination from './CarouselDotPagination';
@@ -39,15 +41,30 @@ function buildHomeSlides(items) {
     };
 }
 
-function scrollToSlide(el, trackEl, index) {
+function scrollToSlide(el, trackEl, index, alignStart = false) {
     const slide = trackEl?.children?.[index];
     if (!slide) return;
-    scrollCarouselToSlide(el, slide);
+    if (alignStart) {
+        scrollCarouselToSlideStart(el, slide);
+    } else {
+        scrollCarouselToSlide(el, slide);
+    }
 }
 
-function getNearestSlideIndex(el, trackEl) {
+function getNearestSlideIndex(el, trackEl, alignStart = false) {
     const children = trackEl?.children;
     if (!el || !children?.length) return 0;
+
+    if (alignStart) {
+        const scrollLeft = el.scrollLeft + (Number.parseFloat(getComputedStyle(el).paddingLeft) || 0);
+        for (let i = 0; i < children.length; i += 1) {
+            const slide = children[i];
+            if (slide.offsetLeft + slide.offsetWidth > scrollLeft + 4) {
+                return i;
+            }
+        }
+        return Math.max(0, children.length - 1);
+    }
 
     const viewportCenter = el.scrollLeft + el.clientWidth / 2;
     let nearest = 0;
@@ -66,8 +83,17 @@ function getNearestSlideIndex(el, trackEl) {
     return nearest;
 }
 
-function useHomeLoopCarousel(scrollRef, trackRef, items) {
-    const { slides, loop, startIndex } = useMemo(() => buildHomeSlides(items), [items]);
+function useHomeLoopCarousel(scrollRef, trackRef, items, alignStart = false) {
+    const { slides, loop, startIndex } = useMemo(() => {
+        if (alignStart) {
+            return {
+                slides: items.map((item) => ({ item, key: String(getItemId(item)) })),
+                loop: false,
+                startIndex: 0,
+            };
+        }
+        return buildHomeSlides(items);
+    }, [items, alignStart]);
     const [activeIndex, setActiveIndex] = useState(0);
     const jumpingRef = useRef(false);
     const itemsKey = useMemo(
@@ -81,12 +107,16 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
         if (!el || !trackEl || items.length === 0) return;
 
         jumpingRef.current = true;
-        scrollToSlide(el, trackEl, loop ? startIndex : 0);
+        if (alignStart) {
+            el.scrollLeft = 0;
+        } else {
+            scrollToSlide(el, trackEl, loop ? startIndex : 0, alignStart);
+        }
         setActiveIndex(0);
         requestAnimationFrame(() => {
             jumpingRef.current = false;
         });
-    }, [itemsKey, loop, startIndex, scrollRef, trackRef]);
+    }, [itemsKey, loop, startIndex, scrollRef, trackRef, alignStart]);
 
     useEffect(() => {
         const el = scrollRef.current;
@@ -96,7 +126,7 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
         const syncActiveIndex = () => {
             if (jumpingRef.current) return;
 
-            const slideIndex = getNearestSlideIndex(el, trackEl);
+            const slideIndex = getNearestSlideIndex(el, trackEl, alignStart);
             if (loop) {
                 setActiveIndex(Math.max(0, Math.min(items.length - 1, slideIndex - 1)));
             } else {
@@ -105,14 +135,14 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
         };
 
         const handleLoopWrap = () => {
-            if (!loop || jumpingRef.current) return;
+            if (alignStart || !loop || jumpingRef.current) return;
 
-            const slideIndex = getNearestSlideIndex(el, trackEl);
+            const slideIndex = getNearestSlideIndex(el, trackEl, alignStart);
             const lastSlideIndex = items.length + 1;
 
             if (slideIndex === 0) {
                 jumpingRef.current = true;
-                scrollToSlide(el, trackEl, items.length);
+                scrollToSlide(el, trackEl, items.length, alignStart);
                 setActiveIndex(items.length - 1);
                 requestAnimationFrame(() => {
                     jumpingRef.current = false;
@@ -122,7 +152,7 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
 
             if (slideIndex === lastSlideIndex) {
                 jumpingRef.current = true;
-                scrollToSlide(el, trackEl, 1);
+                scrollToSlide(el, trackEl, 1, alignStart);
                 setActiveIndex(0);
                 requestAnimationFrame(() => {
                     jumpingRef.current = false;
@@ -131,8 +161,8 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
         };
 
         const snapToNearest = (behavior = 'smooth') => {
-            if (jumpingRef.current) return;
-            const slideIndex = getNearestSlideIndex(el, trackEl);
+            if (alignStart || jumpingRef.current) return;
+            const slideIndex = getNearestSlideIndex(el, trackEl, alignStart);
             const slide = trackEl.children[slideIndex];
             if (slide) scrollCarouselToSlide(el, slide, behavior);
         };
@@ -140,6 +170,7 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
         let scrollEndTimer;
         const onScroll = () => {
             syncActiveIndex();
+            if (alignStart) return;
             clearTimeout(scrollEndTimer);
             scrollEndTimer = setTimeout(() => {
                 snapToNearest('smooth');
@@ -148,6 +179,10 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
         };
 
         const onScrollEnd = () => {
+            if (alignStart) {
+                syncActiveIndex();
+                return;
+            }
             clearTimeout(scrollEndTimer);
             syncActiveIndex();
             snapToNearest('smooth');
@@ -166,17 +201,17 @@ function useHomeLoopCarousel(scrollRef, trackRef, items) {
                 el.removeEventListener('scrollend', onScrollEnd);
             }
         };
-    }, [items, loop, scrollRef, trackRef]);
+    }, [items, loop, scrollRef, trackRef, alignStart]);
 
     return { slides, activeIndex };
 }
 
-function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, getShareUrl, tallCard, wideCard, miniCard, portraitCard, heroCard }) {
+function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, getShareUrl, tallCard, wideCard, miniCard, portraitCard, heroCard, alignStart = false }) {
     const item = slide.item;
     const id = getItemId(item);
 
     return (
-        <div className="carousel-slide shrink-0">
+        <div className={`carousel-slide shrink-0${alignStart ? ' snap-start' : ''}`}>
             <HomeEventCard
                 event={{
                     id,
@@ -220,38 +255,48 @@ export default function HomeCarouselSection({
 }) {
     const scrollRef = useRef(null);
     const trackRef = useRef(null);
+    const isLgUp = useIsLgUp();
+    const alignStart = isLgUp;
 
     const slideCount = loading
         ? SKELETON_COUNT
-        : (items.length <= 1 ? items.length : items.length + 2);
+        : (alignStart || items.length <= 1 ? items.length : items.length + 2);
     const fallbackWidth = getHomeCardFallbackWidth(wideCard, { miniCard, portraitCard, heroCard });
     const cardWidth = useMeasuredCardWidth(trackRef, slideCount, fallbackWidth);
-    const sidePad = useCenteredCarouselSidePad(scrollRef, cardWidth);
+    const sidePad = useCenteredCarouselSidePad(scrollRef, cardWidth, !alignStart);
 
     const { slides, activeIndex } = useHomeLoopCarousel(
         scrollRef,
         trackRef,
         loading ? [] : items,
+        alignStart,
     );
 
-    const sidePadding = sidePad > 0
-        ? `${sidePad}px`
-        : `calc(50% - ${cardWidth / 2}px)`;
+    const sidePadding = alignStart
+        ? undefined
+        : (sidePad > 0
+            ? `${sidePad}px`
+            : `calc(50% - ${cardWidth / 2}px)`);
 
     const scrollStyle = {
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
         overscrollBehaviorX: 'contain',
-        paddingInline: sidePadding,
-        scrollPaddingInline: sidePadding,
+        ...(sidePadding ? {
+            paddingInline: sidePadding,
+            scrollPaddingInline: sidePadding,
+        } : {}),
     };
+
+    const carouselClassName = `home-carousel-scroll overflow-x-auto scrollbar-hide${alignStart ? ' home-carousel-scroll--desktop-gutter' : ''}`;
 
     const activeIndexRef = useRef(activeIndex);
     activeIndexRef.current = activeIndex;
 
     // Re-center after card width / side padding is measured (fixes wide-card misalignment on load).
     useEffect(() => {
+        if (alignStart) return;
         const el = scrollRef.current;
         const trackEl = trackRef.current;
         if (!el || !trackEl || loading || items.length === 0) return;
@@ -262,11 +307,11 @@ export default function HomeCarouselSection({
         if (!slide) return;
 
         scrollCarouselToSlide(el, slide);
-    }, [cardWidth, sidePad, loading, items.length]);
+    }, [cardWidth, sidePad, loading, items.length, alignStart]);
 
     // Center skeleton carousel — one card in middle, peers peeking on sides
     useEffect(() => {
-        if (!loading) return;
+        if (alignStart || !loading) return;
         const el = scrollRef.current;
         const trackEl = trackRef.current;
         if (!el || !trackEl) return;
@@ -274,7 +319,7 @@ export default function HomeCarouselSection({
         const centerIndex = Math.floor(SKELETON_COUNT / 2);
         const slide = trackEl.children[centerIndex];
         if (slide) scrollCarouselToSlide(el, slide);
-    }, [loading, cardWidth, sidePad]);
+    }, [loading, cardWidth, sidePad, alignStart]);
 
     if (loading) {
         if (loadingFallback) return loadingFallback;
@@ -283,7 +328,7 @@ export default function HomeCarouselSection({
             <section className="home-section-block">
                 <div
                     ref={scrollRef}
-                    className="home-carousel-scroll overflow-x-auto scrollbar-hide"
+                    className={carouselClassName}
                     style={scrollStyle}
                 >
                     <div
@@ -292,7 +337,7 @@ export default function HomeCarouselSection({
                         style={{ gap: cardGap }}
                     >
                         {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
-                            <div key={index} className="carousel-slide shrink-0 snap-center">
+                            <div key={index} className={`carousel-slide shrink-0${alignStart ? ' snap-start' : ' snap-center'}`}>
                                 <HomeEventCardSkeleton tallCard={tallCard} wideCard={wideCard} miniCard={miniCard} portraitCard={portraitCard} heroCard={heroCard} />
                             </div>
                         ))}
@@ -313,7 +358,7 @@ export default function HomeCarouselSection({
             </h2>
             <div
                 ref={scrollRef}
-                className="home-carousel-scroll overflow-x-auto scrollbar-hide"
+                className={carouselClassName}
                 style={scrollStyle}
             >
                 <div
@@ -335,6 +380,7 @@ export default function HomeCarouselSection({
                             miniCard={miniCard}
                             portraitCard={portraitCard}
                             heroCard={heroCard}
+                            alignStart={alignStart}
                         />
                     ))}
                 </div>

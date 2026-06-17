@@ -39,24 +39,13 @@ function MobileHeaderSkeleton({ isDark }) {
     );
 }
 
-function DesktopCategoryBarSkeleton({ isDark }) {
-    return (
-        <div className="hidden lg:flex gap-2 overflow-hidden px-4 lg:px-10 pt-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-                <Block key={i} isDark={isDark} className="h-10 w-24 shrink-0 rounded-full" />
-            ))}
-        </div>
-    );
-}
-
 export function HomePageLoadingSkeleton({ isDark }) {
     return (
         <>
             <MobileHeaderSkeleton isDark={isDark} />
             <main className="flex-1 pb-4">
-                <div className="mx-auto max-w-2xl pt-6 lg:max-w-7xl lg:pt-0">
-                    <DesktopCategoryBarSkeleton isDark={isDark} />
-                    <HeroBannerSkeleton />
+                <HeroBannerSkeleton />
+                <div className="mx-auto max-w-2xl lg:max-w-none lg:mx-0 crwdctrl-hub-body">
                     <section className="home-section-block">
                         <HomeCarouselCardsSkeleton tallCard />
                     </section>
@@ -212,7 +201,7 @@ export default function PageTransitionSkeleton({ pathname }) {
                 <MobileHeaderSkeleton isDark={isDark} />
             )}
 
-            <div className={variant === 'home' || variant === 'booking' || variant === 'favorites' ? 'hidden' : 'pb-8 pt-4 lg:pt-6'}>
+            <div className={variant === 'home' || variant === 'booking' || variant === 'favorites' ? 'hidden' : 'pb-8 desktop-navbar-clearance'}>
                 {variant === 'category' && pathname === '/fests' && (
                     <>
                         <HeroBannerSkeleton />

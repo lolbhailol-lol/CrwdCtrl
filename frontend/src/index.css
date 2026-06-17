@@ -731,6 +731,10 @@
 
 /* 1024px+ — laptops: hide mobile chrome */
 @media (min-width: 64rem) {
+    :root {
+        --hero-banner-h: clamp(13rem, 22vw, 18rem);
+    }
+
     #crwdctrl-bottom-nav,
     .bottom-nav-spacer {
         display: none !important;
@@ -835,9 +839,12 @@ html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-head
 
 @media (min-width: 1024px) {
     .carousel-scroll-gutter--static-lg {
-        scroll-snap-type: none;
-        padding-inline: var(--page-gutter);
-        scroll-padding-inline: 0;
+        overflow-x: auto !important;
+        scroll-snap-type: x mandatory;
+        padding-left: var(--desktop-chrome-inset-left);
+        padding-right: var(--desktop-chrome-inset-right);
+        scroll-padding-left: var(--desktop-chrome-inset-left);
+        scroll-padding-right: var(--desktop-chrome-inset-right);
     }
 }
 
@@ -859,8 +866,59 @@ html.is-scrolling *:not(img):not(svg):not(.mobile-header-shell):not(.mobile-head
 
 @media (min-width: 1024px) {
     .carousel-scroll-center--static-lg {
-        scroll-snap-type: none;
-        padding-inline: 2.5rem;
+        overflow-x: auto !important;
+        scroll-snap-type: x mandatory;
+        padding-left: var(--desktop-chrome-inset-left);
+        padding-right: var(--desktop-chrome-inset-right);
+        scroll-padding-left: var(--desktop-chrome-inset-left);
+        scroll-padding-right: var(--desktop-chrome-inset-right);
+    }
+
+    .carousel-scroll-center {
+        padding-left: var(--desktop-chrome-inset-left);
+        padding-right: var(--desktop-chrome-inset-right);
+        scroll-padding-left: var(--desktop-chrome-inset-left);
+        scroll-padding-right: var(--desktop-chrome-inset-right);
+    }
+
+    .carousel-scroll-center .snap-start,
+    .carousel-scroll-center .snap-center,
+    .carousel-scroll-center .carousel-slide,
+    .carousel-scroll-center > .flex > * {
+        scroll-snap-align: start;
+    }
+
+    .carousel-scroll-gutter {
+        padding-left: var(--desktop-chrome-inset-left);
+        padding-right: var(--desktop-chrome-inset-right);
+        scroll-padding-left: var(--desktop-chrome-inset-left);
+        scroll-padding-right: var(--desktop-chrome-inset-right);
+    }
+
+    .home-carousel-scroll,
+    .home-carousel-scroll--desktop-gutter {
+        padding-left: var(--desktop-chrome-inset-left);
+        padding-right: var(--desktop-chrome-inset-right);
+        scroll-padding-left: var(--desktop-chrome-inset-left);
+        scroll-padding-right: var(--desktop-chrome-inset-right);
+    }
+
+    .home-carousel-scroll .carousel-slide,
+    .home-carousel-scroll--desktop-gutter .carousel-slide {
+        scroll-snap-align: start;
+    }
+
+    /* Section rail — heading + carousel share one inset (no double padding) */
+    .home-section-block > .home-section-heading {
+        padding-inline: 0 !important;
+    }
+
+    .home-section-block > .home-carousel-scroll,
+    .home-section-block > .carousel-scroll-gutter,
+    .home-section-block > .carousel-scroll-center,
+    .home-section-block > .carousel-scroll-center--static-lg,
+    .home-section-block > .carousel-scroll-gutter--static-lg {
+        padding-inline: 0 !important;
         scroll-padding-inline: 0;
     }
 }
@@ -1426,6 +1484,53 @@ h2.text-xl {
     padding-top: var(--hero-banner-pad-y);
     margin-bottom: var(--hero-banner-mb);
     background: transparent;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.desktop-navbar-clearance {
+    padding-top: 0;
+}
+
+@media (min-width: 1024px) {
+    .desktop-navbar-clearance {
+        padding-top: var(--desktop-navbar-h);
+    }
+
+    .crwdctrl-hub-body {
+        max-width: none !important;
+        margin-inline: 0 !important;
+        width: 100%;
+    }
+
+    /* One shared rail per section — heading + cards share the same left edge */
+    .home-section-block {
+        padding-left: var(--desktop-chrome-inset-left);
+        padding-right: var(--desktop-chrome-inset-right);
+    }
+
+    .home-section-block > .home-section-heading {
+        padding-inline: 0 !important;
+    }
+
+    .home-section-block > .home-carousel-scroll,
+    .home-section-block > .carousel-scroll-gutter,
+    .home-section-block > .carousel-scroll-center,
+    .home-section-block > .carousel-scroll-center--static-lg,
+    .home-section-block > .carousel-scroll-gutter--static-lg {
+        padding-inline: 0 !important;
+        scroll-padding-inline: 0;
+    }
+
+    .home-section-heading {
+        padding-left: var(--desktop-chrome-inset-left) !important;
+        padding-right: var(--desktop-chrome-inset-right) !important;
+    }
+
+    .desktop-chrome-inset-x {
+        padding-left: var(--desktop-chrome-inset-left);
+        padding-right: var(--desktop-chrome-inset-right);
+    }
 }
 
 @media (min-width: 1024px) {
@@ -1441,9 +1546,11 @@ h2.text-xl {
     }
 
     .hero-banner-shell {
-        padding-inline: 3rem;
-        padding-top: 1rem;
+        padding-left: var(--desktop-chrome-inset-left);
+        padding-right: var(--desktop-chrome-inset-right);
+        padding-top: var(--hero-banner-pad-y-lg);
         margin-bottom: var(--hero-banner-mb-lg);
+        max-width: none;
     }
 }
 

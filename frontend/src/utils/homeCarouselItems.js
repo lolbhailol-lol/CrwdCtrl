@@ -1,11 +1,7 @@
-/** Same routing rules as Dashboard home carousels. */
+/** Admin-assigned home section only (no status-based auto placement). */
 export function festHomeSection(fest) {
-    if (fest.homeSection) return fest.homeSection;
     if (fest.showOnHomeSlide) return null;
-    const status = fest.status || 'upcoming';
-    if (status === 'ongoing') return 'trending';
-    if (status === 'upcoming' || status === 'beyondcampus') return 'happening';
-    return null;
+    return fest.homeSection || null;
 }
 
 const PRIORITY_FIELD = {
