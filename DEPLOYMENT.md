@@ -167,13 +167,27 @@ In Android Studio: **Run** on device/emulator.
 
 ### Build release AAB (Play Store)
 
-1. Generate upload keystore (store securely — never commit):
+Signing is wired in `android/app/build.gradle`, which reads credentials from
+`android/keystore.properties` (gitignored). One-command build:
+
+1. Create the upload keystore once (store securely — never commit):
    ```bash
-   keytool -genkey -v -keystore crwdctrl-release.keystore -alias crwdctrl -keyalg RSA -keysize 2048 -validity 10000
+   cd frontend/android
+   keytool -genkeypair -v -keystore crwdctrl-upload.keystore -alias crwdctrl -keyalg RSA -keysize 2048 -validity 10000
    ```
-2. Configure signing in `android/app/build.gradle` or Android Studio → Generate Signed Bundle
-3. **Build → Generate Signed Bundle / APK → Android App Bundle**
-4. Upload `.aab` to Play Console → Internal testing track first
+2. Copy `keystore.properties.example` → `keystore.properties` and fill in the
+   store/key passwords and alias.
+3. Build the signed AAB:
+   ```bash
+   cd frontend
+   npm run android:aab
+   ```
+   Output: `frontend/android/app/build/outputs/bundle/release/app-release.aab`
+   (Equivalent manual path: Android Studio → **Build → Generate Signed Bundle / APK → Android App Bundle**.)
+4. Upload `.aab` to Play Console → Internal testing track first.
+5. After enrolling in **Play App Signing**, copy the **App signing key** SHA-1/SHA-256
+   from Play Console → Setup → App signing into Firebase (Android app) and into
+   `frontend/public/.well-known/assetlinks.json`, then redeploy + rebuild.
 
 ### Android scripts
 

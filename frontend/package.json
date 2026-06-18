@@ -12,12 +12,14 @@
     "preview:prod": "vite preview",
     "verify-build": "vite build && node scripts/verify-prod-bundle.js",
     "optimize-icons": "node scripts/optimize-category-icons.mjs",
+    "optimize-images": "node scripts/optimize-large-images.mjs",
     "cap:sync": "npm run build && npx cap sync android",
     "cap:sync:prod": "powershell -ExecutionPolicy Bypass -File scripts/android-prod.ps1",
     "cap:open": "npx cap open android",
     "android:build": "npm run cap:sync:prod",
     "android:dev": "powershell -ExecutionPolicy Bypass -File scripts/android-dev.ps1",
-    "android:prod": "powershell -ExecutionPolicy Bypass -File scripts/android-prod.ps1"
+    "android:prod": "powershell -ExecutionPolicy Bypass -File scripts/android-prod.ps1",
+    "android:aab": "powershell -ExecutionPolicy Bypass -File scripts/android-aab.ps1"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.3.0",
