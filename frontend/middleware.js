@@ -82,6 +82,7 @@ function buildEvent(name, description, image, location, price, organizer, path, 
     title: safeName,
     description: desc,
     image: httpImage(image),
+    fallback: { h1: safeName, intro: desc },
     jsonLd: [
       breadcrumbSchema([
         { name: 'Home', path: '/' },
@@ -108,6 +109,7 @@ function buildPage(title, description, image, path, parentName, parentPath, crum
     title,
     description: desc,
     image: httpImage(image),
+    fallback: { h1: title, intro: desc },
     jsonLd: [
       webPageSchema({ name: title, description: desc, url: path }),
       breadcrumbSchema([
@@ -178,6 +180,7 @@ export default async function middleware(request) {
       path: pathname,
       image: seo.image,
       jsonLd: seo.jsonLd,
+      fallback: seo.fallback,
       stripExistingJsonLd: true,
     });
 

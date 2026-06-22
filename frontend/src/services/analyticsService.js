@@ -59,8 +59,26 @@ const sendEvent = (eventType, metadata = {}) => {
 
 // ===== Public API =====
 
+// Mirror page views to Google Analytics 4 (gtag.js) when configured.
+// gtag is loaded in index.html with send_page_view=false, so SPA route
+// changes are reported here — including the initial load.
+const sendGaPageView = (page) => {
+  try {
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      window.gtag('event', 'page_view', {
+        page_path: page,
+        page_location: window.location.href,
+        page_title: document.title,
+      });
+    }
+  } catch (_) {
+    /* analytics should never break the app */
+  }
+};
+
 export const trackPageView = (page) => {
   sendEvent('page_view', { page });
+  sendGaPageView(page);
 };
 
 export const trackFestView = (festId) => {

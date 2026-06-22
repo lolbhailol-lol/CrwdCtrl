@@ -58,6 +58,100 @@ export function injectJsonLd(html, schemas) {
   return html.replace(/<\/head>/i, `  ${scripts}\n</head>`);
 }
 
+/** Internal links shown in every route's crawlable no-JS fallback. */
+export const DEFAULT_EXPLORE_LINKS = [
+  { label: 'College Fests — cultural, technical & sports', href: '/fests' },
+  { label: 'Treks & Adventure Communities', href: '/treks' },
+  { label: 'Sports, Running Clubs & Gym Communities', href: '/sports' },
+  { label: 'Events, Shows & Meetups', href: '/events' },
+  { label: 'List your fest or event', href: '/list-your-fest' },
+  { label: 'About CrwdCtrl', href: '/about' },
+  { label: 'Contact us', href: '/contact-us' },
+];
+
+/** Descriptive section per core offering — used on the home fallback (SEO/AEO). */
+export const DEFAULT_CORE_SECTIONS = [
+  {
+    heading: 'College Fests',
+    text: 'Discover and register for college fests across India — cultural fests (music, dance, drama, fashion and art), technical fests (hackathons, coding and robotics competitions) and sports fests (tournaments and athletic meets).',
+    href: '/fests',
+    linkLabel: 'Browse college fests',
+  },
+  {
+    heading: 'Treks & Adventure Communities',
+    text: 'Find day hikes, weekend treks, backpacking trips and camping outings run by verified trekking communities, with difficulty level and duration shown on every listing.',
+    href: '/treks',
+    linkLabel: 'Browse treks & communities',
+  },
+  {
+    heading: 'Sports, Running Clubs & Gym Communities',
+    text: 'Join running clubs, runs and marathons, gym communities and sports events near you. Many running clubs are beginner friendly and list their upcoming sessions.',
+    href: '/sports',
+    linkLabel: 'Browse sports & clubs',
+  },
+  {
+    heading: 'Events, Shows & Meetups',
+    text: 'Browse concerts, stand-up comedy, workshops and community meetups happening near you, and book tickets in a tap.',
+    href: '/events',
+    linkLabel: 'Browse events & shows',
+  },
+];
+
+/**
+ * Build crawlable, no-JS fallback markup for a route.
+ *
+ * Rendered inside #root (which React clears on mount) so non-JS crawlers and
+ * raw-text SEO auditors get a real <h1>, descriptive copy, internal links and
+ * FAQ instead of the boot splash. Real users never see it — it is display:none
+ * and covered by the boot splash until React replaces #root.
+ *
+ * @param {object} spec
+ * @param {string} spec.h1
+ * @param {string} [spec.intro]
+ * @param {Array<{heading:string,text:string,href?:string,linkLabel?:string}>} [spec.sections]
+ * @param {Array<{label:string,href:string}>} [spec.links]
+ * @param {Array<{question:string,answer:string}>} [spec.faq]
+ */
+export function buildFallbackHtml({
+  h1,
+  intro,
+  sections = [],
+  links = DEFAULT_EXPLORE_LINKS,
+  faq = [],
+} = {}) {
+  const parts = [`<h1>${escapeAttr(h1 || 'CrwdCtrl')}</h1>`];
+  if (intro) parts.push(`<p>${escapeAttr(intro)}</p>`);
+  for (const s of sections) {
+    const link = s.href
+      ? `<p><a href="${escapeAttr(s.href)}">${escapeAttr(s.linkLabel || `Explore ${s.heading}`)}</a></p>`
+      : '';
+    parts.push(`<section><h2>${escapeAttr(s.heading)}</h2><p>${escapeAttr(s.text)}</p>${link}</section>`);
+  }
+  if (links.length) {
+    const lis = links
+      .map((l) => `<li><a href="${escapeAttr(l.href)}">${escapeAttr(l.label)}</a></li>`)
+      .join('');
+    parts.push(`<nav aria-label="Explore CrwdCtrl"><h2>Explore CrwdCtrl</h2><ul>${lis}</ul></nav>`);
+  }
+  if (faq.length) {
+    const items = faq
+      .map((f) => `<h3>${escapeAttr(f.question)}</h3><p>${escapeAttr(f.answer)}</p>`)
+      .join('');
+    parts.push(`<section><h2>Frequently asked questions</h2>${items}</section>`);
+  }
+  return `<div id="seo-fallback">${parts.join('')}</div>`;
+}
+
+/**
+ * Replace the marked no-JS fallback block inside #root with new markup.
+ * Returns the html unchanged if the markers are absent.
+ */
+export function replaceFallbackContent(html, innerHtml) {
+  const re = /(<!--seo-fallback-->)[\s\S]*?(<!--\/seo-fallback-->)/i;
+  if (!re.test(html)) return html;
+  return html.replace(re, `$1${innerHtml}$2`);
+}
+
 /**
  * Apply a full SEO head to a built index.html string.
  *
@@ -70,6 +164,7 @@ export function injectJsonLd(html, schemas) {
  * @param {string} [seo.image]       social image (path or absolute URL)
  * @param {Array}  [seo.jsonLd]      structured-data objects
  * @param {boolean} [seo.stripExistingJsonLd] drop prior route JSON-LD first
+ * @param {object} [seo.fallback]    spec for crawlable no-JS #root content
  */
 export function applySeoToHtml(baseHtml, seo) {
   const title = buildTitle(seo.title, { withBrand: seo.withBrand !== false });
@@ -95,5 +190,9 @@ export function applySeoToHtml(baseHtml, seo) {
   html = replaceMeta(html, 'name', 'twitter:image', image);
 
   html = injectJsonLd(html, seo.jsonLd);
+
+  if (seo.fallback) {
+    html = replaceFallbackContent(html, buildFallbackHtml(seo.fallback));
+  }
   return html;
 }

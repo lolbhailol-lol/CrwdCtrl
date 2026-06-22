@@ -23,7 +23,7 @@ import {
   itemListSchema,
   webPageSchema,
 } from '../src/utils/seo.js';
-import { applySeoToHtml } from '../src/utils/seoHtml.js';
+import { DEFAULT_EXPLORE_LINKS, DEFAULT_CORE_SECTIONS, applySeoToHtml } from '../src/utils/seoHtml.js';
 import {
   HOME_FAQ,
   ABOUT_FAQ,
@@ -61,6 +61,11 @@ function hubJsonLd(name, description, path, crumbs, faq) {
   ].filter(Boolean);
 }
 
+/** Compose a crawlable no-JS fallback spec for a route. */
+function fb(h1, intro, faq) {
+  return { h1, intro, links: DEFAULT_EXPLORE_LINKS, faq };
+}
+
 /** Simple WebPage + breadcrumb schema for info/legal routes. */
 function pageJsonLd(name, description, path) {
   return [
@@ -78,6 +83,14 @@ const ROUTES = [
     title: `${SITE_NAME} — Discover fests, clubs & events`,
     withBrand: false,
     description: HOME_DESCRIPTION,
+    fallback: {
+      h1: 'CrwdCtrl — Discover college fests, clubs & events near you',
+      intro:
+        'CrwdCtrl is an Indian community and event discovery platform where you can find and register for college fests, competitions, tech and sports events, running clubs, gym communities, treks, and local meetups near you. Browsing is free — some events charge their own registration or ticket fee, always shown before you register.',
+      sections: DEFAULT_CORE_SECTIONS,
+      links: DEFAULT_EXPLORE_LINKS,
+      faq: HOME_FAQ,
+    },
     jsonLd: [
       webPageSchema({ name: `${SITE_NAME} — Discover fests, clubs & events`, description: HOME_DESCRIPTION, url: '/' }),
       itemListSchema({
@@ -98,6 +111,7 @@ const ROUTES = [
     path: '/fests',
     title: 'College Fests',
     description: FESTS_DESCRIPTION,
+    fallback: fb('College Fests on CrwdCtrl', FESTS_DESCRIPTION, FESTS_FAQ),
     jsonLd: hubJsonLd('College Fests on CrwdCtrl', FESTS_DESCRIPTION, '/fests', [
       { name: 'Home', path: '/' },
       { name: 'Fests', path: '/fests' },
@@ -139,6 +153,7 @@ const ROUTES = [
     path: '/treks',
     title: 'Treks & Adventure Communities',
     description: TREKS_DESCRIPTION,
+    fallback: fb('Treks & Adventure Communities on CrwdCtrl', TREKS_DESCRIPTION, TREKS_FAQ),
     jsonLd: hubJsonLd('Treks & Adventure on CrwdCtrl', TREKS_DESCRIPTION, '/treks', [
       { name: 'Home', path: '/' },
       { name: 'Treks', path: '/treks' },
@@ -148,6 +163,7 @@ const ROUTES = [
     path: '/sports',
     title: 'Sports, Running Clubs & Gym Communities',
     description: SPORTS_DESCRIPTION,
+    fallback: fb('Sports, Running Clubs & Gym Communities on CrwdCtrl', SPORTS_DESCRIPTION, SPORTS_FAQ),
     jsonLd: hubJsonLd('Sports & Running Clubs on CrwdCtrl', SPORTS_DESCRIPTION, '/sports', [
       { name: 'Home', path: '/' },
       { name: 'Sports', path: '/sports' },
@@ -157,6 +173,7 @@ const ROUTES = [
     path: '/events',
     title: 'Events & Shows',
     description: EVENTS_DESCRIPTION,
+    fallback: fb('Events, Shows & Meetups on CrwdCtrl', EVENTS_DESCRIPTION, EVENTS_FAQ),
     jsonLd: hubJsonLd('Events & Shows on CrwdCtrl', EVENTS_DESCRIPTION, '/events', [
       { name: 'Home', path: '/' },
       { name: 'Events', path: '/events' },
@@ -166,6 +183,7 @@ const ROUTES = [
     path: '/about',
     title: 'About CrwdCtrl',
     description: ABOUT_DESCRIPTION,
+    fallback: fb('About CrwdCtrl', ABOUT_DESCRIPTION, ABOUT_FAQ),
     jsonLd: [
       webPageSchema({ name: 'About CrwdCtrl', description: ABOUT_DESCRIPTION, url: '/about' }),
       breadcrumbSchema([
@@ -233,6 +251,7 @@ function buildRouteHtml(baseHtml, route) {
     path: route.path,
     image: route.image,
     jsonLd: route.jsonLd,
+    fallback: route.fallback || fb(route.title, route.description),
   });
 }
 

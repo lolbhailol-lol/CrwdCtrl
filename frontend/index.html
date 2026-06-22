@@ -16,6 +16,23 @@
     })();
   </script>
 
+  <!-- Google Analytics 4 (gtag.js) — activates only when VITE_GOOGLE_ANALYTICS_ID is set.
+       SPA page_view events are sent on route change from RouteTracker (send_page_view=false). -->
+  <script>
+    (function () {
+      var GA_ID = '%VITE_GOOGLE_ANALYTICS_ID%';
+      if (!GA_ID || GA_ID.indexOf('%VITE_') === 0) return;
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      window.gtag('config', GA_ID, { send_page_view: false });
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+      document.head.appendChild(s);
+    })();
+  </script>
+
   <!-- Primary SEO -->
   <title>CrwdCtrl — Discover fests, clubs &amp; events</title>
   <meta name="description" content="CrwdCtrl helps you find college fests, tech and sports events, running clubs, gym communities, and meetups near you." />
@@ -136,6 +153,11 @@
       min-height: 100dvh;
     }
     html.dark, html.dark body { background: #161718; }
+
+    /* Crawlable no-JS content lives in #root for SEO/answer engines.
+       Hidden for real (JS) users — React replaces #root and the boot splash
+       covers it meanwhile. Revealed only when JS is disabled (see <noscript>). */
+    #seo-fallback { display: none; }
 
     /* Boot logo — five vertical slices converge (classy) */
     @keyframes bootSliceMerge {
@@ -276,6 +298,23 @@
       .boot-logo-slice { animation: none; opacity: 1; transform: none; }
     }
   </style>
+
+  <!-- When JS is disabled, hide the splash and show the crawlable fallback. -->
+  <noscript>
+    <style>
+      #boot-splash, #boot-fallback { display: none !important; }
+      #seo-fallback {
+        display: block !important;
+        max-width: 48rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem;
+        font-family: Poppins, system-ui, -apple-system, sans-serif;
+        line-height: 1.6;
+      }
+      #seo-fallback h1 { font-size: 1.6rem; }
+      #seo-fallback a { color: #0a9fb8; }
+    </style>
+  </noscript>
 </head>
 
 <body>
@@ -300,7 +339,51 @@
       </div>
     </div>
   </div>
-  <div id="root"></div>
+  <div id="root"><!--seo-fallback--><div id="seo-fallback">
+    <h1>CrwdCtrl — Discover college fests, clubs &amp; events near you</h1>
+    <p>CrwdCtrl is an Indian community and event discovery platform where you can find and register for college fests, competitions, tech and sports events, running clubs, gym communities, treks, and local meetups near you. Browsing is free — some events charge their own registration or ticket fee, always shown before you register.</p>
+    <section>
+      <h2>College Fests</h2>
+      <p>Discover and register for college fests across India — cultural fests (music, dance, drama, fashion and art), technical fests (hackathons, coding and robotics competitions) and sports fests (tournaments and athletic meets).</p>
+      <p><a href="/fests">Browse college fests</a></p>
+    </section>
+    <section>
+      <h2>Treks &amp; Adventure Communities</h2>
+      <p>Find day hikes, weekend treks, backpacking trips and camping outings run by verified trekking communities, with difficulty level and duration shown on every listing.</p>
+      <p><a href="/treks">Browse treks &amp; communities</a></p>
+    </section>
+    <section>
+      <h2>Sports, Running Clubs &amp; Gym Communities</h2>
+      <p>Join running clubs, runs and marathons, gym communities and sports events near you. Many running clubs are beginner friendly and list their upcoming sessions.</p>
+      <p><a href="/sports">Browse sports &amp; clubs</a></p>
+    </section>
+    <section>
+      <h2>Events, Shows &amp; Meetups</h2>
+      <p>Browse concerts, stand-up comedy, workshops and community meetups happening near you, and book tickets in a tap.</p>
+      <p><a href="/events">Browse events &amp; shows</a></p>
+    </section>
+    <nav aria-label="Explore CrwdCtrl">
+      <h2>Explore CrwdCtrl</h2>
+      <ul>
+        <li><a href="/fests">College Fests — cultural, technical &amp; sports</a></li>
+        <li><a href="/treks">Treks &amp; Adventure Communities</a></li>
+        <li><a href="/sports">Sports, Running Clubs &amp; Gym Communities</a></li>
+        <li><a href="/events">Events, Shows &amp; Meetups</a></li>
+        <li><a href="/list-your-fest">List your fest or event</a></li>
+        <li><a href="/about">About CrwdCtrl</a></li>
+        <li><a href="/contact-us">Contact us</a></li>
+      </ul>
+    </nav>
+    <section>
+      <h2>Frequently asked questions</h2>
+      <h3>What is CrwdCtrl?</h3>
+      <p>CrwdCtrl is a community and event discovery platform to find and register for college fests, tech and sports events, running clubs, gym communities, treks, and local meetups near you.</p>
+      <h3>Is CrwdCtrl free to use?</h3>
+      <p>Yes. Browsing and discovering events on CrwdCtrl is free. Some individual events or fests may charge their own registration or ticket fee, which is shown on each event page.</p>
+      <h3>How do I register for a college fest on CrwdCtrl?</h3>
+      <p>Open the fest you are interested in, review the details and competitions, then tap Register and complete the form. You receive a confirmation and a QR ticket where applicable.</p>
+    </section>
+  </div><!--/seo-fallback--></div>
   <div id="boot-fallback" hidden aria-live="polite">
     <p>CrwdCtrl is loading…</p>
     <button type="button" id="boot-fallback-reload">Reload app</button>

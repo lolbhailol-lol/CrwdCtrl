@@ -101,7 +101,9 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 let analytics = null;
-if (!isNativeApp() && typeof window !== 'undefined') {
+// Skip Firebase Analytics on web when gtag.js (GA4) is configured in index.html,
+// so page views are not double-counted into the same GA4 property.
+if (!isNativeApp() && typeof window !== 'undefined' && !import.meta.env.VITE_GOOGLE_ANALYTICS_ID) {
     try {
         analytics = getAnalytics(app);
     } catch {
