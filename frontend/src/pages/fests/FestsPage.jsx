@@ -26,7 +26,9 @@ import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { fetchRawPublicFests } from '../../services/api/fests.api';
 import Seo from '../../components/Seo';
-import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+import FaqSection from '../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
+import { FESTS_FAQ } from '../../constants/faqs';
 
 const FESTS_DESCRIPTION =
     'Browse and register for college fests near you — cultural, technical and sports festivals. Find upcoming and ongoing fests, competitions and events on CrwdCtrl.';
@@ -244,6 +246,7 @@ export default function FestsPage() {
                             .filter((fest) => fest?._id && fest?.festName)
                             .map((fest) => ({ name: fest.festName, url: `/view-details/${fest._id}` })),
                     }),
+                    faqSchema(FESTS_FAQ),
                 ]}
             />
 
@@ -379,6 +382,8 @@ export default function FestsPage() {
                     </div>
                 )}
                 </div>{/* end pt-5 wrapper */}
+
+                <FaqSection items={FESTS_FAQ} />
             </main>
         </div>
     );

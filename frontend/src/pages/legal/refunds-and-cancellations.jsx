@@ -124,8 +124,8 @@ export default function RefundsAndCancellations() {
           </p>
           <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
             Email:{' '}
-            <a href="mailto:Karan@crwdctrl.in" className="underline font-medium">
-              Karan@crwdctrl.in
+            <a href="mailto:crwdctrl.in@gmail.com" className="underline font-medium">
+              crwdctrl.in@gmail.com
             </a>
           </p>
           <p className={`text-sm mt-2 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>

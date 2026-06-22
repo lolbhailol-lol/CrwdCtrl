@@ -11,7 +11,7 @@ export default function ContactUs() {
 
     const contactData = {
         website: "https://www.crwdctrl.in",
-        email: "Karan@crwdctrl.in",
+        email: "crwdctrl.in@gmail.com",
         phone_numbers: [
             {
                 name: "Karan Jadhav",

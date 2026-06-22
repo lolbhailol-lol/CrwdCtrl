@@ -29,7 +29,9 @@ import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { publicFetchJSONRetry } from '../../services/api/client';
 import Seo from '../../components/Seo';
-import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+import FaqSection from '../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
+import { TREKS_FAQ } from '../../constants/faqs';
 
 const TREKS_DESCRIPTION =
     'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';
@@ -380,6 +382,7 @@ function TreksPage() {
                                 .map((c) => ({ name: c.title, url: `/treks/community/${c.id}` })),
                         ],
                     }),
+                    faqSchema(TREKS_FAQ),
                 ]}
             />
 
@@ -628,6 +631,8 @@ function TreksPage() {
                     />
 
                 </div>
+
+                <FaqSection items={TREKS_FAQ} />
             </main>
         </div>
     );

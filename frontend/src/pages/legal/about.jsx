@@ -3,7 +3,9 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Users, Target, Rocket, Globe, Heart, Star, Award, Zap, Shield } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import Seo from '../../components/Seo';
+import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, webPageSchema } from '../../utils/seo';
+import { ABOUT_FAQ } from '../../constants/faqs';
 
 const ABOUT_DESCRIPTION =
     "CrwdCtrl is India's platform for discovering, exploring and registering for college fests, competitions, treks, running clubs and events — all in one place.";
@@ -24,22 +26,7 @@ export default function About() {
                         { name: 'Home', path: '/' },
                         { name: 'About', path: '/about' },
                     ]),
-                    faqSchema([
-                        {
-                            question: 'What is CrwdCtrl?',
-                            answer: ABOUT_DESCRIPTION,
-                        },
-                        {
-                            question: 'What can I find on CrwdCtrl?',
-                            answer:
-                                'You can find college fests (cultural, technical and sports), competitions, treks and adventure communities, running clubs, gym communities, and local events and meetups near you.',
-                        },
-                        {
-                            question: 'Who is CrwdCtrl for?',
-                            answer:
-                                'CrwdCtrl is for students and young people looking to discover and join events, and for organizers who want to list their fests, competitions and activities and manage registrations.',
-                        },
-                    ]),
+                    faqSchema(ABOUT_FAQ),
                 ]}
             />
             {/* Header */}
@@ -167,10 +154,12 @@ export default function About() {
                             Website: <a href="https://www.crwdctrl.in" className="underline">www.crwdctrl.in</a>
                         </p>
                         <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-                            Email: <a href="mailto:Karan@crwdctrl.in" className="underline">Karan@crwdctrl.in</a>
+                            Email: <a href="mailto:crwdctrl.in@gmail.com" className="underline">crwdctrl.in@gmail.com</a>
                         </p>
                     </div>
                 </div>
+
+                <FaqSection items={ABOUT_FAQ} className="px-0" />
             </div>
         </div>
     );

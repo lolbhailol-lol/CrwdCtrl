@@ -19,7 +19,7 @@ export default function Footer() {
               Fests, clubs &amp; meetups near you
             </p>
             <a
-              href="https://www.instagram.com/crwdctrl.in?igsh=MTBpNm9ta2ptMmc2dA=="
+              href="https://www.instagram.com/crwdctrl.in?igsh=ODZpb2tpaGR4Y2Rn"
               target="_blank"
               rel="noopener noreferrer"
               className={`mt-4 inline-flex items-center gap-2 text-sm transition-colors ${

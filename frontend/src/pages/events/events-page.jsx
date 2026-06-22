@@ -28,7 +28,9 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { mapEventShow } from '../../constants/eventsPage';
 import Seo from '../../components/Seo';
-import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+import FaqSection from '../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
+import { EVENTS_FAQ } from '../../constants/faqs';
 
 const EVENTS_DESCRIPTION =
     'Discover events, shows and meetups near you — concerts, stand-up comedy, workshops and more. Find and book tickets to events around you on CrwdCtrl.';
@@ -345,6 +347,7 @@ export default function EventsPage() {
                         description: EVENTS_DESCRIPTION,
                         url: '/events',
                     }),
+                    faqSchema(EVENTS_FAQ),
                 ]}
             />
             <MobileStickyHeader
@@ -505,6 +508,8 @@ export default function EventsPage() {
                         getShareUrl={getShareUrl}
                     />
                 </div>
+
+                <FaqSection items={EVENTS_FAQ} />
             </main>
         </div>
     );

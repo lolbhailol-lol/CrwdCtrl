@@ -122,7 +122,7 @@ export default function PrivacyPolicy() {
         },
         contact: {
             website: "https://www.crwdctrl.in",
-            email: "Karan@crwdctrl.in"
+            email: "crwdctrl.in@gmail.com"
         }
     };
 

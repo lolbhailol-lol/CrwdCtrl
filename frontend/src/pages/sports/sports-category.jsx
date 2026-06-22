@@ -31,7 +31,9 @@ import { navigateToSearchResult } from '../../utils/searchNavigation';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 import Seo from '../../components/Seo';
-import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+import FaqSection from '../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
+import { SPORTS_FAQ } from '../../constants/faqs';
 
 const SPORTS_DESCRIPTION =
     'Discover sports events, running clubs and gym communities near you. Find runs, tournaments and sports fests, and join active communities on CrwdCtrl.';
@@ -254,6 +256,7 @@ export default function SportsCategoryPage() {
                                 .map((f) => ({ name: f.festName, url: `/view-details/${f._id}` })),
                         ],
                     }),
+                    faqSchema(SPORTS_FAQ),
                 ]}
             />
             <MobileStickyHeader
@@ -436,6 +439,8 @@ export default function SportsCategoryPage() {
                     </div>
                 </section>
                 </div>
+
+                <FaqSection items={SPORTS_FAQ} />
             </main>
         </div>
     );

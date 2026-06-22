@@ -33,7 +33,9 @@ import { buildHomeCarouselItems } from '../../utils/homeCarouselItems';
 import { mapHomeCarouselDisplayItems } from '../../utils/mapHomeCarouselDisplayItems';
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import Seo from '../../components/Seo';
+import FaqSection from '../../components/FaqSection';
 import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
+import { HOME_FAQ } from '../../constants/faqs';
 import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 
 const HOME_JSON_LD = [
@@ -54,28 +56,7 @@ const HOME_JSON_LD = [
             { name: 'Events & Meetups', url: '/events' },
         ],
     }),
-    faqSchema([
-        {
-            question: 'What is CrwdCtrl?',
-            answer:
-                'CrwdCtrl is a community and event discovery platform where you can find and register for college fests, tech and sports events, running clubs, gym communities, treks, and local meetups near you.',
-        },
-        {
-            question: 'Is CrwdCtrl free to use?',
-            answer:
-                'Yes. Browsing and discovering events on CrwdCtrl is free. Some individual events or fests may charge their own registration or ticket fee, which is shown on each event page.',
-        },
-        {
-            question: 'How do I register for a college fest on CrwdCtrl?',
-            answer:
-                'Open the fest you are interested in, review the details and competitions, then tap Register and complete the registration form. You will get a confirmation and a QR ticket where applicable.',
-        },
-        {
-            question: 'Can organizers list their own fest or event on CrwdCtrl?',
-            answer:
-                'Yes. Organizers can list a fest, competition, trek, or running event through the "List your fest" page, and manage registrations from the organizer dashboard.',
-        },
-    ]),
+    faqSchema(HOME_FAQ),
 ];
 
 if (import.meta.env.DEV) {
@@ -1293,6 +1274,8 @@ const Dashboard = () => {
 
                 </div>
             </main>
+
+            <FaqSection items={HOME_FAQ} />
 
             <div className="pb-20 md:pb-0">
 

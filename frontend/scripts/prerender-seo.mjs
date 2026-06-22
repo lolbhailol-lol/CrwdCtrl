@@ -24,6 +24,14 @@ import {
   webPageSchema,
 } from '../src/utils/seo.js';
 import { applySeoToHtml } from '../src/utils/seoHtml.js';
+import {
+  HOME_FAQ,
+  ABOUT_FAQ,
+  FESTS_FAQ,
+  TREKS_FAQ,
+  SPORTS_FAQ,
+  EVENTS_FAQ,
+} from '../src/constants/faqs.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = join(__dirname, '..', 'dist');
@@ -44,48 +52,12 @@ const ABOUT_DESCRIPTION =
 const LIST_FEST_DESCRIPTION =
   'List your college fest, competition, trek or event on CrwdCtrl. Reach thousands of students, manage registrations, and grow your audience for free.';
 
-const HOME_FAQ = [
-  {
-    question: 'What is CrwdCtrl?',
-    answer:
-      'CrwdCtrl is a community and event discovery platform where you can find and register for college fests, tech and sports events, running clubs, gym communities, treks, and local meetups near you.',
-  },
-  {
-    question: 'Is CrwdCtrl free to use?',
-    answer:
-      'Yes. Browsing and discovering events on CrwdCtrl is free. Some individual events or fests may charge their own registration or ticket fee, which is shown on each event page.',
-  },
-  {
-    question: 'How do I register for a college fest on CrwdCtrl?',
-    answer:
-      'Open the fest you are interested in, review the details and competitions, then tap Register and complete the registration form. You will get a confirmation and a QR ticket where applicable.',
-  },
-  {
-    question: 'Can organizers list their own fest or event on CrwdCtrl?',
-    answer:
-      'Yes. Organizers can list a fest, competition, trek, or running event through the "List your fest" page, and manage registrations from the organizer dashboard.',
-  },
-];
-
-const ABOUT_FAQ = [
-  { question: 'What is CrwdCtrl?', answer: ABOUT_DESCRIPTION },
-  {
-    question: 'What can I find on CrwdCtrl?',
-    answer:
-      'You can find college fests (cultural, technical and sports), competitions, treks and adventure communities, running clubs, gym communities, and local events and meetups near you.',
-  },
-  {
-    question: 'Who is CrwdCtrl for?',
-    answer:
-      'CrwdCtrl is for students and young people looking to discover and join events, and for organizers who want to list their fests, competitions and activities and manage registrations.',
-  },
-];
-
-/** Build a hub crumb + collection schema. */
-function hubJsonLd(name, description, path, crumbs) {
+/** Build a hub crumb + collection schema, with an optional FAQ block. */
+function hubJsonLd(name, description, path, crumbs, faq) {
   return [
     breadcrumbSchema(crumbs),
     itemListSchema({ name, description, url: path }),
+    faq ? faqSchema(faq) : null,
   ].filter(Boolean);
 }
 
@@ -129,7 +101,7 @@ const ROUTES = [
     jsonLd: hubJsonLd('College Fests on CrwdCtrl', FESTS_DESCRIPTION, '/fests', [
       { name: 'Home', path: '/' },
       { name: 'Fests', path: '/fests' },
-    ]),
+    ], FESTS_FAQ),
   },
   {
     path: '/cultural-fest',
@@ -170,7 +142,7 @@ const ROUTES = [
     jsonLd: hubJsonLd('Treks & Adventure on CrwdCtrl', TREKS_DESCRIPTION, '/treks', [
       { name: 'Home', path: '/' },
       { name: 'Treks', path: '/treks' },
-    ]),
+    ], TREKS_FAQ),
   },
   {
     path: '/sports',
@@ -179,7 +151,7 @@ const ROUTES = [
     jsonLd: hubJsonLd('Sports & Running Clubs on CrwdCtrl', SPORTS_DESCRIPTION, '/sports', [
       { name: 'Home', path: '/' },
       { name: 'Sports', path: '/sports' },
-    ]),
+    ], SPORTS_FAQ),
   },
   {
     path: '/events',
@@ -188,7 +160,7 @@ const ROUTES = [
     jsonLd: hubJsonLd('Events & Shows on CrwdCtrl', EVENTS_DESCRIPTION, '/events', [
       { name: 'Home', path: '/' },
       { name: 'Events', path: '/events' },
-    ]),
+    ], EVENTS_FAQ),
   },
   {
     path: '/about',
