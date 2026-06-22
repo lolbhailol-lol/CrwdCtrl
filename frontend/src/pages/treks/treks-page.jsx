@@ -28,6 +28,11 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { publicFetchJSONRetry } from '../../services/api/client';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+
+const TREKS_DESCRIPTION =
+    'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';
 
 const fetchJSON = async (endpoint) => {
     const { data } = await publicFetchJSONRetry(endpoint, { cacheBust: true });
@@ -352,6 +357,31 @@ function TreksPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--hub min-h-screen transition-colors">
+            <Seo
+                title="Treks & Adventure Communities"
+                description={TREKS_DESCRIPTION}
+                canonical="/treks"
+                keywords="treks, trekking, hiking, adventure, trekking communities, weekend treks"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Treks', path: '/treks' },
+                    ]),
+                    itemListSchema({
+                        name: 'Treks & Adventure on CrwdCtrl',
+                        description: TREKS_DESCRIPTION,
+                        url: '/treks',
+                        items: [
+                            ...treks
+                                .filter((t) => t?.id && t?.title)
+                                .map((t) => ({ name: t.title, url: `/trek/${t.id}` })),
+                            ...communities
+                                .filter((c) => c?.id && c?.title)
+                                .map((c) => ({ name: c.title, url: `/treks/community/${c.id}` })),
+                        ],
+                    }),
+                ]}
+            />
 
             <MobileStickyHeader
                 isDark={isDark}

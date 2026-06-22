@@ -7,6 +7,11 @@ import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+
+const LIST_FEST_DESCRIPTION =
+    'List your college fest, competition, trek or event on CrwdCtrl. Reach thousands of students, manage registrations, and grow your audience for free.';
 
 function ListYourFest() {
     const { isDark } = useDarkMode();
@@ -178,6 +183,19 @@ function ListYourFest() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
+            <Seo
+                title="List Your Fest or Event"
+                description={LIST_FEST_DESCRIPTION}
+                canonical="/list-your-fest"
+                keywords="list your fest, list event, organizer, host fest, promote college fest"
+                jsonLd={[
+                    webPageSchema({ name: 'List Your Fest on CrwdCtrl', description: LIST_FEST_DESCRIPTION, url: '/list-your-fest' }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'List Your Fest', path: '/list-your-fest' },
+                    ]),
+                ]}
+            />
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Back Navigation */}

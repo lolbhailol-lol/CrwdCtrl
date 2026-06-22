@@ -25,6 +25,11 @@ import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords'
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { fetchRawPublicFests } from '../../services/api/fests.api';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+
+const FESTS_DESCRIPTION =
+    'Browse and register for college fests near you — cultural, technical and sports festivals. Find upcoming and ongoing fests, competitions and events on CrwdCtrl.';
 
 const SUBCATEGORIES = [
     { id: 'cultural',   label: 'CULTURAL', icon: CulturalIcon, path: '/cultural-fest' },
@@ -221,6 +226,26 @@ export default function FestsPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--hub fests-page min-h-screen">
+            <Seo
+                title="College Fests"
+                description={FESTS_DESCRIPTION}
+                canonical="/fests"
+                keywords="college fests, cultural fest, tech fest, sports fest, fest registration, campus events"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Fests', path: '/fests' },
+                    ]),
+                    itemListSchema({
+                        name: 'College Fests on CrwdCtrl',
+                        description: FESTS_DESCRIPTION,
+                        url: '/fests',
+                        items: fests
+                            .filter((fest) => fest?._id && fest?.festName)
+                            .map((fest) => ({ name: fest.festName, url: `/view-details/${fest._id}` })),
+                    }),
+                ]}
+            />
 
             <MobileStickyHeader
                 isDark={isDark}

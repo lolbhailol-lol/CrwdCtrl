@@ -14,6 +14,8 @@ import { getImageUrl } from '../../utils/imageImports.js';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../services/api/client';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -798,8 +800,36 @@ function EventPage() {
         setShowLogin(true);
     };
 
+    const canonicalPath = `/competitions-view-details/${competitionId}`;
+    const competitionDescription =
+        eventData.description || eventData.subtitle || `${eventData.title} — a competition on CrwdCtrl.`;
+
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col transition-colors">
+            <Seo
+                title={eventData.title}
+                description={competitionDescription}
+                canonical={canonicalPath}
+                image={eventData.image}
+                type="article"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        ...(festName ? [{ name: festName, path: '/fests' }] : [{ name: 'Fests', path: '/fests' }]),
+                        { name: eventData.title, path: canonicalPath },
+                    ]),
+                    eventSchema({
+                        name: eventData.title,
+                        description: competitionDescription,
+                        url: canonicalPath,
+                        image: eventData.image,
+                        location: eventData.venue && eventData.venue !== 'TBD' ? eventData.venue : undefined,
+                        price: eventData.entryFee,
+                        organizerName: festName || undefined,
+                        availabilityUrl: canonicalPath,
+                    }),
+                ]}
+            />
 
             <main className="flex-1 pb-8">
                     <div className="max-w-7xl mx-auto">

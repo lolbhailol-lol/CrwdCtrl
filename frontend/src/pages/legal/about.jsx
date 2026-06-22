@@ -2,6 +2,11 @@ import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Users, Target, Rocket, Globe, Heart, Star, Award, Zap, Shield } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, faqSchema, webPageSchema } from '../../utils/seo';
+
+const ABOUT_DESCRIPTION =
+    "CrwdCtrl is India's platform for discovering, exploring and registering for college fests, competitions, treks, running clubs and events — all in one place.";
 
 export default function About() {
     const { isDark } = useDarkMode();
@@ -9,6 +14,34 @@ export default function About() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300">
+            <Seo
+                title="About CrwdCtrl"
+                description={ABOUT_DESCRIPTION}
+                canonical="/about"
+                jsonLd={[
+                    webPageSchema({ name: 'About CrwdCtrl', description: ABOUT_DESCRIPTION, url: '/about' }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'About', path: '/about' },
+                    ]),
+                    faqSchema([
+                        {
+                            question: 'What is CrwdCtrl?',
+                            answer: ABOUT_DESCRIPTION,
+                        },
+                        {
+                            question: 'What can I find on CrwdCtrl?',
+                            answer:
+                                'You can find college fests (cultural, technical and sports), competitions, treks and adventure communities, running clubs, gym communities, and local events and meetups near you.',
+                        },
+                        {
+                            question: 'Who is CrwdCtrl for?',
+                            answer:
+                                'CrwdCtrl is for students and young people looking to discover and join events, and for organizers who want to list their fests, competitions and activities and manage registrations.',
+                        },
+                    ]),
+                ]}
+            />
             {/* Header */}
             <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
                 <div className="max-w-4xl mx-auto px-4 py-4">

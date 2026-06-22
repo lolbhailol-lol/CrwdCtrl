@@ -2,6 +2,8 @@ import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Shield, Eye, Database, Share2, Lock, Users, FileText, Globe, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 export default function PrivacyPolicy() {
     const { isDark } = useDarkMode();
@@ -126,6 +128,18 @@ export default function PrivacyPolicy() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300">
+            <Seo
+                title="Privacy Policy"
+                description="Learn how CrwdCtrl collects, uses, stores and protects your personal information when you use our platform and services."
+                canonical="/privacy-policy"
+                jsonLd={[
+                    webPageSchema({ name: 'CrwdCtrl Privacy Policy', url: '/privacy-policy' }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Privacy Policy', path: '/privacy-policy' },
+                    ]),
+                ]}
+            />
             {/* Header */}
             <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
                 <div className="max-w-4xl mx-auto px-4 py-4">

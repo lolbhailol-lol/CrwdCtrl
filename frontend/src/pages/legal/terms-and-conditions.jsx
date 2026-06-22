@@ -2,6 +2,8 @@ import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, CheckCircle2, Shield, Users, Globe, FileText, Scale, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 export default function TermsAndConditions() {
     const { isDark } = useDarkMode();
@@ -86,6 +88,18 @@ export default function TermsAndConditions() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300">
+            <Seo
+                title="Terms & Conditions"
+                description="Read the Terms & Conditions governing access to and use of the CrwdCtrl website, platform and services."
+                canonical="/terms-and-conditions"
+                jsonLd={[
+                    webPageSchema({ name: 'CrwdCtrl Terms & Conditions', url: '/terms-and-conditions' }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Terms & Conditions', path: '/terms-and-conditions' },
+                    ]),
+                ]}
+            />
             {/* Header */}
             <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
                 <div className="max-w-4xl mx-auto px-4 py-4">

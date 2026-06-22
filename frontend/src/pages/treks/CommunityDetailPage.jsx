@@ -15,6 +15,8 @@ import {
     ScrollReveal,
     StickyCta,
 } from '../../motion';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 
 const GALLERY_PREVIEW_COUNT = 4;
 
@@ -271,8 +273,31 @@ export default function CommunityDetailPage() {
         if (navigator.share) navigator.share({ title: name, url: window.location.href }).catch(() => {});
     };
 
+    const canonicalPath = `/treks/community/${id || community?._id || community?.id}`;
+
     return (
         <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-24">
+            <Seo
+                title={`${name} — Trek Community`}
+                description={description}
+                canonical={canonicalPath}
+                image={image}
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Treks', path: '/treks' },
+                        { name, path: canonicalPath },
+                    ]),
+                    itemListSchema({
+                        name: `Treks by ${name}`,
+                        description,
+                        url: canonicalPath,
+                        items: treks
+                            .filter((t) => t?.id && t?.title)
+                            .map((t) => ({ name: t.title, url: `/trek/${t.id}` })),
+                    }),
+                ]}
+            />
 
             <ImmersiveHero
                 imageSrc={image ? getImageUrl(image, { preset: 'hero' }) : null}

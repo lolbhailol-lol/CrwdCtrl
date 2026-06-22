@@ -21,6 +21,8 @@ import {
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 
 function formatCompetitionTabLabel(tab) {
   if (!tab || tab === 'OTHER') return 'Other';
@@ -449,8 +451,38 @@ function EventDetailsPage() {
     ? 'bg-green-600 text-white'
     : 'bg-gray-400 text-white cursor-not-allowed';
 
+  const canonicalPath = `/view-details/${eventId}`;
+  const festDescription = `${eventData.title}${eventData.collegeName && eventData.collegeName !== 'Unknown College' ? ` by ${eventData.collegeName}` : ''} — ${eventData.description}`;
+
   return (
     <div className="crwdctrl-page min-h-screen overflow-x-clip transition-colors duration-300">
+      <Seo
+        title={eventData.title}
+        description={festDescription}
+        canonical={canonicalPath}
+        image={eventData.heroImage || eventData.image}
+        type="article"
+        jsonLd={[
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Fests', path: '/fests' },
+            { name: eventData.title, path: canonicalPath },
+          ]),
+          eventSchema({
+            name: eventData.title,
+            description: eventData.description,
+            url: canonicalPath,
+            image: eventData.heroImage || eventData.image,
+            location: eventData.venue && eventData.venue !== 'Venue TBA' ? eventData.venue : undefined,
+            price: eventData.ticketPrice,
+            organizerName:
+              eventData.collegeName && eventData.collegeName !== 'Unknown College'
+                ? eventData.collegeName
+                : undefined,
+            availabilityUrl: canonicalPath,
+          }),
+        ]}
+      />
       {/* Desktop Version - Show at 768px and above */}
       <div className="hidden md:block">
         <div className={`transition-all duration-300`}>

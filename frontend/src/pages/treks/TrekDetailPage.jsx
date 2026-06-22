@@ -5,6 +5,8 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { ScrollProgress, ScrollReveal, StickyCta } from '../../motion';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -219,8 +221,36 @@ export default function TrekDetailPage() {
         if (navigator.share) navigator.share({ title: trek.trekName, url: window.location.href }).catch(() => {});
     };
 
+    const trekName = trek.trekName || trek.title || trek.name || 'Trek';
+    const trekLocation = trek.city || trek.destination || trek.meetingLocation || trek.startingPoint || null;
+    const canonicalPath = `/trek/${id || trek._id || trek.id}`;
+
     return (
         <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-28">
+            <Seo
+                title={trekName}
+                description={desc}
+                canonical={canonicalPath}
+                image={coverImg || images?.[0]}
+                type="article"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Treks', path: '/treks' },
+                        { name: trekName, path: canonicalPath },
+                    ]),
+                    eventSchema({
+                        name: trekName,
+                        description: desc,
+                        url: canonicalPath,
+                        image: coverImg || images?.[0],
+                        location: trekLocation || undefined,
+                        price: trek.registrationFee != null ? trek.registrationFee : undefined,
+                        organizerName: communityName || undefined,
+                        availabilityUrl: `${canonicalPath}/book`,
+                    }),
+                ]}
+            />
             <ScrollProgress />
 
             {/* ── HERO IMAGE ── */}

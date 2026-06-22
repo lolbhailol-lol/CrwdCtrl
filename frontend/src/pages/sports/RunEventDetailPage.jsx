@@ -4,6 +4,8 @@ import { ArrowLeft, Share2, Heart, ChevronRight } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -156,9 +158,34 @@ export default function RunEventDetailPage() {
     };
 
     const eventId = id || event._id || event.id;
+    const canonicalPath = `/sports/run/${eventId}`;
 
     return (
         <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen">
+            <Seo
+                title={event.title || 'Run Event'}
+                description={desc}
+                canonical={canonicalPath}
+                image={coverImg || images?.[0]}
+                type="article"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Sports', path: '/sports' },
+                        { name: event.title || 'Run Event', path: canonicalPath },
+                    ]),
+                    eventSchema({
+                        name: event.title || 'Run Event',
+                        description: desc,
+                        url: canonicalPath,
+                        image: coverImg || images?.[0],
+                        location: mapQuery || undefined,
+                        price: event.registrationFee != null ? event.registrationFee : undefined,
+                        organizerName: communityName !== 'Community Name' ? communityName : undefined,
+                        availabilityUrl: `${canonicalPath}/book`,
+                    }),
+                ]}
+            />
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}

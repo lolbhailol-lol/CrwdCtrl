@@ -7,6 +7,8 @@ import { ArrowLeft, Search, MessageCircle, Book, Settings, Phone, Shield, FileTe
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 const HelpCenter = () => {
     const { isDark } = useDarkMode();
@@ -89,6 +91,22 @@ const HelpCenter = () => {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
+            <Seo
+                title="Help Center"
+                description="Find answers to common questions about CrwdCtrl — getting started, registering for events, managing your account, payments, and contacting support."
+                canonical="/help-center"
+                jsonLd={[
+                    webPageSchema({
+                        name: 'CrwdCtrl Help Center',
+                        description: 'Help and support for using CrwdCtrl.',
+                        url: '/help-center',
+                    }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Help Center', path: '/help-center' },
+                    ]),
+                ]}
+            />
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Mobile Header with Back Button */}

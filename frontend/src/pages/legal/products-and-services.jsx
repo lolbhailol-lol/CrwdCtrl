@@ -2,6 +2,8 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, IndianRupee, Calendar, Trophy, Mountain, Theater, Users } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 const SERVICES = [
   {
@@ -59,6 +61,18 @@ export default function ProductsAndServices() {
     <div
       className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300"
     >
+      <Seo
+        title="Products & Services"
+        description="Explore the products and services offered by CrwdCtrl — event discovery and registration for college fests, competitions, treks, runs and more."
+        canonical="/products-and-services"
+        jsonLd={[
+          webPageSchema({ name: 'CrwdCtrl Products & Services', url: '/products-and-services' }),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Products & Services', path: '/products-and-services' },
+          ]),
+        ]}
+      />
       <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-center relative">

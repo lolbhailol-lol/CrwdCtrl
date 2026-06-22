@@ -11,8 +11,28 @@ import CardFavoriteButton from '../../components/CardFavoriteButton';
 import CarouselDotPagination from '../../components/CarouselDotPagination';
 import { getCarouselScrollPage } from '../../utils/horizontalScroll';
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { fetchPublicFestsByType } from '../../services/api/fests.api';
+
+const FEST_TYPE_SEO = {
+    cultural: {
+        title: 'Cultural Fests',
+        description:
+            'Discover and register for cultural college fests near you — music, dance, drama, art and more. Browse upcoming and ongoing cultural festivals on CrwdCtrl.',
+    },
+    technical: {
+        title: 'Tech Fests',
+        description:
+            'Discover and register for technical college fests, hackathons, coding competitions and tech events near you on CrwdCtrl.',
+    },
+    sports: {
+        title: 'Sports Fests',
+        description:
+            'Discover and register for sports college fests, tournaments and athletic events near you on CrwdCtrl.',
+    },
+};
 
 const STATUS_BADGE = {
     ongoing:      { label: 'Ongoing',      cls: 'bg-green-500 text-white' },
@@ -101,8 +121,35 @@ export default function FestTypePage({
     const listed = fests.filter((fest) => fest.status !== 'ongoing');
     const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
 
+    const seoMeta = FEST_TYPE_SEO[festType] || {
+        title: `${title} Fests`,
+        description: `Discover and register for ${title.toLowerCase()} college fests near you on CrwdCtrl.`,
+    };
+    const canonicalPath = `/${targetPage}`;
+    const seoJsonLd = [
+        breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Fests', path: '/fests' },
+            { name: seoMeta.title, path: canonicalPath },
+        ]),
+        itemListSchema({
+            name: seoMeta.title,
+            description: seoMeta.description,
+            url: canonicalPath,
+            items: fests
+                .filter((fest) => fest?._id && fest?.festName)
+                .map((fest) => ({ name: fest.festName, url: `/view-details/${fest._id}` })),
+        }),
+    ];
+
     return (
         <div className="crwdctrl-page crwdctrl-page--content crwdctrl-mobile-page min-h-screen">
+            <Seo
+                title={seoMeta.title}
+                description={seoMeta.description}
+                canonical={canonicalPath}
+                jsonLd={seoJsonLd}
+            />
             <div
                 className={`crwdctrl-sticky-header sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
                 style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}

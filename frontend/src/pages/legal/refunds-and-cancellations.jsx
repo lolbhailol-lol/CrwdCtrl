@@ -2,6 +2,8 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, XCircle, Clock, Mail } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 export default function RefundsAndCancellations() {
   const { isDark } = useDarkMode();
@@ -13,6 +15,18 @@ export default function RefundsAndCancellations() {
     <div
       className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300"
     >
+      <Seo
+        title="Refunds & Cancellations"
+        description="Read CrwdCtrl's refunds and cancellations policy for event registrations, tickets and bookings made through the platform."
+        canonical="/refunds-and-cancellations"
+        jsonLd={[
+          webPageSchema({ name: 'CrwdCtrl Refunds & Cancellations', url: '/refunds-and-cancellations' }),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Refunds & Cancellations', path: '/refunds-and-cancellations' },
+          ]),
+        ]}
+      />
       <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-center relative">

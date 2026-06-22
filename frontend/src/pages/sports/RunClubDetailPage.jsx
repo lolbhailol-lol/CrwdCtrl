@@ -16,6 +16,8 @@ import {
     ScrollReveal,
     StickyCta,
 } from '../../motion';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 
 const GALLERY_PREVIEW_COUNT = 4;
 import {
@@ -290,8 +292,31 @@ export default function RunClubDetailPage() {
         });
     };
 
+    const canonicalPath = `/sports/run-club/${id || club?._id || club?.id}`;
+
     return (
         <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-24">
+            <Seo
+                title={`${name} — Running Club`}
+                description={description}
+                canonical={canonicalPath}
+                image={club?.coverImage || club?.image}
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Sports', path: '/sports' },
+                        { name, path: canonicalPath },
+                    ]),
+                    itemListSchema({
+                        name: `Runs by ${name}`,
+                        description,
+                        url: canonicalPath,
+                        items: runs
+                            .filter((r) => r?.id && r?.title)
+                            .map((r) => ({ name: r.title, url: `/sports/run/${r.id}` })),
+                    }),
+                ]}
+            />
             <ScrollProgress />
             {/* ── Cover image carousel (full width, 396px tall — matches trek community page) ── */}
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">

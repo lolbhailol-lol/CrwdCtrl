@@ -27,6 +27,11 @@ import {
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { mapEventShow } from '../../constants/eventsPage';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+
+const EVENTS_DESCRIPTION =
+    'Discover events, shows and meetups near you — concerts, stand-up comedy, workshops and more. Find and book tickets to events around you on CrwdCtrl.';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -325,6 +330,23 @@ export default function EventsPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--hub min-h-screen transition-colors">
+            <Seo
+                title="Events & Shows"
+                description={EVENTS_DESCRIPTION}
+                canonical="/events"
+                keywords="events, shows, concerts, comedy, workshops, meetups, tickets"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Events', path: '/events' },
+                    ]),
+                    itemListSchema({
+                        name: 'Events & Shows on CrwdCtrl',
+                        description: EVENTS_DESCRIPTION,
+                        url: '/events',
+                    }),
+                ]}
+            />
             <MobileStickyHeader
                 isDark={isDark}
                 brandingRow={

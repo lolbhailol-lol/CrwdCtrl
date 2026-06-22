@@ -32,7 +32,51 @@ import HomeEventCard from '../../components/HomeEventCard';
 import { buildHomeCarouselItems } from '../../utils/homeCarouselItems';
 import { mapHomeCarouselDisplayItems } from '../../utils/mapHomeCarouselDisplayItems';
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
+import Seo from '../../components/Seo';
+import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
 import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
+
+const HOME_JSON_LD = [
+    webPageSchema({
+        name: 'CrwdCtrl — Discover fests, clubs & events',
+        description:
+            'Find and register for college fests, tech and sports events, running clubs, gym communities, treks, and meetups near you.',
+        url: '/',
+    }),
+    itemListSchema({
+        name: 'Browse on CrwdCtrl',
+        description: 'Categories of events and communities you can discover on CrwdCtrl.',
+        url: '/',
+        items: [
+            { name: 'College Fests', url: '/fests' },
+            { name: 'Treks & Adventure', url: '/treks' },
+            { name: 'Sports & Running Clubs', url: '/sports' },
+            { name: 'Events & Meetups', url: '/events' },
+        ],
+    }),
+    faqSchema([
+        {
+            question: 'What is CrwdCtrl?',
+            answer:
+                'CrwdCtrl is a community and event discovery platform where you can find and register for college fests, tech and sports events, running clubs, gym communities, treks, and local meetups near you.',
+        },
+        {
+            question: 'Is CrwdCtrl free to use?',
+            answer:
+                'Yes. Browsing and discovering events on CrwdCtrl is free. Some individual events or fests may charge their own registration or ticket fee, which is shown on each event page.',
+        },
+        {
+            question: 'How do I register for a college fest on CrwdCtrl?',
+            answer:
+                'Open the fest you are interested in, review the details and competitions, then tap Register and complete the registration form. You will get a confirmation and a QR ticket where applicable.',
+        },
+        {
+            question: 'Can organizers list their own fest or event on CrwdCtrl?',
+            answer:
+                'Yes. Organizers can list a fest, competition, trek, or running event through the "List your fest" page, and manage registrations from the organizer dashboard.',
+        },
+    ]),
+];
 
 if (import.meta.env.DEV) {
     console.log('Dashboard API Configuration:', {
@@ -1054,6 +1098,14 @@ const Dashboard = () => {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--hub flex flex-col min-h-screen transition-colors">
+          <Seo
+            title="CrwdCtrl — Discover fests, clubs & events"
+            description="Find and register for college fests, tech and sports events, running clubs, gym communities, treks, and meetups near you."
+            canonical="/"
+            keywords="college fests, tech fest, sports events, running clubs, gym communities, treks, meetups, student events, event discovery"
+            jsonLd={HOME_JSON_LD}
+            withBrand={false}
+          />
           <div className="flex flex-col flex-1">
 
             <MobileStickyHeader

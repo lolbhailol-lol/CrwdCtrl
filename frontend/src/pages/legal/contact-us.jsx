@@ -2,6 +2,8 @@ import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Mail, Phone, Globe, User, MapPin, Clock, MessageCircle, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 export default function ContactUs() {
     const { isDark } = useDarkMode();
@@ -34,8 +36,23 @@ export default function ContactUs() {
         window.open(contactData.website, '_blank', 'noopener,noreferrer');
     };
 
+    const contactDescription =
+        'Get in touch with the CrwdCtrl team. Contact us for support, partnerships, listing your fest or event, or any questions about the platform.';
+
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300">
+            <Seo
+                title="Contact Us"
+                description={contactDescription}
+                canonical="/contact-us"
+                jsonLd={[
+                    webPageSchema({ name: 'Contact CrwdCtrl', description: contactDescription, url: '/contact-us' }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Contact Us', path: '/contact-us' },
+                    ]),
+                ]}
+            />
             {/* Header */}
             <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
                 <div className="max-w-4xl mx-auto px-4 py-4">

@@ -30,6 +30,11 @@ import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords'
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 
 import { API_BASE_URL as API } from '../../services/api/client';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+
+const SPORTS_DESCRIPTION =
+    'Discover sports events, running clubs and gym communities near you. Find runs, tournaments and sports fests, and join active communities on CrwdCtrl.';
 
 const BROWSE_CATEGORIES = SPORTS_BROWSE_CATEGORIES;
 
@@ -226,6 +231,31 @@ export default function SportsCategoryPage() {
 
     return (
         <div className="crwdctrl-page min-h-screen transition-colors">
+            <Seo
+                title="Sports, Running Clubs & Gym Communities"
+                description={SPORTS_DESCRIPTION}
+                canonical="/sports"
+                keywords="sports events, running clubs, gym communities, marathons, runs, sports fest"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Sports', path: '/sports' },
+                    ]),
+                    itemListSchema({
+                        name: 'Sports & Running Clubs on CrwdCtrl',
+                        description: SPORTS_DESCRIPTION,
+                        url: '/sports',
+                        items: [
+                            ...runClubEntities
+                                .filter((c) => (c?._id || c?.id) && (c?.name || c?.clubName))
+                                .map((c) => ({ name: c.name || c.clubName, url: `/sports/run-club/${c._id || c.id}` })),
+                            ...sportsFests
+                                .filter((f) => f?._id && f?.festName)
+                                .map((f) => ({ name: f.festName, url: `/view-details/${f._id}` })),
+                        ],
+                    }),
+                ]}
+            />
             <MobileStickyHeader
                 isDark={isDark}
                 brandingRow={
