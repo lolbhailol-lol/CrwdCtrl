@@ -241,6 +241,13 @@ const ROUTES = [
       "Read CrwdCtrl's refunds and cancellations policy for event registrations, tickets and bookings made through the platform.",
     jsonLd: pageJsonLd('CrwdCtrl Refunds & Cancellations', '', '/refunds-and-cancellations'),
   },
+  {
+    path: '/delete-account',
+    title: 'Delete Your Account',
+    description:
+      'Learn how to request deletion of your CrwdCtrl account and associated personal data, what is removed, what is retained, and how long it takes.',
+    jsonLd: pageJsonLd('Delete Your CrwdCtrl Account', '', '/delete-account'),
+  },
 ];
 
 function buildRouteHtml(baseHtml, route) {

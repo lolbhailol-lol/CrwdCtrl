@@ -25,6 +25,7 @@ export const TermsAndConditions = lazyWithRetry(() => import('../../pages/legal/
 export const PrivacyPolicy = lazyWithRetry(() => import('../../pages/legal/privacy-policy'));
 export const ContactUs = lazyWithRetry(() => import('../../pages/legal/contact-us'));
 export const RefundsAndCancellations = lazyWithRetry(() => import('../../pages/legal/refunds-and-cancellations'));
+export const DeleteAccount = lazyWithRetry(() => import('../../pages/legal/delete-account'));
 export const ProductsAndServices = lazyWithRetry(() => import('../../pages/legal/products-and-services'));
 export const About = lazyWithRetry(() => import('../../pages/legal/about'));
 export const FestsPage = lazyWithRetry(() => import('../../pages/fests/FestsPage'));

@@ -24,6 +24,7 @@ import {
   PrivacyPolicy,
   ContactUs,
   RefundsAndCancellations,
+  DeleteAccount,
   ProductsAndServices,
   About,
   FestsPage,
@@ -94,6 +95,7 @@ export const publicRoutes = (
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/contact-us" element={<ContactUs />} />
       <Route path="/refunds-and-cancellations" element={<RefundsAndCancellations />} />
+      <Route path="/delete-account" element={<DeleteAccount />} />
       <Route path="/products-and-services" element={<ProductsAndServices />} />
       <Route path="/about" element={<About />} />
       <Route path="/fest/:festId/register" element={<FestRegistration />} />
