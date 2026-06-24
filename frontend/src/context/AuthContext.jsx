@@ -134,8 +134,11 @@ export const AuthProvider = ({ children }) => {
                 // Email/password sessions authenticate against the backend directly and have
                 // no Firebase user, so they must NOT be cleared here (otherwise re-login after
                 // logout immediately wipes the session).
+                // The provider can live at the top level (frontend social-login path) or nested
+                // under socialAuth.provider (backend returns user.toObject()), so check both.
+                const sessionProvider = user?.provider || user?.socialAuth?.provider;
                 const isSocialSession =
-                    user?.provider === 'google' || user?.provider === 'facebook';
+                    sessionProvider === 'google' || sessionProvider === 'facebook';
                 if (isSocialSession) {
                     console.log('🧹 Firebase user is null for a social session, clearing local session');
                     clearLocalSession();
