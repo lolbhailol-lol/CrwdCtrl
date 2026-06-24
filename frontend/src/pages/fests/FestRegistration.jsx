@@ -2284,7 +2284,7 @@ export default function FestRegistration() {
 
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen py-2 sm:py-4 pb-40 sm:pb-32 md:pb-20">
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:pt-[calc(env(safe-area-inset-top)+1rem)] pb-40 sm:pb-32 md:pb-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">

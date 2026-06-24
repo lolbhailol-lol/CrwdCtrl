@@ -140,7 +140,7 @@ export default function RunEventBookingPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-mobile-page min-h-screen">
-            <div className="px-4 pt-12 pb-4 flex items-center gap-3">
+            <div className="px-4 pt-[max(3rem,calc(env(safe-area-inset-top)+1rem))] pb-4 flex items-center gap-3">
                 <button onClick={() => navigate(-1)} className="size-9 rounded-full bg-stone-900/10 flex items-center justify-center">
                     <ArrowLeft size={18} className={isDark ? 'text-white' : 'text-gray-900'} />
                 </button>

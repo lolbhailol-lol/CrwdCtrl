@@ -158,7 +158,7 @@ function NotificationsPanel() {
 
             {/* Mobile Layout */}
             <div className="lg:hidden flex flex-1 flex-col w-full">
-                <main className="flex-1 px-4 pt-4 sm:px-6 pb-4">
+                <main className="flex-1 px-4 pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 pb-4">
                     <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl">
                         <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-slate-100'}`}>
                             <div className="flex items-center justify-between pb-8">

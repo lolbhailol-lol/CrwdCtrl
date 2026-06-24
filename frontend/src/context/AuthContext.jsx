@@ -129,9 +129,19 @@ export const AuthProvider = ({ children }) => {
                     setIsAuthProcessing(false);
                 }
             } else if (!firebaseUser && (user || token)) {
-                // ✅ Firebase user is null but we have local session - clear it
-                console.log('🧹 Firebase user is null, clearing local session');
-                clearLocalSession();
+                // Firebase user is null but we have a local session.
+                // Only social (Google/Facebook) sessions depend on Firebase — clear those.
+                // Email/password sessions authenticate against the backend directly and have
+                // no Firebase user, so they must NOT be cleared here (otherwise re-login after
+                // logout immediately wipes the session).
+                const isSocialSession =
+                    user?.provider === 'google' || user?.provider === 'facebook';
+                if (isSocialSession) {
+                    console.log('🧹 Firebase user is null for a social session, clearing local session');
+                    clearLocalSession();
+                } else {
+                    console.log('ℹ️ Email/password backend session — keeping despite no Firebase user');
+                }
             }
         });
 

@@ -146,7 +146,7 @@ export default function RegistrationDetails() {
     : `/payment-invoice/${registrationId}`;
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen py-4 sm:py-8">
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 sm:pt-[calc(env(safe-area-inset-top)+2rem)] sm:pb-8">
       <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-center gap-2 sm:gap-4 mb-6 sm:mb-8">

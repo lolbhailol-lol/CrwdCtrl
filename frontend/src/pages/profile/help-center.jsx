@@ -138,7 +138,7 @@ const HelpCenter = () => {
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8 lg:pb-8">
                         <div className="max-w-4xl mx-auto">
                             {/* Header Section */}
-                            <div className="text-center mb-6 lg:mb-8 pt-4 lg:pt-0">
+                            <div className="text-center mb-6 lg:mb-8 pt-[calc(env(safe-area-inset-top)+1rem)] lg:pt-0">
                                 <h1 className={`text-2xl lg:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-3 lg:mb-4`}>
                                     Help Center
                                 </h1>

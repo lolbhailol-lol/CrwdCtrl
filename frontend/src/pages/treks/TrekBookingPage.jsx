@@ -654,7 +654,7 @@ export default function TrekBookingPage() {
     }
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--content trek-booking-page min-h-dvh py-2 sm:py-4 pb-[max(6rem,env(safe-area-inset-bottom)+5rem)]">
+        <div className="crwdctrl-page crwdctrl-page--content trek-booking-page min-h-dvh pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:pt-[calc(env(safe-area-inset-top)+1rem)] pb-[max(6rem,env(safe-area-inset-bottom)+5rem)]">
             <div className="max-w-lg mx-auto px-4 sm:px-6">
 
                 {/* Header */}
