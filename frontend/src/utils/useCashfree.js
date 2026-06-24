@@ -83,27 +83,22 @@ function formatCashfreeCheckoutError(message, cashfreeMode, suffix = '') {
 }
 
 async function openCapacitorCashfreeCheckout(opts) {
-  const { cashfreeMode } = opts;
-  // Production native SDK requires Play Store install (Cashfree Integrity).
-  // Sideloaded APKs: in-app JS modal inside the WebView works without Play Store.
-  if (getCashfreeMode(cashfreeMode) === 'production') {
-    try {
-      return await openInAppWebSdkCheckout(opts);
-    } catch (webErr) {
-      console.warn('[Cashfree] In-app web checkout failed, trying native SDK:', webErr.message);
-      try {
-        return await openNativeCashfreeSdkCheckout(opts);
-      } catch (nativeErr) {
-        throw webErr;
-      }
-    }
-  }
-
+  // The native Cashfree SDK is authorized via the app package whitelisting
+  // (in.crwdctrl.app, approved in the Cashfree dashboard) and works on Play Store
+  // installs for both sandbox and production. Prefer it so we don't depend on
+  // whitelisting https://localhost (which Cashfree does not allow as a domain).
+  //
+  // The in-app web modal (origin https://localhost) is only a fallback for
+  // sideloaded/dev builds where the native SDK fails Cashfree's integrity check.
   try {
     return await openNativeCashfreeSdkCheckout(opts);
   } catch (nativeErr) {
     const errMessage = nativeErr?.message || '';
     if (shouldUseInAppWebSdkFallback(errMessage)) {
+      console.warn(
+        '[Cashfree] Native SDK unavailable, falling back to in-app web modal:',
+        errMessage,
+      );
       return openInAppWebSdkCheckout(opts);
     }
     throw nativeErr;
