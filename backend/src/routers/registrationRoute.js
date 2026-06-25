@@ -5,6 +5,7 @@ const {
   submitRegistration,
   submitCompetitionRegistration,
   submitCustomCompetitionRegistration,
+  submitEventShowRegistration,
   payAndRegisterFest,
   payAndRegister,
   getUserRegistration,
@@ -12,9 +13,11 @@ const {
   updateRegistrationStatus,
   getUserRegistrations,
   getRegistrationDetails,
+  getEventShowRegistrationDetails,
   getTrekBookingDetails,
   getPaymentInvoice,
   getTrekPaymentInvoice,
+  getEventShowPaymentInvoice,
   testGoogleSheets,
   diagnoseGoogleSheets,
   upload
@@ -52,6 +55,14 @@ router.post(
   authenticateToken,
   upload.any(),
   submitCustomCompetitionRegistration
+);
+
+// Event (EventShow) internal registration — dynamic form + files + payment
+router.post(
+  '/events/:eventShowId/custom',
+  authenticateToken,
+  upload.any(),
+  submitEventShowRegistration
 );
 
 // Cashfree payment registration — no form, uses user profile data
@@ -97,7 +108,9 @@ router.post('/upload', authenticateToken, upload.any(), async (req, res) => {
 router.get('/fests/:festId/registration', authenticateToken, getUserRegistration);
 router.get('/my-registrations', authenticateToken, getUserRegistrations);
 router.get('/details/:registrationId', authenticateToken, getRegistrationDetails);
+router.get('/event-registration/:registrationId', authenticateToken, getEventShowRegistrationDetails);
 router.get('/invoice/:registrationId', authenticateToken, getPaymentInvoice);
+router.get('/event-registration/:registrationId/invoice', authenticateToken, getEventShowPaymentInvoice);
 router.get('/trek-booking/:bookingId/invoice', authenticateToken, getTrekPaymentInvoice);
 router.get('/trek-booking/:bookingId', authenticateToken, getTrekBookingDetails);
 

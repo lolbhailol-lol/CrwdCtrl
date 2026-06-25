@@ -11,6 +11,7 @@ export default function RegistrationDetails() {
   const { registrationId } = useParams();
   const [searchParams] = useSearchParams();
   const isTrekBooking = searchParams.get('type') === 'trek';
+  const isEventRegistration = searchParams.get('type') === 'event';
   const navigate = useNavigate();
   const { isDark } = useDarkMode();
   const { isAuthenticated } = useAuth();
@@ -26,7 +27,7 @@ export default function RegistrationDetails() {
     }
 
     fetchRegistrationDetails();
-  }, [registrationId, isAuthenticated, isTrekBooking, navigate]);
+  }, [registrationId, isAuthenticated, isTrekBooking, isEventRegistration, navigate]);
 
   const fetchRegistrationDetails = async () => {
     try {
@@ -35,7 +36,9 @@ export default function RegistrationDetails() {
       const token = localStorage.getItem('crwdctrl_token');
       const url = isTrekBooking
         ? `${API_BASE_URL}/registrations/trek-booking/${registrationId}`
-        : `${API_BASE_URL}/registrations/details/${registrationId}`;
+        : isEventRegistration
+          ? `${API_BASE_URL}/registrations/event-registration/${registrationId}`
+          : `${API_BASE_URL}/registrations/details/${registrationId}`;
 
       const response = await fetch(url, {
         headers: {
@@ -45,7 +48,7 @@ export default function RegistrationDetails() {
       });
 
       if (!response.ok) {
-        throw new Error(isTrekBooking ? 'Trek booking not found' : 'Failed to fetch registration details');
+        throw new Error(isTrekBooking ? 'Trek booking not found' : isEventRegistration ? 'Event registration not found' : 'Failed to fetch registration details');
       }
 
       const data = await response.json();
@@ -101,20 +104,34 @@ export default function RegistrationDetails() {
     );
   }
 
-  const isCompetitionRegistration = !isTrekBooking && !!registration.competitionId;
+  const isCompetitionRegistration = !isTrekBooking && !isEventRegistration && !!registration.competitionId;
+  const eventShow = registration.eventShow || {};
+  const eventShowDate = eventShow.showTimings?.[0]?.date || null;
+  const eventShowTime = eventShow.showTimings?.[0]?.time || null;
   const eventName = isTrekBooking
     ? registration.trekId?.trekName || 'Trek'
-    : isCompetitionRegistration
-      ? registration.competitionId?.name
-      : registration.fest?.festName;
+    : isEventRegistration
+      ? eventShow.displayName || eventShow.title || 'Event'
+      : isCompetitionRegistration
+        ? registration.competitionId?.name
+        : registration.fest?.festName;
   const eventImage = isTrekBooking
     ? registration.trekId?.coverImage || registration.trekId?.images?.[0]
-    : isCompetitionRegistration
-      ? registration.competitionId?.coverImage
-      : registration.fest?.coverImage;
+    : isEventRegistration
+      ? eventShow.coverImage || eventShow.banner
+      : isCompetitionRegistration
+        ? registration.competitionId?.coverImage
+        : registration.fest?.coverImage;
   const formEntries = isTrekBooking
     ? Object.entries(registration.formData || {})
     : null;
+
+  // Flatten event form fields (single-step schema or multi-step) for rendering responses
+  const eventFormFields = isEventRegistration
+    ? (eventShow.registration?.formType === 'MULTI_STEP'
+        ? (eventShow.registration?.steps || []).flatMap((s) => s.fields || [])
+        : (eventShow.registration?.formSchema || []))
+    : [];
 
   const paymentInfo = isTrekBooking
     ? {
@@ -143,7 +160,9 @@ export default function RegistrationDetails() {
 
   const invoicePath = isTrekBooking
     ? `/payment-invoice/${registrationId}?type=trek`
-    : `/payment-invoice/${registrationId}`;
+    : isEventRegistration
+      ? `/payment-invoice/${registrationId}?type=event`
+      : `/payment-invoice/${registrationId}`;
 
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 sm:pt-[calc(env(safe-area-inset-top)+2rem)] sm:pb-8">
@@ -163,7 +182,7 @@ export default function RegistrationDetails() {
               Registration Confirmed
             </h1>
             <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-0.5`}>
-              {isTrekBooking ? 'Trek Booking' : isCompetitionRegistration ? 'Competition Registration' : 'Fest Registration'}
+              {isTrekBooking ? 'Trek Booking' : isEventRegistration ? 'Event Registration' : isCompetitionRegistration ? 'Competition Registration' : 'Fest Registration'}
             </p>
           </div>
         </div>
@@ -215,11 +234,30 @@ export default function RegistrationDetails() {
                   </div>
                 )}
 
-                {!isTrekBooking && registration.fest?.collegeName && (
+                {!isTrekBooking && !isEventRegistration && registration.fest?.collegeName && (
                   <div className="flex items-center gap-2 text-gray-500">
                     <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
                     <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
                       {registration.fest.collegeName}
+                    </span>
+                  </div>
+                )}
+
+                {isEventRegistration && (eventShow.venue || eventShow.city) && (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
+                      {eventShow.venue || eventShow.city}
+                    </span>
+                  </div>
+                )}
+
+                {isEventRegistration && eventShowDate && (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+                      {eventShowDate}
+                      {eventShowTime ? ` · ${eventShowTime}` : ''}
                     </span>
                   </div>
                 )}
@@ -345,7 +383,36 @@ export default function RegistrationDetails() {
             </div>
           )}
 
-          {!isTrekBooking && registration.fest?.registration?.formSchema && (
+          {isEventRegistration && eventFormFields.length > 0 && (
+            <div className="space-y-3 sm:space-y-4">
+              {eventFormFields.map((field, index) => {
+                const value = registration.responses?.[field.fieldName];
+                const renderedValue = renderFieldValue(field, value);
+
+                if (!renderedValue) return null;
+
+                return (
+                  <div key={index} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                      <div className="sm:w-1/3">
+                        <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {field.label}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                      </div>
+                      <div className="sm:w-2/3">
+                        <div className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'} bg-transparent`}>
+                          {renderedValue}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!isTrekBooking && !isEventRegistration && registration.fest?.registration?.formSchema && (
             <div className="space-y-3 sm:space-y-4">
               {registration.fest.registration.formSchema.map((field, index) => {
                 const value = registration.responses?.[field.fieldName];
@@ -425,7 +492,9 @@ export default function RegistrationDetails() {
               navigate(
                 isTrekBooking
                   ? `/qr-ticket/${registrationId}?type=trek`
-                  : `/qr-ticket/${registrationId}`
+                  : isEventRegistration
+                    ? `/qr-ticket/${registrationId}?type=event`
+                    : `/qr-ticket/${registrationId}`
               )
             }
             className="px-6 py-3 rounded-lg bg-[#0ECCEE] text-black font-medium hover:opacity-90 transition"

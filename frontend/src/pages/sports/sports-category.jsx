@@ -181,6 +181,21 @@ export default function SportsCategoryPage() {
             .sort((a, b) => a.sortKey - b.sortKey);
     }, [runClubEntities]);
 
+    const hasSportsContent = runClubs.length > 0 || filteredActivities.length > 0;
+
+    const ComingSoon = () => (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+            <h2 className={`text-3xl font-bold font-inter tracking-tight animate-pulse ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Coming Soon
+            </h2>
+            <div className="flex gap-1.5 mt-5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#0ECCEE] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#0ECCEE] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#0ECCEE] animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+        </div>
+    );
+
     const handleActivityClick = (item) => {
         if (item.kind === 'fest' && item.festId) {
             navigate(`/view-details/${item.festId}`);
@@ -308,6 +323,10 @@ export default function SportsCategoryPage() {
 
             <main className="pb-8">
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0">
+                {!loading && !hasSportsContent ? (
+                    <ComingSoon />
+                ) : (
+                <>
                 {/* ── Upcoming Activities (Weekend Plans card style) ── */}
                 <div className="mt-5">
                     <HomeCarouselSection
@@ -439,9 +458,11 @@ export default function SportsCategoryPage() {
                         ))}
                     </div>
                 </section>
+                </>
+                )}
                 </div>
 
-                <FaqSection items={SPORTS_FAQ} />
+                {(loading || hasSportsContent) && <FaqSection items={SPORTS_FAQ} />}
             </main>
         </div>
     );

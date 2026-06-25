@@ -13,6 +13,7 @@ export default function PaymentInvoicePage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const isTrek = searchParams.get('type') === 'trek';
+  const isEvent = searchParams.get('type') === 'event';
   const { isDark } = useDarkMode();
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +25,9 @@ export default function PaymentInvoicePage() {
         const token = getToken();
         const url = isTrek
           ? `${API_BASE_URL}/registrations/trek-booking/${id}/invoice`
-          : `${API_BASE_URL}/registrations/invoice/${id}`;
+          : isEvent
+            ? `${API_BASE_URL}/registrations/event-registration/${id}/invoice`
+            : `${API_BASE_URL}/registrations/invoice/${id}`;
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
@@ -41,7 +44,7 @@ export default function PaymentInvoicePage() {
     };
 
     fetchInvoice();
-  }, [id, isTrek]);
+  }, [id, isTrek, isEvent]);
 
   const handlePrint = () => window.print();
 

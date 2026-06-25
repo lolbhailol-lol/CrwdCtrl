@@ -4,7 +4,7 @@ export const EVENT_TYPE_LABELS = {
     standup: 'Stand-up',
     improv: 'Improv',
     dance_drama: 'Dance Drama',
-    other: 'Other',
+    fashion: 'Fashion',
 };
 
 export const EVENTS_PAGE_SECTION_OPTS = [

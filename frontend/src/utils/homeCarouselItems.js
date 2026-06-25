@@ -50,7 +50,7 @@ export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sect
         _image: type === 'fest' ? raw.coverImage
             : type === 'trek' ? (raw.coverImage || raw.images?.[0])
             : type === 'sport' ? (raw.images?.[0] || raw.coverImage)
-            : type === 'events' ? raw.poster
+            : type === 'events' ? (raw.poster || raw.banner)
             : raw.coverImage,
         _subtitle: type === 'fest' ? (raw.collegeName || '')
             : type === 'trek' ? (raw.city || '')

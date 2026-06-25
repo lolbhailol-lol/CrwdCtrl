@@ -6,6 +6,7 @@ const {
   generateQR,
   generateTrekQR,
   generateSportsQR,
+  generateEventShowQR,
   verifyQR,
   verifyQRFromPayload,
   getCheckinStats,
@@ -15,6 +16,7 @@ const {
 router.get('/registrations/:registrationId/qr', authenticateToken, generateQR);
 router.get('/trek-bookings/:bookingId/qr', authenticateToken, generateTrekQR);
 router.get('/sports-registrations/:registrationId/qr', authenticateToken, generateSportsQR);
+router.get('/event-registrations/:registrationId/qr', authenticateToken, generateEventShowQR);
 
 // Admin: Verify scanned QR payload or hash and check in
 router.post('/checkin', adminAuth, verifyQRFromPayload);

@@ -27,6 +27,7 @@ export default function QRTicketPage() {
   const ticketType = searchParams.get('type');
   const isTrekTicket = ticketType === 'trek';
   const isSportsTicket = ticketType === 'sports';
+  const isEventTicket = ticketType === 'event';
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,7 +40,9 @@ export default function QRTicketPage() {
           ? `${API_BASE_URL}/qr/trek-bookings/${registrationId}/qr`
           : isSportsTicket
             ? `${API_BASE_URL}/qr/sports-registrations/${registrationId}/qr`
-            : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
+            : isEventTicket
+              ? `${API_BASE_URL}/qr/event-registrations/${registrationId}/qr`
+              : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
@@ -56,7 +59,7 @@ export default function QRTicketPage() {
     };
 
     fetchTicket();
-  }, [registrationId, isTrekTicket, isSportsTicket]);
+  }, [registrationId, isTrekTicket, isSportsTicket, isEventTicket]);
 
   const cardClass = isDark
     ? 'bg-[#111213] border-gray-800'
@@ -95,12 +98,16 @@ export default function QRTicketPage() {
     ? ticket.trekName || ticket.festName || 'Trek'
     : isSportsTicket
       ? ticket.eventTitle || ticket.festName || 'Sports Event'
-      : ticket.festName || 'Event';
+      : isEventTicket
+        ? ticket.eventTitle || ticket.festName || 'Event'
+        : ticket.festName || 'Event';
   const ticketLabel = isTrekTicket
     ? 'Trek Ticket'
     : isSportsTicket
       ? 'Sports Ticket'
-      : 'Event Ticket';
+      : isEventTicket
+        ? 'Event Ticket'
+        : 'Event Ticket';
   const formattedDate = formatTicketDate(ticket.festDate);
 
   const calendarUrl = ticket.festDate
@@ -201,7 +208,9 @@ export default function QRTicketPage() {
                       ? 'crwdctrl-trek-checkin'
                       : isSportsTicket
                         ? 'crwdctrl-sports-checkin'
-                        : 'crwdctrl-checkin',
+                        : isEventTicket
+                          ? 'crwdctrl-event-checkin'
+                          : 'crwdctrl-checkin',
                   }}
                   size={200}
                 />

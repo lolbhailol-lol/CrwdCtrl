@@ -1,4 +1,6 @@
 const PLATFORM_FEE_RATE = 0.03;
+/** Events use a reduced 2.5% platform fee. */
+const EVENT_PLATFORM_FEE_RATE = 0.025;
 
 const normalizeAmount = (amount) => {
   const value = Number(amount);
@@ -8,6 +10,21 @@ const normalizeAmount = (amount) => {
 const calculatePlatformFee = (ticketPrice) => {
   const normalizedTicketPrice = normalizeAmount(ticketPrice);
   return Math.ceil(normalizedTicketPrice * PLATFORM_FEE_RATE);
+};
+
+const calculateEventPlatformFee = (ticketPrice) => {
+  const normalizedTicketPrice = normalizeAmount(ticketPrice);
+  return Math.ceil(normalizedTicketPrice * EVENT_PLATFORM_FEE_RATE);
+};
+
+const buildEventPriceBreakdown = (ticketPrice) => {
+  const normalizedTicketPrice = normalizeAmount(ticketPrice);
+  const platformFee = calculateEventPlatformFee(normalizedTicketPrice);
+  return {
+    ticketPrice: normalizedTicketPrice,
+    platformFee,
+    totalAmount: normalizedTicketPrice + platformFee,
+  };
 };
 
 const parseTicketPrice = (amount) => {
@@ -78,8 +95,11 @@ function deriveRevenueFromPaidAmount(amountPaid, { feeIsTicketOnly = false } = {
 
 module.exports = {
   PLATFORM_FEE_RATE,
+  EVENT_PLATFORM_FEE_RATE,
   calculatePlatformFee,
+  calculateEventPlatformFee,
   buildPriceBreakdown,
+  buildEventPriceBreakdown,
   parseTicketPrice,
   deriveRevenueFromPaidAmount,
 };

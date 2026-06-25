@@ -4,8 +4,9 @@ const Event = require('../model/event_model');
 const Competition = require('../model/competition_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
+const EventShow = require('../model/event_show_model');
 const PaymentOrder = require('../model/payment_order_model');
-const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
+const { buildPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const {
   createCashfreeOrder,
   verifyCashfreePayment,
@@ -26,10 +27,21 @@ const respondCashfreeError = (res, err, fallbackMessage) => {
   return res.status(500).json({ message: cfError?.message || fallbackMessage });
 };
 
-const resolvePricedEntity = async ({ eventId, competitionId, festId, notes = {} }) => {
+const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId, notes = {} }) => {
   const resolvedEventId = eventId || notes.eventId;
   const resolvedCompetitionId = competitionId || notes.competitionId;
   const resolvedFestId = festId || notes.festId;
+  const resolvedEventShowId = eventShowId || notes.eventShowId;
+
+  if (resolvedEventShowId) {
+    const eventShow = await EventShow.findById(resolvedEventShowId).select('title ticketPrice');
+    if (!eventShow) return null;
+    return {
+      entityType: 'event_show',
+      ticketPrice: eventShow.ticketPrice,
+      notes: { eventShowId: eventShow._id.toString() },
+    };
+  }
 
   if (resolvedEventId) {
     const event = await Event.findById(resolvedEventId).select('name price registrationFee feeAmount');
@@ -65,14 +77,19 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, notes = {} 
 };
 
 const getPricingForRequest = async (req) => {
-  const { eventId, competitionId, festId, notes = {} } = req.body;
-  const pricedEntity = await resolvePricedEntity({ eventId, competitionId, festId, notes });
+  const { eventId, competitionId, festId, eventShowId, notes = {} } = req.body;
+  const pricedEntity = await resolvePricedEntity({ eventId, competitionId, festId, eventShowId, notes });
 
   if (!pricedEntity) return null;
 
+  const breakdown =
+    pricedEntity.entityType === 'event_show'
+      ? buildEventPriceBreakdown(pricedEntity.ticketPrice)
+      : buildPriceBreakdown(pricedEntity.ticketPrice);
+
   return {
     ...pricedEntity,
-    ...buildPriceBreakdown(pricedEntity.ticketPrice),
+    ...breakdown,
   };
 };
 

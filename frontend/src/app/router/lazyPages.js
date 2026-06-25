@@ -38,6 +38,8 @@ export const QRTicketPage = lazyWithRetry(() => import('../../pages/payment/QRTi
 export const PaymentInvoicePage = lazyWithRetry(() => import('../../pages/payment/PaymentInvoicePage'));
 export const PublicTreksPage = lazyWithRetry(() => import('../../pages/treks/treks-page'));
 export const PublicEventsPage = lazyWithRetry(() => import('../../pages/events/events-page'));
+export const EventDetailsPage = lazyWithRetry(() => import('../../pages/events/EventDetailsPage'));
+export const EventRegistrationPage = lazyWithRetry(() => import('../../pages/events/EventRegistrationPage'));
 export const CommunityDetailPage = lazyWithRetry(() => import('../../pages/treks/CommunityDetailPage'));
 export const RunClubDetailPage = lazyWithRetry(() => import('../../pages/sports/RunClubDetailPage'));
 export const RunEventDetailPage = lazyWithRetry(() => import('../../pages/sports/RunEventDetailPage'));

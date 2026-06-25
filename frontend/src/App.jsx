@@ -65,6 +65,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/organizer') ||
     location.pathname.startsWith('/view-details') ||
+    location.pathname.startsWith('/events/') ||
     location.pathname.startsWith('/trek/') ||
     location.pathname.startsWith('/treks/community/') ||
     location.pathname.startsWith('/sports/run-club/') ||

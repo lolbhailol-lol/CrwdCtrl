@@ -27,7 +27,7 @@ function extractHashFromQrPayload(raw) {
   return parseQrPayload(raw)?.hash || null;
 }
 
-async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistration, payload }) {
+async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistration, EventShowRegistration, payload }) {
   const hash = payload?.hash || null;
   const candidateId = payload?.bookingId || payload?.registrationId || null;
 
@@ -45,9 +45,28 @@ async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistr
       });
       if (sportsReg) return { kind: 'sports', record: sportsReg };
     }
+
+    if (EventShowRegistration) {
+      const eventReg = await EventShowRegistration.findOne({ qrCodeData: hash });
+      if (eventReg) return { kind: 'event', record: eventReg };
+    }
   }
 
   if (candidateId) {
+    if (EventShowRegistration) {
+      const eventReg = await EventShowRegistration.findById(candidateId);
+      if (eventReg) {
+        if (!eventReg.qrCodeData && hash) {
+          eventReg.qrCodeData = hash;
+          await eventReg.save();
+        }
+        if (eventReg.qrCodeData) {
+          if (hash && eventReg.qrCodeData !== hash) return null;
+          return { kind: 'event', record: eventReg };
+        }
+      }
+    }
+
     if (CategoryRegistration) {
       const sportsReg = await CategoryRegistration.findById(candidateId);
       if (sportsReg?.category === 'sports') {

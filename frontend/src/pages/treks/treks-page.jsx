@@ -310,6 +310,7 @@ function TreksPage() {
     const exploreCommunities    = sortTrekPage(communities.filter(c => (c.trekPageSection === 'communities' || c.trekPageSection === 'both') && matchesSearch(c)));
     const heroItems = sortTrekPage([...heroTreks, ...comingSoonCommunities]);
     const categoryTreks = activeCategory ? treks.filter(t => t.trekCategory === activeCategory && matchesSearch(t)) : [];
+    const hasTrekContent = treks.length > 0 || communities.length > 0;
 
     const heroBannerEvents = useMemo(() => heroItems.map(item => ({
         id: item.id,
@@ -355,6 +356,19 @@ function TreksPage() {
     const EmptyState = ({ label }) => (
         <div className={`mx-4 py-6 text-center rounded-2xl text-sm ${isDark ? 'bg-[#111213] text-gray-500' : 'bg-gray-50 text-gray-400'}`}>
             {label}
+        </div>
+    );
+
+    const ComingSoon = () => (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+            <h2 className={`text-3xl font-bold font-inter tracking-tight animate-pulse ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Coming Soon
+            </h2>
+            <div className="flex gap-1.5 mt-5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#0ECCEE] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#0ECCEE] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#0ECCEE] animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
         </div>
     );
 
@@ -441,6 +455,10 @@ function TreksPage() {
                 {loading && <HeroBannerSkeleton />}
 
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
+                    {!loading && !hasTrekContent ? (
+                        <ComingSoon />
+                    ) : (
+                    <>
                     {/* ── Explore the Communities — Figma: w-40 h-52 (160×208) cards ── */}
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
@@ -630,10 +648,12 @@ function TreksPage() {
                         onItemClick={onItemClick}
                         getShareUrl={getShareUrl}
                     />
+                    </>
+                    )}
 
                 </div>
 
-                <FaqSection items={TREKS_FAQ} />
+                {(loading || hasTrekContent) && <FaqSection items={TREKS_FAQ} />}
             </main>
         </div>
     );

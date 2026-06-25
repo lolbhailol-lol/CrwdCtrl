@@ -289,6 +289,7 @@ const Dashboard = () => {
     const [homeTreks, setHomeTreks] = useState([]);
     const [homeSports, setHomeSports] = useState([]);
     const [homeRunClubs, setHomeRunClubs] = useState([]);
+    const [homeEventShows, setHomeEventShows] = useState([]);
     const [festError, setFestError] = useState(null);
     const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
     const [currentLocation, setCurrentLocation] = useState({
@@ -333,6 +334,10 @@ const Dashboard = () => {
         fetchJSON(`/run-clubs?_cb=${cb}`).then(res => {
             const list = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
             setHomeRunClubs(list);
+        }).catch(() => {});
+        fetchJSON(`/events?_cb=${cb}`).then(res => {
+            const list = Array.isArray(res?.data?.shows) ? res.data.shows : [];
+            setHomeEventShows(list);
         }).catch(() => {});
     }, []);
 
@@ -587,6 +592,11 @@ const Dashboard = () => {
         fetchJSON(`/run-clubs?_cb=${Date.now()}`).then(res => {
             const list = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
             setHomeRunClubs(list);
+        }).catch(() => {});
+
+        fetchJSON(`/events?_cb=${Date.now()}`).then(res => {
+            const list = Array.isArray(res?.data?.shows) ? res.data.shows : [];
+            setHomeEventShows(list);
         }).catch(() => {});
 
         return () => { cancelled = true; };
@@ -975,9 +985,9 @@ const Dashboard = () => {
     };
 
     const buildSectionItems = useCallback((section) => {
-        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, section, homeSports, homeRunClubs);
+        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, section, homeSports, homeRunClubs, homeEventShows);
         return mapHomeCarouselDisplayItems(raw, transformedFests);
-    }, [fests, homeTreks, homeCommunities, homeSports, homeRunClubs, transformedFests]);
+    }, [fests, homeTreks, homeCommunities, homeSports, homeRunClubs, homeEventShows, transformedFests]);
 
     const trendingItems = useMemo(() => buildSectionItems('trending'), [buildSectionItems]);
     const happeningItems = useMemo(() => buildSectionItems('happening'), [buildSectionItems]);
@@ -1012,6 +1022,8 @@ const Dashboard = () => {
             });
         } else if (item._type === 'sport') {
             navigate(`/sports/run/${item.id || item._id}`);
+        } else if (item._type === 'events') {
+            navigate(`/events/${item.id || item._id}`);
         }
     }, [navigate]);
 
@@ -1022,6 +1034,7 @@ const Dashboard = () => {
         if (item._type === 'community') return `${origin}/treks/community/${item._id}`;
         if (item._type === 'runclub') return `${origin}/sports/run-club/${item._id}`;
         if (item._type === 'sport') return `${origin}/sports/run/${item.id || item._id}`;
+        if (item._type === 'events') return `${origin}/events/${item.id || item._id}`;
         return `${origin}/view-details/${item.id || item._id}`;
     }, []);
 
@@ -1268,6 +1281,7 @@ const Dashboard = () => {
                         communities={homeCommunities}
                         sports={homeSports}
                         runClubs={homeRunClubs}
+                        eventShows={homeEventShows}
                         transformedFests={transformedFests}
                         isDark={isDark}
                         loading={isFestsLoading}

@@ -32,6 +32,8 @@ export function usePageSectionHandlers(navigate, { toggleFavorite } = {}) {
             });
         } else if (item._type === 'sport') {
             navigate(`/sports/run/${id}`, { state: { event: item } });
+        } else if (item._type === 'events') {
+            navigate(`/events/${id}`);
         }
     }, [navigate]);
 
@@ -48,6 +50,7 @@ export function usePageSectionHandlers(navigate, { toggleFavorite } = {}) {
         if (item._type === 'community') return `${window.location.origin}/treks/community/${id}`;
         if (item._type === 'runclub') return `${window.location.origin}/sports/run-club/${id}`;
         if (item._type === 'sport') return `${window.location.origin}/sports/run/${id}`;
+        if (item._type === 'events') return `${window.location.origin}/events/${id}`;
         return `${window.location.origin}/view-details/${id}`;
     }, []);
 

@@ -136,6 +136,52 @@ const generateSportsQR = async (req, res) => {
   }
 };
 
+const generateEventShowQR = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { registrationId } = req.params;
+    const EventShowRegistration = require('../model/event_show_registration_model');
+
+    const registration = await EventShowRegistration.findOne({
+      _id: registrationId,
+      user: userId,
+    })
+      .populate('eventShow', 'title displayName venue city showTimings')
+      .populate('user', 'name');
+
+    if (!registration) {
+      return res.status(404).json({ success: false, message: 'Event registration not found' });
+    }
+
+    if (!registration.qrCodeData) {
+      registration.qrCodeData = crypto.randomBytes(16).toString('hex');
+      await registration.save();
+    }
+
+    const show = registration.eventShow || {};
+    const eventDate = show.showTimings?.[0]?.date || null;
+
+    res.json({
+      success: true,
+      data: {
+        registrationId: registration._id,
+        ticketType: 'event',
+        qrHash: registration.qrCodeData,
+        userName: registration.user?.name || null,
+        eventTitle: show.displayName || show.title || 'Event',
+        festName: show.displayName || show.title || 'Event',
+        festDate: eventDate,
+        venue: show.venue || show.city || null,
+        checkedIn: registration.checkedIn || false,
+        checkedInAt: registration.checkedInAt || null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Event QR generation error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate event QR code' });
+  }
+};
+
 const verifyQR = async (req, res) => {
   try {
     const raw = req.params.hash || '';
@@ -186,6 +232,7 @@ module.exports = {
   generateQR,
   generateTrekQR,
   generateSportsQR,
+  generateEventShowQR,
   verifyQR,
   verifyQRFromPayload,
   getCheckinStats,

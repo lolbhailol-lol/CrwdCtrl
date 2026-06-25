@@ -19,6 +19,7 @@ export default function CustomPageSectionsRenderer({
     communities = [],
     sports = [],
     runClubs = [],
+    eventShows = [],
     transformedFests = [],
     isDark = false,
     loading = false,
@@ -50,7 +51,7 @@ export default function CustomPageSectionsRenderer({
     const carousels = useMemo(() => {
         const mapItems = (sectionSlug) =>
             mapHomeCarouselDisplayItems(
-                buildPageCarouselItems(fests, treks, communities, targetPage, sectionSlug, sports, runClubs),
+                buildPageCarouselItems(fests, treks, communities, targetPage, sectionSlug, sports, runClubs, eventShows),
                 transformedFests,
             );
 
@@ -61,7 +62,7 @@ export default function CustomPageSectionsRenderer({
                 cardProps: getCardSizeProps(section.cardSize),
             }))
             .filter(({ items }) => items.length > 0);
-    }, [sections, fests, treks, communities, sports, runClubs, transformedFests, targetPage]);
+    }, [sections, fests, treks, communities, sports, runClubs, eventShows, transformedFests, targetPage]);
 
     if (loading && !carousels.length) {
         return (

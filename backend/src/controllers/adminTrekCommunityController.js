@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const TrekCommunity = require('../model/trek_community_model');
+const Trek = require('../model/trek_model');
 
 const dbOk = () => mongoose.connection.readyState === 1;
 
@@ -69,7 +70,9 @@ exports.remove = async (req, res) => {
             return res.status(400).json({ message: 'Invalid ID' });
         const community = await TrekCommunity.findByIdAndDelete(req.params.id);
         if (!community) return res.status(404).json({ message: 'Not found' });
-        res.json({ message: 'Deleted' });
+        // Cascade: remove all treks belonging to this community
+        const { deletedCount } = await Trek.deleteMany({ communityId: req.params.id });
+        res.json({ message: 'Deleted', deletedTreks: deletedCount });
     } catch (err) {
         console.error('[TrekCommunity] remove error:', err.message);
         res.status(500).json({ message: 'Failed to delete community', error: err.message });

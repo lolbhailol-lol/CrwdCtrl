@@ -174,6 +174,7 @@ export default function EventsPage() {
     const { unreadCount } = useNotifications();
 
     const [shows, setShows] = useState([]);
+    const [rawShows, setRawShows] = useState([]);
     const [carouselFests, setCarouselFests] = useState([]);
     const [carouselTreks, setCarouselTreks] = useState([]);
     const [carouselCommunities, setCarouselCommunities] = useState([]);
@@ -198,8 +199,10 @@ export default function EventsPage() {
             if (eventsRes.ok) {
                 const data = await eventsRes.json();
                 const list = Array.isArray(data?.shows) ? data.shows : [];
+                setRawShows(list);
                 setShows(list.map(mapEventShow));
             } else {
+                setRawShows([]);
                 setShows([]);
             }
             if (festsRes.ok) {
@@ -266,10 +269,12 @@ export default function EventsPage() {
     );
 
     const handleShowClick = useCallback((show) => {
-        if (show.bookingLink) {
+        if (show?.id) {
+            navigate(`/events/${show.id}`);
+        } else if (show.bookingLink) {
             openExternalUrl(show.bookingLink);
         }
-    }, []);
+    }, [navigate]);
 
     const handleHeroClick = useCallback(
         (id) => {
@@ -495,6 +500,7 @@ export default function EventsPage() {
                         communities={carouselCommunities}
                         sports={carouselSports}
                         runClubs={carouselRunClubs}
+                        eventShows={rawShows}
                         isDark={isDark}
                         loading={loading}
                         isFavorite={isFavorite}

@@ -154,6 +154,7 @@ function Booking() {
                 const registrationsData = await fetchMyRegistrations();
                 const internalRegistrations = registrationsData.registrations || [];
                 const trekBookings = registrationsData.trekBookings || [];
+                const eventRegistrations = registrationsData.eventRegistrations || [];
 
                 let sportsRegistrations = [];
                 try {
@@ -264,7 +265,30 @@ function Booking() {
                     registeredAt: booking.createdAt
                 }));
 
-                const all = [...transformedFests, ...transformedTreks, ...transformedSports]
+                const transformedEvents = eventRegistrations.map((reg) => ({
+                    id: reg._id,
+                    name: reg.eventShow?.displayName || reg.eventShow?.title || 'Event',
+                    image: reg.eventShow?.coverImage || reg.eventShow?.banner || null,
+                    date: reg.eventShow?.showTimings?.[0]?.date || null,
+                    venue: reg.eventShow?.venue || reg.eventShow?.city || '',
+                    type: 'event',
+                    collegeName: '',
+                    status: reg.eventShow?.status === 'completed' ? 'completed' : 'upcoming',
+                    registrationStatus: reg.status,
+                    registrationType: 'event',
+                    isCompetition: false,
+                    isTrek: false,
+                    isSports: false,
+                    isEvent: true,
+                    paymentAmount: reg.eventShow?.ticketPrice || reg.amountPaid || 0,
+                    paymentStatus: reg.paymentStatus,
+                    amountPaid: reg.amountPaid || 0,
+                    paymentId: reg.payment_id || '',
+                    paymentOrderId: reg.payment_order_id || '',
+                    registeredAt: reg.submittedAt || reg.createdAt,
+                }));
+
+                const all = [...transformedFests, ...transformedTreks, ...transformedSports, ...transformedEvents]
                     .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
                 setBookings(all);
             } catch (err) {
@@ -360,7 +384,29 @@ function Booking() {
                                 paymentStatus: booking.bookingDetails?.amountPaid > 0 ? 'paid' : 'free',
                                 registeredAt: booking.createdAt
                             }));
-                            const all = [...transformedFests, ...transformedTreks]
+                            const eventRegistrations = registrationsData.eventRegistrations || [];
+                            const transformedEvents = eventRegistrations.map((reg) => ({
+                                id: reg._id,
+                                name: reg.eventShow?.displayName || reg.eventShow?.title || 'Event',
+                                image: reg.eventShow?.coverImage || reg.eventShow?.banner || null,
+                                date: reg.eventShow?.showTimings?.[0]?.date || null,
+                                venue: reg.eventShow?.venue || reg.eventShow?.city || '',
+                                type: 'event',
+                                collegeName: '',
+                                status: reg.eventShow?.status === 'completed' ? 'completed' : 'upcoming',
+                                registrationStatus: reg.status,
+                                registrationType: 'event',
+                                isCompetition: false,
+                                isTrek: false,
+                                isSports: false,
+                                isEvent: true,
+                                paymentStatus: reg.paymentStatus,
+                                amountPaid: reg.amountPaid || 0,
+                                paymentId: reg.payment_id || '',
+                                paymentOrderId: reg.payment_order_id || '',
+                                registeredAt: reg.submittedAt || reg.createdAt,
+                            }));
+                            const all = [...transformedFests, ...transformedTreks, ...transformedEvents]
                                 .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
                             setBookings(all);
                     } catch (err) {
@@ -384,12 +430,16 @@ function Booking() {
             navigate(`/registration-details/${item.id}?type=trek`);
             return;
         }
+        if (item.isEvent) {
+            navigate(`/registration-details/${item.id}?type=event`);
+            return;
+        }
         navigate(`/registration-details/${item.id}`);
     };
 
     const handleDownloadTicket = (item) => {
         if (!item.id) return;
-        const typeQuery = item.isTrek ? '?type=trek' : item.isSports ? '?type=sports' : '';
+        const typeQuery = item.isTrek ? '?type=trek' : item.isSports ? '?type=sports' : item.isEvent ? '?type=event' : '';
         navigate(`/qr-ticket/${item.id}${typeQuery}`);
     };
 

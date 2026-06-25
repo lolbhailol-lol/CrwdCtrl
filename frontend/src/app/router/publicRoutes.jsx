@@ -37,6 +37,8 @@ import {
   PaymentInvoicePage,
   PublicTreksPage,
   PublicEventsPage,
+  EventDetailsPage,
+  EventRegistrationPage,
   CommunityDetailPage,
   RunClubDetailPage,
   RunEventDetailPage,
@@ -68,6 +70,8 @@ export const publicRoutes = (
       <Route path="/sports-fest" element={<SportsFestPage />} />
       <Route path="/treks" element={<PublicTreksPage />} />
       <Route path="/events" element={<PublicEventsPage />} />
+      <Route path="/events/:eventId" element={<EventDetailsPage />} />
+      <Route path="/events/:eventId/register" element={<EventRegistrationPage />} />
       {theatreRedirect}
       <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
       <Route path="/sports/run-club/:id" element={<RunClubDetailPage />} />

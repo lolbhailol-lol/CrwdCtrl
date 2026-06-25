@@ -1438,9 +1438,10 @@ const getUserRegistrations = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { page = 1, limit = 10 } = req.query;
+    const EventShowRegistration = require('../model/event_show_registration_model');
 
-    // Run all three queries in parallel for a faster bookings page
-    const [registrations, trekBookings, total] = await Promise.all([
+    // Run all queries in parallel for a faster bookings page
+    const [registrations, trekBookings, eventRegistrations, total] = await Promise.all([
       Registration.find({ user: userId })
         .populate('fest', 'festName collegeName festDate venue status coverImage registration ticketPrice')
         .populate('competitionId', 'name description coverImage registrationFee')
@@ -1452,12 +1453,17 @@ const getUserRegistrations = async (req, res) => {
         .populate('trekId', 'trekName coverImage images registrationFee trekDate city difficultyLevel communityId')
         .sort({ createdAt: -1 })
         .lean(),
+      EventShowRegistration.find({ user: userId })
+        .populate('eventShow', 'title displayName eventType coverImage banner venue city showTimings ticketPrice status')
+        .sort({ submittedAt: -1 })
+        .lean(),
       Registration.countDocuments({ user: userId }),
     ]);
 
     res.json({
       registrations,
       trekBookings,
+      eventRegistrations,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
       total
@@ -1645,6 +1651,32 @@ const getRegistrationDetails = async (req, res) => {
   }
 };
 
+// Get single event-show registration details
+const getEventShowRegistrationDetails = async (req, res) => {
+  try {
+    const { registrationId } = req.params;
+    const userId = req.user.userId;
+    const EventShowRegistration = require('../model/event_show_registration_model');
+
+    const registration = await EventShowRegistration.findOne({
+      _id: registrationId,
+      user: userId,
+    })
+      .populate('eventShow', 'title displayName eventType venue city showTimings coverImage banner registration ticketPrice status')
+      .lean();
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Event registration not found' });
+    }
+
+    res.json(registration);
+
+  } catch (error) {
+    console.error('Error fetching event registration details:', error);
+    res.status(500).json({ error: 'Failed to fetch event registration details' });
+  }
+};
+
 const getTrekBookingDetails = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -1777,6 +1809,59 @@ const getTrekPaymentInvoice = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching trek payment invoice:', error);
+    res.status(500).json({ error: 'Failed to fetch payment receipt' });
+  }
+};
+
+const getEventShowPaymentInvoice = async (req, res) => {
+  try {
+    const { registrationId } = req.params;
+    const userId = req.user.userId;
+    const EventShowRegistration = require('../model/event_show_registration_model');
+
+    const registration = await EventShowRegistration.findOne({ _id: registrationId, user: userId })
+      .populate('eventShow', 'title displayName venue city showTimings')
+      .populate('user', 'name email phoneNumber');
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Event registration not found' });
+    }
+
+    const isPaid =
+      registration.paymentStatus === 'paid' ||
+      (registration.amountPaid && registration.amountPaid > 0);
+
+    if (!isPaid || !registration.payment_order_id) {
+      return res.status(404).json({ error: 'No payment receipt available for this registration' });
+    }
+
+    const show = registration.eventShow || {};
+    const eventName = show.displayName || show.title || 'Event';
+
+    res.json({
+      success: true,
+      data: {
+        invoiceNumber: registration.payment_order_id,
+        registrationId: registration._id,
+        eventName,
+        eventType: 'Event',
+        festName: null,
+        eventDate: show.showTimings?.[0]?.date || null,
+        venue: show.venue || show.city || null,
+        customerName: registration.user?.name || 'Customer',
+        customerEmail: registration.user?.email || '',
+        customerPhone: registration.user?.phoneNumber || '',
+        amountPaid: registration.amountPaid || 0,
+        currency: 'INR',
+        paymentId: registration.payment_id || '',
+        orderId: registration.payment_order_id || '',
+        paymentGateway: registration.payment_gateway || 'cashfree',
+        paidAt: registration.submittedAt || registration.createdAt,
+        paidAtFormatted: formatInvoiceDate(registration.submittedAt || registration.createdAt),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching event payment invoice:', error);
     res.status(500).json({ error: 'Failed to fetch payment receipt' });
   }
 };
@@ -2002,10 +2087,136 @@ const payAndRegister = async (req, res) => {
   }
 };
 
+/**
+ * Submit an internal EventShow registration (authed, paid via Cashfree).
+ * Mirrors the competition custom flow: multipart responses + files + payment verify.
+ */
+const submitEventShowRegistration = async (req, res) => {
+  try {
+    const { eventShowId } = req.params;
+    const userId = req.user.userId;
+
+    const EventShow = require('../model/event_show_model');
+    const EventShowRegistration = require('../model/event_show_registration_model');
+    const { buildEventPriceBreakdown } = require('../utils/platformFee');
+
+    const eventShow = await EventShow.findById(eventShowId);
+    if (!eventShow) return res.status(404).json({ error: 'Event not found' });
+
+    const reg = eventShow.registration || {};
+    if (reg.status !== 'open' || reg.mode !== 'internal_form') {
+      return res.status(400).json({ error: 'Registration is not open for this event.' });
+    }
+
+    // Parse responses (JSON or FormData string)
+    let responses = req.body.responses;
+    if (typeof responses === 'string') {
+      try {
+        responses = JSON.parse(responses);
+      } catch {
+        return res.status(400).json({ error: 'Invalid responses format' });
+      }
+    }
+    if (!responses || typeof responses !== 'object') responses = {};
+
+    // Handle file uploads (store Cloudinary URLs back into responses)
+    const files = req.files || [];
+    if (files.length > 0) {
+      for (const file of files) {
+        try {
+          const result = await uploadToCloudinary(
+            file.buffer,
+            file.originalname,
+            'event-registration',
+            `event_${eventShowId}_${Date.now()}`,
+            userId,
+            file.fieldname
+          );
+          if (result.success) {
+            responses[file.fieldname] = {
+              fileName: file.originalname,
+              url: result.cloudinaryLink,
+              size: file.size,
+              uploaded: true,
+            };
+          }
+        } catch (uploadErr) {
+          console.error('❌ Event registration file upload error:', uploadErr.message);
+        }
+      }
+    }
+
+    // Verify payment when the event has a fee
+    const ticketPrice = Number(eventShow.ticketPrice) || 0;
+    const totalAmount = buildEventPriceBreakdown(ticketPrice).totalAmount;
+    let payment_order_id = null;
+    let payment_id = null;
+    let paymentStatus = 'free';
+
+    if (ticketPrice > 0) {
+      const { verifyPaymentForRegistration } = require('../utils/paymentVerification');
+      const paymentCheck = await verifyPaymentForRegistration(req.body);
+      if (!paymentCheck.ok) {
+        return res.status(400).json({ error: paymentCheck.error || 'Payment is required for this event.' });
+      }
+      payment_order_id = paymentCheck.orderId;
+      payment_id = paymentCheck.paymentId;
+      paymentStatus = 'paid';
+    }
+
+    const user = await User.findById(userId);
+
+    const registration = new EventShowRegistration({
+      eventShow: eventShow._id,
+      user: userId,
+      responses,
+      status: 'pending',
+      payment_order_id,
+      payment_id,
+      payment_gateway: paymentStatus === 'paid' ? 'cashfree' : null,
+      paymentStatus,
+      amountPaid: paymentStatus === 'paid' ? totalAmount : 0,
+      submittedAt: new Date(),
+    });
+
+    await registration.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      registrationId: registration._id,
+      eventName: eventShow.title,
+      amountPaid: registration.amountPaid,
+    });
+
+    scheduleRegistrationNotification(userId, {
+      title: 'Registration Confirmed!',
+      message: `You've successfully registered for ${eventShow.title}.`,
+      body: `You've registered for ${eventShow.title}`,
+      link: `/registration-details/${registration._id}`,
+      metadata: { eventShowId: eventShow._id, registrationId: registration._id },
+    });
+
+    setImmediate(async () => {
+      try {
+        if (user?.email) {
+          await sendRegistrationThankYouEmail(user.email, user.name, eventShow.title).catch(() => {});
+        }
+      } catch (bgErr) {
+        console.error('❌ event registration background error:', bgErr.message);
+      }
+    });
+  } catch (err) {
+    console.error('❌ submitEventShowRegistration error:', err);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+};
+
 module.exports = {
   submitRegistration,
   submitCompetitionRegistration,
   submitCustomCompetitionRegistration,
+  submitEventShowRegistration,
   payAndRegisterFest,
   payAndRegister,
   getUserRegistration,
@@ -2013,9 +2224,11 @@ module.exports = {
   updateRegistrationStatus,
   getUserRegistrations,
   getRegistrationDetails,
+  getEventShowRegistrationDetails,
   getTrekBookingDetails,
   getPaymentInvoice,
   getTrekPaymentInvoice,
+  getEventShowPaymentInvoice,
   testGoogleSheets,
   diagnoseGoogleSheets,
   upload

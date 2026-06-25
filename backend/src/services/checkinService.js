@@ -1,6 +1,7 @@
 const Registration = require('../model/registration_model');
 const TrekBooking = require('../model/trek_booking_model');
 const CategoryRegistration = require('../model/category_registration_model');
+const EventShowRegistration = require('../model/event_show_registration_model');
 const SportsEvent = require('../model/sports_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
@@ -112,6 +113,7 @@ async function performCheckinFromRaw(raw, options = {}) {
     Registration,
     TrekBooking,
     CategoryRegistration,
+    EventShowRegistration,
     payload,
   });
   if (!resolved) {
@@ -121,6 +123,94 @@ async function performCheckinFromRaw(raw, options = {}) {
         success: false,
         status: 'invalid',
         message: 'Ticket not found. Ask the attendee to open My Bookings → Download ticket first, then scan again.',
+      },
+    };
+  }
+
+  if (resolved.kind === 'event') {
+    if (festId || trekId || sportEventId) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This scanner is not for event tickets. Use the event scanner.',
+        },
+      };
+    }
+
+    const EventShow = require('../model/event_show_model');
+    const eventReg = await EventShowRegistration.findById(resolved.record._id)
+      .populate('user', 'name email profilePic');
+
+    if (!eventReg) {
+      return {
+        status: 404,
+        body: { success: false, status: 'invalid', message: 'Event registration not found.' },
+      };
+    }
+
+    const show = await EventShow.findById(eventReg.eventShow).select('title displayName');
+    const eventTitle = show?.displayName || show?.title || 'Event';
+
+    if (eventReg.checkedIn) {
+      return {
+        status: 200,
+        body: {
+          success: true,
+          status: 'already_checked_in',
+          message: 'Already checked in',
+          data: {
+            userName: eventReg.user?.name,
+            festName: eventTitle,
+            eventTitle,
+            ticketType: 'event',
+            checkedInAt: eventReg.checkedInAt,
+          },
+        },
+      };
+    }
+
+    eventReg.checkedIn = true;
+    eventReg.checkedInAt = new Date();
+    await eventReg.save();
+
+    const { createNotification } = require('../controllers/notificationController');
+    if (eventReg.user?._id) {
+      setImmediate(async () => {
+        try {
+          await createNotification({
+            userId: eventReg.user._id,
+            title: 'Checked In!',
+            message: `You've been checked in for ${eventTitle}.`,
+            type: 'event',
+            metadata: {
+              eventShowId: eventReg.eventShow,
+              registrationId: eventReg._id,
+            },
+          });
+        } catch (err) {
+          console.error('❌ Failed to create event check-in notification:', err.message);
+        }
+      });
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        status: 'checked_in',
+        message: 'Check-in successful!',
+        data: {
+          userName: eventReg.user?.name,
+          userEmail: eventReg.user?.email,
+          userProfilePic: eventReg.user?.profilePic,
+          festName: eventTitle,
+          eventTitle,
+          ticketType: 'event',
+          checkedInAt: eventReg.checkedInAt,
+          registrationId: eventReg._id,
+        },
       },
     };
   }

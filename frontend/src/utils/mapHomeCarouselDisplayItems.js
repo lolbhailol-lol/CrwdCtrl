@@ -37,6 +37,16 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
                 _priority: item._priority,
             };
         }
+        if (item._type === 'events') {
+            return {
+                id: item._id,
+                title: item.title || item._title,
+                subtitle: item.city || item.organizer || item._subtitle,
+                image: item.poster || item.banner || item._image,
+                _type: 'events',
+                _priority: item._priority,
+            };
+        }
         return { ...item, _type: item._type, _priority: item._priority };
     }).filter(Boolean).sort(byPriority);
 }
