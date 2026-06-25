@@ -4,6 +4,7 @@ import { ArrowLeft, Mail, Phone, Globe, User, MapPin, Clock, MessageCircle, Send
 import { useNavigate } from 'react-router-dom';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+import { openExternalUrl } from '../../utils/externalLink';
 
 export default function ContactUs() {
     const { isDark } = useDarkMode();
@@ -33,7 +34,7 @@ export default function ContactUs() {
     };
 
     const handleWebsiteClick = () => {
-        window.open(contactData.website, '_blank', 'noopener,noreferrer');
+        openExternalUrl(contactData.website);
     };
 
     const contactDescription =

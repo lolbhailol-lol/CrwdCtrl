@@ -7,6 +7,7 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { toCardText } from '../../utils/cardText';
+import { openExternalUrl } from '../../utils/externalLink';
 import HomeCategoryBar from '../../components/HomeCategoryBar';
 import MobileStickyHeader from '../../components/MobileStickyHeader';
 import CategorySearchRow from '../../components/CategorySearchRow';
@@ -190,7 +191,7 @@ export default function SportsCategoryPage() {
             return;
         }
         if (item.registrationLink) {
-            window.open(item.registrationLink, '_blank', 'noopener,noreferrer');
+            openExternalUrl(item.registrationLink);
         }
     };
 

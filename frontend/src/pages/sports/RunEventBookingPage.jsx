@@ -5,6 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlLogin from '../auth/login';
 import { goToBookings } from '../../utils/paymentNavigation';
+import { openExternalUrl } from '../../utils/externalLink';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -47,7 +48,7 @@ export default function RunEventBookingPage() {
             return;
         }
         if (hasExternalLink && fee > 0) {
-            window.open(event.registrationLink, '_blank', 'noopener,noreferrer');
+            openExternalUrl(event.registrationLink);
             return;
         }
         setSubmitting(true);

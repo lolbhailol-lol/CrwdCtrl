@@ -5,6 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { ScrollProgress, ScrollReveal, StickyCta } from '../../motion';
+import { shareContent } from '../../utils/externalLink';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 
@@ -218,7 +219,7 @@ export default function TrekDetailPage() {
     const shortDesc = desc.slice(0, 150);
 
     const handleShare = () => {
-        if (navigator.share) navigator.share({ title: trek.trekName, url: window.location.href }).catch(() => {});
+        shareContent({ title: trek.trekName, url: window.location.href });
     };
 
     const trekName = trek.trekName || trek.title || trek.name || 'Trek';

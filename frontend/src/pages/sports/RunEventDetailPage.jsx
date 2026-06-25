@@ -6,6 +6,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
+import { shareContent } from '../../utils/externalLink';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -154,7 +155,7 @@ export default function RunEventDetailPage() {
           ];
 
     const handleShare = () => {
-        if (navigator.share) navigator.share({ title: event.title, url: window.location.href }).catch(() => {});
+        shareContent({ title: event.title, url: window.location.href });
     };
 
     const eventId = id || event._id || event.id;

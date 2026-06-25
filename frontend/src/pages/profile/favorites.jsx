@@ -7,6 +7,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { shareContent } from '../../utils/externalLink';
 
 function getCollegeLabel(fest) {
     const raw = fest.collegeName || fest.college || fest.subtitle || fest.basedIn || '';
@@ -24,9 +25,7 @@ function FavoriteGridCard({ fest, onRemove, onViewDetails, isDark }) {
             : fest.id
             ? `${window.location.origin}/view-details/${fest.id}`
             : window.location.href;
-        if (navigator.share) {
-            navigator.share({ title, text: `Check out ${title}`, url }).catch(() => {});
-        }
+        shareContent({ title, text: `Check out ${title}`, url });
     };
 
     return (
@@ -207,9 +206,7 @@ function FestFavoritesPage() {
 
     const handleShareFavorites = () => {
         const url = `${window.location.origin}/favorites`;
-        if (navigator.share) {
-            navigator.share({ title: 'My Favourites on CrwdCtrl', url }).catch(() => {});
-        }
+        shareContent({ title: 'My Favourites on CrwdCtrl', url });
     };
 
     const renderGrid = (compact = false) => {

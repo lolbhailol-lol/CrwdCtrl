@@ -12,6 +12,7 @@ import MobileStickyHeader from '../../components/MobileStickyHeader';
 import CategorySearchRow from '../../components/CategorySearchRow';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
+import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import AppLogo from '../../components/AppLogo';
@@ -72,9 +73,7 @@ function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) 
                     className="mt-0.5 shrink-0"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (navigator.share) {
-                            navigator.share({ title: show.title, url: window.location.origin + '/events' }).catch(() => {});
-                        }
+                        shareContent({ title: show.title, url: window.location.origin + '/events' });
                     }}
                 />
             </div>
@@ -117,9 +116,7 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
                     className="ml-3"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (navigator.share) {
-                            navigator.share({ title: show.title, url: window.location.origin + '/events' }).catch(() => {});
-                        }
+                        shareContent({ title: show.title, url: window.location.origin + '/events' });
                     }}
                 />
             </div>
@@ -162,9 +159,7 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
                     className="mt-0.5 shrink-0"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (navigator.share) {
-                            navigator.share({ title: show.title, url: window.location.origin + '/events' }).catch(() => {});
-                        }
+                        shareContent({ title: show.title, url: window.location.origin + '/events' });
                     }}
                 />
             </div>
@@ -272,7 +267,7 @@ export default function EventsPage() {
 
     const handleShowClick = useCallback((show) => {
         if (show.bookingLink) {
-            window.open(show.bookingLink, '_blank', 'noopener,noreferrer');
+            openExternalUrl(show.bookingLink);
         }
     }, []);
 

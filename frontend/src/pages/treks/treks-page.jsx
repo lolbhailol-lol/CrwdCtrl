@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, MapPin } from 'lucide-react';
 import AppLogo from '../../components/AppLogo';
 import CardShareButton from '../../components/CardShareButton';
+import { shareContent } from '../../utils/externalLink';
 import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
@@ -82,7 +83,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
                     isDark={isDark}
                     className="mt-0.5 shrink-0"
                     onClick={() => {
-                        if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
+                        shareContent({ title: trek.title, url: window.location.origin + '/treks' });
                     }}
                 />
             </div>
@@ -126,7 +127,7 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                     isDark={isDark}
                     className="ml-3"
                     onClick={() => {
-                        if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
+                        shareContent({ title: trek.title, url: window.location.origin + '/treks' });
                     }}
                 />
             </div>
@@ -170,7 +171,7 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                     isDark={isDark}
                     className="mt-0.5 shrink-0"
                     onClick={() => {
-                        if (navigator.share) navigator.share({ title: trek.title, url: window.location.origin + '/treks' }).catch(() => {});
+                        shareContent({ title: trek.title, url: window.location.origin + '/treks' });
                     }}
                 />
             </div>

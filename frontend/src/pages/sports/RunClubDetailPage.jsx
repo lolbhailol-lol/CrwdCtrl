@@ -7,6 +7,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
+import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
 import { normalizeRunCategory } from '../../constants/runClubCategories';
 import {
@@ -273,7 +274,7 @@ export default function RunClubDetailPage() {
     };
 
     const handleShare = () => {
-        if (navigator.share) navigator.share({ title: name, url: window.location.href }).catch(() => {});
+        shareContent({ title: name, url: window.location.href });
     };
 
     const handleRunClick = (run) => {
@@ -642,7 +643,7 @@ export default function RunClubDetailPage() {
                         type="button"
                         onClick={() => {
                             if (club?.registrationLink) {
-                                window.open(club.registrationLink, '_blank', 'noopener,noreferrer');
+                                openExternalUrl(club.registrationLink);
                             } else if (filteredRuns[0]) {
                                 handleRunClick(filteredRuns[0]);
                             } else if (club?.contactPhone) {

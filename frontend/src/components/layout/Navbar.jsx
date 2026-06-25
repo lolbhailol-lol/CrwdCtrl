@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { searchAll } from '../../services/searchService';
 import { CATEGORY_NAV_ICONS } from '../../constants/categoryNavIcons';
+import { openExternalUrl } from '../../utils/externalLink';
 
 const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests' },
@@ -474,11 +475,11 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
         setIsLocationDropdownOpen(false);
         if (currentLocation.coordinates) {
             const { latitude, longitude } = currentLocation.coordinates;
-            window.open(`https://www.google.com/maps/@${latitude},${longitude},15z`, '_blank');
+            openExternalUrl(`https://www.google.com/maps/@${latitude},${longitude},15z`);
         } else {
             // Fallback to search by city name
             const searchQuery = encodeURIComponent(`${currentLocation.city}, ${currentLocation.state}, ${currentLocation.country}`);
-            window.open(`https://www.google.com/maps/search/${searchQuery}`, '_blank');
+            openExternalUrl(`https://www.google.com/maps/search/${searchQuery}`);
         }
     };
 

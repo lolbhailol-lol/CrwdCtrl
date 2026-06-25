@@ -17,6 +17,7 @@ import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import HeroBanner from '../../components/HeroBanner';
 import AppLogo from '../../components/AppLogo';
 import CardShareButton from '../../components/CardShareButton';
+import { shareContent } from '../../utils/externalLink';
 import { FestCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
 import CulturalIcon from '../../assets/mobile-icons/cul.svg';
 import TechIcon from '../../assets/mobile-icons/techhh.svg';
@@ -69,13 +70,11 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
     const handleShare = (e) => {
         e.stopPropagation();
-        if (navigator.share) {
-            navigator.share({
-                title: fest.festName,
-                text: `Check out ${fest.festName}`,
-                url: `${window.location.origin}/view-details/${fest._id}`,
-            }).catch(() => {});
-        }
+        shareContent({
+            title: fest.festName,
+            text: `Check out ${fest.festName}`,
+            url: `${window.location.origin}/view-details/${fest._id}`,
+        });
     };
 
     return (

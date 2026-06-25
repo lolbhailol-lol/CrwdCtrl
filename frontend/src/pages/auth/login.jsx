@@ -86,7 +86,9 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         try {
             console.log('🔐 [LOGIN] Starting email/password login...');
             
-            const result = await authService.loginWithEmail(emailOrPhone.trim(), password);
+            const result = await authService.loginWithEmail(emailOrPhone.trim(), password, {
+                adminProbe: isAdminLogin,
+            });
 
             if (result.success) {
                 if (result.isAdmin) {

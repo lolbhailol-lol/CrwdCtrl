@@ -3,6 +3,7 @@ import CardFavoriteButton from './CardFavoriteButton';
 import CardShareButton from './CardShareButton';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 import { toCardText } from '../utils/cardText';
+import { shareContent } from '../utils/externalLink';
 
 export default function HomeEventCard({
     event,
@@ -25,13 +26,11 @@ export default function HomeEventCard({
     const handleShare = (e) => {
         e.stopPropagation();
         const url = shareUrl || `${window.location.origin}/view-details/${event.id}`;
-        if (navigator.share) {
-            navigator.share({
-                title: event.title,
-                text: `Check out ${event.title}`,
-                url,
-            }).catch(() => {});
-        }
+        shareContent({
+            title: event.title,
+            text: `Check out ${event.title}`,
+            url,
+        });
     };
 
     const handleFav = (e) => {

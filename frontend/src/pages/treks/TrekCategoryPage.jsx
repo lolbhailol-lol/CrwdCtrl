@@ -7,6 +7,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import CardShareButton from '../../components/CardShareButton';
+import { shareContent } from '../../utils/externalLink';
 import { TrekListSkeleton } from '../../components/HomeEventCardSkeleton';
 import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import {
@@ -385,7 +386,7 @@ export default function TrekCategoryPage() {
                                             isDark={isDark}
                                             className="ml-3 shrink-0"
                                             onClick={() => {
-                                                if (navigator.share) navigator.share({ title: trek.trekName, url: `${window.location.origin}/trek/${trek._id}` }).catch(() => {});
+                                                shareContent({ title: trek.trekName, url: `${window.location.origin}/trek/${trek._id}` });
                                             }}
                                         />
                                     </div>

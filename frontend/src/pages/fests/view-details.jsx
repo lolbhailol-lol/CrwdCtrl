@@ -13,6 +13,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl, aarohanLogoImg } from '../../utils/imageImports';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import CardShareButton from '../../components/CardShareButton';
+import { shareContent } from '../../utils/externalLink';
 import {
   transformFestPublicData,
   buildCompetitionNavPayload,
@@ -382,16 +383,13 @@ function EventDetailsPage() {
     });
   };
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: eventData.title,
-        text: eventData.overview.substring(0, 100) + '...',
-        url: window.location.href,
-      });
-    } else {
-      // Fallback: copy to clipboard
-      navigator.clipboard.writeText(window.location.href);
+  const handleShare = async () => {
+    const result = await shareContent({
+      title: eventData.title,
+      text: eventData.overview.substring(0, 100) + '...',
+      url: window.location.href,
+    });
+    if (result === 'copied') {
       alert('Event link copied to clipboard!');
     }
   };
@@ -436,13 +434,11 @@ function EventDetailsPage() {
   };
 
   const handleArtistShare = (artist) => {
-    if (navigator.share) {
-      navigator.share({
-        title: artist.name,
-        text: `${artist.name} at ${eventData.title}`,
-        url: window.location.href,
-      }).catch(() => {});
-    }
+    shareContent({
+      title: artist.name,
+      text: `${artist.name} at ${eventData.title}`,
+      url: window.location.href,
+    });
   };
 
   const registerButtonClass = registrationOpen && !isRegistered(eventData.id)

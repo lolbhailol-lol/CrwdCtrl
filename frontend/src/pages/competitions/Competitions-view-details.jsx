@@ -16,6 +16,7 @@ import CrwdCtrlRegister from '../auth/register';
 import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../services/api/client';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
+import { openExternalUrl, shareContent } from '../../utils/externalLink';
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -647,7 +648,7 @@ function EventPage() {
                                      festRegistrationFromState?.externalLink ||
                                      eventData?.registration?.externalLink;
                 externalLink?.trim()
-                    ? window.open(externalLink, '_blank')
+                    ? openExternalUrl(externalLink)
                     : alert('Registration link is not available. Please contact the organizers.');
             } else if (mode === 'INTERNAL_FORM') {
                 const festId = eventData?.fest?._id || passedEventData?.id || eventData?.festId || eventData?.fest?.id;
@@ -668,7 +669,7 @@ function EventPage() {
             } else if (registrationStatus === 'external_link') {
                 const externalUrl = eventData?.registration?.externalUrl;
                 externalUrl?.trim()
-                    ? window.open(externalUrl, '_blank')
+                    ? openExternalUrl(externalUrl)
                     : alert('External registration link not available. Please contact the organizers.');
             } else if (registrationStatus === 'not_started') {
                 alert('Registration has not started yet for this competition.');
@@ -759,17 +760,20 @@ function EventPage() {
 
         switch (platform) {
             case 'whatsapp':
-                window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
+                openExternalUrl(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`);
                 break;
             case 'facebook':
-                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+                openExternalUrl(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`);
                 break;
             case 'twitter':
-                window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+                openExternalUrl(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`);
                 break;
             case 'copy':
-                navigator.clipboard.writeText(url);
+                navigator.clipboard?.writeText(url);
                 alert('Link copied to clipboard!');
+                break;
+            case 'native':
+                shareContent({ title: eventData?.title || 'CrwdCtrl', text, url });
                 break;
             default:
                 break;

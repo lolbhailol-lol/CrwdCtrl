@@ -54,14 +54,18 @@ class AuthService {
     /**
      * Email/Password Login
      */
-    async loginWithEmail(email, password) {
+    async loginWithEmail(email, password, options = {}) {
         try {
             this.checkNetworkStatus();
 
             console.log('🔐 [AUTH] Starting email login...');
 
-            // Skip admin probe on native app — avoids long hang when backend is slow
-            if (!isNativeApp()) {
+            // The admin probe normally hangs the native app when the backend is slow,
+            // so it is skipped on native — EXCEPT on the /admin/login screen, where the
+            // user explicitly intends to sign in as admin (options.adminProbe = true).
+            // Without this, admin credentials fall through to user login in the app and
+            // the admin token is never stored, so the admin panel is unreachable.
+            if (!isNativeApp() || options.adminProbe) {
             try {
                 const adminResponse = await authAPI.adminLogin({ email: email.trim(), password });
                 

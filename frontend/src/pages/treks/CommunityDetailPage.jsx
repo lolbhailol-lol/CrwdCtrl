@@ -7,6 +7,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
+import { shareContent } from '../../utils/externalLink';
 import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
 import {
     AnimatedCard,
@@ -270,7 +271,7 @@ export default function CommunityDetailPage() {
     };
 
     const handleShare = () => {
-        if (navigator.share) navigator.share({ title: name, url: window.location.href }).catch(() => {});
+        shareContent({ title: name, url: window.location.href });
     };
 
     const canonicalPath = `/treks/community/${id || community?._id || community?.id}`;
