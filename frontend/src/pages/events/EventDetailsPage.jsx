@@ -206,7 +206,7 @@ export default function EventDetailsPage() {
   const sheetBg = isDark ? 'bg-[#161718]' : 'bg-slate-100';
 
   return (
-    <div className="crwdctrl-page min-h-screen overflow-x-clip pb-28">
+    <div className="crwdctrl-page min-h-screen pb-28">
       <Seo
         title={event.title}
         description={event.about ? event.about.slice(0, 160) : `${event.title} — ${event.type}`}
@@ -232,8 +232,8 @@ export default function EventDetailsPage() {
       />
 
       <div className="mx-auto w-full max-w-md md:max-w-2xl">
-        {/* Hero */}
-        <div className="relative h-80 sm:h-96">
+        {/* Hero — full-bleed so the image spans the full screen width */}
+        <div className="relative h-80 sm:h-96 w-screen ml-[calc(50%-50vw)] mr-[calc(50%-50vw)]">
           {event.image ? (
             <img
               src={getImageUrl(event.image, { preset: 'hero' })}
