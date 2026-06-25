@@ -231,9 +231,9 @@ export default function EventDetailsPage() {
         ]}
       />
 
-      <div className="mx-auto w-full max-w-md md:max-w-2xl">
-        {/* Hero — full-bleed so the image spans the full screen width */}
-        <div className="relative h-80 sm:h-96 w-screen ml-[calc(50%-50vw)] mr-[calc(50%-50vw)]">
+      <>
+        {/* Hero — full-width, spans the entire screen edge-to-edge */}
+        <div className="relative h-80 sm:h-96 w-full">
           {event.image ? (
             <img
               src={getImageUrl(event.image, { preset: 'hero' })}
@@ -286,7 +286,7 @@ export default function EventDetailsPage() {
         </div>
 
         {/* Content sheet */}
-        <div className={`relative -mt-5 rounded-t-3xl px-5 pt-6 ${sheetBg}`}>
+        <div className={`relative mx-auto w-full max-w-md md:max-w-2xl -mt-5 rounded-t-3xl px-5 pt-6 ${sheetBg}`}>
           <h1 className={`text-2xl font-semibold leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {event.title}
           </h1>
@@ -561,7 +561,7 @@ export default function EventDetailsPage() {
             </div>
           )}
         </div>
-      </div>
+      </>
 
       {/* Sticky bottom bar: price + register */}
       <div
