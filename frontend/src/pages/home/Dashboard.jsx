@@ -11,6 +11,7 @@ import SportsIconNew from '../../assets/mobile-icons/sports-icon-new.svg';
 import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { useDialog } from '../../context/DialogContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
@@ -265,6 +266,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
 
 const Dashboard = () => {
     const { isDark } = useDarkMode();
+    const { confirm } = useDialog();
     const navigate = useNavigate();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
@@ -787,9 +789,12 @@ const Dashboard = () => {
 
         // Ask for explicit consent before attempting geolocation access.
         if (!currentLocation.hasPermission) {
-            const shouldRequestLocation = window.confirm(
-                'Allow CrwdCtrl to access your location to show nearby events?'
-            );
+            const shouldRequestLocation = await confirm({
+                title: 'Allow location access?',
+                message: 'Allow CrwdCtrl to access your location to show nearby events?',
+                confirmText: 'Allow',
+                cancelText: 'Not now',
+            });
 
             if (!shouldRequestLocation) {
                 setCurrentLocation(prev => ({

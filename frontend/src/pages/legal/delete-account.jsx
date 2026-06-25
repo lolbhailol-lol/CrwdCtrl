@@ -1,15 +1,45 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, ListChecks, Clock, ShieldCheck, Mail } from 'lucide-react';
+import { ArrowLeft, Trash2, ListChecks, Clock, ShieldCheck, Mail, Loader2 } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
+import { authService } from '../../services/authService';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 export default function DeleteAccount() {
   const { isDark } = useDarkMode();
+  const { isAuthenticated, token, logout } = useAuth();
+  const { confirm, toast } = useDialog();
   const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
 
   const card = isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200';
+
+  const handleDeleteAccount = async () => {
+    const confirmed = await confirm({
+      title: 'Delete your account?',
+      message:
+        'This permanently deactivates your account and removes your profile data. Your booking records are kept as required by law. This cannot be undone.',
+      confirmText: 'Delete account',
+      cancelText: 'Keep account',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      await authService.deleteAccount(token);
+      await logout();
+      toast('Your account has been deleted.');
+      navigate('/', { replace: true });
+    } catch (err) {
+      toast(err?.message || 'Failed to delete account. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300">
@@ -57,10 +87,42 @@ export default function DeleteAccount() {
           </p>
         </div>
 
+        {isAuthenticated && (
+          <div className={`${isDark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'} border rounded-lg p-6`}>
+            <div className="flex items-center gap-3 mb-3">
+              <Trash2 className="w-6 h-6 text-red-500" />
+              <h2 className="text-lg font-semibold">Delete account now</h2>
+            </div>
+            <p className={`text-sm mb-4 ${isDark ? 'text-red-200' : 'text-red-800'}`}>
+              You&apos;re signed in. You can delete your account instantly from here. This deactivates your
+              account, removes your profile data, and signs you out. Booking records are retained as
+              described below.
+            </p>
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  Delete my account
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         <div className={`${card} border rounded-lg p-6`}>
           <div className="flex items-center gap-3 mb-4">
             <ListChecks className="w-6 h-6 text-blue-500" />
-            <h2 className="text-lg font-semibold">How to request deletion</h2>
+            <h2 className="text-lg font-semibold">{isAuthenticated ? 'Prefer to request by email?' : 'How to request deletion'}</h2>
           </div>
           <ol className={`list-decimal pl-5 space-y-3 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
             <li>

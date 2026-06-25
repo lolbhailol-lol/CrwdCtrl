@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import { CalendarPlus } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { getImageUrl } from '../../utils/imageImports';
+import { buildGoogleCalendarUrl } from '../../utils/calendar';
+import { openExternalUrl } from '../../utils/externalLink';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -25,7 +28,9 @@ const isEventCompleted = (item) => {
     return eventDate < new Date();
 };
 
-function BookingCard({ item, isDark, onViewBooking, onDownloadTicket }) {
+function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCalendar }) {
+    const hasValidDate = item.date && !Number.isNaN(new Date(item.date).getTime());
+    const showCalendar = hasValidDate && !isEventCompleted(item);
     return (
         <div
             className={`rounded-2xl p-3 sm:p-4 h-40 flex flex-col transition-all duration-300 ${
@@ -78,6 +83,21 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket }) {
             </div>
 
             <div className="flex gap-2 mt-3">
+                {showCalendar && (
+                    <button
+                        type="button"
+                        onClick={() => onAddToCalendar(item)}
+                        aria-label="Add to calendar"
+                        title="Add to calendar"
+                        className={`h-11 w-11 shrink-0 rounded-2xl flex items-center justify-center transition-colors ${
+                            isDark
+                                ? 'bg-[#161718] border border-gray-700 text-[#0ECCEE] hover:bg-gray-800'
+                                : 'bg-white border border-gray-200 text-[#0ECCEE] hover:bg-gray-50'
+                        }`}
+                    >
+                        <CalendarPlus className="w-5 h-5" />
+                    </button>
+                )}
                 <button
                     type="button"
                     onClick={() => onViewBooking(item)}
@@ -373,6 +393,18 @@ function Booking() {
         navigate(`/qr-ticket/${item.id}${typeQuery}`);
     };
 
+    const handleAddToCalendar = (item) => {
+        const url = buildGoogleCalendarUrl({
+            title: item.name || 'Event',
+            start: item.date,
+            location: item.venue || '',
+            details: `Your CrwdCtrl ${item.isTrek ? 'trek booking' : 'booking'}${
+                item.festName ? ` — ${item.festName}` : ''
+            }.`,
+        });
+        if (url) openExternalUrl(url);
+    };
+
     const upcomingBookings = allBookings.filter((item) => !isEventCompleted(item));
     const completedBookings = allBookings.filter((item) => isEventCompleted(item));
     const visibleBookings = activeTab === 'upcoming' ? upcomingBookings : completedBookings;
@@ -478,6 +510,7 @@ function Booking() {
                                         isDark={isDark}
                                         onViewBooking={handleViewDetails}
                                         onDownloadTicket={handleDownloadTicket}
+                                        onAddToCalendar={handleAddToCalendar}
                                     />
                                 ))}
                             </div>

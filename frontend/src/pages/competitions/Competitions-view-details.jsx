@@ -5,6 +5,7 @@ import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
 import ProfileSidebar from '../../components/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { useDialog } from '../../context/DialogContext';
 import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
 import { useAuth } from '../../context/AuthContext';
 import CalendarIcon from '../../assets/calendar.svg';
@@ -276,6 +277,7 @@ function EventPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const { isDark } = useDarkMode();
+    const { alert: showAlert, toast } = useDialog();
     const { registeredEvents } = useRegisteredEvents();
     const { isAuthenticated } = useAuth();
 
@@ -649,19 +651,19 @@ function EventPage() {
                                      eventData?.registration?.externalLink;
                 externalLink?.trim()
                     ? openExternalUrl(externalLink)
-                    : alert('Registration link is not available. Please contact the organizers.');
+                    : showAlert({ title: 'Registration unavailable', message: 'Registration link is not available. Please contact the organizers.' });
             } else if (mode === 'INTERNAL_FORM') {
                 const festId = eventData?.fest?._id || passedEventData?.id || eventData?.festId || eventData?.fest?.id;
                 const compId = eventData?.id;
                 festId
                     ? navigate(`/fest/${festId}/register?competition=${compId}`)
-                    : alert('Registration is not available. Please contact the organizers.');
+                    : showAlert({ title: 'Registration unavailable', message: 'Registration is not available. Please contact the organizers.' });
             } else if (mode === 'NOT_STARTED') {
-                alert('Registration has not started yet for this competition.');
+                showAlert({ title: 'Registration not started', message: 'Registration has not started yet for this competition.' });
             } else if (mode === 'CLOSED') {
-                alert('Registration for this competition is closed.');
+                showAlert({ title: 'Registration closed', message: 'Registration for this competition is closed.' });
             } else {
-                alert('Registration configuration is not set up properly. Please contact the organizers.');
+                showAlert({ title: 'Registration unavailable', message: 'Registration configuration is not set up properly. Please contact the organizers.' });
             }
         } else if (registrationType === 'custom') {
             if (registrationStatus === 'internal_form') {
@@ -670,16 +672,16 @@ function EventPage() {
                 const externalUrl = eventData?.registration?.externalUrl;
                 externalUrl?.trim()
                     ? openExternalUrl(externalUrl)
-                    : alert('External registration link not available. Please contact the organizers.');
+                    : showAlert({ title: 'Registration unavailable', message: 'External registration link not available. Please contact the organizers.' });
             } else if (registrationStatus === 'not_started') {
-                alert('Registration has not started yet for this competition.');
+                showAlert({ title: 'Registration not started', message: 'Registration has not started yet for this competition.' });
             } else if (registrationStatus === 'registration_closed') {
-                alert('Registration for this competition is closed.');
+                showAlert({ title: 'Registration closed', message: 'Registration for this competition is closed.' });
             } else {
-                alert('Registration configuration is not set up properly. Please contact the organizers.');
+                showAlert({ title: 'Registration unavailable', message: 'Registration configuration is not set up properly. Please contact the organizers.' });
             }
         } else {
-            alert('Registration has not started yet for this competition.');
+            showAlert({ title: 'Registration not started', message: 'Registration has not started yet for this competition.' });
         }
     };
 
@@ -770,7 +772,7 @@ function EventPage() {
                 break;
             case 'copy':
                 navigator.clipboard?.writeText(url);
-                alert('Link copied to clipboard!');
+                toast('Link copied to clipboard!');
                 break;
             case 'native':
                 shareContent({ title: eventData?.title || 'CrwdCtrl', text, url });

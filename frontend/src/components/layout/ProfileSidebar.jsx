@@ -7,6 +7,7 @@ import MobileBottomNav from './MobileBottomNav';
 import ProfileAvatarUpload from '../ProfileAvatarUpload';
 import ProfileSidebarLoadingSkeleton from '../ProfileSidebarLoadingSkeleton';
 import { SKELETON_LOADING_MS } from '../../constants/skeletonLoading';
+import { usePageTransition } from './PageTransition';
 
 export default function ProfileSidebar({
     isOpen,
@@ -20,6 +21,7 @@ export default function ProfileSidebar({
     const { user, logout, isAuthenticated, isLoading, isAuthProcessing, isRedirectProcessing } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+    const { prepareRouteNavigation, startOverlayTransition } = usePageTransition();
     const [sidebarRevealReady, setSidebarRevealReady] = useState(false);
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
@@ -55,24 +57,29 @@ export default function ProfileSidebar({
         navigate('/');
     };
 
+    const MENU_ROUTES = {
+        'Edit profile': '/edit-profile',
+        Bookings: '/booking',
+        'Help Center': '/help-center',
+        Favourites: '/favorites',
+        Notifications: '/notifications',
+    };
+
     const handleMenuItemClick = (label) => {
-        if (label === 'Edit profile') {
-            navigate('/edit-profile');
-            onClose();
-        } else if (label === 'Bookings') {
-            navigate('/booking');
-            onClose();
-        } else if (label === 'Help Center') {
-            navigate('/help-center');
-            onClose();
-        } else if (label === 'Favourites') {
-            navigate('/favorites');
-            onClose();
-        } else if (label === 'Notifications') {
-            navigate('/notifications');
-            onClose();
+        const path = MENU_ROUTES[label];
+        if (!path) return;
+
+        // Already on the destination — just close, briefly showing its skeleton.
+        if (location.pathname === path) {
+            startOverlayTransition(path, onClose);
+            return;
         }
-        // Add other navigation cases here if needed
+
+        // Show the destination skeleton immediately so the home/previous page
+        // doesn't flash ("peep") during the route change, then navigate + close.
+        prepareRouteNavigation(path);
+        navigate(path);
+        onClose();
     };
 
     const menuItems = [
@@ -279,14 +286,6 @@ export default function ProfileSidebar({
                                 <div className="px-4 pt-4">
                                     <div className="flex items-start justify-between gap-3 pb-8">
                                         <div className="flex min-w-0 items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={onClose}
-                                                className={`shrink-0 rounded-lg p-1 transition-colors touch-manipulation ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'}`}
-                                                aria-label="Close profile"
-                                            >
-                                                <ChevronLeft className="h-6 w-6" />
-                                            </button>
                                             <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                                 Profile
                                             </h1>

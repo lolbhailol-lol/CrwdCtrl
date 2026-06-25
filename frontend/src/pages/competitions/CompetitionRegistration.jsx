@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
+import PaymentErrorModal from '../../components/PaymentErrorModal';
 import {
     getPendingPayment,
     clearPendingPayment,
@@ -47,6 +48,7 @@ export default function CompetitionRegistration() {
     const location = useLocation();
     const paymentResumeRef = useRef(false);
     const handleSubmitRef = useRef(null);
+    const retryCheckoutRef = useRef(null);
     const draftKey = competitionRegDraftKey(competitionId);
     const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search);
     const {
@@ -81,6 +83,7 @@ export default function CompetitionRegistration() {
     const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
     // True once we've waited long enough for Firebase -> backend JWT sync to finish
     const [authSyncExpired, setAuthSyncExpired] = useState(false);
+    const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
 
     useEffect(() => {
         if (!firebaseUser || resolveAuthToken(token)) {
@@ -919,7 +922,7 @@ export default function CompetitionRegistration() {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault?.();
         console.log('🚀 Starting competition registration submission...');
         
         // ✅ PERFORMANCE: Prevent double submission
@@ -1018,12 +1021,25 @@ export default function CompetitionRegistration() {
 
                 const orderData = await orderRes.json();
 
-                const checkoutResult = await openCashfreeCheckout({
-                    paymentSessionId: orderData.paymentSessionId,
-                    orderId: orderData.orderId,
-                    returnPath: window.location.pathname + window.location.search,
-                    cashfreeMode: orderData.cashfreeMode,
-                });
+                let checkoutResult;
+                try {
+                    checkoutResult = await openCashfreeCheckout({
+                        paymentSessionId: orderData.paymentSessionId,
+                        orderId: orderData.orderId,
+                        returnPath: window.location.pathname + window.location.search,
+                        cashfreeMode: orderData.cashfreeMode,
+                    });
+                } catch (checkoutErr) {
+                    const { kind, message } = classifyCheckoutError(checkoutErr);
+                    setCompletingPayment(false);
+                    setSubmitting(false);
+                    setSubmissionProgress('');
+                    if (kind !== 'cancelled') {
+                        retryCheckoutRef.current = () => handleSubmit();
+                        setPaymentModal({ open: true, message, orderId: orderData.orderId });
+                    }
+                    return;
+                }
 
                 if (checkoutResult?.redirectDeferred) {
                     saveRegistrationDraft(draftKey, {
@@ -1396,6 +1412,16 @@ export default function CompetitionRegistration() {
     // Main registration form
     return (
         <div className="min-h-screen bg-[#111213] px-4 py-6 pb-24 sm:pb-8">
+            <PaymentErrorModal
+                open={paymentModal.open}
+                message={paymentModal.message}
+                orderId={paymentModal.orderId}
+                onClose={() => setPaymentModal({ open: false, message: '', orderId: '' })}
+                onRetry={() => {
+                    setPaymentModal({ open: false, message: '', orderId: '' });
+                    retryCheckoutRef.current?.();
+                }}
+            />
             <div className="max-w-3xl mx-auto">
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-6">

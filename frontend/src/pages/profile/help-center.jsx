@@ -17,6 +17,9 @@ const HelpCenter = () => {
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const SUPPORT_EMAIL = 'crwdctrl.in@gmail.com';
 
     // Check for login modal parameter
     useEffect(() => {
@@ -90,6 +93,24 @@ const HelpCenter = () => {
         }
     ];
 
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filteredTopics = normalizedQuery
+        ? helpTopics.filter((topic) => {
+              const haystack = [
+                  topic.title,
+                  topic.description,
+                  ...(topic.links?.map((l) => l.text) || []),
+              ]
+                  .join(' ')
+                  .toLowerCase();
+              return haystack.includes(normalizedQuery);
+          })
+        : helpTopics;
+
+    const handleContactSupport = () => {
+        window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('CrwdCtrl Support Request')}`;
+    };
+
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
             <Seo
@@ -152,6 +173,8 @@ const HelpCenter = () => {
                                     <Search className={`absolute left-6 lg:left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
                                     <input
                                         type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Search for help topics..."
                                         className={`w-full pl-12 pr-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isDark
                                             ? 'bg-black border-gray-700 text-white placeholder-gray-400'
@@ -163,7 +186,7 @@ const HelpCenter = () => {
 
                             {/* Help Topics Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 mb-6 lg:mb-8 px-2 lg:px-0">
-                                {helpTopics.map((topic, index) => (
+                                {filteredTopics.map((topic, index) => (
                                     <div
                                         key={index}
                                         className={`p-4 lg:p-6 rounded-lg border transition-all duration-200 ${topic.isLegal
@@ -215,6 +238,11 @@ const HelpCenter = () => {
                                         </div>
                                     </div>
                                 ))}
+                                {filteredTopics.length === 0 && (
+                                    <div className={`md:col-span-2 text-center py-10 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        No help topics match "{searchQuery}". Try a different search or contact support below.
+                                    </div>
+                                )}
                             </div>
 
                             {/* Contact Section */}
@@ -226,7 +254,10 @@ const HelpCenter = () => {
                                     <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-4 px-2 lg:px-0`}>
                                         Can't find what you're looking for? Our support team is here to help.
                                     </p>
-                                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200">
+                                    <button
+                                        onClick={handleContactSupport}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200"
+                                    >
                                         Contact Support
                                     </button>
                                 </div>

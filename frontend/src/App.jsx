@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { DarkModeProvider } from './context/DarkModeContext'
+import { DialogProvider } from './context/DialogContext'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { RegisteredEventsProvider } from './context/RegisteredEventsContext'
@@ -354,6 +355,7 @@ function App() {
   return (
     <AuthProvider>
       <DarkModeProvider>
+        <DialogProvider>
         <FavoritesProvider>
           <RegisteredEventsProvider>
             <NotificationsProvider>
@@ -384,6 +386,7 @@ function App() {
             </NotificationsProvider>
           </RegisteredEventsProvider>
         </FavoritesProvider>
+        </DialogProvider>
       </DarkModeProvider>
     </AuthProvider>
   )

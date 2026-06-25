@@ -7,6 +7,7 @@ const {
     updateUserProfile,
     checkEmailExists,
     validateToken,
+    deleteAccount,
 } = require('../controllers/usercontroller');
 const { authenticateToken, authorizeRoles } = require('../middleware/authmiddleware');
 const uploadCtrl = require('../controllers/uploadController');
@@ -22,6 +23,9 @@ router.post('/check-email', checkEmailExists);
 // Protected routes (authentication required)
 router.get('/profile', authenticateToken, getUserProfile);
 router.put('/profile', authenticateToken, updateUserProfile);
+
+// Account deletion (soft delete + anonymize)
+router.delete('/account', authenticateToken, deleteAccount);
 
 // ✅ NEW: Token validation endpoint
 router.get('/validate', authenticateToken, validateToken);

@@ -4,6 +4,7 @@ import { Loader, Search } from 'lucide-react';
 import EventShowFormModal from '../../components/admin/EventShowFormModal';
 import { adminFetchJSON } from '../../utils/adminApi';
 import { EVENT_TYPE_LABELS } from '../../constants/eventsPage';
+import { useDialog } from '../../context/DialogContext';
 
 function nextShowDate(showTimings) {
     if (!showTimings || showTimings.length === 0) return 'N/A';
@@ -23,6 +24,7 @@ export default function AdminEventsPage() {
     const [selected, setSelected] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const { confirm } = useDialog();
 
     const fetchShows = () => {
         setError('');
@@ -35,7 +37,7 @@ export default function AdminEventsPage() {
     useEffect(fetchShows, []);
 
     const deleteShow = async (id, title) => {
-        if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
+        if (!(await confirm({ title: 'Delete event?', message: `Are you sure you want to delete "${title}"?`, confirmText: 'Delete', tone: 'danger' }))) return;
         try {
             await adminFetchJSON(`/admin/events/${id}`, { method: 'DELETE' });
         } catch (err) {

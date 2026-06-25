@@ -49,6 +49,10 @@ const userSchema = new mongoose.Schema(
     otpExpires: { type: Date },
     isVerified: { type: Boolean, default: false },
 
+    // Soft-delete (account deactivation) — keeps booking/registration history intact
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date },
+
     // Firebase Authentication UID (for email verification)
     firebaseUid: { type: String, sparse: true, unique: true },
 

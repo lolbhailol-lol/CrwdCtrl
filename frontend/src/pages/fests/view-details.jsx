@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, MapPin, Heart } from "lucide-react";
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import shareIcon from '../../assets/share.svg';
 import calendarIcon from '../../assets/calendar.svg';
 import locationIcon from '../../assets/location-.svg';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { useDialog } from '../../context/DialogContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
 import { useFavorites } from '../../context/FavoritesContext';
@@ -127,6 +128,7 @@ function FestRegisterCard({
 
 function EventDetailsPage() {
   const { isDark } = useDarkMode();
+  const { toast } = useDialog();
   const { isAuthenticated } = useAuth();
   const { isRegistered } = useRegisteredEvents();
   const { toggleFavorite, isFavorite } = useFavorites();
@@ -138,6 +140,7 @@ function EventDetailsPage() {
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showFullOverview, setShowFullOverview] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -390,13 +393,19 @@ function EventDetailsPage() {
       url: window.location.href,
     });
     if (result === 'copied') {
-      alert('Event link copied to clipboard!');
+      toast('Event link copied to clipboard!');
     }
   };
 
   const handleGalleryImageClick = (imageUrl) => {
     setCurrentHeroImage(imageUrl);
   };
+
+  const openLightbox = (index) => {
+    if (index != null && index >= 0) setLightboxIndex(index);
+  };
+
+  const closeLightbox = () => setLightboxIndex(null);
 
   const toggleReadMore = () => {
     setShowFullOverview(!showFullOverview);
@@ -853,13 +862,13 @@ function EventDetailsPage() {
       {/* Mobile Version - Show below 768px */}
       <div className="md:hidden pb-8">
         {/* Hero with overlay controls */}
-        <div className="relative h-[240px]">
+        <div className="relative h-[320px]">
           <img
             src={getImageUrl(currentHeroImage, { preset: 'hero' })}
             alt={eventData.title}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover object-[center_30%]"
             onError={(e) => {
-              handleImageErrorWithFallback(e, 400, 240, '#6366f1', eventData.title || 'Event');
+              handleImageErrorWithFallback(e, 400, 320, '#6366f1', eventData.title || 'Event');
             }}
           />
           <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
@@ -896,7 +905,7 @@ function EventDetailsPage() {
         </div>
 
         {/* Content sheet */}
-        <div className={`relative -mt-6 rounded-t-[28px] px-5 pt-6 pb-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+        <div className={`relative -mt-2 rounded-t-[28px] px-5 pt-6 pb-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
           <div className="flex items-start justify-between gap-3 mb-5">
             <div className="min-w-0 flex-1">
               <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -1044,30 +1053,88 @@ function EventDetailsPage() {
         )}
 
         {/* Contact Details */}
-        {(primaryPhone || primaryInstagram || (eventData.contacts && eventData.contacts.length > 0)) && (
+        {eventData.contacts && eventData.contacts.length > 0 && (
           <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
             <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
-            <div className="flex items-center gap-4">
-              {primaryPhone && (
-                <a
-                  href={`tel:${primaryPhone.replace(/[\s-]/g, '')}`}
-                  className="size-11 rounded-full bg-[#0060DF] flex items-center justify-center"
-                  aria-label="Call"
+            <div className="space-y-3">
+              {eventData.contacts.map((contact, index) => (
+                <div
+                  key={index}
+                  className={`rounded-xl p-3 ${isDark ? 'bg-[#1f2021]' : 'bg-gray-100'}`}
                 >
-                  <Phone size={18} className="text-white" />
-                </a>
-              )}
-              {primaryInstagram && (
-                <a
-                  href={`https://instagram.com/${primaryInstagram}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="size-11 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center"
-                  aria-label="Instagram"
-                >
-                  <Instagram size={18} className="text-white" />
-                </a>
-              )}
+                  {(contact.name || contact.role) && (
+                    <div className="mb-2">
+                      <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {contact.name || 'Contact Person'}
+                      </span>
+                      {contact.role && (
+                        <span className={`text-xs ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          - {contact.role}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
+                      const nameMatch = entry.match(/\(([^)]+)\)/);
+                      const name = nameMatch ? nameMatch[1].trim() : null;
+                      const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
+                      return (
+                        <a
+                          key={pi}
+                          href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
+                          className="flex items-center gap-2.5"
+                        >
+                          <span className="size-9 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
+                            <Phone size={16} className="text-white" />
+                          </span>
+                          <span className="min-w-0">
+                            {name && (
+                              <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {name}
+                              </span>
+                            )}
+                            <span className={`block text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                              {rawNumber}
+                            </span>
+                          </span>
+                        </a>
+                      );
+                    })}
+
+                    {contact.instagramId && (
+                      <a
+                        href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5"
+                      >
+                        <span className="size-9 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
+                          <Instagram size={16} className="text-white" />
+                        </span>
+                        <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
+                        </span>
+                      </a>
+                    )}
+
+                    {contact.email && (
+                      <a
+                        href={`mailto:${contact.email}`}
+                        className="flex items-center gap-2.5"
+                      >
+                        <span className="size-9 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
+                          <Mail size={16} className="text-white" />
+                        </span>
+                        <span className={`text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {contact.email}
+                        </span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}
@@ -1081,8 +1148,8 @@ function EventDetailsPage() {
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => handleGalleryImageClick(img)}
-                  className={`aspect-square rounded-xl overflow-hidden ${currentHeroImage === img ? 'ring-2 ring-[#0ECCEE]' : ''}`}
+                  onClick={() => openLightbox(idx)}
+                  className="aspect-square rounded-xl overflow-hidden"
                 >
                   <img
                     src={getImageUrl(img, { preset: 'thumb' })}
@@ -1097,7 +1164,7 @@ function EventDetailsPage() {
               {galleryPreview.length > 3 && (
                 <button
                   type="button"
-                  onClick={() => handleGalleryImageClick(galleryPreview[3])}
+                  onClick={() => openLightbox(3)}
                   className="relative aspect-square rounded-xl overflow-hidden"
                 >
                   <img
@@ -1119,25 +1186,66 @@ function EventDetailsPage() {
           </section>
         )}
 
-        <div className="h-36 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
+        <div className="h-8 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
       </div>
 
-      {/* Fixed register card — bottom bar (mobile) */}
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-50 md:hidden px-4 pt-3 backdrop-blur-md ${
-          isDark ? 'bg-[#161718]/95' : 'bg-white/95'
-        }`}
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
-      >
-        <FestRegisterCard
-          isDark={isDark}
-          registrationOpen={registrationOpen}
-          registered={isRegistered(eventData.id)}
-          registerLabel={registerLabel}
-          registerButtonClass={registerButtonClass}
-          onRegister={handleRegister}
-        />
-      </div>
+      {/* Gallery Lightbox */}
+      {lightboxIndex != null && galleryPreview[lightboxIndex] && (
+        <div
+          className="fixed inset-0 z-60 bg-black/90 flex items-center justify-center"
+          onClick={closeLightbox}
+        >
+          <button
+            type="button"
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/15 text-white backdrop-blur-sm"
+            style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+            aria-label="Close"
+          >
+            <X size={24} />
+          </button>
+
+          <img
+            src={getImageUrl(galleryPreview[lightboxIndex], { preset: 'hero' })}
+            alt={`Gallery ${lightboxIndex + 1}`}
+            className="max-w-[92vw] max-h-[82vh] object-contain rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+            onError={(e) => {
+              handleImageErrorWithFallback(e, 600, 600, '#6366f1', 'Gallery');
+            }}
+          />
+
+          {galleryPreview.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxIndex((prev) => (prev === 0 ? galleryPreview.length - 1 : prev - 1));
+                }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white backdrop-blur-sm flex items-center justify-center"
+                aria-label="Previous image"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxIndex((prev) => (prev === galleryPreview.length - 1 ? 0 : prev + 1));
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white backdrop-blur-sm flex items-center justify-center"
+                aria-label="Next image"
+              >
+                <ChevronRight size={22} />
+              </button>
+              <div className="absolute bottom-6 left-0 right-0 text-center text-white/80 text-sm">
+                {lightboxIndex + 1} / {galleryPreview.length}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Login Modal */}
       {showLogin && (

@@ -265,6 +265,13 @@ const login = async (req, res) => {
             });
         }
 
+        if (user.isDeleted) {
+            return res.status(403).json({
+                success: false,
+                message: 'This account has been deleted. Please create a new account to continue.',
+            });
+        }
+
         // Check password
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
@@ -317,7 +324,7 @@ const login = async (req, res) => {
 const getUserProfile = async (req, res) => {
     try {
         const user = await User.findById(req.user.userId).select('-password');
-        if (!user) {
+        if (!user || user.isDeleted) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found',
@@ -450,6 +457,13 @@ const socialAuth = async (req, res) => {
             'socialAuth.providerId': trustedProviderId,
         });
 
+        if (existingUser && existingUser.isDeleted) {
+            return res.status(403).json({
+                success: false,
+                message: 'This account has been deleted. Please create a new account to continue.',
+            });
+        }
+
         if (existingUser) {
             // User already exists with this social auth, just generate token and login
             const token = generateToken(existingUser._id);
@@ -483,6 +497,13 @@ const socialAuth = async (req, res) => {
             existingUser = await User.findOne({
                 $or: existingUserQuery
             });
+
+            if (existingUser && existingUser.isDeleted) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'This account has been deleted. Please create a new account to continue.',
+                });
+            }
 
             if (existingUser) {
                 // Link social auth to existing account
@@ -705,7 +726,7 @@ const updateUserProfile = async (req, res) => {
             updateData.phoneNumber = phoneNumber;
         }
         if (college !== undefined) updateData.college = college; // Allow empty string
-        if (profilePic) updateData.profilePic = profilePic;
+        if (profilePic !== undefined) updateData.profilePic = profilePic; // Allow empty string to remove photo
 
         // Handle date of birth
         if (dateOfBirth !== undefined) {
@@ -795,7 +816,7 @@ const validateToken = async (req, res) => {
         // If we reach here, token is valid
         const user = await User.findById(req.user.userId).select('-password');
         
-        if (!user) {
+        if (!user || user.isDeleted) {
             return res.status(401).json({
                 success: false,
                 message: 'User no longer exists',
@@ -821,6 +842,64 @@ const validateToken = async (req, res) => {
     }
 };
 
+// Soft-delete (deactivate + anonymize) the authenticated user's account.
+// Keeps registrations/bookings intact for records; frees email/phone for reuse.
+const deleteAccount = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
+        }
+
+        if (user.isDeleted) {
+            return res.status(200).json({
+                success: true,
+                message: 'Account already deleted',
+            });
+        }
+
+        const anonymizedEmail = `deleted_${user._id}@deleted.crwdctrl`;
+
+        await User.updateOne(
+            { _id: userId },
+            {
+                $set: {
+                    isDeleted: true,
+                    deletedAt: new Date(),
+                    name: 'Deleted User',
+                    profilePic: '',
+                    fcmTokens: [],
+                    email: anonymizedEmail,
+                    'socialAuth.provider': null,
+                    'socialAuth.providerId': null,
+                    'socialAuth.photoURL': null,
+                },
+                $unset: {
+                    phoneNumber: '',
+                    firebaseUid: '',
+                },
+            },
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Account deleted successfully',
+        });
+    } catch (error) {
+        console.error('Delete account error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+        });
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -829,4 +908,5 @@ module.exports = {
     updateUserProfile,
     checkEmailExists,
     validateToken,
+    deleteAccount,
 };

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
 import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { useDialog } from '../../context/DialogContext';
 
 // Individual Form Field Component
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -226,6 +227,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
   const [showForm, setShowForm] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
   const [error, setError] = useState('');
+  const { confirm, alert: showAlert } = useDialog();
 
   const fetchCompetitions = useCallback(async () => {
     try {
@@ -244,14 +246,14 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
   }, [fest, fetchCompetitions]);
 
   const deleteCompetition = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this competition?')) return;
+    if (!(await confirm({ title: 'Delete competition?', message: 'Are you sure you want to delete this competition?', confirmText: 'Delete', tone: 'danger' }))) return;
 
     try {
       await adminFetchJSON(`/admin/competitions/${id}`, { method: 'DELETE' });
       fetchCompetitions();
     } catch (err) {
       console.error('Error deleting competition:', err);
-      alert('Failed to delete competition');
+      showAlert({ title: 'Delete failed', message: 'Failed to delete competition' });
     }
   };
 

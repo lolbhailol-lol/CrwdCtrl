@@ -6,7 +6,8 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
-import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
+import PaymentErrorModal from '../../components/PaymentErrorModal';
 import {
   getPendingPayment,
   clearPendingPayment,
@@ -88,6 +89,8 @@ export default function FestRegistration() {
   // Cashfree direct payment state
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
+  const retryCheckoutRef = useRef(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   // True once we've waited long enough for Firebase -> backend JWT sync to finish
@@ -1331,7 +1334,7 @@ export default function FestRegistration() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     const formSubmissionStartTime = Date.now(); // Track submission time for error reporting
     console.log('🚀 Starting form submission...');
     console.log('🔍 DEBUG - Form submission state:', {
@@ -1576,12 +1579,25 @@ export default function FestRegistration() {
         }
         const orderData = await orderRes.json();
 
-        const checkoutResult = await openCashfreeCheckout({
-          paymentSessionId: orderData.paymentSessionId,
-          orderId: orderData.orderId,
-          returnPath: window.location.pathname + window.location.search,
-          cashfreeMode: orderData.cashfreeMode,
-        });
+        let checkoutResult;
+        try {
+          checkoutResult = await openCashfreeCheckout({
+            paymentSessionId: orderData.paymentSessionId,
+            orderId: orderData.orderId,
+            returnPath: window.location.pathname + window.location.search,
+            cashfreeMode: orderData.cashfreeMode,
+          });
+        } catch (checkoutErr) {
+          const { kind, message } = classifyCheckoutError(checkoutErr);
+          setCompletingPayment(false);
+          setSubmitting(false);
+          setSubmissionProgress('');
+          if (kind !== 'cancelled') {
+            retryCheckoutRef.current = () => handleSubmit();
+            setPaymentModal({ open: true, message, orderId: orderData.orderId });
+          }
+          return;
+        }
 
         if (checkoutResult?.redirectDeferred) {
           saveRegistrationDraft(draftKey, {
@@ -2049,12 +2065,25 @@ export default function FestRegistration() {
       }
       const orderData = await orderRes.json();
 
-      const checkoutResult = await openCashfreeCheckout({
-        paymentSessionId: orderData.paymentSessionId,
-        orderId: orderData.orderId,
-        returnPath: window.location.pathname + window.location.search,
-        cashfreeMode: orderData.cashfreeMode,
-      });
+      let checkoutResult;
+      try {
+        checkoutResult = await openCashfreeCheckout({
+          paymentSessionId: orderData.paymentSessionId,
+          orderId: orderData.orderId,
+          returnPath: window.location.pathname + window.location.search,
+          cashfreeMode: orderData.cashfreeMode,
+        });
+      } catch (checkoutErr) {
+        const { kind, message } = classifyCheckoutError(checkoutErr);
+        setPaymentLoading(false);
+        setCompletingPayment(false);
+        setSubmissionProgress('');
+        if (kind !== 'cancelled') {
+          retryCheckoutRef.current = () => handleCashfreeFestRegister();
+          setPaymentModal({ open: true, message, orderId: orderData.orderId });
+        }
+        return;
+      }
 
       if (checkoutResult?.redirectDeferred) {
         setPaymentLoading(false);
@@ -2094,10 +2123,25 @@ export default function FestRegistration() {
     }
   };
 
+  const closePaymentModal = () => setPaymentModal({ open: false, message: '', orderId: '' });
+  const paymentModalEl = (
+    <PaymentErrorModal
+      open={paymentModal.open}
+      message={paymentModal.message}
+      orderId={paymentModal.orderId}
+      onClose={closePaymentModal}
+      onRetry={() => {
+        closePaymentModal();
+        retryCheckoutRef.current?.();
+      }}
+    />
+  );
+
   // Show Cashfree payment UI when fest has a feeAmount (only for fest-only registrations, not competition registrations)
   if (fest && !isCompetitionRegistration && fest.feeAmount > 0 && !success) {
     return (
       <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+        {paymentModalEl}
         <div className={`w-full max-w-md rounded-2xl p-8 text-center shadow-xl ${isDark ? 'bg-[#1D1E20]' : 'bg-white'}`}>
           <div className="mb-6">
             {fest.coverImage && (
@@ -2285,6 +2329,7 @@ export default function FestRegistration() {
 
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:pt-[calc(env(safe-area-inset-top)+1rem)] pb-40 sm:pb-32 md:pb-20">
+      {paymentModalEl}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">

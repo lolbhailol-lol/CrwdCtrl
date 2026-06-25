@@ -7,7 +7,8 @@ import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 
-import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
+import PaymentErrorModal from '../../components/PaymentErrorModal';
 import {
     getPendingPayment,
     clearPendingPayment,
@@ -154,6 +155,8 @@ export default function TrekBookingPage() {
     const [payDone,     setPayDone]    = useState(initialUi.payDone);
     const [paymentId,   setPaymentId]  = useState('');
     const [bookingId,   setBookingId]  = useState('');
+    const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
+    const retryCheckoutRef = useRef(null);
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
     const fee       = Number(trek?.registrationFee) || 0;
@@ -490,13 +493,26 @@ export default function TrekBookingPage() {
 
                 saveDraft({ step: 2, extraFields, selDate, selTime, people });
 
-                const checkoutResult = await openCashfreeCheckout({
-                    paymentSessionId: order.paymentSessionId,
-                    orderId: order.orderId,
-                    returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
-                    entityType: 'trek',
-                    cashfreeMode: order.cashfreeMode,
-                });
+                let checkoutResult;
+                try {
+                    checkoutResult = await openCashfreeCheckout({
+                        paymentSessionId: order.paymentSessionId,
+                        orderId: order.orderId,
+                        returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
+                        entityType: 'trek',
+                        cashfreeMode: order.cashfreeMode,
+                    });
+                } catch (checkoutErr) {
+                    const { kind, message } = classifyCheckoutError(checkoutErr);
+                    setStep(2);
+                    setPayDone(false);
+                    setPaying(false);
+                    if (kind !== 'cancelled') {
+                        retryCheckoutRef.current = () => next();
+                        setPaymentModal({ open: true, message, orderId: order.orderId });
+                    }
+                    return;
+                }
 
                 if (checkoutResult?.redirectDeferred) {
                     setPaying(false);
@@ -655,6 +671,16 @@ export default function TrekBookingPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content trek-booking-page min-h-dvh pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:pt-[calc(env(safe-area-inset-top)+1rem)] pb-[max(6rem,env(safe-area-inset-bottom)+5rem)]">
+            <PaymentErrorModal
+                open={paymentModal.open}
+                message={paymentModal.message}
+                orderId={paymentModal.orderId}
+                onClose={() => setPaymentModal({ open: false, message: '', orderId: '' })}
+                onRetry={() => {
+                    setPaymentModal({ open: false, message: '', orderId: '' });
+                    retryCheckoutRef.current?.();
+                }}
+            />
             <div className="max-w-lg mx-auto px-4 sm:px-6">
 
                 {/* Header */}

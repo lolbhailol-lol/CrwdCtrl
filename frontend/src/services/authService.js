@@ -7,6 +7,8 @@
  */
 
 import { authAPI } from './api/auth.api.js';
+import { resolveUrl } from './api/client.js';
+import { getUserAuthHeaders } from './api/auth.api.js';
 import { storage } from '../utils/storage';
 import { signInWithGoogle, signInWithFacebook, registerWithEmail, auth } from '../firebase';
 import { processSocialAuthUser } from '../utils/socialAuth';
@@ -513,6 +515,31 @@ class AuthService {
 
             throw new Error(errorMessage);
         }
+    }
+
+    /**
+     * Delete (deactivate + anonymize) the current account, then log out.
+     */
+    async deleteAccount(token) {
+        const authToken = token || this.getCurrentToken();
+        if (!authToken) {
+            throw new Error('You must be logged in to delete your account.');
+        }
+
+        const response = await fetch(resolveUrl('/users/account'), {
+            method: 'DELETE',
+            headers: getUserAuthHeaders(authToken),
+            credentials: 'include',
+            mode: 'cors',
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data?.success === false) {
+            throw new Error(data?.message || 'Failed to delete account. Please try again.');
+        }
+
+        await this.logout();
+        return { success: true };
     }
 
     /**

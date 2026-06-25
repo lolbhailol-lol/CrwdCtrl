@@ -1,9 +1,10 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, Loader, Search } from 'lucide-react';
 import FestFormModal from './FestFormModal';
 import CompetitionModal from './Competition_Modal';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { useDialog } from '../../context/DialogContext';
 
 const STATUS_LABELS = {
   ongoing: { label: 'Featured', cls: 'bg-green-900/60 text-green-300' },
@@ -28,6 +29,7 @@ export default function FestTable() {
   const [showCompetition, setShowCompetition] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { confirm } = useDialog();
 
   const fetchFests = () => {
     setError('');
@@ -164,8 +166,8 @@ export default function FestTable() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (window.confirm(`Delete "${fest.festName}"?`)) deleteFest(fest._id);
+                          onClick={async () => {
+                            if (await confirm({ title: 'Delete fest?', message: `Delete "${fest.festName}"?`, confirmText: 'Delete', tone: 'danger' })) deleteFest(fest._id);
                           }}
                           className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm"
                         >

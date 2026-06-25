@@ -3,10 +3,17 @@ import { Search, Bell, MapPin, Sun, Moon, Menu, Clock, Calendar, X, User, Naviga
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { searchAll } from '../../services/searchService';
 import { CATEGORY_NAV_ICONS } from '../../constants/categoryNavIcons';
 import { openExternalUrl } from '../../utils/externalLink';
+import {
+    getRecentSearches,
+    clearRecentSearches,
+    saveRecentSearch,
+    FALLBACK_SEARCH_TERMS,
+} from '../../utils/heroSearchSuggestions';
 
 const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests' },
@@ -54,6 +61,7 @@ const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, classNam
 const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) => {
     const { isDark } = useDarkMode();
     const { user, isAuthenticated } = useAuth();
+    const { confirm } = useDialog();
     const { notifications, unreadCount, markAsRead } = useNotifications();
     const navigate = useNavigate();
     const location = useLocation();
@@ -78,6 +86,8 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
     const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [recentSearches, setRecentSearches] = useState([]);
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
     const searchRef = useRef(null);
 
     // Get user's location on component mount
@@ -179,14 +189,15 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
             }
             if (searchRef.current && !searchRef.current.contains(event.target)) {
                 setIsSearchDropdownOpen(false);
+                setIsSearchFocused(false);
             }
         };
 
-        if (isNotificationOpen || isLocationDropdownOpen || isSearchDropdownOpen) {
+        if (isNotificationOpen || isLocationDropdownOpen || isSearchDropdownOpen || isSearchFocused) {
             document.addEventListener('mousedown', handleClickOutside);
             return () => document.removeEventListener('mousedown', handleClickOutside);
         }
-    }, [isNotificationOpen, isLocationDropdownOpen, isSearchDropdownOpen]);
+    }, [isNotificationOpen, isLocationDropdownOpen, isSearchDropdownOpen, isSearchFocused]);
 
     // Listen for location detection trigger from Dashboard
     useEffect(() => {
@@ -243,9 +254,12 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
 
         // Ask for explicit consent before attempting geolocation access.
         if (!currentLocation.hasPermission) {
-            const shouldRequestLocation = window.confirm(
-                'Allow CrwdCtrl to access your location to show nearby events?'
-            );
+            const shouldRequestLocation = await confirm({
+                title: 'Allow location access?',
+                message: 'Allow CrwdCtrl to access your location to show nearby events?',
+                confirmText: 'Allow',
+                cancelText: 'Not now',
+            });
 
             if (!shouldRequestLocation) {
                 console.log('🚫 User cancelled location request before browser prompt');
@@ -488,10 +502,28 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
         setSearchQuery(e.target.value);
     };
 
+    const handleSearchFocus = () => {
+        setRecentSearches(getRecentSearches());
+        setIsSearchFocused(true);
+    };
+
+    const applySearchTerm = (term) => {
+        setSearchQuery(term);
+        setIsSearchFocused(false);
+    };
+
+    const handleClearRecent = () => {
+        clearRecentSearches();
+        setRecentSearches([]);
+    };
+
     // Handle search result click
     const handleSearchResultClick = (event) => {
+        const title = event.title || event.festival_name || event.festName;
+        if (title) saveRecentSearch(title);
         setSearchQuery('');
         setIsSearchDropdownOpen(false);
+        setIsSearchFocused(false);
         
         // Navigate based on result type
         if (event.resultType === 'competition') {
@@ -680,6 +712,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
                                 placeholder="search"
                                 value={searchQuery}
                                 onChange={handleSearchChange}
+                                onFocus={handleSearchFocus}
                                 className={`w-28 sm:w-48 lg:w-52 pl-10 pr-10 py-2 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30 focus:shadow-lg ${isDark
                                     ? 'bg-black/60 border border-gray-700/50 text-white placeholder-gray-400 focus:bg-black/80'
                                     : 'bg-[#F8F9FB] border border-gray-200/50 text-gray-900 placeholder-gray-500 focus:bg-white'
@@ -698,6 +731,68 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
                                     <Loader2 className="w-4 h-4 text-[#007BFF] animate-spin" />
                                 )}
                             </div>
+
+                            {/* Recent + Popular suggestions (shown on focus, empty query) */}
+                            {isSearchFocused && !searchQuery.trim() && !isSearchDropdownOpen && (
+                                <div className={`absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl border backdrop-blur-md z-50 p-3 ${isDark
+                                    ? 'bg-black/95 border-gray-700/50'
+                                    : 'bg-white/95 border-gray-200/50'
+                                    }`}>
+                                    {recentSearches.length > 0 && (
+                                        <div className="mb-3">
+                                            <div className="flex items-center justify-between mb-2 px-1">
+                                                <span className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                    Recent
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleClearRecent}
+                                                    className={`text-xs font-medium ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {recentSearches.map((term) => (
+                                                    <button
+                                                        type="button"
+                                                        key={`recent-${term}`}
+                                                        onClick={() => applySearchTerm(term)}
+                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${isDark
+                                                            ? 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                            }`}
+                                                    >
+                                                        <Clock className="w-3 h-3" />
+                                                        {term}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <span className={`block text-xs font-semibold uppercase tracking-wide mb-2 px-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            Popular
+                                        </span>
+                                        <div className="flex flex-wrap gap-2">
+                                            {FALLBACK_SEARCH_TERMS.slice(0, 6).map((term) => (
+                                                <button
+                                                    type="button"
+                                                    key={`popular-${term}`}
+                                                    onClick={() => applySearchTerm(term)}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${isDark
+                                                        ? 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                        }`}
+                                                >
+                                                    {term}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Search Results Dropdown */}
                             {isSearchDropdownOpen && (searchResults.length > 0 || isSearching) && (

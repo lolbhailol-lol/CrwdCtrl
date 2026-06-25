@@ -10,8 +10,10 @@ import CardSizePicker from '../../components/admin/CardSizePicker';
 import TargetPagePicker from '../../components/admin/TargetPagePicker';
 import SectionListByPage from '../../components/admin/SectionListByPage';
 import SectionLivePreview from '../../components/admin/SectionLivePreview';
+import { useDialog } from '../../context/DialogContext';
 
 export default function PageSectionsPage() {
+    const { confirm } = useDialog();
     const [sections, setSections] = useState([]);
     const [fests, setFests] = useState([]);
     const [treks, setTreks] = useState([]);
@@ -117,7 +119,7 @@ export default function PageSectionsPage() {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('Delete this section? Items assigned to it will be unassigned.')) return;
+        if (!(await confirm({ title: 'Delete section?', message: 'Delete this section? Items assigned to it will be unassigned.', confirmText: 'Delete', tone: 'danger' }))) return;
         try {
             await adminFetchJSON(`/admin/homepage-sections/${id}`, { method: 'DELETE' });
             setSections((prev) => prev.filter((s) => s._id !== id));

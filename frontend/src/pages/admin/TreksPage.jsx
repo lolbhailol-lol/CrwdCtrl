@@ -3,6 +3,7 @@ import { Mountain, Calendar, Clock, Users, MapPin, Edit2, Trash2, Plus, Eye, Eye
 import TrekFormModal from '../../components/admin/TrekFormModal';
 import TrekCommunityFormModal from '../../components/admin/TrekCommunityFormModal';
 import { adminFetchJSON } from '../../utils/adminApi';
+import { useDialog } from '../../context/DialogContext';
 
 const DIFFICULTY_BADGE = {
     easy:     'bg-green-900/60 text-green-300 border border-green-700',
@@ -176,6 +177,7 @@ export default function TreksPage() {
     const [showCommForm, setShowCommForm] = useState(false);
     const [selectedComm, setSelectedComm] = useState(null);
     const [expandedComm, setExpandedComm] = useState(() => new Set());
+    const { confirm } = useDialog();
 
     const fetchTreks = () => {
         setLoading(true);
@@ -197,7 +199,7 @@ export default function TreksPage() {
     useEffect(() => { fetchTreks(); fetchCommunities(); }, []);
 
     const deleteCommunity = async (id, name) => {
-        if (!window.confirm(`Delete "${name}"?`)) return;
+        if (!(await confirm({ title: 'Delete community?', message: `Delete "${name}"?`, confirmText: 'Delete', tone: 'danger' }))) return;
         try {
             await adminFetchJSON(`/admin/trek-communities/${id}`, { method: 'DELETE' });
         } catch (err) {
@@ -208,7 +210,7 @@ export default function TreksPage() {
     };
 
     const deleteTrek = async (id, name) => {
-        if (!window.confirm(`Delete "${name}"?`)) return;
+        if (!(await confirm({ title: 'Delete trek?', message: `Delete "${name}"?`, confirmText: 'Delete', tone: 'danger' }))) return;
         try {
             await adminFetchJSON(`/admin/treks/${id}`, { method: 'DELETE' });
         } catch (err) {

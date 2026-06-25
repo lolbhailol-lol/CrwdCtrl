@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Ticket, CalendarDays, MapPin, Users } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Ticket, CalendarDays, MapPin, Users, CalendarPlus } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import LocalQRCode from '../../components/LocalQRCode';
+import { buildGoogleCalendarUrl } from '../../utils/calendar';
+import { openExternalUrl } from '../../utils/externalLink';
 
 import { API_BASE_URL } from '../../services/api/client';
 const getToken = () => localStorage.getItem('crwdctrl_token');
@@ -100,6 +102,17 @@ export default function QRTicketPage() {
       ? 'Sports Ticket'
       : 'Event Ticket';
   const formattedDate = formatTicketDate(ticket.festDate);
+
+  const calendarUrl = ticket.festDate
+    ? buildGoogleCalendarUrl({
+        title: eventTitle,
+        start: ticket.festDate,
+        location: ticket.venue || '',
+        details: `Your CrwdCtrl ${isTrekTicket ? 'trek booking' : 'event registration'}${
+          ticket.competitionName ? ` — ${ticket.competitionName}` : ''
+        }. Show your QR ticket at the venue for check-in.`,
+      })
+    : null;
 
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[max(2rem,calc(env(safe-area-inset-top)+1rem))] pb-8 px-4">
@@ -206,6 +219,21 @@ export default function QRTicketPage() {
             </p>
           </div>
         </div>
+
+        {calendarUrl && !ticket.checkedIn && (
+          <button
+            type="button"
+            onClick={() => openExternalUrl(calendarUrl)}
+            className={`mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-colors ${
+              isDark
+                ? 'bg-[#161718] border border-gray-800 text-white hover:bg-gray-800'
+                : 'bg-white border border-gray-200 text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            <CalendarPlus size={18} className="text-[#0ECCEE]" />
+            Add to Calendar
+          </button>
+        )}
       </div>
     </div>
   );
