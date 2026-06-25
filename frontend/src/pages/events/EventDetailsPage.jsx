@@ -74,6 +74,14 @@ export default function EventDetailsPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
 
+  const handleBack = () => {
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+    } else {
+      navigate('/events');
+    }
+  };
+
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -250,7 +258,7 @@ export default function EventDetailsPage() {
           <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
               aria-label="Go back"
             >

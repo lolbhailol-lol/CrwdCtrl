@@ -395,6 +395,8 @@ export default function SectionManager() {
             await adminFetch(url, { method: 'PUT', body: JSON.stringify(body) });
             applyLocal?.();
             flash(key);
+            // Clear server-side cache so the public site reflects the change instantly
+            try { await adminFetch('/admin/clear-cache', { method: 'POST' }); } catch (_) { /* non-fatal */ }
             localStorage.setItem('admin_data_updated', Date.now().toString());
             setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
         } catch (e) {
