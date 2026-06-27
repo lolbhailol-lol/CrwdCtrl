@@ -60,6 +60,8 @@ const eventRegistrationSchema = new mongoose.Schema(
         formType: { type: String, enum: ['SINGLE_STEP', 'MULTI_STEP'], default: 'SINGLE_STEP' },
         formSchema: { type: [eventFormFieldSchema], default: [] },
         steps: { type: [eventFormStepSchema], default: [] },
+        /** Organiser's Google Sheet — registrations auto-append here after payment */
+        googleSheetsUrl: { type: String, trim: true, default: '' },
     },
     { _id: false },
 );

@@ -7,6 +7,8 @@ import {
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
 import { useFavorites } from '../../context/FavoritesContext';
+import { useAuth } from '../../context/AuthContext';
+import CrwdCtrlLogin from '../auth/login';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
@@ -71,14 +73,21 @@ export default function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { toast } = useDialog();
   const { toggleFavorite, isFavorite } = useFavorites();
+  const { isAuthenticated } = useAuth();
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const [showLogin, setShowLogin] = useState(false);
+
+  const isLoggedIn = () => isAuthenticated || !!localStorage.getItem('crwdctrl_token');
 
   const handleBack = () => {
+    // If the user navigated here within the app, go back normally.
+    // If they opened a shared link directly (no in-app history), send them
+    // to the dashboard/home page instead of leaving the site.
     if (window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
-      navigate('/events');
+      navigate('/');
     }
   };
 
@@ -156,11 +165,16 @@ export default function EventDetailsPage() {
   const handleRegister = () => {
     const r = event?.registration || {};
     if (r.mode === 'internal_form') {
-      if (r.status === 'open') {
-        navigate(`/events/${eventId}/register`);
-      } else {
+      if (r.status !== 'open') {
         toast('Registration is currently closed');
+        return;
       }
+      if (!isLoggedIn()) {
+        toast('Please log in to register');
+        setShowLogin(true);
+        return;
+      }
+      navigate(`/events/${eventId}/register`);
       return;
     }
     const link = event?.registrationLink || event?.bookingLink;
@@ -345,23 +359,11 @@ export default function EventDetailsPage() {
             </div>
           )}
 
-          {/* Banner */}
-          {event.banner && (
-            <div className="mt-5 rounded-2xl overflow-hidden">
-              <img
-                src={getImageUrl(event.banner, { preset: 'hero' })}
-                alt={`${event.title} banner`}
-                className="w-full h-40 object-cover"
-                onError={(e) => handleImageErrorWithFallback(e, 400, 160, '#6366f1', event.title)}
-              />
-            </div>
-          )}
-
           {/* Tab box (trek-style): General Rules / Process / Prize Pool / What's Included */}
           {tabs.length > 0 && (
             <div className="mt-6">
               <div className={`rounded-2xl p-1 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
-                <div className="flex gap-1 overflow-x-auto scrollbar-hide rounded-xl p-1">
+                <div className="flex justify-center gap-1 overflow-x-auto scrollbar-hide rounded-xl p-1">
                   {tabs.map((t) => (
                     <button
                       key={t.key}
@@ -385,12 +387,27 @@ export default function EventDetailsPage() {
               <div className={`rounded-2xl p-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
                 {activeTabObj?.type === 'list' ? (
                   <ul className="space-y-2">
-                    {toLines(activeTabObj.content).map((item, idx) => (
-                      <li key={idx} className={`flex items-start gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <span className="mt-1.5 size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
-                        {item}
-                      </li>
-                    ))}
+                    {toLines(activeTabObj.content).map((item, idx) => {
+                      // A line is a bold heading (no bullet dot) if it ends with ":"
+                      // or matches a known section word like "Eligibility".
+                      const trimmed = item.trim();
+                      const HEADING_WORDS = ['eligibility', 'general rules', 'rules', 'prize pool', 'process', "what's included", 'whats included', 'benefits', 'registration', 'how to register'];
+                      const isHeading = /:\s*$/.test(trimmed)
+                        || HEADING_WORDS.includes(trimmed.replace(/:\s*$/, '').toLowerCase());
+                      if (isHeading) {
+                        return (
+                          <li key={idx} className={`text-sm font-bold ${idx > 0 ? 'mt-3' : ''} ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {trimmed.replace(/:\s*$/, '')}
+                          </li>
+                        );
+                      }
+                      return (
+                        <li key={idx} className={`flex items-start gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          <span className="mt-1.5 size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                          {item}
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p className={`text-sm leading-6 whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -537,6 +554,18 @@ export default function EventDetailsPage() {
             </div>
           )}
 
+          {/* Banner — show the full image (no crop) */}
+          {event.banner && (
+            <div className="mt-6 rounded-2xl overflow-hidden">
+              <img
+                src={getImageUrl(event.banner, { preset: 'detail' })}
+                alt={`${event.title} banner`}
+                className="w-full h-auto"
+                onError={(e) => handleImageErrorWithFallback(e, 400, 160, '#6366f1', event.title)}
+              />
+            </div>
+          )}
+
           {/* Gallery */}
           {gallery.length > 0 && (
             <div className="mt-6">
@@ -641,6 +670,18 @@ export default function EventDetailsPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Login prompt — shown when a logged-out user taps Register */}
+      {showLogin && (
+        <div className="fixed inset-0 z-70">
+          <CrwdCtrlLogin
+            onClose={() => {
+              setShowLogin(false);
+              if (isLoggedIn()) navigate(`/events/${eventId}/register`);
+            }}
+          />
         </div>
       )}
     </div>

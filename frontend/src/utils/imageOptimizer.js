@@ -21,10 +21,14 @@ export function isCloudinaryUrl(url) {
         && url.includes(CLOUDINARY_UPLOAD);
 }
 
+// g_auto is only valid with cropping modes; it errors with limit/fit/scale/pad
+const GRAVITY_SAFE_CROPS = ['fill', 'lfill', 'fill_pad', 'crop', 'thumb', 'auto'];
+
 function buildTransform({ width, height, crop }) {
     const parts = [`c_${crop}`, `w_${width}`];
     if (height) parts.push(`h_${height}`);
-    parts.push('g_auto', 'q_auto:good', 'f_auto', 'dpr_auto', 'fl_progressive');
+    if (GRAVITY_SAFE_CROPS.includes(crop)) parts.push('g_auto');
+    parts.push('q_auto:good', 'f_auto', 'dpr_auto', 'fl_progressive');
     return parts.join(',');
 }
 

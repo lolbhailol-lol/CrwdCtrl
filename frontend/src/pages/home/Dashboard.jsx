@@ -163,7 +163,19 @@ const clearCache = () => {
     }
 };
 
+function hasPendingAdminUpdate() {
+    try {
+        return !!localStorage.getItem('admin_data_updated');
+    } catch (_) {
+        return false;
+    }
+}
+
 function readInitialFestsFromCache() {
+    // Only seed from cache when it is still fresh AND no admin change is pending.
+    // Painting an expired/stale cache shows an old card order that then visibly
+    // "jumps" to the current order once fresh data loads.
+    if (!isCacheValid() || hasPendingAdminUpdate()) return [];
     const cached = getCachedData(CACHE_KEYS.FESTS_LIST);
     return Array.isArray(cached) && cached.length > 0 ? cached : [];
 }
@@ -290,6 +302,10 @@ const Dashboard = () => {
     const [homeSports, setHomeSports] = useState([]);
     const [homeRunClubs, setHomeRunClubs] = useState([]);
     const [homeEventShows, setHomeEventShows] = useState([]);
+    // True once all secondary section sources (treks, sports, run clubs, events, ...)
+    // have settled. Carousels wait for this so the centered priority card doesn't
+    // change as later sources stream in (no "wrong card briefly in center" flash).
+    const [homeAuxLoaded, setHomeAuxLoaded] = useState(false);
     const [festError, setFestError] = useState(null);
     const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
     const [currentLocation, setCurrentLocation] = useState({
@@ -506,18 +522,21 @@ const Dashboard = () => {
         const fetchFests = async () => {
             const maxRetries = 10; // Enough retries to cover a full Railway cold start (~60s)
             
-            // âœ… Show cached data immediately while fetching fresh
+            // If an admin change is pending, drop the stale cache so we never paint
+            // an old card order on this fresh load.
+            if (hasPendingAdminUpdate()) {
+                clearCache();
+                try { localStorage.removeItem('admin_data_updated'); } catch (_) { /* ignore */ }
+            }
+
+            // âœ… Show cached data immediately for fast paint ONLY if it is still fresh,
+            // then ALWAYS continue to fetch fresh below. Stale cache is skipped so the
+            // card order never "jumps" from an old order to the current one.
             const cachedFests = getCachedData(CACHE_KEYS.FESTS_LIST);
-            if (cachedFests && Array.isArray(cachedFests) && cachedFests.length > 0) {
-                console.log('âš¡ Showing cached fests while fetching fresh data');
+            if (cachedFests && Array.isArray(cachedFests) && cachedFests.length > 0 && isCacheValid()) {
+                console.log('âš¡ Showing fresh cached fests while revalidating');
                 setFests(cachedFests);
                 setIsFestsLoading(false);
-                // If cache is still fresh, skip the network fetch entirely
-                if (isCacheValid()) {
-                    console.log('âš¡ Cache is fresh, skipping network fetch');
-                    setFestError(null);
-                    return;
-                }
             }
 
             // Determine timeout based on device
@@ -572,34 +591,51 @@ const Dashboard = () => {
 
         fetchFests();
 
-        // Fetch trek communities for home sections (cache-busted)
-        fetchJSON(`/trek-communities?_cb=${Date.now()}`).then(res => {
-            const list = Array.isArray(res?.data?.communities) ? res.data.communities : [];
-            setHomeCommunities(list);
-        }).catch(() => {});
+        // Fetch all secondary home-section sources. We track when they ALL settle so
+        // carousels can wait for the full data set before revealing — otherwise the
+        // centered (highest-priority) card visibly changes as each source streams in.
+        const auxFetches = [
+            fetchJSON(`/trek-communities?_cb=${Date.now()}`).then(res => {
+                if (cancelled) return;
+                const list = Array.isArray(res?.data?.communities) ? res.data.communities : [];
+                setHomeCommunities(list);
+            }).catch(() => {}),
 
-        // Fetch treks for home sections (cache-busted)
-        fetchJSON(`/treks?_cb=${Date.now()}`).then(res => {
-            const list = Array.isArray(res?.data?.treks) ? res.data.treks : [];
-            setHomeTreks(list);
-        }).catch(() => {});
+            fetchJSON(`/treks?_cb=${Date.now()}`).then(res => {
+                if (cancelled) return;
+                const list = Array.isArray(res?.data?.treks) ? res.data.treks : [];
+                setHomeTreks(list);
+            }).catch(() => {}),
 
-        fetchJSON(`/sports?_cb=${Date.now()}`).then(res => {
-            const list = Array.isArray(res?.data?.events) ? res.data.events : [];
-            setHomeSports(list);
-        }).catch(() => {});
+            fetchJSON(`/sports?_cb=${Date.now()}`).then(res => {
+                if (cancelled) return;
+                const list = Array.isArray(res?.data?.events) ? res.data.events : [];
+                setHomeSports(list);
+            }).catch(() => {}),
 
-        fetchJSON(`/run-clubs?_cb=${Date.now()}`).then(res => {
-            const list = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
-            setHomeRunClubs(list);
-        }).catch(() => {});
+            fetchJSON(`/run-clubs?_cb=${Date.now()}`).then(res => {
+                if (cancelled) return;
+                const list = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
+                setHomeRunClubs(list);
+            }).catch(() => {}),
 
-        fetchJSON(`/events?_cb=${Date.now()}`).then(res => {
-            const list = Array.isArray(res?.data?.shows) ? res.data.shows : [];
-            setHomeEventShows(list);
-        }).catch(() => {});
+            fetchJSON(`/events?_cb=${Date.now()}`).then(res => {
+                if (cancelled) return;
+                const list = Array.isArray(res?.data?.shows) ? res.data.shows : [];
+                setHomeEventShows(list);
+            }).catch(() => {}),
+        ];
 
-        return () => { cancelled = true; };
+        Promise.allSettled(auxFetches).then(() => {
+            if (!cancelled) setHomeAuxLoaded(true);
+        });
+
+        // Safety: never keep the skeleton forever if a source hangs.
+        const auxSafety = window.setTimeout(() => {
+            if (!cancelled) setHomeAuxLoaded(true);
+        }, 6000);
+
+        return () => { cancelled = true; window.clearTimeout(auxSafety); };
     }, []);
 
     // âœ… Cache cleanup and management
@@ -1225,7 +1261,7 @@ const Dashboard = () => {
                         isDark={isDark}
                         tallCard
                         cardGap={TRENDING_CARD_GAP}
-                        loading={isFestsLoading}
+                        loading={isFestsLoading || !homeAuxLoaded}
                         emptyFallback={
                             festError && trendingItems.length === 0 ? (
                                 <section className="home-section-block">
@@ -1257,7 +1293,7 @@ const Dashboard = () => {
                         items={happeningItems}
                         isDark={isDark}
                         wideCard
-                        loading={isFestsLoading}
+                        loading={isFestsLoading || !homeAuxLoaded}
                         emptyFallback={
                             <section className="home-section-block">
                                 <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -1284,7 +1320,7 @@ const Dashboard = () => {
                         eventShows={homeEventShows}
                         transformedFests={transformedFests}
                         isDark={isDark}
-                        loading={isFestsLoading}
+                        loading={isFestsLoading || !homeAuxLoaded}
                         isFavorite={(id) => isFavorite(id)}
                         onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
                         onItemClick={navigateToHomeItem}

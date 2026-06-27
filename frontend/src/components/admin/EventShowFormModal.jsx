@@ -19,7 +19,7 @@ const EMPTY = {
     whatsIncluded: '', benefits: '', eligibility: '', slots: '', registrationProcess: '', registrationLink: '',
     rounds: [], contacts: [], galleryImages: [],
     showTimings: [], status: 'published',
-    registration: { status: 'closed', mode: 'external_link', formType: 'SINGLE_STEP', formSchema: [], steps: [] },
+    registration: { status: 'closed', mode: 'external_link', formType: 'SINGLE_STEP', formSchema: [], steps: [], googleSheetsUrl: '' },
 };
 
 const FIELD_TYPES = [
@@ -77,16 +77,35 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
     const handlePosterUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
         setUploading(true);
         try {
-            const fd = new FormData();
-            fd.append('image', file);
-            const res = await adminFetch('/admin/upload/image', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Upload failed');
-            set('poster', data.url || data.imageUrl || '');
+            const urls = [];
+            for (const file of files) {
+                const fd = new FormData();
+                fd.append('image', file);
+                const res = await adminFetch('/admin/upload/image', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Upload failed');
+                const url = data.url || data.imageUrl || '';
+                if (url) urls.push(url);
+            }
+            if (urls.length) {
+                setForm((prev) => {
+                    const next = { ...prev };
+                    let extras = urls;
+                    // First uploaded image becomes the main poster if none set yet.
+                    if (!prev.poster) {
+                        next.poster = urls[0];
+                        extras = urls.slice(1);
+                    }
+                    if (extras.length) {
+                        next.galleryImages = [...(prev.galleryImages || []), ...extras];
+                    }
+                    return next;
+                });
+            }
         } catch (err) {
             setError(`Upload failed: ${err.message}`);
         } finally {
@@ -223,6 +242,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                     status: reg.status,
                     mode: reg.mode,
                     formType: reg.formType,
+                    googleSheetsUrl: (reg.googleSheetsUrl || '').trim(),
                     formSchema: (reg.formSchema || []).filter(validField).map(cleanField),
                     steps: (reg.steps || []).map((s, i) => ({
                         stepNumber: i + 1,
@@ -383,6 +403,21 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                     {reg.mode === 'internal_form' && (
                         <div className="space-y-5 rounded-lg border border-gray-700 p-4 bg-[#161718]">
                             <p className="text-xs text-gray-400">The "Register Now" button opens an in-app form. Uses the Registration Fee above (2.5% platform fee added at checkout).</p>
+
+                            {/* Google Sheet auto-export */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Organiser Google Sheet URL</label>
+                                <input
+                                    type="url"
+                                    value={reg.googleSheetsUrl || ''}
+                                    onChange={e => setReg({ googleSheetsUrl: e.target.value })}
+                                    className={inp}
+                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                />
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Every registration (including Payment ID) is auto-saved here after payment. Share the sheet with the service account as Editor.
+                                </p>
+                            </div>
 
                             {/* Form Type Selection */}
                             <div>
@@ -565,16 +600,17 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                     {/* Poster + Banner */}
                     <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Poster</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Poster <span className="text-xs text-gray-500">(main image — can add more than one)</span></label>
                         {form.poster && <img src={form.poster} alt="poster" className="w-24 h-32 object-cover rounded-lg border border-gray-600 mb-2" />}
                         <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                            {uploading ? <span className="text-[#0ECCEE]">Uploading...</span> : <><Upload size={14} /><span>{form.poster ? 'Replace poster' : 'Upload poster'}</span></>}
-                            <input type="file" accept="image/*" onChange={handlePosterUpload} disabled={uploading} className="hidden" />
+                            {uploading ? <span className="text-[#0ECCEE]">Uploading...</span> : <><Upload size={14} /><span>{form.poster ? 'Replace / add images' : 'Upload images'}</span></>}
+                            <input type="file" accept="image/*" multiple onChange={handlePosterUpload} disabled={uploading} className="hidden" />
                         </label>
+                        <p className="text-xs text-gray-500 mt-1">First image is the main poster; extra images go to the gallery below.</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">Banner</label>
-                            {form.banner && <img src={form.banner} alt="banner" className="w-full h-24 object-cover rounded-lg border border-gray-600 mb-2" />}
+                            {form.banner && <img src={form.banner} alt="banner" className="w-full max-h-48 object-contain rounded-lg border border-gray-600 mb-2 bg-[#0D0E10]" />}
                             <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
                                 {uploading ? <span className="text-[#0ECCEE]">Uploading...</span> : <><Upload size={14} /><span>{form.banner ? 'Replace banner' : 'Upload banner'}</span></>}
                                 <input type="file" accept="image/*" onChange={handleBannerUpload} disabled={uploading} className="hidden" />

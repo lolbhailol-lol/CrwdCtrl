@@ -178,27 +178,15 @@ export default function RegistrationDetails() {
             <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Registration Confirmed
-            </h1>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 shrink-0" />
+              <h1 className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Registration Confirmed
+              </h1>
+            </div>
             <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-0.5`}>
               {isTrekBooking ? 'Trek Booking' : isEventRegistration ? 'Event Registration' : isCompetitionRegistration ? 'Competition Registration' : 'Fest Registration'}
             </p>
-          </div>
-        </div>
-
-        {/* Success Banner */}
-        <div className={`${isDark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'} border rounded-lg p-3 sm:p-4 mb-4 sm:mb-6`}>
-          <div className="flex items-start gap-2 sm:gap-3">
-            <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <h3 className={`text-sm sm:text-base font-semibold ${isDark ? 'text-green-400' : 'text-green-800'}`}>
-                Registration Successful!
-              </h3>
-              <p className={`text-xs sm:text-sm ${isDark ? 'text-green-300' : 'text-green-700'} mt-0.5`}>
-                Your {isTrekBooking ? 'booking' : 'registration'} for {eventName} has been confirmed.
-              </p>
-            </div>
           </div>
         </div>
 
@@ -443,9 +431,6 @@ export default function RegistrationDetails() {
 
           {/* Registration Metadata */}
           <div className={`mt-6 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-              Registration Information
-            </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>

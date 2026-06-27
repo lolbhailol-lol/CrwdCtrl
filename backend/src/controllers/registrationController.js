@@ -2133,12 +2133,20 @@ const submitEventShowRegistration = async (req, res) => {
             file.fieldname
           );
           if (result.success) {
-            responses[file.fieldname] = {
+            const entry = {
               fileName: file.originalname,
               url: result.cloudinaryLink,
               size: file.size,
               uploaded: true,
             };
+            const existing = responses[file.fieldname];
+            if (existing === undefined) {
+              responses[file.fieldname] = entry;
+            } else if (Array.isArray(existing)) {
+              existing.push(entry);
+            } else {
+              responses[file.fieldname] = [existing, entry];
+            }
           }
         } catch (uploadErr) {
           console.error('❌ Event registration file upload error:', uploadErr.message);
@@ -2201,6 +2209,46 @@ const submitEventShowRegistration = async (req, res) => {
       try {
         if (user?.email) {
           await sendRegistrationThankYouEmail(user.email, user.name, eventShow.title).catch(() => {});
+        }
+
+        // Auto-append the registration to the organiser's Google Sheet (incl. payment id)
+        const sheetsUrl = eventShow.registration?.googleSheetsUrl;
+        if (sheetsUrl) {
+          try {
+            const { appendToEventGoogleSheets } = require('../services/googleSheetsService');
+
+            // Flatten the form schema (single or multi-step) for column mapping
+            let formSchema = [];
+            const formType = eventShow.registration?.formType || 'SINGLE_STEP';
+            if (formType === 'MULTI_STEP') {
+              formSchema = (eventShow.registration?.steps || []).reduce(
+                (all, step) => all.concat(step.fields || []),
+                [],
+              );
+            } else {
+              formSchema = eventShow.registration?.formSchema || [];
+            }
+
+            await appendToEventGoogleSheets(
+              sheetsUrl,
+              responses,
+              {
+                eventName: eventShow.title,
+                registrationId: registration._id,
+                amountPaid: registration.amountPaid,
+                paymentId: registration.payment_id || '',
+                paymentStatus: registration.paymentStatus,
+              },
+              {
+                name: user?.name,
+                email: user?.email,
+                phone: user?.phoneNumber || user?.phone || '',
+              },
+              formSchema,
+            );
+          } catch (sheetsErr) {
+            console.error('❌ Event Google Sheets sync error:', sheetsErr.message);
+          }
         }
       } catch (bgErr) {
         console.error('❌ event registration background error:', bgErr.message);

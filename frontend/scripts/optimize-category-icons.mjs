@@ -31,11 +31,11 @@ const ICONS = [
   { out: 'fests-light.webp', src: 'FEST.svg' },
   { out: 'sports-light.webp', src: 'SPORTS.svg' },
   { out: 'treks-light.webp', src: 'trek.svg' },
-  { out: 'events-light.webp', src: 'events-light.png', trimAndFit: true },
+  { out: 'events-light.webp', src: 'events light new.svg' },
   { out: 'fests-dark.webp', src: 'fest-dark.svg' },
   { out: 'sports-dark.webp', src: 'sports-dark.svg' },
   { out: 'treks-dark.webp', src: 'treks-dark.svg' },
-  { out: 'events-dark.webp', src: 'events-dark.png', trimAndFit: true },
+  { out: 'events-dark.webp', src: 'events dark new.svg' },
 ];
 
 /** Trim transparent padding, then resize content to match visual weight of the others. */
@@ -83,15 +83,30 @@ async function optimizeOne({ out, src, trimAndFit = false }) {
   const inputBuffer = await readFile(input);
   const isSvg = src.toLowerCase().endsWith('.svg');
 
-  const pipeline = isSvg
-    ? await buildSvgRaster(inputBuffer)
-    : trimAndFit
-      ? await buildEventsRaster(inputBuffer)
-      : sharp(inputBuffer).resize(OUT_W, OUT_H, {
-          fit: 'contain',
-          kernel: sharp.kernel.lanczos3,
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        });
+  let pipeline;
+  if (isSvg && trimAndFit) {
+    // Vector source (with a hi-res embedded raster): rasterize big and crisp, then
+    // trim + fit to the same visual weight (~87%×91%) as the other category icons.
+    const hiRes = await sharp(inputBuffer, { density: 288 * 2 })
+      .resize(OUT_W * 2, OUT_H * 2, {
+        fit: 'contain',
+        kernel: sharp.kernel.lanczos3,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer();
+    pipeline = await buildEventsRaster(hiRes);
+  } else if (isSvg) {
+    pipeline = await buildSvgRaster(inputBuffer);
+  } else if (trimAndFit) {
+    pipeline = await buildEventsRaster(inputBuffer);
+  } else {
+    pipeline = sharp(inputBuffer).resize(OUT_W, OUT_H, {
+      fit: 'contain',
+      kernel: sharp.kernel.lanczos3,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    });
+  }
 
   await pipeline
     .png()

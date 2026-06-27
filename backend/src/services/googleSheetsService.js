@@ -533,6 +533,144 @@ const appendToGoogleSheets = async (googleSheetsUrl, responses, festInfo, userIn
 };
 
 /**
+ * Append an event-show registration to the organiser's Google Sheet.
+ * Mirrors the competition exporter but with event-appropriate headers and
+ * dedicated payment columns (Amount Paid / Payment ID / Payment Status).
+ *
+ * @param {string} googleSheetsUrl - Organiser's Google Sheets URL
+ * @param {Object} responses - Form responses keyed by field name
+ * @param {Object} eventInfo - { eventName, registrationId, amountPaid, paymentId, paymentStatus }
+ * @param {Object} userInfo - { name, email, phone }
+ * @param {Array} formSchema - Flattened event form schema (label/fieldName/type/...)
+ */
+const appendToEventGoogleSheets = async (googleSheetsUrl, responses, eventInfo, userInfo, formSchema) => {
+  try {
+    console.log('📊 Starting Event Google Sheets integration...');
+
+    const spreadsheetId = extractSpreadsheetId(googleSheetsUrl);
+    if (!spreadsheetId) {
+      throw new Error('Invalid Google Sheets URL format');
+    }
+
+    const auth = await getGoogleAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const spreadsheetInfo = await sheets.spreadsheets.get({ spreadsheetId });
+    const sheetName = spreadsheetInfo.data.sheets[0].properties.title;
+    console.log('📄 Using sheet:', sheetName);
+
+    let existingHeaders = [];
+    try {
+      const headerResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${sheetName}!1:1`,
+      });
+      existingHeaders = headerResponse.data.values ? headerResponse.data.values[0] : [];
+    } catch {
+      console.log('📝 No existing headers found, will create new ones');
+    }
+
+    const safeFormSchema = Array.isArray(formSchema) ? formSchema : [];
+
+    // Build headers: meta + form fields + payment columns
+    const headers = ['Timestamp', 'Name', 'Email', 'Phone', 'Event', 'Registration ID'];
+    safeFormSchema.forEach((field) => headers.push(field.label || field.fieldName || 'Field'));
+    headers.push('Amount Paid (₹)', 'Payment ID', 'Payment Status');
+
+    if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${sheetName}!1:1`,
+        valueInputOption: 'RAW',
+        resource: { values: [headers] },
+      });
+      console.log('✅ Event sheet headers updated');
+    }
+
+    const rowData = [
+      new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
+      userInfo.name || '',
+      userInfo.email || '',
+      userInfo.phone || '',
+      eventInfo.eventName || '',
+      eventInfo.registrationId ? String(eventInfo.registrationId) : '',
+    ];
+
+    // Map each configured field to its response value (matched by fieldName)
+    safeFormSchema.forEach((field) => {
+      const possibleKeys = [
+        field.fieldName,
+        field.id,
+        `field_${field.id}`,
+        field.label && `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`,
+      ].filter(Boolean);
+
+      let value;
+      for (const key of possibleKeys) {
+        if (responses && Object.prototype.hasOwnProperty.call(responses, key)) {
+          value = responses[key];
+          break;
+        }
+      }
+
+      // File / image uploads → clickable link (supports multiple)
+      if (field.type === 'image' || field.type === 'file') {
+        const toUrl = (v) => {
+          if (typeof v === 'string' && v.startsWith('http')) return v;
+          if (v && typeof v === 'object' && typeof v.url === 'string' && v.url.startsWith('http')) return v.url;
+          return null;
+        };
+        if (Array.isArray(value)) {
+          const urls = value.map(toUrl).filter(Boolean);
+          // Single HYPERLINK if one file; otherwise list raw URLs (one per line)
+          rowData.push(
+            urls.length === 1
+              ? `=HYPERLINK("${urls[0]}","🔗 View")`
+              : urls.join('\n'),
+          );
+        } else {
+          const fileUrl = toUrl(value);
+          rowData.push(fileUrl ? `=HYPERLINK("${fileUrl}","🔗 View")` : '');
+        }
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        rowData.push(value.length && typeof value[0] === 'object' ? JSON.stringify(value) : value.join(', '));
+      } else if (value && typeof value === 'object') {
+        rowData.push(JSON.stringify(value));
+      } else {
+        rowData.push(value ?? '');
+      }
+    });
+
+    rowData.push(
+      eventInfo.amountPaid != null ? eventInfo.amountPaid : 0,
+      eventInfo.paymentId || '',
+      eventInfo.paymentStatus || '',
+    );
+
+    const appendResponse = await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${sheetName}!A:A`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      resource: { values: [rowData] },
+    });
+
+    console.log('✅ Event registration appended to Google Sheets:', appendResponse.data.updates.updatedRange);
+    return {
+      success: true,
+      message: 'Event registration synced to Google Sheets',
+      updatedRange: appendResponse.data.updates.updatedRange,
+    };
+  } catch (error) {
+    console.error('❌ Event Google Sheets integration error:', error.message);
+    return { success: false, error: error.message || 'Failed to sync with Google Sheets' };
+  }
+};
+
+/**
  * Get Google API authentication
  * @returns {Object} Google Auth client
  */
@@ -805,6 +943,7 @@ const appendCheckinToGoogleSheets = async (googleSheetsUrl, checkinData) => {
 module.exports = {
   appendToGoogleSheets,
   appendToCompetitionGoogleSheets,
+  appendToEventGoogleSheets,
   appendPaymentOnlyToSheets,
   appendCheckinToGoogleSheets,
   validateGoogleSheetsUrl,

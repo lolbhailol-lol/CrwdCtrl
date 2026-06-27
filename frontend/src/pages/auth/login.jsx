@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, X } from 'lucide-react';
+import { Eye, EyeOff, X, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -126,6 +126,16 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             onClose();
         } else {
             // If not a modal, navigate back to home
+            navigate('/');
+        }
+    };
+
+    const handleBack = () => {
+        if (isModal && onClose) {
+            onClose();
+        } else if (window.history.length > 1) {
+            navigate(-1);
+        } else {
             navigate('/');
         }
     };
@@ -289,6 +299,18 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         ${isDark ? 'bg-[#111213] text-white' : 'bg-white text-gray-900'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
+                    {/* Back Button - top left */}
+                    {(isModal || !isAdminLogin) && (
+                        <button
+                            onClick={handleBack}
+                            aria-label="Go back"
+                            className={`absolute top-4 left-4 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-800'
+                                }`}
+                        >
+                            <ArrowLeft size={22} />
+                        </button>
+                    )}
+
                     {/* Close Button - only show for modal or if not admin login */}
                     {(isModal || !isAdminLogin) && (
                         <button

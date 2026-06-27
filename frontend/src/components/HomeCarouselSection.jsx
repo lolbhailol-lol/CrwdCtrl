@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import HomeEventCard from './HomeEventCard';
 import { HomeEventCardSkeleton, CENTERED_SKELETON_COUNT } from './HomeEventCardSkeleton';
 import {
@@ -95,13 +95,21 @@ function useHomeLoopCarousel(scrollRef, trackRef, items, alignStart = false) {
         return buildHomeSlides(items);
     }, [items, alignStart]);
     const [activeIndex, setActiveIndex] = useState(0);
+    // Tracks the items signature that has actually been centered, so the track can
+    // stay hidden until it is positioned on the correct first slide (prevents any
+    // wrong/clone card from being painted in the center on load or reorder).
+    const [positionedKey, setPositionedKey] = useState('');
     const jumpingRef = useRef(false);
     const itemsKey = useMemo(
         () => items.map((item) => getItemId(item)).join('|'),
         [items],
     );
 
-    useEffect(() => {
+    // Use a layout effect so the carousel is positioned on the first real slide
+    // BEFORE the browser paints. With a plain effect the first painted frame sits
+    // at scrollLeft:0 (which centers the leading loop clone — the wrong/last card)
+    // and only scrolls afterwards, producing a brief "wrong card in center" flash.
+    useLayoutEffect(() => {
         const el = scrollRef.current;
         const trackEl = trackRef.current;
         if (!el || !trackEl || items.length === 0) return;
@@ -113,9 +121,27 @@ function useHomeLoopCarousel(scrollRef, trackRef, items, alignStart = false) {
             scrollToSlide(el, trackEl, loop ? startIndex : 0, alignStart);
         }
         setActiveIndex(0);
-        requestAnimationFrame(() => {
-            jumpingRef.current = false;
+        setPositionedKey(itemsKey);
+        // Keep the guard up through the initial layout settle (card-width / side-pad
+        // measurement triggers a layout shift whose scroll events would otherwise
+        // hijack the active slide onto a neighbouring loop clone). Re-pin to the
+        // first real slide a couple of frames in.
+        let raf2 = 0;
+        const raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                if (!alignStart && scrollRef.current && trackRef.current) {
+                    scrollToSlide(scrollRef.current, trackRef.current, loop ? startIndex : 0, alignStart);
+                }
+            });
         });
+        const release = setTimeout(() => {
+            jumpingRef.current = false;
+        }, 320);
+        return () => {
+            cancelAnimationFrame(raf1);
+            if (raf2) cancelAnimationFrame(raf2);
+            clearTimeout(release);
+        };
     }, [itemsKey, loop, startIndex, scrollRef, trackRef, alignStart]);
 
     useEffect(() => {
@@ -203,7 +229,9 @@ function useHomeLoopCarousel(scrollRef, trackRef, items, alignStart = false) {
         };
     }, [items, loop, scrollRef, trackRef, alignStart]);
 
-    return { slides, activeIndex };
+    const positioned = items.length === 0 || positionedKey === itemsKey;
+
+    return { slides, activeIndex, positioned };
 }
 
 function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, getShareUrl, tallCard, wideCard, miniCard, portraitCard, heroCard, alignStart = false }) {
@@ -265,12 +293,15 @@ export default function HomeCarouselSection({
     const cardWidth = useMeasuredCardWidth(trackRef, slideCount, fallbackWidth);
     const sidePad = useCenteredCarouselSidePad(scrollRef, cardWidth, !alignStart);
 
-    const { slides, activeIndex } = useHomeLoopCarousel(
+    const { slides, activeIndex, positioned } = useHomeLoopCarousel(
         scrollRef,
         trackRef,
         loading ? [] : items,
         alignStart,
     );
+    // On mobile (centered loop) keep the track invisible until it has been scrolled
+    // onto the correct first slide, so no clone/wrong card is ever painted center.
+    const trackHidden = !alignStart && !positioned;
 
     const sidePadding = alignStart
         ? undefined
@@ -295,7 +326,10 @@ export default function HomeCarouselSection({
     activeIndexRef.current = activeIndex;
 
     // Re-center after card width / side padding is measured (fixes wide-card misalignment on load).
-    useEffect(() => {
+    // Must run BEFORE paint: when the measured width changes the layout shifts, and a plain
+    // effect would let one frame paint at the stale scroll offset (centering the wrong/neighbor
+    // card) before correcting — the brief "wrong card in center" flash.
+    useLayoutEffect(() => {
         if (alignStart) return;
         const el = scrollRef.current;
         const trackEl = trackRef.current;
@@ -310,7 +344,7 @@ export default function HomeCarouselSection({
     }, [cardWidth, sidePad, loading, items.length, alignStart]);
 
     // Center skeleton carousel — one card in middle, peers peeking on sides
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (alignStart || !loading) return;
         const el = scrollRef.current;
         const trackEl = trackRef.current;
@@ -364,7 +398,10 @@ export default function HomeCarouselSection({
                 <div
                     ref={trackRef}
                     className="flex w-max pb-1"
-                    style={{ gap: cardGap }}
+                    style={{
+                        gap: cardGap,
+                        visibility: trackHidden ? 'hidden' : 'visible',
+                    }}
                 >
                     {slides.map((slide) => (
                         <SlideCard

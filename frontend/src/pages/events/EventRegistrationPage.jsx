@@ -177,20 +177,46 @@ export default function EventRegistrationPage() {
             );
         }
         if (FILE_TYPES.includes(field.type)) {
-            const f = files[field.fieldName];
+            const raw = files[field.fieldName];
+            const selected = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+            const removeFile = (i) => setFiles((prev) => {
+                const arr = (Array.isArray(prev[field.fieldName]) ? prev[field.fieldName] : (prev[field.fieldName] ? [prev[field.fieldName]] : [])).filter((_, j) => j !== i);
+                const next = { ...prev };
+                if (arr.length) next[field.fieldName] = arr; else delete next[field.fieldName];
+                return next;
+            });
             return (
-                <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer ${isDark ? 'border-gray-600 bg-[#1D1E20]' : 'border-gray-300 bg-white'}`}>
-                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{f ? f.name.slice(0, 28) : (field.placeholder || 'Choose file')}</span>
-                    <input
-                        type="file"
-                        accept={field.type === 'image' ? 'image/*' : 'image/*,.pdf,.doc,.docx'}
-                        className="hidden"
-                        onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) setFiles((prev) => ({ ...prev, [field.fieldName]: file }));
-                        }}
-                    />
-                </label>
+                <div className="space-y-2">
+                    <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer ${isDark ? 'border-gray-600 bg-[#1D1E20]' : 'border-gray-300 bg-white'}`}>
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{field.placeholder || (field.type === 'image' ? 'Add image(s)' : 'Add file(s)')}</span>
+                        <input
+                            type="file"
+                            multiple
+                            accept={field.type === 'image' ? 'image/*' : 'image/*,.pdf,.doc,.docx'}
+                            className="hidden"
+                            onChange={(e) => {
+                                const picked = Array.from(e.target.files || []);
+                                if (picked.length) {
+                                    setFiles((prev) => {
+                                        const existing = Array.isArray(prev[field.fieldName]) ? prev[field.fieldName] : (prev[field.fieldName] ? [prev[field.fieldName]] : []);
+                                        return { ...prev, [field.fieldName]: [...existing, ...picked] };
+                                    });
+                                }
+                                e.target.value = '';
+                            }}
+                        />
+                    </label>
+                    {selected.length > 0 && (
+                        <ul className="space-y-1">
+                            {selected.map((file, i) => (
+                                <li key={`${file.name}-${i}`} className={`flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-md ${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                                    <span className="truncate">{file.name}</span>
+                                    <button type="button" onClick={() => removeFile(i)} className="shrink-0 text-red-400 hover:text-red-500">Remove</button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
             );
         }
         return (
@@ -210,7 +236,10 @@ export default function EventRegistrationPage() {
         if (!s || s.payment) return true;
         const missing = s.fields.filter((f) => {
             if (!f.required) return false;
-            if (FILE_TYPES.includes(f.type)) return !files[f.fieldName];
+            if (FILE_TYPES.includes(f.type)) {
+                const v = files[f.fieldName];
+                return Array.isArray(v) ? v.length === 0 : !v;
+            }
             const v = values[f.fieldName];
             if (Array.isArray(v)) return v.length === 0;
             return !String(v ?? '').trim();
@@ -230,7 +259,9 @@ export default function EventRegistrationPage() {
         const textResponses = {};
         allFields.forEach((f) => {
             if (FILE_TYPES.includes(f.type)) {
-                if (files[f.fieldName]) fd.append(f.fieldName, files[f.fieldName]);
+                const v = files[f.fieldName];
+                const arr = Array.isArray(v) ? v : (v ? [v] : []);
+                arr.forEach((file) => fd.append(f.fieldName, file));
             } else if (values[f.fieldName] !== undefined) {
                 textResponses[f.fieldName] = values[f.fieldName];
             }
