@@ -20,6 +20,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
+import GoogleOneTap from './components/GoogleOneTap'
 import CapacitorInit from './components/CapacitorInit'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
 import PageTransitionSkeleton from './components/PageTransitionSkeleton'
@@ -365,6 +366,7 @@ function App() {
                 <PageTransitionProvider>
                   <CapacitorInit />
                   <RouteTracker />
+                  <GoogleOneTap />
                   <AdSenseLoader />
                   <PWAInstallPrompt />
                   <MobileSearchHost />

@@ -10,13 +10,15 @@ const {
     deleteAccount,
 } = require('../controllers/usercontroller');
 const { authenticateToken, authorizeRoles } = require('../middleware/authmiddleware');
+const { verifyRecaptcha } = require('../middleware/recaptcha');
 const uploadCtrl = require('../controllers/uploadController');
 
 const router = express.Router();
 
 // Public routes (no authentication required)
-router.post('/register', register);
-router.post('/login', login);
+// reCAPTCHA v3 is enforced only when RECAPTCHA_SECRET_KEY is set (otherwise a no-op).
+router.post('/register', verifyRecaptcha('register'), register);
+router.post('/login', verifyRecaptcha('login'), login);
 router.post('/social-auth', socialAuth);
 router.post('/check-email', checkEmailExists);
 

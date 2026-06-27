@@ -227,6 +227,12 @@ export default function EventDetailsPage() {
   const cardBg = isDark ? 'bg-[#111213]' : 'bg-white';
   const sheetBg = isDark ? 'bg-[#161718]' : 'bg-slate-100';
 
+  // Make the venue name open directions in Google Maps (when a real venue is set)
+  const hasVenue = Boolean(event.venue) && event.venue !== 'Venue TBA';
+  const directionsUrl = hasVenue
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue)}`
+    : null;
+
   return (
     <div className="crwdctrl-page min-h-screen pb-28">
       <Seo
@@ -336,7 +342,17 @@ export default function EventDetailsPage() {
             </div>
             <div className="flex items-center gap-3">
               <MapPin size={32} className="text-[#0ECCEE] shrink-0" />
-              <span className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-black'}`}>{event.venue}</span>
+              {directionsUrl ? (
+                <button
+                  type="button"
+                  onClick={() => openExternalUrl(directionsUrl)}
+                  className="text-base font-medium text-left text-[#0ECCEE] underline-offset-2 hover:underline active:opacity-80"
+                >
+                  {event.venue}
+                </button>
+              ) : (
+                <span className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-black'}`}>{event.venue}</span>
+              )}
             </div>
           </div>
 

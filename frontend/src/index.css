@@ -2303,3 +2303,23 @@ html.dark .mobile-search-overlay__back {
         scrollbar-width: none;
     }
 }
+
+/*
+ * reCAPTCHA v3 badge: hidden everywhere by default, revealed only while an auth
+ * screen (login/register) is mounted via the `recaptcha-visible` class on <html>.
+ * Lifted above the mobile bottom navigation bar so it never sits behind it.
+ */
+.grecaptcha-badge {
+    visibility: hidden !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 84px) !important;
+}
+
+html.recaptcha-visible .grecaptcha-badge {
+    visibility: visible !important;
+}
+
+@media (min-width: 768px) {
+    .grecaptcha-badge {
+        bottom: 14px !important;
+    }
+}

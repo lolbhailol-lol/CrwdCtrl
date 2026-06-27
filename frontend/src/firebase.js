@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
+import { getPerformance } from "firebase/performance";
 import { isNativeApp } from "./utils/capacitorPlatform";
 import {
     getAuth,
@@ -111,6 +112,21 @@ if (!isNativeApp() && typeof window !== 'undefined' && !import.meta.env.VITE_GOO
     }
 }
 const auth = getAuth(app);
+
+// ===== FIREBASE PERFORMANCE MONITORING =====
+// Real-user performance traces (page load, network requests). Web-only SDK,
+// so it is skipped inside the Capacitor native shell. Enabled in production by
+// default; set VITE_ENABLE_PERFORMANCE=true to also collect it in dev.
+let performance = null;
+try {
+    const perfEnabled = import.meta.env.PROD || import.meta.env.VITE_ENABLE_PERFORMANCE === 'true';
+    if (perfEnabled && !isNativeApp() && typeof window !== 'undefined') {
+        performance = getPerformance(app);
+        console.log('✅ Firebase Performance Monitoring initialized');
+    }
+} catch (err) {
+    console.warn('⚠️ Firebase Performance not available:', err?.message || err);
+}
 
 // ===== FIREBASE CLOUD MESSAGING (Push Notifications) =====
 let messaging = null;
@@ -1283,4 +1299,4 @@ export const handleRedirectResult = async () => {
 // ✅ Export mobile detection for use in other modules
 export { isMobileDevice };
 
-export { auth, app, analytics, signOut };
+export { auth, app, analytics, performance, signOut };

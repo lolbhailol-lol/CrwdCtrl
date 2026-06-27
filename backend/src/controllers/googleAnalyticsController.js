@@ -61,7 +61,7 @@ const getGoogleAnalyticsRealtime = async (req, res) => {
     res.json({ configured: true, activeUsers });
   } catch (error) {
     console.error('Google Analytics realtime error:', error?.message || error);
-    res.status(200).json({ configured: true, activeUsers: 0, error: describeError(error) });
+    res.status(502).json({ configured: true, activeUsers: 0, error: describeError(error) });
   }
 };
 

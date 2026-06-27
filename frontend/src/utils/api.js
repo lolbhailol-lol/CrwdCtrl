@@ -2,6 +2,7 @@
 // New code should import from `services/api/*` (auth.api.js, client.js, etc.).
 import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
 import { getApiBaseUrl } from '../config/apiBase.js';
+import { getRecaptchaToken } from './recaptcha.js';
 
 /**
  * Base API configuration and utilities
@@ -326,7 +327,9 @@ export const authAPI = {
      * User login
      */
     async login(credentials) {
-        return apiClient.post('/users/login', credentials);
+        const recaptchaToken = await getRecaptchaToken('login');
+        const payload = recaptchaToken ? { ...credentials, recaptchaToken } : credentials;
+        return apiClient.post('/users/login', payload);
     },
  //Admin login
     async adminLogin(credentials) {
@@ -336,7 +339,9 @@ export const authAPI = {
      * User registration
      */
     async register(userData) {
-        return apiClient.post('/users/register', userData);
+        const recaptchaToken = await getRecaptchaToken('register');
+        const payload = recaptchaToken ? { ...userData, recaptchaToken } : userData;
+        return apiClient.post('/users/register', payload);
     },
 
     /**

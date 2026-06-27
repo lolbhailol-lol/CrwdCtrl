@@ -7,6 +7,7 @@ import { authService } from '../../services/authService';
 import { signInWithGoogle, signInWithFacebook } from '../../firebase';
 import { processSocialAuthUser } from '../../utils/socialAuth';
 import { withFirebaseIdToken } from '../../utils/firebaseIdToken';
+import { showRecaptchaBadge, hideRecaptchaBadge } from '../../utils/recaptcha';
 
 export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -26,6 +27,12 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
+
+    // Show the reCAPTCHA badge only while the register screen is on-screen.
+    useEffect(() => {
+        showRecaptchaBadge();
+        return () => hideRecaptchaBadge();
+    }, []);
 
     // ✅ FIX: Redirect if user is already logged in
     useEffect(() => {

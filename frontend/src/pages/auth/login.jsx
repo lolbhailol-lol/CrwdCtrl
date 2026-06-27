@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../../services/authService';
 import { storage } from '../../utils/storage';
 import { prepareLogin, resolvePostLoginRedirect } from '../../utils/loginFlow';
+import { showRecaptchaBadge, hideRecaptchaBadge } from '../../utils/recaptcha';
 
 export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +22,12 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
     const isAdminLogin = location.pathname === '/admin/login';
+
+    // Show the reCAPTCHA badge only while the login screen is on-screen.
+    useEffect(() => {
+        showRecaptchaBadge();
+        return () => hideRecaptchaBadge();
+    }, []);
 
     useEffect(() => {
         if (!isModal) return;

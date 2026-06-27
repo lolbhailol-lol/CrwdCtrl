@@ -38,8 +38,9 @@ router.get('/fests/:festId', adminAuth, getFestAnalytics);
 router.get('/realtime', adminAuth, getRealtimeStats);
 
 // ===== GOOGLE ANALYTICS (GA4 Data API) =====
-router.get('/google', adminAuth, getGoogleAnalytics);
+// Declare the more specific path first as a convention/safety measure.
 router.get('/google/realtime', adminAuth, getGoogleAnalyticsRealtime);
+router.get('/google', adminAuth, getGoogleAnalytics);
 
 // ===== CATEGORY ANALYTICS =====
 
