@@ -402,7 +402,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
 
                     {reg.mode === 'internal_form' && (
                         <div className="space-y-5 rounded-lg border border-gray-700 p-4 bg-[#161718]">
-                            <p className="text-xs text-gray-400">The "Register Now" button opens an in-app form. Uses the Registration Fee above (2.5% platform fee added at checkout).</p>
+                            <p className="text-xs text-gray-400">The "Register Now" button opens an in-app form. Uses the Registration Fee above (platform fee added at checkout).</p>
 
                             {/* Google Sheet auto-export */}
                             <div>

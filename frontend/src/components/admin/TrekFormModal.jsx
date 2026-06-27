@@ -471,7 +471,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 <p className="text-sm font-bold text-[#0ECCEE]">📋 Booking Form (3-Step)</p>
                                 <p className="text-[10px] text-gray-500 mt-0.5">Step 1: Date/Time/People · Step 2: Personal Details · Step 3: Payment</p>
                             </div>
-                            <span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">3% platform fee applies</span>
+                            <span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">Platform fee applies</span>
                         </div>
 
                         <div className="p-4 space-y-4">

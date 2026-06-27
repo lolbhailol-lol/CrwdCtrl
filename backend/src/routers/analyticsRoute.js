@@ -9,6 +9,10 @@ const {
   getRealtimeStats,
   getRevenueSummary,
 } = require('../controllers/analyticsController');
+const {
+  getGoogleAnalytics,
+  getGoogleAnalyticsRealtime,
+} = require('../controllers/googleAnalyticsController');
 const { getJwtSecret } = require('../config/jwtSecret');
 
 // Public endpoint — optionally uses auth token if present
@@ -32,6 +36,10 @@ router.get('/dashboard', adminAuth, getDashboardStats);
 router.get('/revenue-summary', adminAuth, getRevenueSummary);
 router.get('/fests/:festId', adminAuth, getFestAnalytics);
 router.get('/realtime', adminAuth, getRealtimeStats);
+
+// ===== GOOGLE ANALYTICS (GA4 Data API) =====
+router.get('/google', adminAuth, getGoogleAnalytics);
+router.get('/google/realtime', adminAuth, getGoogleAnalyticsRealtime);
 
 // ===== CATEGORY ANALYTICS =====
 

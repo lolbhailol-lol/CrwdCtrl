@@ -861,21 +861,21 @@ export default function TrekBookingPage() {
                     {step === 2 && fee > 0 && (
                         <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
                             <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
-                            <div className={`space-y-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                 <div className="flex justify-between gap-4">
                                     <span>Ticket Price <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span></span>
                                     <span>₹{baseFee.toLocaleString('en-IN')}</span>
                                 </div>
-                                <div className="flex justify-between gap-4">
-                                    <span>Platform Fee (3%)</span>
+                                <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    <span>Platform Fee</span>
                                     <span>₹{platformFee}</span>
                                 </div>
-                                <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
-                                    <span>Total</span>
+                                <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
+                                    <span>Amount Payable</span>
                                     <span>₹{total.toLocaleString('en-IN')}</span>
                                 </div>
                             </div>
-                            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Cashfree secure payment — click Pay to book.</p>
+                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Includes all charges · Secure payment via Cashfree</p>
                         </div>
                     )}
 

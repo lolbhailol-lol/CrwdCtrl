@@ -1560,7 +1560,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     Online Fee Amount (₹) <span className="text-gray-500 font-normal">— for online payment</span>
                   </label>
                   <p className="text-xs text-gray-500 mb-2">
-                    Enter the base entry fee. The 3% platform fee is added automatically at payment.
+                    Enter the base entry fee. The platform fee is added automatically at payment.
                   </p>
                   <input
                     type="number"
@@ -1578,7 +1578,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                         <span>₹{priceBreakdown.ticketPrice}</span>
                       </div>
                       <div className="flex justify-between gap-4 mt-1">
-                        <span>Platform Fee (3%)</span>
+                        <span>Platform Fee</span>
                         <span>₹{priceBreakdown.platformFee}</span>
                       </div>
                       <div className="flex justify-between gap-4 mt-2 pt-2 border-t border-[#0ECCEE]/20 font-semibold text-[#0ECCEE]">

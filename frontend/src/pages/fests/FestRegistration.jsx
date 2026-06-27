@@ -2154,22 +2154,22 @@ export default function FestRegistration() {
           <div className={`rounded-xl p-5 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
             <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Payment Breakdown</p>
             {priceBreakdown && (
-              <div className={`space-y-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 <div className="flex justify-between gap-4">
                   <span>Ticket Price</span>
                   <span>₹{priceBreakdown.ticketPrice}</span>
                 </div>
-                <div className="flex justify-between gap-4">
+                <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   <span>Platform Fee</span>
                   <span>₹{priceBreakdown.platformFee}</span>
                 </div>
-                <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
-                  <span>Total</span>
+                <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
+                  <span>Amount Payable</span>
                   <span>₹{priceBreakdown.totalAmount}</span>
                 </div>
               </div>
             )}
-            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Secure payment via Cashfree</p>
+            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Includes all charges · Secure payment via Cashfree</p>
           </div>
 
           {competition && (
@@ -2495,21 +2495,21 @@ export default function FestRegistration() {
               return (
                 <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
                   <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
-                  <div className={`space-y-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     <div className="flex justify-between gap-4">
                       <span>Ticket Price</span>
                       <span>₹{priceBreakdown.ticketPrice}</span>
                     </div>
-                    <div className="flex justify-between gap-4">
+                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       <span>Platform Fee</span>
                       <span>₹{priceBreakdown.platformFee}</span>
                     </div>
-                    <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
-                      <span>Total</span>
+                    <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
+                      <span>Amount Payable</span>
                       <span>₹{priceBreakdown.totalAmount}</span>
                     </div>
                   </div>
-                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Cashfree secure payment — tap Pay to book.</p>
+                  <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Includes all charges · Secure payment via Cashfree</p>
                 </div>
               );
             })()}

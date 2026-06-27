@@ -1527,21 +1527,21 @@ export default function CompetitionRegistration() {
                 {!paymentFields && priceBreakdown && (
                     <div className="rounded-xl p-4 border bg-[#111213] border-[#0ECCEE]/30 mb-4">
                         <p className="text-sm font-semibold text-white mb-2">Payment Breakdown</p>
-                        <div className="space-y-1 text-sm text-gray-300">
+                        <div className="space-y-1.5 text-sm text-gray-300">
                             <div className="flex justify-between gap-4">
                                 <span>Ticket Price</span>
                                 <span>₹{priceBreakdown.ticketPrice}</span>
                             </div>
-                            <div className="flex justify-between gap-4">
+                            <div className="flex justify-between gap-4 text-gray-400">
                                 <span>Platform Fee</span>
                                 <span>₹{priceBreakdown.platformFee}</span>
                             </div>
-                            <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
-                                <span>Total</span>
+                            <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
+                                <span>Amount Payable</span>
                                 <span>₹{priceBreakdown.totalAmount}</span>
                             </div>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">Cashfree secure payment — tap Pay to book.</p>
+                        <p className="text-xs text-gray-400 mt-2">Includes all charges · Secure payment via Cashfree</p>
                     </div>
                 )}
 
