@@ -14,6 +14,33 @@ const generateToken = (userId) => {
     });
 };
 
+// Extract the real client IP, accounting for reverse proxies (Nginx, Cloudflare, etc.)
+const getClientIp = (req) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+        return forwarded.split(',')[0].trim();
+    }
+    return req.ip || req.connection?.remoteAddress || '';
+};
+
+// Persist login metadata without blocking the auth response
+const recordLogin = (userId, req, method) => {
+    User.updateOne(
+        { _id: userId },
+        {
+            $set: {
+                lastLoginAt: new Date(),
+                lastLoginIp: getClientIp(req),
+                lastLoginUserAgent: (req.headers['user-agent'] || '').slice(0, 300),
+                lastLoginMethod: method,
+            },
+            $inc: { loginCount: 1 },
+        },
+    ).catch((error) => {
+        console.error('❌ Failed to record login metadata:', error.message);
+    });
+};
+
 const notifyLoginSuccess = async (user) => {
     if (!user || !user._id) return;
 
@@ -142,6 +169,7 @@ const register = async (req, res) => {
             role: role || 'student',
             // Security: isVerified only from Firebase token when linked, not client body
             isVerified: verifiedFirebaseUid ? verifiedFromFirebase : Boolean(isVerified),
+            signupMethod: verifiedFirebaseUid ? 'firebase' : 'password',
         };
 
         // Add college if provided
@@ -169,6 +197,8 @@ const register = async (req, res) => {
 
         // Generate JWT token
         const token = generateToken(user._id);
+
+        recordLogin(user._id, req, verifiedFirebaseUid ? 'firebase' : 'password');
 
         // Remove password from response
         const userResponse = user.toObject();
@@ -283,6 +313,8 @@ const login = async (req, res) => {
 
         // Generate JWT token
         const token = generateToken(user._id);
+
+        recordLogin(user._id, req, firebaseUid?.trim() ? 'firebase' : 'password');
 
         // Remove password from response
         const userResponse = user.toObject();
@@ -468,6 +500,8 @@ const socialAuth = async (req, res) => {
             // User already exists with this social auth, just generate token and login
             const token = generateToken(existingUser._id);
 
+            recordLogin(existingUser._id, req, provider.toLowerCase());
+
             // Remove password from response
             const userResponse = existingUser.toObject();
             delete userResponse.password;
@@ -533,6 +567,8 @@ const socialAuth = async (req, res) => {
                 // Generate JWT token
                 const token = generateToken(existingUser._id);
 
+                recordLogin(existingUser._id, req, provider.toLowerCase());
+
                 // Remove password from response
                 const userResponse = existingUser.toObject();
                 delete userResponse.password;
@@ -554,6 +590,7 @@ const socialAuth = async (req, res) => {
         const userData = {
             name: name.trim(),
             role: role || 'student',
+            signupMethod: provider.toLowerCase(),
             socialAuth: {
                 provider: provider.toLowerCase(),
                 providerId: trustedProviderId,
@@ -588,6 +625,8 @@ const socialAuth = async (req, res) => {
 
         // Generate JWT token
         const token = generateToken(user._id);
+
+        recordLogin(user._id, req, provider.toLowerCase());
 
         // Remove password from response
         const userResponse = user.toObject();

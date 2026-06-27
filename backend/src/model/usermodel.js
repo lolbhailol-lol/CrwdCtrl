@@ -49,6 +49,22 @@ const userSchema = new mongoose.Schema(
     otpExpires: { type: Date },
     isVerified: { type: Boolean, default: false },
 
+    // How the account was originally created (set once at sign-up)
+    signupMethod: {
+      type: String,
+      enum: ['password', 'google', 'facebook', 'twitter', 'firebase'],
+    },
+
+    // Login tracking (populated on each successful sign-in)
+    lastLoginAt: { type: Date },
+    lastLoginIp: { type: String },
+    lastLoginUserAgent: { type: String },
+    lastLoginMethod: {
+      type: String,
+      enum: ['password', 'google', 'facebook', 'twitter', 'firebase'],
+    },
+    loginCount: { type: Number, default: 0 },
+
     // Soft-delete (account deactivation) — keeps booking/registration history intact
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },

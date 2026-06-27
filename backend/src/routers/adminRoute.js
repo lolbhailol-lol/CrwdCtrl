@@ -6,6 +6,7 @@ const devOnly = require('../middleware/devOnly');
 const { adminAuthLimiter } = require('../middleware/rateLimiter');
 const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
+const adminUserCtrl = require('../controllers/adminUserController');
 const adminSectionCtrl = require('../controllers/adminSectionController');
 const homepageSectionCtrl = require('../controllers/homepageSectionController');
 const uploadCtrl = require('../controllers/uploadController');
@@ -84,6 +85,9 @@ router.get('/stats', adminAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
+
+// ===== USER LOGIN DETAILS =====
+router.get('/users', adminAuth, adminUserCtrl.listUsers);
 
 // ===== FEST PRIORITY MANAGEMENT (must come BEFORE generic :id routes) =====
 router.put('/fests/:id/priority', adminAuth, adminFestCtrl.updateFestPriority);

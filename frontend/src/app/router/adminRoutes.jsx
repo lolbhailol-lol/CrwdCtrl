@@ -5,6 +5,7 @@ import {
   AdminFestsPage,
   CompetitionsPage,
   RegistrationsPage,
+  UserLoginsPage,
   AnalyticsDashboardPage,
   ScannerAccessPage,
   SportsPage,
@@ -29,6 +30,7 @@ export const adminRoutes = (
       <Route path="fests" element={<AdminFestsPage />} />
       <Route path="competitions" element={<CompetitionsPage />} />
       <Route path="registrations" element={<RegistrationsPage />} />
+      <Route path="user-logins" element={<UserLoginsPage />} />
       <Route path="analytics" element={<AnalyticsDashboardPage />} />
       <Route path="scanner-access" element={<ScannerAccessPage />} />
       <Route path="sports" element={<SportsPage />} />
