@@ -96,6 +96,17 @@ function sanitizeSportsPayload(body = {}) {
             ? body.termsAndConditions.map((s) => String(s).trim()).filter(Boolean)
             : [];
     }
+    if (body.returnTime !== undefined) payload.returnTime = String(body.returnTime || '').trim();
+    if (body.fitnessLevel !== undefined) payload.fitnessLevel = String(body.fitnessLevel || '').trim();
+    if (body.meetingPoint !== undefined) payload.meetingPoint = String(body.meetingPoint || '').trim();
+    if (body.ageLimit !== undefined) payload.ageLimit = String(body.ageLimit || '').trim();
+    if (body.infoSections !== undefined) {
+        payload.infoSections = Array.isArray(body.infoSections)
+            ? body.infoSections
+                .map((s) => ({ title: String(s?.title || '').trim(), details: String(s?.details || '').trim() }))
+                .filter((s) => s.title || s.details)
+            : [];
+    }
     if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
     if (body.contactInstagram !== undefined) payload.contactInstagram = String(body.contactInstagram || '').trim();
     if (body.images !== undefined) {
@@ -107,6 +118,34 @@ function sanitizeSportsPayload(body = {}) {
             : [];
     }
     if (body.registrationLink !== undefined) payload.registrationLink = String(body.registrationLink || '').trim();
+    if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
+        const r = body.registration;
+        const cleanList = (arr) => (Array.isArray(arr) ? arr.map((s) => String(s || '').trim()).filter(Boolean) : []);
+        payload.registration = {
+            status: ['open', 'closed'].includes(r.status) ? r.status : 'open',
+            mode: ['internal_form', 'external_link'].includes(r.mode) ? r.mode : 'internal_form',
+            googleSheetsUrl: String(r.googleSheetsUrl || '').trim(),
+            organizerEmail: String(r.organizerEmail || '').trim(),
+            formInstructions: String(r.formInstructions || '').trim(),
+            availableDates: cleanList(r.availableDates),
+            timeSlots: cleanList(r.timeSlots),
+            locationOptions: cleanList(r.locationOptions),
+            maxPeoplePerBooking: Math.max(1, Number(r.maxPeoplePerBooking) || 10),
+            formSchema: Array.isArray(r.formSchema)
+                ? r.formSchema
+                    .filter((f) => f && (f.label || f.fieldName))
+                    .map((f) => ({
+                        id: String(f.id || `f_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`),
+                        label: String(f.label || '').trim(),
+                        fieldName: String(f.fieldName || f.label || '').toLowerCase().replace(/\s+/g, '_'),
+                        type: ['text', 'email', 'tel', 'number', 'textarea', 'select', 'file', 'date'].includes(f.type) ? f.type : 'text',
+                        required: Boolean(f.required),
+                        options: Array.isArray(f.options) ? f.options.map((o) => String(o || '').trim()).filter(Boolean) : [],
+                        placeholder: String(f.placeholder || '').trim(),
+                    }))
+                : [],
+        };
+    }
     if (body.description !== undefined) payload.description = String(body.description || '');
     if (body.displayType !== undefined) payload.displayType = String(body.displayType || '').trim();
     if (body.featuredSection !== undefined) {

@@ -14,7 +14,6 @@ import {
     AnimatedCounter,
     ImmersiveHero,
     ScrollReveal,
-    StickyCta,
 } from '../../motion';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
@@ -156,7 +155,8 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
 function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
     return (
         <AnimatedCard
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer"
+            enableHover={false}
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
             onClick={onClick}
         >
             <div className="card-portrait-image">
@@ -165,6 +165,8 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
                         src={getImageUrl(trek.image, { preset: 'cardLg' })}
                         alt={trek.title}
                         className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title)}
                     />
                 ) : (
@@ -200,7 +202,6 @@ export default function CommunityDetailPage() {
     const [loadingTreks, setLoadingTreks] = useState(true);
     const [activeCategory, setActiveCategory] = useState(null);
     const [expanded, setExpanded] = useState(false);
-    const [imgPg, _setImgPg] = useState(0);
     const [liked, setLiked] = useState(false);
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [galleryIndex, setGalleryIndex] = useState(0);
@@ -236,7 +237,7 @@ export default function CommunityDetailPage() {
                         ? new Date(t.trekDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                         : null,
                     image: t.coverImage || t.images?.[0] || null,
-                    trekCategory: t.trekCategory || null,
+                    trekCategory: normalizeCategory(t.trekCategory) || null,
                 })));
             })
             .catch(() => setTreks([]))
@@ -280,7 +281,7 @@ export default function CommunityDetailPage() {
     const canonicalPath = `/treks/community/${id || community?._id || community?.id}`;
 
     return (
-        <div className="crwdctrl-page flex flex-col min-h-screen pb-24">
+        <div className="crwdctrl-page flex flex-col min-h-screen pb-8" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
             <Seo
                 title={`${name} — Trek Community`}
                 description={description}
@@ -322,7 +323,7 @@ export default function CommunityDetailPage() {
                     ].map((stat) => (
                         <div
                             key={stat.label}
-                            className="rounded-2xl bg-black/45 backdrop-blur-md px-3 py-2 border border-white/10"
+                            className="rounded-2xl bg-black/50 px-3 py-2 border border-white/10"
                         >
                             <p className="text-white text-lg font-bold leading-none">
                                 <AnimatedCounter value={stat.value} />
@@ -342,7 +343,7 @@ export default function CommunityDetailPage() {
                         type="button"
                         onClick={() => navigate(-1)}
                         aria-label="Go back"
-                        className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                        className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                     >
                         <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
@@ -352,7 +353,7 @@ export default function CommunityDetailPage() {
                             type="button"
                             onClick={handleShare}
                             aria-label="Share"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                         >
                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
@@ -360,7 +361,7 @@ export default function CommunityDetailPage() {
                             type="button"
                             onClick={() => setLiked(l => !l)}
                             aria-label="Favourite"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                         >
                             <Heart
                                 size={20}
@@ -369,18 +370,6 @@ export default function CommunityDetailPage() {
                             />
                         </button>
                     </div>
-                </div>
-
-                {/* Dots at bottom of image */}
-                <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-2">
-                    {[0, 1, 2, 3].map(i => (
-                        <div key={i} className={`rounded-2xl transition-all duration-300
-                            ${i === imgPg
-                                ? 'h-2.5 w-6 bg-white'
-                                : 'size-2.5 bg-transparent border-2 border-white/60'
-                            }`}
-                        />
-                    ))}
                 </div>
             </ImmersiveHero>
 
@@ -423,7 +412,7 @@ export default function CommunityDetailPage() {
                     </h2>
                     <p className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         {expanded ? description : shortDesc}
-                        {!expanded && (
+                        {!expanded && description.length > 130 && (
                             <button
                                 onClick={() => setExpanded(true)}
                                 className="text-[#0ECCEE] font-medium ml-1"
@@ -442,7 +431,7 @@ export default function CommunityDetailPage() {
                     </h2>
                     {/* Category chips */}
                     {categoryOptions.length > 0 ? (
-                        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+                        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
                             <div className="flex gap-2 pb-2">
                                 {categoryOptions.map(option => {
                                     const meta = CAT_META[option.value] || { label: option.label };
@@ -470,7 +459,7 @@ export default function CommunityDetailPage() {
 
                     {/* Trek cards for selected category */}
                     <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 mt-4"
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
                         {loadingTreks ? (
                             <CompactPortraitCardsRowSkeleton count={3} className="px-0" />
                         ) : filteredTreks.length === 0 ? (
@@ -500,38 +489,37 @@ export default function CommunityDetailPage() {
                         Contact Details
                     </h2>
                     <div className="space-y-2.5">
-                        {/* Phone */}
-                        <a href={community?.contactPhone ? `tel:${community.contactPhone}` : undefined}
-                            className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
-                            <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center shrink-0">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
-                                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-                                </svg>
+                        {community?.contactInstagram ? (
+                            <a
+                                href={`https://instagram.com/${community.contactInstagram.replace('@', '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
+                            >
+                                <div className="size-10 rounded-xl flex items-center justify-center shrink-0"
+                                    style={{ background: 'linear-gradient(135deg, #FCD34D 0%, #EC4899 50%, #7C3AED 100%)' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
+                                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Instagram</p>
+                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        {community.contactInstagram}
+                                    </p>
+                                </div>
+                            </a>
+                        ) : (
+                            <div className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                <div className="size-10 rounded-xl flex items-center justify-center shrink-0 bg-gray-200">
+                                    <span className="text-xs text-gray-500">IG</span>
+                                </div>
+                                <div>
+                                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Instagram</p>
+                                    <p className={`text-sm font-semibold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Not set</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Phone</p>
-                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {community?.contactPhone || 'Not set'}
-                                </p>
-                            </div>
-                        </a>
-                        {/* Instagram */}
-                        <a href={community?.contactInstagram ? `https://instagram.com/${community.contactInstagram.replace('@','')}` : undefined}
-                            target="_blank" rel="noopener noreferrer"
-                            className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
-                            <div className="size-10 rounded-xl flex items-center justify-center shrink-0"
-                                style={{ background: 'linear-gradient(135deg, #FCD34D 0%, #EC4899 50%, #7C3AED 100%)' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
-                                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                                </svg>
-                            </div>
-                            <div>
-                                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Instagram</p>
-                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {community?.contactInstagram || 'Not set'}
-                                </p>
-                            </div>
-                        </a>
+                        )}
                         {/* People to contact */}
                         {(community?.contacts || []).map((c, i) => (
                             <a
@@ -603,32 +591,6 @@ export default function CommunityDetailPage() {
 
             </div>
             </div>
-
-            <StickyCta>
-                <div className={`px-4 py-3 border-t ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (community?.contactPhone) {
-                                window.location.href = `tel:${community.contactPhone}`;
-                            } else if (filteredTreks[0]) {
-                                navigate(`/trek/${filteredTreks[0].id}`, {
-                                    state: {
-                                        trek: {
-                                            ...filteredTreks[0],
-                                            trekName: filteredTreks[0].title,
-                                            images: filteredTreks[0].image ? [filteredTreks[0].image] : [],
-                                        },
-                                    },
-                                });
-                            }
-                        }}
-                        className="w-full py-3 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-[0.98] transition-transform"
-                    >
-                        Join Community
-                    </button>
-                </div>
-            </StickyCta>
 
             {galleryOpen && galleryImages.length > 0 && (
                 <GalleryLightbox

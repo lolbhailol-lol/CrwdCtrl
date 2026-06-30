@@ -10,7 +10,7 @@ const paymentOrderSchema = new mongoose.Schema(
     },
     entityType: {
       type: String,
-      enum: ['trek', 'fest', 'competition', 'event'],
+      enum: ['trek', 'fest', 'competition', 'event', 'sports'],
       required: true,
     },
     entityId: {

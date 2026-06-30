@@ -50,6 +50,8 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
                         src={getImageUrl(club.image, { preset: 'card' })}
                         alt={club.title}
                         className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#14532d', club.title || 'Run Club')}
                     />
                 ) : (

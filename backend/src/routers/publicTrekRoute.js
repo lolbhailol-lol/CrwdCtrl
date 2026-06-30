@@ -78,6 +78,10 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         const trek = await Trek.findOne({ _id: req.params.id, status: 'published' }).lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
 
+        if (trek.registration?.status === 'closed') {
+            return res.status(400).json({ message: 'Registration is currently closed for this trek' });
+        }
+
         const { formData = {}, bookingDetails = {} } = req.body;
         const people = Math.max(1, Number(bookingDetails.people) || 1);
         const registrationFee = Number(trek.registrationFee) || 0;

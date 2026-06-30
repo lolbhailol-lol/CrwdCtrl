@@ -11,6 +11,12 @@ const runClubSchema = new mongoose.Schema(
         coverImage: { type: String, trim: true, default: '' },
         galleryImages: { type: [String], default: [] },
         registrationLink: { type: String, trim: true, default: '' },
+        registration: {
+            /** Whether registration is currently accepting members */
+            status: { type: String, enum: ['open', 'closed'], default: 'open' },
+            /** How users join: in-app form (browse runs), or an external link */
+            mode: { type: String, enum: ['internal_form', 'external_link'], default: 'internal_form' },
+        },
         contactPhone: { type: String, trim: true, default: '' },
         contactInstagram: { type: String, trim: true, default: '' },
         showOnSportsPage: { type: Boolean, default: true },

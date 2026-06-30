@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 
+const trekContactSchema = new mongoose.Schema(
+    {
+        name:  { type: String, trim: true, default: '' },
+        role:  { type: String, trim: true, default: '' },
+        phone: { type: String, trim: true, default: '' },
+    },
+    { _id: false },
+);
+
 const trekSchema = new mongoose.Schema(
     {
         communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'TrekCommunity', default: null },
@@ -23,6 +32,8 @@ const trekSchema = new mongoose.Schema(
         trekLeader: { type: String, trim: true },
         emergencyContact: { type: String, trim: true },
         contactInstagram: { type: String, trim: true },
+        /** Repeatable point-of-contact list (name + role + phone) */
+        contacts: { type: [trekContactSchema], default: [] },
         termsAndConditions: { type: [String], default: [] },
         thingsToCarry: { type: [String], default: [] },
         itinerary: [
@@ -35,6 +46,7 @@ const trekSchema = new mongoose.Schema(
         coverImage: { type: String, default: null },
         images: { type: [String], default: [] },
         registrationFee: { type: Number, default: 0 },
+        /** External registration link (WhatsApp / website / form) used when registration.mode === 'external_link' */
         registrationLink: { type: String, trim: true },
         maxParticipants: { type: Number, default: 0 },
         trekDate: { type: Date },
@@ -66,6 +78,10 @@ const trekSchema = new mongoose.Schema(
         }],
 
         registration: {
+            /** Whether registration is currently accepting bookings */
+            status:            { type: String, enum: ['open', 'closed'], default: 'open' },
+            /** How users register: in-app multi-step form, or an external link */
+            mode:              { type: String, enum: ['internal_form', 'external_link'], default: 'internal_form' },
             googleSheetsUrl:   { type: String, default: '' },
             organizerEmail:    { type: String, default: '' },
             formInstructions:  { type: String, default: '' },

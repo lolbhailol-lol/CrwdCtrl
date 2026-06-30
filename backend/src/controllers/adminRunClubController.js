@@ -31,6 +31,12 @@ function sanitizeRunClubBody(body = {}) {
     if (body.coverImage !== undefined) payload.coverImage = normalizeImageUrl(body.coverImage);
     if (body.galleryImages !== undefined) payload.galleryImages = normalizeImageList(body.galleryImages);
     if (body.registrationLink !== undefined) payload.registrationLink = String(body.registrationLink || '').trim();
+    if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
+        payload.registration = {
+            status: ['open', 'closed'].includes(body.registration.status) ? body.registration.status : 'open',
+            mode: ['internal_form', 'external_link'].includes(body.registration.mode) ? body.registration.mode : 'internal_form',
+        };
+    }
     if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
     if (body.contactInstagram !== undefined) payload.contactInstagram = String(body.contactInstagram || '').trim();
     if (body.showOnSportsPage !== undefined) payload.showOnSportsPage = Boolean(body.showOnSportsPage);

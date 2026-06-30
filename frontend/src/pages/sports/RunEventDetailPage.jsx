@@ -5,6 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import Seo from '../../components/Seo';
+import LazyMap from '../../components/LazyMap';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { shareContent } from '../../utils/externalLink';
 
@@ -75,12 +76,31 @@ const SunIcon = ({ size = 20 }) => (
     </svg>
 );
 
-const ListIcon = ({ size = 20 }) => (
+const MoonIcon = ({ size = 20 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="3" width="18" height="18" rx="4" fill="#DCFCE7" />
-        <path d="M7 8h10M7 12h10M7 16h6" stroke="#16A34A" strokeWidth="1.8" strokeLinecap="round" />
-        <circle cx="19" cy="16" r="3.5" fill="#22C55E" />
-        <path d="M17.2 16l1 1.2 2-2" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="url(#re-moon-grad)" />
+        <defs><linearGradient id="re-moon-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#C4B5FD" /><stop offset="100%" stopColor="#7C3AED" /></linearGradient></defs>
+    </svg>
+);
+
+const MapPinIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="url(#re-pin-grad)" />
+        <circle cx="12" cy="9" r="3" fill="white" opacity="0.9" />
+        <defs><linearGradient id="re-pin-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F87171" /><stop offset="100%" stopColor="#DC2626" /></linearGradient></defs>
+    </svg>
+);
+
+const AgeIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="1.2" />
+        <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1D4ED8">18+</text>
+    </svg>
+);
+
+const FitnessIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M3 12h3l2-6 3 12 3-8 2 4h5" stroke="#F43F5E" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
 );
 
@@ -95,7 +115,8 @@ export default function RunEventDetailPage() {
     const [liked, setLiked] = useState(false);
     const [imgPg, setImgPg] = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
-    const [inclusionOpen, setInclusionOpen] = useState(false);
+    const [activeRunTab, setActiveRunTab] = useState('Details');
+    const [openInfo, setOpenInfo] = useState(null);
     const [termsOpen, setTermsOpen] = useState(false);
     const imgRef = useRef(null);
 
@@ -105,13 +126,15 @@ export default function RunEventDetailPage() {
             setLoading(false);
             return;
         }
-        fetch(`${API}/sports/${eventId}`)
+        const controller = new AbortController();
+        fetch(`${API}/sports/${eventId}`, { signal: controller.signal })
             .then((r) => r.json())
             .then((d) => {
                 if (d.event) setEvent(d.event);
             })
             .catch(() => {})
             .finally(() => setLoading(false));
+        return () => controller.abort();
     }, [id, location.state?.event]);
 
     if (loading) {
@@ -162,7 +185,7 @@ export default function RunEventDetailPage() {
     const canonicalPath = `/sports/run/${eventId}`;
 
     return (
-        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen">
+        <div className="crwdctrl-page flex flex-col min-h-screen" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
             <Seo
                 title={event.title || 'Run Event'}
                 description={desc}
@@ -187,12 +210,16 @@ export default function RunEventDetailPage() {
                     }),
                 ]}
             />
+            <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                    onScroll={(e) => setImgPg(Math.round(e.target.scrollLeft / e.target.clientWidth))}
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+                    onScroll={(e) => {
+                        const p = Math.round(e.target.scrollLeft / e.target.clientWidth);
+                        setImgPg((prev) => (prev === p ? prev : p));
+                    }}
                 >
                     <div className="flex h-full">
                         {images.map((img, i) => (
@@ -202,7 +229,8 @@ export default function RunEventDetailPage() {
                                         src={getImageUrl(img, { preset: 'hero' })}
                                         alt={event.title}
                                         className="w-full h-full object-cover content-image"
-                                        loading="lazy"
+                                        loading={i === 0 ? 'eager' : 'lazy'}
+                                        fetchPriority={i === 0 ? 'high' : 'auto'}
                                         decoding="async"
                                         onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#14532d', event.title)}
                                     />
@@ -225,7 +253,7 @@ export default function RunEventDetailPage() {
                     <button
                         onClick={() => navigate(-1)}
                         aria-label="Go back"
-                        className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                        className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                     >
                         <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
@@ -233,14 +261,14 @@ export default function RunEventDetailPage() {
                         <button
                             onClick={handleShare}
                             aria-label="Share"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                         >
                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
                         <button
                             onClick={() => setLiked((l) => !l)}
                             aria-label="Favourite"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                         >
                             <Heart size={20} strokeWidth={2.25} className={liked ? 'fill-red-500 text-red-500' : 'text-white'} />
                         </button>
@@ -261,40 +289,53 @@ export default function RunEventDetailPage() {
             </div>
 
             <div
-                className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50"
-                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}
+                className="fixed bottom-0 left-0 right-0 z-50 px-2"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
             >
-                <div
-                    className={`px-4 py-2.5 flex items-center gap-4 border-t
-                    ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}
-                >
-                    <div className="flex-1 min-w-0 pl-4">
+                <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                    <div className="min-w-0 shrink-0">
+                        <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
                         {Number(event.registrationFee) > 0 ? (
-                            <>
-                                <p className={`text-[10px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Price</p>
-                                <div className="flex items-baseline gap-0.5">
-                                    <span className={`text-base font-bold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>₹</span>
-                                    <span className={`text-3xl font-extrabold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {Number(event.registrationFee).toLocaleString('en-IN')}
-                                    </span>
-                                    <span className={`text-[10px] ml-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>/ person</span>
-                                </div>
-                            </>
+                            <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                ₹{Number(event.registrationFee).toLocaleString('en-IN')}
+                            </p>
                         ) : (
-                            <div className="flex items-center gap-1.5 pl-4">
-                                <span className="text-3xl font-extrabold text-green-500 leading-none">FREE</span>
-                            </div>
+                            <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
                         )}
                     </div>
-                    <button
-                        onClick={() => navigate(`/sports/run/${eventId}/book`, { state: { event, runClub: club } })}
-                        className="flex items-center justify-center gap-2 w-52 py-2.5 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-95 transition-all shrink-0"
-                    >
-                        Check Availability
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
-                    </button>
+                    {(() => {
+                        const closed = event.registration?.status === 'closed';
+                        const extLink = event.registration?.mode === 'external_link'
+                            ? event.registrationLink
+                            : null;
+                        if (closed) {
+                            return (
+                                <button
+                                    disabled
+                                    className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                                >
+                                    Registration Closed
+                                </button>
+                            );
+                        }
+                        return (
+                            <button
+                                onClick={() => {
+                                    if (extLink) {
+                                        window.open(extLink, '_blank', 'noopener,noreferrer');
+                                        return;
+                                    }
+                                    navigate(`/sports/run/${eventId}/book`, { state: { event, runClub: club } });
+                                }}
+                                className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
+                            >
+                                {extLink ? 'Book Now' : 'Check Availability'}
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="m9 18 6-6-6-6" />
+                                </svg>
+                            </button>
+                        );
+                    })()}
                 </div>
             </div>
 
@@ -323,21 +364,10 @@ export default function RunEventDetailPage() {
                         ))}
                     </div>
 
-                    <div className="flex flex-col shrink-0">
-                        <div className="w-60 h-33 rounded-2xl overflow-hidden relative">
+                    <div className="w-60 shrink-0 flex flex-col">
+                        <div className="w-full h-[132px] rounded-2xl overflow-hidden relative">
                             {mapQuery ? (
-                                <>
-                                    <div className={`absolute inset-0 animate-pulse ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-200'}`} />
-                                    <iframe
-                                        title="run-location"
-                                        src={`https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed&zoom=11`}
-                                        width="100%"
-                                        height="100%"
-                                        style={{ border: 0, display: 'block', position: 'relative' }}
-                                        loading="eager"
-                                        referrerPolicy="no-referrer-when-downgrade"
-                                    />
-                                </>
+                                <LazyMap query={mapQuery} isDark={isDark} title="run-location" />
                             ) : (
                                 <div className="w-full h-full bg-linear-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
                                     <span className="text-[10px] text-gray-400">No location</span>
@@ -367,48 +397,103 @@ export default function RunEventDetailPage() {
                     </p>
                 </div>
 
-                <div className="px-4 mb-5">
-                    <div className="grid grid-cols-2 gap-2">
-                        {event.maxParticipants > 0 && (
-                            <div className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                <PersonIcon size={22} />
-                                <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Max People</p>
-                                <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{event.maxParticipants}</p>
-                            </div>
-                        )}
-                        {event.reportingTime && (
-                            <div className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                <SunIcon size={22} />
-                                <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Run Timing</p>
-                                <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{event.reportingTime}</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {event.inclusions?.length > 0 && (
-                        <button
-                            onClick={() => setInclusionOpen((o) => !o)}
-                            className={`w-full mt-2 rounded-2xl p-3 border text-left ${isDark ? 'bg-[#111213] border-white/5' : 'bg-gray-50 border-gray-100'}`}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <ListIcon />
-                                    <div>
-                                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Experience Included</p>
-                                        <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            {inclusionOpen ? event.inclusions.join(', ') : event.inclusions.slice(0, 2).join(', ')}
-                                            {!inclusionOpen && event.inclusions.length > 2 && '…'}
-                                        </p>
-                                    </div>
+                {(() => {
+                    const detailCards = [
+                        { show: event.maxParticipants > 0, Icon: PersonIcon, label: 'Max People', value: event.maxParticipants },
+                        { show: !!event.reportingTime, Icon: SunIcon, label: 'Run Timing', value: event.reportingTime },
+                        { show: !!event.returnTime, Icon: MoonIcon, label: 'Return Time', value: event.returnTime },
+                        { show: !!event.meetingPoint, Icon: MapPinIcon, label: 'Meeting Point', value: event.meetingPoint },
+                        { show: !!event.ageLimit, Icon: AgeIcon, label: 'Age Limit', value: event.ageLimit },
+                        { show: !!event.fitnessLevel, Icon: FitnessIcon, label: 'Fitness', value: event.fitnessLevel },
+                    ].filter((r) => r.show);
+                    const inclusions = event.inclusions || [];
+                    const infoSections = event.infoSections || [];
+                    if (!detailCards.length && !inclusions.length && !infoSections.length) return null;
+                    return (
+                        <div className="px-4 mb-5">
+                            <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Run Info</h2>
+                            <div className={`rounded-2xl p-1 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
+                                <div className="flex rounded-xl p-1 gap-0.5">
+                                    {['Details', 'Included'].map((tab) => (
+                                        <button
+                                            key={tab}
+                                            type="button"
+                                            onClick={() => setActiveRunTab(tab)}
+                                            className={`relative flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200
+                                                ${activeRunTab === tab
+                                                    ? isDark ? 'bg-[#1D1E20] text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
+                                                    : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                                                }`}
+                                        >
+                                            {tab === 'Included' ? 'Experience Included' : tab}
+                                            {activeRunTab === tab && (
+                                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#0ECCEE]" />
+                                            )}
+                                        </button>
+                                    ))}
                                 </div>
-                                <ChevronRight
-                                    size={16}
-                                    className={`shrink-0 transition-transform ${inclusionOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
-                                />
+
+                                <div className="p-3 pt-2 space-y-2">
+                                {activeRunTab === 'Details' && (
+                                    <>
+                                        {detailCards.length > 0 ? (
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {detailCards.map((row) => (
+                                                    <div key={row.label} className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                                        <row.Icon size={22} />
+                                                        <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
+                                                        <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.value}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className={`text-sm px-1 py-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No details added yet.</p>
+                                        )}
+
+                                        {infoSections.map((section, i) => {
+                                            const isOpen = openInfo === i;
+                                            return (
+                                                <div key={i}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOpenInfo(isOpen ? null : i)}
+                                                        className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${isDark ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]' : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'}`}
+                                                    >
+                                                        <p className={`text-sm font-semibold text-left ${isDark ? 'text-white' : 'text-gray-900'}`}>{section.title || `Section ${i + 1}`}</p>
+                                                        <ChevronRight size={16} className={`transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                                    </button>
+                                                    {isOpen && section.details && (
+                                                        <div className={`mt-2 rounded-2xl border px-4 py-3.5 ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                                            <p className={`text-sm leading-6 whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{section.details}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </>
+                                )}
+
+                                {activeRunTab === 'Included' && (
+                                    inclusions.length > 0 ? (
+                                        <div className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
+                                            <ul className="space-y-1.5">
+                                                {inclusions.map((item, i) => (
+                                                    <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                        <span className="mt-[5px] size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                                                        <span>{String(item).replace(/^[-*•\s]+/, '')}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ) : (
+                                        <p className={`text-sm px-1 py-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No experience items listed.</p>
+                                    )
+                                )}
+                                </div>
                             </div>
-                        </button>
-                    )}
-                </div>
+                        </div>
+                    );
+                })()}
 
                 <div className="px-4 mb-6">
                     <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -504,6 +589,7 @@ export default function RunEventDetailPage() {
                         })()}
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     );

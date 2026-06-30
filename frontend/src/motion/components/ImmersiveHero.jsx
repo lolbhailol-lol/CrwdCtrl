@@ -19,6 +19,8 @@ export default function ImmersiveHero({
                     src={imageSrc}
                     alt={imageAlt}
                     className="absolute inset-0 w-full h-full object-cover"
+                    fetchPriority="high"
+                    decoding="async"
                     onError={onImageError}
                 />
             ) : (

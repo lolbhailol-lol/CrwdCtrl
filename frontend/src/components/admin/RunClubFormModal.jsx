@@ -14,6 +14,7 @@ const EMPTY = {
     coverImage: '',
     galleryImages: [],
     registrationLink: '',
+    registration: { status: 'open', mode: 'internal_form' },
     contactPhone: '',
     contactInstagram: '',
     status: 'published',
@@ -29,6 +30,7 @@ function pickClubFormFields(source = {}) {
         coverImage: normalizeImageUrl(source.coverImage),
         galleryImages: normalizeImageList(source.galleryImages),
         registrationLink: source.registrationLink || '',
+        registration: { ...EMPTY.registration, ...(source.registration || {}) },
         contactPhone: source.contactPhone || '',
         contactInstagram: source.contactInstagram || '',
         status: source.status || 'published',
@@ -405,14 +407,44 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                         </div>
                     </AdminFormSection>
 
-                    <AdminFormSection title="Join link" hint="Optional external registration link for the club">
-                        <input
-                            type="url"
-                            value={form.registrationLink}
-                            onChange={(e) => set('registrationLink', e.target.value)}
-                            className={inp}
-                            placeholder="https://..."
-                        />
+                    <AdminFormSection title="Registration" hint="Choose how members join — an in-app form, or an external link (WhatsApp / website / Google form)">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Registration Status</label>
+                                <select
+                                    value={form.registration?.status || 'open'}
+                                    onChange={(e) => set('registration', { ...form.registration, status: e.target.value })}
+                                    className={inp}
+                                >
+                                    <option value="open">Open</option>
+                                    <option value="closed">Closed</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Registration Type</label>
+                                <select
+                                    value={form.registration?.mode || 'internal_form'}
+                                    onChange={(e) => set('registration', { ...form.registration, mode: e.target.value })}
+                                    className={inp}
+                                >
+                                    <option value="internal_form">Internal Form</option>
+                                    <option value="external_link">External Link</option>
+                                </select>
+                            </div>
+                        </div>
+                        {(form.registration?.mode || 'internal_form') === 'external_link' && (
+                            <div className="mt-3">
+                                <label className="block text-xs font-medium text-gray-400 mb-1">External Link</label>
+                                <input
+                                    type="url"
+                                    value={form.registrationLink}
+                                    onChange={(e) => set('registrationLink', e.target.value)}
+                                    className={inp}
+                                    placeholder="https://wa.me/... or website / form link"
+                                />
+                                <p className="text-[11px] text-gray-600 mt-1">When set, the public page shows a “Book Now” button that opens this link.</p>
+                            </div>
+                        )}
                     </AdminFormSection>
 
                     <p className="text-[11px] text-gray-600 px-1">

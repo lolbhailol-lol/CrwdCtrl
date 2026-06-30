@@ -31,9 +31,9 @@ const EMPTY = {
     trekName: '', description: '', difficultyLevel: '', trekDuration: '',
     startingPoint: '', destination: '', meetingLocation: '', departureTime: '',
     returnTime: '', fitnessRequirements: '', ageRestrictions: '', trekLeader: '',
-    emergencyContact: '', contactInstagram: '', registrationFee: 0, registrationLink: '', maxParticipants: 0,
+    emergencyContact: '', contactInstagram: '', contacts: [], registrationFee: 0, registrationLink: '', maxParticipants: 0,
     trekDate: '', city: '', trekCategory: '', status: 'published',
-    registration: { googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [] },
+    registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [] },
     inclusions: '', exclusions: '', thingsToCarry: '', termsAndConditions: '',
     itinerary: [],
     coverImage: '',
@@ -170,6 +170,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 thingsToCarry: Array.isArray(trek.thingsToCarry) ? trek.thingsToCarry.join('\n') : (trek.thingsToCarry || ''),
                 termsAndConditions: Array.isArray(trek.termsAndConditions) ? trek.termsAndConditions.join('\n') : (trek.termsAndConditions || ''),
                 itinerary: trek.itinerary || [],
+                contacts: Array.isArray(trek.contacts) ? trek.contacts.map(c => ({ name: c?.name || '', role: c?.role || '', phone: c?.phone || '' })) : [],
                 coverImage: trek.coverImage || '',
                 images: trek.images || [],
                 trekFilters: {
@@ -183,6 +184,10 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
     }, [trek, communityId]);
 
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+    const addContact = () => setForm(f => ({ ...f, contacts: [...(f.contacts || []), { name: '', role: '', phone: '' }] }));
+    const updateContact = (idx, field, value) => setForm(f => ({ ...f, contacts: (f.contacts || []).map((c, i) => (i === idx ? { ...c, [field]: value } : c)) }));
+    const removeContact = (idx) => setForm(f => ({ ...f, contacts: (f.contacts || []).filter((_, i) => i !== idx) }));
 
     const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
@@ -260,6 +265,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 maxParticipants: Number(form.maxParticipants) || 0,
                 trekDate: form.trekDate || null,
                 trekFilters: form.trekFilters || emptyTrekFilters(),
+                contacts: (form.contacts || []).filter(c => (c.name || c.role || c.phone || '').trim()),
             };
             delete payload.featuredSection;
             delete payload.homeSection;
@@ -367,6 +373,38 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                     </div>
                     <div><label className="block text-sm font-medium text-gray-300 mb-1">Instagram Handle <span className="text-gray-500 font-normal">(@username)</span></label><input type="text" value={form.contactInstagram || ''} onChange={e => set('contactInstagram', e.target.value)} className={inp} placeholder="@yourtrek" /></div>
 
+                    {/* Repeatable people-to-contact list */}
+                    <div className="rounded-lg border border-gray-700/60 p-3">
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-sm font-medium text-gray-300">People to contact</label>
+                            <button type="button" onClick={addContact} className="flex items-center gap-1 text-xs font-semibold text-[#0ECCEE] hover:underline">
+                                <Plus size={13} /> Add contact
+                            </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">Name, role and phone for each person. Shown as contact cards on the trek page.</p>
+                        {(form.contacts || []).length === 0 ? (
+                            <p className="text-xs text-gray-600 rounded-lg border border-dashed border-gray-600 px-3 py-2.5">No contacts added yet.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {(form.contacts || []).map((c, idx) => (
+                                    <div key={idx} className="rounded-lg border border-gray-700 bg-[#1D1E20] p-3 space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-semibold text-gray-400">Contact {idx + 1}</span>
+                                            <button type="button" onClick={() => removeContact(idx)} className="text-gray-500 hover:text-red-400" aria-label="Remove contact">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2.5">
+                                            <input type="text" value={c.name} onChange={e => updateContact(idx, 'name', e.target.value)} className={inp} placeholder="Name (e.g. Rahul)" />
+                                            <input type="text" value={c.role} onChange={e => updateContact(idx, 'role', e.target.value)} className={inp} placeholder="Role (e.g. Trek Lead)" />
+                                        </div>
+                                        <input type="tel" value={c.phone} onChange={e => updateContact(idx, 'phone', e.target.value)} className={inp} placeholder="Phone (+91 98765 43210)" />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Fitness Requirements</label><input type="text" value={form.fitnessRequirements} onChange={e => set('fitnessRequirements', e.target.value)} className={inp} /></div>
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Age Restrictions</label><input type="text" value={form.ageRestrictions} onChange={e => set('ageRestrictions', e.target.value)} className={inp} placeholder="e.g. 18–55 years" /></div>
@@ -376,8 +414,6 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Fee (₹)</label><input type="number" min="0" value={form.registrationFee} onChange={e => set('registrationFee', e.target.value)} className={inp} /></div>
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Max Participants</label><input type="number" min="0" value={form.maxParticipants} onChange={e => set('maxParticipants', e.target.value)} className={inp} placeholder="0 = unlimited" /></div>
                     </div>
-
-                    <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Link</label><input type="url" value={form.registrationLink} onChange={e => set('registrationLink', e.target.value)} className={inp} placeholder="https://..." /></div>
 
                     <TrekFilterTagsEditor
                         trekFilters={form.trekFilters || emptyTrekFilters()}
@@ -464,7 +500,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         </label>
                     </div>
 
-                    {/* ── Registration / Booking Form ── */}
+                    {/* ── Registration / Booking Form (status + type like fests) ── */}
                     <div className="border border-[#0ECCEE]/20 rounded-xl overflow-hidden">
                         <div className="flex items-center justify-between px-4 py-3 bg-[#0ECCEE]/5 border-b border-[#0ECCEE]/15">
                             <div>
@@ -475,6 +511,42 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         </div>
 
                         <div className="p-4 space-y-4">
+                            {/* Registration status + type — same as the fests/events form */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">Registration Status</label>
+                                    <select
+                                        value={form.registration?.status || 'open'}
+                                        onChange={e => set('registration', { ...form.registration, status: e.target.value })}
+                                        className={inp}
+                                    >
+                                        <option value="open">Open</option>
+                                        <option value="closed">Closed</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">Registration Type</label>
+                                    <select
+                                        value={form.registration?.mode || 'internal_form'}
+                                        onChange={e => set('registration', { ...form.registration, mode: e.target.value })}
+                                        className={inp}
+                                    >
+                                        <option value="internal_form">Internal Form (in-app booking + payment)</option>
+                                        <option value="external_link">External Link</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {(form.registration?.mode || 'internal_form') === 'external_link' ? (
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">External Link</label>
+                                    <input type="url" value={form.registrationLink || ''}
+                                        onChange={e => set('registrationLink', e.target.value)}
+                                        className={inp} placeholder="WhatsApp / website / form link — https://..." />
+                                    <p className="text-[10px] text-gray-600 mt-1">The “Book Now” button opens this link in a new tab (WhatsApp, website, Google Form, anything).</p>
+                                </div>
+                            ) : (
+                            <>
                             {/* ── Step 1 config ── */}
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Step 1 — Date · Time · People</p>
 
@@ -594,6 +666,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 <textarea rows={2} value={form.registration?.formInstructions||''} placeholder="e.g. Bring original ID proof on trek day."
                                     onChange={e=>set('registration',{...form.registration,formInstructions:e.target.value})} className={`${inp} resize-none`} />
                             </div>
+                            </>
+                            )}
                         </div>
                     </div>
 

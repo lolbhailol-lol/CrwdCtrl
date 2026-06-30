@@ -5,6 +5,7 @@ const Competition = require('../model/competition_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
 const EventShow = require('../model/event_show_model');
+const SportsEvent = require('../model/sports_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const {
@@ -316,6 +317,151 @@ exports.createTrekOrder = async (req, res) => {
     });
   } catch (err) {
     respondCashfreeError(res, err, 'Failed to create trek payment order');
+  }
+};
+
+// POST /api/payment/sports-order — guest-friendly; price computed server-side only
+exports.createSportsOrder = async (req, res) => {
+  try {
+    const {
+      eventId,
+      eventName = 'Run Booking',
+      people = 1,
+      currency = 'INR',
+      customerName,
+      customerEmail,
+      customerPhone,
+    } = req.body;
+
+    if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
+      return res.status(400).json({ success: false, message: 'Valid eventId is required' });
+    }
+
+    const email = String(customerEmail || '').trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Valid customerEmail is required' });
+    }
+
+    const event = await SportsEvent.findOne({ _id: eventId, status: 'published' }).select(
+      'title registrationFee registration maxParticipants'
+    );
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Run not found or not published' });
+    }
+
+    const ticketPricePerPerson = Number(event.registrationFee) || 0;
+    if (ticketPricePerPerson <= 0) {
+      return res.status(400).json({ success: false, message: 'This run does not require payment' });
+    }
+
+    const peopleCount = Math.max(1, Number(people) || 1);
+    const maxPeople = event.registration?.maxPeoplePerBooking || event.maxParticipants || 10;
+    if (peopleCount > maxPeople) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum ${maxPeople} people allowed per booking`,
+      });
+    }
+
+    // Security: ignore client-supplied amount — server is source of truth
+    const baseTicketTotal = ticketPricePerPerson * peopleCount;
+    const { platformFee, totalAmount } = buildPriceBreakdown(baseTicketTotal);
+    const resolvedName = event.title || eventName || 'Run Booking';
+
+    const order = await createCashfreeOrder({
+      orderAmount: totalAmount,
+      currency,
+      customerDetails: {
+        customerId: `sports_guest_${eventId}`,
+        customerName: customerName || 'Run Guest',
+        customerEmail: email,
+        customerPhone,
+      },
+      orderNote: resolvedName,
+      orderTags: {
+        entityType: 'sports',
+        eventId: String(eventId),
+        eventName: resolvedName,
+        people: String(peopleCount),
+        ticketPrice: String(ticketPricePerPerson),
+        platformFee: String(platformFee),
+        totalAmount: String(totalAmount),
+      },
+    });
+
+    await PaymentOrder.create({
+      orderId: order.order_id,
+      entityType: 'sports',
+      entityId: event._id,
+      userId: req.user?.userId || null,
+      ticketPrice: ticketPricePerPerson,
+      platformFee,
+      totalAmount,
+      people: peopleCount,
+      currency,
+      status: 'PENDING',
+      orderTags: {
+        eventId: String(eventId),
+        people: String(peopleCount),
+        totalAmount: String(totalAmount),
+      },
+      customerEmail: email,
+    });
+
+    res.json({
+      orderId: order.order_id,
+      paymentSessionId: order.payment_session_id,
+      cashfreeMode: getCashfreeClientMode(),
+      amount: order.order_amount,
+      currency: order.order_currency,
+      ticketPrice: ticketPricePerPerson,
+      platformFee,
+      totalAmount,
+    });
+  } catch (err) {
+    respondCashfreeError(res, err, 'Failed to create run payment order');
+  }
+};
+
+// POST /api/payment/sports-verify
+exports.verifySportsPayment = async (req, res) => {
+  try {
+    const { orderId, paymentId } = extractPaymentFields(req.body);
+    if (!orderId) {
+      return res.status(400).json({ verified: false, message: 'Missing order ID' });
+    }
+
+    const result = await verifyCashfreePayment({ orderId, paymentId });
+    if (!result.verified) {
+      return res.status(400).json({ verified: false, message: result.message || 'Payment verification failed' });
+    }
+
+    const paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
+    let paymentProof = null;
+    if (paymentOrder && paymentOrder.entityType === 'sports') {
+      await PaymentOrder.updateOne(
+        { orderId },
+        { status: 'PAID', paymentId: result.paymentId }
+      );
+      paymentProof = signPaymentProof({
+        orderId: result.orderId,
+        paymentId: result.paymentId,
+        eventId: paymentOrder.entityId,
+        totalAmount: paymentOrder.totalAmount,
+        people: paymentOrder.people,
+      });
+    }
+
+    res.json({
+      verified: true,
+      payment_order_id: result.orderId,
+      payment_id: result.paymentId,
+      totalAmount: paymentOrder?.totalAmount,
+      paymentProof,
+    });
+  } catch (err) {
+    res.status(500).json({ verified: false, message: 'Verification error' });
   }
 };
 

@@ -3,6 +3,7 @@ const CategoryRegistration = require('../model/category_registration_model');
 const SportsEvent = require('../model/sports_model');
 const Trek = require('../model/trek_model');
 const EventShow = require('../model/event_show_model');
+const { verifySportsBookingPayment } = require('../utils/sportsPaymentVerification');
 
 const MODEL_MAP = {
     sports: SportsEvent,
@@ -30,6 +31,10 @@ exports.registerForEvent = async (req, res) => {
             return res.status(404).json({ message: `${category} event not found` });
         }
 
+        if (event.registration?.status === 'closed') {
+            return res.status(400).json({ message: 'Registration is currently closed for this event' });
+        }
+
         const userId = req.user?.userId || req.user?._id;
         if (!userId) {
             return res.status(401).json({ message: 'Authentication required' });
@@ -45,12 +50,42 @@ exports.registerForEvent = async (req, res) => {
             return res.status(409).json({ message: 'You are already registered for this event' });
         }
 
+        const responses = req.body.responses || req.body.formData || {};
+        const bookingDetails = req.body.bookingDetails || {};
+        const registrationFee = Number(event.registrationFee) || 0;
+
+        // Paid runs: re-verify the Cashfree payment server-side before confirming.
+        let paymentStatus = 'free';
+        let amountPaid = 0;
+        let paymentOrderId = bookingDetails.payment_order_id || bookingDetails.paymentOrderId || null;
+        let paymentId = bookingDetails.paymentId || null;
+
+        if (registrationFee > 0) {
+            const people = Math.max(1, Number(bookingDetails.people) || 1);
+            const check = await verifySportsBookingPayment({
+                event,
+                people,
+                paymentOrderId,
+                paymentId,
+            });
+            if (!check.ok) {
+                return res.status(check.status || 400).json({ message: check.message });
+            }
+            paymentStatus = 'paid';
+            amountPaid = check.amountPaid;
+            paymentId = check.paymentId;
+        }
+
         const registration = new CategoryRegistration({
             category,
             eventId,
             user: userId,
-            responses: req.body.responses || {},
-            paymentStatus: 'free',
+            responses,
+            paymentStatus,
+            amountPaid,
+            payment_order_id: paymentOrderId || null,
+            payment_id: paymentId || null,
+            payment_gateway: registrationFee > 0 ? 'cashfree' : null,
             status: 'confirmed',
         });
 

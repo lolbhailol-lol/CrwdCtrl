@@ -28,11 +28,13 @@ export function scheduleTicketOrBookings(navigate, regId, delayMs = BOOKING_REDI
 
 /**
  * Verify Cashfree payment with short retries (webhook / redirect lag).
- * @param {'fest'|'trek'} kind
+ * @param {'fest'|'trek'|'sports'} kind
  */
 export async function verifyPaymentWithRetry(apiBase, orderId, { token = null, kind = 'fest' } = {}) {
   const endpoint =
-    kind === 'trek' ? `${apiBase}/payment/trek-verify` : `${apiBase}/payment/verify`;
+    kind === 'trek' ? `${apiBase}/payment/trek-verify`
+    : kind === 'sports' ? `${apiBase}/payment/sports-verify`
+    : `${apiBase}/payment/verify`;
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
 

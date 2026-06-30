@@ -32,6 +32,19 @@ const sportsEventSchema = new mongoose.Schema(
         distance: { type: String, trim: true, default: '' },
         coverImage: { type: String, trim: true, default: '' },
         inclusions: { type: [String], default: [] },
+        /** Event-detail cards shown in the "Details" tab of the Run Info widget */
+        returnTime: { type: String, trim: true, default: '' },
+        fitnessLevel: { type: String, trim: true, default: '' },
+        meetingPoint: { type: String, trim: true, default: '' },
+        ageLimit: { type: String, trim: true, default: '' },
+        /** Repeatable info cards (title + details) shown in the Run Info widget */
+        infoSections: {
+            type: [{
+                title:   { type: String, trim: true, default: '' },
+                details: { type: String, trim: true, default: '' },
+            }],
+            default: [],
+        },
         termsAndConditions: { type: [String], default: [] },
         contactPhone: { type: String, trim: true, default: '' },
         contactInstagram: { type: String, trim: true, default: '' },
@@ -68,7 +81,26 @@ const sportsEventSchema = new mongoose.Schema(
         },
 
         registration: {
+            /** Whether registration is currently accepting bookings */
+            status: { type: String, enum: ['open', 'closed'], default: 'open' },
+            /** How users register: in-app form, or an external link */
+            mode: { type: String, enum: ['internal_form', 'external_link'], default: 'internal_form' },
             googleSheetsUrl: { type: String, default: '' },
+            organizerEmail: { type: String, default: '' },
+            formInstructions: { type: String, default: '' },
+            availableDates: { type: [String], default: [] },
+            timeSlots: { type: [String], default: [] },
+            locationOptions: { type: [String], default: [] },
+            maxPeoplePerBooking: { type: Number, default: 10 },
+            formSchema: [{
+                id:          String,
+                label:       String,
+                fieldName:   String,
+                type:        { type: String, enum: ['text','email','tel','number','textarea','select','file','date'], default: 'text' },
+                required:    { type: Boolean, default: false },
+                options:     [String],
+                placeholder: String,
+            }],
         },
 
         /** Volunteer scanner login — event code + password → scan-only access (run clubs & sports events) */

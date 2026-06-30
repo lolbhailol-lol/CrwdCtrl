@@ -15,7 +15,6 @@ import {
     AnimatedCounter,
     ScrollProgress,
     ScrollReveal,
-    StickyCta,
 } from '../../motion';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
@@ -79,6 +78,7 @@ const normalizeRunClub = (raw) => {
         contactPhone: raw.contactPhone || '',
         contactInstagram: raw.contactInstagram || '',
         registrationLink: raw.registrationLink || '',
+        registration: raw.registration && typeof raw.registration === 'object' ? raw.registration : {},
     };
 };
 
@@ -145,7 +145,8 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
 function RunCard({ run, isDark, isFav, onFav, onClick }) {
     return (
         <AnimatedCard
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer"
+            enableHover={false}
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
             onClick={onClick}
         >
             <div className="card-portrait-image">
@@ -154,6 +155,8 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
                         src={getImageUrl(run.image, { preset: 'cardLg' })}
                         alt={run.title}
                         className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#14532d', run.title)}
                     />
                 ) : (
@@ -296,7 +299,7 @@ export default function RunClubDetailPage() {
     const canonicalPath = `/sports/run-club/${id || club?._id || club?.id}`;
 
     return (
-        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-24">
+        <div className="crwdctrl-page flex flex-col min-h-screen pb-24" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
             <Seo
                 title={`${name} — Running Club`}
                 description={description}
@@ -319,13 +322,17 @@ export default function RunClubDetailPage() {
                 ]}
             />
             <ScrollProgress />
+            <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
             {/* ── Cover image carousel (full width, 396px tall — matches trek community page) ── */}
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                    onScroll={(e) => setImgPg(Math.round(e.target.scrollLeft / e.target.clientWidth))}
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+                    onScroll={(e) => {
+                        const p = Math.round(e.target.scrollLeft / e.target.clientWidth);
+                        setImgPg((prev) => (prev === p ? prev : p));
+                    }}
                 >
                     <div className="flex h-full">
                         {heroImages.map((img, i) => (
@@ -335,6 +342,9 @@ export default function RunClubDetailPage() {
                                         src={getImageUrl(img, { preset: 'hero' })}
                                         alt={name}
                                         className="w-full h-full object-cover"
+                                        loading={i === 0 ? 'eager' : 'lazy'}
+                                        fetchPriority={i === 0 ? 'high' : 'auto'}
+                                        decoding="async"
                                         onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#14532d', name)}
                                     />
                                 ) : (
@@ -354,7 +364,7 @@ export default function RunClubDetailPage() {
                     ].map((stat) => (
                         <div
                             key={stat.label}
-                            className="rounded-2xl bg-black/45 backdrop-blur-md px-3 py-2 border border-white/10"
+                            className="rounded-2xl bg-black/50 px-3 py-2 border border-white/10"
                         >
                             <p className="text-white text-lg font-bold leading-none">
                                 <AnimatedCounter value={stat.value} />
@@ -372,7 +382,7 @@ export default function RunClubDetailPage() {
                         type="button"
                         onClick={() => navigate(-1)}
                         aria-label="Go back"
-                        className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                        className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                     >
                         <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
@@ -381,7 +391,7 @@ export default function RunClubDetailPage() {
                             type="button"
                             onClick={handleShare}
                             aria-label="Share"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                         >
                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
@@ -389,7 +399,7 @@ export default function RunClubDetailPage() {
                             type="button"
                             onClick={() => setLiked((l) => !l)}
                             aria-label="Favourite"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                         >
                             <Heart
                                 size={20}
@@ -636,26 +646,49 @@ export default function RunClubDetailPage() {
                     )}
                 </ScrollReveal>
             </div>
+            </div>
 
-            <StickyCta>
-                <div className={`px-4 py-3 border-t ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (club?.registrationLink) {
-                                openExternalUrl(club.registrationLink);
-                            } else if (filteredRuns[0]) {
-                                handleRunClick(filteredRuns[0]);
-                            } else if (club?.contactPhone) {
-                                window.location.href = `tel:${club.contactPhone}`;
-                            }
-                        }}
-                        className="w-full py-3 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-[0.98] transition-transform"
-                    >
-                        Join Run Club
-                    </button>
+            <div
+                className="fixed bottom-0 left-0 right-0 z-50 px-2"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
+            >
+                <div className={`mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-3 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                    {(() => {
+                        const closed = club?.registration?.status === 'closed';
+                        const extLink = club?.registration?.mode === 'external_link'
+                            ? club?.registrationLink
+                            : null;
+                        if (closed) {
+                            return (
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="w-full flex items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                                >
+                                    Registration Closed
+                                </button>
+                            );
+                        }
+                        return (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (extLink) {
+                                        openExternalUrl(extLink);
+                                    } else if (filteredRuns[0]) {
+                                        handleRunClick(filteredRuns[0]);
+                                    } else if (club?.contactPhone) {
+                                        window.location.href = `tel:${club.contactPhone}`;
+                                    }
+                                }}
+                                className="w-full flex items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
+                            >
+                                {extLink ? 'Book Now' : 'Join Run Club'}
+                            </button>
+                        );
+                    })()}
                 </div>
-            </StickyCta>
+            </div>
 
             {galleryOpen && galleryImages.length > 0 && (
                 <GalleryLightbox

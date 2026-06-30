@@ -9,7 +9,7 @@ export default function StickyCta({ children, className = '' }) {
     if (reduced) {
         return (
             <div
-                className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 ${className}`}
+                className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md md:max-w-2xl z-50 ${className}`}
                 style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}
             >
                 {children}
@@ -19,7 +19,7 @@ export default function StickyCta({ children, className = '' }) {
 
     return (
         <motion.div
-            className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 ${className}`}
+            className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md md:max-w-2xl z-50 ${className}`}
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}
             variants={stickyCta}
             initial="hidden"

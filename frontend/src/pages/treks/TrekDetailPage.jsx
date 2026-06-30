@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, ChevronRight, Check, Backpack } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { ScrollProgress, ScrollReveal, StickyCta } from '../../motion';
+import { ScrollProgress, ScrollReveal } from '../../motion';
 import { shareContent } from '../../utils/externalLink';
 import Seo from '../../components/Seo';
+import LazyMap from '../../components/LazyMap';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 
 import { API_BASE_URL as API } from '../../services/api/client';
@@ -144,6 +145,7 @@ export default function TrekDetailPage() {
     const [activeTab, setActiveTab] = useState('Details');
     const [termsOpen, setTermsOpen] = useState(false);
     const [inclusionOpen, setInclusionOpen] = useState(false);
+    const [carryOpen, setCarryOpen] = useState(false);
     const imgRef = useRef(null);
 
     useEffect(() => {
@@ -227,7 +229,7 @@ export default function TrekDetailPage() {
     const canonicalPath = `/trek/${id || trek._id || trek.id}`;
 
     return (
-        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-28">
+        <div className="crwdctrl-page flex flex-col min-h-screen pb-28">
             <Seo
                 title={trekName}
                 description={desc}
@@ -254,19 +256,22 @@ export default function TrekDetailPage() {
             />
             <ScrollProgress />
 
+            <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
+
             {/* ── HERO IMAGE ── */}
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                    onScroll={e => setImgPg(Math.round(e.target.scrollLeft / e.target.clientWidth))}
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
+                    onScroll={e => { const p = Math.round(e.target.scrollLeft / e.target.clientWidth); setImgPg(prev => (prev === p ? prev : p)); }}
                 >
                     <div className="flex h-full">
                         {images.map((img, i) => (
                             <div key={i} className="shrink-0 w-full h-full snap-start">
                                 {img
-                                    ? <img src={getImageUrl(img, { preset: 'hero' })} alt={trek.trekName} className="w-full h-full object-cover content-image" loading="lazy" decoding="async"
+                                    ? <img src={getImageUrl(img, { preset: 'hero' })} alt={trek.trekName} className="w-full h-full object-cover content-image"
+                                        loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async"
                                         onError={e => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', trek.trekName)} />
                                     : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
                                         <span className="text-7xl opacity-40">⛰️</span>
@@ -286,18 +291,18 @@ export default function TrekDetailPage() {
                 >
                     <button onClick={() => navigate(-1)}
                         aria-label="Go back"
-                        className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                        className="size-11 rounded-full bg-black/40 flex items-center justify-center">
                         <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
                     <div className="flex items-center gap-2.5">
                         <button onClick={handleShare}
                             aria-label="Share"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center">
                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
                         <button onClick={() => setLiked(l => !l)}
                             aria-label="Favourite"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center">
                             <Heart size={20} strokeWidth={2.25} className={liked ? 'fill-red-500 text-red-500' : 'text-white'} />
                         </button>
                     </div>
@@ -314,47 +319,62 @@ export default function TrekDetailPage() {
                 )}
             </div>
 
-            {/* ── Sticky price + CTA bar ── */}
-        <StickyCta>
-            <div className={`px-4 py-2.5 flex items-center gap-4 border-t
-                ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
+            {/* ── Sticky price + CTA bar (events-style floating pill) ── */}
+        <div
+            className="fixed bottom-0 left-0 right-0 z-40 px-2"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
+        >
+            <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
 
                 {/* Price block */}
-                <div className="flex-1 min-w-0 pl-4">
+                <div className="min-w-0 shrink-0">
+                    <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
                     {Number(trek.registrationFee) > 0 ? (
-                        <>
-                            <p className={`text-[10px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Starting from</p>
-                            <div className="flex items-baseline gap-0.5">
-                                <span className={`text-base font-bold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>₹</span>
-                                <span className={`text-3xl font-extrabold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {Number(trek.registrationFee).toLocaleString('en-IN')}
-                                </span>
-                                <span className={`text-[10px] ml-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>/ person</span>
-                            </div>
-                        </>
+                        <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            ₹{Number(trek.registrationFee).toLocaleString('en-IN')}
+                        </p>
                     ) : (
-                        <div className="flex items-center gap-1.5 pl-4">
-                            <span className="text-3xl font-extrabold text-green-500 leading-none">FREE</span>
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">No charge</span>
-                        </div>
+                        <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
                     )}
                 </div>
 
-                {/* CTA button */}
-                <button
-                    onClick={() => {
-                        const trekId = id || trek._id || trek.id;
-                        navigate(`/trek/${trekId}/book`, { state: { trek } });
-                    }}
-                    className="flex items-center justify-center gap-2 w-52 py-2.5 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-95 transition-all shrink-0"
-                >
-                    Check Availability
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                </button>
+                {/* CTA button — respects registration status, then internal form / external link */}
+                {(() => {
+                    const closed = trek.registration?.status === 'closed';
+                    const extLink = trek.registration?.mode === 'external_link'
+                        ? trek.registrationLink
+                        : null;
+                    if (closed) {
+                        return (
+                            <button
+                                disabled
+                                className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                            >
+                                Registration Closed
+                            </button>
+                        );
+                    }
+                    return (
+                        <button
+                            onClick={() => {
+                                if (extLink) {
+                                    window.open(extLink, '_blank', 'noopener,noreferrer');
+                                    return;
+                                }
+                                const trekId = id || trek._id || trek.id;
+                                navigate(`/trek/${trekId}/book`, { state: { trek } });
+                            }}
+                            className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
+                        >
+                            {extLink ? 'Book Now' : 'Check Availability'}
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="m9 18 6-6-6-6"/>
+                            </svg>
+                        </button>
+                    );
+                })()}
             </div>
-        </StickyCta>
+        </div>
 
         <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}>
 
@@ -376,7 +396,7 @@ export default function TrekDetailPage() {
                         {[
                             { Icon: ClockIcon,  label: 'Trek Duration',   value: trek.trekDuration || trek.duration || '—' },
                             { Icon: ChartIcon,  label: 'Difficulty',      value: (trek.difficultyLevel || trek.difficulty || '—'), extra: 'capitalize' },
-                            { Icon: GridIcon,   label: 'Trek Style',      value: trek.trekCategory || 'Adventure Trek', extra: 'capitalize' },
+                            { Icon: GridIcon,   label: 'Trek Category',      value: trek.trekCategory || 'Adventure Trek', extra: 'capitalize' },
                         ].map((row) => (
                             <div key={row.label} className="flex items-center gap-2.5">
                                 <row.Icon size={22} />
@@ -388,22 +408,11 @@ export default function TrekDetailPage() {
                         ))}
                     </div>
 
-                    {/* Right: map + location */}
-                    <div className="flex flex-col shrink-0">
-                        <div className="w-60 h-33 rounded-2xl overflow-hidden relative">
+                    {/* Right: map + location — fixed width so the caption can't blow up the column */}
+                    <div className="w-60 shrink-0 flex flex-col">
+                        <div className="w-full h-[132px] rounded-2xl overflow-hidden relative">
                             {(trek.city || trek.destination || trek.meetingLocation) ? (
-                                <>
-                                    <div className={`absolute inset-0 animate-pulse ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-200'}`} />
-                                    <iframe
-                                        title="trek-location"
-                                        src={`https://maps.google.com/maps?q=${encodeURIComponent(trek.city || trek.destination || trek.meetingLocation)}&output=embed&zoom=11`}
-                                        width="100%"
-                                        height="100%"
-                                        style={{ border: 0, display: 'block', position: 'relative' }}
-                                        loading="eager"
-                                        referrerPolicy="no-referrer-when-downgrade"
-                                    />
-                                </>
+                                <LazyMap query={trek.city || trek.destination || trek.meetingLocation} isDark={isDark} />
                             ) : (
                                 <div className="w-full h-full bg-linear-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
                                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
@@ -438,7 +447,6 @@ export default function TrekDetailPage() {
                         )}
                     </p>
                 </ScrollReveal>
-
 
                 {/* ── Trek Info Tabs ── */}
                 <ScrollReveal className="px-4 mb-5" delay={0.1}>
@@ -488,63 +496,118 @@ export default function TrekDetailPage() {
 
                                 {/* Experience Included — full width expandable */}
                                 {trek.inclusions?.length > 0 && (
-                                    <button onClick={() => setInclusionOpen(o => !o)} className={`w-full rounded-2xl p-3 border text-left ${isDark ? 'bg-[#111213] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <ListIcon />
-                                                <div>
-                                                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Experience Included</p>
-                                                    <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                        {inclusionOpen ? trek.inclusions.join(', ') : trek.inclusions.slice(0, 2).join(', ')}
-                                                        {!inclusionOpen && trek.inclusions.length > 2 && '…'}
-                                                    </p>
+                                    <div>
+                                        <button
+                                            onClick={() => setInclusionOpen(o => !o)}
+                                            className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${isDark ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]' : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-[#0ECCEE]/10'}`}>
+                                                    <Check size={18} className="text-[#0ECCEE]" strokeWidth={3} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Experience Included</p>
+                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{trek.inclusions.length} items — tap to {inclusionOpen ? 'collapse' : 'view'}</p>
                                                 </div>
                                             </div>
-                                            <ChevronRight size={16} className={`shrink-0 transition-transform ${inclusionOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                                        </div>
-                                    </button>
+                                            <ChevronRight size={16} className={`transition-transform duration-200 shrink-0 ${inclusionOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                        </button>
+                                        {inclusionOpen && (
+                                            <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                                {trek.inclusions.map((item, i) => (
+                                                    <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i < trek.inclusions.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}>
+                                                        <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-[#0ECCEE]/10'}`}>
+                                                            <Check size={12} className="text-[#0ECCEE]" strokeWidth={3} />
+                                                        </span>
+                                                        <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{String(item).replace(/^[-•\s]+/, '')}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
 
                                 {trek.thingsToCarry?.length > 0 && (
-                                    <div className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <UserCardIcon />
-                                            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Things to Carry</p>
-                                        </div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {trek.thingsToCarry.map((t, i) => (
-                                                <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-[#111213] text-gray-300' : 'bg-white text-gray-700 border border-gray-200'}`}>{t}</span>
-                                            ))}
-                                        </div>
+                                    <div>
+                                        <button
+                                            onClick={() => setCarryOpen(o => !o)}
+                                            className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${isDark ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]' : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-emerald-500/10'}`}>
+                                                    <Backpack size={18} className="text-emerald-500" strokeWidth={2.25} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Things to Carry</p>
+                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{trek.thingsToCarry.length} items — tap to {carryOpen ? 'collapse' : 'view'}</p>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={16} className={`transition-transform duration-200 shrink-0 ${carryOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                        </button>
+                                        {carryOpen && (
+                                            <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                                {trek.thingsToCarry.map((t, i) => (
+                                                    <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i < trek.thingsToCarry.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}>
+                                                        <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-emerald-500/10'}`}>
+                                                            <Check size={12} className="text-emerald-500" strokeWidth={3} />
+                                                        </span>
+                                                        <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{String(t).replace(/^[-•\s]+/, '')}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         )}
                         {activeTab === 'Schedule' && (
                             trek.itinerary?.length > 0
-                                ? <div className="space-y-2">{trek.itinerary.map((day, i) => (
-                                                    <div key={i} className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
-                                        <p className="text-xs font-bold text-[#0ECCEE] mb-0.5">Day {day.day || i + 1}</p>
-                                        <p className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{day.title}</p>
-                                        {day.description && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{day.description}</p>}
-                                    </div>
-                                ))}</div>
+                                ? <div className="space-y-3">{trek.itinerary.map((day, i) => {
+                                    const lines = String(day.description || '')
+                                        .split(/\n|•|·|;/)
+                                        .map(s => s.replace(/^[-*\s]+/, '').trim())
+                                        .filter(Boolean);
+                                    return (
+                                        <div key={i} className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#0ECCEE] mb-0.5">Day {day.day || i + 1}</p>
+                                            {day.title && <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{day.title}</p>}
+                                            {lines.length > 1 ? (
+                                                <ul className="mt-1.5 space-y-1.5">
+                                                    {lines.map((ln, j) => (
+                                                        <li key={j} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                            <span className="mt-[5px] size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                                                            <span>{ln}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : lines.length === 1 ? (
+                                                <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{lines[0]}</p>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}</div>
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No schedule added yet.</p>
                         )}
                         {activeTab === 'Inclusion' && (
                             trek.inclusions?.length > 0
-                                ? <ul className="space-y-2">{trek.inclusions.map((item, i) => (
-                                    <li key={i} className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        <span className="size-1.5 rounded-full bg-green-400 shrink-0" />{item}
-                                    </li>))}</ul>
+                                ? <div className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
+                                    <ul className="space-y-1.5">{trek.inclusions.map((item, i) => (
+                                        <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            <span className="mt-[5px] size-1.5 rounded-full bg-green-400 shrink-0" />
+                                            <span>{String(item).replace(/^[-*•\s]+/, '')}</span>
+                                        </li>))}</ul>
+                                </div>
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No inclusions listed.</p>
                         )}
                         {activeTab === 'Exclusion' && (
                             trek.exclusions?.length > 0
-                                ? <ul className="space-y-2">{trek.exclusions.map((item, i) => (
-                                    <li key={i} className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        <span className="size-1.5 rounded-full bg-red-400 shrink-0" />{item}
-                                    </li>))}</ul>
+                                ? <div className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
+                                    <ul className="space-y-1.5">{trek.exclusions.map((item, i) => (
+                                        <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            <span className="mt-[5px] size-1.5 rounded-full bg-red-400 shrink-0" />
+                                            <span>{String(item).replace(/^[-*•\s]+/, '')}</span>
+                                        </li>))}</ul>
+                                </div>
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No exclusions listed.</p>
                         )}
                     </div>
@@ -645,8 +708,28 @@ export default function TrekDetailPage() {
                                 </a>
                             );
                         })()}
+                        {/* People to contact (per-trek) */}
+                        {(Array.isArray(trek.contacts) ? trek.contacts : [])
+                            .filter(c => c && (c.name || c.role || c.phone))
+                            .map((c, i) => (
+                                <a key={`${c.phone || c.name}-${i}`} href={c.phone ? `tel:${c.phone}` : undefined}
+                                    className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center shrink-0">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
+                                            <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                                        </svg>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            {c.name || 'Contact'}{c.role ? ` · ${c.role}` : ''}
+                                        </p>
+                                        <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.phone || 'Not set'}</p>
+                                    </div>
+                                </a>
+                            ))}
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     );
