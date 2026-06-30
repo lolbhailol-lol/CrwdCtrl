@@ -280,7 +280,7 @@ export default function CommunityDetailPage() {
     const canonicalPath = `/treks/community/${id || community?._id || community?.id}`;
 
     return (
-        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-24">
+        <div className="crwdctrl-page flex flex-col min-h-screen pb-24">
             <Seo
                 title={`${name} — Trek Community`}
                 description={description}
@@ -303,6 +303,8 @@ export default function CommunityDetailPage() {
                 ]}
             />
 
+            {/* Full-bleed on phones, centered & aligned with content on larger screens (matches events) */}
+            <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
             <ImmersiveHero
                 imageSrc={image ? getImageUrl(image, { preset: 'hero' }) : null}
                 imageAlt={name}
@@ -599,6 +601,7 @@ export default function CommunityDetailPage() {
                     )}
                 </ScrollReveal>
 
+            </div>
             </div>
 
             <StickyCta>

@@ -1,9 +1,6 @@
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { useMotionSafe } from '../utils';
-import { parallaxImage } from '../variants';
-
 /**
- * Full-width hero with gradient overlay and optional parallax on scroll.
+ * Full-width hero with a gradient overlay. Static, full-bleed image (object-cover)
+ * so it always covers edge-to-edge with no scroll-linked movement/gaps.
  */
 export default function ImmersiveHero({
     imageSrc,
@@ -15,34 +12,15 @@ export default function ImmersiveHero({
     onImageError,
     className = '',
 }) {
-    const { reduced } = useMotionSafe();
-    const { scrollY } = useScroll();
-    const y = useTransform(scrollY, [0, 400], [0, reduced ? 0 : 48]);
-    const scale = useTransform(scrollY, [0, 400], [1, reduced ? 1 : 1.06]);
-
     return (
         <div className={`relative w-full shrink-0 overflow-hidden ${className}`} style={{ height }}>
             {imageSrc ? (
-                reduced ? (
-                    <img
-                        src={imageSrc}
-                        alt={imageAlt}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        onError={onImageError}
-                    />
-                ) : (
-                    <motion.div className="absolute -inset-y-16 inset-x-0" style={{ y, scale }}>
-                        <motion.img
-                            src={imageSrc}
-                            alt={imageAlt}
-                            className="w-full h-full object-cover"
-                            variants={parallaxImage}
-                            initial="hidden"
-                            animate="visible"
-                            onError={onImageError}
-                        />
-                    </motion.div>
-                )
+                <img
+                    src={imageSrc}
+                    alt={imageAlt}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={onImageError}
+                />
             ) : (
                 fallback
             )}
