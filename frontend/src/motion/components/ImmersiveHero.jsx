@@ -31,7 +31,7 @@ export default function ImmersiveHero({
                         onError={onImageError}
                     />
                 ) : (
-                    <motion.div className="absolute inset-0" style={{ y, scale }}>
+                    <motion.div className="absolute -inset-y-16 inset-x-0" style={{ y, scale }}>
                         <motion.img
                             src={imageSrc}
                             alt={imageAlt}

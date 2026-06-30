@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock } from 'lucide-react';
+import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock, Wifi, ImageOff } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import ShareIcon from '../../assets/share.svg';
 import AppLogo from '../../components/AppLogo';
@@ -68,7 +68,7 @@ if (import.meta.env.DEV) {
     });
 }
 
-// âœ… Auto-retry error component â€” automatically retries after 5 seconds
+// Auto-retry error component  automatically retries after 5 seconds
 const AutoRetryError = React.memo(({ isDark, onRetry }) => {
     const [countdown, setCountdown] = useState(5);
     const [isRetrying, setIsRetrying] = useState(false);
@@ -86,7 +86,11 @@ const AutoRetryError = React.memo(({ isDark, onRetry }) => {
 
     return (
         <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#111213]' : 'bg-gray-100'}`}>
-            <div className="text-4xl mb-3">{isRetrying ? 'â³' : 'ðŸ“¡'}</div>
+            <div className="flex justify-center mb-3">
+                {isRetrying
+                    ? <Loader2 className="w-9 h-9 text-cyan-500 animate-spin" />
+                    : <Wifi className="w-9 h-9 text-gray-400" />}
+            </div>
             <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
                 {isRetrying ? 'Loading events...' : 'Connecting to server...'}
             </p>
@@ -111,13 +115,13 @@ const AutoRetryError = React.memo(({ isDark, onRetry }) => {
     );
 });
 
-// âœ… Frontend caching system for better Cloud Run performance
+// Frontend caching system for better Cloud Run performance
 const CACHE_KEYS = {
     FESTS_LIST: 'crwdctrl_fests_cache',
     FESTS_TIMESTAMP: 'crwdctrl_fests_timestamp'
 };
 
-const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes — admin changes reflect quickly
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes  admin changes reflect quickly
 
 // Helper functions for localStorage caching
 const getCachedData = (key) => {
@@ -134,7 +138,7 @@ const setCachedData = (key, data) => {
     try {
         localStorage.setItem(key, JSON.stringify(data));
         localStorage.setItem(CACHE_KEYS.FESTS_TIMESTAMP, Date.now().toString());
-        console.log('ðŸ’¾ Cached fests data to localStorage');
+        console.log('Cached fests data to localStorage');
     } catch (error) {
         console.error('Error setting cache:', error);
     }
@@ -157,7 +161,7 @@ const clearCache = () => {
     try {
         localStorage.removeItem(CACHE_KEYS.FESTS_LIST);
         localStorage.removeItem(CACHE_KEYS.FESTS_TIMESTAMP);
-        console.log('ðŸ—‘ï¸ Cleared fests cache');
+        console.log('Cleared fests cache');
     } catch (error) {
         console.error('Error clearing cache:', error);
     }
@@ -219,7 +223,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                 {imageError ? (
                     <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
                         <div className="text-center">
-                            <div className={`text-4xl mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>ðŸŽ­</div>
+                            <ImageOff className={`w-9 h-9 mx-auto mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Image unavailable</p>
                         </div>
                     </div>
@@ -285,7 +289,6 @@ const Dashboard = () => {
     const { isAuthenticated, isAuthProcessing, isLoading, isRedirectProcessing } = useAuth();
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    const [error] = useState(null);
     const [fests, setFests] = useState(readInitialFestsFromCache);
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
     usePageContentLoading(isFestsLoading);
@@ -306,6 +309,8 @@ const Dashboard = () => {
     // have settled. Carousels wait for this so the centered priority card doesn't
     // change as later sources stream in (no "wrong card briefly in center" flash).
     const [homeAuxLoaded, setHomeAuxLoaded] = useState(false);
+    // Admin-customisable headings for the fixed home carousels (fallback to defaults).
+    const [sectionLabels, setSectionLabels] = useState({ ongoing: 'Ongoing Events', happening: 'Happening near you' });
     const [festError, setFestError] = useState(null);
     const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
     const [currentLocation, setCurrentLocation] = useState({
@@ -357,15 +362,15 @@ const Dashboard = () => {
         }).catch(() => {});
     }, []);
 
-    // Function to force refresh data (clear cache and fetch fresh) — retries for cold starts
+    // Function to force refresh data (clear cache and fetch fresh)  retries for cold starts
     const forceRefreshData = useCallback(() => {
-        console.log('ðŸ”„ Force refreshing dashboard data...');
+        console.log('Force refreshing dashboard data...');
         clearCache();
         clearSearchKeywordsCache();
         setFestError(null);
         refreshTreksAndComms();
 
-        // Keep showing current cards while refreshing — avoid loading flash (log evidence: hypothesis B)
+        // Keep showing current cards while refreshing  avoid loading flash (log evidence: hypothesis B)
         setFests((current) => {
             if (current.length === 0) setIsFestsLoading(true);
             return current;
@@ -390,12 +395,12 @@ const Dashboard = () => {
                 }
                 
                 setIsFestsLoading(false);
-                console.log('âœ… Dashboard data refreshed successfully');
+                console.log('Dashboard data refreshed successfully');
             } catch (error) {
-                console.error(`âŒ Refresh attempt ${attempt + 1}/${maxAttempts} failed:`, error.message);
+                console.error(` Refresh attempt ${attempt + 1}/${maxAttempts} failed:`, error.message);
                 if (attempt < maxAttempts - 1) {
                     const delay = Math.min(2000 + attempt * 1500, 8000);
-                    console.log(`ðŸ”„ Retrying in ${delay}ms...`);
+                    console.log(` Retrying in ${delay}ms...`);
                     setTimeout(() => fetchFreshData(attempt + 1), delay);
                 } else {
                     setFestError('Unable to load events. Please check your connection and try again.');
@@ -410,15 +415,15 @@ const Dashboard = () => {
     useEffect(() => {
         // Handler for custom event (same-tab admin updates)
         const handleAdminFestUpdate = (e) => {
-            console.log('ðŸ“¢ Custom admin_fest_updated event received:', e.detail);
-            console.log('ðŸ”„ Admin fest updated, refreshing dashboard...');
+            console.log('Custom admin_fest_updated event received:', e.detail);
+            console.log('Admin fest updated, refreshing dashboard...');
             forceRefreshData();
         };
 
         // Handler for storage event (cross-tab admin updates)
         const handleAdminChanges = (e) => {
             if (e.key === 'admin_data_updated' && e.newValue) {
-                console.log('ðŸ”„ Admin data change detected via storage event, refreshing dashboard...');
+                console.log('Admin data change detected via storage event, refreshing dashboard...');
                 forceRefreshData();
                 // Clear the flag
                 localStorage.removeItem('admin_data_updated');
@@ -464,7 +469,7 @@ const Dashboard = () => {
                     return true;
                 }
             } catch (error) {
-                console.error('âŒ Dashboard - Error reading stored location:', error);
+                console.error('Dashboard - Error reading stored location:', error);
             }
             return false;
         };
@@ -495,7 +500,7 @@ const Dashboard = () => {
                         hasPermission: true
                     }));
                 } catch (error) {
-                    console.error('âŒ Dashboard - Error parsing updated location:', error);
+                    console.error('Dashboard - Error parsing updated location:', error);
                 }
             }
         };
@@ -515,60 +520,87 @@ const Dashboard = () => {
         setShowRegister(false);
     };
 
-    // Fetch fests from backend API â€” starts immediately, retries aggressively for Railway cold starts
+    // Load the homepage feed. Primary path is a single aggregated /home request;
+    // it falls back to the resilient per-source fetches (with cold-start retries)
+    // if the aggregate is unavailable, so the home page can never be worse off.
     useEffect(() => {
         let cancelled = false;
 
+        // If an admin change is pending, drop the stale cache so we never paint
+        // an old card order on this fresh load.
+        if (hasPendingAdminUpdate()) {
+            clearCache();
+            try { localStorage.removeItem('admin_data_updated'); } catch (_) { /* ignore */ }
+        }
+
+        // Show cached fests immediately for a fast paint ONLY if still fresh.
+        const cachedFests = getCachedData(CACHE_KEYS.FESTS_LIST);
+        const hadFreshCache = Array.isArray(cachedFests) && cachedFests.length > 0 && isCacheValid();
+        if (hadFreshCache) {
+            setFests(cachedFests);
+            setIsFestsLoading(false);
+        }
+
+        // Device-aware timeout for the resilient fallback fetches.
+        const userAgent = navigator.userAgent || '';
+        const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+        const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
+        const baseTimeout = import.meta.env.VITE_API_TIMEOUT
+            ? parseInt(import.meta.env.VITE_API_TIMEOUT)
+            : (isIOS || isSafari) ? 20000 : 15000;
+
+        const applyAux = (d) => {
+            setHomeCommunities(Array.isArray(d.communities) ? d.communities : []);
+            setHomeTreks(Array.isArray(d.treks) ? d.treks : []);
+            setHomeSports(Array.isArray(d.sports) ? d.sports : []);
+            setHomeRunClubs(Array.isArray(d.runClubs) ? d.runClubs : []);
+            setHomeEventShows(Array.isArray(d.eventShows) ? d.eventShows : []);
+            if (d.sectionLabels && typeof d.sectionLabels === 'object') {
+                setSectionLabels((prev) => ({ ...prev, ...d.sectionLabels }));
+            }
+        };
+
+        // Primary: one aggregated request. Single-shot with a short timeout so a
+        // cold backend fails fast to the resilient path (avoids a double wait).
+        const tryAggregate = async () => {
+            try {
+                const res = await fetchJSON(`/home?_cb=${Date.now()}`, { timeout: 8000, retries: 0 });
+                const d = res?.data;
+                if (!d || d.success !== true || !Array.isArray(d.fests)) return false;
+                if (cancelled) return true;
+                if (d.fests.length > 0) setCachedData(CACHE_KEYS.FESTS_LIST, d.fests);
+                setFests(d.fests);
+                setFestError(null);
+                setIsFestsLoading(false);
+                applyAux(d);
+                setHomeAuxLoaded(true);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        };
+
+        // Fallback: original fests fetch with aggressive cold-start retries.
         const fetchFests = async () => {
             const maxRetries = 10; // Enough retries to cover a full Railway cold start (~60s)
-            
-            // If an admin change is pending, drop the stale cache so we never paint
-            // an old card order on this fresh load.
-            if (hasPendingAdminUpdate()) {
-                clearCache();
-                try { localStorage.removeItem('admin_data_updated'); } catch (_) { /* ignore */ }
-            }
-
-            // âœ… Show cached data immediately for fast paint ONLY if it is still fresh,
-            // then ALWAYS continue to fetch fresh below. Stale cache is skipped so the
-            // card order never "jumps" from an old order to the current one.
-            const cachedFests = getCachedData(CACHE_KEYS.FESTS_LIST);
-            if (cachedFests && Array.isArray(cachedFests) && cachedFests.length > 0 && isCacheValid()) {
-                console.log('âš¡ Showing fresh cached fests while revalidating');
-                setFests(cachedFests);
-                setIsFestsLoading(false);
-            }
-
-            // Determine timeout based on device
-            const userAgent = navigator.userAgent || '';
-            const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-            const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
-            const timeout = import.meta.env.VITE_API_TIMEOUT
-                ? parseInt(import.meta.env.VITE_API_TIMEOUT)
-                : (isIOS || isSafari) ? 20000 : 15000;
-
             for (let attempt = 0; attempt < maxRetries; attempt++) {
                 if (cancelled) return;
                 try {
-                    console.log(`ðŸ”„ Fetching fests (attempt ${attempt + 1}/${maxRetries})`);
-                    const cacheBuster = Date.now();
-                    const response = await fetchJSON(`/fests/all?_cb=${cacheBuster}&priority_check=1`, { timeout });
-                    
+                    console.log(`Fetching fests (attempt ${attempt + 1}/${maxRetries})`);
+                    const response = await fetchJSON(`/fests/all?_cb=${Date.now()}&priority_check=1`, { timeout: baseTimeout });
                     if (cancelled) return;
                     const data = response.data;
                     const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-                    
                     if (festsList.length > 0) {
                         setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
                     }
-                    
                     setFests(festsList);
                     setFestError(null);
                     setIsFestsLoading(false);
-                    console.log(`âœ… Fests loaded successfully (${festsList.length} fests)`);
-                    return; // Success â€” exit
+                    console.log(`Fests loaded successfully (${festsList.length} fests)`);
+                    return;
                 } catch (err) {
-                    console.warn(`â³ Fetch attempt ${attempt + 1} failed: ${err.message}`);
+                    console.warn(`Fetch attempt ${attempt + 1} failed: ${err.message}`);
                     if (attempt < maxRetries - 1) {
                         // Wait longer between each retry: 3s, 4s, 5s, 6s... capped at 8s
                         const delay = Math.min(3000 + attempt * 1000, 8000);
@@ -576,69 +608,62 @@ const Dashboard = () => {
                     }
                 }
             }
-
-            // All retries exhausted
             if (cancelled) return;
-            if (!cachedFests || cachedFests.length === 0) {
+            if (!hadFreshCache) {
                 setFestError('Unable to load events. Please check your connection and try again.');
                 setFests([]);
             } else {
-                // We already showed cached data above, just note it's stale
                 setFestError(null);
             }
             setIsFestsLoading(false);
         };
 
-        fetchFests();
+        // Fallback: original per-source secondary fetches.
+        const runAuxFetches = () => {
+            const auxFetches = [
+                fetchJSON(`/trek-communities?_cb=${Date.now()}`).then(res => {
+                    if (!cancelled) setHomeCommunities(Array.isArray(res?.data?.communities) ? res.data.communities : []);
+                }).catch(() => {}),
+                fetchJSON(`/treks?_cb=${Date.now()}`).then(res => {
+                    if (!cancelled) setHomeTreks(Array.isArray(res?.data?.treks) ? res.data.treks : []);
+                }).catch(() => {}),
+                fetchJSON(`/sports?_cb=${Date.now()}`).then(res => {
+                    if (!cancelled) setHomeSports(Array.isArray(res?.data?.events) ? res.data.events : []);
+                }).catch(() => {}),
+                fetchJSON(`/run-clubs?_cb=${Date.now()}`).then(res => {
+                    if (!cancelled) setHomeRunClubs(Array.isArray(res?.data?.clubs) ? res.data.clubs : []);
+                }).catch(() => {}),
+                fetchJSON(`/events?_cb=${Date.now()}`).then(res => {
+                    if (!cancelled) setHomeEventShows(Array.isArray(res?.data?.shows) ? res.data.shows : []);
+                }).catch(() => {}),
+            ];
+            Promise.allSettled(auxFetches).then(() => {
+                if (!cancelled) setHomeAuxLoaded(true);
+            });
+        };
 
-        // Fetch all secondary home-section sources. We track when they ALL settle so
-        // carousels can wait for the full data set before revealing — otherwise the
-        // centered (highest-priority) card visibly changes as each source streams in.
-        const auxFetches = [
-            fetchJSON(`/trek-communities?_cb=${Date.now()}`).then(res => {
-                if (cancelled) return;
-                const list = Array.isArray(res?.data?.communities) ? res.data.communities : [];
-                setHomeCommunities(list);
-            }).catch(() => {}),
+        (async () => {
+            const ok = await tryAggregate();
+            if (cancelled || ok) return;
+            // Aggregate unavailable — use the resilient per-source path.
+            fetchFests();
+            runAuxFetches();
+            // Aggregate carried section labels; fetch them separately on the fallback path.
+            fetchJSON(`/home/section-labels?_cb=${Date.now()}`).then(res => {
+                const l = res?.data?.labels;
+                if (!cancelled && l && typeof l === 'object') setSectionLabels(prev => ({ ...prev, ...l }));
+            }).catch(() => {});
+        })();
 
-            fetchJSON(`/treks?_cb=${Date.now()}`).then(res => {
-                if (cancelled) return;
-                const list = Array.isArray(res?.data?.treks) ? res.data.treks : [];
-                setHomeTreks(list);
-            }).catch(() => {}),
-
-            fetchJSON(`/sports?_cb=${Date.now()}`).then(res => {
-                if (cancelled) return;
-                const list = Array.isArray(res?.data?.events) ? res.data.events : [];
-                setHomeSports(list);
-            }).catch(() => {}),
-
-            fetchJSON(`/run-clubs?_cb=${Date.now()}`).then(res => {
-                if (cancelled) return;
-                const list = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
-                setHomeRunClubs(list);
-            }).catch(() => {}),
-
-            fetchJSON(`/events?_cb=${Date.now()}`).then(res => {
-                if (cancelled) return;
-                const list = Array.isArray(res?.data?.shows) ? res.data.shows : [];
-                setHomeEventShows(list);
-            }).catch(() => {}),
-        ];
-
-        Promise.allSettled(auxFetches).then(() => {
-            if (!cancelled) setHomeAuxLoaded(true);
-        });
-
-        // Safety: never keep the skeleton forever if a source hangs.
+        // Safety: never keep the skeleton forever if something hangs.
         const auxSafety = window.setTimeout(() => {
             if (!cancelled) setHomeAuxLoaded(true);
-        }, 6000);
+        }, 12000);
 
         return () => { cancelled = true; window.clearTimeout(auxSafety); };
     }, []);
 
-    // âœ… Cache cleanup and management
+    // Cache cleanup and management
     useEffect(() => {
         // Clear cache on page unload if it's getting old
         const handleBeforeUnload = () => {
@@ -652,14 +677,14 @@ const Dashboard = () => {
             }
         };
 
-        // âœ… Cache warming - prefetch fresh data when cache is about to expire
+        // Cache warming - prefetch fresh data when cache is about to expire
         const warmCache = () => {
             const timestamp = localStorage.getItem(CACHE_KEYS.FESTS_TIMESTAMP);
             if (timestamp) {
                 const age = Date.now() - parseInt(timestamp);
                 // Prefetch when cache is 80% expired (4 minutes old)
                 if (age > CACHE_DURATION * 0.8 && age < CACHE_DURATION) {
-                    console.log('ðŸ”¥ Warming cache with fresh data');
+                    console.log('Warming cache with fresh data');
                     // Silently fetch fresh data in background
                     fetchJSON('/fests/all', { timeout: 5000 })
                         .then(response => {
@@ -667,11 +692,11 @@ const Dashboard = () => {
                             const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
                             if (festsList.length > 0) {
                                 setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
-                                console.log('âœ… Cache warmed successfully');
+                                console.log('Cache warmed successfully');
                             }
                         })
                         .catch(err => {
-                            console.log('âš ï¸ Cache warming failed:', err.message);
+                            console.log('Cache warming failed:', err.message);
                         });
                 }
             }
@@ -863,7 +888,7 @@ const Dashboard = () => {
                         return;
                     }
                 } catch (permissionError) {
-                    console.log('âš ï¸ Dashboard - Could not verify geolocation permission state:', permissionError);
+                    console.log('Dashboard - Could not verify geolocation permission state:', permissionError);
                 }
             }
         }
@@ -895,7 +920,7 @@ const Dashboard = () => {
                         try {
                             localStorage.setItem('crwdctrl_user_location', JSON.stringify(locationData));
                         } catch (error) {
-                            console.error('âŒ Dashboard - Error storing location:', error);
+                            console.error('Dashboard - Error storing location:', error);
                         }
                         return;
                     }
@@ -922,7 +947,7 @@ const Dashboard = () => {
                                     const stateName = addr.state || addr.region || addr.province || addr['ISO3166-2-lvl4'];
                                     const countryName = addr.country || addr.country_code?.toUpperCase();
 
-                                    if (cityName && !cityName.match(/^\d+\.?\d*[Â°,]\s*\d+\.?\d*$/)) {
+                                    if (cityName && !cityName.match(/^\d+\.?\d*[°,]\s*\d+\.?\d*$/)) {
                                         locationData = {
                                             city: cityName,
                                             state: stateName || 'Unknown State',
@@ -951,7 +976,7 @@ const Dashboard = () => {
                                     const stateName = bigDataResult.principalSubdivision || bigDataResult.localityInfo?.administrative?.[1]?.name;
                                     const countryName = bigDataResult.countryName;
 
-                                    if (cityName && !cityName.match(/^\d+\.?\d*[Â°,]\s*\d+\.?\d*$/)) {
+                                    if (cityName && !cityName.match(/^\d+\.?\d*[°,]\s*\d+\.?\d*$/)) {
                                         locationData = {
                                             city: cityName,
                                             state: stateName || 'Unknown State',
@@ -972,7 +997,7 @@ const Dashboard = () => {
                             try {
                                 localStorage.setItem('crwdctrl_user_location', JSON.stringify(locationData));
                             } catch (error) {
-                                console.error('âŒ Dashboard - Error storing location:', error);
+                                console.error('Dashboard - Error storing location:', error);
                             }
                         } else {
                             // Fallback to coordinates-based location
@@ -987,7 +1012,7 @@ const Dashboard = () => {
                             setCurrentLocation(fallbackData);
                         }
                     } catch (error) {
-                        console.error('âŒ Dashboard - Reverse geocoding failed:', error);
+                        console.error('Dashboard - Reverse geocoding failed:', error);
                         const errorFallbackData = {
                             city: 'Location Found',
                             state: 'Unknown Area',
@@ -1000,9 +1025,9 @@ const Dashboard = () => {
                     }
                 },
                 (error) => {
-                    console.error('âŒ Dashboard - GEOLOCATION ERROR:', error);
-                    console.error('âŒ Dashboard - Error code:', error.code);
-                    console.error('âŒ Dashboard - Error message:', error.message);
+                    console.error('Dashboard - GEOLOCATION ERROR:', error);
+                    console.error('Dashboard - Error code:', error.code);
+                    console.error('Dashboard - Error message:', error.message);
                     
                     setCurrentLocation(prev => {
                         const newState = {
@@ -1016,7 +1041,7 @@ const Dashboard = () => {
                 options
             );
         } catch (error) {
-            console.error('âŒ Dashboard - CRITICAL ERROR in detectUserLocation:', error);
+            console.error('Dashboard - CRITICAL ERROR in detectUserLocation:', error);
         }
     };
 
@@ -1112,25 +1137,6 @@ const Dashboard = () => {
         [fests, homeTreks, homeCommunities, homeSports],
     );
 
-    // Error state
-    if (error) {
-        return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors flex items-center justify-center">
-                <div className="text-center max-w-md mx-auto p-6">
-                    <div className="text-6xl mb-4">⚠️</div>
-                    <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-800'}`}>Something went wrong</h2>
-                    <p className={`text-lg mb-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{error}</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="bg-cyan-400 hover:bg-cyan-500 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                    >
-                        Reload Page
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="crwdctrl-page crwdctrl-page--hub flex flex-col min-h-screen transition-colors">
           <Seo
@@ -1174,7 +1180,7 @@ const Dashboard = () => {
                                 )}
                             </button>
 
-                            {/* Location dropdown â€” keep existing */}
+                            {/* Location dropdown  keep existing */}
                             {isLocationDropdownOpen && (
                                 <div className={`absolute right-0 mt-2 w-72 rounded-2xl shadow-2xl border backdrop-blur-md z-50
                                     ${isDark ? 'bg-black/95 border-gray-700/50' : 'bg-white/95 border-gray-200/50'}`}>
@@ -1207,7 +1213,7 @@ const Dashboard = () => {
                                             disabled={currentLocation.isDetecting}
                                             className="w-full py-2 px-3 rounded-lg text-sm font-medium bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 text-black transition-colors disabled:opacity-50"
                                         >
-                                            {currentLocation.isDetecting ? 'Detectingâ€¦' : 'Detect My Location'}
+                                            {currentLocation.isDetecting ? 'Detecting…' : 'Detect My Location'}
                                         </button>
                                     </div>
                                 </div>
@@ -1243,7 +1249,7 @@ const Dashboard = () => {
 
             {/* Main content - shared mobile + desktop */}
             <main className="flex-1 pb-4">
-                {/* Hero — full chrome width on desktop (aligns with navbar Pune → profile) */}
+                {/* Hero  full chrome width on desktop (aligns with navbar Pune  profile) */}
                 {!isFestsLoading && heroEvents.length > 0 && (
                     <HeroBanner
                         events={heroEvents}
@@ -1256,7 +1262,7 @@ const Dashboard = () => {
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     {/* Ongoing Events */}
                     <HomeCarouselSection
-                        title="Ongoing Events"
+                        title={sectionLabels.ongoing}
                         items={trendingItems}
                         isDark={isDark}
                         tallCard
@@ -1266,14 +1272,14 @@ const Dashboard = () => {
                             festError && trendingItems.length === 0 ? (
                                 <section className="home-section-block">
                                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        Ongoing Events
+                                        {sectionLabels.ongoing}
                                     </h2>
                                     <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
                                 </section>
                             ) : (
                                 <section className="home-section-block">
                                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        Ongoing Events
+                                        {sectionLabels.ongoing}
                                     </h2>
                                     <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
                                         <p className="text-sm">No ongoing events right now</p>
@@ -1289,7 +1295,7 @@ const Dashboard = () => {
 
                     {/* Happening Near You */}
                     <HomeCarouselSection
-                        title="Happening near you"
+                        title={sectionLabels.happening}
                         items={happeningItems}
                         isDark={isDark}
                         wideCard
@@ -1297,7 +1303,7 @@ const Dashboard = () => {
                         emptyFallback={
                             <section className="home-section-block">
                                 <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    Happening near you
+                                    {sectionLabels.happening}
                                 </h2>
                                 <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
                                     <p className="text-sm">No events happening near you right now</p>

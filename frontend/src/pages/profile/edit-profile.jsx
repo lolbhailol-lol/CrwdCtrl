@@ -418,7 +418,7 @@ function EditProfile() {
                                     </div>
                                     <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                         {user.role || 'student'}
-                                        {user.college && ` â€¢ ${user.college}`}
+                                        {user.college && ` • ${user.college}`}
                                         {user.email && (
                                             <div className="mt-1">{user.email}</div>
                                         )}
@@ -536,7 +536,7 @@ function EditProfile() {
                                     </div>
                                     {user?.provider && !formData.phoneNumber && (
                                         <div className={`mb-2 p-2 rounded text-xs ${isDark ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                                            ðŸ“± Add your mobile number to receive notifications and updates
+                                            📱 Add your mobile number to receive notifications and updates
                                         </div>
                                     )}
                                     <input
@@ -705,7 +705,7 @@ function EditProfile() {
                                 </div>
                                 <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                     {user.role || 'student'}
-                                    {user.college && ` â€¢ ${user.college}`}
+                                    {user.college && ` • ${user.college}`}
                                     {user.email && (
                                         <div className="mt-1">{user.email}</div>
                                     )}
@@ -820,7 +820,7 @@ function EditProfile() {
                                     </div>
                                     {user?.provider && !formData.phoneNumber && (
                                         <div className={`mb-2 p-2 rounded text-xs ${isDark ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                                            ðŸ“± Add your mobile number to receive notifications and updates
+                                            📱 Add your mobile number to receive notifications and updates
                                         </div>
                                     )}
                                     <input

@@ -4,8 +4,7 @@ import { ArrowLeft, CheckCircle, Calendar, MapPin, Receipt } from 'lucide-react'
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 
-// Configure API base URL - HARDCODED FOR PRODUCTION FIX
-import { API_BASE_URL } from '../../services/api/client';
+import { userFetchJSON } from '../../services/api/client';
 
 export default function RegistrationDetails() {
   const { registrationId } = useParams();
@@ -33,25 +32,18 @@ export default function RegistrationDetails() {
     try {
       setLoading(true);
       setError('');
-      const token = localStorage.getItem('crwdctrl_token');
-      const url = isTrekBooking
-        ? `${API_BASE_URL}/registrations/trek-booking/${registrationId}`
+      const path = isTrekBooking
+        ? `/registrations/trek-booking/${registrationId}`
         : isEventRegistration
-          ? `${API_BASE_URL}/registrations/event-registration/${registrationId}`
-          : `${API_BASE_URL}/registrations/details/${registrationId}`;
+          ? `/registrations/event-registration/${registrationId}`
+          : `/registrations/details/${registrationId}`;
 
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const data = await userFetchJSON(path);
 
-      if (!response.ok) {
+      if (!data) {
         throw new Error(isTrekBooking ? 'Trek booking not found' : isEventRegistration ? 'Event registration not found' : 'Failed to fetch registration details');
       }
 
-      const data = await response.json();
       setRegistration(data);
     } catch (err) {
       setError(err.message);

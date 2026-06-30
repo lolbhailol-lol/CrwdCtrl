@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 
+const communityContactSchema = new mongoose.Schema(
+    {
+        name:  { type: String, trim: true, default: '' },
+        role:  { type: String, trim: true, default: '' },
+        phone: { type: String, trim: true, default: '' },
+    },
+    { _id: false },
+);
+
 const trekCommunitySchema = new mongoose.Schema(
     {
         name:              { type: String, required: true, trim: true },
@@ -10,6 +19,8 @@ const trekCommunitySchema = new mongoose.Schema(
         galleryImages:     { type: [String], default: [] },
         contactPhone:      { type: String, trim: true, default: '' },
         contactInstagram:  { type: String, trim: true, default: '' },
+        /** Repeatable point-of-contact list (name + role + phone) */
+        contacts:          { type: [communityContactSchema], default: [] },
         status:            { type: String, enum: ['published', 'draft'], default: 'published' },
         homeSection:       { type: String, default: null },
         customPageSections: [{

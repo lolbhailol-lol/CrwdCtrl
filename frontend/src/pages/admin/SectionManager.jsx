@@ -87,6 +87,104 @@ function SaveDot({ state }) {
     return <span className="w-3 shrink-0" />;
 }
 
+// ── Editable home carousel headings ─────────────────────────────────────────────
+const HOME_HEADING_FIELDS = [
+    { key: 'ongoing',   label: 'Ongoing Events section',     placeholder: 'Ongoing Events' },
+    { key: 'happening', label: 'Happening Near You section', placeholder: 'Happening near you' },
+];
+
+function HomeHeadingsEditor() {
+    const [labels, setLabels] = useState({});
+    const [initial, setInitial] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const data = await adminFetchJSON('/admin/site-settings/home-section-labels');
+                if (!active) return;
+                const l = data?.labels || {};
+                setLabels(l);
+                setInitial(l);
+            } catch (_) {
+                if (active) setError('Could not load headings');
+            } finally {
+                if (active) setLoading(false);
+            }
+        })();
+        return () => { active = false; };
+    }, []);
+
+    const update = (k, v) => { setLabels((p) => ({ ...p, [k]: v })); setSaved(false); };
+    const dirty = HOME_HEADING_FIELDS.some((f) => (labels[f.key] || '') !== (initial[f.key] || ''));
+
+    const save = async () => {
+        setSaving(true);
+        setError('');
+        try {
+            const payload = {};
+            HOME_HEADING_FIELDS.forEach((f) => {
+                payload[f.key] = (labels[f.key] || '').trim() || f.placeholder;
+            });
+            const data = await adminFetchJSON('/admin/site-settings/home-section-labels', {
+                method: 'PUT',
+                body: JSON.stringify({ labels: payload }),
+            });
+            const l = data?.labels || payload;
+            setLabels(l);
+            setInitial(l);
+            setSaved(true);
+            localStorage.setItem('admin_data_updated', Date.now().toString());
+            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+            setError(err.message || 'Failed to save');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="rounded-2xl border border-white/8 bg-[#17181A] px-5 py-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                    <h2 className="text-sm font-bold text-white">Home Section Headings</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Rename the fixed carousels shown on the home page</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={save}
+                    disabled={saving || loading || !dirty}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0ECCEE] hover:bg-[#3dd8f5] rounded-xl text-xs font-bold text-black transition-colors disabled:opacity-40"
+                >
+                    {saving ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null}
+                    {saving ? 'Saving' : saved ? 'Saved' : 'Save'}
+                </button>
+            </div>
+            {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
+            <div className="grid sm:grid-cols-2 gap-3">
+                {HOME_HEADING_FIELDS.map((f) => (
+                    <div key={f.key}>
+                        <label className="block text-xs text-gray-400 mb-1">{f.label}</label>
+                        <input
+                            type="text"
+                            value={labels[f.key] ?? ''}
+                            onChange={(e) => update(f.key, e.target.value)}
+                            placeholder={f.placeholder}
+                            disabled={loading}
+                            className="w-full bg-[#0D0E10] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#0ECCEE] disabled:opacity-50"
+                        />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 /* Assign = section dropdown only (order is set in Reorder mode) */
 function AssignPill({ selectValue, selectOpts, onSelect, saveKey, saving }) {
     const isSet = selectValue && selectValue !== '';
@@ -1000,6 +1098,9 @@ export default function SectionManager() {
                     </button>
                 </div>
             </div>
+
+            {/* Editable home carousel headings */}
+            <HomeHeadingsEditor />
 
             {/* Errors */}
             {Object.keys(errors).length > 0 && (

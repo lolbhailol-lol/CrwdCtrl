@@ -15,8 +15,18 @@ const EMPTY = {
     galleryImages: [],
     contactPhone: '',
     contactInstagram: '',
+    contacts: [],
     status: 'published',
 };
+
+const normalizeContacts = (list) =>
+    Array.isArray(list)
+        ? list.map((c) => ({
+            name: c?.name || '',
+            role: c?.role || '',
+            phone: c?.phone || '',
+        }))
+        : [];
 
 function pickCommunityFormFields(source = {}) {
     return {
@@ -28,6 +38,7 @@ function pickCommunityFormFields(source = {}) {
         galleryImages: normalizeImageList(source.galleryImages),
         contactPhone: source.contactPhone || '',
         contactInstagram: source.contactInstagram || '',
+        contacts: normalizeContacts(source.contacts),
         status: source.status || 'published',
     };
 }
@@ -121,6 +132,21 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
         );
     };
 
+    const [customCategory, setCustomCategory] = useState('');
+    const addCustomCategory = () => {
+        const value = customCategory.trim();
+        if (!value) return;
+        if (!form.trekCategories.some(c => c.toLowerCase() === value.toLowerCase())) {
+            set('trekCategories', [...form.trekCategories, value]);
+        }
+        setCustomCategory('');
+    };
+
+    const addContact = () => set('contacts', [...form.contacts, { name: '', role: '', phone: '' }]);
+    const updateContact = (idx, field, value) =>
+        set('contacts', form.contacts.map((c, i) => (i === idx ? { ...c, [field]: value } : c)));
+    const removeContact = (idx) => set('contacts', form.contacts.filter((_, i) => i !== idx));
+
     const uploadImages = async (files, field) => {
         const isGallery = field === 'galleryImages';
         isGallery ? setUploadingGallery(true) : setUploading(true);
@@ -155,8 +181,10 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
         setSaving(true);
         try {
             const path = community ? `/admin/trek-communities/${community._id}` : '/admin/trek-communities';
+            const fields = pickCommunityFormFields(form);
             const payload = {
-                ...pickCommunityFormFields(form),
+                ...fields,
+                contacts: fields.contacts.filter(c => (c.name || c.role || c.phone || '').trim()),
                 ...(community ? {} : { showOnTreks: true, trekPageSection: 'communities' }),
             };
             const data = await adminFetchJSON(path, {
@@ -245,7 +273,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                         hint="Filter chips on the detail page — treks must use a matching category to appear under each chip"
                     >
                         <div className="flex flex-wrap gap-2">
-                            {CATEGORY_OPTIONS.map(cat => (
+                            {[...CATEGORY_OPTIONS, ...form.trekCategories.filter(c => !CATEGORY_OPTIONS.includes(c))].map(cat => (
                                 <button
                                     key={cat}
                                     type="button"
@@ -259,6 +287,23 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                                     {cat}
                                 </button>
                             ))}
+                        </div>
+                        <div className="flex items-center gap-2 mt-3">
+                            <input
+                                type="text"
+                                value={customCategory}
+                                onChange={e => setCustomCategory(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomCategory(); } }}
+                                className={inp}
+                                placeholder="Add a custom category (e.g. Waterfall Treks)"
+                            />
+                            <button
+                                type="button"
+                                onClick={addCustomCategory}
+                                className="shrink-0 px-4 py-2.5 rounded-lg bg-[#1D1E20] border border-gray-600 hover:border-[#0ECCEE] text-sm text-gray-200 font-medium transition-colors"
+                            >
+                                Add
+                            </button>
                         </div>
                     </AdminFormSection>
 
@@ -299,6 +344,49 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                                 <span className="text-gray-400 text-sm w-24 shrink-0">Instagram</span>
                                 <input type="text" value={form.contactInstagram} onChange={e => set('contactInstagram', e.target.value)} className={inp} placeholder="@handle" />
                             </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-700/60">
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-medium text-gray-300">People to contact</p>
+                                <button
+                                    type="button"
+                                    onClick={addContact}
+                                    className="text-xs font-semibold text-[#0ECCEE] hover:underline"
+                                >
+                                    + Add contact
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">Add one or more people with their name, role and phone number. These appear as contact cards on the community page.</p>
+
+                            {form.contacts.length === 0 ? (
+                                <p className="text-xs text-gray-600 rounded-lg border border-dashed border-gray-600 px-3 py-3">
+                                    No contacts added yet. Tap “Add contact” to add a person.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {form.contacts.map((c, idx) => (
+                                        <div key={idx} className="rounded-xl border border-gray-700 bg-[#1D1E20] p-3 space-y-2.5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold text-gray-400">Contact {idx + 1}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeContact(idx)}
+                                                    className="text-gray-500 hover:text-red-400"
+                                                    aria-label="Remove contact"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2.5">
+                                                <input type="text" value={c.name} onChange={e => updateContact(idx, 'name', e.target.value)} className={inp} placeholder="Name (e.g. Rahul)" />
+                                                <input type="text" value={c.role} onChange={e => updateContact(idx, 'role', e.target.value)} className={inp} placeholder="Role (e.g. Lead Organizer)" />
+                                            </div>
+                                            <input type="tel" value={c.phone} onChange={e => updateContact(idx, 'phone', e.target.value)} className={inp} placeholder="Phone (+91 98765 43210)" />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </AdminFormSection>
 
