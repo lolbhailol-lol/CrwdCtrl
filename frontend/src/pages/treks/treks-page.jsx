@@ -8,7 +8,7 @@ import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
-import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../../components/HomeCategoryBar';
@@ -55,18 +55,22 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
             onClick={onClick}
         >
             <div className={`relative overflow-hidden ${fullWidth ? 'w-full aspect-5/3' : 'card-portrait-image'}`}>
-                {trek.image ? (
-                    <img
-                        src={getImageUrl(trek.image, { preset: 'cardLg' })}
-                        alt={trek.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
-                    />
-                ) : (
-                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
-                        <span className="text-5xl">🏔️</span>
-                    </div>
-                )}
+                {(() => {
+                    const preset = fullWidth ? 'cardLandscape' : 'cardPortrait';
+                    const imgSrc = getCoverImageUrl(trek, preset);
+                    return imgSrc ? (
+                        <img
+                            src={imgSrc}
+                            alt={trek.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
+                            <span className="text-5xl">🏔️</span>
+                        </div>
+                    );
+                })()}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
 
@@ -99,9 +103,9 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
             onClick={onClick}
         >
             <div className="card-wide-image">
-                {trek.image ? (
+                {getCoverImageUrl(trek, 'cardWide') ? (
                     <img
-                        src={getImageUrl(trek.image, { preset: 'cardLg' })}
+                        src={getCoverImageUrl(trek, 'cardWide')}
                         alt={trek.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#1a3a2a', trek.title || 'Trek')}
@@ -143,9 +147,9 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
             onClick={onClick}
         >
             <div className="card-portrait-image">
-                {trek.image ? (
+                {getCoverImageUrl(trek, 'cardPortrait') ? (
                     <img
-                        src={getImageUrl(trek.image, { preset: 'cardLg' })}
+                        src={getCoverImageUrl(trek, 'cardPortrait')}
                         alt={trek.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
@@ -210,6 +214,8 @@ function TreksPage() {
                 id: c._id,
                 title: c.name,
                 subtitle: c.basedIn || '',
+                coverImage: c.coverImage || null,
+                coverImages: c.coverImages || null,
                 image: c.coverImage || c.galleryImages?.[0] || null,
                 aboutUs: c.aboutUs,
                 trekCategories: c.trekCategories || [],
@@ -226,6 +232,8 @@ function TreksPage() {
                 id: t._id,
                 title: t.trekName,
                 subtitle: t.city || t.startingPoint || '',
+                coverImage: t.coverImage || null,
+                coverImages: t.coverImages || null,
                 image: t.coverImage || t.images?.[0] || null,
                 difficulty: t.difficultyLevel,
                 duration: t.trekDuration,

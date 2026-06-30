@@ -47,7 +47,7 @@ function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) 
             <div className="card-portrait-image relative overflow-hidden">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardLg' })}
+                        src={getImageUrl(show.image, { preset: 'cardPortrait' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2a1a3a', show.title || 'Event')}
@@ -90,7 +90,7 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
             <div className="card-wide-image relative">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardLg' })}
+                        src={getImageUrl(show.image, { preset: 'cardWide' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#2a1a3a', show.title || 'Event')}
@@ -133,7 +133,7 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
             <div className="card-portrait-image relative overflow-hidden">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardLg' })}
+                        src={getImageUrl(show.image, { preset: 'cardPortrait' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2a1a3a', show.title || 'Event')}

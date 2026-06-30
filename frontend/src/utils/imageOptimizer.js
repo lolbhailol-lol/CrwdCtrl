@@ -8,9 +8,22 @@ const CLOUDINARY_UPLOAD = '/upload/';
 /** @type {Record<string, { width: number, height?: number, crop: string }>} */
 export const IMAGE_PRESETS = {
     thumb: { width: 192, height: 192, crop: 'fill' },
-    cardSm: { width: 480, height: 360, crop: 'fill' },
-    card: { width: 640, height: 480, crop: 'fill' },
-    cardLg: { width: 800, height: 500, crop: 'fill' },
+    /** Square gallery tiles */
+    square: { width: 480, height: 480, crop: 'fill' },
+    /** Portrait cards — matches .card-portrait-image (10:13) */
+    cardPortrait: { width: 520, height: 676, crop: 'fill' },
+    /** Wide activity cards — matches .card-wide-image (10:7) */
+    cardWide: { width: 800, height: 560, crop: 'fill' },
+    /** Full-width community row — aspect 5:3 */
+    cardLandscape: { width: 750, height: 450, crop: 'fill' },
+    /** 16:9 carousel / video-style cards */
+    cardVideo: { width: 640, height: 360, crop: 'fill' },
+    /** 7:5 home artist tiles */
+    cardPanel: { width: 700, height: 500, crop: 'fill' },
+    cardSm: { width: 480, height: 624, crop: 'fill' },
+    /** @deprecated use cardPortrait — kept for callers; now 10:13 */
+    card: { width: 640, height: 832, crop: 'fill' },
+    cardLg: { width: 800, height: 1040, crop: 'fill' },
     hero: { width: 1200, height: 560, crop: 'fill' },
     detail: { width: 1600, height: 900, crop: 'limit' },
 };

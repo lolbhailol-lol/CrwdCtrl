@@ -4,7 +4,7 @@ import { MapPin, Bell } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
-import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { toCardText } from '../../utils/cardText';
 import { openExternalUrl } from '../../utils/externalLink';
@@ -45,9 +45,9 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div className="card-portrait shrink-0 cursor-pointer active:scale-95 transition-all" onClick={onClick}>
             <div className="card-portrait-image">
-                {club.image ? (
+                {getCoverImageUrl(club, 'cardPortrait') ? (
                     <img
-                        src={getImageUrl(club.image, { preset: 'card' })}
+                        src={getCoverImageUrl(club, 'cardPortrait')}
                         alt={club.title}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -176,6 +176,8 @@ export default function SportsCategoryPage() {
                 kind: 'club',
                 title: c.name,
                 subtitle: c.basedIn || c.organizer || 'Based in',
+                coverImage: normalizeImageUrl(c.coverImage) || null,
+                coverImages: c.coverImages || null,
                 image: normalizeImageUrl(c.coverImage) || null,
                 registrationLink: c.registrationLink,
                 sortKey: c.runClubPriority ?? 999,

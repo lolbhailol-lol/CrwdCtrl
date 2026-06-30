@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const coverImagesSchema = require('./coverImagesSchema');
 
 const trekContactSchema = new mongoose.Schema(
     {
@@ -44,6 +45,7 @@ const trekSchema = new mongoose.Schema(
             },
         ],
         coverImage: { type: String, default: null },
+        coverImages: { type: coverImagesSchema, default: () => ({}) },
         images: { type: [String], default: [] },
         registrationFee: { type: Number, default: 0 },
         /** External registration link (WhatsApp / website / form) used when registration.mode === 'external_link' */

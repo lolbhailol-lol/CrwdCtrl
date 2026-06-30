@@ -43,7 +43,7 @@ function FavoriteGridCard({ fest, onRemove, onViewDetails, isDark }) {
         >
             <div className="relative aspect-4/5 w-full">
                 <img
-                    src={getImageUrl(fest.heroImage || fest.image, { preset: 'cardLg' })}
+                    src={getImageUrl(fest.heroImage || fest.image, { preset: 'cardPortrait' })}
                     alt={title}
                     className="absolute inset-0 w-full h-full object-cover"
                     onError={(e) => {

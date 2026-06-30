@@ -231,7 +231,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                     <ContentImage
                         src={image}
                         alt={artistName || 'Event image'}
-                        preset="cardLg"
+                        preset="cardPanel"
                         className="w-full h-full object-cover"
                         onError={handleImageError}
                         onLoad={handleImageLoad}

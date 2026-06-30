@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const RunClub = require('../model/run_club_model');
 const SportsEvent = require('../model/sports_model');
 
+const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
+
 const dbOk = () => mongoose.connection.readyState === 1;
 
 function normalizeImageUrl(value) {
@@ -28,7 +30,12 @@ function sanitizeRunClubBody(body = {}) {
             ? body.runCategories.map((c) => String(c).trim()).filter(Boolean)
             : [];
     }
-    if (body.coverImage !== undefined) payload.coverImage = normalizeImageUrl(body.coverImage);
+    if (body.coverImages !== undefined) {
+        payload.coverImages = sanitizeCoverImages(body.coverImages);
+        payload.coverImage = primaryCoverUrl(payload.coverImages, body.coverImage);
+    } else if (body.coverImage !== undefined) {
+        payload.coverImage = normalizeImageUrl(body.coverImage);
+    }
     if (body.galleryImages !== undefined) payload.galleryImages = normalizeImageList(body.galleryImages);
     if (body.registrationLink !== undefined) payload.registrationLink = String(body.registrationLink || '').trim();
     if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {

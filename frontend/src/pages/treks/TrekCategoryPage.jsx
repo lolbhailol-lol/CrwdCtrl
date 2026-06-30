@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
-import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import CardShareButton from '../../components/CardShareButton';
@@ -338,7 +338,7 @@ export default function TrekCategoryPage() {
                 ) : (
                     <div className="space-y-4">
                         {filtered.map((trek) => {
-                            const img = trek.coverImage || trek.images?.[0];
+                            const img = getCoverImageUrl(trek, 'cardPortrait');
                             const comm = commName(trek.communityId);
                             return (
                                 <div
@@ -350,7 +350,7 @@ export default function TrekCategoryPage() {
                                     <div className="card-wide-image w-full">
                                         {img ? (
                                             <img
-                                                src={getImageUrl(img, { preset: 'cardLg' })}
+                                                src={img}
                                                 alt={trek.trekName}
                                                 className="w-full h-full object-cover"
                                                 onError={e => handleImageErrorWithFallback(e, 361, 224, '#1a3a2a', trek.trekName)}

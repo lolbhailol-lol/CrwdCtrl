@@ -48,7 +48,7 @@ export default function HomeEventCard({
                     <ContentImage
                         src={event.image}
                         alt={event.title}
-                        preset="cardLg"
+                        preset="cardWide"
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(
                             e,
@@ -119,7 +119,7 @@ export default function HomeEventCard({
                 <ContentImage
                     src={event.image}
                     alt={event.title}
-                    preset="card"
+                    preset={portraitCard ? 'cardPortrait' : wideCard ? 'cardWide' : heroCard ? 'hero' : 'cardPortrait'}
                     className="absolute inset-0 h-full w-full object-cover object-center"
                     onError={(e) => handleImageErrorWithFallback(
                         e,

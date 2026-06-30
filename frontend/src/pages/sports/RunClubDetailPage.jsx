@@ -5,6 +5,7 @@ import CardFavoriteButton from '../../components/CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl, resolveCoverImage } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
@@ -39,28 +40,18 @@ const buildHeroImages = (club) => {
             out.push(normalized);
         }
     };
+    const hero = resolveCoverImage(club, 'hero');
+    if (hero) add(hero);
     add(club.coverImage);
-    add(club.image);
+    const covers = club.coverImages;
+    if (covers && typeof covers === 'object') {
+        Object.values(covers).forEach(add);
+    }
     normalizeImageList(club.galleryImages).forEach(add);
     return out.length ? out : [null];
 };
 
-const buildGalleryImages = (club) => {
-    if (!club) return [];
-    const seen = new Set();
-    const out = [];
-    const add = (url) => {
-        const normalized = normalizeImageUrl(url);
-        if (normalized && !seen.has(normalized)) {
-            seen.add(normalized);
-            out.push(normalized);
-        }
-    };
-    add(club.coverImage);
-    add(club.image);
-    normalizeImageList(club.galleryImages).forEach(add);
-    return out;
-};
+const buildGalleryImages = (club) => normalizeImageList(club?.galleryImages);
 
 const normalizeRunClub = (raw) => {
     if (!raw) return null;
@@ -71,6 +62,7 @@ const normalizeRunClub = (raw) => {
         title: raw.title || raw.name || 'Run Club Name',
         subtitle: raw.subtitle || raw.basedIn || 'Based In',
         coverImage,
+        coverImages: raw.coverImages || null,
         image: normalizeImageUrl(raw.image) || coverImage || galleryImages[0] || null,
         aboutUs: raw.aboutUs || '',
         runCategories: raw.runCategories || [],
@@ -150,9 +142,9 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
             onClick={onClick}
         >
             <div className="card-portrait-image">
-                {run.image ? (
+                {getCoverImageUrl(run, 'cardPortrait') ? (
                     <img
-                        src={getImageUrl(run.image, { preset: 'cardLg' })}
+                        src={getCoverImageUrl(run, 'cardPortrait')}
                         alt={run.title}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -623,7 +615,7 @@ export default function RunClubDetailPage() {
                                         className={`relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-transform ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
                                     >
                                         <img
-                                            src={resolveGallerySrc(img, 'cardSm')}
+                                            src={resolveGallerySrc(img, 'square')}
                                             alt={`${name} gallery ${i + 1}`}
                                             className="absolute inset-0 w-full h-full object-cover"
                                             loading="lazy"

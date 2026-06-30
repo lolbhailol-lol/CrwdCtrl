@@ -87,7 +87,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
                 <ContentImage
                     src={img}
                     alt={fest.festName}
-                    preset="cardLg"
+                    preset="cardVideo"
                     className="w-full h-full object-cover"
                     onError={(e) => handleImageErrorWithFallback(e, 320, 190, '#6366f1', fest.festName || 'Fest')}
                 />

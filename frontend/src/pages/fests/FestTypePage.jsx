@@ -189,7 +189,7 @@ export default function FestTypePage({
                                                     <div className="fest-card-image">
                                                         {img ? (
                                                             <img
-                                                                src={getImageUrl(img, { preset: 'cardLg' })}
+                                                                src={getImageUrl(img, { preset: 'cardPortrait' })}
                                                                 alt={fest.festName}
                                                                 className="w-full h-full object-cover"
                                                                 onError={(e) => handleImageErrorWithFallback(e, 320, 175, imageFallbackColor, fest.festName)}
@@ -244,7 +244,7 @@ export default function FestTypePage({
                                                 <div className="relative list-card-thumb shrink-0">
                                                     {img ? (
                                                         <img
-                                                            src={getImageUrl(img, { preset: 'cardLg' })}
+                                                            src={getImageUrl(img, { preset: 'cardPortrait' })}
                                                             alt={fest.festName}
                                                             className="w-full h-full object-cover"
                                                             onError={(e) => handleImageErrorWithFallback(e, 160, 160, imageFallbackColor, fest.festName)}

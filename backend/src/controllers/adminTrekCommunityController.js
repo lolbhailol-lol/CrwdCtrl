@@ -2,15 +2,40 @@ const mongoose = require('mongoose');
 const TrekCommunity = require('../model/trek_community_model');
 const Trek = require('../model/trek_model');
 
+const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
+
 const dbOk = () => mongoose.connection.readyState === 1;
+
+const sanitizeContacts = (list) => {
+    if (!Array.isArray(list)) return [];
+    return list
+        .map((c) => ({
+            name: String(c?.name || '').trim(),
+            role: String(c?.role || '').trim(),
+            phone: String(c?.phone || '').trim(),
+        }))
+        .filter((c) => c.name || c.role || c.phone);
+};
+
+function normalizeCommunityPayload(body) {
+    const payload = { ...body };
+    if (body.homeSection === '') payload.homeSection = null;
+    if (body.contacts !== undefined) payload.contacts = sanitizeContacts(body.contacts);
+    if (body.coverImages !== undefined) {
+        payload.coverImages = sanitizeCoverImages(body.coverImages);
+        payload.coverImage = primaryCoverUrl(payload.coverImages, body.coverImage);
+    } else if (body.coverImage !== undefined) {
+        payload.coverImage = String(body.coverImage || '').trim();
+    }
+    return payload;
+}
 
 exports.create = async (req, res) => {
     try {
         if (!dbOk()) return res.status(503).json({ message: 'DB not connected', readyState: mongoose.connection.readyState });
         const { name } = req.body;
         if (!name) return res.status(400).json({ message: 'Community name is required' });
-        const body = { ...req.body };
-        if (body.homeSection === '') body.homeSection = null;
+        const body = normalizeCommunityPayload(req.body);
         const community = new TrekCommunity(body);
         await community.save();
         res.status(201).json({ message: 'Community created', community });
@@ -51,8 +76,7 @@ exports.update = async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.id))
             return res.status(400).json({ message: 'Invalid ID' });
-        const body = { ...req.body };
-        if (body.homeSection === '') body.homeSection = null;
+        const body = normalizeCommunityPayload(req.body);
         const community = await TrekCommunity.findByIdAndUpdate(
             req.params.id, { $set: body }, { new: true, runValidators: false }
         );

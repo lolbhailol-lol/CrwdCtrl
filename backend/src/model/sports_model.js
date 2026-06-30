@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const coverImagesSchema = require('./coverImagesSchema');
 
 const sportsEventSchema = new mongoose.Schema(
     {
@@ -31,6 +32,7 @@ const sportsEventSchema = new mongoose.Schema(
         /** Run distance label shown on detail page, e.g. "3k-5k Runs" */
         distance: { type: String, trim: true, default: '' },
         coverImage: { type: String, trim: true, default: '' },
+        coverImages: { type: coverImagesSchema, default: () => ({}) },
         inclusions: { type: [String], default: [] },
         /** Event-detail cards shown in the "Details" tab of the Run Info widget */
         returnTime: { type: String, trim: true, default: '' },

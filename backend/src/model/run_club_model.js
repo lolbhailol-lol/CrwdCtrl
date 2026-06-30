@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const coverImagesSchema = require('./coverImagesSchema');
 
 const runClubSchema = new mongoose.Schema(
     {
@@ -9,6 +10,7 @@ const runClubSchema = new mongoose.Schema(
         /** Filter chips on run club detail page — runs use matching runCategory */
         runCategories: { type: [String], default: [] },
         coverImage: { type: String, trim: true, default: '' },
+        coverImages: { type: coverImagesSchema, default: () => ({}) },
         galleryImages: { type: [String], default: [] },
         registrationLink: { type: String, trim: true, default: '' },
         registration: {

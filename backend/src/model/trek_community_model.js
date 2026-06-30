@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const coverImagesSchema = require('./coverImagesSchema');
 
 const communityContactSchema = new mongoose.Schema(
     {
@@ -16,6 +17,7 @@ const trekCommunitySchema = new mongoose.Schema(
         aboutUs:           { type: String, trim: true, default: '' },
         trekCategories:    { type: [String], default: [] },
         coverImage:        { type: String, trim: true, default: '' },
+        coverImages:       { type: coverImagesSchema, default: () => ({}) },
         galleryImages:     { type: [String], default: [] },
         contactPhone:      { type: String, trim: true, default: '' },
         contactInstagram:  { type: String, trim: true, default: '' },

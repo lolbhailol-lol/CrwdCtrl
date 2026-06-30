@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, ImagePlus } from 'lucide-react';
+import { X } from 'lucide-react';
+import MultiCoverImagesUpload from './MultiCoverImagesUpload';
+import GalleryImagesUploadField from './GalleryImagesUploadField';
+import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
+import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
-import { normalizeImageList, parseUploadedUrls } from '../../utils/uploadUrls';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 
 const EMPTY = {
@@ -20,6 +23,8 @@ const EMPTY = {
     skillLevel: 'all',
     prizes: '',
     routeMap: '',
+    coverImage: '',
+    coverImages: EMPTY_COVER_IMAGES(),
     images: [],
     sponsors: '',
     registrationLink: '',
@@ -54,13 +59,18 @@ function SectionBlock({ title, hint, children }) {
 
 export default function SportsFormModal({ event, runClubId, clubName, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
-    const [uploading, setUploading] = useState(false);
+    const [uploadingCover, setUploadingCover] = useState(false);
+    const [uploadingGallery, setUploadingGallery] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [parentRunCategories, setParentRunCategories] = useState([]);
 
     useEffect(() => {
         if (event) {
+            const coverImages = normalizeCoverImages(event.coverImages);
+            const legacyCover = normalizeImageUrl(event.coverImage) || normalizeImageList(event.images)[0] || '';
+            if (!coverImages.portrait && legacyCover) coverImages.portrait = legacyCover;
+            const galleryOnly = normalizeImageList(event.images).filter((url) => url !== legacyCover);
             setForm({
                 ...EMPTY,
                 ...event,
@@ -68,7 +78,9 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 registration: { ...EMPTY.registration, ...(event.registration || {}) },
                 eventDate: event.eventDate ? new Date(event.eventDate).toISOString().slice(0, 10) : '',
                 sponsors: Array.isArray(event.sponsors) ? event.sponsors.join(', ') : (event.sponsors || ''),
-                images: normalizeImageList(event.images || []),
+                coverImage: legacyCover || primaryCoverUrl(coverImages),
+                coverImages,
+                images: galleryOnly,
                 displayType: event.displayType || '',
                 runClubId: event.runClubId || runClubId || null,
                 runCategory: event.runCategory || '',
@@ -112,28 +124,6 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
     const removeInfoSection = (idx) =>
         set('infoSections', (form.infoSections || []).filter((_, i) => i !== idx));
 
-    const handleImageUpload = async (e) => {
-        const files = Array.from(e.target.files);
-        if (!files.length) return;
-        setUploading(true);
-        setError('');
-        try {
-            const fd = new FormData();
-            files.forEach((f) => fd.append('images', f));
-            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
-            const urls = parseUploadedUrls(data);
-            if (!urls.length) throw new Error('Upload succeeded but no image URL was returned');
-            setForm((f) => ({ ...f, images: [...normalizeImageList(f.images), ...urls] }));
-        } catch (err) {
-            setError(`Upload failed: ${err.message}`);
-        } finally {
-            setUploading(false);
-            e.target.value = '';
-        }
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -147,6 +137,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
         }
         setSaving(true);
         try {
+            const coverImages = normalizeCoverImages(form.coverImages);
             const payload = {
                 title: form.title.trim(),
                 sportType: 'run_club',
@@ -164,6 +155,8 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 skillLevel: form.skillLevel,
                 prizes: form.prizes?.trim() || '',
                 routeMap: form.routeMap?.trim() || '',
+                coverImages,
+                coverImage: primaryCoverUrl(coverImages, form.coverImage),
                 images: normalizeImageList(form.images),
                 sponsors: form.sponsors ? form.sponsors.split(',').map((s) => s.trim()).filter(Boolean) : [],
                 registrationLink: form.registrationLink?.trim() || '',
@@ -548,37 +541,26 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                         </Field>
                     </SectionBlock>
 
-                    <SectionBlock title="Images" hint="First image is used on Upcoming Activities and Run Club cards (320×224)">
-                        {form.images.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                {form.images.map((url, i) => (
-                                    <div key={i} className="relative w-24 h-24">
-                                        <img src={url} alt="" className="w-full h-full object-cover rounded-lg border border-gray-600" />
-                                        {i === 0 && (
-                                            <span className="absolute bottom-1 left-1 text-[9px] bg-[#0ECCEE] text-black px-1 rounded font-bold">Cover</span>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => set('images', form.images.filter((_, j) => j !== i))}
-                                            className="absolute -top-1.5 -right-1.5 bg-red-600 rounded-full p-0.5 hover:bg-red-700"
-                                        >
-                                            <X size={10} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                            {uploading ? (
-                                <span className="text-[#0ECCEE]">Uploading...</span>
-                            ) : (
-                                <>
-                                    <ImagePlus size={14} />
-                                    <span>Upload images</span>
-                                </>
-                            )}
-                            <input type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploading} className="hidden" />
-                        </label>
+                    <SectionBlock title="Cover images" hint="Cards and detail hero — separate from gallery">
+                        <MultiCoverImagesUpload
+                            value={form.coverImages}
+                            onChange={(coverImages) => {
+                                set('coverImages', coverImages);
+                                set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
+                            }}
+                            onError={(msg) => setError(`Cover upload failed: ${msg}`)}
+                            onUploadingChange={setUploadingCover}
+                            hint="Upload a cropped image per layout for listings and run detail pages."
+                        />
+                    </SectionBlock>
+
+                    <SectionBlock title="Gallery" hint="Extra photos only — not used as cover or card images">
+                        <GalleryImagesUploadField
+                            value={form.images}
+                            onChange={(images) => set('images', images)}
+                            onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                            onUploadingChange={setUploadingGallery}
+                        />
                     </SectionBlock>
 
                     <p className="text-[11px] text-gray-600 px-1">
@@ -607,7 +589,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">
                             Cancel
                         </button>
-                        <button type="submit" disabled={saving || uploading} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+                        <button type="submit" disabled={saving || uploadingCover || uploadingGallery} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
                             {saving ? 'Saving...' : event ? 'Update Run' : 'Add Run'}
                         </button>
                     </div>

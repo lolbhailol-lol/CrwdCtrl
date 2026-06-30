@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, Upload, Plus, Trash2, ImagePlus } from 'lucide-react';
+import { X, Upload, Plus, Trash2 } from 'lucide-react';
+import MultiCoverImagesUpload from './MultiCoverImagesUpload';
+import GalleryImagesUploadField from './GalleryImagesUploadField';
+import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
 import {
     TREK_FILTER_SECTIONS,
     emptyTrekFilters,
@@ -37,6 +40,7 @@ const EMPTY = {
     inclusions: '', exclusions: '', thingsToCarry: '', termsAndConditions: '',
     itinerary: [],
     coverImage: '',
+    coverImages: EMPTY_COVER_IMAGES(),
     images: [],
     trekFilters: emptyTrekFilters(),
 };
@@ -160,6 +164,9 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
 
     useEffect(() => {
         if (trek) {
+            const coverImages = normalizeCoverImages(trek.coverImages);
+            const legacyCover = trek.coverImage || '';
+            if (!coverImages.portrait && legacyCover) coverImages.portrait = legacyCover;
             setForm({
                 ...EMPTY,
                 ...trek,
@@ -171,7 +178,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 termsAndConditions: Array.isArray(trek.termsAndConditions) ? trek.termsAndConditions.join('\n') : (trek.termsAndConditions || ''),
                 itinerary: trek.itinerary || [],
                 contacts: Array.isArray(trek.contacts) ? trek.contacts.map(c => ({ name: c?.name || '', role: c?.role || '', phone: c?.phone || '' })) : [],
-                coverImage: trek.coverImage || '',
+                coverImage: legacyCover || primaryCoverUrl(coverImages),
+                coverImages,
                 images: trek.images || [],
                 trekFilters: {
                     ...emptyTrekFilters(),
@@ -188,47 +196,6 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
     const addContact = () => setForm(f => ({ ...f, contacts: [...(f.contacts || []), { name: '', role: '', phone: '' }] }));
     const updateContact = (idx, field, value) => setForm(f => ({ ...f, contacts: (f.contacts || []).map((c, i) => (i === idx ? { ...c, [field]: value } : c)) }));
     const removeContact = (idx) => setForm(f => ({ ...f, contacts: (f.contacts || []).filter((_, i) => i !== idx) }));
-
-    const handleImageUpload = async (e) => {
-        const files = Array.from(e.target.files);
-        if (!files.length) return;
-        setUploading(true);
-        try {
-            const fd = new FormData();
-            files.forEach(f => fd.append('images', f));
-            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
-            const urls = (data.urls || data.imageUrls || []).map(u => u?.url || u).filter(Boolean);
-            set('images', [...form.images, ...urls]);
-        } catch (err) {
-            setError(`Upload failed: ${err.message}`);
-        } finally {
-            setUploading(false);
-            e.target.value = '';
-        }
-    };
-
-    const handleCoverUpload = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setUploadingCover(true);
-        try {
-            const fd = new FormData();
-            fd.append('images', file);
-            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
-            const urlObj = (data.urls || data.imageUrls || [])[0];
-            const url = urlObj?.url || urlObj;
-            if (url) set('coverImage', url);
-        } catch (err) {
-            setError(`Cover upload failed: ${err.message}`);
-        } finally {
-            setUploadingCover(false);
-            e.target.value = '';
-        }
-    };
 
     const addItineraryDay = () => {
         set('itinerary', [...form.itinerary, { day: form.itinerary.length + 1, title: '', description: '' }]);
@@ -250,13 +217,19 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
             setError('Trek name and difficulty level are required.');
             return;
         }
+        if (uploadingCover || uploading) {
+            setError('Please wait for image upload to finish.');
+            return;
+        }
         setSaving(true);
         try {
+            const coverImages = normalizeCoverImages(form.coverImages);
             const payload = {
                 ...form,
                 communityId: form.communityId || null,
                 trekCategory: form.trekCategory || null,
-                coverImage: form.coverImage || null,
+                coverImages,
+                coverImage: primaryCoverUrl(coverImages, form.coverImage) || null,
                 inclusions: form.inclusions ? form.inclusions.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 exclusions: form.exclusions ? form.exclusions.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 thingsToCarry: form.thingsToCarry ? form.thingsToCarry.split('\n').map(s => s.trim()).filter(Boolean) : [],
@@ -462,42 +435,39 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         ))}
                     </div>
 
-                    {/* Cover Image */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Cover Image <span className="text-gray-500 font-normal text-xs">(shown on cards and hero banners)</span></label>
-                        <div className="flex items-start gap-4">
-                            {form.coverImage ? (
-                                <div className="relative w-32 h-20 shrink-0">
-                                    <img src={form.coverImage} alt="Cover" className="w-full h-full object-cover rounded-lg border border-gray-600" />
-                                    <button type="button" onClick={() => set('coverImage', '')} className="absolute -top-1.5 -right-1.5 bg-red-600 rounded-full p-0.5 hover:bg-red-700"><X size={10} /></button>
-                                </div>
-                            ) : null}
-                            <label className="flex items-center gap-2 cursor-pointer bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors h-20">
-                                {uploadingCover
-                                    ? <span className="text-[#0ECCEE]">Uploading...</span>
-                                    : <><ImagePlus size={16} /><span>{form.coverImage ? 'Replace cover' : 'Upload cover image'}</span></>}
-                                <input type="file" accept="image/*" onChange={handleCoverUpload} disabled={uploadingCover} className="hidden" />
-                            </label>
+                    <div className="border border-gray-700/60 rounded-xl overflow-hidden">
+                        <div className="px-4 py-3 bg-[#1D1E20] border-b border-gray-700/60">
+                            <p className="text-sm font-semibold text-white">Cover images</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Card layouts and hero banner — separate from gallery</p>
+                        </div>
+                        <div className="p-4">
+                            <MultiCoverImagesUpload
+                                value={form.coverImages}
+                                onChange={(coverImages) => {
+                                    set('coverImages', coverImages);
+                                    set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
+                                }}
+                                onError={(msg) => setError(`Cover upload failed: ${msg}`)}
+                                onUploadingChange={setUploadingCover}
+                                hint="Upload a cropped image per layout (portrait cards, wide cards, hero, etc.)."
+                            />
                         </div>
                     </div>
 
-                    {/* Gallery Images */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Gallery Images <span className="text-gray-500 font-normal text-xs">(trek detail page image carousel)</span></label>
-                        {form.images.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-2">
-                                {form.images.map((url, i) => (
-                                    <div key={i} className="relative w-20 h-20">
-                                        <img src={url} alt="" className="w-full h-full object-cover rounded-lg border border-gray-600" />
-                                        <button type="button" onClick={() => set('images', form.images.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 bg-red-600 rounded-full p-0.5 hover:bg-red-700"><X size={10} /></button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                            {uploading ? <span className="text-[#0ECCEE]">Uploading...</span> : <><Upload size={14} /><span>Upload images</span></>}
-                            <input type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploading} className="hidden" />
-                        </label>
+                    <div className="border border-gray-700/60 rounded-xl overflow-hidden">
+                        <div className="px-4 py-3 bg-[#1D1E20] border-b border-gray-700/60">
+                            <p className="text-sm font-semibold text-white">Gallery</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Extra photos for the trek detail carousel — not cover images</p>
+                        </div>
+                        <div className="p-4">
+                            <GalleryImagesUploadField
+                                value={form.images}
+                                onChange={(images) => set('images', images)}
+                                onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                                onUploadingChange={setUploading}
+                                uploadLabel="Upload gallery images"
+                            />
+                        </div>
                     </div>
 
                     {/* ── Registration / Booking Form (status + type like fests) ── */}
@@ -689,7 +659,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
 
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">Cancel</button>
-                        <button type="submit" disabled={saving || uploading} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+                        <button type="submit" disabled={saving || uploading || uploadingCover} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
                             {saving ? 'Saving...' : trek ? 'Update Trek' : 'Create Trek'}
                         </button>
                     </div>

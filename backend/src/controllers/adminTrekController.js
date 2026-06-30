@@ -2,11 +2,16 @@ const mongoose = require('mongoose');
 const Trek = require('../model/trek_model');
 const TrekBooking = require('../model/trek_booking_model');
 const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
+const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
 
 function normalizeTrekPayload(body) {
     const payload = { ...body };
     if (payload.trekFilters !== undefined) {
         payload.trekFilters = sanitizeTrekFilters(payload.trekFilters);
+    }
+    if (payload.coverImages !== undefined) {
+        payload.coverImages = sanitizeCoverImages(payload.coverImages);
+        payload.coverImage = primaryCoverUrl(payload.coverImages, payload.coverImage) || null;
     }
     return payload;
 }

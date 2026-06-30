@@ -5,6 +5,7 @@ import CardFavoriteButton from '../../components/CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent } from '../../utils/externalLink';
@@ -23,22 +24,7 @@ const GALLERY_PREVIEW_COUNT = 4;
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
 
-const buildGalleryImages = (community) => {
-    if (!community) return [];
-    const seen = new Set();
-    const out = [];
-    const add = (url) => {
-        const normalized = normalizeImageUrl(url);
-        if (normalized && !seen.has(normalized)) {
-            seen.add(normalized);
-            out.push(normalized);
-        }
-    };
-    add(community.coverImage);
-    add(community.image);
-    normalizeImageList(community.galleryImages).forEach(add);
-    return out;
-};
+const buildGalleryImages = (community) => normalizeImageList(community?.galleryImages);
 
 import {
     fetchTrekCommunity,
@@ -79,6 +65,7 @@ const normalizeCommunity = (raw) => {
         title: raw.title || raw.name || 'Community Name',
         subtitle: raw.subtitle || raw.basedIn || '',
         coverImage,
+        coverImages: raw.coverImages || null,
         image: normalizeImageUrl(raw.image) || coverImage || galleryImages[0] || null,
         aboutUs: raw.aboutUs || '',
         trekCategories: raw.trekCategories || [],
@@ -160,9 +147,9 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
             onClick={onClick}
         >
             <div className="card-portrait-image">
-                {trek.image ? (
+                {getCoverImageUrl(trek, 'cardPortrait') ? (
                     <img
-                        src={getImageUrl(trek.image, { preset: 'cardLg' })}
+                        src={getCoverImageUrl(trek, 'cardPortrait')}
                         alt={trek.title}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -236,6 +223,8 @@ export default function CommunityDetailPage() {
                     date: t.trekDate
                         ? new Date(t.trekDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                         : null,
+                    coverImage: t.coverImage || null,
+                    coverImages: t.coverImages || null,
                     image: t.coverImage || t.images?.[0] || null,
                     trekCategory: normalizeCategory(t.trekCategory) || null,
                 })));
@@ -307,7 +296,7 @@ export default function CommunityDetailPage() {
             {/* Full-bleed on phones, centered & aligned with content on larger screens (matches events) */}
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
             <ImmersiveHero
-                imageSrc={image ? getImageUrl(image, { preset: 'hero' }) : null}
+                imageSrc={getCoverImageUrl(community, 'hero') || getCoverImageUrl(community, 'cardPortrait') || null}
                 imageAlt={name}
                 height="396px"
                 onImageError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}
@@ -564,7 +553,7 @@ export default function CommunityDetailPage() {
                                         className={`relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-transform ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
                                     >
                                         <img
-                                            src={resolveGallerySrc(img, 'cardSm')}
+                                            src={resolveGallerySrc(img, 'square')}
                                             alt={`${name} gallery ${i + 1}`}
                                             className="absolute inset-0 w-full h-full object-cover"
                                             loading="lazy"

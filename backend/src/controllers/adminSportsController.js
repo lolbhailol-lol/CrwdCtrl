@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const SportsEvent = require('../model/sports_model');
+const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
 
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
@@ -85,7 +86,12 @@ function sanitizeSportsPayload(body = {}) {
     if (body.prizes !== undefined) payload.prizes = String(body.prizes || '').trim();
     if (body.routeMap !== undefined) payload.routeMap = String(body.routeMap || '').trim();
     if (body.distance !== undefined) payload.distance = String(body.distance || '').trim();
-    if (body.coverImage !== undefined) payload.coverImage = normalizeImageUrl(body.coverImage);
+    if (body.coverImages !== undefined) {
+        payload.coverImages = sanitizeCoverImages(body.coverImages);
+        payload.coverImage = primaryCoverUrl(payload.coverImages, body.coverImage);
+    } else if (body.coverImage !== undefined) {
+        payload.coverImage = normalizeImageUrl(body.coverImage);
+    }
     if (body.inclusions !== undefined) {
         payload.inclusions = Array.isArray(body.inclusions)
             ? body.inclusions.map((s) => String(s).trim()).filter(Boolean)
