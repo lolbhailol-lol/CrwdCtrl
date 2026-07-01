@@ -18,6 +18,7 @@ import {
 } from '../../motion';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+import { formatTrekCardDate } from '../../utils/trekDateDisplay';
 
 const GALLERY_PREVIEW_COUNT = 4;
 
@@ -169,7 +170,7 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
                         {trek.title}
                     </p>
                     <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {trek.date || 'Date TBA'}
+                        {formatTrekCardDate(trek)}
                     </p>
                 </div>
             </div>
@@ -220,9 +221,10 @@ export default function CommunityDetailPage() {
                 setTreks(list.map(t => ({
                     id: t._id,
                     title: t.trekName,
-                    date: t.trekDate
-                        ? new Date(t.trekDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                        : null,
+                    dateLabel: t.dateLabel || '',
+                    trekBatches: t.trekBatches || [],
+                    trekDate: t.trekDate || null,
+                    date: formatTrekCardDate(t),
                     coverImage: t.coverImage || null,
                     coverImages: t.coverImages || null,
                     image: t.coverImage || t.images?.[0] || null,

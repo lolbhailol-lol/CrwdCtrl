@@ -10,6 +10,9 @@ import {
     DIFFICULTY_LEVEL_FILTER_OPTIONS,
 } from '../../constants/trekFilters';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { normalizeTrekBatches, EMPTY_BATCH } from '../../utils/trekDateDisplay';
+
+const CARD_LABEL_SUGGESTIONS = ['Weekend', 'Weekday', 'Every Saturday', 'Coming soon'];
 
 const CATEGORY_VALUE_MAP = {
     Camping: 'camping',
@@ -35,7 +38,7 @@ const EMPTY = {
     startingPoint: '', destination: '', meetingLocation: '', departureTime: '',
     returnTime: '', fitnessRequirements: '', ageRestrictions: '', trekLeader: '',
     emergencyContact: '', contactInstagram: '', contacts: [], registrationFee: 0, registrationLink: '', maxParticipants: 0,
-    trekDate: '', city: '', trekCategory: '', status: 'published',
+    trekDate: '', dateLabel: '', trekBatches: [], city: '', trekCategory: '', status: 'published',
     registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [] },
     inclusions: '', exclusions: '', thingsToCarry: '', termsAndConditions: '',
     itinerary: [],
@@ -150,6 +153,85 @@ function RegListEditor({ label, hint, items, placeholder, onChange }) {
     );
 }
 
+function TrekBatchesEditor({ batches, onChange }) {
+    const list = batches?.length ? batches : [];
+    const update = (idx, field, value) => {
+        onChange(list.map((b, i) => (i === idx ? { ...b, [field]: value } : b)));
+    };
+    const add = () => onChange([...list, EMPTY_BATCH()]);
+    const remove = (idx) => onChange(list.filter((_, i) => i !== idx));
+
+    return (
+        <div className="space-y-3">
+            {list.length === 0 ? (
+                <p className="text-xs text-gray-600 rounded-lg border border-dashed border-gray-300 px-3 py-2.5 bg-gray-50">
+                    No batches yet. Add departure dates with group size for the trek Details tab.
+                </p>
+            ) : (
+                list.map((batch, idx) => (
+                    <div key={idx} className="rounded-lg border border-gray-300 bg-gray-50 p-3 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-gray-700">Batch {idx + 1}</span>
+                            <button type="button" onClick={() => remove(idx)} className="text-gray-500 hover:text-red-500">
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                                <label className="block text-[11px] font-medium text-gray-600 mb-1">Date</label>
+                                <input
+                                    type="date"
+                                    value={batch.date || ''}
+                                    onChange={(e) => update(idx, 'date', e.target.value)}
+                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-medium text-gray-600 mb-1">Batch size</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={batch.batchSize || ''}
+                                    onChange={(e) => update(idx, 'batchSize', e.target.value)}
+                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                                    placeholder="e.g. 15"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-medium text-gray-600 mb-1">Timing</label>
+                                <input
+                                    type="text"
+                                    value={batch.timing || ''}
+                                    onChange={(e) => update(idx, 'timing', e.target.value)}
+                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                                    placeholder="e.g. 5:00 AM"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-medium text-gray-600 mb-1">Note</label>
+                                <input
+                                    type="text"
+                                    value={batch.note || ''}
+                                    onChange={(e) => update(idx, 'note', e.target.value)}
+                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                                    placeholder="e.g. Last 3 spots"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                ))
+            )}
+            <button
+                type="button"
+                onClick={add}
+                className="flex items-center gap-1 text-xs font-semibold text-[#0ECCEE] hover:underline"
+            >
+                <Plus size={13} /> Add batch
+            </button>
+        </div>
+    );
+}
+
 export default function TrekFormModal({ trek, communityId, communityCategories, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
@@ -172,6 +254,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 ...trek,
                 communityId: trek.communityId || communityId || null,
                 trekDate: trek.trekDate ? new Date(trek.trekDate).toISOString().slice(0, 10) : '',
+                dateLabel: trek.dateLabel || '',
+                trekBatches: normalizeTrekBatches(trek.trekBatches, trek.trekDate),
                 inclusions: Array.isArray(trek.inclusions) ? trek.inclusions.join('\n') : (trek.inclusions || ''),
                 exclusions: Array.isArray(trek.exclusions) ? trek.exclusions.join('\n') : (trek.exclusions || ''),
                 thingsToCarry: Array.isArray(trek.thingsToCarry) ? trek.thingsToCarry.join('\n') : (trek.thingsToCarry || ''),
@@ -237,6 +321,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 registrationFee: Number(form.registrationFee) || 0,
                 maxParticipants: Number(form.maxParticipants) || 0,
                 trekDate: form.trekDate || null,
+                dateLabel: (form.dateLabel || '').trim(),
+                trekBatches: normalizeTrekBatches(form.trekBatches, form.trekDate || null),
                 trekFilters: form.trekFilters || emptyTrekFilters(),
                 contacts: (form.contacts || []).filter(c => (c.name || c.role || c.phone || '').trim()),
             };
@@ -300,9 +386,58 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         />
                     </div>
 
+                    <div className="rounded-xl border border-gray-200 bg-white text-gray-900 p-4 space-y-3 shadow-sm">
+                        <div>
+                            <p className="text-sm font-semibold">Card subtitle</p>
+                            <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                                Short label on community trek cards only — e.g. Weekend, Weekday, Every Saturday.
+                                This is separate from departure dates in the Details tab.
+                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-800 mb-1">Card label</label>
+                            <input
+                                type="text"
+                                value={form.dateLabel}
+                                onChange={(e) => set('dateLabel', e.target.value)}
+                                className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                                placeholder="e.g. Weekend, Weekday"
+                            />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {CARD_LABEL_SUGGESTIONS.map((s) => (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => set('dateLabel', s)}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                        form.dateLabel === s
+                                            ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]'
+                                            : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-[#0ECCEE]'
+                                    }`}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-white text-gray-900 p-4 space-y-3 shadow-sm">
+                        <div>
+                            <p className="text-sm font-semibold">Departure batches (Details tab)</p>
+                            <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                                Add trek dates, batch size, timing and notes. Shown as white cards in the
+                                Details tab on the public trek page.
+                            </p>
+                        </div>
+                        <TrekBatchesEditor
+                            batches={form.trekBatches}
+                            onChange={(trekBatches) => set('trekBatches', trekBatches)}
+                        />
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">City</label><input type="text" value={form.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="Nearest city" /></div>
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Trek Date</label><input type="date" value={form.trekDate} onChange={e => set('trekDate', e.target.value)} className={inp} /></div>
                     </div>
 
                     <div>

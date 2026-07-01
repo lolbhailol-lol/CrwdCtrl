@@ -33,6 +33,7 @@ import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { TREKS_FAQ } from '../../constants/faqs';
+import { formatTrekCardDate } from '../../utils/trekDateDisplay';
 
 const TREKS_DESCRIPTION =
     'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';
@@ -168,7 +169,7 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                         {toCardText(trek.title)}
                     </p>
                     <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(trek.date || 'Date TBA')}
+                        {toCardText(formatTrekCardDate(trek))}
                     </p>
                 </div>
                 <CardShareButton
@@ -237,9 +238,10 @@ function TreksPage() {
                 image: t.coverImage || t.images?.[0] || null,
                 difficulty: t.difficultyLevel,
                 duration: t.trekDuration,
-                date: t.trekDate
-                    ? new Date(t.trekDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : null,
+                trekDate: t.trekDate || null,
+                dateLabel: t.dateLabel || '',
+                trekBatches: t.trekBatches || [],
+                date: formatTrekCardDate(t),
                 trekCategory: t.trekCategory || null,
                 featuredSection: t.featuredSection || null,
                 homeSection: t.homeSection || null,

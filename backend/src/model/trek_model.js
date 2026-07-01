@@ -52,6 +52,15 @@ const trekSchema = new mongoose.Schema(
         registrationLink: { type: String, trim: true },
         maxParticipants: { type: Number, default: 0 },
         trekDate: { type: Date },
+        /** Card subtitle only — e.g. "Weekend", "Weekday" (not shown in Details tab) */
+        dateLabel: { type: String, trim: true, default: '' },
+        /** Departure batches — dates, group size, timing (Details tab on trek page) */
+        trekBatches: [{
+            date:      { type: String, trim: true, default: '' },
+            batchSize: { type: Number, default: 0 },
+            timing:    { type: String, trim: true, default: '' },
+            note:      { type: String, trim: true, default: '' },
+        }],
         city: { type: String, trim: true },
         trekCategory: {
             type: String,

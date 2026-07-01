@@ -3,6 +3,7 @@ const Trek = require('../model/trek_model');
 const TrekBooking = require('../model/trek_booking_model');
 const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
 const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
+const { sanitizeTrekBatches } = require('../utils/sanitizeTrekBatches');
 
 function normalizeTrekPayload(body) {
     const payload = { ...body };
@@ -12,6 +13,17 @@ function normalizeTrekPayload(body) {
     if (payload.coverImages !== undefined) {
         payload.coverImages = sanitizeCoverImages(payload.coverImages);
         payload.coverImage = primaryCoverUrl(payload.coverImages, payload.coverImage) || null;
+    }
+    if (payload.trekBatches !== undefined) {
+        payload.trekBatches = sanitizeTrekBatches(payload.trekBatches);
+        const firstDated = payload.trekBatches.find((b) => b.date);
+        if (firstDated?.date) {
+            const parsed = new Date(firstDated.date);
+            payload.trekDate = Number.isNaN(parsed.getTime()) ? payload.trekDate : parsed;
+        }
+    }
+    if (payload.dateLabel !== undefined) {
+        payload.dateLabel = String(payload.dateLabel || '').trim();
     }
     return payload;
 }

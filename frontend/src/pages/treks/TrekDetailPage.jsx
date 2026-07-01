@@ -9,6 +9,7 @@ import { shareContent } from '../../utils/externalLink';
 import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
+import { formatTrekDisplayDate, formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -60,6 +61,16 @@ const PersonIcon = ({ size = 20 }) => (
         <path   d="M3 20 Q3 14 9 14 Q15 14 15 20" fill="#0D9488"/>
         <circle cx="17" cy="7"  r="2.5" fill="#5EEAD4" opacity="0.8"/>
         <path   d="M14 20 Q14 15.5 17 15.5 Q21 15.5 21 20" fill="#0D9488" opacity="0.7"/>
+    </svg>
+);
+
+// Calendar — blue for trek date
+const CalendarIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="16" rx="2" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="1.5"/>
+        <path d="M3 9h18" stroke="#3B82F6" strokeWidth="1.5"/>
+        <path d="M8 3v4M16 3v4" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round"/>
+        <rect x="7" y="12" width="3" height="3" rx="0.5" fill="#3B82F6"/>
     </svg>
 );
 
@@ -397,6 +408,7 @@ export default function TrekDetailPage() {
                             { Icon: ClockIcon,  label: 'Trek Duration',   value: trek.trekDuration || trek.duration || '—' },
                             { Icon: ChartIcon,  label: 'Difficulty',      value: (trek.difficultyLevel || trek.difficulty || '—'), extra: 'capitalize' },
                             { Icon: GridIcon,   label: 'Trek Category',      value: trek.trekCategory || 'Adventure Trek', extra: 'capitalize' },
+                            ...(formatTrekDisplayDate(trek) ? [{ Icon: CalendarIcon, label: 'Trek Date', value: formatTrekDisplayDate(trek) }] : []),
                         ].map((row) => (
                             <div key={row.label} className="flex items-center gap-2.5">
                                 <row.Icon size={22} />
@@ -476,6 +488,45 @@ export default function TrekDetailPage() {
                     <div>
                         {activeTab === 'Details' && (
                             <div className="space-y-2">
+                                {(() => {
+                                    const batches = normalizeTrekBatches(trek.trekBatches, trek.trekDate);
+                                    if (!batches.length) return null;
+                                    return (
+                                        <div className="space-y-2 mb-1">
+                                            <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                Departure batches
+                                            </p>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {batches.map((batch, i) => (
+                                                    <div
+                                                        key={`${batch.date}-${i}`}
+                                                        className={`rounded-2xl p-3.5 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div>
+                                                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                    {formatBatchDate(batch.date) || `Batch ${i + 1}`}
+                                                                </p>
+                                                                {batch.timing ? (
+                                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{batch.timing}</p>
+                                                                ) : null}
+                                                            </div>
+                                                            {batch.batchSize > 0 ? (
+                                                                <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-[#0ECCEE]/10 text-[#0ECCEE]'}`}>
+                                                                    {batch.batchSize} seats
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+                                                        {batch.note ? (
+                                                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{batch.note}</p>
+                                                        ) : null}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
                                 {/* 2-col grid cards */}
                                 <div className="grid grid-cols-2 gap-2">
                                     {[
