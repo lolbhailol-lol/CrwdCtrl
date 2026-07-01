@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, ChevronRight, Check, Backpack } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, ChevronRight, Backpack } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
@@ -10,6 +10,9 @@ import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { formatTrekDisplayDate, formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
+import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
+import TrekDetailIcon from '../../components/TrekDetailIcon';
+import { fetchTrekCommunity } from '../../services/api/public.api';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -141,6 +144,28 @@ const FitnessIcon = ({ size = 20 }) => (
     </svg>
 );
 
+// Clean list items from admin (one per line)
+function cleanListItem(item) {
+    return String(item || '').replace(/^[-*•\s]+/, '').trim();
+}
+
+function TrekInfoList({ items, isDark, dotClass = 'bg-[#0ECCEE]' }) {
+    const rows = (items || []).map(cleanListItem).filter(Boolean);
+    if (!rows.length) return null;
+    return (
+        <div className={`rounded-2xl border p-4 ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+            <ul className="space-y-3">
+                {rows.map((item, i) => (
+                    <li key={i} className={`flex gap-3 text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <span className={`mt-2 size-1.5 rounded-full shrink-0 ${dotClass}`} />
+                        <span className="flex-1 min-w-0">{item}</span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 export default function TrekDetailPage() {
     const navigate  = useNavigate();
     const location  = useLocation();
@@ -148,16 +173,32 @@ export default function TrekDetailPage() {
     const { isDark } = useDarkMode();
 
     const [trek,      setTrek]      = useState(null);
-    const [community] = useState(location.state?.community || null);
+    const [community, setCommunity] = useState(location.state?.community || null);
     const [loading,   setLoading]   = useState(true);
     const [liked,     setLiked]     = useState(false);
     const [imgPg,     setImgPg]     = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [activeTab, setActiveTab] = useState('Details');
     const [termsOpen, setTermsOpen] = useState(false);
-    const [inclusionOpen, setInclusionOpen] = useState(false);
     const [carryOpen, setCarryOpen] = useState(false);
+    const [departuresOpen, setDeparturesOpen] = useState(false);
     const imgRef = useRef(null);
+    const departuresRef = useRef(null);
+
+    useEffect(() => {
+        if (!departuresOpen) return undefined;
+        const onDocClick = (e) => {
+            if (departuresRef.current && !departuresRef.current.contains(e.target)) {
+                setDeparturesOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onDocClick);
+        return () => document.removeEventListener('mousedown', onDocClick);
+    }, [departuresOpen]);
+
+    useEffect(() => {
+        setDeparturesOpen(false);
+    }, [activeTab]);
 
     useEffect(() => {
         // Always fetch full trek data from API so all fields are available
@@ -183,6 +224,10 @@ export default function TrekDetailPage() {
                 const d = await r.json();
                 if (d.trek) {
                     setTrek(d.trek);
+                    const populated = d.trek.communityId;
+                    if (populated && typeof populated === 'object' && populated.name) {
+                        setCommunity((prev) => prev || populated);
+                    }
                 } else {
                     // Fallback to state
                     const raw = location.state?.trek;
@@ -196,6 +241,25 @@ export default function TrekDetailPage() {
         };
         fetchTrek();
     }, [id]);
+
+    useEffect(() => {
+        if (!trek?.communityId) return undefined;
+        const populated = typeof trek.communityId === 'object' ? trek.communityId : null;
+        if (populated?.name) return undefined;
+
+        const communityId = typeof trek.communityId === 'object'
+            ? trek.communityId._id || trek.communityId.id
+            : trek.communityId;
+        if (!communityId) return undefined;
+
+        const controller = new AbortController();
+        fetchTrekCommunity(communityId, controller.signal)
+            .then((data) => {
+                if (data?.community) setCommunity((prev) => prev || data.community);
+            })
+            .catch(() => {});
+        return () => controller.abort();
+    }, [trek?.communityId]);
 
     if (loading) return (
         <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
@@ -214,7 +278,13 @@ export default function TrekDetailPage() {
     const rawImages = trek.images?.filter(Boolean) || [];
     const allImages = coverImg ? [coverImg, ...rawImages.filter(u => u !== coverImg)] : rawImages;
     const images    = allImages.length ? allImages : trek.image ? [trek.image] : [null];
-    const communityName = community?.name || community?.title || trek.communityName || trek.trekLeader || null;
+    const communityName =
+        community?.name ||
+        community?.title ||
+        (typeof trek.communityId === 'object' ? trek.communityId?.name : null) ||
+        trek.communityName ||
+        trek.trekLeader ||
+        null;
     // Build overview from available trek fields
     const buildOverview = () => {
         if (trek.description) return trek.description;
@@ -351,17 +421,27 @@ export default function TrekDetailPage() {
 
                 {/* CTA button — respects registration status, then internal form / external link */}
                 {(() => {
-                    const closed = trek.registration?.status === 'closed';
+                    const regStatus = trek.registration?.status || 'open';
                     const extLink = trek.registration?.mode === 'external_link'
                         ? trek.registrationLink
                         : null;
-                    if (closed) {
+                    if (regStatus === 'closed') {
                         return (
                             <button
                                 disabled
                                 className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
                             >
                                 Registration Closed
+                            </button>
+                        );
+                    }
+                    if (regStatus === 'not_open_yet') {
+                        return (
+                            <button
+                                disabled
+                                className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                            >
+                                Registration Not Open Yet
                             </button>
                         );
                     }
@@ -394,9 +474,11 @@ export default function TrekDetailPage() {
                     <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {trek.trekName || trek.title || trek.name || 'Trek Name'}
                     </h1>
-                    <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {communityName || 'Community Name'}
-                    </p>
+                    {communityName ? (
+                        <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {communityName}
+                        </p>
+                    ) : null}
                 </ScrollReveal>
 
                 {/* Meta: details LEFT, map RIGHT — side by side */}
@@ -490,93 +572,132 @@ export default function TrekDetailPage() {
                             <div className="space-y-2">
                                 {(() => {
                                     const batches = normalizeTrekBatches(trek.trekBatches, trek.trekDate);
-                                    if (!batches.length) return null;
-                                    return (
-                                        <div className="space-y-2 mb-1">
-                                            <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                Departure batches
+                                    const cardCls = `rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`;
+                                    const iconWrapCls = `size-8 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`;
+                                    const departuresIconWrapCls = `size-8 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'}`;
+
+                                    const batchSub = (batch) => {
+                                        const parts = [];
+                                        if (batch.batchSize > 0) parts.push(`${batch.batchSize} seats`);
+                                        if (batch.timing) parts.push(batch.timing);
+                                        if (batch.note) parts.push(batch.note);
+                                        return parts.join(' · ');
+                                    };
+                                    const batchMeta = batchSub;
+
+                                    const detailRows = normalizeDetailBoxes(trek.detailBoxes, trek).map((box) => ({
+                                        show: true,
+                                        icon: box.icon,
+                                        label: box.label,
+                                        value: box.value,
+                                        id: box.id,
+                                    }));
+
+                                    const renderDetailCard = (row) => (
+                                        <div key={row.id || row.label} className={`${cardCls} h-[92px] overflow-hidden`}>
+                                            <div className={iconWrapCls}>
+                                                <TrekDetailIcon icon={row.icon || 'default'} size={18} />
+                                            </div>
+                                            <p className={`text-[11px] font-medium mt-2.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
+                                            <p
+                                                className={`text-sm font-semibold mt-0.5 leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}
+                                                title={typeof row.value === 'string' ? row.value : undefined}
+                                            >
+                                                {row.value}
                                             </p>
-                                            <div className="grid grid-cols-1 gap-2">
-                                                {batches.map((batch, i) => (
-                                                    <div
-                                                        key={`${batch.date}-${i}`}
-                                                        className={`rounded-2xl p-3.5 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <div>
-                                                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                                    {formatBatchDate(batch.date) || `Batch ${i + 1}`}
-                                                                </p>
-                                                                {batch.timing ? (
-                                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{batch.timing}</p>
-                                                                ) : null}
+                                        </div>
+                                    );
+
+                                    const beforeBatches = detailRows.slice(0, 3);
+                                    const afterBatches = detailRows.slice(3);
+
+                                    return (
+                                        <div ref={batches.length > 1 ? departuresRef : undefined} className="grid grid-cols-2 gap-2">
+                                            {beforeBatches.map(renderDetailCard)}
+
+                                            {batches.length > 0 ? (
+                                                batches.length > 1 ? (
+                                                    <div className="min-w-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDeparturesOpen((o) => !o)}
+                                                            aria-expanded={departuresOpen}
+                                                            aria-label={departuresOpen ? 'Collapse departures' : 'Expand departures'}
+                                                            className={`w-full text-left ${cardCls} h-[92px] overflow-hidden transition-colors duration-200 ${
+                                                                departuresOpen
+                                                                    ? isDark
+                                                                        ? 'border-[#0ECCEE]/30 bg-[#1D1E20]/60'
+                                                                        : 'border-[#0ECCEE]/25 bg-[#0ECCEE]/3'
+                                                                    : isDark
+                                                                        ? 'hover:bg-[#1D1E20]'
+                                                                        : 'hover:bg-gray-50/90'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <div className={departuresIconWrapCls}>
+                                                                    <CalendarIcon size={18} />
+                                                                </div>
+                                                                <ChevronRight
+                                                                    size={16}
+                                                                    className={`shrink-0 mt-0.5 transition-transform duration-200 ${departuresOpen ? 'rotate-90 text-[#0ECCEE]' : isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                                                                />
                                                             </div>
-                                                            {batch.batchSize > 0 ? (
-                                                                <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-[#0ECCEE]/10 text-[#0ECCEE]'}`}>
-                                                                    {batch.batchSize} seats
-                                                                </span>
+                                                            <p className={`text-[11px] font-medium mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departures</p>
+                                                            <p className={`text-sm font-semibold mt-0.5 leading-snug line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                {departuresOpen
+                                                                    ? `${batches.length} dates`
+                                                                    : formatBatchDate(batches[0].date) || '—'}
+                                                            </p>
+                                                            {!departuresOpen ? (
+                                                                <p className={`text-[10px] mt-1 ${isDark ? 'text-[#0ECCEE]/80' : 'text-[#0ECCEE]'}`}>
+                                                                    +{batches.length - 1} more
+                                                                </p>
                                                             ) : null}
-                                                        </div>
-                                                        {batch.note ? (
-                                                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{batch.note}</p>
+                                                        </button>
+
+                                                        {departuresOpen ? (
+                                                            <div className={`mt-1 w-full rounded-xl border px-2.5 py-2 ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                                                {batches.map((batch, i) => {
+                                                                    const meta = batchMeta(batch);
+                                                                    return (
+                                                                        <p
+                                                                            key={`${batch.date}-${i}`}
+                                                                            className={`text-[11px] leading-4 py-1 ${i < batches.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''} ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                                                                        >
+                                                                            <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                                {formatBatchDate(batch.date) || '—'}
+                                                                            </span>
+                                                                            {meta ? (
+                                                                                <span className={isDark ? 'text-gray-500' : 'text-gray-500'}> · {meta}</span>
+                                                                            ) : null}
+                                                                        </p>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         ) : null}
                                                     </div>
-                                                ))}
-                                            </div>
+                                                ) : (
+                                                    <div className={`${cardCls} h-[92px] overflow-hidden`}>
+                                                        <div className={departuresIconWrapCls}>
+                                                            <CalendarIcon size={18} />
+                                                        </div>
+                                                        <p className={`text-[11px] font-medium mt-2.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departure</p>
+                                                        <p className={`text-sm font-semibold mt-0.5 leading-snug line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {formatBatchDate(batches[0].date) || '—'}
+                                                        </p>
+                                                        {batchSub(batches[0]) ? (
+                                                            <p className={`text-[11px] mt-1 leading-snug line-clamp-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                                {batchSub(batches[0])}
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
+                                                )
+                                            ) : null}
+
+                                            {afterBatches.map(renderDetailCard)}
                                         </div>
                                     );
                                 })()}
-
-                                {/* 2-col grid cards */}
-                                <div className="grid grid-cols-2 gap-2">
-                                    {[
-                                        { show: trek.maxParticipants > 0,    Icon: PersonIcon,  label: 'Max People',    value: trek.maxParticipants },
-                                        { show: !!trek.departureTime,        Icon: SunIcon,     label: 'Trek Timing',   value: trek.departureTime },
-                                        { show: !!trek.returnTime,           Icon: MoonIcon,    label: 'Return Time',   value: trek.returnTime },
-                                        { show: !!trek.meetingLocation,      Icon: MapPinIcon,  label: 'Meeting Point', value: trek.meetingLocation },
-                                        { show: !!trek.ageRestrictions,      Icon: AgeIcon,     label: 'Age Limit',     value: trek.ageRestrictions },
-                                        { show: !!trek.fitnessRequirements,  Icon: FitnessIcon, label: 'Fitness',       value: trek.fitnessRequirements },
-                                    ].filter(r => r.show).map((row) => (
-                                        <div key={row.label} className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                            <row.Icon size={22} />
-                                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
-                                            <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.value}</p>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Experience Included — full width expandable */}
-                                {trek.inclusions?.length > 0 && (
-                                    <div>
-                                        <button
-                                            onClick={() => setInclusionOpen(o => !o)}
-                                            className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${isDark ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]' : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'}`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-[#0ECCEE]/10'}`}>
-                                                    <Check size={18} className="text-[#0ECCEE]" strokeWidth={3} />
-                                                </div>
-                                                <div className="text-left">
-                                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Experience Included</p>
-                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{trek.inclusions.length} items — tap to {inclusionOpen ? 'collapse' : 'view'}</p>
-                                                </div>
-                                            </div>
-                                            <ChevronRight size={16} className={`transition-transform duration-200 shrink-0 ${inclusionOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                                        </button>
-                                        {inclusionOpen && (
-                                            <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                                {trek.inclusions.map((item, i) => (
-                                                    <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i < trek.inclusions.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}>
-                                                        <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-[#0ECCEE]/10'}`}>
-                                                            <Check size={12} className="text-[#0ECCEE]" strokeWidth={3} />
-                                                        </span>
-                                                        <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{String(item).replace(/^[-•\s]+/, '')}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
 
                                 {trek.thingsToCarry?.length > 0 && (
                                     <div>
@@ -596,15 +717,8 @@ export default function TrekDetailPage() {
                                             <ChevronRight size={16} className={`transition-transform duration-200 shrink-0 ${carryOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                                         </button>
                                         {carryOpen && (
-                                            <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                                {trek.thingsToCarry.map((t, i) => (
-                                                    <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i < trek.thingsToCarry.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}>
-                                                        <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-emerald-500/10'}`}>
-                                                            <Check size={12} className="text-emerald-500" strokeWidth={3} />
-                                                        </span>
-                                                        <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{String(t).replace(/^[-•\s]+/, '')}</p>
-                                                    </div>
-                                                ))}
+                                            <div className="mt-2">
+                                                <TrekInfoList items={trek.thingsToCarry} isDark={isDark} dotClass="bg-emerald-500" />
                                             </div>
                                         )}
                                     </div>
@@ -641,24 +755,12 @@ export default function TrekDetailPage() {
                         )}
                         {activeTab === 'Inclusion' && (
                             trek.inclusions?.length > 0
-                                ? <div className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
-                                    <ul className="space-y-1.5">{trek.inclusions.map((item, i) => (
-                                        <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            <span className="mt-[5px] size-1.5 rounded-full bg-green-400 shrink-0" />
-                                            <span>{String(item).replace(/^[-*•\s]+/, '')}</span>
-                                        </li>))}</ul>
-                                </div>
+                                ? <TrekInfoList items={trek.inclusions} isDark={isDark} dotClass="bg-green-400" />
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No inclusions listed.</p>
                         )}
                         {activeTab === 'Exclusion' && (
                             trek.exclusions?.length > 0
-                                ? <div className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
-                                    <ul className="space-y-1.5">{trek.exclusions.map((item, i) => (
-                                        <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            <span className="mt-[5px] size-1.5 rounded-full bg-red-400 shrink-0" />
-                                            <span>{String(item).replace(/^[-*•\s]+/, '')}</span>
-                                        </li>))}</ul>
-                                </div>
+                                ? <TrekInfoList items={trek.exclusions} isDark={isDark} dotClass="bg-red-400" />
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No exclusions listed.</p>
                         )}
                     </div>
@@ -666,14 +768,8 @@ export default function TrekDetailPage() {
 
                 {/* ── Terms & Conditions ── */}
                 {(() => {
-                    const terms = trek.termsAndConditions?.length ? trek.termsAndConditions : [
-                        'Participants must be medically fit and physically capable for this trek.',
-                        'Follow all safety instructions given by the trek leader at all times.',
-                        'Cancellation policy: 50% refund if cancelled 7+ days before trek date. No refund thereafter.',
-                        'The organiser reserves the right to cancel or modify the trek due to bad weather or safety concerns.',
-                        'Participants are responsible for their own travel insurance and personal belongings.',
-                        'Any damage to nature or property will be the participant\'s responsibility.',
-                    ];
+                    const terms = (trek.termsAndConditions || []).map(cleanListItem).filter(Boolean);
+                    if (!terms.length) return null;
                     return (
                         <div className="px-4 mb-6">
                             <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Terms &amp; Conditions</h2>

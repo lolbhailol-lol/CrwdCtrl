@@ -11,8 +11,10 @@ import {
 } from '../../constants/trekFilters';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 import { normalizeTrekBatches, EMPTY_BATCH } from '../../utils/trekDateDisplay';
+import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
+import TrekDetailBoxesEditor from './TrekDetailBoxesEditor';
 
-const CARD_LABEL_SUGGESTIONS = ['Weekend', 'Weekday', 'Every Saturday', 'Coming soon'];
+const CARD_LABEL_SUGGESTIONS = ['Weekend', 'Weekday', '11 - 12 July', 'Every Saturday', 'Coming soon'];
 
 const CATEGORY_VALUE_MAP = {
     Camping: 'camping',
@@ -38,7 +40,7 @@ const EMPTY = {
     startingPoint: '', destination: '', meetingLocation: '', departureTime: '',
     returnTime: '', fitnessRequirements: '', ageRestrictions: '', trekLeader: '',
     emergencyContact: '', contactInstagram: '', contacts: [], registrationFee: 0, registrationLink: '', maxParticipants: 0,
-    trekDate: '', dateLabel: '', trekBatches: [], city: '', trekCategory: '', status: 'published',
+    trekDate: '', dateLabel: '', trekBatches: [], detailBoxes: [], city: '', trekCategory: '', status: 'published',
     registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [] },
     inclusions: '', exclusions: '', thingsToCarry: '', termsAndConditions: '',
     itinerary: [],
@@ -178,12 +180,13 @@ function TrekBatchesEditor({ batches, onChange }) {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <div>
-                                <label className="block text-[11px] font-medium text-gray-600 mb-1">Date</label>
+                                <label className="block text-[11px] font-medium text-gray-600 mb-1">Date / range</label>
                                 <input
-                                    type="date"
+                                    type="text"
                                     value={batch.date || ''}
                                     onChange={(e) => update(idx, 'date', e.target.value)}
                                     className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                                    placeholder="e.g. 11 - 12 July"
                                 />
                             </div>
                             <div>
@@ -232,6 +235,26 @@ function TrekBatchesEditor({ batches, onChange }) {
     );
 }
 
+function FormSection({ step, title, subtitle, optional = false, children }) {
+    return (
+        <div className="rounded-xl border border-gray-700/60 overflow-hidden">
+            <div className="px-4 py-3 bg-[#1D1E20] border-b border-gray-700/60 flex items-start justify-between gap-2">
+                <div>
+                    <p className="text-sm font-semibold text-white">
+                        <span className="text-[#0ECCEE] mr-1.5">{step}.</span>
+                        {title}
+                    </p>
+                    {subtitle ? <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{subtitle}</p> : null}
+                </div>
+                {optional ? (
+                    <span className="text-[10px] font-medium text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full shrink-0">Optional</span>
+                ) : null}
+            </div>
+            <div className="p-4 space-y-4">{children}</div>
+        </div>
+    );
+}
+
 export default function TrekFormModal({ trek, communityId, communityCategories, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
@@ -256,6 +279,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 trekDate: trek.trekDate ? new Date(trek.trekDate).toISOString().slice(0, 10) : '',
                 dateLabel: trek.dateLabel || '',
                 trekBatches: normalizeTrekBatches(trek.trekBatches, trek.trekDate),
+                detailBoxes: normalizeDetailBoxes(trek.detailBoxes, trek),
                 inclusions: Array.isArray(trek.inclusions) ? trek.inclusions.join('\n') : (trek.inclusions || ''),
                 exclusions: Array.isArray(trek.exclusions) ? trek.exclusions.join('\n') : (trek.exclusions || ''),
                 thingsToCarry: Array.isArray(trek.thingsToCarry) ? trek.thingsToCarry.join('\n') : (trek.thingsToCarry || ''),
@@ -323,6 +347,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 trekDate: form.trekDate || null,
                 dateLabel: (form.dateLabel || '').trim(),
                 trekBatches: normalizeTrekBatches(form.trekBatches, form.trekDate || null),
+                detailBoxes: normalizeDetailBoxes(form.detailBoxes),
                 trekFilters: form.trekFilters || emptyTrekFilters(),
                 contacts: (form.contacts || []).filter(c => (c.name || c.role || c.phone || '').trim()),
             };
@@ -358,208 +383,90 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3">{error}</div>}
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Trek Name <span className="text-red-400">*</span></label>
-                            <input type="text" value={form.trekName} onChange={e => set('trekName', e.target.value)} className={inp} placeholder="Trek name" />
+                    <FormSection step="1" title="Basic info" subtitle="Required fields to create the trek.">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Trek Name <span className="text-red-400">*</span></label>
+                                <input type="text" value={form.trekName} onChange={e => set('trekName', e.target.value)} className={inp} placeholder="Trek name" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Difficulty Level <span className="text-red-400">*</span></label>
+                                <select value={form.difficultyLevel} onChange={e => set('difficultyLevel', e.target.value)} className={inp}>
+                                    <option value="">Select...</option>
+                                    <option value="easy">Easy</option>
+                                    <option value="moderate">Moderate</option>
+                                    <option value="difficult">Difficult</option>
+                                    <option value="extreme">Extreme</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><label className="block text-sm font-medium text-gray-300 mb-1">City</label><input type="text" value={form.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="Nearest city" /></div>
+                            <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Fee (₹)</label><input type="number" min="0" value={form.registrationFee} onChange={e => set('registrationFee', e.target.value)} className={inp} /></div>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Difficulty Level <span className="text-red-400">*</span></label>
-                            <select value={form.difficultyLevel} onChange={e => set('difficultyLevel', e.target.value)} className={inp}>
-                                <option value="">Select...</option>
-                                <option value="easy">Easy</option>
-                                <option value="moderate">Moderate</option>
-                                <option value="difficult">Difficult</option>
-                                <option value="extreme">Extreme</option>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Trek Category</label>
+                            <select value={form.trekCategory || ''} onChange={e => set('trekCategory', e.target.value)} className={inp} disabled={!hasCategoryOptions}>
+                                <option value="">None</option>
+                                {categoryOptions.map(option => (<option key={option.value} value={option.value}>{option.label}</option>))}
                             </select>
                         </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Description <span className="text-gray-500 font-normal">(shown in Overview on the trek detail page)</span></label>
-                        <textarea
-                            value={form.description}
-                            onChange={e => set('description', e.target.value)}
-                            rows={5}
-                            className={`${inp} resize-none`}
-                            placeholder="Describe the trek — location, highlights, what to expect, scenery, experience level, etc."
-                        />
-                    </div>
-
-                    <div className="rounded-xl border border-gray-200 bg-white text-gray-900 p-4 space-y-3 shadow-sm">
                         <div>
-                            <p className="text-sm font-semibold">Card subtitle</p>
-                            <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                                Short label on community trek cards only — e.g. Weekend, Weekday, Every Saturday.
-                                This is separate from departure dates in the Details tab.
-                            </p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-800 mb-1">Card label</label>
-                            <input
-                                type="text"
-                                value={form.dateLabel}
-                                onChange={(e) => set('dateLabel', e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-[#0ECCEE]"
-                                placeholder="e.g. Weekend, Weekday"
-                            />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {CARD_LABEL_SUGGESTIONS.map((s) => (
-                                <button
-                                    key={s}
-                                    type="button"
-                                    onClick={() => set('dateLabel', s)}
-                                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                                        form.dateLabel === s
-                                            ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]'
-                                            : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-[#0ECCEE]'
-                                    }`}
-                                >
-                                    {s}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl border border-gray-200 bg-white text-gray-900 p-4 space-y-3 shadow-sm">
-                        <div>
-                            <p className="text-sm font-semibold">Departure batches (Details tab)</p>
-                            <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                                Add trek dates, batch size, timing and notes. Shown as white cards in the
-                                Details tab on the public trek page.
-                            </p>
-                        </div>
-                        <TrekBatchesEditor
-                            batches={form.trekBatches}
-                            onChange={(trekBatches) => set('trekBatches', trekBatches)}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">City</label><input type="text" value={form.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="Nearest city" /></div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Trek Category</label>
-                        <select
-                            value={form.trekCategory || ''}
-                            onChange={e => set('trekCategory', e.target.value)}
-                            className={inp}
-                            disabled={!hasCategoryOptions}
-                        >
-                            <option value="">None</option>
-                            {categoryOptions.map(option => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                            {hasCategoryOptions
-                                ? 'Shown as trek cards under the matching category chip on the community detail page.'
-                                : 'Add trek categories in the community form to enable this.'}
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Starting Point</label><input type="text" value={form.startingPoint} onChange={e => set('startingPoint', e.target.value)} className={inp} /></div>
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Destination</label><input type="text" value={form.destination} onChange={e => set('destination', e.target.value)} className={inp} /></div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Meeting Location</label><input type="text" value={form.meetingLocation} onChange={e => set('meetingLocation', e.target.value)} className={inp} /></div>
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Trek Duration</label><input type="text" value={form.trekDuration} onChange={e => set('trekDuration', e.target.value)} className={inp} placeholder="e.g. 2 days 1 night" /></div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Departure Time</label><input type="text" value={form.departureTime} onChange={e => set('departureTime', e.target.value)} className={inp} placeholder="e.g. 5:00 AM" /></div>
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Return Time</label><input type="text" value={form.returnTime} onChange={e => set('returnTime', e.target.value)} className={inp} placeholder="e.g. 8:00 PM" /></div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Trek Leader</label><input type="text" value={form.trekLeader} onChange={e => set('trekLeader', e.target.value)} className={inp} /></div>
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Emergency Contact</label><input type="text" value={form.emergencyContact} onChange={e => set('emergencyContact', e.target.value)} className={inp} /></div>
-                    </div>
-                    <div><label className="block text-sm font-medium text-gray-300 mb-1">Instagram Handle <span className="text-gray-500 font-normal">(@username)</span></label><input type="text" value={form.contactInstagram || ''} onChange={e => set('contactInstagram', e.target.value)} className={inp} placeholder="@yourtrek" /></div>
-
-                    {/* Repeatable people-to-contact list */}
-                    <div className="rounded-lg border border-gray-700/60 p-3">
-                        <div className="flex items-center justify-between mb-1">
-                            <label className="block text-sm font-medium text-gray-300">People to contact</label>
-                            <button type="button" onClick={addContact} className="flex items-center gap-1 text-xs font-semibold text-[#0ECCEE] hover:underline">
-                                <Plus size={13} /> Add contact
-                            </button>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-3">Name, role and phone for each person. Shown as contact cards on the trek page.</p>
-                        {(form.contacts || []).length === 0 ? (
-                            <p className="text-xs text-gray-600 rounded-lg border border-dashed border-gray-600 px-3 py-2.5">No contacts added yet.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {(form.contacts || []).map((c, idx) => (
-                                    <div key={idx} className="rounded-lg border border-gray-700 bg-[#1D1E20] p-3 space-y-2.5">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-semibold text-gray-400">Contact {idx + 1}</span>
-                                            <button type="button" onClick={() => removeContact(idx)} className="text-gray-500 hover:text-red-400" aria-label="Remove contact">
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2.5">
-                                            <input type="text" value={c.name} onChange={e => updateContact(idx, 'name', e.target.value)} className={inp} placeholder="Name (e.g. Rahul)" />
-                                            <input type="text" value={c.role} onChange={e => updateContact(idx, 'role', e.target.value)} className={inp} placeholder="Role (e.g. Trek Lead)" />
-                                        </div>
-                                        <input type="tel" value={c.phone} onChange={e => updateContact(idx, 'phone', e.target.value)} className={inp} placeholder="Phone (+91 98765 43210)" />
-                                    </div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                            <div className="flex flex-wrap gap-4">
+                                {['published', 'draft', 'completed', 'cancelled'].map(s => (
+                                    <label key={s} className="flex items-center gap-2 cursor-pointer">
+                                        <input type="radio" name="status" value={s} checked={form.status === s} onChange={() => set('status', s)} className="accent-[#0ECCEE]" />
+                                        <span className="text-sm text-gray-300 capitalize">{s}</span>
+                                    </label>
                                 ))}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    </FormSection>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Fitness Requirements</label><input type="text" value={form.fitnessRequirements} onChange={e => set('fitnessRequirements', e.target.value)} className={inp} /></div>
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Age Restrictions</label><input type="text" value={form.ageRestrictions} onChange={e => set('ageRestrictions', e.target.value)} className={inp} placeholder="e.g. 18–55 years" /></div>
-                    </div>
+                    <FormSection step="2" title="Overview" subtitle="Shown at the top of the trek page under the title.">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+                            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} className={`${inp} resize-none`} placeholder="Describe the trek — location, highlights, what to expect..." />
+                        </div>
+                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Trek Duration</label><input type="text" value={form.trekDuration} onChange={e => set('trekDuration', e.target.value)} className={inp} placeholder="e.g. 2 days 1 night" /></div>
+                    </FormSection>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Fee (₹)</label><input type="number" min="0" value={form.registrationFee} onChange={e => set('registrationFee', e.target.value)} className={inp} /></div>
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Max Participants</label><input type="number" min="0" value={form.maxParticipants} onChange={e => set('maxParticipants', e.target.value)} className={inp} placeholder="0 = unlimited" /></div>
-                    </div>
+                    <FormSection step="3" title="Card subtitle & departures" subtitle="Card label on community pages and departure batches in Details tab.">
+                        <div className="rounded-xl border border-gray-200 bg-white text-gray-900 p-4 space-y-3 shadow-sm">
+                            <div>
+                                <p className="text-sm font-semibold">Card subtitle</p>
+                                <p className="text-xs text-gray-600 mt-1">e.g. Weekend, Weekday, or 11 - 12 July</p>
+                            </div>
+                            <input type="text" value={form.dateLabel} onChange={(e) => set('dateLabel', e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-[#0ECCEE]" placeholder="e.g. Weekend, 11 - 12 July" />
+                            <div className="flex flex-wrap gap-2">
+                                {CARD_LABEL_SUGGESTIONS.map((s) => (
+                                    <button key={s} type="button" onClick={() => set('dateLabel', s)} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${form.dateLabel === s ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]' : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-[#0ECCEE]'}`}>{s}</button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-gray-200 bg-white text-gray-900 p-4 space-y-3 shadow-sm">
+                            <p className="text-sm font-semibold">Departure batches</p>
+                            <TrekBatchesEditor batches={form.trekBatches} onChange={(trekBatches) => set('trekBatches', trekBatches)} />
+                        </div>
+                    </FormSection>
 
-                    <TrekFilterTagsEditor
-                        trekFilters={form.trekFilters || emptyTrekFilters()}
-                        difficultyLevel={form.difficultyLevel}
-                        registrationFee={form.registrationFee}
-                        onChange={(next) => set('trekFilters', next)}
-                    />
+                    <FormSection step="4" title="Trek Info — Details" subtitle="White boxes on the Details tab. Add any boxes you need — icon is auto-picked from the label.">
+                        <TrekDetailBoxesEditor boxes={form.detailBoxes || []} onChange={(detailBoxes) => set('detailBoxes', detailBoxes)} />
+                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-700/50">
+                            <div><label className="block text-sm font-medium text-gray-300 mb-1">Starting Point</label><input type="text" value={form.startingPoint} onChange={e => set('startingPoint', e.target.value)} className={inp} /></div>
+                            <div><label className="block text-sm font-medium text-gray-300 mb-1">Destination</label><input type="text" value={form.destination} onChange={e => set('destination', e.target.value)} className={inp} /></div>
+                            <div className="col-span-2"><label className="block text-sm font-medium text-gray-300 mb-1">Meeting Location</label><input type="text" value={form.meetingLocation} onChange={e => set('meetingLocation', e.target.value)} className={inp} placeholder="Used for map on trek page" /></div>
+                        </div>
+                    </FormSection>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Inclusions (one per line)</label>
-                        <textarea value={form.inclusions} onChange={e => set('inclusions', e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Meals&#10;Transport&#10;Guide" />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Exclusions (one per line)</label>
-                        <textarea value={form.exclusions} onChange={e => set('exclusions', e.target.value)} rows={2} className={`${inp} resize-none`} placeholder="Personal gear&#10;Insurance" />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Things to Carry (one per line)</label>
-                        <textarea value={form.thingsToCarry} onChange={e => set('thingsToCarry', e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Trekking shoes&#10;Water bottle&#10;Raincoat" />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Terms &amp; Conditions <span className="text-gray-500 font-normal">(one point per line)</span></label>
-                        <textarea value={form.termsAndConditions || ''} onChange={e => set('termsAndConditions', e.target.value)} rows={5} className={`${inp} resize-none`} placeholder="Participants must be medically fit.&#10;Follow all instructions from the trek leader.&#10;Cancellation refund: 50% if cancelled 7 days before.&#10;Organiser may cancel due to bad weather." />
-                    </div>
-
-                    {/* Itinerary */}
-                    <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium text-gray-300">Itinerary</label>
-                            <button type="button" onClick={addItineraryDay} className="flex items-center gap-1 text-xs text-[#0ECCEE] hover:opacity-80 transition-opacity">
-                                <Plus size={12} /> Add Day
-                            </button>
+                    <FormSection step="5" title="Trek Info — Schedule" subtitle="Day-by-day itinerary shown in the Schedule tab." optional>
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs text-gray-500">Leave empty if you don&apos;t need a schedule yet.</p>
+                            <button type="button" onClick={addItineraryDay} className="flex items-center gap-1 text-xs text-[#0ECCEE] hover:opacity-80 transition-opacity"><Plus size={12} /> Add Day</button>
                         </div>
                         {form.itinerary.map((day, idx) => (
-                            <div key={idx} className="bg-[#1D1E20] rounded-lg p-3 mb-2 space-y-2">
+                            <div key={idx} className="bg-[#1D1E20] rounded-lg p-3 space-y-2">
                                 <div className="flex items-center justify-between">
                                     <span className="text-xs font-semibold text-gray-400">Day {day.day}</span>
                                     <button type="button" onClick={() => removeItineraryDay(idx)} className="text-gray-500 hover:text-red-400"><Trash2 size={13} /></button>
@@ -568,54 +475,75 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 <textarea value={day.description} onChange={e => updateItinerary(idx, 'description', e.target.value)} rows={2} className={`${inp} resize-none`} placeholder="Description" />
                             </div>
                         ))}
-                    </div>
+                    </FormSection>
 
-                    <div className="border border-gray-700/60 rounded-xl overflow-hidden">
-                        <div className="px-4 py-3 bg-[#1D1E20] border-b border-gray-700/60">
-                            <p className="text-sm font-semibold text-white">Cover images</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Card layouts and hero banner — separate from gallery</p>
-                        </div>
-                        <div className="p-4">
-                            <MultiCoverImagesUpload
-                                value={form.coverImages}
-                                onChange={(coverImages) => {
-                                    set('coverImages', coverImages);
-                                    set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
-                                }}
-                                onError={(msg) => setError(`Cover upload failed: ${msg}`)}
-                                onUploadingChange={setUploadingCover}
-                                hint="Upload a cropped image per layout (portrait cards, wide cards, hero, etc.)."
-                            />
-                        </div>
-                    </div>
+                    <FormSection step="6" title="Trek Info — Inclusion" subtitle="One item per line — shown in the Inclusion tab." optional>
+                        <textarea value={form.inclusions} onChange={e => set('inclusions', e.target.value)} rows={4} className={`${inp} resize-none`} placeholder="Meals&#10;Transport&#10;Guide" />
+                    </FormSection>
 
-                    <div className="border border-gray-700/60 rounded-xl overflow-hidden">
-                        <div className="px-4 py-3 bg-[#1D1E20] border-b border-gray-700/60">
-                            <p className="text-sm font-semibold text-white">Gallery</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Extra photos for the trek detail carousel — not cover images</p>
-                        </div>
-                        <div className="p-4">
-                            <GalleryImagesUploadField
-                                value={form.images}
-                                onChange={(images) => set('images', images)}
-                                onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
-                                onUploadingChange={setUploading}
-                                uploadLabel="Upload gallery images"
-                            />
-                        </div>
-                    </div>
+                    <FormSection step="7" title="Trek Info — Exclusion" subtitle="Listed in the Exclusion tab on the trek page." optional>
+                        <textarea value={form.exclusions} onChange={e => set('exclusions', e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Personal gear&#10;Insurance" />
+                    </FormSection>
 
-                    {/* ── Registration / Booking Form (status + type like fests) ── */}
-                    <div className="border border-[#0ECCEE]/20 rounded-xl overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-3 bg-[#0ECCEE]/5 border-b border-[#0ECCEE]/15">
-                            <div>
-                                <p className="text-sm font-bold text-[#0ECCEE]">📋 Booking Form (3-Step)</p>
-                                <p className="text-[10px] text-gray-500 mt-0.5">Step 1: Date/Time/People · Step 2: Personal Details · Step 3: Payment</p>
+                    <FormSection step="8" title="Things to Carry" subtitle="Expandable list on the Details tab." optional>
+                        <textarea value={form.thingsToCarry} onChange={e => set('thingsToCarry', e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Trekking shoes&#10;Water bottle" />
+                    </FormSection>
+
+                    <FormSection step="9" title="Terms & Conditions" subtitle="Shown at the bottom of the trek page." optional>
+                        <textarea value={form.termsAndConditions || ''} onChange={e => set('termsAndConditions', e.target.value)} rows={5} className={`${inp} resize-none`} placeholder="One point per line..." />
+                    </FormSection>
+
+                    <FormSection step="10" title="Contacts" subtitle="Phone, Instagram and people to reach on the trek page." optional>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><label className="block text-sm font-medium text-gray-300 mb-1">Trek Leader</label><input type="text" value={form.trekLeader} onChange={e => set('trekLeader', e.target.value)} className={inp} /></div>
+                            <div><label className="block text-sm font-medium text-gray-300 mb-1">Emergency Contact</label><input type="text" value={form.emergencyContact} onChange={e => set('emergencyContact', e.target.value)} className={inp} /></div>
+                        </div>
+                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Instagram</label><input type="text" value={form.contactInstagram || ''} onChange={e => set('contactInstagram', e.target.value)} className={inp} placeholder="@yourtrek" /></div>
+                        <div className="rounded-lg border border-gray-700/60 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium text-gray-300">People to contact</label>
+                                <button type="button" onClick={addContact} className="flex items-center gap-1 text-xs font-semibold text-[#0ECCEE] hover:underline"><Plus size={13} /> Add</button>
                             </div>
-                            <span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">Platform fee applies</span>
+                            {(form.contacts || []).map((c, idx) => (
+                                <div key={idx} className="rounded-lg border border-gray-700 bg-[#1D1E20] p-3 space-y-2 mb-2">
+                                    <div className="flex justify-between"><span className="text-xs text-gray-400">Contact {idx + 1}</span><button type="button" onClick={() => removeContact(idx)} className="text-gray-500 hover:text-red-400"><Trash2 size={14} /></button></div>
+                                    <div className="grid grid-cols-2 gap-2"><input type="text" value={c.name} onChange={e => updateContact(idx, 'name', e.target.value)} className={inp} placeholder="Name" /><input type="text" value={c.role} onChange={e => updateContact(idx, 'role', e.target.value)} className={inp} placeholder="Role" /></div>
+                                    <input type="tel" value={c.phone} onChange={e => updateContact(idx, 'phone', e.target.value)} className={inp} placeholder="Phone" />
+                                </div>
+                            ))}
                         </div>
+                    </FormSection>
 
-                        <div className="p-4 space-y-4">
+                    <FormSection step="11" title="User filter tags" subtitle="Tags for the Trek Category filter page." optional>
+                    <TrekFilterTagsEditor
+                        trekFilters={form.trekFilters || emptyTrekFilters()}
+                        difficultyLevel={form.difficultyLevel}
+                        registrationFee={form.registrationFee}
+                        onChange={(next) => set('trekFilters', next)}
+                    />
+                    </FormSection>
+
+                    <FormSection step="12" title="Cover images & gallery" subtitle="Hero, card layouts and extra photos.">
+                        <MultiCoverImagesUpload
+                            value={form.coverImages}
+                            onChange={(coverImages) => {
+                                set('coverImages', coverImages);
+                                set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
+                            }}
+                            onError={(msg) => setError(`Cover upload failed: ${msg}`)}
+                            onUploadingChange={setUploadingCover}
+                            hint="Upload a cropped image per layout (portrait cards, wide cards, hero, etc.)."
+                        />
+                        <GalleryImagesUploadField
+                            value={form.images}
+                            onChange={(images) => set('images', images)}
+                            onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                            onUploadingChange={setUploading}
+                            uploadLabel="Upload gallery images"
+                        />
+                    </FormSection>
+
+                    <FormSection step="13" title="Booking & registration" subtitle="Registration status, booking form and payment.">
                             {/* Registration status + type — same as the fests/events form */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -626,6 +554,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                         className={inp}
                                     >
                                         <option value="open">Open</option>
+                                        <option value="not_open_yet">Not open yet</option>
                                         <option value="closed">Closed</option>
                                     </select>
                                 </div>
@@ -773,24 +702,11 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                             </div>
                             </>
                             )}
-                        </div>
-                    </div>
+                    </FormSection>
 
                     <p className="text-[11px] text-gray-600 px-1">
                         Treks page sections, order &amp; home carousel → <span className="text-gray-500">Home &amp; Sections → Treks</span>
                     </p>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                        <div className="flex flex-wrap gap-4">
-                            {['published', 'draft', 'completed', 'cancelled'].map(s => (
-                                <label key={s} className="flex items-center gap-2 cursor-pointer">
-                                    <input type="radio" name="status" value={s} checked={form.status === s} onChange={() => set('status', s)} className="accent-[#0ECCEE]" />
-                                    <span className="text-sm text-gray-300 capitalize">{s}</span>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
 
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">Cancel</button>

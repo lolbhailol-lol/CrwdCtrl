@@ -60,7 +60,9 @@ router.get('/:id', async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid trek ID' });
         }
-        const trek = await Trek.findOne({ _id: id, status: 'published' }).lean();
+        const trek = await Trek.findOne({ _id: id, status: 'published' })
+            .populate('communityId', 'name basedIn contactPhone contactInstagram')
+            .lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
         res.json({ trek });
     } catch (error) {
@@ -80,6 +82,9 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
 
         if (trek.registration?.status === 'closed') {
             return res.status(400).json({ message: 'Registration is currently closed for this trek' });
+        }
+        if (trek.registration?.status === 'not_open_yet') {
+            return res.status(400).json({ message: 'Registration is not open yet for this trek' });
         }
 
         const { formData = {}, bookingDetails = {} } = req.body;

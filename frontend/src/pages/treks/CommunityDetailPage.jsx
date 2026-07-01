@@ -466,7 +466,19 @@ export default function CommunityDetailPage() {
                                         isDark={isDark}
                                         isFav={isFavorite(trek.id)}
                                         onFav={() => toggleFavorite(trek.id, trek)}
-                                        onClick={() => navigate(`/trek/${trek.id}`, { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                        onClick={() => navigate(`/trek/${trek.id}`, {
+                                            state: {
+                                                trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] },
+                                                community: community ? {
+                                                    _id: community.id,
+                                                    id: community.id,
+                                                    name: community.title,
+                                                    title: community.title,
+                                                    contactPhone: community.contactPhone,
+                                                    contactInstagram: community.contactInstagram,
+                                                } : null,
+                                            },
+                                        })}
                                     />
                                 ))}
                             </div>

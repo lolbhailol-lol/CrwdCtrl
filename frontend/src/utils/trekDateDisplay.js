@@ -29,11 +29,14 @@ export function normalizeTrekBatches(raw, trekDate = null) {
 
 export function formatBatchDate(dateStr) {
     if (!dateStr) return '';
-    const d = new Date(dateStr);
+    const text = String(dateStr).trim();
+    // Free-text ranges like "11 - 12 July" — show as entered
+    if (/[a-zA-Z]/.test(text) || text.includes(' - ')) return text;
+    const d = new Date(text);
     if (!Number.isNaN(d.getTime())) {
         return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     }
-    return String(dateStr).trim();
+    return text;
 }
 
 /** Card subtitle — weekend, weekday, etc. (never trek dates) */

@@ -61,6 +61,14 @@ const trekSchema = new mongoose.Schema(
             timing:    { type: String, trim: true, default: '' },
             note:      { type: String, trim: true, default: '' },
         }],
+        /** Custom white detail cards on trek Details tab (label + value + icon) */
+        detailBoxes: [{
+            id:    { type: String, trim: true, default: '' },
+            label: { type: String, trim: true, default: '' },
+            value: { type: String, trim: true, default: '' },
+            icon:  { type: String, trim: true, default: 'default' },
+            order: { type: Number, default: 0 },
+        }],
         city: { type: String, trim: true },
         trekCategory: {
             type: String,
@@ -90,7 +98,7 @@ const trekSchema = new mongoose.Schema(
 
         registration: {
             /** Whether registration is currently accepting bookings */
-            status:            { type: String, enum: ['open', 'closed'], default: 'open' },
+            status:            { type: String, enum: ['open', 'closed', 'not_open_yet'], default: 'open' },
             /** How users register: in-app multi-step form, or an external link */
             mode:              { type: String, enum: ['internal_form', 'external_link'], default: 'internal_form' },
             googleSheetsUrl:   { type: String, default: '' },
