@@ -1,6 +1,7 @@
 import { Route, Navigate } from 'react-router-dom';
+import PaymentReturn from '../../pages/payment/PaymentReturn';
 
-export const paymentReturnRedirect = <Route path="/payment/return" element={<Navigate to="/booking" replace />} />;
+export const paymentReturnRedirect = <Route path="/payment/return" element={<PaymentReturn />} />;
 export const dashboardRedirect = <Route path="/dashboard" element={<Navigate to="/" replace />} />;
 export const theatreRedirect = <Route path="/theatre" element={<Navigate to="/events" replace />} />;
 export const registeredFestRedirect = <Route path="/registered-fest" element={<Navigate to="/booking" replace />} />;
