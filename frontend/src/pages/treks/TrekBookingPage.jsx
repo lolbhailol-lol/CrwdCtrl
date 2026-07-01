@@ -613,7 +613,8 @@ export default function TrekBookingPage() {
                 }
 
                 if (checkoutResult?.redirectDeferred) {
-                    setPaying(false);
+                    setStep(3);
+                    setPaying(true);
                     return;
                 }
 

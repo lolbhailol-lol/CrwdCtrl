@@ -81,7 +81,7 @@ export default function CompetitionRegistration() {
     const [paymentFields, setPaymentFields] = useState(null);
     const [paymentReceiptUrl] = useState('');
     const [transactionId] = useState('');
-    const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
+    const [paymentResumeError, setPaymentResumeError] = useState('');
     // True once we've waited long enough for Firebase -> backend JWT sync to finish
     const [authSyncExpired, setAuthSyncExpired] = useState(false);
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
@@ -322,6 +322,7 @@ export default function CompetitionRegistration() {
     // Resume after Cashfree redirect — verify payment, then auto-complete registration
     useEffect(() => {
         if (paymentResumeRef.current || authLoading || isAuthProcessing || isRedirectProcessing) return;
+        if (loading || !competition) return;
 
         const pending = getPendingPayment();
         if (!pending?.orderId || isTrekPaymentPending(pending)) return;
@@ -331,19 +332,16 @@ export default function CompetitionRegistration() {
 
         paymentResumeRef.current = true;
         setCompletingPayment(true);
+        setPaymentResumeError('');
         setSubmissionProgress('Verifying payment...');
         setError('');
         setNotice('');
 
         (async () => {
-            let scheduledAutoSubmit = false;
             try {
                 const submitToken = resolveAuthToken(token) || localStorage.getItem('crwdctrl_token');
                 if (!submitToken) {
-                    setCompletingPayment(false);
-                    setLoading(false);
-                    setError('Please log in to complete your registration.');
-                    return;
+                    throw new Error('Please log in to complete your registration.');
                 }
 
                 const { ok, data: verifyData } = await verifyPaymentWithRetry(
@@ -357,7 +355,6 @@ export default function CompetitionRegistration() {
 
                 const verifiedFields = buildVerifiedPaymentFields(verifyData, pending.orderId);
                 setPaymentFields(verifiedFields);
-                clearPendingPayment();
 
                 const draft = loadRegistrationDraft(draftKey);
                 const hasDraftAnswers = draft && (
@@ -373,28 +370,32 @@ export default function CompetitionRegistration() {
                         setCompletedSteps,
                     });
                     setSubmissionProgress('Submitting your registration...');
-                    scheduledAutoSubmit = true;
-                    setPendingAutoSubmit(true);
+                    await handleSubmitRef.current?.(
+                        { preventDefault: () => {} },
+                        { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
+                    );
                     return;
                 }
 
                 setSubmissionProgress('Completing registration...');
+                clearPendingPayment();
                 await completePayOnlyRegistration(verifiedFields, submitToken);
+                clearCashfreeReturnParams();
                 setCompletingPayment(false);
             } catch (err) {
                 clearPendingPayment();
-                setCompletingPayment(false);
+                setPaymentResumeError(err.message || 'Could not complete registration after payment.');
                 setError(err.message || 'Could not complete registration after payment.');
             } finally {
-                if (!scheduledAutoSubmit) {
-                    setSubmissionProgress('');
-                }
+                setSubmissionProgress('');
             }
         })();
     }, [
         authLoading,
         isAuthProcessing,
         isRedirectProcessing,
+        loading,
+        competition,
         location.pathname,
         location.search,
         token,
@@ -403,21 +404,19 @@ export default function CompetitionRegistration() {
         completePayOnlyRegistration,
     ]);
 
-    // Auto-submit form after redirect payment when draft answers were restored
-    useEffect(() => {
-        if (!pendingAutoSubmit || !paymentFields || !competition || submitting) return;
-
-        setPendingAutoSubmit(false);
-        setNotice('');
-        setCompletingPayment(true);
-        setSubmissionProgress('Submitting your registration...');
-
-        const timer = setTimeout(() => {
-            handleSubmitRef.current?.({ preventDefault: () => {} });
-        }, 100);
-
-        return () => clearTimeout(timer);
-    }, [pendingAutoSubmit, paymentFields, competition, submitting]);
+    const clearCashfreeReturnParams = () => {
+        try {
+            const params = new URLSearchParams(location.search);
+            ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
+            const nextSearch = params.toString();
+            navigate(
+                { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+                { replace: true },
+            );
+        } catch {
+            /* ignore */
+        }
+    };
 
     useEffect(() => {
         if (error) {
@@ -553,6 +552,19 @@ export default function CompetitionRegistration() {
         Object.assign(allData, currentStepData);
         
         return allData;
+    };
+
+    const buildFormDataFromDraft = (draft) => {
+        if (!draft) return null;
+        const merged = { ...(draft.formData || {}) };
+        if (draft.stepData && typeof draft.stepData === 'object') {
+            Object.values(draft.stepData).forEach((fields) => {
+                if (fields && typeof fields === 'object') {
+                    Object.assign(merged, fields);
+                }
+            });
+        }
+        return merged;
     };
 
     const handleInputChange = (fieldId, value, fieldType = 'text') => {
@@ -928,8 +940,13 @@ export default function CompetitionRegistration() {
         }
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e, options = {}) => {
         e?.preventDefault?.();
+        const {
+            paidResume = false,
+            verifiedPaymentOverride = null,
+            draft = null,
+        } = options;
         console.log('🚀 Starting competition registration submission...');
         
         // ✅ PERFORMANCE: Prevent double submission
@@ -939,7 +956,7 @@ export default function CompetitionRegistration() {
         }
 
         // ✅ NEW: For multi-step forms, validate current step first and move to next
-        if (isMultiStepFormActive()) {
+        if (!paidResume && isMultiStepFormActive()) {
             const currentFields = getCurrentStepFields();
             const currentData = getCurrentStepData();
             
@@ -976,9 +993,9 @@ export default function CompetitionRegistration() {
             const formSchema = getFormSchema(competition.registration);
             console.log(`📝 Validation schema: ${formSchema.length} fields (${isMultiStepForm(competition.registration) ? 'multi-step' : 'single-step'})`);
             
-            // Get all form data (combine all steps if multi-step)
-            const allFormData = getAllFormData();
+            const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
             
+            if (!paidResume) {
             // Validate required fields
             const requiredFields = formSchema.filter(field => field.required) || [];
             console.log('🔍 Validating required fields:', requiredFields.map(f => ({ label: f.label, id: generateFieldId(f) })));
@@ -1000,12 +1017,13 @@ export default function CompetitionRegistration() {
                     throw new Error(`${field.label} is required`);
                 }
             }
+            }
 
             // Cashfree: If competition has a fee, open checkout now
             const feeAmount = priceBreakdown?.ticketPrice || parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
-            let verifiedPaymentFields = paymentFields; // may already be set from a prior attempt
+            let verifiedPaymentFields = verifiedPaymentOverride || paymentFields; // may already be set from a prior attempt
 
-            if (feeAmount > 0 && !verifiedPaymentFields) {
+            if (feeAmount > 0 && !verifiedPaymentFields && !paidResume) {
                 setSubmissionProgress('Opening payment gateway...');
 
                 const submitToken = token || localStorage.getItem('crwdctrl_token');
@@ -1282,13 +1300,22 @@ export default function CompetitionRegistration() {
             setCompletingPayment(false);
             setSuccess(true);
             clearRegistrationDraft(draftKey);
+            if (paidResume) {
+                clearPendingPayment();
+                setPaymentResumeError('');
+                clearCashfreeReturnParams();
+            }
 
         } catch (err) {
-            setCompletingPayment(false);
+            if (paidResume) {
+                setPaymentResumeError(err.message || 'Registration failed after payment.');
+            } else {
+                setCompletingPayment(false);
+            }
             console.error('❌ Registration error:', err);
             
             // Enhanced error handling
-            if (err.message.includes('Authentication') || err.message.includes('401')) {
+            if (!paidResume && (err.message.includes('Authentication') || err.message.includes('401'))) {
                 setError('Your session has expired. Please log in again.');
                 // Clear invalid tokens
                 localStorage.removeItem('crwdctrl_token');
@@ -1296,22 +1323,20 @@ export default function CompetitionRegistration() {
                 // Save current URL for redirect after login
                 sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
                 setTimeout(() => navigate('/login', { replace: true }), 2000);
-            } else if (err.message.includes('not configured') || err.message.includes('form field')) {
+            } else if (!paidResume && (err.message.includes('not configured') || err.message.includes('form field'))) {
                 setError('❌ This competition\'s registration form is not properly configured. Please contact the organizer to set up the registration form.');
-            } else if (err.message.includes('required')) {
+            } else if (!paidResume && err.message.includes('required')) {
                 setError(err.message); // Field validation errors
-            } else if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {
+            } else if (!paidResume && (err.message.includes('Failed to fetch') || err.message.includes('Network'))) {
                 setError('Network error. Please check your internet connection and try again.');
-            } else if (err.name === 'AbortError') {
+            } else if (!paidResume && err.name === 'AbortError') {
                 setError('Request timeout. Please check your internet connection and try again.');
-            } else {
+            } else if (!paidResume) {
                 setError(err.message || 'An unexpected error occurred. Please try again.');
             }
         } finally {
             setSubmitting(false);
-            if (!pendingAutoSubmit) {
-                setSubmissionProgress('');
-            }
+            setSubmissionProgress('');
         }
     };
 
@@ -1320,10 +1345,25 @@ export default function CompetitionRegistration() {
     if (completingPayment && !success) {
         return (
             <div className="min-h-screen bg-[#111213] flex flex-col items-center justify-center px-4">
-                <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
-                <p className="text-sm text-gray-300 text-center">
-                    {submissionProgress || 'Completing your registration...'}
-                </p>
+                {paymentResumeError ? (
+                    <div className="text-center max-w-md">
+                        <p className="text-sm text-red-300 mb-6">{paymentResumeError}</p>
+                        <button
+                            type="button"
+                            onClick={() => { setPaymentResumeError(''); setCompletingPayment(false); }}
+                            className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                        >
+                            Back to registration form
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
+                        <p className="text-sm text-gray-300 text-center">
+                            {submissionProgress || 'Completing your registration...'}
+                        </p>
+                    </>
+                )}
             </div>
         );
     }

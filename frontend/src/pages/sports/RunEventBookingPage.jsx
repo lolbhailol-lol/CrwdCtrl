@@ -453,7 +453,11 @@ export default function RunEventBookingPage() {
                     return;
                 }
 
-                if (checkoutResult?.redirectDeferred) { setPaying(false); return; }
+                if (checkoutResult?.redirectDeferred) {
+                    setStep(3);
+                    setPaying(true);
+                    return;
+                }
 
                 setStep(3);
                 setPaying(true);

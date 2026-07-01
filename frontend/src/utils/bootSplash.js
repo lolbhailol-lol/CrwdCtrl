@@ -2,6 +2,8 @@ import {
   getPendingPayment,
   hasCashfreeReturnParams,
   hasPaymentReturnExpected,
+  isStalePendingPayment,
+  pathsMatchPendingReturn,
 } from './deepLinks';
 
 /** Skip splash when returning from Cashfree — resume payment immediately */
@@ -10,7 +12,12 @@ function hasPaymentReturnContext() {
     if (typeof window === 'undefined') return false;
     if (window.location.pathname === '/payment/return') return true;
     if (hasCashfreeReturnParams(window.location.search)) return true;
-    if (hasPaymentReturnExpected() && getPendingPayment()) return true;
+    const pending = getPendingPayment();
+    if (pending?.orderId && !isStalePendingPayment(pending)) {
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      if (pathsMatchPendingReturn(pending.returnPath, currentPath)) return true;
+    }
+    if (hasPaymentReturnExpected() && pending) return true;
     return false;
   } catch {
     return false;

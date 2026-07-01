@@ -268,7 +268,6 @@ export default function FestRegistration() {
 
         const verifiedFields = buildVerifiedPaymentFields(verifyData, pending.orderId);
         setPaymentFields(verifiedFields);
-        clearPendingPayment();
 
         const draft = loadRegistrationDraft(draftKey);
         const hasDraftAnswers = draft && (
@@ -1949,6 +1948,7 @@ export default function FestRegistration() {
       refreshNotifications();
       clearRegistrationDraft(draftKey);
       if (paidResume) {
+        clearPendingPayment();
         setPaymentResumeError('');
         clearCashfreeReturnParams();
       }
@@ -2195,7 +2195,8 @@ export default function FestRegistration() {
 
       if (checkoutResult?.redirectDeferred) {
         setPaymentLoading(false);
-        setCompletingPayment(false);
+        setCompletingPayment(true);
+        setSubmissionProgress('Complete payment in the gateway. You will return here automatically.');
         return;
       }
 

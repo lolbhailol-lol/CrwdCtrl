@@ -21,6 +21,14 @@ function draftKey(eventId) {
     return `event_reg_draft_${eventId}`;
 }
 
+function getInitialEventRegistrationUi(eventId, search) {
+    if (!eventId) return { paying: false, step: 0 };
+    const returnPath = `/events/${eventId}/register`;
+    const resuming = shouldResumePendingPayment(getPendingPayment(), returnPath, search);
+    if (resuming) return { paying: true, step: Number.MAX_SAFE_INTEGER };
+    return { paying: false, step: 0 };
+}
+
 function pickCustomer(values) {
     const find = (keys) => {
         for (const k of Object.keys(values)) {
@@ -42,6 +50,7 @@ export default function EventRegistrationPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const { eventId } = useParams();
+    const initialUi = getInitialEventRegistrationUi(eventId, location.search);
     const { isDark } = useDarkMode();
     const {
         user,
@@ -57,12 +66,13 @@ export default function EventRegistrationPage() {
     const [showRegister, setShowRegister] = useState(false);
     const [event, setEvent] = useState(location.state?.event || null);
     const [loading, setLoading] = useState(!location.state?.event);
-    const [step, setStep] = useState(0);
+    const [step, setStep] = useState(initialUi.step === Number.MAX_SAFE_INTEGER ? 0 : initialUi.step);
     const [values, setValues] = useState({});
     const [files, setFiles] = useState({});
     const [error, setError] = useState('');
-    const [paying, setPaying] = useState(false);
+    const [paying, setPaying] = useState(initialUi.paying);
     const [done, setDone] = useState(false);
+    const [paymentResumeError, setPaymentResumeError] = useState('');
     const [registrationId, setRegistrationId] = useState('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
     const retryRef = useRef(null);
@@ -251,19 +261,28 @@ export default function EventRegistrationPage() {
         return true;
     };
 
-    const submitRegistration = useCallback(async ({ paymentOrderId, paymentId, amountPaid }) => {
+    const submitRegistration = useCallback(async ({
+        paymentOrderId,
+        paymentId,
+        amountPaid,
+        valuesOverride,
+        filesOverride,
+    } = {}) => {
         const token = localStorage.getItem('crwdctrl_token');
         if (!token) { setShowLogin(true); throw new Error('Please log in to register.'); }
+
+        const submissionValues = valuesOverride ?? values;
+        const submissionFiles = filesOverride ?? files;
 
         const fd = new FormData();
         const textResponses = {};
         allFields.forEach((f) => {
             if (FILE_TYPES.includes(f.type)) {
-                const v = files[f.fieldName];
+                const v = submissionFiles[f.fieldName];
                 const arr = Array.isArray(v) ? v : (v ? [v] : []);
                 arr.forEach((file) => fd.append(f.fieldName, file));
-            } else if (values[f.fieldName] !== undefined) {
-                textResponses[f.fieldName] = values[f.fieldName];
+            } else if (submissionValues[f.fieldName] !== undefined) {
+                textResponses[f.fieldName] = submissionValues[f.fieldName];
             }
         });
         fd.append('responses', JSON.stringify(textResponses));
@@ -293,14 +312,31 @@ export default function EventRegistrationPage() {
 
         resumeRef.current = true;
         setPaying(true);
-        setStep(allSteps.length - 1);
+        setPaymentResumeError('');
+        setError('');
         const token = localStorage.getItem('crwdctrl_token');
+
+        let draftValues = {};
+        const rawDraft = sessionStorage.getItem(draftKey(eventId));
+        if (rawDraft) {
+            try {
+                const parsed = JSON.parse(rawDraft);
+                draftValues = parsed.values || {};
+                if (Object.keys(draftValues).length > 0) setValues(draftValues);
+            } catch { /* ignore */ }
+        }
+
         (async () => {
             try {
                 const { ok, data: v } = await verifyPaymentWithRetry(API, pending.orderId, { token, kind: 'fest' });
                 if (!ok || !v?.verified) {
                     clearPendingPayment();
-                    setError('Payment was not completed. Tap Pay to try again.');
+                    const unpaid = /pending|ACTIVE|not found|not successful/i.test(v?.message || '');
+                    setPaymentResumeError(
+                        unpaid
+                            ? 'Payment was not completed. Tap Pay to try again.'
+                            : (v?.message || 'Payment could not be verified.'),
+                    );
                     setPaying(false);
                     return;
                 }
@@ -310,15 +346,26 @@ export default function EventRegistrationPage() {
                     paymentOrderId: verified.payment_order_id || pending.orderId,
                     paymentId: verified.payment_id,
                     amountPaid: breakdown.totalAmount,
+                    valuesOverride: draftValues,
+                    filesOverride: {},
                 });
+                sessionStorage.removeItem(draftKey(eventId));
+                const params = new URLSearchParams(location.search);
+                ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
+                const nextSearch = params.toString();
+                navigate(
+                    { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+                    { replace: true },
+                );
                 setDone(true);
             } catch (e) {
-                setError(e.message || 'Could not complete registration after payment');
+                clearPendingPayment();
+                setPaymentResumeError(e.message || 'Could not complete registration after payment');
             } finally {
                 setPaying(false);
             }
         })();
-    }, [eventId, loading, location.search, allSteps.length, submitRegistration, breakdown.totalAmount]);
+    }, [eventId, loading, location.search, location.pathname, navigate, submitRegistration, breakdown.totalAmount]);
 
     const handleFinalSubmit = async () => {
         setError('');
@@ -381,7 +428,11 @@ export default function EventRegistrationPage() {
                 return;
             }
 
-            if (checkout?.redirectDeferred) { setPaying(false); return; }
+            if (checkout?.redirectDeferred) {
+                setStep(allSteps.length - 1);
+                setPaying(true);
+                return;
+            }
 
             const checkoutPaymentId = checkout?.paymentDetails?.paymentId || checkout?.paymentDetails?.cf_payment_id || '';
             const vRes = await fetch(`${API}/payment/verify`, {
@@ -417,10 +468,36 @@ export default function EventRegistrationPage() {
     };
     const back = () => (step === 0 ? navigate(-1) : setStep((s) => s - 1));
 
-    if (loading && !done) {
+    if (loading && !done && !paying) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex items-center justify-center">
                 <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
+            </div>
+        );
+    }
+
+    if (paying && !done) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center px-4">
+                {paymentResumeError ? (
+                    <div className="text-center max-w-md">
+                        <p className={`text-sm mb-6 ${isDark ? 'text-red-300' : 'text-red-600'}`}>{paymentResumeError}</p>
+                        <button
+                            type="button"
+                            onClick={() => { setPaymentResumeError(''); setStep(allSteps.length - 1); }}
+                            className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                        >
+                            Back to registration
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
+                        <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            Verifying payment and completing your registration...
+                        </p>
+                    </>
+                )}
             </div>
         );
     }
