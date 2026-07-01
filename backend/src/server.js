@@ -10,7 +10,6 @@ const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const { logger } = require('./utils/logger');
 const { captureException } = require('./config/sentry');
-const { initReminderCron } = require('./services/reminderService');
 const { getFirebaseAdminStatus } = require('./config/firebaseAdmin');
 
 async function startServer() {
@@ -31,9 +30,6 @@ async function startServer() {
     const app = require('./app');
     const PORT = process.env.PORT || 8080;
     const HOST = process.env.HOST || '0.0.0.0';
-
-    initReminderCron();
-    logger.info('Event reminder cron initialized');
 
     const server = app.listen(PORT, HOST, () => {
       logger.info(`Server running on ${HOST}:${PORT}`, {
