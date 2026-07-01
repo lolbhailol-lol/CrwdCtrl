@@ -21,6 +21,7 @@ import {
 import { buildTrekPriceBreakdown } from '../../utils/platformFee';
 import { isTrekFormFieldEmpty } from '../../constants/trekFormFields';
 import { API_BASE_URL } from '../../services/api/client';
+import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 
 const API = API_BASE_URL;
 
@@ -161,6 +162,15 @@ export default function TrekBookingPage() {
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
     const fee       = Number(trek?.registrationFee) || 0;
+    const showSuccess = step === 3 && payDone && !paying;
+    const showProcessing = step === 3 && paying;
+
+    useBookingSuccessPopup(showSuccess, {
+        name: trekName,
+        paid: payDone && fee > 0,
+        bookingId,
+        ticketType: 'trek',
+    });
     const platformPct = Number(trek?.platformFeePercent) || 3;
     const reg       = trek?.registration || {};
     const dates = useMemo(
@@ -630,9 +640,6 @@ export default function TrekBookingPage() {
     };
 
     const back = () => step === 1 ? navigate(-1) : setStep(s => s - 1);
-
-    const showProcessing = step === 3 && paying;
-    const showSuccess = step === 3 && payDone && !paying;
 
     const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
     const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);

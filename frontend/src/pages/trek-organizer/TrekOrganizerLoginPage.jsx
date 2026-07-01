@@ -7,6 +7,7 @@ import { Mountain, Loader } from 'lucide-react';
 import { trekOrganizerLogin } from '../../services/api/trekOrganizer.api';
 
 import { setTrekOrganizerSession } from '../../utils/trekOrganizerSession';
+import { showAppPopup } from '../../utils/appPopup';
 
 
 
@@ -64,6 +65,12 @@ export default function TrekOrganizerLoginPage() {
 
                 treks: data.treks || [],
 
+            });
+
+            showAppPopup({
+                title: 'Signed in successfully',
+                message: 'Welcome to the organizer portal.',
+                tone: 'login',
             });
 
             navigate(resolvePostLoginPath(data.treks, location.state?.from), { replace: true });

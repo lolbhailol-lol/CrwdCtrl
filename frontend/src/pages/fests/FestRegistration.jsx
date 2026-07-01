@@ -25,6 +25,7 @@ import {
   saveRegistrationDraft,
   scrollFieldIntoView,
 } from '../../utils/registrationDraft';
+import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
 import {
   clearStoredAuthSession,
   getBearerAuthHeaders,
@@ -108,6 +109,13 @@ export default function FestRegistration() {
 
   const isCompetitionRegistration = !!competitionId;
   const draftKey = festRegDraftKey(festId, competitionId);
+  const registrationDisplayName = isCompetitionRegistration ? competition?.name : fest?.festName;
+
+  useRegistrationSuccessPopup(success, {
+    name: registrationDisplayName,
+    link: registrationId ? `/qr-ticket/${registrationId}` : '/booking',
+    paid: Boolean(paymentFields),
+  });
 
   const restoreRegistrationDraft = () => {
     const draft = loadRegistrationDraft(draftKey);

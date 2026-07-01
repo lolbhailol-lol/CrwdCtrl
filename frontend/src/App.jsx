@@ -25,8 +25,8 @@ import CapacitorInit from './components/CapacitorInit'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
 import PageTransitionSkeleton from './components/PageTransitionSkeleton'
 import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
-import LoginSuccessToast from './components/LoginSuccessToast'
 import { prepareLogin, resolvePostLoginRedirect, currentAppPath } from './utils/loginFlow'
+import { showLoginPopup } from './utils/appPopup'
 import { appRoutes, CrwdCtrlLogin, CrwdCtrlRegister } from './app/router'
 import { resolveUrl } from './services/api/client'
 
@@ -173,7 +173,6 @@ function AppContent({
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isTrekOrganizerRoute = location.pathname.startsWith('/trek-organizer');
   const isStandaloneRoute = isAdminRoute || isTrekOrganizerRoute;
-  const [loginSuccessVisible, setLoginSuccessVisible] = useState(false);
 
   useGlobalSmoothScroll();
 
@@ -198,9 +197,7 @@ function AppContent({
   }, [location.pathname, setShowLogin, setShowRegister]);
 
   useEffect(() => {
-    let hideTimer;
-    const handler = () => {
-      if (hideTimer) window.clearTimeout(hideTimer);
+    const onUserLogin = () => {
       setShowLogin(false);
       setShowRegister(false);
       setIsProfileOpen(false);
@@ -212,15 +209,11 @@ function AppContent({
         navigate(destination, { replace: true });
       }
 
-      setLoginSuccessVisible(true);
-      hideTimer = window.setTimeout(() => setLoginSuccessVisible(false), 2600);
+      window.requestAnimationFrame(() => showLoginPopup());
     };
 
-    window.addEventListener('crwdctrl:user-login', handler);
-    return () => {
-      window.removeEventListener('crwdctrl:user-login', handler);
-      if (hideTimer) window.clearTimeout(hideTimer);
-    };
+    window.addEventListener('crwdctrl:user-login', onUserLogin);
+    return () => window.removeEventListener('crwdctrl:user-login', onUserLogin);
   }, [navigate, setIsProfileOpen, setShowLogin, setShowRegister]);
 
   return (
@@ -265,8 +258,6 @@ function AppContent({
           embedBottomNav={false}
         />
       )}
-
-      <LoginSuccessToast visible={loginSuccessVisible} />
 
       {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
         <div className="fixed inset-0 z-50">
@@ -364,8 +355,8 @@ function App() {
         <DialogProvider>
         <FavoritesProvider>
           <RegisteredEventsProvider>
-            <NotificationsProvider>
               <Router>
+                <NotificationsProvider>
                 <MobileSearchProvider>
                 <PageTransitionProvider>
                   <CapacitorInit />
@@ -389,8 +380,8 @@ function App() {
                   />
                 </PageTransitionProvider>
                 </MobileSearchProvider>
+                </NotificationsProvider>
               </Router>
-            </NotificationsProvider>
           </RegisteredEventsProvider>
         </FavoritesProvider>
         </DialogProvider>

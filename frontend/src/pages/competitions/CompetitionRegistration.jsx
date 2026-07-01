@@ -27,6 +27,7 @@ import {
     hasUsableAuthToken,
     resolveAuthToken,
 } from '../../utils/authToken';
+import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 import { fetchPaymentQuote } from '../../services/api/payment.api';
@@ -93,6 +94,12 @@ export default function CompetitionRegistration() {
         const timer = setTimeout(() => setAuthSyncExpired(true), 5000);
         return () => clearTimeout(timer);
     }, [firebaseUser, token]);
+
+    useRegistrationSuccessPopup(success, {
+        name: competition?.name,
+        link: registrationId ? `/qr-ticket/${registrationId}` : '/booking',
+        paid: Boolean(paymentFields),
+    });
 
     // Helper function to generate consistent field IDs
     const generateFieldId = (field) => {

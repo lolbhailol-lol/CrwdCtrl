@@ -20,6 +20,7 @@ import {
 } from '../../utils/paymentNavigation';
 import { calculatePlatformFee } from '../../utils/platformFee';
 import { API_BASE_URL } from '../../services/api/client';
+import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 
 const API = API_BASE_URL;
 
@@ -129,6 +130,15 @@ export default function RunEventBookingPage() {
 
     const eventName = event?.title || event?.name || 'Run';
     const fee = Number(event?.registrationFee) || 0;
+    const showSuccess = step === 3 && payDone && !paying;
+    const showProcessing = step === 3 && paying;
+
+    useBookingSuccessPopup(showSuccess, {
+        name: eventName,
+        paid: payDone && fee > 0,
+        bookingId,
+        ticketType: 'sports',
+    });
     const reg = event?.registration || {};
     const dates = useMemo(
         () => (reg.availableDates?.length ? reg.availableDates : generateDates(event?.eventDate)),
@@ -484,9 +494,6 @@ export default function RunEventBookingPage() {
     };
 
     const back = () => (step === 1 ? navigate(-1) : setStep((s) => s - 1));
-
-    const showProcessing = step === 3 && paying;
-    const showSuccess = step === 3 && payDone && !paying;
 
     const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
     const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
