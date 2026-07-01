@@ -1665,6 +1665,8 @@ export default function FestRegistration() {
             completedSteps,
           });
           setSubmitting(false);
+          setCompletingPayment(true);
+          setSubmissionProgress('Complete payment in the gateway. You will return here automatically.');
           return;
         }
 

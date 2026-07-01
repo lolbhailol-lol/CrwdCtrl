@@ -173,6 +173,8 @@ export async function openCashfreeCheckout({
       returnPath: resolvedReturnPath,
       entityType,
     });
+    // Must run before checkout — on redirect the page unloads and this line never runs after await
+    markPaymentReturnExpected();
 
     const result = await cashfree.checkout({
       paymentSessionId,
@@ -191,8 +193,7 @@ export async function openCashfreeCheckout({
       return result;
     }
 
-    // Redirect checkout: page navigates away; TrekBookingPage / FestRegistration resume after return
-    markPaymentReturnExpected();
+    // Redirect checkout: page navigates away; booking pages resume after return
     return { redirectDeferred: true };
   }
 

@@ -73,7 +73,9 @@ export function isStalePendingPayment(pending) {
 }
 
 /**
- * Only auto-resume payment when user likely returned from Cashfree (not stale abandoned checkout).
+ * Auto-resume when a recent pending order exists for this page.
+ * Return flags / Cashfree query params are hints only — the return flag may be missing
+ * if the browser unloaded before markPaymentReturnExpected() ran after checkout.
  */
 export function shouldResumePendingPayment(pending, currentPath, search = '') {
   if (!pending?.orderId) return false;
@@ -82,7 +84,7 @@ export function shouldResumePendingPayment(pending, currentPath, search = '') {
     clearPendingPayment();
     return false;
   }
-  return hasPaymentReturnExpected() || hasCashfreeReturnParams(search);
+  return true;
 }
 
 /**
