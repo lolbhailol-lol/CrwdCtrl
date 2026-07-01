@@ -12,6 +12,7 @@ import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } fr
 import { verifyPaymentWithRetry, goToBookings } from '../../utils/paymentNavigation';
 import { buildEventPriceBreakdown } from '../../utils/platformFee';
 import { API_BASE_URL } from '../../services/api/client';
+import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 
 const API = API_BASE_URL;
 
@@ -111,6 +112,13 @@ export default function EventRegistrationPage() {
     const ticketPrice = Number(event?.ticketPrice) || 0;
     const breakdown = useMemo(() => buildEventPriceBreakdown(ticketPrice), [ticketPrice]);
     const title = event?.displayName || event?.title || 'Event';
+
+    useBookingSuccessPopup(done, {
+        name: title,
+        paid: ticketPrice > 0,
+        bookingId: registrationId,
+        ticketType: 'event',
+    });
 
     const formSteps = useMemo(() => {
         if (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0) {
@@ -298,7 +306,8 @@ export default function EventRegistrationPage() {
         if (!res.ok) throw new Error(data.error || data.message || 'Registration failed');
         sessionStorage.removeItem(draftKey(eventId));
         refreshNotifications?.();
-        if (data.registrationId) setRegistrationId(String(data.registrationId));
+        const regId = data.registrationId || data._id || data.registration?._id || data.registration?.id;
+        if (regId) setRegistrationId(String(regId));
         void amountPaid;
         return data;
     }, [allFields, files, values, eventId, refreshNotifications]);
@@ -525,18 +534,26 @@ export default function EventRegistrationPage() {
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
-                    <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Registration Confirmed!</h1>
-                    <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {ticketPrice > 0 ? '🎉 Payment Successful!' : '🎉 Registration Confirmed!'}
+                    </h1>
+                    <p className={`mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         You're registered for <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                    </p>
+                    <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        Download your ticket or view all bookings whenever you&apos;re ready.
                     </p>
                     <div className="flex flex-col gap-3">
                         {registrationId && (
-                            <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
-                                View Ticket
+                            <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}?type=event`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
+                                Download Ticket
                             </button>
                         )}
-                        <button type="button" onClick={() => goToBookings(navigate)} className={`w-full py-3.5 rounded-xl font-semibold transition ${registrationId ? (isDark ? 'border border-gray-600 text-gray-200' : 'border border-gray-300 text-gray-800') : 'text-black bg-[#0ECCEE]'}`}>
+                        <button type="button" onClick={() => goToBookings(navigate)} className={`w-full py-3.5 rounded-xl font-semibold transition ${registrationId ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:opacity-90'}`}>
                             View My Bookings
+                        </button>
+                        <button type="button" onClick={() => navigate('/events')} className={`w-full py-2.5 rounded-xl text-sm font-medium transition ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                            Browse more events
                         </button>
                     </div>
                 </div>

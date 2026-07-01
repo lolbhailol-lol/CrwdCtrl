@@ -358,13 +358,16 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Registration submitted successfully',
-      registrationId,
+      _id: registration._id,
+      registrationId: registration._id,
+      referenceId: registrationId,
       data: {
         competition: {
           id: competition._id,
           name: competition.name
         },
-        registrationId,
+        registrationId: registration._id,
+        referenceId: registrationId,
         status: 'approved',
         submittedAt: registration.submittedAt
       }
@@ -1152,8 +1155,11 @@ const submitRegistration = async (req, res) => {
     // ✅ CRITICAL: Send success response immediately to user
     res.status(201).json({
       message: 'Registration submitted successfully',
+      _id: registration._id,
+      registrationId: registration._id,
       registration: {
         id: registration._id,
+        _id: registration._id,
         festId: registration.fest,
         status: registration.status,
         submittedAt: registration.submittedAt

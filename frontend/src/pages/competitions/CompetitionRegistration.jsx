@@ -1295,7 +1295,7 @@ export default function CompetitionRegistration() {
             const result = await response.json();
             console.log('✅ Registration successful:', result);
 
-            const regId = result._id || result.registration?._id;
+            const regId = result._id || result.registration?._id || result.registrationId;
             if (regId) setRegistrationId(regId);
             setCompletingPayment(false);
             setSuccess(true);
