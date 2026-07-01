@@ -83,15 +83,15 @@ export const NotificationsProvider = ({ children }) => {
         }
     }, [showBrowserNotification]);
 
-    const registerPushToken = useCallback(async () => {
+    const registerPushToken = useCallback(async (options = {}) => {
         try {
-            if (!getToken()) return;
+            if (!getToken()) return false;
 
             if (!isNativeApp() && (!('serviceWorker' in navigator) || (location.protocol !== 'https:' && location.hostname !== 'localhost'))) {
-                return;
+                return false;
             }
 
-            const allowPrompt = shouldPromptForNotifications();
+            const allowPrompt = options.forcePrompt === true || shouldPromptForNotifications();
             let fcmToken = null;
 
             if (isNativeApp()) {
@@ -113,11 +113,14 @@ export const NotificationsProvider = ({ children }) => {
                     method: 'POST',
                     body: JSON.stringify({ token: fcmToken, device: getPushDeviceType() }),
                 });
+                return true;
             }
+            return false;
         } catch (err) {
             console.warn('Push registration skipped:', err.message);
+            return false;
         }
-    }, []);
+    }, [authFetchJSON]);
 
     // Fetch unread count (lightweight)
      
@@ -149,10 +152,33 @@ export const NotificationsProvider = ({ children }) => {
         fetchNotifications().finally(() => setIsLoading(false));
         fetchUnreadCount();
 
-        // Poll unread count every 60s
+        // Poll unread count + notification list every 60s
         pollIntervalRef.current = setInterval(() => {
             fetchUnreadCount();
+            fetchNotifications();
         }, 60000);
+
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && getToken()) {
+                fetchNotifications();
+                fetchUnreadCount();
+                registerPushToken();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+
+        const onRefreshEvent = () => {
+            fetchNotifications();
+            fetchUnreadCount();
+        };
+        window.addEventListener('crwdctrl:refresh-notifications', onRefreshEvent);
+
+        const onServiceWorkerMessage = (event) => {
+            if (event?.data?.type === 'crwdctrl:refresh-notifications') {
+                onRefreshEvent();
+            }
+        };
+        navigator.serviceWorker?.addEventListener('message', onServiceWorkerMessage);
 
         // Delay push registration to avoid blocking initial load
         const pushTimer = setTimeout(registerPushToken, 5000);
@@ -161,18 +187,10 @@ export const NotificationsProvider = ({ children }) => {
         const unsubFCM = onForegroundMessage((payload) => {
             console.log('🔔 Foreground FCM message:', payload);
             const { title, body } = payload.notification || {};
-            if (title) {
-                addNotificationLocal({
-                    title,
-                    message: body || '',
-                    type: payload.data?.type || 'system',
-                    link: payload.data?.link || null,
-                    time: 'Just now',
-                });
-                // Also show a browser notification toast
-                if (Notification.permission === 'granted') {
-                    new Notification(title, { body, icon: '/icon-192x192.png' });
-                }
+            fetchNotifications();
+            fetchUnreadCount();
+            if (title && Notification.permission === 'granted') {
+                new Notification(title, { body, icon: '/icon-192x192.png' });
             }
         });
 
@@ -180,6 +198,9 @@ export const NotificationsProvider = ({ children }) => {
             if (pollIntervalRef.current) {
                 clearInterval(pollIntervalRef.current);
             }
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            window.removeEventListener('crwdctrl:refresh-notifications', onRefreshEvent);
+            navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
             clearTimeout(pushTimer);
             if (typeof unsubFCM === 'function') unsubFCM();
         };
@@ -265,6 +286,15 @@ export const NotificationsProvider = ({ children }) => {
         fetchUnreadCount();
     };
 
+    const enableBrowserNotifications = async () => {
+        const ok = await registerPushToken({ forcePrompt: true });
+        if (ok) {
+            fetchNotifications();
+            fetchUnreadCount();
+        }
+        return ok;
+    };
+
     const value = {
         notifications,
         unreadCount,
@@ -274,6 +304,7 @@ export const NotificationsProvider = ({ children }) => {
         addNotification,
         removeNotification,
         refreshNotifications,
+        enableBrowserNotifications,
     };
 
     return (

@@ -8,6 +8,8 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { searchAll } from '../../services/searchService';
 import { CATEGORY_NAV_ICONS } from '../../constants/categoryNavIcons';
 import { openExternalUrl } from '../../utils/externalLink';
+import { isNativeApp } from '../../utils/capacitorPlatform';
+import { canOfferBrowserNotifications } from '../../utils/notificationPrompt';
 import {
     getRecentSearches,
     clearRecentSearches,
@@ -62,7 +64,9 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
     const { isDark } = useDarkMode();
     const { user, isAuthenticated } = useAuth();
     const { confirm } = useDialog();
-    const { notifications, unreadCount, markAsRead } = useNotifications();
+    const { notifications, unreadCount, markAsRead, refreshNotifications, enableBrowserNotifications } = useNotifications();
+    const [enablingPush, setEnablingPush] = useState(false);
+    const showEnablePush = !isNativeApp() && canOfferBrowserNotifications();
     const navigate = useNavigate();
     const location = useLocation();
     const [_searchParams, _setSearchParams] = useSearchParams();
@@ -884,7 +888,11 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
                     {/* Notification Bell */}
                     <div className="relative" ref={notificationRef}>
                         <button
-                            onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                            onClick={() => {
+                                const opening = !isNotificationOpen;
+                                if (opening) refreshNotifications();
+                                setIsNotificationOpen(opening);
+                            }}
                             className={`relative p-2 lg:p-3 rounded-xl transition-all duration-200 hover:shadow-md ${location.pathname === '/notifications' || location.pathname === '/notification-panel'
                                 ? 'text-[#007BFF] bg-[#007BFF]/10 shadow-md'
                                 : isDark
@@ -924,6 +932,29 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
                                         </button>
                                     </div>
                                 </div>
+
+                                {showEnablePush ? (
+                                    <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            Enable browser notifications to get trek updates instantly.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            disabled={enablingPush}
+                                            onClick={async () => {
+                                                setEnablingPush(true);
+                                                try {
+                                                    await enableBrowserNotifications();
+                                                } finally {
+                                                    setEnablingPush(false);
+                                                }
+                                            }}
+                                            className="w-full py-2 rounded-lg bg-[#007BFF] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60"
+                                        >
+                                            {enablingPush ? 'Enabling…' : 'Enable notifications'}
+                                        </button>
+                                    </div>
+                                ) : null}
 
                                 {/* Notifications List */}
                                 <div className="max-h-96 overflow-y-auto">

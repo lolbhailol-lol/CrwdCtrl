@@ -403,6 +403,17 @@ async function performCheckinFromRaw(raw, options = {}) {
 
     const trekName = trekBooking.trekId?.trekName || 'Trek';
 
+    if (trekBooking.status && trekBooking.status !== 'confirmed') {
+      return {
+        status: 400,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This booking is not confirmed and cannot be checked in.',
+        },
+      };
+    }
+
     if (trekBooking.checkedIn) {
       return {
         status: 200,
@@ -426,7 +437,9 @@ async function performCheckinFromRaw(raw, options = {}) {
     await trekBooking.save();
 
     const { createNotification } = require('../controllers/notificationController');
+    const { sendPushNotification } = require('../services/pushService');
     const trekUserId = trekBooking.userId?._id || trekBooking.userId;
+    const checkInLink = `/registration-details/${trekBooking._id}?type=trek`;
     if (trekUserId) {
       setImmediate(async () => {
         try {
@@ -435,10 +448,19 @@ async function performCheckinFromRaw(raw, options = {}) {
             title: 'Checked In!',
             message: `You've been checked in for ${trekName}.`,
             type: 'event',
+            link: checkInLink,
             metadata: {
               trekId: bookingTrekId,
-              bookingId: trekBooking._id,
+              registrationId: trekBooking._id,
             },
+          });
+          sendPushNotification(trekUserId, {
+            title: 'Checked In!',
+            body: `You've been checked in for ${trekName}.`,
+            link: checkInLink,
+            type: 'event',
+          }, { preferenceKey: 'pushReminders' }).catch((err) => {
+            console.error('❌ Trek check-in push failed:', err.message);
           });
         } catch (err) {
           console.error('❌ Failed to create trek check-in notification:', err.message);

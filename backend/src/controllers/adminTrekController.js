@@ -5,6 +5,8 @@ const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
 const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
 const { sanitizeTrekBatches } = require('../utils/sanitizeTrekBatches');
 const { sanitizeTrekDetailBoxes } = require('../utils/sanitizeTrekDetailBoxes');
+const { sanitizeItinerary } = require('../utils/sanitizeItinerary');
+const { sanitizeTrekRegistrationFee, sanitizeTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 
 function normalizeTrekPayload(body) {
     const payload = { ...body };
@@ -26,8 +28,17 @@ function normalizeTrekPayload(body) {
     if (payload.detailBoxes !== undefined) {
         payload.detailBoxes = sanitizeTrekDetailBoxes(payload.detailBoxes);
     }
+    if (payload.itinerary !== undefined) {
+        payload.itinerary = sanitizeItinerary(payload.itinerary);
+    }
     if (payload.dateLabel !== undefined) {
         payload.dateLabel = String(payload.dateLabel || '').trim();
+    }
+    if (payload.registrationFee !== undefined) {
+        payload.registrationFee = sanitizeTrekRegistrationFee(payload.registrationFee);
+    }
+    if (payload.platformFeePercent !== undefined) {
+        payload.platformFeePercent = sanitizeTrekPlatformFeePercent(payload.platformFeePercent);
     }
     return payload;
 }

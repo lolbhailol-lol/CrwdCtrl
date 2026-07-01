@@ -65,6 +65,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     mobileSearch?.isOpen ||
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/organizer') ||
+    location.pathname.startsWith('/trek-organizer') ||
     location.pathname.startsWith('/view-details') ||
     location.pathname.startsWith('/events/') ||
     location.pathname.startsWith('/trek/') ||
@@ -102,6 +103,7 @@ function ConditionalFooter() {
     location.pathname === '/verify-email' ||
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/organizer') ||
+    location.pathname.startsWith('/trek-organizer') ||
     location.pathname.startsWith('/competition-registration') ||
     location.pathname.startsWith('/qr-ticket') ||
     location.pathname.startsWith('/payment-invoice') ||
@@ -128,7 +130,7 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile,
   const location = useLocation();
 
   // Hide navigation on login, register, and email verification pages
-  const shouldHideNavigation = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin');
+  const shouldHideNavigation = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin') || location.pathname.startsWith('/trek-organizer');
 
   if (shouldHideNavigation) {
     return null;
@@ -169,6 +171,8 @@ function AppContent({
   const navigate = useNavigate();
   const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const isTrekOrganizerRoute = location.pathname.startsWith('/trek-organizer');
+  const isStandaloneRoute = isAdminRoute || isTrekOrganizerRoute;
   const [loginSuccessVisible, setLoginSuccessVisible] = useState(false);
 
   useGlobalSmoothScroll();
@@ -220,7 +224,7 @@ function AppContent({
   }, [navigate, setIsProfileOpen, setShowLogin, setShowRegister]);
 
   return (
-    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isAdminRoute ? '' : ''}`}>
+    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isStandaloneRoute ? '' : ''}`}>
       <ConditionalNavigation
         isProfileOpen={isProfileOpen}
         setIsProfileOpen={setIsProfileOpen}
@@ -228,8 +232,8 @@ function AppContent({
         onShowLogin={openLoginFromProfile}
       />
 
-        <div className={isAdminRoute ? '' : 'lg:ml-20'}>
-        <div className={isAdminRoute ? '' : 'desktop-navbar-clearance'}>
+        <div className={isStandaloneRoute ? '' : 'lg:ml-20'}>
+        <div className={isStandaloneRoute ? '' : 'desktop-navbar-clearance'}>
           <ErrorBoundary>
             <PageTransitionContent>
               <Suspense fallback={<RouteSuspenseFallback />}>
@@ -239,11 +243,11 @@ function AppContent({
               </Suspense>
             </PageTransitionContent>
           </ErrorBoundary>
-          {!isAdminRoute && <ConditionalFooter />}
+          {!isStandaloneRoute && <ConditionalFooter />}
         </div>
       </div>
 
-      {!isAdminRoute && (
+      {!isStandaloneRoute && (
         <ConditionalMobileBottomNav
           onShowLogin={openLoginFromProfile}
           isProfileOpen={isProfileOpen}
@@ -252,7 +256,7 @@ function AppContent({
         />
       )}
 
-      {!isAdminRoute && location.pathname !== '/profile' && (
+      {!isStandaloneRoute && location.pathname !== '/profile' && (
         <ProfileSidebar
           isOpen={isProfileOpen}
           onClose={() => setIsProfileOpen(false)}

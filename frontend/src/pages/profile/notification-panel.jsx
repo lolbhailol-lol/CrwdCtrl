@@ -12,7 +12,7 @@ import CrwdCtrlRegister from '../auth/register';
 function NotificationsPanel() {
     const navigate = useNavigate();
     const { isDark } = useDarkMode();
-    const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+    const { notifications, unreadCount, markAsRead, markAllAsRead, refreshNotifications } = useNotifications();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
@@ -24,6 +24,10 @@ function NotificationsPanel() {
             setShowLogin(true);
         }
     }, [searchParams]);
+
+    useEffect(() => {
+        refreshNotifications();
+    }, [refreshNotifications]);
 
     // Handle login modal close
     const handleCloseLogin = () => {

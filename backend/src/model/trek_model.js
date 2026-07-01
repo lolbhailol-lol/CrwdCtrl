@@ -42,12 +42,19 @@ const trekSchema = new mongoose.Schema(
                 day: { type: Number },
                 title: { type: String },
                 description: { type: String },
+                points: [{
+                    text: { type: String, trim: true, default: '' },
+                    level: { type: String, enum: ['main', 'sub'], default: 'main' },
+                    showDot: { type: Boolean, default: true },
+                }],
             },
         ],
         coverImage: { type: String, default: null },
         coverImages: { type: coverImagesSchema, default: () => ({}) },
         images: { type: [String], default: [] },
         registrationFee: { type: Number, default: 0 },
+        /** Platform fee % added at checkout on top of registration fee (e.g. 3 = 3%) */
+        platformFeePercent: { type: Number, default: 3 },
         /** External registration link (WhatsApp / website / form) used when registration.mode === 'external_link' */
         registrationLink: { type: String, trim: true },
         maxParticipants: { type: Number, default: 0 },
@@ -112,7 +119,7 @@ const trekSchema = new mongoose.Schema(
                 id:          String,
                 label:       String,
                 fieldName:   String,
-                type:        { type: String, enum: ['text','email','tel','number','textarea','select','file','date'], default: 'text' },
+                type:        { type: String, enum: ['text','email','tel','number','textarea','select','radio','checkbox','agree','file','image','date','time','url'], default: 'text' },
                 required:    { type: Boolean, default: false },
                 options:     [String],
                 placeholder: String,

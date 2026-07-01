@@ -7,7 +7,7 @@ const Trek = require('../model/trek_model');
 const EventShow = require('../model/event_show_model');
 const SportsEvent = require('../model/sports_model');
 const PaymentOrder = require('../model/payment_order_model');
-const { buildPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
+const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const {
   createCashfreeOrder,
   verifyCashfreePayment,
@@ -239,7 +239,7 @@ exports.createTrekOrder = async (req, res) => {
     }
 
     const trek = await Trek.findOne({ _id: trekId, status: 'published' }).select(
-      'trekName registrationFee registration maxParticipants'
+      'trekName registrationFee platformFeePercent registration maxParticipants'
     );
     if (!trek) {
       return res.status(404).json({ success: false, message: 'Trek not found or not published' });
@@ -262,7 +262,8 @@ exports.createTrekOrder = async (req, res) => {
 
     // Security: ignore client-supplied baseAmount/amount — server is source of truth
     const baseTicketTotal = ticketPricePerPerson * peopleCount;
-    const { platformFee, totalAmount } = buildPriceBreakdown(baseTicketTotal);
+    const platformFeePercent = Number(trek.platformFeePercent) || 3;
+    const { platformFee, totalAmount } = buildTrekPriceBreakdown(baseTicketTotal, platformFeePercent);
     const resolvedTrekName = trek.trekName || trekName || 'Trek Booking';
 
     const order = await createCashfreeOrder({
@@ -282,6 +283,7 @@ exports.createTrekOrder = async (req, res) => {
         people: String(peopleCount),
         ticketPrice: String(ticketPricePerPerson),
         platformFee: String(platformFee),
+        platformFeePercent: String(platformFeePercent),
         totalAmount: String(totalAmount),
       },
     });

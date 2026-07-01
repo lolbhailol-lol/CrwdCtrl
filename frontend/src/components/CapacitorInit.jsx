@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { initCapacitorApp } from '../utils/capacitorApp';
-import { initNativePushNavigation } from '../utils/nativePush';
+import { initNativePushNavigation, initNativePushForegroundRefresh } from '../utils/nativePush';
 import { initCashfreeNativeGateway } from '../utils/bootstrapCashfreeNative';
 import { getPendingPayment } from '../utils/deepLinks';
 /**
@@ -30,10 +30,12 @@ export default function CapacitorInit() {
     });
 
     const pushCleanup = initNativePushNavigation(navigate);
+    const pushForegroundCleanup = initNativePushForegroundRefresh();
 
     return () => {
       cleanup();
       pushCleanup();
+      pushForegroundCleanup();
     };
   }, [navigate, location.pathname]);
 

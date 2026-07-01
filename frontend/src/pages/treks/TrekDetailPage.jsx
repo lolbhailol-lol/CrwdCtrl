@@ -10,6 +10,8 @@ import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { formatTrekDisplayDate, formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
+import { ScheduleMainMarker, ScheduleSubMarker } from '../../components/SchedulePointMarkers';
+import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../utils/trekItinerary';
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { fetchTrekCommunity } from '../../services/api/public.api';
@@ -572,9 +574,9 @@ export default function TrekDetailPage() {
                             <div className="space-y-2">
                                 {(() => {
                                     const batches = normalizeTrekBatches(trek.trekBatches, trek.trekDate);
-                                    const cardCls = `rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`;
-                                    const iconWrapCls = `size-8 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`;
-                                    const departuresIconWrapCls = `size-8 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'}`;
+                                    const cardCls = `rounded-2xl p-2.5 pt-2 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`;
+                                    const iconWrapCls = `size-7 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`;
+                                    const departuresIconWrapCls = `size-7 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'}`;
 
                                     const batchSub = (batch) => {
                                         const parts = [];
@@ -594,13 +596,13 @@ export default function TrekDetailPage() {
                                     }));
 
                                     const renderDetailCard = (row) => (
-                                        <div key={row.id || row.label} className={`${cardCls} h-[92px] overflow-hidden`}>
+                                        <div key={row.id || row.label} className={`${cardCls} h-[84px] overflow-hidden`}>
                                             <div className={iconWrapCls}>
-                                                <TrekDetailIcon icon={row.icon || 'default'} size={18} />
+                                                <TrekDetailIcon icon={row.icon || 'default'} size={16} />
                                             </div>
-                                            <p className={`text-[11px] font-medium mt-2.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
+                                            <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
                                             <p
-                                                className={`text-sm font-semibold mt-0.5 leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}
+                                                className={`text-sm font-semibold mt-0 leading-tight line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}
                                                 title={typeof row.value === 'string' ? row.value : undefined}
                                             >
                                                 {row.value}
@@ -623,7 +625,7 @@ export default function TrekDetailPage() {
                                                             onClick={() => setDeparturesOpen((o) => !o)}
                                                             aria-expanded={departuresOpen}
                                                             aria-label={departuresOpen ? 'Collapse departures' : 'Expand departures'}
-                                                            className={`w-full text-left ${cardCls} h-[92px] overflow-hidden transition-colors duration-200 ${
+                                                            className={`w-full text-left ${cardCls} h-[84px] overflow-hidden transition-colors duration-200 ${
                                                                 departuresOpen
                                                                     ? isDark
                                                                         ? 'border-[#0ECCEE]/30 bg-[#1D1E20]/60'
@@ -635,15 +637,15 @@ export default function TrekDetailPage() {
                                                         >
                                                             <div className="flex items-start justify-between gap-2">
                                                                 <div className={departuresIconWrapCls}>
-                                                                    <CalendarIcon size={18} />
+                                                                    <CalendarIcon size={16} />
                                                                 </div>
                                                                 <ChevronRight
                                                                     size={16}
                                                                     className={`shrink-0 mt-0.5 transition-transform duration-200 ${departuresOpen ? 'rotate-90 text-[#0ECCEE]' : isDark ? 'text-gray-500' : 'text-gray-400'}`}
                                                                 />
                                                             </div>
-                                                            <p className={`text-[11px] font-medium mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departures</p>
-                                                            <p className={`text-sm font-semibold mt-0.5 leading-snug line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departures</p>
+                                                            <p className={`text-sm font-semibold mt-0 leading-tight line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                                                 {departuresOpen
                                                                     ? `${batches.length} dates`
                                                                     : formatBatchDate(batches[0].date) || '—'}
@@ -677,16 +679,16 @@ export default function TrekDetailPage() {
                                                         ) : null}
                                                     </div>
                                                 ) : (
-                                                    <div className={`${cardCls} h-[92px] overflow-hidden`}>
+                                                    <div className={`${cardCls} h-[84px] overflow-hidden`}>
                                                         <div className={departuresIconWrapCls}>
-                                                            <CalendarIcon size={18} />
+                                                            <CalendarIcon size={16} />
                                                         </div>
-                                                        <p className={`text-[11px] font-medium mt-2.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departure</p>
-                                                        <p className={`text-sm font-semibold mt-0.5 leading-snug line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departure</p>
+                                                        <p className={`text-sm font-semibold mt-0 leading-tight line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                                             {formatBatchDate(batches[0].date) || '—'}
                                                         </p>
                                                         {batchSub(batches[0]) ? (
-                                                            <p className={`text-[11px] mt-1 leading-snug line-clamp-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                            <p className={`text-[10px] mt-0.5 leading-tight line-clamp-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
                                                                 {batchSub(batches[0])}
                                                             </p>
                                                         ) : null}
@@ -728,25 +730,47 @@ export default function TrekDetailPage() {
                         {activeTab === 'Schedule' && (
                             trek.itinerary?.length > 0
                                 ? <div className="space-y-3">{trek.itinerary.map((day, i) => {
-                                    const lines = String(day.description || '')
-                                        .split(/\n|•|·|;/)
-                                        .map(s => s.replace(/^[-*\s]+/, '').trim())
-                                        .filter(Boolean);
+                                    const normalized = normalizeItineraryDay(day, i);
+                                    const points = normalized.points.filter((p) => p.text);
+                                    if (!normalized.title && !points.length) return null;
                                     return (
                                         <div key={i} className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#0ECCEE] mb-0.5">Day {day.day || i + 1}</p>
-                                            {day.title && <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{day.title}</p>}
-                                            {lines.length > 1 ? (
-                                                <ul className="mt-1.5 space-y-1.5">
-                                                    {lines.map((ln, j) => (
-                                                        <li key={j} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                            <span className="mt-[5px] size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
-                                                            <span>{ln}</span>
-                                                        </li>
-                                                    ))}
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#0ECCEE] mb-0.5">Day {normalized.day || i + 1}</p>
+                                            {normalized.title ? (
+                                                <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{normalized.title}</p>
+                                            ) : null}
+                                            {points.length > 0 ? (
+                                                <ul className={`${normalized.title ? 'mt-1.5' : ''}`}>
+                                                    {points.map((point, j) => {
+                                                        const isSub = point.level === 'sub';
+                                                        const prev = j > 0 ? points[j - 1] : null;
+                                                        const isNewMainBlock = !isSub && j > 0 && prev?.level === 'main';
+                                                        const isMainAfterSubs = !isSub && j > 0 && prev?.level === 'sub';
+
+                                                        if (isSub) {
+                                                            return (
+                                                                <li
+                                                                    key={j}
+                                                                    className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-600'}`}
+                                                                    style={{ paddingLeft: `${SCHEDULE_SUB_INDENT_PX}px` }}
+                                                                >
+                                                                    <ScheduleSubMarker isDark={isDark} />
+                                                                    <span>{point.text}</span>
+                                                                </li>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <li
+                                                                key={j}
+                                                                className={`flex gap-2 text-xs leading-relaxed ${isNewMainBlock || isMainAfterSubs ? 'mt-2' : ''} ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                                                            >
+                                                                <ScheduleMainMarker />
+                                                                <span className="font-medium">{point.text}</span>
+                                                            </li>
+                                                        );
+                                                    })}
                                                 </ul>
-                                            ) : lines.length === 1 ? (
-                                                <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{lines[0]}</p>
                                             ) : null}
                                         </div>
                                     );

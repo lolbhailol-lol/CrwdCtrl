@@ -16,6 +16,23 @@ export const calculatePlatformFee = (ticketPrice) => {
   return Math.ceil(normalizedTicketPrice * PLATFORM_FEE_RATE);
 };
 
+export const calculateTrekPlatformFee = (ticketPrice, platformFeePercent = 3) => {
+  const normalizedTicketPrice = parseTicketPrice(ticketPrice);
+  const rate = Number(platformFeePercent);
+  const pct = Number.isFinite(rate) && rate > 0 ? rate / 100 : PLATFORM_FEE_RATE;
+  return Math.ceil(normalizedTicketPrice * pct);
+};
+
+export const buildTrekPriceBreakdown = (ticketPrice, platformFeePercent = 3) => {
+  const normalizedTicketPrice = parseTicketPrice(ticketPrice);
+  const platformFee = calculateTrekPlatformFee(normalizedTicketPrice, platformFeePercent);
+  return {
+    ticketPrice: normalizedTicketPrice,
+    platformFee,
+    totalAmount: normalizedTicketPrice + platformFee,
+  };
+};
+
 export const buildPriceBreakdown = (ticketPrice) => {
   const normalizedTicketPrice = parseTicketPrice(ticketPrice);
   const platformFee = calculatePlatformFee(normalizedTicketPrice);

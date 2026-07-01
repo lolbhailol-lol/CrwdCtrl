@@ -133,6 +133,65 @@ const sendEventBroadcast = async (userList, eventDetails) => {
     return results;
 };
 
+const generateTrekParticipantEmailHTML = ({ name, title, message, trekName, link, kind }) => {
+    const headerLabel = kind === 'registration'
+        ? 'Booking update'
+        : kind === 'reminder'
+            ? 'Trek reminder'
+            : 'Trek announcement';
+    const siteUrl = process.env.FRONTEND_URL || 'https://crwdctrl.in';
+    const fullLink = link?.startsWith('http') ? link : `${siteUrl.replace(/\/$/, '')}${link || '/treks'}`;
+
+    return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 12px; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #053780, #0ECCEE); padding: 28px; text-align: center; color: white;">
+            <p style="margin: 0 0 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.9;">${headerLabel}</p>
+            <h1 style="margin: 0; font-size: 22px;">${title}</h1>
+        </div>
+        <div style="padding: 28px; color: #333; line-height: 1.6;">
+            <p>Hi <b>${name || 'there'}</b>,</p>
+            <p>${message}</p>
+            <div style="background: #f0f9ff; padding: 16px; border-radius: 10px; border-left: 4px solid #0ECCEE; margin: 20px 0;">
+                <p style="margin: 0; font-size: 14px;"><b>Trek:</b> ${trekName}</p>
+            </div>
+            <p style="text-align: center; margin-top: 24px;">
+                <a href="${fullLink}" style="background: #053780; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                    View details
+                </a>
+            </p>
+            <p style="font-size: 12px; color: #777; text-align: center; margin-top: 24px;">
+                You received this about your trek registration on CrwdCtrl.
+            </p>
+        </div>
+    </div>`;
+};
+
+const sendTrekParticipantEmails = async (recipients = []) => {
+    const results = { success: 0, failed: 0 };
+    const list = Array.isArray(recipients) ? recipients : [];
+
+    for (const item of list) {
+        if (!item?.email) {
+            results.failed += 1;
+            continue;
+        }
+        try {
+            await sendEmail({
+                from: getDefaultFrom(),
+                to: item.email,
+                subject: item.subject || item.title || 'Update from your trek organizer',
+                html: generateTrekParticipantEmailHTML(item),
+            });
+            results.success += 1;
+        } catch (err) {
+            console.error('❌ Trek participant email failed:', item.email, err.message);
+            results.failed += 1;
+        }
+    }
+
+    return results;
+};
+
 // ✅ HTML Generator for Broadcasts
 const generateEventEmailHTML = (userName, event) => {
     const isUpdate = event.name.includes('UPDATED');
@@ -1077,5 +1136,6 @@ module.exports = {
     sendRegistrationConfirmationEmail,
     sendOrganizerNotificationEmail,
     sendLoginConfirmationEmail,
-    sendEventBroadcast
+    sendEventBroadcast,
+    sendTrekParticipantEmails,
 };

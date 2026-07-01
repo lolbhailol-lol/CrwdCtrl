@@ -149,7 +149,9 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             status: 'confirmed',
         });
 
-        const sheetsUrl = trek.registration?.googleSheetsUrl;
+        const sheetsUrl = process.env.TREK_REGISTRATION_USE_SHEETS === 'true'
+            ? trek.registration?.googleSheetsUrl
+            : '';
         if (sheetsUrl) {
             try {
                 const responses = {

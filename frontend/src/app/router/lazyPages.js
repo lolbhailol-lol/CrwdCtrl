@@ -68,3 +68,13 @@ export const OrganizerCheckinPage = lazyWithRetry(() => import('../../pages/orga
 export const OrganizerScannerLoginPage = lazyWithRetry(() => import('../../pages/organizer/OrganizerScannerLoginPage'));
 export const OrganizerScanPage = lazyWithRetry(() => import('../../pages/organizer/OrganizerScanPage'));
 export const OrganizerEntryPage = lazyWithRetry(() => import('../../pages/organizer/OrganizerEntryPage'));
+
+export const TrekOrganizerLoginPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerLoginPage'));
+export const TrekOrganizerLayout = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerLayout'));
+export const TrekOrganizerProtectedRoute = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerProtectedRoute'));
+export const TrekOrganizerHomePage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerHomePage'));
+export const TrekOrganizerDashboardPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerDashboardPage'));
+export const TrekOrganizerParticipantsPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerParticipantsPage'));
+export const TrekOrganizerScanPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerScanPage'));
+export const TrekOrganizerNotificationsPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerNotificationsPage'));
+export const TrekOrganizersPage = lazyWithRetry(() => import('../../pages/admin/TrekOrganizersPage'));

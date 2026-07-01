@@ -83,6 +83,9 @@ export default function CheckinScannerPage({
   statsUrl = null,
   exportUrl = null,
   embedded = false,
+  showSheetStatus = true,
+  sessionExpiredMessage = null,
+  authErrorMessage = null,
 }) {
   const isVolunteerScanner =
     mode === 'scanner' || mode === 'trek_scanner' || mode === 'sport_scanner';
@@ -263,11 +266,12 @@ export default function CheckinScannerPage({
       setScanResult({
         status: 'error',
         message:
-          isVolunteerScanner
+          sessionExpiredMessage ||
+          (isVolunteerScanner
             ? 'Scanner session expired — log in again at /organizer/login'
             : mode === 'organizer'
               ? 'Session expired — log in again to use the scanner.'
-              : 'Admin session expired — log in again at /admin/login',
+              : 'Admin session expired — log in again at /admin/login'),
       });
       return;
     }
@@ -289,7 +293,7 @@ export default function CheckinScannerPage({
       if (res.status === 401 || res.status === 403) {
         setScanResult({
           status: 'error',
-          message: data.error || 'Admin login expired — open /admin/login again',
+          message: authErrorMessage || data.error || data.message || 'Session expired — please sign in again',
         });
         return;
       }
@@ -676,6 +680,7 @@ export default function CheckinScannerPage({
               />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-gray-500">
+              {showSheetStatus ? (
               <span>
                 {checkinStats.hasGoogleSheet ? (
                   <span className="text-green-400">● Sheets connected</span>
@@ -683,6 +688,7 @@ export default function CheckinScannerPage({
                   <span className="text-amber-400">● No sheet URL</span>
                 )}
               </span>
+              ) : null}
               {exportUrl && (
                 <button
                   type="button"

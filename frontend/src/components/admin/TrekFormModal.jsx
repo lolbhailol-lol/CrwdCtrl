@@ -12,7 +12,17 @@ import {
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 import { normalizeTrekBatches, EMPTY_BATCH } from '../../utils/trekDateDisplay';
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
+import { normalizeItineraryForForm, serializeItineraryForSave, EMPTY_MAIN_POINT, EMPTY_SUB_POINT } from '../../utils/trekItinerary';
+import { ScheduleMainMarker, ScheduleSubMarker } from '../SchedulePointMarkers';
 import TrekDetailBoxesEditor from './TrekDetailBoxesEditor';
+import TrekRegistrationFeePicker from './TrekRegistrationFeePicker';
+import { sanitizeTrekRegistrationFee, sanitizeTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
+import {
+    TREK_FORM_FIELD_TYPES,
+    TREK_FORM_OPTION_FIELD_TYPES,
+    createEmptyTrekFormField,
+    createAgreeTrekFormField,
+} from '../../constants/trekFormFields';
 
 const CARD_LABEL_SUGGESTIONS = ['Weekend', 'Weekday', '11 - 12 July', 'Every Saturday', 'Coming soon'];
 
@@ -39,7 +49,7 @@ const EMPTY = {
     trekName: '', description: '', difficultyLevel: '', trekDuration: '',
     startingPoint: '', destination: '', meetingLocation: '', departureTime: '',
     returnTime: '', fitnessRequirements: '', ageRestrictions: '', trekLeader: '',
-    emergencyContact: '', contactInstagram: '', contacts: [], registrationFee: 0, registrationLink: '', maxParticipants: 0,
+    emergencyContact: '', contactInstagram: '', contacts: [], registrationFee: 0, platformFeePercent: 3, registrationLink: '', maxParticipants: 0,
     trekDate: '', dateLabel: '', trekBatches: [], detailBoxes: [], city: '', trekCategory: '', status: 'published',
     registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [] },
     inclusions: '', exclusions: '', thingsToCarry: '', termsAndConditions: '',
@@ -284,7 +294,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 exclusions: Array.isArray(trek.exclusions) ? trek.exclusions.join('\n') : (trek.exclusions || ''),
                 thingsToCarry: Array.isArray(trek.thingsToCarry) ? trek.thingsToCarry.join('\n') : (trek.thingsToCarry || ''),
                 termsAndConditions: Array.isArray(trek.termsAndConditions) ? trek.termsAndConditions.join('\n') : (trek.termsAndConditions || ''),
-                itinerary: trek.itinerary || [],
+                itinerary: normalizeItineraryForForm(trek.itinerary || []),
                 contacts: Array.isArray(trek.contacts) ? trek.contacts.map(c => ({ name: c?.name || '', role: c?.role || '', phone: c?.phone || '' })) : [],
                 coverImage: legacyCover || primaryCoverUrl(coverImages),
                 coverImages,
@@ -293,6 +303,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                     ...emptyTrekFilters(),
                     ...(trek.trekFilters || {}),
                 },
+                platformFeePercent: trek.platformFeePercent ?? 3,
             });
         } else {
             setForm({ ...EMPTY, communityId: communityId || null });
@@ -305,12 +316,65 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
     const updateContact = (idx, field, value) => setForm(f => ({ ...f, contacts: (f.contacts || []).map((c, i) => (i === idx ? { ...c, [field]: value } : c)) }));
     const removeContact = (idx) => setForm(f => ({ ...f, contacts: (f.contacts || []).filter((_, i) => i !== idx) }));
 
+    const updateFormSchemaField = (idx, patch) => {
+        set('registration', {
+            ...form.registration,
+            formSchema: (form.registration?.formSchema || []).map((f, i) => (i === idx ? { ...f, ...patch } : f)),
+        });
+    };
+
+    const addFormFieldOption = (fieldIdx) => {
+        const schema = form.registration?.formSchema || [];
+        updateFormSchemaField(fieldIdx, { options: [...(schema[fieldIdx]?.options || []), ''] });
+    };
+
+    const updateFormFieldOption = (fieldIdx, optionIdx, value) => {
+        const options = [...(form.registration?.formSchema?.[fieldIdx]?.options || [])];
+        options[optionIdx] = value;
+        updateFormSchemaField(fieldIdx, { options });
+    };
+
+    const removeFormFieldOption = (fieldIdx, optionIdx) => {
+        const options = (form.registration?.formSchema?.[fieldIdx]?.options || []).filter((_, i) => i !== optionIdx);
+        updateFormSchemaField(fieldIdx, { options });
+    };
+
     const addItineraryDay = () => {
-        set('itinerary', [...form.itinerary, { day: form.itinerary.length + 1, title: '', description: '' }]);
+        const next = normalizeItinerary(form.itinerary);
+        set('itinerary', [
+            ...next,
+            { day: next.length + 1, title: '', description: '', points: [{ ...EMPTY_MAIN_POINT }] },
+        ]);
     };
 
     const updateItinerary = (idx, field, value) => {
-        const updated = form.itinerary.map((d, i) => i === idx ? { ...d, [field]: value } : d);
+        const updated = form.itinerary.map((d, i) => (i === idx ? { ...d, [field]: value } : d));
+        set('itinerary', updated);
+    };
+
+    const addItineraryPoint = (dayIdx, level = 'main') => {
+        const point = level === 'sub' ? { ...EMPTY_SUB_POINT } : { ...EMPTY_MAIN_POINT };
+        const updated = form.itinerary.map((d, i) => {
+            if (i !== dayIdx) return d;
+            return { ...d, points: [...(d.points || []), point] };
+        });
+        set('itinerary', updated);
+    };
+
+    const updateItineraryPoint = (dayIdx, pointIdx, field, value) => {
+        const updated = form.itinerary.map((d, i) => {
+            if (i !== dayIdx) return d;
+            const points = (d.points || []).map((p, j) => (j === pointIdx ? { ...p, [field]: value } : p));
+            return { ...d, points };
+        });
+        set('itinerary', updated);
+    };
+
+    const removeItineraryPoint = (dayIdx, pointIdx) => {
+        const updated = form.itinerary.map((d, i) => {
+            if (i !== dayIdx) return d;
+            return { ...d, points: (d.points || []).filter((_, j) => j !== pointIdx) };
+        });
         set('itinerary', updated);
     };
 
@@ -342,14 +406,27 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 exclusions: form.exclusions ? form.exclusions.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 thingsToCarry: form.thingsToCarry ? form.thingsToCarry.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 termsAndConditions: form.termsAndConditions ? form.termsAndConditions.split('\n').map(s => s.trim()).filter(Boolean) : [],
-                registrationFee: Number(form.registrationFee) || 0,
+                registrationFee: sanitizeTrekRegistrationFee(form.registrationFee),
+                platformFeePercent: sanitizeTrekPlatformFeePercent(form.platformFeePercent),
                 maxParticipants: Number(form.maxParticipants) || 0,
                 trekDate: form.trekDate || null,
                 dateLabel: (form.dateLabel || '').trim(),
                 trekBatches: normalizeTrekBatches(form.trekBatches, form.trekDate || null),
                 detailBoxes: normalizeDetailBoxes(form.detailBoxes),
+                itinerary: serializeItineraryForSave(form.itinerary),
                 trekFilters: form.trekFilters || emptyTrekFilters(),
                 contacts: (form.contacts || []).filter(c => (c.name || c.role || c.phone || '').trim()),
+                registration: {
+                    ...(form.registration || {}),
+                    formSchema: (form.registration?.formSchema || [])
+                        .map((f) => ({
+                            ...f,
+                            label: String(f.label || '').trim(),
+                            fieldName: String(f.fieldName || '').trim(),
+                            options: (f.options || []).map((o) => String(o).trim()).filter(Boolean),
+                        }))
+                        .filter((f) => f.label && f.fieldName),
+                },
             };
             delete payload.featuredSection;
             delete payload.homeSection;
@@ -400,9 +477,22 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 </select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><label className="block text-sm font-medium text-gray-300 mb-1">City</label><input type="text" value={form.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="Nearest city" /></div>
-                            <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Fee (₹)</label><input type="number" min="0" value={form.registrationFee} onChange={e => set('registrationFee', e.target.value)} className={inp} /></div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">City</label>
+                            <input type="text" value={form.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="Nearest city" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Registration fee (₹ per person)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={form.registrationFee > 0 ? form.registrationFee : ''}
+                                onChange={(e) => set('registrationFee', e.target.value === '' ? 0 : Number(e.target.value) || 0)}
+                                className={inp}
+                                placeholder="e.g. 3500 — empty = Free"
+                            />
+                            <p className="text-[10px] text-gray-500 mt-1">Platform fee % is set in Booking (step 13).</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Trek Category</label>
@@ -451,7 +541,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         </div>
                     </FormSection>
 
-                    <FormSection step="4" title="Trek Info — Details" subtitle="White boxes on the Details tab. Add any boxes you need — icon is auto-picked from the label.">
+                    <FormSection step="4" title="Trek Info — Details" subtitle="Detail cards on the Details tab. Drag to reorder; icon is auto-picked from the label.">
                         <TrekDetailBoxesEditor boxes={form.detailBoxes || []} onChange={(detailBoxes) => set('detailBoxes', detailBoxes)} />
                         <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-700/50">
                             <div><label className="block text-sm font-medium text-gray-300 mb-1">Starting Point</label><input type="text" value={form.startingPoint} onChange={e => set('startingPoint', e.target.value)} className={inp} /></div>
@@ -460,19 +550,74 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         </div>
                     </FormSection>
 
-                    <FormSection step="5" title="Trek Info — Schedule" subtitle="Day-by-day itinerary shown in the Schedule tab." optional>
+                    <FormSection step="5" title="Trek Info — Schedule" subtitle="Main points with a dot; sub-points sit indented under the main text." optional>
                         <div className="flex items-center justify-between">
                             <p className="text-xs text-gray-500">Leave empty if you don&apos;t need a schedule yet.</p>
                             <button type="button" onClick={addItineraryDay} className="flex items-center gap-1 text-xs text-[#0ECCEE] hover:opacity-80 transition-opacity"><Plus size={12} /> Add Day</button>
                         </div>
                         {form.itinerary.map((day, idx) => (
-                            <div key={idx} className="bg-[#1D1E20] rounded-lg p-3 space-y-2">
+                            <div key={idx} className="bg-[#1D1E20] rounded-lg p-3 space-y-2.5">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-gray-400">Day {day.day}</span>
+                                    <span className="text-xs font-semibold text-gray-400">Day {day.day || idx + 1}</span>
                                     <button type="button" onClick={() => removeItineraryDay(idx)} className="text-gray-500 hover:text-red-400"><Trash2 size={13} /></button>
                                 </div>
-                                <input type="text" value={day.title} onChange={e => updateItinerary(idx, 'title', e.target.value)} className={inp} placeholder="Day title" />
-                                <textarea value={day.description} onChange={e => updateItinerary(idx, 'description', e.target.value)} rows={2} className={`${inp} resize-none`} placeholder="Description" />
+                                <input type="text" value={day.title || ''} onChange={e => updateItinerary(idx, 'title', e.target.value)} className={inp} placeholder="Day title" />
+                                <div className="space-y-2">
+                                    <p className="text-[11px] font-medium text-gray-400">Schedule points</p>
+                                    {(day.points || []).length === 0 ? (
+                                        <p className="text-xs text-gray-600 border border-dashed border-gray-600 rounded-lg px-3 py-2">No points yet.</p>
+                                    ) : (
+                                        (day.points || []).map((point, pointIdx) => {
+                                            const isSub = point.level === 'sub';
+                                            return (
+                                                <div
+                                                    key={pointIdx}
+                                                    className={`flex items-center gap-2 ${isSub ? 'ml-[14px] pl-2 border-l border-[#0ECCEE]/25' : ''}`}
+                                                >
+                                                    {!isSub ? (
+                                                        <ScheduleMainMarker className="mt-0" />
+                                                    ) : (
+                                                        <ScheduleSubMarker isDark className="mt-0" />
+                                                    )}
+                                                    <input
+                                                        type="text"
+                                                        value={point.text || ''}
+                                                        onChange={(e) => updateItineraryPoint(idx, pointIdx, 'text', e.target.value)}
+                                                        className={`${inp} flex-1 min-w-0`}
+                                                        placeholder={isSub ? 'Sub-point' : 'Main point'}
+                                                    />
+                                                    <div className="flex rounded-lg border border-gray-600 overflow-hidden shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateItineraryPoint(idx, pointIdx, 'level', 'main')}
+                                                            className={`px-2 py-1 text-[10px] font-medium ${!isSub ? 'bg-[#0ECCEE]/20 text-[#0ECCEE]' : 'bg-[#111213] text-gray-500'}`}
+                                                        >
+                                                            Main
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateItineraryPoint(idx, pointIdx, 'level', 'sub')}
+                                                            className={`px-2 py-1 text-[10px] font-medium ${isSub ? 'bg-[#0ECCEE]/20 text-[#0ECCEE]' : 'bg-[#111213] text-gray-500'}`}
+                                                        >
+                                                            Sub
+                                                        </button>
+                                                    </div>
+                                                    <button type="button" onClick={() => removeItineraryPoint(idx, pointIdx)} className="text-gray-500 hover:text-red-400 p-1" aria-label="Remove point">
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                    <div className="flex flex-wrap gap-2 pt-0.5">
+                                        <button type="button" onClick={() => addItineraryPoint(idx, 'main')} className="flex items-center gap-1 text-xs text-[#0ECCEE] hover:opacity-80">
+                                            <Plus size={12} /> Main point
+                                        </button>
+                                        <button type="button" onClick={() => addItineraryPoint(idx, 'sub')} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300">
+                                            <Plus size={12} /> Sub point
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         ))}
                     </FormSection>
@@ -544,6 +689,17 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                     </FormSection>
 
                     <FormSection step="13" title="Booking & registration" subtitle="Registration status, booking form and payment.">
+                            <TrekRegistrationFeePicker
+                                registrationFee={form.registrationFee}
+                                platformFeePercent={form.platformFeePercent ?? 3}
+                                onRegistrationFeeChange={(registrationFee) => set('registrationFee', registrationFee)}
+                                onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}
+                                maxPeoplePerBooking={form.registration?.maxPeoplePerBooking ?? 10}
+                                inputClassName={inp}
+                            />
+
+                            <hr className="border-gray-700" />
+
                             {/* Registration status + type — same as the fests/events form */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -648,7 +804,9 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                                 <select value={field.type}
                                                     onChange={e => { const u=[...(form.registration?.formSchema||[])]; u[idx]={...field,type:e.target.value}; set('registration',{...form.registration,formSchema:u}); }}
                                                     className="flex-1 bg-[#111213] border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#0ECCEE]">
-                                                    {['text','email','tel','number','textarea','select','file','date'].map(t=><option key={t} value={t}>{t}</option>)}
+                                                    {TREK_FORM_FIELD_TYPES.map((t) => (
+                                                        <option key={t.value} value={t.value}>{t.label}</option>
+                                                    ))}
                                                 </select>
                                                 <button type="button" onClick={() => { const u=(form.registration?.formSchema||[]).filter((_,i)=>i!==idx); set('registration',{...form.registration,formSchema:u}); }}
                                                     className="text-red-400 hover:text-red-300 px-2">✕</button>
@@ -666,19 +824,62 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                                 <span className="text-xs text-gray-400">Required</span>
                                             </label>
                                         </div>
-                                        {field.type==='select' && (
-                                            <input type="text" value={(field.options||[]).join(', ')} placeholder="Options: A, B, C"
-                                                onChange={e=>{const u=[...(form.registration?.formSchema||[])];u[idx]={...field,options:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)};set('registration',{...form.registration,formSchema:u});}}
-                                                className="w-full bg-[#111213] border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#0ECCEE]"
-                                            />
+                                        {field.type === 'agree' ? (
+                                            <p className="text-[10px] text-gray-500">
+                                                Agreement text goes in the label above. Users must tick the box to continue.
+                                            </p>
+                                        ) : null}
+                                        {TREK_FORM_OPTION_FIELD_TYPES.includes(field.type) && (
+                                            <div className="space-y-2 rounded-lg border border-gray-700 bg-[#111213] p-2.5">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] font-medium text-gray-400">Options</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => addFormFieldOption(idx)}
+                                                        className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-[#0ECCEE] border border-[#0ECCEE]/30 hover:bg-[#0ECCEE]/10"
+                                                    >
+                                                        <Plus size={11} /> Add option
+                                                    </button>
+                                                </div>
+                                                {(field.options || []).length === 0 ? (
+                                                    <p className="text-[10px] text-gray-600">No options yet — click Add option.</p>
+                                                ) : (
+                                                    (field.options || []).map((opt, oi) => (
+                                                        <div key={oi} className="flex items-center gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={opt}
+                                                                placeholder={`Option ${oi + 1}`}
+                                                                onChange={(e) => updateFormFieldOption(idx, oi, e.target.value)}
+                                                                className="flex-1 bg-[#1D1E20] border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#0ECCEE]"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeFormFieldOption(idx, oi)}
+                                                                className="text-gray-500 hover:text-red-400 p-1"
+                                                                aria-label="Remove option"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                            </button>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 ))}
-                                <button type="button"
-                                    onClick={() => { const f=form.registration?.formSchema||[]; set('registration',{...form.registration,formSchema:[...f,{id:`f_${Date.now()}`,label:'',fieldName:'',type:'text',required:false,options:[],placeholder:''}]}); }}
-                                    className="w-full py-2 border border-dashed border-gray-600 hover:border-[#0ECCEE] rounded-lg text-xs text-gray-500 hover:text-[#0ECCEE] transition-colors">
-                                    + Add Extra Field
-                                </button>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <button type="button"
+                                        onClick={() => { const f=form.registration?.formSchema||[]; set('registration',{...form.registration,formSchema:[...f, createEmptyTrekFormField()]}); }}
+                                        className="flex-1 py-2 border border-dashed border-gray-600 hover:border-[#0ECCEE] rounded-lg text-xs text-gray-500 hover:text-[#0ECCEE] transition-colors">
+                                        + Add Extra Field
+                                    </button>
+                                    <button type="button"
+                                        onClick={() => { const f=form.registration?.formSchema||[]; set('registration',{...form.registration,formSchema:[...f, createAgreeTrekFormField()]}); }}
+                                        className="flex-1 py-2 border border-dashed border-[#0ECCEE]/40 hover:border-[#0ECCEE] rounded-lg text-xs text-[#0ECCEE] hover:bg-[#0ECCEE]/5 transition-colors">
+                                        + I Agree Field
+                                    </button>
+                                </div>
                             </div>
 
                             <hr className="border-gray-700" />

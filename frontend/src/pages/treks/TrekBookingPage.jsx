@@ -18,7 +18,8 @@ import {
     goToBookings,
     verifyPaymentWithRetry,
 } from '../../utils/paymentNavigation';
-import { calculatePlatformFee } from '../../utils/platformFee';
+import { buildTrekPriceBreakdown } from '../../utils/platformFee';
+import { isTrekFormFieldEmpty } from '../../constants/trekFormFields';
 import { API_BASE_URL } from '../../services/api/client';
 
 const API = API_BASE_URL;
@@ -160,6 +161,7 @@ export default function TrekBookingPage() {
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
     const fee       = Number(trek?.registrationFee) || 0;
+    const platformPct = Number(trek?.platformFeePercent) || 3;
     const reg       = trek?.registration || {};
     const dates = useMemo(
         () => (reg.availableDates?.length ? reg.availableDates : generateDates(trek?.trekDate)),
@@ -269,14 +271,15 @@ export default function TrekBookingPage() {
         }));
     }, [id, trek, extraFields, selDate, selTime, people, step]);
 
-    const baseFee     = fee * people;
-    const platformFee = fee > 0 ? calculatePlatformFee(baseFee) : 0;
-    const total       = baseFee + platformFee;
+    const baseFee = fee * people;
+    const { platformFee = 0, totalAmount: total = 0 } = fee > 0
+        ? buildTrekPriceBreakdown(baseFee, platformPct)
+        : { platformFee: 0, totalAmount: 0 };
 
     const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`;
 
     const renderField = (field) => {
-        const val = extraFields[field.fieldName] || '';
+        const val = extraFields[field.fieldName] ?? (field.type === 'checkbox' ? [] : '');
         const onChange = (v) => setExtraFields(f => ({ ...f, [field.fieldName]: v }));
 
         if (field.type === 'textarea') {
@@ -292,18 +295,83 @@ export default function TrekBookingPage() {
             return (
                 <select value={val} onChange={e => onChange(e.target.value)} onFocus={scrollFieldIntoView} className={inp}>
                     <option value="">Select...</option>
-                    {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                    {(field.options || []).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
             );
         }
-        if (field.type === 'file') {
+        if (field.type === 'radio') {
+            return (
+                <div className="space-y-2">
+                    {(field.options || []).filter(Boolean).map((o) => (
+                        <label key={o} className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                                type="radio"
+                                name={field.fieldName}
+                                value={o}
+                                checked={val === o}
+                                onChange={() => onChange(o)}
+                                className="accent-[#0ECCEE]"
+                            />
+                            <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{o}</span>
+                        </label>
+                    ))}
+                </div>
+            );
+        }
+        if (field.type === 'checkbox') {
+            const arr = Array.isArray(val) ? val : [];
+            const toggle = (o) => onChange(arr.includes(o) ? arr.filter((x) => x !== o) : [...arr, o]);
+            return (
+                <div className="space-y-2">
+                    {(field.options || []).filter(Boolean).map((o) => (
+                        <label key={o} className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={arr.includes(o)}
+                                onChange={() => toggle(o)}
+                                className="accent-[#0ECCEE]"
+                            />
+                            <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{o}</span>
+                        </label>
+                    ))}
+                </div>
+            );
+        }
+        if (field.type === 'agree') {
+            const checked = val === true || val === 'yes' || val === 'true';
+            return (
+                <label
+                    className={`flex items-start gap-3 cursor-pointer rounded-xl border-2 p-3.5 transition-colors ${
+                        checked
+                            ? isDark ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/5' : 'border-[#0ECCEE]/40 bg-[#0ECCEE]/5'
+                            : isDark ? 'border-gray-600 bg-[#1D1E20] hover:border-gray-500' : 'border-gray-300 bg-white hover:border-gray-400'
+                    }`}
+                >
+                    <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => onChange(e.target.checked ? 'yes' : '')}
+                        className="accent-[#0ECCEE] mt-0.5 shrink-0 size-4"
+                    />
+                    <span className={`text-sm leading-relaxed ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                        {field.label || 'I agree to the terms and conditions'}
+                        {field.required && <span className="text-red-400 ml-1">*</span>}
+                    </span>
+                </label>
+            );
+        }
+        if (field.type === 'file' || field.type === 'image') {
             return (
                 <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${isDark ? 'border-gray-600 hover:border-[#0ECCEE] bg-[#1D1E20]' : 'border-gray-300 hover:border-[#0ECCEE] bg-white'}`}>
                     <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {val ? val.slice(0, 24) + '…' : field.placeholder || 'Choose file'}
+                        {val ? String(val).slice(0, 24) + '…' : field.placeholder || (field.type === 'image' ? 'Choose image' : 'Choose file')}
                     </span>
-                    <input type="file" accept="image/*,.pdf" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) onChange(f.name); }} />
+                    <input
+                        type="file"
+                        accept={field.type === 'image' ? 'image/*' : 'image/*,.pdf'}
+                        className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) onChange(f.name); }}
+                    />
                 </label>
             );
         }
@@ -440,7 +508,7 @@ export default function TrekBookingPage() {
         if (step === 1) { setStep(2); return; }
 
         if (step === 2) {
-            const missing = regSchema.filter(f => f.required && !extraFields[f.fieldName]?.toString().trim());
+            const missing = regSchema.filter((f) => f.required && isTrekFormFieldEmpty(f, extraFields[f.fieldName]));
             if (missing.length > 0) { setError(`Please fill: ${missing.map(f => f.label).join(', ')}`); return; }
 
             const customerEmail =
@@ -621,7 +689,7 @@ export default function TrekBookingPage() {
                             { label: 'Time',  value: selTime },
                             { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
                             { label: 'Trek Fee', value: fee > 0 ? `₹${baseFee.toLocaleString('en-IN')}` : 'Free' },
-                            ...(total > 0    ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }] : []),
+                            ...(total > 0 ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }] : []),
                             ...(paymentId    ? [{ label: 'Payment ID',  value: paymentId.slice(0, 18) + '…' }] : []),
                         ].map(r => (
                             <div key={r.label} className={`flex justify-between text-sm py-2 border-b last:border-0 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -818,9 +886,14 @@ export default function TrekBookingPage() {
                                     <div className="text-right">
                                         <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Entry Fee</p>
                                         {fee > 0 ? (
-                                            <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                ₹{baseFee.toLocaleString('en-IN')}
-                                            </p>
+                                            <>
+                                                <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    ₹{baseFee.toLocaleString('en-IN')}
+                                                </p>
+                                                <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                    ₹{fee.toLocaleString('en-IN')} × {people}
+                                                </p>
+                                            </>
                                         ) : (
                                             <p className="text-lg font-bold text-green-500">Free</p>
                                         )}
@@ -846,11 +919,17 @@ export default function TrekBookingPage() {
                             <div className="space-y-4">
                                 {regSchema.map(field => (
                                     <div key={field.id || field.fieldName}>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                            {field.label}
-                                            {field.required && <span className="text-red-400 ml-1">*</span>}
-                                        </label>
-                                        {renderField(field)}
+                                        {field.type === 'agree' ? (
+                                            renderField(field)
+                                        ) : (
+                                            <>
+                                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                    {field.label}
+                                                    {field.required && <span className="text-red-400 ml-1">*</span>}
+                                                </label>
+                                                {renderField(field)}
+                                            </>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -863,7 +942,12 @@ export default function TrekBookingPage() {
                             <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
                             <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                 <div className="flex justify-between gap-4">
-                                    <span>Ticket Price <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span></span>
+                                    <span>
+                                        Ticket Price{' '}
+                                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            (₹{fee.toLocaleString('en-IN')} × {people})
+                                        </span>
+                                    </span>
                                     <span>₹{baseFee.toLocaleString('en-IN')}</span>
                                 </div>
                                 <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
