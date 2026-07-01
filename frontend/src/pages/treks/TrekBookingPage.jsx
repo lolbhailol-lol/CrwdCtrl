@@ -158,6 +158,7 @@ export default function TrekBookingPage() {
     const [paymentId,   setPaymentId]  = useState('');
     const [bookingId,   setBookingId]  = useState('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
+    const [postPaymentError, setPostPaymentError] = useState('');
     const retryCheckoutRef = useRef(null);
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
@@ -454,6 +455,7 @@ export default function TrekBookingPage() {
         setError('');
 
         (async () => {
+            let paymentVerified = false;
             try {
                 let draft = {};
                 const rawDraft = sessionStorage.getItem(trekDraftKey(trekId));
@@ -472,6 +474,7 @@ export default function TrekBookingPage() {
                     const unpaid = /pending|ACTIVE|not found|not successful/i.test(v.message || '');
                     setStep(2);
                     setPayDone(false);
+                    setPostPaymentError('');
                     setError(
                         unpaid
                             ? 'Payment was not completed. Tap Pay to try again.'
@@ -482,6 +485,8 @@ export default function TrekBookingPage() {
                 }
 
                 clearPendingPayment();
+                paymentVerified = true;
+                setPostPaymentError('');
 
                 const verified = buildVerifiedPaymentFields(v, pending.orderId);
                 setPaymentId(verified.payment_id);
@@ -498,10 +503,25 @@ export default function TrekBookingPage() {
                     },
                 });
                 setStep(3);
+                const params = new URLSearchParams(location.search);
+                ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
+                const nextSearch = params.toString();
+                navigate(
+                    { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+                    { replace: true },
+                );
             } catch (e) {
-                setStep(2);
-                setPayDone(false);
-                setError(e.message || 'Could not complete booking after payment');
+                if (paymentVerified) {
+                    setStep(3);
+                    setPayDone(true);
+                    setPostPaymentError(e.message || 'Payment received but booking could not be completed. Check My Bookings.');
+                    setError('');
+                } else {
+                    setStep(2);
+                    setPayDone(false);
+                    setPostPaymentError('');
+                    setError(e.message || 'Could not complete booking after payment');
+                }
             } finally {
                 setPaying(false);
             }
@@ -669,6 +689,35 @@ export default function TrekBookingPage() {
                 <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     Verifying payment and confirming your booking...
                 </p>
+            </div>
+        );
+    }
+
+    // ── Post-payment registration error ──
+    if (postPaymentError && step === 3 && payDone && !paying) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+                <div className="text-center max-w-md mx-auto p-8 w-full">
+                    <p className={`text-sm mb-6 ${isDark ? 'text-red-300' : 'text-red-600'}`}>{postPaymentError}</p>
+                    <div className="flex flex-col gap-3">
+                        <button
+                            type="button"
+                            onClick={() => goToBookings(navigate)}
+                            className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                        >
+                            View My Bookings
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setPostPaymentError(''); setStep(2); setPayDone(false); }}
+                            className={`w-full py-3.5 rounded-xl font-semibold transition ${
+                                isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                            }`}
+                        >
+                            Back to booking form
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     }

@@ -3,6 +3,25 @@
  * Handled by NotificationsProvider via the `crwdctrl:app-popup` event.
  */
 
+import {
+    getPendingPayment,
+    hasPaymentReturnExpected,
+    hasCashfreeReturnParams,
+} from './deepLinks';
+
+export function isPaymentOrRegistrationFlow() {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname;
+    if (/\/register|\/book|\/payment\//.test(path)) return true;
+    if (hasPaymentReturnExpected()) return true;
+    if (hasCashfreeReturnParams(window.location.search)) return true;
+    if (getPendingPayment()?.orderId) return true;
+    return false;
+}
+
+const LOGIN_POPUP_TS_KEY = 'crwdctrl_login_popup_ts';
+const LOGIN_POPUP_COOLDOWN_MS = 15000;
+
 export function showAppPopup({
     title,
     message = '',
@@ -17,6 +36,14 @@ export function showAppPopup({
 }
 
 export function showLoginPopup(message = 'You signed in to CrwdCtrl.') {
+    if (isPaymentOrRegistrationFlow()) return;
+    try {
+        const last = Number(sessionStorage.getItem(LOGIN_POPUP_TS_KEY) || 0);
+        if (Date.now() - last < LOGIN_POPUP_COOLDOWN_MS) return;
+        sessionStorage.setItem(LOGIN_POPUP_TS_KEY, String(Date.now()));
+    } catch {
+        /* storage unavailable */
+    }
     showAppPopup({ title: 'Login successful', message, tone: 'login' });
 }
 

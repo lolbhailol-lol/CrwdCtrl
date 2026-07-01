@@ -88,10 +88,14 @@ export const NotificationsProvider = ({ children }) => {
     const notifyUser = useCallback((notification) => {
         if (!notification?.title) return;
 
+        const tone = inferPopupTone(notification);
+        // Login popup is shown once client-side on crwdctrl:user-login — skip server duplicates.
+        if (tone === 'login') return;
+
         pushPopup({
             title: notification.title,
             message: notification.message || '',
-            tone: inferPopupTone(notification),
+            tone,
             link: notification.link || '/notifications',
             id: notification.id,
         });
@@ -272,8 +276,8 @@ export const NotificationsProvider = ({ children }) => {
 
     useEffect(() => {
         const onUserLogin = () => {
-            seenNotificationIdsRef.current = new Set();
-            hasInitializedRef.current = false;
+            // Refresh bell list but do not re-popup login — showLoginPopup handles that once.
+            hasInitializedRef.current = true;
             fetchNotifications();
             fetchUnreadCount();
             setTimeout(registerPushToken, 2000);

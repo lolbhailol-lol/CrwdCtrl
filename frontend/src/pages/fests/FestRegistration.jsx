@@ -24,6 +24,7 @@ import {
   loadRegistrationDraft,
   saveRegistrationDraft,
   scrollFieldIntoView,
+  applyRegistrationDraft,
 } from '../../utils/registrationDraft';
 import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
 import {
@@ -96,7 +97,7 @@ export default function FestRegistration() {
   const [showRegister, setShowRegister] = useState(false);
   // True once we've waited long enough for Firebase -> backend JWT sync to finish
   const [authSyncExpired, setAuthSyncExpired] = useState(false);
-  const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
+  const [paymentResumeError, setPaymentResumeError] = useState('');
 
   useEffect(() => {
     if (!firebaseUser || resolveAuthToken(authToken)) {
@@ -207,6 +208,7 @@ export default function FestRegistration() {
         setSuccess(true);
         refreshNotifications();
         clearRegistrationDraft(draftKey);
+        clearCashfreeReturnParams();
       } catch (err) {
         clearPendingPayment();
         setCompletingPayment(false);
@@ -233,6 +235,7 @@ export default function FestRegistration() {
   useEffect(() => {
     if (competitionPaymentResumeRef.current || authLoading || isAuthProcessing || isRedirectProcessing) return;
     if (!isCompetitionRegistration || !competitionId) return;
+    if (loading || !competition || !fest) return;
 
     const pending = getPendingPayment();
     if (!pending?.orderId || isTrekPaymentPending(pending)) return;
@@ -242,19 +245,16 @@ export default function FestRegistration() {
 
     competitionPaymentResumeRef.current = true;
     setCompletingPayment(true);
+    setPaymentResumeError('');
     setSubmissionProgress('Verifying payment...');
     setPaymentError('');
     setError('');
 
     (async () => {
-      let scheduledAutoSubmit = false;
       try {
         const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
         if (!submitToken) {
-          setCompletingPayment(false);
-          setLoading(false);
-          setPaymentError('Please log in to complete your registration.');
-          return;
+          throw new Error('Please log in to complete your registration.');
         }
 
         const { ok, data: verifyData } = await verifyPaymentWithRetry(
@@ -277,10 +277,17 @@ export default function FestRegistration() {
         );
 
         if (hasDraftAnswers) {
-          restoreRegistrationDraft();
+          applyRegistrationDraft(draft, {
+            setFormData,
+            setStepData,
+            setCurrentStep,
+            setCompletedSteps,
+          });
           setSubmissionProgress('Submitting your registration...');
-          scheduledAutoSubmit = true;
-          setPendingAutoSubmit(true);
+          await handleSubmitRef.current?.(
+            { preventDefault: () => {} },
+            { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
+          );
           return;
         }
 
@@ -304,17 +311,16 @@ export default function FestRegistration() {
         const regId = regData._id || regData.registration?._id || regData.registrationId;
         if (regId) setRegistrationId(regId);
         clearRegistrationDraft(draftKey);
+        clearCashfreeReturnParams();
         setCompletingPayment(false);
         setSuccess(true);
         refreshNotifications();
       } catch (err) {
         clearPendingPayment();
-        setCompletingPayment(false);
+        setPaymentResumeError(err.message || 'Could not complete registration after payment.');
         setPaymentError(err.message || 'Could not complete registration after payment.');
       } finally {
-        if (!scheduledAutoSubmit) {
-          setSubmissionProgress('');
-        }
+        setSubmissionProgress('');
       }
     })();
   }, [
@@ -323,6 +329,9 @@ export default function FestRegistration() {
     isRedirectProcessing,
     isCompetitionRegistration,
     competitionId,
+    competition,
+    fest,
+    loading,
     location.pathname,
     location.search,
     authToken,
@@ -330,17 +339,6 @@ export default function FestRegistration() {
     navigate,
     refreshNotifications,
   ]);
-
-  useEffect(() => {
-    if (!pendingAutoSubmit || !paymentFields || !competition || !fest || submitting) return;
-    setPendingAutoSubmit(false);
-    setCompletingPayment(true);
-    setSubmissionProgress('Submitting your registration...');
-    const timer = setTimeout(() => {
-      handleSubmitRef.current?.({ preventDefault: () => {} });
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [pendingAutoSubmit, paymentFields, competition, fest, submitting]);
 
   useEffect(() => {
     const initializeRegistration = async () => {
@@ -361,7 +359,26 @@ export default function FestRegistration() {
         return;
       }
 
+      const currentPath = `${location.pathname}${location.search}`;
+      const pendingPayment = getPendingPayment();
+      const resumingPayment = pendingPayment
+        && shouldResumePendingPayment(pendingPayment, currentPath, location.search);
+
       const usableToken = resolveAuthToken(authToken);
+
+      if (resumingPayment) {
+        if (!usableToken) {
+          if (firebaseUser && !authSyncExpired) {
+            console.log('⏳ Payment return — waiting for session sync...');
+            return;
+          }
+          setLoading(false);
+          return;
+        }
+        console.log('✅ Payment return — loading registration details');
+        proceedWithRegistration();
+        return;
+      }
 
       if (!usableToken) {
         // Give the Firebase -> backend JWT sync a bounded window, then fall back to login
@@ -391,7 +408,7 @@ export default function FestRegistration() {
 
     initializeRegistration();
      
-  }, [festId, competitionId, authLoading, authToken, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing]);
+  }, [festId, competitionId, authLoading, authToken, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing, location.pathname, location.search]);
 
   useEffect(() => {
     if (loading || !fest) return;
@@ -615,6 +632,33 @@ export default function FestRegistration() {
     });
     
     return allData;
+  };
+
+  const buildFormDataFromDraft = (draft) => {
+    if (!draft) return null;
+    const merged = { ...(draft.formData || {}) };
+    if (draft.stepData && typeof draft.stepData === 'object') {
+      Object.values(draft.stepData).forEach((fields) => {
+        if (fields && typeof fields === 'object') {
+          Object.assign(merged, fields);
+        }
+      });
+    }
+    return merged;
+  };
+
+  const clearCashfreeReturnParams = () => {
+    try {
+      const params = new URLSearchParams(location.search);
+      ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
+      const nextSearch = params.toString();
+      navigate(
+        { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+        { replace: true },
+      );
+    } catch {
+      /* ignore */
+    }
   };
 
   // ✅ NEW: Render form field function (extracted for reuse)
@@ -1341,8 +1385,13 @@ export default function FestRegistration() {
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, options = {}) => {
     e?.preventDefault?.();
+    const {
+      paidResume = false,
+      verifiedPaymentOverride = null,
+      draft = null,
+    } = options;
     const formSubmissionStartTime = Date.now(); // Track submission time for error reporting
     console.log('🚀 Starting form submission...');
     console.log('🔍 DEBUG - Form submission state:', {
@@ -1360,7 +1409,7 @@ export default function FestRegistration() {
     }
     
     // Validate only current step's required fields for multi-step forms
-    if (isMultiStepForm()) {
+    if (!paidResume && isMultiStepForm()) {
       const currentFields = getCurrentStepFields();
       const currentData = getCurrentStepData();
       for (const field of currentFields) {
@@ -1388,9 +1437,9 @@ export default function FestRegistration() {
           }
         }
       }
-    } else {
+    } else if (!paidResume) {
       // Single-step form: validate all required fields
-      const allFormData = getAllFormData();
+      const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
       const formSchema = fest.registration?.formSchema || [];
       const requiredFields = formSchema.filter(field => field.required);
       for (const field of requiredFields) {
@@ -1419,7 +1468,7 @@ export default function FestRegistration() {
     }
 
     // ✅ NEW: For multi-step forms, validate current step first
-    if (isMultiStepForm() && currentStep < getTotalSteps()) {
+    if (!paidResume && isMultiStepForm() && currentStep < getTotalSteps()) {
       console.log('📝 Multi-step form: Moving to next step instead of submitting');
       // This is not the final step, just go to next step
       handleStepNext();
@@ -1428,7 +1477,7 @@ export default function FestRegistration() {
     
     console.log('📤 Final step reached, proceeding with actual submission');
     // ✅ NEW: Final validation for multi-step forms
-    if (isMultiStepForm() && !validateCurrentStep()) {
+    if (!paidResume && isMultiStepForm() && !validateCurrentStep()) {
       return;
     }
 
@@ -1443,7 +1492,7 @@ export default function FestRegistration() {
       const token = resolveAuthToken(authToken);
       const user = localStorage.getItem('crwdctrl_user');
 
-      const allFormData = getAllFormData();
+      const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
 
       console.log('🔑 Auth check for submission:', {
         hasToken: !!token,
@@ -1525,6 +1574,7 @@ export default function FestRegistration() {
         
         // For file/image fields, check if file was selected and is ready
         if (field.type === 'file' || field.type === 'image') {
+          if (paidResume) continue;
           console.log('🔍 File field validation:', {
             fieldId,
             label: field.label,
@@ -1566,8 +1616,8 @@ export default function FestRegistration() {
 
       // Cashfree: open checkout if competition/fest has a fee and payment not yet done
       const effectiveFeeAmount = priceBreakdown?.ticketPrice || (isCompetitionRegistration ? (parseTicketPrice(competition?.feeAmount) || parseTicketPrice(competition?.registrationFee)) : (fest.feeAmount || 0));
-      let verifiedPaymentFields = paymentFields;
-      if (effectiveFeeAmount > 0 && !verifiedPaymentFields) {
+      let verifiedPaymentFields = verifiedPaymentOverride || paymentFields;
+      if (effectiveFeeAmount > 0 && !verifiedPaymentFields && !paidResume) {
         setSubmissionProgress('Opening payment gateway...');
 
         const orderNotes = isCompetitionRegistration ? { competitionId } : { festId };
@@ -1861,9 +1911,13 @@ export default function FestRegistration() {
           
           // Handle specific error cases
           if (response.status === 401) {
-            clearStoredAuthSession();
-            setShowLogin(true);
-            errorMessage = 'Session expired. Please log in again.';
+            if (paidResume) {
+              errorMessage = 'Session expired after payment. Please check My Bookings or log in again.';
+            } else {
+              clearStoredAuthSession();
+              setShowLogin(true);
+              errorMessage = 'Session expired. Please log in again.';
+            }
           } else if (response.status === 400 && errorData.error?.includes('registration')) {
             errorMessage = `Registration error: ${errorData.error}`;
           }
@@ -1892,9 +1946,17 @@ export default function FestRegistration() {
       setSuccess(true);
       refreshNotifications();
       clearRegistrationDraft(draftKey);
+      if (paidResume) {
+        setPaymentResumeError('');
+        clearCashfreeReturnParams();
+      }
 
     } catch (err) {
-      setCompletingPayment(false);
+      if (paidResume) {
+        setPaymentResumeError(err.message || 'Registration failed after payment.');
+      } else {
+        setCompletingPayment(false);
+      }
       console.error('❌ Registration error:', err);
       console.error('❌ Error name:', err.name);
       console.error('❌ Error message:', err.message);
@@ -1912,9 +1974,13 @@ export default function FestRegistration() {
         || err.message.includes('token')
         || err.message.includes('log in')
       ) {
-        setError('Your session has expired. Please log in again.');
-        clearStoredAuthSession();
-        setShowLogin(true);
+        if (paidResume) {
+          setPaymentResumeError(err.message || 'Your session has expired. Please log in and check My Bookings.');
+        } else {
+          setError('Your session has expired. Please log in again.');
+          clearStoredAuthSession();
+          setShowLogin(true);
+        }
       } else if (err.message.includes('registration') && err.message.includes('not available')) {
         setError('Registration is currently not available for this event. Please contact the organizers.');
       } else if (err.message.includes('required')) {
@@ -1942,10 +2008,42 @@ export default function FestRegistration() {
   if (completingPayment && !success) {
     return (
       <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
-        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
-        <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-          {submissionProgress || 'Completing your registration...'}
-        </p>
+        {paymentResumeError ? (
+          <div className="text-center max-w-md mx-auto p-6">
+            <p className={`text-sm mb-2 ${isDark ? 'text-red-300' : 'text-red-600'}`}>
+              Payment received, but registration could not be completed.
+            </p>
+            <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{paymentResumeError}</p>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => goToBookings(navigate)}
+                className="w-full px-6 py-3 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+              >
+                View My Bookings
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCompletingPayment(false);
+                  setPaymentResumeError('');
+                }}
+                className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
+                  isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                Return to form
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
+            <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              {submissionProgress || 'Completing your registration...'}
+            </p>
+          </>
+        )}
       </div>
     );
   }
