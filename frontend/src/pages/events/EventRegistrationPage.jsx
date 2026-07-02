@@ -110,7 +110,11 @@ export default function EventRegistrationPage() {
 
     const reg = event?.registration || {};
     const ticketPrice = Number(event?.ticketPrice) || 0;
-    const breakdown = useMemo(() => buildEventPriceBreakdown(ticketPrice), [ticketPrice]);
+    const platformFeePercent = Number(event?.platformFeePercent) || 2.5;
+    const breakdown = useMemo(
+        () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
+        [ticketPrice, platformFeePercent],
+    );
     const title = event?.displayName || event?.title || 'Event';
 
     useBookingSuccessPopup(done, {
@@ -646,7 +650,7 @@ export default function EventRegistrationPage() {
                             {ticketPrice > 0 ? (
                                 <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     <div className="flex justify-between gap-4"><span>Registration Fee</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
-                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}><span>Platform Fee</span><span>₹{breakdown.platformFee}</span></div>
+                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}><span>Platform Fee ({platformFeePercent}%)</span><span>₹{breakdown.platformFee}</span></div>
                                     <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]"><span>Amount Payable</span><span>₹{breakdown.totalAmount.toLocaleString('en-IN')}</span></div>
                                     <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Includes all charges · Secure payment via Cashfree</p>
                                 </div>

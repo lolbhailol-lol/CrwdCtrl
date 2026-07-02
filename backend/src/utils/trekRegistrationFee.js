@@ -25,7 +25,12 @@ function sanitizeTrekPlatformFeePercent(value, fallback = 3) {
     return fallback;
 }
 
+function sanitizeEventPlatformFeePercent(value, fallback = 2.5) {
+    return sanitizeTrekPlatformFeePercent(value, fallback);
+}
+
 module.exports = {
     sanitizeTrekRegistrationFee,
     sanitizeTrekPlatformFeePercent,
+    sanitizeEventPlatformFeePercent,
 };

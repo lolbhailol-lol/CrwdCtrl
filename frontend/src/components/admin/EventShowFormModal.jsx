@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2 } from 'lucide-react';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import EventRegistrationFeePicker from './EventRegistrationFeePicker';
+import { sanitizeEventPlatformFeePercent } from '../../utils/trekRegistrationFee';
 
 const EVENT_TYPE_OPTIONS = [
     { value: 'play', label: 'Play' },
@@ -13,7 +15,7 @@ const EVENT_TYPE_OPTIONS = [
 
 const EMPTY = {
     title: '', displayName: '', description: '', eventType: '', eventHeading: '', organizer: '',
-    venue: '', city: '', ticketPrice: 0,
+    venue: '', city: '', ticketPrice: 0, platformFeePercent: 2.5,
     sponsors: '', poster: '', banner: '', bookingLink: '',
     generalRules: '', process: '', prizePool: '',
     whatsIncluded: '', benefits: '', eligibility: '', slots: '', registrationProcess: '', registrationLink: '',
@@ -58,6 +60,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                     formSchema: Array.isArray(show.registration?.formSchema) ? show.registration.formSchema : [],
                     steps: Array.isArray(show.registration?.steps) ? show.registration.steps : [],
                 },
+                platformFeePercent: show.platformFeePercent ?? 2.5,
                 sponsors: Array.isArray(show.sponsors) ? show.sponsors.join(', ') : (show.sponsors || ''),
                 rounds: Array.isArray(show.rounds) ? show.rounds.map(r => ({ title: r.title || '', content: r.content || '' })) : [],
                 contacts: Array.isArray(show.contacts) ? show.contacts.map(c => ({
@@ -234,6 +237,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                 ...form,
                 sponsors: form.sponsors ? form.sponsors.split(',').map(s => s.trim()).filter(Boolean) : [],
                 ticketPrice: Number(form.ticketPrice) || 0,
+                platformFeePercent: sanitizeEventPlatformFeePercent(form.platformFeePercent),
                 rounds: form.rounds.filter(r => (r.title || '').trim() || (r.content || '').trim()),
                 contacts: form.contacts.filter(c => (c.name || c.phone || c.email || c.instagramId || '').trim()),
                 galleryImages: form.galleryImages.filter(Boolean),
@@ -344,11 +348,10 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
 
                     <div className="grid grid-cols-2 gap-4">
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Venue</label><input type="text" value={form.venue} onChange={e => set('venue', e.target.value)} className={inp} /></div>
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Fee (₹)</label><input type="number" min="0" value={form.ticketPrice} onChange={e => set('ticketPrice', e.target.value)} className={inp} placeholder="0 for free" /></div>
+                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Booking Link</label><input type="url" value={form.bookingLink} onChange={e => set('bookingLink', e.target.value)} className={inp} placeholder="https://..." /></div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-1">Booking Link</label><input type="url" value={form.bookingLink} onChange={e => set('bookingLink', e.target.value)} className={inp} placeholder="https://..." /></div>
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Sponsors (comma-separated)</label><input type="text" value={form.sponsors} onChange={e => set('sponsors', e.target.value)} className={inp} /></div>
                     </div>
 
@@ -396,13 +399,20 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                         </div>
                     </div>
 
+                    <EventRegistrationFeePicker
+                        ticketPrice={form.ticketPrice}
+                        platformFeePercent={form.platformFeePercent ?? 2.5}
+                        onTicketPriceChange={(ticketPrice) => set('ticketPrice', ticketPrice)}
+                        onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}
+                    />
+
                     {reg.mode === 'external_link' && (
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Link</label><input type="url" value={form.registrationLink} onChange={e => set('registrationLink', e.target.value)} className={inp} placeholder="https://forms.gle/..." /></div>
                     )}
 
                     {reg.mode === 'internal_form' && (
                         <div className="space-y-5 rounded-lg border border-gray-700 p-4 bg-[#161718]">
-                            <p className="text-xs text-gray-400">The "Register Now" button opens an in-app form. Uses the Registration Fee above (platform fee added at checkout).</p>
+                            <p className="text-xs text-gray-400">The &quot;Register Now&quot; button opens an in-app form. Uses the registration fee above — platform fee is added at checkout.</p>
 
                             {/* Google Sheet auto-export */}
                             <div>

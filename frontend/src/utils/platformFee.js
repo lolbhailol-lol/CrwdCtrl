@@ -44,15 +44,16 @@ export const buildPriceBreakdown = (ticketPrice) => {
   };
 };
 
-export const calculateEventPlatformFee = (ticketPrice) => {
+export const calculateEventPlatformFee = (ticketPrice, platformFeePercent = 2.5) => {
   const normalizedTicketPrice = parseTicketPrice(ticketPrice);
-  return Math.ceil(normalizedTicketPrice * EVENT_PLATFORM_FEE_RATE);
+  const rate = Number(platformFeePercent);
+  const pct = Number.isFinite(rate) && rate > 0 ? rate / 100 : EVENT_PLATFORM_FEE_RATE;
+  return Math.ceil(normalizedTicketPrice * pct);
 };
 
-export const buildEventPriceBreakdown = (ticketPrice) => {
+export const buildEventPriceBreakdown = (ticketPrice, platformFeePercent = 2.5) => {
   const normalizedTicketPrice = parseTicketPrice(ticketPrice);
-  const platformFee = calculateEventPlatformFee(normalizedTicketPrice);
-
+  const platformFee = calculateEventPlatformFee(normalizedTicketPrice, platformFeePercent);
   return {
     ticketPrice: normalizedTicketPrice,
     platformFee,

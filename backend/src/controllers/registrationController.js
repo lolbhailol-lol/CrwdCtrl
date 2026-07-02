@@ -2281,7 +2281,8 @@ const submitEventShowRegistration = async (req, res) => {
 
     // Verify payment when the event has a fee
     const ticketPrice = Number(eventShow.ticketPrice) || 0;
-    const totalAmount = buildEventPriceBreakdown(ticketPrice).totalAmount;
+    const platformFeePercent = Number(eventShow.platformFeePercent) || 2.5;
+    const totalAmount = buildEventPriceBreakdown(ticketPrice, platformFeePercent).totalAmount;
     let payment_order_id = null;
     let payment_id = null;
     let paymentStatus = 'free';

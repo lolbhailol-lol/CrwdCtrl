@@ -1,5 +1,17 @@
 const mongoose = require('mongoose');
 const EventShow = require('../model/event_show_model');
+const { sanitizeEventPlatformFeePercent } = require('../utils/trekRegistrationFee');
+
+function normalizeEventShowPayload(body = {}) {
+    const payload = { ...body };
+    if (payload.ticketPrice !== undefined) {
+        payload.ticketPrice = Math.max(0, Number(payload.ticketPrice) || 0);
+    }
+    if (payload.platformFeePercent !== undefined) {
+        payload.platformFeePercent = sanitizeEventPlatformFeePercent(payload.platformFeePercent);
+    }
+    return payload;
+}
 
 exports.createEventShow = async (req, res) => {
     try {
@@ -7,7 +19,7 @@ exports.createEventShow = async (req, res) => {
         if (!title || !eventType) {
             return res.status(400).json({ message: 'title and eventType are required' });
         }
-        const show = new EventShow({ ...req.body, createdBy: req.user?._id || null });
+        const show = new EventShow({ ...normalizeEventShowPayload(req.body), createdBy: req.user?._id || null });
         await show.save();
         res.status(201).json({ message: 'Event created successfully', show });
     } catch (error) {
@@ -72,7 +84,7 @@ exports.updateEventShow = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid ID' });
         }
-        const show = await EventShow.findByIdAndUpdate(id, req.body, { new: true, runValidators: true });
+        const show = await EventShow.findByIdAndUpdate(id, normalizeEventShowPayload(req.body), { new: true, runValidators: true });
         if (!show) return res.status(404).json({ message: 'Event not found' });
         res.json({ message: 'Event updated successfully', show });
     } catch (error) {

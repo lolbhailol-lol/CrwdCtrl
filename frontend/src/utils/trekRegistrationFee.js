@@ -34,6 +34,10 @@ export function sanitizeTrekPlatformFeePercent(value, fallback = 3) {
     return fallback;
 }
 
+export function sanitizeEventPlatformFeePercent(value, fallback = 2.5) {
+    return sanitizeTrekPlatformFeePercent(value, fallback);
+}
+
 export function formatTrekPerPersonFee(value) {
     const n = Number(value) || 0;
     if (n <= 0) return 'Free';

@@ -29,14 +29,16 @@ const buildTrekPriceBreakdown = (ticketPrice, platformFeePercent = 3) => {
   };
 };
 
-const calculateEventPlatformFee = (ticketPrice) => {
+const calculateEventPlatformFee = (ticketPrice, platformFeePercent = 2.5) => {
   const normalizedTicketPrice = normalizeAmount(ticketPrice);
-  return Math.ceil(normalizedTicketPrice * EVENT_PLATFORM_FEE_RATE);
+  const rate = Number(platformFeePercent);
+  const pct = Number.isFinite(rate) && rate > 0 ? rate / 100 : EVENT_PLATFORM_FEE_RATE;
+  return Math.ceil(normalizedTicketPrice * pct);
 };
 
-const buildEventPriceBreakdown = (ticketPrice) => {
+const buildEventPriceBreakdown = (ticketPrice, platformFeePercent = 2.5) => {
   const normalizedTicketPrice = normalizeAmount(ticketPrice);
-  const platformFee = calculateEventPlatformFee(normalizedTicketPrice);
+  const platformFee = calculateEventPlatformFee(normalizedTicketPrice, platformFeePercent);
   return {
     ticketPrice: normalizedTicketPrice,
     platformFee,

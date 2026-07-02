@@ -35,11 +35,12 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
   const resolvedEventShowId = eventShowId || notes.eventShowId;
 
   if (resolvedEventShowId) {
-    const eventShow = await EventShow.findById(resolvedEventShowId).select('title ticketPrice');
+    const eventShow = await EventShow.findById(resolvedEventShowId).select('title ticketPrice platformFeePercent');
     if (!eventShow) return null;
     return {
       entityType: 'event_show',
       ticketPrice: eventShow.ticketPrice,
+      platformFeePercent: Number(eventShow.platformFeePercent) || 2.5,
       notes: { eventShowId: eventShow._id.toString() },
     };
   }
@@ -85,7 +86,7 @@ const getPricingForRequest = async (req) => {
 
   const breakdown =
     pricedEntity.entityType === 'event_show'
-      ? buildEventPriceBreakdown(pricedEntity.ticketPrice)
+      ? buildEventPriceBreakdown(pricedEntity.ticketPrice, pricedEntity.platformFeePercent ?? 2.5)
       : buildPriceBreakdown(pricedEntity.ticketPrice);
 
   return {

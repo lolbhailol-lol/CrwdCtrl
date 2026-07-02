@@ -93,6 +93,8 @@ const eventShowSchema = new mongoose.Schema(
         language: { type: String, trim: true },
         ageRating: { type: String, trim: true },
         ticketPrice: { type: Number, default: 0 },
+        /** Platform fee % added on top of ticket price at checkout (e.g. 2.5 = ₹25 on ₹1000). */
+        platformFeePercent: { type: Number, default: 2.5 },
         seatingCapacity: { type: Number, default: 0 },
         performerDetails: { type: String, trim: true },
         sponsors: { type: [String], default: [] },
