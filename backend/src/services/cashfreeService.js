@@ -124,13 +124,26 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
  * Security: must use raw request body — parsed JSON will break signature match.
  * Cashfree signs with Client Secret (see official PG webhook docs).
  */
-function verifyWebhookSignature({ signature, timestamp, rawBody }) {
-  // Prefer explicit override; otherwise use PG Client Secret (Cashfree official method)
-  const secret =
-    process.env.CASHFREE_WEBHOOK_SECRET?.trim() ||
-    process.env.CASHFREE_CLIENT_SECRET?.trim();
+function getWebhookSecretCandidates() {
+  // Cashfree signs webhooks with the PG Client Secret of the environment the
+  // webhook is configured in. Try every configured secret so a single deploy can
+  // validate both sandbox and production webhooks without a mode mismatch.
+  return [
+    process.env.CASHFREE_WEBHOOK_SECRET,
+    process.env.CASHFREE_CLIENT_SECRET,
+    process.env.CASHFREE_CLIENT_SECRET_PROD,
+    process.env.CASHFREE_CLIENT_SECRET_SANDBOX,
+  ]
+    .map((s) => s?.trim())
+    .filter(Boolean)
+    // de-dupe
+    .filter((s, i, arr) => arr.indexOf(s) === i);
+}
 
-  if (!secret) {
+function verifyWebhookSignature({ signature, timestamp, rawBody }) {
+  const secrets = getWebhookSecretCandidates();
+
+  if (secrets.length === 0) {
     const err = new Error(
       'Cashfree webhook secret not configured — set CASHFREE_CLIENT_SECRET or CASHFREE_WEBHOOK_SECRET'
     );
@@ -141,12 +154,50 @@ function verifyWebhookSignature({ signature, timestamp, rawBody }) {
     return false;
   }
 
-  const computed = crypto
-    .createHmac('sha256', secret)
-    .update(String(timestamp) + rawBody)
-    .digest('base64');
+  const payload = String(timestamp) + rawBody;
+  return secrets.some((secret) => {
+    const computed = crypto.createHmac('sha256', secret).update(payload).digest('base64');
+    return computed === signature;
+  });
+}
 
-  return computed === signature;
+/**
+ * Detailed, non-secret-leaking diagnostics for webhook signature debugging.
+ * Logs which candidate (by label + secret length) matched, and the received vs
+ * computed signatures so a mismatch can be pinpointed. Never logs raw secrets.
+ */
+function inspectWebhookSignature({ signature, timestamp, rawBody }) {
+  const labelled = [
+    ['CASHFREE_WEBHOOK_SECRET', process.env.CASHFREE_WEBHOOK_SECRET],
+    ['CASHFREE_CLIENT_SECRET', process.env.CASHFREE_CLIENT_SECRET],
+    ['CASHFREE_CLIENT_SECRET_PROD', process.env.CASHFREE_CLIENT_SECRET_PROD],
+    ['CASHFREE_CLIENT_SECRET_SANDBOX', process.env.CASHFREE_CLIENT_SECRET_SANDBOX],
+  ]
+    .map(([label, val]) => [label, val?.trim()])
+    .filter(([, val]) => Boolean(val));
+
+  const payload = String(timestamp) + rawBody;
+
+  const candidates = labelled.map(([label, secret]) => {
+    const computed = crypto.createHmac('sha256', secret).update(payload).digest('base64');
+    return {
+      envVar: label,
+      secretLen: secret.length,
+      computed,
+      matches: computed === signature,
+    };
+  });
+
+  return {
+    valid: candidates.some((c) => c.matches),
+    hasSignature: !!signature,
+    hasTimestamp: !!timestamp,
+    receivedSignature: signature || null,
+    timestamp: timestamp || null,
+    bodyLength: rawBody?.length || 0,
+    cashfreeEnv: process.env.CASHFREE_ENV || 'sandbox',
+    candidates,
+  };
 }
 
 module.exports = {
@@ -155,6 +206,7 @@ module.exports = {
   fetchPaymentsForOrder,
   verifyCashfreePayment,
   verifyWebhookSignature,
+  inspectWebhookSignature,
   generateOrderId,
   normalizePhone,
   getCashfreeClientMode,
