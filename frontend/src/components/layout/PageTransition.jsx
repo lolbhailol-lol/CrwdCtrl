@@ -23,6 +23,14 @@ function shouldSkipPageTransition(pathname) {
     return pathname === '/profile';
 }
 
+/**
+ * Routes already mounted this session — their lazy chunk is cached, so navigating
+ * back to them is instant. Showing the full-screen transition overlay again only
+ * adds artificial lag and makes the header logo flash. Track exact paths so new
+ * dynamic pages (e.g. a different /trek/:id) still get a first-load skeleton.
+ */
+const visitedRoutes = new Set();
+
 const PageTransitionContext = createContext({
     contentVisible: true,
     isTransitioning: false,
@@ -126,6 +134,7 @@ export function PageTransitionProvider({ children }) {
         if (isFirstNavigation.current) {
             isFirstNavigation.current = false;
             prevLocationKey.current = location.key;
+            visitedRoutes.add(location.pathname);
             resetScrollToTop();
             setIsTransitioning(false);
             return clearTimers;
@@ -143,6 +152,16 @@ export function PageTransitionProvider({ children }) {
             return clearTimers;
         }
 
+        // Already loaded this route this session → navigate instantly (no overlay,
+        // no logo flash, no artificial delay). Suspense still covers a truly cold
+        // chunk, and each page renders its own data-loading skeleton.
+        if (visitedRoutes.has(location.pathname)) {
+            prevLocationKey.current = location.key;
+            setIsTransitioning(false);
+            return clearTimers;
+        }
+
+        visitedRoutes.add(location.pathname);
         prevLocationKey.current = location.key;
         clearTimers();
 

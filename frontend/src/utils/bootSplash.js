@@ -12,12 +12,13 @@ function hasPaymentReturnContext() {
     if (typeof window === 'undefined') return false;
     if (window.location.pathname === '/payment/return') return true;
     if (hasCashfreeReturnParams(window.location.search)) return true;
+    // Only treat as a payment return when we have an explicit return signal —
+    // a lingering pending order alone must NOT skip the splash on normal visits.
     const pending = getPendingPayment();
-    if (pending?.orderId && !isStalePendingPayment(pending)) {
+    if (hasPaymentReturnExpected() && pending?.orderId && !isStalePendingPayment(pending)) {
       const currentPath = `${window.location.pathname}${window.location.search}`;
       if (pathsMatchPendingReturn(pending.returnPath, currentPath)) return true;
     }
-    if (hasPaymentReturnExpected() && pending) return true;
     return false;
   } catch {
     return false;

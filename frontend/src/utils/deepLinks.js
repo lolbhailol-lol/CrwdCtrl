@@ -73,9 +73,13 @@ export function isStalePendingPayment(pending) {
 }
 
 /**
- * Auto-resume when a recent pending order exists for this page.
- * Return flags / Cashfree query params are hints only — the return flag may be missing
- * if the browser unloaded before markPaymentReturnExpected() ran after checkout.
+ * Auto-resume only when the user actually returned from Cashfree for THIS page.
+ *
+ * We require a real return signal (Cashfree query params like order_id, or the
+ * return-expected flag set just before redirect checkout). Without this guard a
+ * lingering pending order — e.g. an abandoned/failed payment that only clears on
+ * success — would make every normal visit to the page fire a payment verify,
+ * causing spurious errors, refetches and lag.
  */
 export function shouldResumePendingPayment(pending, currentPath, search = '') {
   if (!pending?.orderId) return false;
@@ -84,7 +88,7 @@ export function shouldResumePendingPayment(pending, currentPath, search = '') {
     clearPendingPayment();
     return false;
   }
-  return true;
+  return hasCashfreeReturnParams(search) || hasPaymentReturnExpected();
 }
 
 /**

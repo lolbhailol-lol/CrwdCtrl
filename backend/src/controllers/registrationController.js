@@ -368,7 +368,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
         },
         registrationId: registration._id,
         referenceId: registrationId,
-        status: 'approved',
+        status: registration.status,
         submittedAt: registration.submittedAt
       }
     });
@@ -779,7 +779,7 @@ const submitCompetitionRegistration = async (req, res) => {
     console.log('💾 Saved competitionId field:', registration.competitionId);
 
     // Get user details for emails and Google Sheets
-    const user = await User.findById(userId).select('name email');
+    const user = await User.findById(userId).select('name email phoneNumber');
 
     const competitionRegistrationLink = `/registration-details/${registration._id}`;
 
@@ -1148,7 +1148,7 @@ const submitRegistration = async (req, res) => {
     console.log('✅ Registration saved:', registration._id);
 
     // Get user details for Google Sheets
-    const user = await User.findById(userId).select('name email');
+    const user = await User.findById(userId).select('name email phoneNumber');
 
     const registrationLink = `/registration-details/${registration._id}`;
 
@@ -1894,6 +1894,23 @@ const payAndRegisterFest = async (req, res) => {
 
     const payment_order_id = paymentCheck.orderId;
     const payment_id = paymentCheck.paymentId;
+    const festTotalAmount = buildPriceBreakdown(fest.feeAmount).totalAmount;
+
+    // Idempotent: if this exact payment already produced a registration, return it
+    // so a re-fired resume (double submit / page revisit) succeeds instead of erroring.
+    const alreadyPaid = payment_order_id
+      ? await Registration.findOne({ payment_order_id })
+      : null;
+    if (alreadyPaid) {
+      return res.status(200).json({
+        success: true,
+        message: 'Registration already completed',
+        _id: alreadyPaid._id,
+        registrationId: alreadyPaid._id,
+        festName: fest.festName,
+        amountPaid: alreadyPaid.amountPaid,
+      });
+    }
 
     // Prevent duplicate registrations
     const existing = await Registration.findOne({ fest: festId, user: userId, competitionId: null });
@@ -1917,7 +1934,7 @@ const payAndRegisterFest = async (req, res) => {
       payment_id,
       payment_gateway: 'cashfree',
       paymentStatus: 'paid',
-      amountPaid: fest.feeAmount,
+      amountPaid: festTotalAmount,
       submittedAt: new Date(),
     });
 
@@ -1929,9 +1946,10 @@ const payAndRegisterFest = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Registration successful',
+      _id: registration._id,
       registrationId: registration._id,
       festName: fest.festName,
-      amountPaid: fest.feeAmount,
+      amountPaid: festTotalAmount,
     });
 
     scheduleRegistrationNotification(userId, {
@@ -1959,7 +1977,7 @@ const payAndRegisterFest = async (req, res) => {
             name: user.name,
             email: user.email,
             phone: user.phoneNumber || '',
-            amountPaid: fest.feeAmount,
+            amountPaid: festTotalAmount,
             paymentId: payment_id,
             entityName: fest.festName,
             entityType: 'Fest',
@@ -2001,6 +2019,22 @@ const payAndRegister = async (req, res) => {
     const payment_order_id = paymentCheck.orderId;
     const payment_id = paymentCheck.paymentId;
 
+    // Idempotent: if this exact payment already produced a registration, return it
+    // so a re-fired resume (double submit / page revisit) succeeds instead of erroring.
+    const alreadyPaid = payment_order_id
+      ? await Registration.findOne({ payment_order_id })
+      : null;
+    if (alreadyPaid) {
+      return res.status(200).json({
+        success: true,
+        message: 'Registration already completed',
+        _id: alreadyPaid._id,
+        registrationId: alreadyPaid._id,
+        competitionName: competition.name,
+        amountPaid: alreadyPaid.amountPaid,
+      });
+    }
+
     // Prevent duplicate registrations
     const existing = await Registration.findOne({
       fest: competition.fest._id,
@@ -2040,6 +2074,7 @@ const payAndRegister = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Registration successful',
+      _id: registration._id,
       registrationId: registration._id,
       competitionName: competition.name,
       amountPaid: competitionTotalAmount,
@@ -2178,6 +2213,21 @@ const submitEventShowRegistration = async (req, res) => {
       paymentStatus = 'paid';
     }
 
+    // Idempotent: a paid order must not create duplicate event registrations
+    if (payment_order_id) {
+      const alreadyPaid = await EventShowRegistration.findOne({ payment_order_id });
+      if (alreadyPaid) {
+        return res.status(200).json({
+          success: true,
+          message: 'Registration already completed',
+          _id: alreadyPaid._id,
+          registrationId: alreadyPaid._id,
+          eventName: eventShow.title,
+          amountPaid: alreadyPaid.amountPaid,
+        });
+      }
+    }
+
     const user = await User.findById(userId);
 
     const registration = new EventShowRegistration({
@@ -2198,6 +2248,7 @@ const submitEventShowRegistration = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Registration successful',
+      _id: registration._id,
       registrationId: registration._id,
       eventName: eventShow.title,
       amountPaid: registration.amountPaid,
@@ -2207,7 +2258,7 @@ const submitEventShowRegistration = async (req, res) => {
       title: 'Registration Confirmed!',
       message: `You've successfully registered for ${eventShow.title}.`,
       body: `You've registered for ${eventShow.title}`,
-      link: `/registration-details/${registration._id}`,
+      link: `/registration-details/${registration._id}?type=event`,
       metadata: { eventShowId: eventShow._id, registrationId: registration._id },
     });
 
