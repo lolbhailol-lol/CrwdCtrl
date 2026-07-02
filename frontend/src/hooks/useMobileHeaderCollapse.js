@@ -65,6 +65,25 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
         let currentProgress = 0;
         let targetProgress = 0;
         let collapseDistance = measureCollapseDistance(el);
+        let inputFocused = false;
+
+        const isFormField = (node) => {
+            if (!node || node === document.body) return false;
+            const tag = node.tagName;
+            return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable;
+        };
+
+        const syncInputFocus = () => {
+            inputFocused = isFormField(document.activeElement);
+        };
+
+        const onFocusIn = (event) => {
+            if (isFormField(event.target)) inputFocused = true;
+        };
+
+        const onFocusOut = () => {
+            window.setTimeout(syncInputFocus, 0);
+        };
 
         const apply = (progress) => {
             el.style.setProperty('--header-collapse', String(progress));
@@ -123,6 +142,8 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
         };
 
         const syncTarget = () => {
+            if (inputFocused) return;
+
             const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
             const now = performance.now();
             const dt = Math.max(now - lastScrollTime, 1);
@@ -174,15 +195,20 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
 
         syncTarget();
         apply(currentProgress);
+        syncInputFocus();
 
         window.addEventListener('scroll', startLoop, { passive: true });
         window.addEventListener('touchmove', startLoop, { passive: true });
         window.addEventListener('resize', onResize, { passive: true });
+        document.addEventListener('focusin', onFocusIn, true);
+        document.addEventListener('focusout', onFocusOut, true);
 
         return () => {
             window.removeEventListener('scroll', startLoop);
             window.removeEventListener('touchmove', startLoop);
             window.removeEventListener('resize', onResize);
+            document.removeEventListener('focusin', onFocusIn, true);
+            document.removeEventListener('focusout', onFocusOut, true);
             clearTimeout(idleTimer);
             loopActive = false;
             if (rafId != null) window.cancelAnimationFrame(rafId);

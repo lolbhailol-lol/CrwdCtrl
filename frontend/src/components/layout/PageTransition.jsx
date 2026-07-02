@@ -54,23 +54,19 @@ export function usePageTransition() {
     return useContext(PageTransitionContext);
 }
 
-function readPageContentLoading() {
-    if (typeof document === 'undefined') return false;
-    return document.body.classList.contains('page-content-loading');
-}
-
 /** Mount once at Router level — shows loading UI on every route change app-wide */
 export function PageTransitionProvider({ children }) {
     const location = useLocation();
     const [isTransitioning, setIsTransitioning] = useState(false);
-    const [pageDataLoading, setPageDataLoading] = useState(readPageContentLoading);
     const [skeletonPath, setSkeletonPath] = useState(location.pathname);
     const isFirstNavigation = useRef(true);
     const prevLocationKey = useRef(location.key);
     const timers = useRef([]);
 
     const showSkeleton = isTransitioning;
-    const hideChrome = isTransitioning || pageDataLoading;
+    // Only hide chrome during route skeleton — not during in-page data fetches
+    // (page-content-loading still hides footer/nav via CSS without flashing the logo).
+    const hideChrome = isTransitioning;
     const contentVisible = !showSkeleton;
 
     const finishTransition = useCallback(() => {
@@ -112,17 +108,6 @@ export function PageTransitionProvider({ children }) {
         if ('scrollRestoration' in window.history) {
             window.history.scrollRestoration = 'manual';
         }
-    }, []);
-
-    useLayoutEffect(() => {
-        const syncPageLoading = () => {
-            setPageDataLoading(readPageContentLoading());
-        };
-
-        syncPageLoading();
-        const observer = new MutationObserver(syncPageLoading);
-        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
     }, []);
 
     useLayoutEffect(() => {

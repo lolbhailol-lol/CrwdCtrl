@@ -13,6 +13,7 @@ router.get('/treks/:trekId/dashboard', authenticateTrekOrganizer, requireTrekAcc
 router.get('/treks/:trekId/participants/export', authenticateTrekOrganizer, requireTrekAccess, ctrl.exportParticipants);
 router.get('/treks/:trekId/participants/lookup', authenticateTrekOrganizer, requireTrekAccess, ctrl.lookupParticipant);
 router.get('/treks/:trekId/participants/:bookingId', authenticateTrekOrganizer, requireTrekAccess, ctrl.getParticipant);
+router.delete('/treks/:trekId/participants/:bookingId', authenticateTrekOrganizer, requireTrekAccess, ctrl.deleteParticipant);
 router.get('/treks/:trekId/participants', authenticateTrekOrganizer, requireTrekAccess, ctrl.listParticipants);
 
 router.get('/treks/:trekId/checkin/stats', authenticateTrekOrganizer, requireTrekAccess, ctrl.getCheckinStats);

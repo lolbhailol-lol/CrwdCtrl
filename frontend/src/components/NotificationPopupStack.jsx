@@ -57,52 +57,38 @@ function PopupIcon({ tone }) {
     );
 }
 
-export default function NotificationPopupStack({ items = [], onDismiss, onOpen }) {
+export default function NotificationPopupStack({ items = [] }) {
     const { isDark } = useDarkMode();
+    const item = items[0];
 
-    if (!items.length || typeof document === 'undefined') return null;
+    if (!item || typeof document === 'undefined') return null;
+
+    const tone = item.tone || 'info';
+    const style = TONE_STYLES[tone] || TONE_STYLES.info;
 
     return createPortal(
         <div
-            className="fixed right-3 sm:right-4 top-[max(4.5rem,calc(env(safe-area-inset-top)_+_3.5rem))] z-[10000] flex flex-col gap-2 w-[min(100vw_-_1.5rem,_22rem)] pointer-events-none"
+            className="fixed right-3 sm:right-4 top-[max(4.5rem,calc(env(safe-area-inset-top)_+_3.5rem))] z-[10000] w-[min(100vw_-_1.5rem,_22rem)] pointer-events-none"
             aria-live="polite"
         >
-            {items.map((item) => {
-                const tone = item.tone || 'info';
-                const style = TONE_STYLES[tone] || TONE_STYLES.info;
-                return (
-                    <div
-                        key={item.id}
-                        className={`pointer-events-auto flex items-start gap-3 rounded-xl border px-3.5 py-3 shadow-lg transition-all duration-300 ${
-                            isDark
-                                ? `bg-[#111213] ${style.borderClass} text-white`
-                                : `bg-white border-gray-200 text-gray-900`
-                        }`}
-                    >
-                        <PopupIcon tone={tone} />
-                        <button
-                            type="button"
-                            className="min-w-0 flex-1 text-left"
-                            onClick={() => onOpen?.(item)}
-                        >
-                            <p className="text-sm font-semibold leading-snug line-clamp-2">{item.title}</p>
-                            {item.message ? (
-                                <p className={`mt-0.5 text-xs leading-relaxed line-clamp-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                    {item.message}
-                                </p>
-                            ) : null}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => onDismiss?.(item.id)}
-                            className={`shrink-0 rounded-md p-1 text-lg leading-none ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
-                            aria-label="Dismiss notification"
-                        >
-                            ×
-                        </button>
-                    </div>
-                );
-            })}
+            <div
+                key={item.id}
+                className={`app-toast-flash flex items-start gap-3 rounded-xl border px-3.5 py-3 shadow-lg ${
+                    isDark
+                        ? `bg-[#111213] ${style.borderClass} text-white`
+                        : `bg-white border-gray-200 text-gray-900`
+                }`}
+            >
+                <PopupIcon tone={tone} />
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold leading-snug line-clamp-2">{item.title}</p>
+                    {item.message ? (
+                        <p className={`mt-0.5 text-xs leading-relaxed line-clamp-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {item.message}
+                        </p>
+                    ) : null}
+                </div>
+            </div>
         </div>,
         document.body,
     );

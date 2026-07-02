@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     ChevronDown, Phone, Calendar, Users, ExternalLink,
-    CheckCircle, Clock, Copy, MessageCircle,
+    CheckCircle, Clock, Copy, MessageCircle, Trash2,
 } from 'lucide-react';
 
 function Pill({ children, tone = 'neutral' }) {
@@ -40,7 +40,7 @@ function previewFields(fields, limit = 2) {
     return fields.filter((f) => !skip.has(f.fieldName)).slice(0, limit);
 }
 
-export default function ParticipantCard({ participant, index, forceOpen = false, onResend, onCopied }) {
+export default function ParticipantCard({ participant, index, forceOpen = false, onResend, onDelete, onCopied }) {
     const [open, setOpen] = useState(false);
     const isOpen = forceOpen || open;
     const fields = participant.registrationFields || [];
@@ -148,6 +148,15 @@ export default function ParticipantCard({ participant, index, forceOpen = false,
                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-700 text-xs text-gray-300 hover:border-[#0ECCEE]/40 hover:text-[#0ECCEE]"
                                 >
                                     <MessageCircle size={13} /> Resend ticket
+                                </button>
+                            ) : null}
+                            {onDelete ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onDelete(participant.bookingId, participant.participantName)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-900/50 text-xs text-red-400 hover:bg-red-500/10 hover:border-red-500/40"
+                                >
+                                    <Trash2 size={13} /> Delete entry
                                 </button>
                             ) : null}
                         </div>

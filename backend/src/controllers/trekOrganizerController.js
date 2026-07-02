@@ -379,6 +379,32 @@ exports.checkin = async (req, res) => {
     }
 };
 
+exports.deleteParticipant = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            return res.status(400).json({ success: false, message: 'Invalid booking ID' });
+        }
+
+        const booking = await TrekBooking.findOne({
+            _id: bookingId,
+            trekId: req.trekId,
+            status: 'confirmed',
+        });
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Participant not found' });
+        }
+
+        booking.status = 'cancelled';
+        await booking.save();
+
+        res.json({ success: true, message: 'Entry removed' });
+    } catch (error) {
+        console.error('[trekOrganizer.deleteParticipant]', error);
+        res.status(500).json({ success: false, message: 'Failed to delete entry' });
+    }
+};
+
 exports.resendConfirmation = async (req, res) => {
     try {
         const { bookingId } = req.params;

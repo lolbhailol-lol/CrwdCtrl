@@ -10,7 +10,7 @@ import NotificationPopupStack from '../components/NotificationPopupStack';
 import { inferPopupTone } from '../utils/appPopup';
 
 const NotificationsContext = createContext();
-const POPUP_TTL_MS = 6000;
+const POPUP_TTL_MS = 1000;
 const VISIBLE_POLL_MS = 15000;
 
 export const useNotifications = () => {
@@ -21,13 +21,9 @@ export const useNotifications = () => {
     return context;
 };
 
-function NotificationsUI({ popupItems, onDismissPopup, onOpenPopup }) {
+function NotificationsUI({ popupItems }) {
     return (
-        <NotificationPopupStack
-            items={popupItems}
-            onDismiss={onDismissPopup}
-            onOpen={onOpenPopup}
-        />
+        <NotificationPopupStack items={popupItems} />
     );
 }
 
@@ -70,13 +66,7 @@ export const NotificationsProvider = ({ children }) => {
 
         const popupId = id || `popup-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-        setPopupItems((prev) => {
-            const withoutDup = id ? prev.filter((item) => item.notificationId !== id) : prev;
-            return [
-                { id: popupId, notificationId: id, title, message, tone, link },
-                ...withoutDup,
-            ].slice(0, 5);
-        });
+        setPopupItems([{ id: popupId, notificationId: id, title, message, tone, link }]);
 
         const existingTimer = popupTimersRef.current.get(popupId);
         if (existingTimer) window.clearTimeout(existingTimer);
@@ -374,17 +364,6 @@ export const NotificationsProvider = ({ children }) => {
         return ok;
     };
 
-    const handleOpenPopup = useCallback((item) => {
-        dismissPopup(item.id);
-        const target = item.link || '/notifications';
-        const navigate = navigateRef.current;
-        if (navigate) {
-            navigate(target);
-        } else if (typeof window !== 'undefined') {
-            window.location.assign(target);
-        }
-    }, [dismissPopup]);
-
     useEffect(() => {
         return () => {
             popupTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -408,11 +387,7 @@ export const NotificationsProvider = ({ children }) => {
         <NotificationsContext.Provider value={value}>
             <NotificationsNavigateBridge navigateRef={navigateRef} />
             {children}
-            <NotificationsUI
-                popupItems={popupItems}
-                onDismissPopup={dismissPopup}
-                onOpenPopup={handleOpenPopup}
-            />
+            <NotificationsUI popupItems={popupItems} />
         </NotificationsContext.Provider>
     );
 };

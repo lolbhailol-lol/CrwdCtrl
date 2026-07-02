@@ -9,6 +9,7 @@ import {
     fetchTrekOrganizerParticipants,
     fetchTrekOrganizerDashboard,
     resendTrekOrganizerConfirmation,
+    deleteTrekOrganizerParticipant,
 } from '../../services/api/trekOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import ParticipantCard from './ParticipantCard';
@@ -129,6 +130,29 @@ export default function TrekOrganizerParticipantsPage() {
             toast('Confirmation sent');
         } catch (e) {
             toast(e.message || 'Failed to send');
+        }
+    };
+
+    const handleDelete = async (bookingId, participantName) => {
+        const ok = await confirm({
+            title: 'Delete entry?',
+            message: participantName
+                ? `Remove ${participantName} from this trek? This cannot be undone.`
+                : 'Remove this participant from the trek? This cannot be undone.',
+            confirmText: 'Delete',
+            tone: 'danger',
+        });
+        if (!ok) return;
+        try {
+            await deleteTrekOrganizerParticipant(trekId, bookingId);
+            setRows((prev) => prev.filter((row) => row.bookingId !== bookingId));
+            setPagination((prev) => ({
+                ...prev,
+                total: Math.max(0, (prev.total || 1) - 1),
+            }));
+            toast('Entry removed');
+        } catch (e) {
+            toast(e.message || 'Failed to delete');
         }
     };
 
@@ -256,6 +280,7 @@ export default function TrekOrganizerParticipantsPage() {
                             index={startIndex + i + 1}
                             forceOpen={expandAll}
                             onResend={handleResend}
+                            onDelete={handleDelete}
                             onCopied={(msg) => toast(msg)}
                         />
                     ))}

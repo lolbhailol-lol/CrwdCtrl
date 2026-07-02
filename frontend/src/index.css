@@ -37,6 +37,8 @@
         overflow-x: clip;
         overscroll-behavior-x: none;
         overscroll-behavior-y: none;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
         font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -1010,6 +1012,33 @@ html:not(.dark) .crwdctrl-footer {
 .theme-transition {
     transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
+@keyframes appToastFlash {
+    0% {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    12% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    82% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+.app-toast-flash {
+    animation: appToastFlash 1s ease forwards;
+    pointer-events: none;
+}
+
 .page-transition-content {
     min-height: 0;
 }

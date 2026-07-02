@@ -90,6 +90,12 @@ export async function resendTrekOrganizerConfirmation(trekId, bookingId) {
     });
 }
 
+export async function deleteTrekOrganizerParticipant(trekId, bookingId) {
+    return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/participants/${bookingId}`, {
+        method: 'DELETE',
+    });
+}
+
 export async function sendTrekOrganizerReminder(trekId, body) {
     return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/notifications/reminder`, {
         method: 'POST',

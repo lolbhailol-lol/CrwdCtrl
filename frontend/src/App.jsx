@@ -23,7 +23,6 @@ import RouteTracker from './components/RouteTracker'
 import GoogleOneTap from './components/GoogleOneTap'
 import CapacitorInit from './components/CapacitorInit'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
-import PageTransitionSkeleton from './components/PageTransitionSkeleton'
 import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
 import { prepareLogin, resolvePostLoginRedirect, currentAppPath } from './utils/loginFlow'
 import { showLoginPopup } from './utils/appPopup'
@@ -121,8 +120,11 @@ function ConditionalFooter() {
 }
 
 function RouteSuspenseFallback() {
-  const location = useLocation();
-  return <PageTransitionSkeleton pathname={location.pathname} />;
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true" aria-label="Loading page">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0ECCEE] border-t-transparent" />
+    </div>
+  );
 }
 
 // Component to conditionally render Navbar and Sidebar
