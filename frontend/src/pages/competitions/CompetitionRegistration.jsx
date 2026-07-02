@@ -28,6 +28,7 @@ import {
     resolveAuthToken,
 } from '../../utils/authToken';
 import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
+import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 import { fetchPaymentQuote } from '../../services/api/payment.api';
@@ -369,21 +370,34 @@ export default function CompetitionRegistration() {
                         setCurrentStep,
                         setCompletedSteps,
                     });
-                    setSubmissionProgress('Submitting your registration...');
-                    await handleSubmitRef.current?.(
-                        { preventDefault: () => {} },
-                        { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
-                    );
-                    return;
                 }
 
-                setSubmissionProgress('Completing registration...');
+                setSubmissionProgress(hasDraftAnswers
+                    ? 'Submitting your registration...'
+                    : 'Completing registration...');
+
+                const { regId } = await finalizeCompetitionAfterPayment({
+                    competitionId,
+                    verifiedFields,
+                    token: submitToken,
+                    tryFormSubmit: hasDraftAnswers
+                        ? async () => {
+                            const result = await handleSubmitRef.current?.(
+                                { preventDefault: () => {} },
+                                { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
+                            );
+                            return result?.regId || null;
+                        }
+                        : null,
+                });
+
+                if (regId) setRegistrationId(regId);
+                clearRegistrationDraft(draftKey);
                 clearPendingPayment();
-                await completePayOnlyRegistration(verifiedFields, submitToken);
                 clearCashfreeReturnParams();
                 setCompletingPayment(false);
+                setSuccess(true);
             } catch (err) {
-                clearPendingPayment();
                 setPaymentResumeError(err.message || 'Could not complete registration after payment.');
                 setError(err.message || 'Could not complete registration after payment.');
             } finally {
@@ -401,7 +415,6 @@ export default function CompetitionRegistration() {
         token,
         competitionId,
         draftKey,
-        completePayOnlyRegistration,
     ]);
 
     const clearCashfreeReturnParams = () => {
@@ -1306,12 +1319,13 @@ export default function CompetitionRegistration() {
                 clearCashfreeReturnParams();
             }
 
+            return { success: true, regId };
+
         } catch (err) {
             if (paidResume) {
-                setPaymentResumeError(err.message || 'Registration failed after payment.');
-            } else {
-                setCompletingPayment(false);
+                throw err;
             }
+            setCompletingPayment(false);
             console.error('❌ Registration error:', err);
             
             // Enhanced error handling
@@ -1347,14 +1361,24 @@ export default function CompetitionRegistration() {
             <div className="min-h-screen bg-[#111213] flex flex-col items-center justify-center px-4">
                 {paymentResumeError ? (
                     <div className="text-center max-w-md">
-                        <p className="text-sm text-red-300 mb-6">{paymentResumeError}</p>
-                        <button
-                            type="button"
-                            onClick={() => { setPaymentResumeError(''); setCompletingPayment(false); }}
-                            className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
-                        >
-                            Back to registration form
-                        </button>
+                        <p className="text-sm text-red-300 mb-2">Payment received, but registration could not be completed.</p>
+                        <p className="text-sm text-gray-400 mb-6">{paymentResumeError}</p>
+                        <div className="flex flex-col gap-3">
+                            <button
+                                type="button"
+                                onClick={() => goToBookings(navigate)}
+                                className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                            >
+                                View My Bookings
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setPaymentResumeError(''); setCompletingPayment(false); }}
+                                className="w-full py-3.5 rounded-xl font-semibold text-gray-300 border border-gray-600 hover:bg-gray-800 transition"
+                            >
+                                Return to form
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     <>

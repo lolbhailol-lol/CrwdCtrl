@@ -27,6 +27,7 @@ import {
   applyRegistrationDraft,
 } from '../../utils/registrationDraft';
 import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
+import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
 import {
   clearStoredAuthSession,
   getBearerAuthHeaders,
@@ -282,40 +283,35 @@ export default function FestRegistration() {
             setCurrentStep,
             setCompletedSteps,
           });
-          setSubmissionProgress('Submitting your registration...');
-          await handleSubmitRef.current?.(
-            { preventDefault: () => {} },
-            { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
-          );
-          return;
         }
 
-        setSubmissionProgress('Completing registration...');
-        const regRes = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/pay-and-register`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getBearerAuthHeaders(submitToken),
-          },
-          body: JSON.stringify({
-            payment_order_id: verifiedFields.payment_order_id,
-            payment_id: verifiedFields.payment_id,
-          }),
+        setSubmissionProgress(hasDraftAnswers
+          ? 'Submitting your registration...'
+          : 'Completing registration...');
+
+        const { regId } = await finalizeCompetitionAfterPayment({
+          competitionId,
+          verifiedFields,
+          token: submitToken,
+          tryFormSubmit: hasDraftAnswers
+            ? async () => {
+                const result = await handleSubmitRef.current?.(
+                  { preventDefault: () => {} },
+                  { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
+                );
+                return result?.regId || null;
+              }
+            : null,
         });
-        if (!regRes.ok) {
-          const errData = await regRes.json().catch(() => ({}));
-          throw new Error(errData.error || errData.message || 'Registration failed after payment.');
-        }
-        const regData = await regRes.json().catch(() => ({}));
-        const regId = regData._id || regData.registration?._id || regData.registrationId;
+
         if (regId) setRegistrationId(regId);
         clearRegistrationDraft(draftKey);
+        clearPendingPayment();
         clearCashfreeReturnParams();
         setCompletingPayment(false);
         setSuccess(true);
         refreshNotifications();
       } catch (err) {
-        clearPendingPayment();
         setPaymentResumeError(err.message || 'Could not complete registration after payment.');
         setPaymentError(err.message || 'Could not complete registration after payment.');
       } finally {
@@ -1953,12 +1949,13 @@ export default function FestRegistration() {
         clearCashfreeReturnParams();
       }
 
+      return { success: true, regId };
+
     } catch (err) {
       if (paidResume) {
-        setPaymentResumeError(err.message || 'Registration failed after payment.');
-      } else {
-        setCompletingPayment(false);
+        throw err;
       }
+      setCompletingPayment(false);
       console.error('❌ Registration error:', err);
       console.error('❌ Error name:', err.name);
       console.error('❌ Error message:', err.message);

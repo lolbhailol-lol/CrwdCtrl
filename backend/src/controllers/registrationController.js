@@ -216,75 +216,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       console.log('💳 Added payment receipt URL to responses:', paymentReceiptUrl);
     }
 
-    // Validate required fields
-    const requiredFields = formSchemaToValidate.filter(field => field.required);
-    for (const field of requiredFields) {
-      // Try multiple field ID formats for compatibility
-      let fieldId = null;
-      let fieldValue = null;
-
-      // Try exact field name first
-      if (field.fieldName && responses[field.fieldName]) {
-        fieldId = field.fieldName;
-        fieldValue = responses[field.fieldName];
-      }
-      // Try field.id
-      else if (field.id && responses[field.id]) {
-        fieldId = field.id;
-        fieldValue = responses[field.id];
-      }
-      // Try with field_ prefix
-      else if (field.id && responses[`field_${field.id}`]) {
-        fieldId = `field_${field.id}`;
-        fieldValue = responses[fieldId];
-      }
-      // Try generated ID from label
-      else if (field.label) {
-        const generatedId = `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
-        if (responses[generatedId]) {
-          fieldId = generatedId;
-          fieldValue = responses[fieldId];
-        }
-      }
-      
-      console.log('🔍 Validating field:', { 
-        fieldLabel: field.label,
-        fieldId: fieldId || 'NOT_FOUND',
-        value: typeof fieldValue === 'object' ? JSON.stringify(fieldValue).substring(0, 100) : fieldValue,
-        required: field.required,
-        availableKeys: Object.keys(responses)
-      });
-      
-      // For file uploads, check if it's an object with url property
-      if (field.type === 'file' || field.type === 'image') {
-        if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.url && !fieldValue.uploaded)) {
-          if (!fieldValue || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
-            console.log('❌ Required file field missing:', field.label);
-            return res.status(400).json({ 
-              error: `${field.label} is required`,
-              details: {
-                missingField: field.label,
-                fieldType: 'file'
-              }
-            });
-          }
-        }
-      } else if (!fieldValue || 
-          (Array.isArray(fieldValue) && fieldValue.length === 0) ||
-          (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
-        console.log('❌ Required field missing:', field.label);
-        return res.status(400).json({ 
-          error: `${field.label} is required`,
-          details: {
-            missingField: field.label,
-            triedFieldIds: [field.fieldName, field.id, `field_${field.id}`],
-            receivedFields: Object.keys(responses)
-          }
-        });
-      }
-    }
-
-    // Verify Cashfree payment if competition has a fee
+    // Verify Cashfree payment BEFORE field validation — after redirect checkout
+    // file inputs are often missing from the resumed form; payment must still succeed.
     let paymentOrderId = null;
     let paymentId = null;
     let paymentStatus = 'free';
@@ -302,52 +235,92 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       paymentId = paymentCheck.paymentId;
       paymentStatus = 'paid';
       console.log('✅ Cashfree payment verified:', paymentId);
+
+      const existingRegistration = await Registration.findOne({
+        payment_order_id: paymentOrderId,
+        fest: competition.fest._id,
+        competitionId: competition._id,
+        user: userId,
+      });
+      if (existingRegistration) {
+        console.log('ℹ️ Existing competition registration found:', existingRegistration._id);
+        return res.status(200).json({
+          success: true,
+          alreadyRegistered: true,
+          message: 'Registration already completed',
+          _id: existingRegistration._id,
+          registrationId: existingRegistration._id,
+          data: {
+            competition: { id: competition._id, name: competition.name },
+            registrationId: existingRegistration._id,
+            status: existingRegistration.status,
+            submittedAt: existingRegistration.submittedAt,
+          },
+        });
+      }
     }
 
-    // Create registration ID
+    // Validate required fields — skip file requirements when payment is verified.
+    const requiredFields = formSchemaToValidate.filter(field => field.required);
+    for (const field of requiredFields) {
+      if (paymentStatus === 'paid' && (field.type === 'file' || field.type === 'image')) {
+        continue;
+      }
+
+      // Try multiple field ID formats for compatibility
+      let fieldId = null;
+      let fieldValue = null;
+
+      if (field.fieldName && responses[field.fieldName]) {
+        fieldId = field.fieldName;
+        fieldValue = responses[field.fieldName];
+      } else if (field.id && responses[field.id]) {
+        fieldId = field.id;
+        fieldValue = responses[field.id];
+      } else if (field.id && responses[`field_${field.id}`]) {
+        fieldId = `field_${field.id}`;
+        fieldValue = responses[fieldId];
+      } else if (field.label) {
+        const generatedId = `field_${field.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+        if (responses[generatedId]) {
+          fieldId = generatedId;
+          fieldValue = responses[generatedId];
+        }
+      }
+
+      if (field.type === 'file' || field.type === 'image') {
+        if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.url && !fieldValue.uploaded)) {
+          if (!fieldValue || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
+            console.log('❌ Required file field missing:', field.label);
+            return res.status(400).json({
+              error: `${field.label} is required`,
+              details: { missingField: field.label, fieldType: 'file' },
+            });
+          }
+        }
+      } else if (!fieldValue ||
+          (Array.isArray(fieldValue) && fieldValue.length === 0) ||
+          (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
+        console.log('❌ Required field missing:', field.label);
+        return res.status(400).json({
+          error: `${field.label} is required`,
+          details: {
+            missingField: field.label,
+            triedFieldIds: [field.fieldName, field.id, `field_${field.id}`],
+            receivedFields: Object.keys(responses),
+          },
+        });
+      }
+    }
+
     const registrationId = `COMP_REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log('🆔 Generated registration ID:', registrationId);
 
-    // Get user details
     const User = require('../model/usermodel');
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select('name email phoneNumber');
     if (!user) {
       console.log('❌ User not found:', userId);
       return res.status(404).json({ error: 'User not found' });
-    }
-
-    console.log('👤 User found:', { name: user.name, email: user.email });
-
-    // ✅ IDEMPOTENT PAYMENT RETRY ONLY
-    // If this exact payment already produced a registration (double submit /
-    // page revisit after a redirect payment), return it as SUCCESS so the user
-    // lands on the success screen instead of bouncing back to the form.
-    // A brand-new attempt (different/no payment order) always creates a NEW
-    // registration — users are allowed to register again.
-    const existingRegistration = paymentOrderId
-      ? await Registration.findOne({
-          payment_order_id: paymentOrderId,
-          fest: competition.fest._id,
-          competitionId: competition._id,
-          user: userId,
-        })
-      : null;
-
-    if (existingRegistration) {
-      console.log('ℹ️ Existing competition registration found:', existingRegistration._id);
-      return res.status(200).json({
-        success: true,
-        alreadyRegistered: true,
-        message: 'You are already registered for this competition',
-        _id: existingRegistration._id,
-        registrationId: existingRegistration._id,
-        data: {
-          competition: { id: competition._id, name: competition.name },
-          registrationId: existingRegistration._id,
-          status: existingRegistration.status,
-          submittedAt: existingRegistration.submittedAt,
-        },
-      });
     }
 
     // Create registration record
@@ -734,35 +707,16 @@ const submitCompetitionRegistration = async (req, res) => {
 
     console.log('🔄 Processed responses:', Object.keys(processedResponses));
 
-    // Validate required fields with proper file/image handling
-    const requiredFields = formSchema.filter(field => field.required);
-    console.log('🔍 Validating', requiredFields.length, 'required fields...');
-    
-    for (const field of requiredFields) {
-      const value = processedResponses[field.fieldName];
-
-      if (field.type === 'file' || field.type === 'image') {
-        if (!value || !value.uploaded || !value.cloudinaryLink) {
-          console.error('❌ Required file field missing:', field.label);
-          return res.status(400).json({ error: `${field.label} is required - please upload a file` });
-        }
-      } else {
-        // For other fields, check if value exists and is not empty
-        if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
-          console.error('❌ Required field missing:', field.label);
-          return res.status(400).json({ error: `${field.label} is required` });
-        }
-      }
-    }
-
-    // Verify Cashfree payment if competition has a fee
+    // Verify Cashfree payment BEFORE field validation so a verified payment can
+    // never be blocked by missing file uploads after redirect checkout.
     let paymentOrderId = null;
     let paymentId = null;
     let paymentStatusRoute = 'free';
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
     const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice).totalAmount;
+    const paymentVerified = competitionTicketPrice > 0;
 
-    if (competitionTicketPrice > 0) {
+    if (paymentVerified) {
       const { verifyPaymentForRegistration } = require('../utils/paymentVerification');
       const paymentCheck = await verifyPaymentForRegistration(req.body);
       if (!paymentCheck.ok) {
@@ -773,6 +727,48 @@ const submitCompetitionRegistration = async (req, res) => {
       paymentId = paymentCheck.paymentId;
       paymentStatusRoute = 'paid';
       console.log('✅ Cashfree payment verified (competition route):', paymentId);
+
+      const existingPaid = await Registration.findOne({
+        payment_order_id: paymentOrderId,
+        fest: competition.fest._id,
+        competitionId: competition._id,
+        user: userId,
+      });
+      if (existingPaid) {
+        return res.status(200).json({
+          success: true,
+          message: 'Registration already completed',
+          _id: existingPaid._id,
+          registrationId: existingPaid._id,
+          festName: fest.festName,
+          competitionName: competition.name,
+        });
+      }
+    }
+
+    // Validate required fields — skip file requirements when payment is verified
+    // (file inputs are lost after Cashfree redirect; payment must still succeed).
+    const requiredFields = formSchema.filter(field => field.required);
+    console.log('🔍 Validating', requiredFields.length, 'required fields...');
+
+    for (const field of requiredFields) {
+      if (paymentStatusRoute === 'paid' && (field.type === 'file' || field.type === 'image')) {
+        continue;
+      }
+
+      const value = processedResponses[field.fieldName];
+
+      if (field.type === 'file' || field.type === 'image') {
+        if (!value || !value.uploaded || !value.cloudinaryLink) {
+          console.error('❌ Required file field missing:', field.label);
+          return res.status(400).json({ error: `${field.label} is required - please upload a file` });
+        }
+      } else {
+        if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
+          console.error('❌ Required field missing:', field.label);
+          return res.status(400).json({ error: `${field.label} is required` });
+        }
+      }
     }
 
     // Create registration with competition reference
@@ -801,7 +797,9 @@ const submitCompetitionRegistration = async (req, res) => {
 
     // ✅ CRITICAL: Send success response immediately to user (don't wait for emails)
     res.status(201).json({
+      success: true,
       message: 'Registration successful',
+      _id: registration._id,
       registrationId: registration._id,
       festName: fest.festName,
       competitionName: competition.name
