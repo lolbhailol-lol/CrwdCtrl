@@ -12,6 +12,28 @@ import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 
 import { fetchMyRegistrations, fetchMySportsRegistrations } from '../../services/api/auth.api';
 
+// Lightweight per-user session cache so returning to the bookings page paints
+// instantly (stale-while-revalidate) instead of showing a full skeleton while
+// the network round-trips. Data is always refreshed in the background.
+const BOOKINGS_CACHE_PREFIX = 'crwdctrl_bookings_cache_';
+const bookingsCacheKey = (user) => BOOKINGS_CACHE_PREFIX + (user?.id || user?._id || user?.email || 'me');
+const readBookingsCache = (user) => {
+    try {
+        const raw = sessionStorage.getItem(bookingsCacheKey(user));
+        const parsed = raw ? JSON.parse(raw) : null;
+        return Array.isArray(parsed) ? parsed : null;
+    } catch {
+        return null;
+    }
+};
+const writeBookingsCache = (user, data) => {
+    try {
+        sessionStorage.setItem(bookingsCacheKey(user), JSON.stringify(data));
+    } catch {
+        /* storage full / unavailable — non-fatal */
+    }
+};
+
 const formatEventDate = (date) => {
     if (!date) return 'Date TBA';
     const parsed = new Date(date);
@@ -147,24 +169,30 @@ function Booking() {
                 return;
             }
 
+            // Instant paint from cache while we revalidate in the background.
+            const cached = readBookingsCache(user);
+            if (cached) {
+                setBookings(cached);
+                setLoading(false);
+            }
+
             try {
-                setLoading(true);
+                if (!cached) setLoading(true);
                 setError(null);
                 
-                const registrationsData = await fetchMyRegistrations();
+                // Fetch both sources in parallel (was sequential → ~2x slower).
+                // Sports is optional, so it degrades to [] on failure without blocking.
+                const [registrationsData, sportsRegistrations] = await Promise.all([
+                    fetchMyRegistrations(),
+                    fetchMySportsRegistrations()
+                        .then((sportsData) =>
+                            (sportsData.registrations || []).filter((reg) => reg.status !== 'cancelled'),
+                        )
+                        .catch(() => []),
+                ]);
                 const internalRegistrations = registrationsData.registrations || [];
                 const trekBookings = registrationsData.trekBookings || [];
                 const eventRegistrations = registrationsData.eventRegistrations || [];
-
-                let sportsRegistrations = [];
-                try {
-                    const sportsData = await fetchMySportsRegistrations();
-                    sportsRegistrations = (sportsData.registrations || []).filter(
-                        (reg) => reg.status !== 'cancelled',
-                    );
-                } catch {
-                    /* sports bookings optional */
-                }
 
                 // Transform fest/competition registrations
                 const transformedFests = internalRegistrations.map(reg => {
@@ -291,10 +319,14 @@ function Booking() {
                 const all = [...transformedFests, ...transformedTreks, ...transformedSports, ...transformedEvents]
                     .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
                 setBookings(all);
+                writeBookingsCache(user, all);
             } catch (err) {
                 console.error('Error fetching bookings:', err);
-                setError(err.message);
-                setBookings([]);
+                // Keep any cached data on screen rather than blanking the page.
+                if (!cached) {
+                    setError(err.message);
+                    setBookings([]);
+                }
             } finally {
                 setLoading(false);
             }

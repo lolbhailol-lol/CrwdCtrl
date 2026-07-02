@@ -118,7 +118,8 @@ const AutoRetryError = React.memo(({ isDark, onRetry }) => {
 // Frontend caching system for better Cloud Run performance
 const CACHE_KEYS = {
     FESTS_LIST: 'crwdctrl_fests_cache',
-    FESTS_TIMESTAMP: 'crwdctrl_fests_timestamp'
+    FESTS_TIMESTAMP: 'crwdctrl_fests_timestamp',
+    HOME_AUX: 'crwdctrl_home_aux_cache'
 };
 
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes  admin changes reflect quickly
@@ -161,6 +162,7 @@ const clearCache = () => {
     try {
         localStorage.removeItem(CACHE_KEYS.FESTS_LIST);
         localStorage.removeItem(CACHE_KEYS.FESTS_TIMESTAMP);
+        localStorage.removeItem(CACHE_KEYS.HOME_AUX);
         console.log('Cleared fests cache');
     } catch (error) {
         console.error('Error clearing cache:', error);
@@ -560,6 +562,17 @@ const Dashboard = () => {
             }
         };
 
+        // Paint the secondary sections (treks/communities/sports/run clubs/events)
+        // instantly from cache too, so repeat opens don't show skeletons while the
+        // network refreshes them in the background.
+        if (hadFreshCache) {
+            const cachedAux = getCachedData(CACHE_KEYS.HOME_AUX);
+            if (cachedAux && typeof cachedAux === 'object') {
+                applyAux(cachedAux);
+                setHomeAuxLoaded(true);
+            }
+        }
+
         // Primary: one aggregated request. Single-shot with a short timeout so a
         // cold backend fails fast to the resilient path (avoids a double wait).
         const tryAggregate = async () => {
@@ -574,6 +587,14 @@ const Dashboard = () => {
                 setIsFestsLoading(false);
                 applyAux(d);
                 setHomeAuxLoaded(true);
+                setCachedData(CACHE_KEYS.HOME_AUX, {
+                    communities: Array.isArray(d.communities) ? d.communities : [],
+                    treks: Array.isArray(d.treks) ? d.treks : [],
+                    sports: Array.isArray(d.sports) ? d.sports : [],
+                    runClubs: Array.isArray(d.runClubs) ? d.runClubs : [],
+                    eventShows: Array.isArray(d.eventShows) ? d.eventShows : [],
+                    sectionLabels: d.sectionLabels && typeof d.sectionLabels === 'object' ? d.sectionLabels : undefined,
+                });
                 return true;
             } catch (_) {
                 return false;

@@ -111,6 +111,25 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             bookingDetails.paymentOrderId ||
             '';
 
+        // Idempotent: same user + trek + payment → return the existing booking as
+        // success. Must run BEFORE verifyTrekBookingPayment, which 409s on any order
+        // reuse. Scoped to this trek + user so an unrelated order id can't match.
+        if (paymentOrderId) {
+            const existingBooking = await TrekBooking.findOne({
+                payment_order_id: paymentOrderId,
+                trekId: trek._id,
+                userId: req.user.userId,
+            }).lean();
+            if (existingBooking) {
+                return res.json({
+                    success: true,
+                    alreadyBooked: true,
+                    message: 'Booking already completed',
+                    bookingId: existingBooking._id,
+                });
+            }
+        }
+
         if (registrationFee > 0) {
             // Security: re-verify Cashfree payment — never trust client amountPaid alone
             const paymentCheck = await verifyTrekBookingPayment({

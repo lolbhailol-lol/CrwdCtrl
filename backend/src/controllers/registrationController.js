@@ -318,19 +318,39 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     console.log('👤 User found:', { name: user.name, email: user.email });
 
-    // ✅ CHECK FOR EXISTING REGISTRATION - Prevent duplicates
-    const existingRegistration = await Registration.findOne({
-      fest: competition.fest._id,
-      user: userId,
-      competitionId: competition._id
-    });
+    // ✅ CHECK FOR EXISTING REGISTRATION
+    // Return the existing registration as SUCCESS (not a 400) so a user who already
+    // registered — or a paid retry/resume after a successful payment — lands on the
+    // success/booking screen instead of being bounced back to the form.
+    const existingRegistration =
+      (paymentOrderId
+        ? await Registration.findOne({
+            payment_order_id: paymentOrderId,
+            fest: competition.fest._id,
+            competitionId: competition._id,
+            user: userId,
+          })
+        : null) ||
+      (await Registration.findOne({
+        fest: competition.fest._id,
+        user: userId,
+        competitionId: competition._id,
+      }));
 
     if (existingRegistration) {
-      console.log('⚠️ User already registered for this competition:', existingRegistration._id);
-      return res.status(400).json({
-        error: 'You have already registered for this competition',
-        existingRegistrationId: existingRegistration._id,
-        registeredAt: existingRegistration.submittedAt
+      console.log('ℹ️ Existing competition registration found:', existingRegistration._id);
+      return res.status(200).json({
+        success: true,
+        alreadyRegistered: true,
+        message: 'You are already registered for this competition',
+        _id: existingRegistration._id,
+        registrationId: existingRegistration._id,
+        data: {
+          competition: { id: competition._id, name: competition.name },
+          registrationId: existingRegistration._id,
+          status: existingRegistration.status,
+          submittedAt: existingRegistration.submittedAt,
+        },
       });
     }
 
@@ -1898,8 +1918,14 @@ const payAndRegisterFest = async (req, res) => {
 
     // Idempotent: if this exact payment already produced a registration, return it
     // so a re-fired resume (double submit / page revisit) succeeds instead of erroring.
+    // Scoped to this fest + user so an unrelated order id can never falsely match.
     const alreadyPaid = payment_order_id
-      ? await Registration.findOne({ payment_order_id })
+      ? await Registration.findOne({
+          payment_order_id,
+          fest: festId,
+          user: userId,
+          competitionId: null,
+        })
       : null;
     if (alreadyPaid) {
       return res.status(200).json({
@@ -2021,8 +2047,14 @@ const payAndRegister = async (req, res) => {
 
     // Idempotent: if this exact payment already produced a registration, return it
     // so a re-fired resume (double submit / page revisit) succeeds instead of erroring.
+    // Scoped to this fest + competition + user so an unrelated order id can't match.
     const alreadyPaid = payment_order_id
-      ? await Registration.findOne({ payment_order_id })
+      ? await Registration.findOne({
+          payment_order_id,
+          fest: competition.fest._id,
+          competitionId: competition._id,
+          user: userId,
+        })
       : null;
     if (alreadyPaid) {
       return res.status(200).json({
@@ -2213,9 +2245,14 @@ const submitEventShowRegistration = async (req, res) => {
       paymentStatus = 'paid';
     }
 
-    // Idempotent: a paid order must not create duplicate event registrations
+    // Idempotent: a paid order must not create duplicate event registrations.
+    // Scoped to this event + user so an unrelated order id can never falsely match.
     if (payment_order_id) {
-      const alreadyPaid = await EventShowRegistration.findOne({ payment_order_id });
+      const alreadyPaid = await EventShowRegistration.findOne({
+        payment_order_id,
+        eventShow: eventShow._id,
+        user: userId,
+      });
       if (alreadyPaid) {
         return res.status(200).json({
           success: true,
