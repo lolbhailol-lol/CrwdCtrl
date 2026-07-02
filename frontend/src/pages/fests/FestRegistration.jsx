@@ -293,6 +293,7 @@ export default function FestRegistration() {
           competitionId,
           verifiedFields,
           token: submitToken,
+          draft,
           tryFormSubmit: hasDraftAnswers
             ? async () => {
                 const result = await handleSubmitRef.current?.(

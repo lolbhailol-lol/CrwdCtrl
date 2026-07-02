@@ -6,6 +6,56 @@ import { useAuth } from '../../context/AuthContext';
 
 import { userFetchJSON } from '../../services/api/client';
 
+function normalizeResponses(responses) {
+  if (!responses) return {};
+  if (responses instanceof Map) return Object.fromEntries(responses);
+  if (typeof responses === 'object') return responses;
+  return {};
+}
+
+function labelToFieldId(label) {
+  if (!label) return '';
+  return `field_${label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
+}
+
+function getResponseValue(responses, field) {
+  const r = normalizeResponses(responses);
+  const candidates = [
+    field.fieldName,
+    field.id,
+    field.id ? `field_${field.id}` : null,
+    labelToFieldId(field.label),
+  ].filter(Boolean);
+  for (const key of candidates) {
+    const value = r[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return undefined;
+}
+
+function getRegistrationFormFields(registration) {
+  const comp = registration.competitionId;
+  const fest = registration.fest;
+
+  if (comp?.registrationType === 'custom' && comp.registration) {
+    const reg = comp.registration;
+    if (reg.formType === 'MULTI_STEP' && reg.steps?.length) {
+      return reg.steps.flatMap((s) => s.fields || []);
+    }
+    return reg.formSchema || [];
+  }
+
+  if (fest?.registration) {
+    const reg = fest.registration;
+    if (reg.formType === 'MULTI_STEP' && reg.steps?.length) {
+      return reg.steps.flatMap((s) => s.fields || []);
+    }
+    return reg.formSchema || [];
+  }
+
+  return [];
+}
+
 export default function RegistrationDetails() {
   const { registrationId } = useParams();
   const [searchParams] = useSearchParams();
@@ -117,6 +167,10 @@ export default function RegistrationDetails() {
   const formEntries = isTrekBooking
     ? Object.entries(registration.formData || {})
     : null;
+
+  const registrationFormFields = !isTrekBooking && !isEventRegistration
+    ? getRegistrationFormFields(registration)
+    : [];
 
   // Flatten event form fields (single-step schema or multi-step) for rendering responses
   const eventFormFields = isEventRegistration
@@ -366,7 +420,7 @@ export default function RegistrationDetails() {
           {isEventRegistration && eventFormFields.length > 0 && (
             <div className="space-y-3 sm:space-y-4">
               {eventFormFields.map((field, index) => {
-                const value = registration.responses?.[field.fieldName];
+                const value = getResponseValue(registration.responses, field);
                 const renderedValue = renderFieldValue(field, value);
 
                 if (!renderedValue) return null;
@@ -392,10 +446,10 @@ export default function RegistrationDetails() {
             </div>
           )}
 
-          {!isTrekBooking && !isEventRegistration && registration.fest?.registration?.formSchema && (
+          {!isTrekBooking && !isEventRegistration && registrationFormFields.length > 0 && (
             <div className="space-y-3 sm:space-y-4">
-              {registration.fest.registration.formSchema.map((field, index) => {
-                const value = registration.responses?.[field.fieldName];
+              {registrationFormFields.map((field, index) => {
+                const value = getResponseValue(registration.responses, field);
                 const renderedValue = renderFieldValue(field, value);
 
                 if (!renderedValue) return null;
@@ -418,6 +472,29 @@ export default function RegistrationDetails() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {!isTrekBooking && !isEventRegistration && registrationFormFields.length === 0 && (
+            <div className="space-y-3 sm:space-y-4">
+              {Object.entries(normalizeResponses(registration.responses))
+                .filter(([key]) => !key.endsWith('_file'))
+                .map(([key, value]) => (
+                  <div key={key} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                      <div className="sm:w-1/3">
+                        <label className={`text-sm font-medium capitalize ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {key.replace(/_/g, ' ')}
+                        </label>
+                      </div>
+                      <div className="sm:w-2/3">
+                        <div className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {typeof value === 'object' ? JSON.stringify(value) : (value || 'Not provided')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
 

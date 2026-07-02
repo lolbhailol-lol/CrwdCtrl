@@ -78,6 +78,27 @@ export function clearRegistrationDraft(key) {
   sessionStorage.removeItem(key);
 }
 
+/** Flatten draft text answers for pay-and-register fallback after redirect checkout. */
+export function extractDraftTextResponses(draft) {
+  if (!draft) return {};
+  const merged = { ...(draft.formData || {}) };
+  if (draft.stepData && typeof draft.stepData === 'object') {
+    Object.values(draft.stepData).forEach((fields) => {
+      if (fields && typeof fields === 'object') Object.assign(merged, fields);
+    });
+  }
+  const responses = {};
+  for (const [key, value] of Object.entries(merged)) {
+    if (key.endsWith('_file')) continue;
+    if (value === null || value === undefined) continue;
+    if (typeof value === 'object' && (value.ready || value.uploaded || value.url)) continue;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || Array.isArray(value)) {
+      responses[key] = value;
+    }
+  }
+  return responses;
+}
+
 export function applyRegistrationDraft(draft, { setFormData, setStepData, setCurrentStep, setCompletedSteps }) {
   if (!draft) return false;
   if (draft.formData && Object.keys(draft.formData).length > 0) {

@@ -10,6 +10,58 @@ const { sendPushNotification } = require('../services/pushService');
 const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const multer = require('multer');
 
+function parseResponsesBody(body = {}) {
+  let responses = body.responses;
+  if (!responses) return {};
+  if (typeof responses === 'string') {
+    try {
+      responses = JSON.parse(responses);
+    } catch {
+      return {};
+    }
+  }
+  if (typeof responses !== 'object' || Array.isArray(responses)) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(responses)) {
+    if (key.endsWith('_file')) continue;
+    if (value === null || value === undefined) continue;
+    if (typeof value === 'object' && (value.uploaded || value.url || value.ready)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function mergeRegistrationResponses(base, extra) {
+  const merged = { ...(base || {}) };
+  for (const [key, value] of Object.entries(extra || {})) {
+    if (value !== null && value !== undefined && value !== '') {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
+async function maybeEnrichExistingResponses(existingDoc, extraResponses) {
+  if (!extraResponses || Object.keys(extraResponses).length === 0) return existingDoc;
+  const current =
+    existingDoc.responses instanceof Map
+      ? Object.fromEntries(existingDoc.responses)
+      : { ...(existingDoc.responses || {}) };
+  let changed = false;
+  for (const [key, value] of Object.entries(extraResponses)) {
+    const cur = current[key];
+    if (cur === undefined || cur === null || cur === '') {
+      current[key] = value;
+      changed = true;
+    }
+  }
+  if (changed) {
+    existingDoc.responses = current;
+    await existingDoc.save();
+  }
+  return existingDoc;
+}
+
 /** Create in-app notification + push (call after HTTP response is sent). */
 async function notifyRegistrationSuccess(userId, { title, message, body, link, metadata }) {
   await createNotification({
@@ -244,6 +296,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       });
       if (existingRegistration) {
         console.log('ℹ️ Existing competition registration found:', existingRegistration._id);
+        await maybeEnrichExistingResponses(existingRegistration, responses);
         return res.status(200).json({
           success: true,
           alreadyRegistered: true,
@@ -735,6 +788,7 @@ const submitCompetitionRegistration = async (req, res) => {
         user: userId,
       });
       if (existingPaid) {
+        await maybeEnrichExistingResponses(existingPaid, parseResponsesBody(req.body));
         return res.status(200).json({
           success: true,
           message: 'Registration already completed',
@@ -1657,7 +1711,7 @@ const getRegistrationDetails = async (req, res) => {
       user: userId
     })
       .populate('fest', 'festName collegeName festDate venue status coverImage registration')
-      .populate('competitionId', 'name description coverImage');
+      .populate('competitionId', 'name description coverImage registration registrationType');
 
     if (!registration) {
       return res.status(404).json({ error: 'Registration not found' });
@@ -1922,6 +1976,10 @@ const payAndRegisterFest = async (req, res) => {
         })
       : null;
     if (alreadyPaid) {
+      const extraResponses = parseResponsesBody(req.body);
+      if (Object.keys(extraResponses).length > 0) {
+        await maybeEnrichExistingResponses(alreadyPaid, extraResponses);
+      }
       return res.status(200).json({
         success: true,
         message: 'Registration already completed',
@@ -1941,11 +1999,14 @@ const payAndRegisterFest = async (req, res) => {
     const registration = new Registration({
       fest: festId,
       user: userId,
-      responses: {
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phoneNumber || '',
-      },
+      responses: mergeRegistrationResponses(
+        {
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phoneNumber || '',
+        },
+        parseResponsesBody(req.body),
+      ),
       status: 'approved',
       payment_order_id,
       payment_id,
@@ -2048,6 +2109,10 @@ const payAndRegister = async (req, res) => {
         })
       : null;
     if (alreadyPaid) {
+      const extraResponses = parseResponsesBody(req.body);
+      if (Object.keys(extraResponses).length > 0) {
+        await maybeEnrichExistingResponses(alreadyPaid, extraResponses);
+      }
       return res.status(200).json({
         success: true,
         message: 'Registration already completed',
@@ -2068,11 +2133,14 @@ const payAndRegister = async (req, res) => {
       fest: competition.fest._id,
       user: userId,
       competitionId: competition._id,
-      responses: {
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phoneNumber || '',
-      },
+      responses: mergeRegistrationResponses(
+        {
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phoneNumber || '',
+        },
+        parseResponsesBody(req.body),
+      ),
       status: 'approved',
       payment_order_id,
       payment_id,
