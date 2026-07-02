@@ -318,24 +318,20 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     console.log('👤 User found:', { name: user.name, email: user.email });
 
-    // ✅ CHECK FOR EXISTING REGISTRATION
-    // Return the existing registration as SUCCESS (not a 400) so a user who already
-    // registered — or a paid retry/resume after a successful payment — lands on the
-    // success/booking screen instead of being bounced back to the form.
-    const existingRegistration =
-      (paymentOrderId
-        ? await Registration.findOne({
-            payment_order_id: paymentOrderId,
-            fest: competition.fest._id,
-            competitionId: competition._id,
-            user: userId,
-          })
-        : null) ||
-      (await Registration.findOne({
-        fest: competition.fest._id,
-        user: userId,
-        competitionId: competition._id,
-      }));
+    // ✅ IDEMPOTENT PAYMENT RETRY ONLY
+    // If this exact payment already produced a registration (double submit /
+    // page revisit after a redirect payment), return it as SUCCESS so the user
+    // lands on the success screen instead of bouncing back to the form.
+    // A brand-new attempt (different/no payment order) always creates a NEW
+    // registration — users are allowed to register again.
+    const existingRegistration = paymentOrderId
+      ? await Registration.findOne({
+          payment_order_id: paymentOrderId,
+          fest: competition.fest._id,
+          competitionId: competition._id,
+          user: userId,
+        })
+      : null;
 
     if (existingRegistration) {
       console.log('ℹ️ Existing competition registration found:', existingRegistration._id);
@@ -1938,12 +1934,9 @@ const payAndRegisterFest = async (req, res) => {
       });
     }
 
-    // Prevent duplicate registrations
-    const existing = await Registration.findOne({ fest: festId, user: userId, competitionId: null });
-    if (existing) {
-      return res.status(400).json({ error: 'You have already registered for this fest' });
-    }
-
+    // Repeat registrations are allowed: each verified payment gets its own
+    // registration. Retries of the SAME payment are caught by the order-scoped
+    // idempotency check above, so no duplicate can come from a resume/double-submit.
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -2067,16 +2060,9 @@ const payAndRegister = async (req, res) => {
       });
     }
 
-    // Prevent duplicate registrations
-    const existing = await Registration.findOne({
-      fest: competition.fest._id,
-      user: userId,
-      competitionId: competition._id,
-    });
-    if (existing) {
-      return res.status(400).json({ error: 'You have already registered for this competition' });
-    }
-
+    // Repeat registrations are allowed: each verified payment gets its own
+    // registration. Retries of the SAME payment are caught by the order-scoped
+    // idempotency check above, so no duplicate can come from a resume/double-submit.
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 

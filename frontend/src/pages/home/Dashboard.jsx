@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock, Wifi, ImageOff } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
@@ -323,21 +323,7 @@ const Dashboard = () => {
         hasPermission: false,
         coordinates: null
     });
-    const ongoingScrollRef = useRef(null);
-    const beyondCampusScrollRef = useRef(null);
-    const upcomingScrollRef = useRef(null);
-    const lastYearScrollRef = useRef(null);
     const [searchParams, setSearchParams] = useSearchParams();
-    
-    // State for arrow visibility
-    const [_ongoingShowLeftArrow, setOngoingShowLeftArrow] = useState(false);
-    const [_ongoingShowRightArrow, setOngoingShowRightArrow] = useState(true);
-    const [_beyondCampusShowLeftArrow, setBeyondCampusShowLeftArrow] = useState(false);
-    const [_beyondCampusShowRightArrow, setBeyondCampusShowRightArrow] = useState(true);
-    const [_upcomingShowLeftArrow, setUpcomingShowLeftArrow] = useState(false);
-    const [_upcomingShowRightArrow, setUpcomingShowRightArrow] = useState(true);
-    const [_lastYearShowLeftArrow, setLastYearShowLeftArrow] = useState(false);
-    const [_lastYearShowRightArrow, setLastYearShowRightArrow] = useState(true);
 
     // Refetch treks and communities without cache
     const refreshTreksAndComms = useCallback(() => {
@@ -748,54 +734,6 @@ const Dashboard = () => {
     const handleLike = useCallback((eventId, eventData) => {
         toggleFavorite(eventId, eventData);
     }, [toggleFavorite]);
-
-    // Check scroll position and update arrow visibility
-    const checkScrollPosition = useCallback((ref, setShowLeft, setShowRight) => {
-        if (ref && ref.current) {
-            const { scrollLeft, scrollWidth, clientWidth } = ref.current;
-            // Show left arrow if scrolled more than 10px from start
-            setShowLeft(scrollLeft > 10);
-            // Show right arrow if more than 10px of content remains to scroll
-            setShowRight(scrollLeft < scrollWidth - clientWidth - 10);
-        }
-    }, []);
-
-    // Add scroll event listeners
-    useEffect(() => {
-        const ongoingRef = ongoingScrollRef.current;
-        const beyondCampusRef = beyondCampusScrollRef.current;
-        const upcomingRef = upcomingScrollRef.current;
-        const lastYearRef = lastYearScrollRef.current;
-
-        const handleOngoingScroll = () => checkScrollPosition(ongoingScrollRef, setOngoingShowLeftArrow, setOngoingShowRightArrow);
-        const handleBeyondCampusScroll = () => checkScrollPosition(beyondCampusScrollRef, setBeyondCampusShowLeftArrow, setBeyondCampusShowRightArrow);
-        const handleUpcomingScroll = () => checkScrollPosition(upcomingScrollRef, setUpcomingShowLeftArrow, setUpcomingShowRightArrow);
-        const handleLastYearScroll = () => checkScrollPosition(lastYearScrollRef, setLastYearShowLeftArrow, setLastYearShowRightArrow);
-
-        if (ongoingRef) {
-            ongoingRef.addEventListener('scroll', handleOngoingScroll);
-            handleOngoingScroll(); // Initial check
-        }
-        if (beyondCampusRef) {
-            beyondCampusRef.addEventListener('scroll', handleBeyondCampusScroll);
-            handleBeyondCampusScroll(); // Initial check
-        }
-        if (upcomingRef) {
-            upcomingRef.addEventListener('scroll', handleUpcomingScroll);
-            handleUpcomingScroll(); // Initial check
-        }
-        if (lastYearRef) {
-            lastYearRef.addEventListener('scroll', handleLastYearScroll);
-            handleLastYearScroll(); // Initial check
-        }
-
-        return () => {
-            if (ongoingRef) ongoingRef.removeEventListener('scroll', handleOngoingScroll);
-            if (beyondCampusRef) beyondCampusRef.removeEventListener('scroll', handleBeyondCampusScroll);
-            if (upcomingRef) upcomingRef.removeEventListener('scroll', handleUpcomingScroll);
-            if (lastYearRef) lastYearRef.removeEventListener('scroll', handleLastYearScroll);
-        };
-    }, [checkScrollPosition]);
 
     // Transform backend fests for display
     const transformedFests = useMemo(() => {

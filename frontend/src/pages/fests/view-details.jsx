@@ -421,7 +421,7 @@ function EventDetailsPage() {
     : eventData?.registration?.mode === 'CLOSED'
     ? 'Registration Closed'
     : isRegistered(eventData.id)
-    ? 'Registered'
+    ? 'Register Again'
     : 'Register Now';
 
   const handleFestFavorite = () => {
@@ -673,7 +673,7 @@ function EventDetailsPage() {
                         : eventData?.registration?.mode === 'CLOSED'
                         ? 'Registration Closed'
                         : isRegistered(eventData.id) 
-                        ? '✓ Registered' 
+                        ? '✓ Register Again' 
                         : 'Register Now'}
                     </button>
                     <button

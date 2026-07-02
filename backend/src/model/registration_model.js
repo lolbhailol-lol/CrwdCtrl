@@ -81,12 +81,10 @@ const registrationSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// ✅ PREVENT DUPLICATE REGISTRATIONS: Unique compound index
-// A user can only register once per competition per fest
-registrationSchema.index(
-  { fest: 1, user: 1, competitionId: 1 }, 
-  { unique: true, sparse: true }
-);
+// Non-unique index for fast lookups. Users are allowed to register multiple
+// times for the same fest/competition — duplicate-payment protection is handled
+// by payment_order_id-scoped idempotency in the controllers instead.
+registrationSchema.index({ fest: 1, user: 1, competitionId: 1 });
 registrationSchema.index({ user: 1, submittedAt: -1 });
 registrationSchema.index({ fest: 1, status: 1 });
 registrationSchema.index({ reminderSent: 1, status: 1 });
@@ -98,4 +96,35 @@ registrationSchema.pre('save', function assignQrCodeData(next) {
   next();
 });
 
-module.exports = mongoose.model('Registration', registrationSchema);
+const Registration = mongoose.models.Registration || mongoose.model('Registration', registrationSchema);
+
+// Drop the legacy unique index if it exists so repeat registrations are allowed.
+// Without this, a second registration insert throws E11000 → 500 → user bounced
+// back to the form even after a successful payment.
+const dropLegacyRegistrationUniqueIndex = async () => {
+  try {
+    const indexes = await Registration.collection.indexes();
+    const legacy = indexes.find(
+      (idx) => idx.unique && idx.key && idx.key.fest === 1 && idx.key.user === 1 && idx.key.competitionId === 1
+    );
+    if (legacy) {
+      await Registration.collection.dropIndex(legacy.name);
+      console.log('ℹ️ Dropped legacy unique index on Registration:', legacy.name);
+    }
+  } catch {
+    // Index may not exist — nothing to drop
+  }
+  try {
+    await Registration.collection.createIndex({ fest: 1, user: 1, competitionId: 1 });
+  } catch {
+    /* ignore */
+  }
+};
+
+if (mongoose.connection.readyState === 1) {
+  dropLegacyRegistrationUniqueIndex();
+} else {
+  mongoose.connection.once('open', dropLegacyRegistrationUniqueIndex);
+}
+
+module.exports = Registration;

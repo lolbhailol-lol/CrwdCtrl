@@ -40,19 +40,31 @@ exports.registerForEvent = async (req, res) => {
             return res.status(401).json({ message: 'Authentication required' });
         }
 
-        // Check duplicate registration
-        const existing = await CategoryRegistration.findOne({
-            category,
-            eventId,
-            user: userId,
-        });
-        if (existing) {
-            return res.status(409).json({ message: 'You are already registered for this event' });
-        }
-
         const responses = req.body.responses || req.body.formData || {};
         const bookingDetails = req.body.bookingDetails || {};
         const registrationFee = Number(event.registrationFee) || 0;
+
+        // Idempotent payment retry: the SAME payment must not create a second
+        // registration, but must succeed (not 409) so a resume/double-submit
+        // after a redirect payment lands on the success screen instead of the
+        // form. Repeat registrations with a new payment are allowed.
+        const retryOrderId = bookingDetails.payment_order_id || bookingDetails.paymentOrderId || null;
+        if (retryOrderId) {
+            const existing = await CategoryRegistration.findOne({
+                category,
+                eventId,
+                user: userId,
+                payment_order_id: retryOrderId,
+            }).lean();
+            if (existing) {
+                return res.status(200).json({
+                    success: true,
+                    alreadyRegistered: true,
+                    message: 'Registration already completed',
+                    registration: existing,
+                });
+            }
+        }
 
         // Paid runs: re-verify the Cashfree payment server-side before confirming.
         let paymentStatus = 'free';

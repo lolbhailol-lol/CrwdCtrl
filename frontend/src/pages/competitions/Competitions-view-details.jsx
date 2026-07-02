@@ -909,9 +909,9 @@ function EventPage() {
                                 <div className="flex gap-2 relative">
                                     <button
                                         onClick={handleRegister}
-                                        disabled={isRegistered || registrationInfo.isDisabled}
+                                        disabled={registrationInfo.isDisabled}
                                         className={`flex-1 py-3 px-4 rounded-full font-semibold transition ${isRegistered
-                                            ? 'bg-green-500 text-white cursor-not-allowed'
+                                            ? 'bg-green-500 text-white hover:opacity-90'
                                             : registrationInfo.isDisabled
                                             ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
                                             : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
@@ -921,7 +921,7 @@ function EventPage() {
                                         {isRegistered ? (
                                             <span className="flex items-center justify-center gap-2">
                                                 <Check className="w-4 h-4" />
-                                                Registered
+                                                Register Again
                                             </span>
                                         ) : (
                                             registrationInfo.buttonText
@@ -1448,9 +1448,9 @@ function EventPage() {
                                         {/* Register button */}
                                         <button
                                             onClick={handleRegister}
-                                            disabled={isRegistered || registrationInfo.isDisabled}
+                                            disabled={registrationInfo.isDisabled}
                                             className={`flex-1 py-3 px-4 rounded-full font-semibold transition ${isRegistered
-                                                ? 'bg-green-500 text-white cursor-not-allowed'
+                                                ? 'bg-green-500 text-white hover:opacity-90'
                                                 : registrationInfo.isDisabled
                                                 ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
                                                 : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
@@ -1460,7 +1460,7 @@ function EventPage() {
                                             {isRegistered ? (
                                                 <span className="flex items-center justify-center gap-2">
                                                     <Check className="w-4 h-4" />
-                                                    Registered
+                                                    Register Again
                                                 </span>
                                             ) : (
                                                 registrationInfo.buttonText
@@ -1658,17 +1658,17 @@ function EventPage() {
                 {/* Register button */}
                 <button
                     onClick={handleRegister}
-                    disabled={isRegistered || registrationInfo.isDisabled}
+                    disabled={registrationInfo.isDisabled}
                     className={`flex-1 font-semibold py-3 rounded-xl transition ${
                         registrationInfo.isDisabled
                             ? 'bg-gray-500 text-white cursor-not-allowed'
                             : isRegistered
-                            ? 'bg-green-600 text-white'
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
                             : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
                     }`}
                 >
                     {isRegistered ? (
-                        <><span className="mr-1">✓</span> Registered</>
+                        <><span className="mr-1">✓</span> Register Again</>
                     ) : registrationInfo.buttonText}
                 </button>
             </div>
