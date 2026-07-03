@@ -15,6 +15,7 @@ require('../model/trek_model');
 require('../model/trek_community_model');
 require('../model/trek_booking_model');
 require('../model/trek_organizer_account_model');
+require('../model/run_club_organizer_account_model');
 require('../model/event_show_model');
 require('../model/category_registration_model');
 require('../model/notification_model');

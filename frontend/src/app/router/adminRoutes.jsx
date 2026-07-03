@@ -15,6 +15,7 @@ import {
   PageSectionsPage,
   AdminProtectedRoute,
   TrekOrganizersPage,
+  RunClubOrganizersPage,
 } from './lazyPages';
 import { adminTheatreRedirect } from './redirects';
 
@@ -37,6 +38,7 @@ export const adminRoutes = (
       <Route path="sports" element={<SportsPage />} />
       <Route path="treks" element={<TreksPage />} />
       <Route path="trek-organizers" element={<TrekOrganizersPage />} />
+      <Route path="run-club-organizers" element={<RunClubOrganizersPage />} />
       <Route path="events" element={<AdminEventsPage />} />
       {adminTheatreRedirect}
       <Route path="sections" element={<SectionManager />} />

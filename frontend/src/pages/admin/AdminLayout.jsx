@@ -17,6 +17,7 @@ import {
   QrCode,
   Users,
   UserCog,
+  Footprints,
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -48,6 +49,7 @@ export default function AdminLayout() {
     { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },
     { icon: UserCog, label: 'Community Organizers', path: '/admin/trek-organizers' },
+    { icon: Footprints, label: 'Run Club Organizers', path: '/admin/run-club-organizers' },
     { icon: Theater, label: 'Events', path: '/admin/events' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
     { icon: LayoutGrid, label: 'Page Sections', path: '/admin/page-sections' },

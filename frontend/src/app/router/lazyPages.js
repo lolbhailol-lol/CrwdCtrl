@@ -78,3 +78,13 @@ export const TrekOrganizerParticipantsPage = lazyWithRetry(() => import('../../p
 export const TrekOrganizerScanPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerScanPage'));
 export const TrekOrganizerNotificationsPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerNotificationsPage'));
 export const TrekOrganizersPage = lazyWithRetry(() => import('../../pages/admin/TrekOrganizersPage'));
+export const RunClubOrganizersPage = lazyWithRetry(() => import('../../pages/admin/RunClubOrganizersPage'));
+
+export const RunClubOrganizerLoginPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerLoginPage'));
+export const RunClubOrganizerLayout = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerLayout'));
+export const RunClubOrganizerProtectedRoute = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerProtectedRoute'));
+export const RunClubOrganizerHomePage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerHomePage'));
+export const RunClubOrganizerDashboardPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerDashboardPage'));
+export const RunClubOrganizerParticipantsPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerParticipantsPage'));
+export const RunClubOrganizerScanPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerScanPage'));
+export const RunClubOrganizerNotificationsPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerNotificationsPage'));
