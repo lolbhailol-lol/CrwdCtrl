@@ -7,7 +7,7 @@ function extractPaymentFields(body = {}) {
   };
 }
 
-async function verifyPaymentForRegistration(body) {
+async function verifyPaymentForRegistration(body, { expectedTotalAmount = null, entityId = null } = {}) {
   const { orderId, paymentId } = extractPaymentFields(body);
 
   if (!orderId) {
@@ -18,6 +18,28 @@ async function verifyPaymentForRegistration(body) {
     const result = await verifyCashfreePayment({ orderId, paymentId });
     if (!result.verified) {
       return { ok: false, error: result.message || 'Payment verification failed. Please try again.' };
+    }
+
+    if (expectedTotalAmount != null && Number(expectedTotalAmount) > 0) {
+      const { fetchOrder } = require('../services/cashfreeService');
+      try {
+        const cashfreeOrder = await fetchOrder(orderId);
+        const paidAmount = Number(cashfreeOrder.order_amount);
+        if (paidAmount !== Number(expectedTotalAmount)) {
+          return { ok: false, error: 'Payment amount does not match expected total.' };
+        }
+        if (entityId) {
+          const tags = cashfreeOrder.order_tags || {};
+          const tagEntityId =
+            tags.eventShowId || tags.trekId || tags.eventId || tags.competitionId || tags.festId;
+          if (tagEntityId && String(tagEntityId) !== String(entityId)) {
+            return { ok: false, error: 'Payment order does not match this registration.' };
+          }
+        }
+      } catch (tagErr) {
+        console.error('Payment tag validation error:', tagErr.message);
+        return { ok: false, error: 'Unable to validate payment order details.' };
+      }
     }
 
     return {

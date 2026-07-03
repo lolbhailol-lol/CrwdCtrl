@@ -110,8 +110,6 @@ const sportsEventSchema = new mongoose.Schema(
             enabled: { type: Boolean, default: false },
             code: { type: String, trim: true, uppercase: true },
             passwordHash: { type: String, default: '' },
-            // Admin-retrievable copy so the credential can be re-shared with volunteers
-            password: { type: String, default: '' },
             label: { type: String, default: '', trim: true },
         },
 
@@ -121,6 +119,15 @@ const sportsEventSchema = new mongoose.Schema(
 );
 
 sportsEventSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
+
+sportsEventSchema.pre('save', function stripLegacyScannerPassword(next) {
+    if (this.scannerAccess?.password) {
+        this.scannerAccess.password = undefined;
+        this.markModified('scannerAccess');
+        this.$unset('scannerAccess.password');
+    }
+    next();
+});
 
 sportsEventSchema.index({ sportType: 1 });
 sportsEventSchema.index({ status: 1 });

@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 const coverImagesSchema = require('./coverImagesSchema');
+const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
+const { normalizeAvailableDates, parseTrekDateForIndex } = require('../utils/trekDateNormalize');
+const { sanitizeTrekBatches } = require('../utils/sanitizeTrekBatches');
 
 const trekContactSchema = new mongoose.Schema(
     {
@@ -52,16 +55,18 @@ const trekSchema = new mongoose.Schema(
         coverImage: { type: String, default: null },
         coverImages: { type: coverImagesSchema, default: () => ({}) },
         images: { type: [String], default: [] },
-        registrationFee: { type: Number, default: 0 },
+        registrationFee: { type: Number, default: 0, min: 0 },
         /** Platform fee % added at checkout on top of registration fee (e.g. 3 = 3%) */
         platformFeePercent: { type: Number, default: 3 },
         /** External registration link (WhatsApp / website / form) used when registration.mode === 'external_link' */
         registrationLink: { type: String, trim: true },
-        maxParticipants: { type: Number, default: 0 },
+        /** 0 = no trek-level cap (use trekBatches batchSize totals, or treat as unlimited) */
+        maxParticipants: { type: Number, default: 0, min: 0 },
+        /** Primary sortable date — synced from first trekBatches[].date when parseable */
         trekDate: { type: Date },
         /** Card subtitle only — e.g. "Weekend", "Weekday" (not shown in Details tab) */
         dateLabel: { type: String, trim: true, default: '' },
-        /** Departure batches — dates, group size, timing (Details tab on trek page) */
+        /** Departure batches — date is ISO YYYY-MM-DD for single dates, or free-text for ranges */
         trekBatches: [{
             date:      { type: String, trim: true, default: '' },
             batchSize: { type: Number, default: 0 },
@@ -111,7 +116,7 @@ const trekSchema = new mongoose.Schema(
             googleSheetsUrl:   { type: String, default: '' },
             organizerEmail:    { type: String, default: '' },
             formInstructions:  { type: String, default: '' },
-            availableDates:    { type: [String], default: [] },   // ["19 May 2025", "26 May 2025", …]
+            availableDates:    { type: [String], default: [] },   // ISO YYYY-MM-DD or display strings
             timeSlots:         { type: [String], default: [] },   // ["6:00 AM", "8:30 AM", …]
             locationOptions:   { type: [String], default: [] },   // ["Rishikesh", "Manali", …] or leave empty for single location
             maxPeoplePerBooking: { type: Number, default: 10 },
@@ -138,8 +143,6 @@ const trekSchema = new mongoose.Schema(
             enabled: { type: Boolean, default: false },
             code: { type: String, trim: true, uppercase: true },
             passwordHash: { type: String, default: '' },
-            // Admin-retrievable copy so the credential can be re-shared with volunteers
-            password: { type: String, default: '' },
             label: { type: String, default: '', trim: true },
         },
 
@@ -153,5 +156,33 @@ trekSchema.index({ difficultyLevel: 1 });
 trekSchema.index({ status: 1 });
 trekSchema.index({ trekDate: 1 });
 trekSchema.index({ city: 1 });
+
+trekSchema.pre('save', function normalizeTrekDocument(next) {
+    if (this.trekBatches?.length) {
+        this.trekBatches = sanitizeTrekBatches(this.trekBatches);
+        const firstDated = this.trekBatches.find((b) => b.date);
+        if (firstDated?.date) {
+            const parsed = parseTrekDateForIndex(firstDated.date);
+            if (parsed) this.trekDate = parsed;
+        }
+    }
+
+    if (this.registration?.availableDates?.length) {
+        this.registration.availableDates = normalizeAvailableDates(this.registration.availableDates);
+    }
+
+    if (this.trekFilters) {
+        this.trekFilters = sanitizeTrekFilters(this.trekFilters);
+    }
+
+    // Strip legacy plaintext passwords from older documents
+    if (this.scannerAccess?.password) {
+        this.scannerAccess.password = undefined;
+        this.markModified('scannerAccess');
+        this.$unset('scannerAccess.password');
+    }
+
+    next();
+});
 
 module.exports = mongoose.models.Trek || mongoose.model('Trek', trekSchema);

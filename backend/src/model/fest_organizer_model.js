@@ -313,13 +313,20 @@ const festOrganizerSchema = new mongoose.Schema(
     enabled: { type: Boolean, default: false },
     code: { type: String, trim: true, uppercase: true },
     passwordHash: { type: String, default: '' },
-    // Admin-retrievable copy so the credential can be re-shared with volunteers
-    password: { type: String, default: '' },
     label: { type: String, default: '', trim: true },
   },
 },
 { timestamps: true }
 );
+
+festOrganizerSchema.pre('save', function stripLegacyScannerPassword(next) {
+  if (this.scannerAccess?.password) {
+    this.scannerAccess.password = undefined;
+    this.markModified('scannerAccess');
+    this.$unset('scannerAccess.password');
+  }
+  next();
+});
 
 festOrganizerSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
 

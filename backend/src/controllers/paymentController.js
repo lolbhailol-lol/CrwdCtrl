@@ -5,6 +5,7 @@ const Competition = require('../model/competition_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
 const EventShow = require('../model/event_show_model');
+const PlatformEvent = require('../model/platform_event_model');
 const SportsEvent = require('../model/sports_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
@@ -15,6 +16,11 @@ const {
 } = require('../services/cashfreeService');
 const { extractPaymentFields } = require('../utils/paymentVerification');
 const { signPaymentProof } = require('../utils/paymentProof');
+const {
+  extractEntityId,
+  findReusablePendingOrder,
+  buildOrderResponse,
+} = require('../utils/paymentOrderIdempotency');
 
 const CASHFREE_CONFIG_MSG =
   'Payment gateway credentials are invalid or missing. Set CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET in backend/.env';
@@ -46,6 +52,15 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
   }
 
   if (resolvedEventId) {
+    const platformEvent = await PlatformEvent.findById(resolvedEventId).select('title price').lean();
+    if (platformEvent) {
+      return {
+        entityType: 'event',
+        ticketPrice: platformEvent.price || 0,
+        notes: { eventId: platformEvent._id.toString() },
+      };
+    }
+
     const event = await Event.findById(resolvedEventId).select('name price registrationFee feeAmount');
     if (!event) return null;
     return {
@@ -160,7 +175,24 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ message: 'This event does not require payment' });
     }
 
+    const entityId = extractEntityId(pricing.notes);
     const customerDetails = await getCustomerDetails(req);
+    const userId = req.user?.userId || null;
+
+    const existingPending = await findReusablePendingOrder({
+      userId,
+      customerEmail: customerDetails.customerEmail,
+      entityType: pricing.entityType,
+      entityId,
+      totalAmount: pricing.totalAmount,
+    });
+    if (existingPending?.paymentSessionId) {
+      return res.json({
+        ...buildOrderResponse(existingPending),
+        cashfreeMode: getCashfreeClientMode(),
+      });
+    }
+
     const order = await createCashfreeOrder({
       orderAmount: pricing.totalAmount,
       currency,
@@ -175,6 +207,24 @@ exports.createOrder = async (req, res) => {
         totalAmount: String(pricing.totalAmount),
       },
     });
+
+    if (entityId) {
+      await PaymentOrder.create({
+        orderId: order.order_id,
+        paymentSessionId: order.payment_session_id,
+        entityType: pricing.entityType,
+        entityId,
+        userId,
+        ticketPrice: pricing.ticketPrice,
+        platformFee: pricing.platformFee,
+        totalAmount: pricing.totalAmount,
+        people: 1,
+        currency,
+        status: 'PENDING',
+        orderTags: { ...notes, ...pricing.notes },
+        customerEmail: customerDetails.customerEmail || null,
+      });
+    }
 
     res.json({
       orderId: order.order_id,
@@ -267,6 +317,21 @@ exports.createTrekOrder = async (req, res) => {
     const { platformFee, totalAmount } = buildTrekPriceBreakdown(baseTicketTotal, platformFeePercent);
     const resolvedTrekName = trek.trekName || trekName || 'Trek Booking';
 
+    const existingPending = await findReusablePendingOrder({
+      customerEmail: email,
+      entityType: 'trek',
+      entityId: trek._id,
+      totalAmount,
+      people: peopleCount,
+    });
+    if (existingPending?.paymentSessionId) {
+      return res.json({
+        success: true,
+        ...buildOrderResponse(existingPending),
+        cashfreeMode: getCashfreeClientMode(),
+      });
+    }
+
     const order = await createCashfreeOrder({
       orderAmount: totalAmount,
       currency,
@@ -291,6 +356,7 @@ exports.createTrekOrder = async (req, res) => {
 
     await PaymentOrder.create({
       orderId: order.order_id,
+      paymentSessionId: order.payment_session_id,
       entityType: 'trek',
       entityId: trek._id,
       userId: req.user?.userId || null,
@@ -372,6 +438,21 @@ exports.createSportsOrder = async (req, res) => {
     const { platformFee, totalAmount } = buildPriceBreakdown(baseTicketTotal);
     const resolvedName = event.title || eventName || 'Run Booking';
 
+    const existingPending = await findReusablePendingOrder({
+      customerEmail: email,
+      entityType: 'sports',
+      entityId: event._id,
+      totalAmount,
+      people: peopleCount,
+    });
+    if (existingPending?.paymentSessionId) {
+      return res.json({
+        success: true,
+        ...buildOrderResponse(existingPending),
+        cashfreeMode: getCashfreeClientMode(),
+      });
+    }
+
     const order = await createCashfreeOrder({
       orderAmount: totalAmount,
       currency,
@@ -395,6 +476,7 @@ exports.createSportsOrder = async (req, res) => {
 
     await PaymentOrder.create({
       orderId: order.order_id,
+      paymentSessionId: order.payment_session_id,
       entityType: 'sports',
       entityId: event._id,
       userId: req.user?.userId || null,

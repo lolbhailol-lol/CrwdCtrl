@@ -100,30 +100,37 @@ exports.handleCashfreeWebhook = async (req, res) => {
       (paymentData.payment_status || '').toUpperCase() === 'FAILED';
 
     if (isPaid) {
-      // Idempotent: webhook may be delivered more than once
-      await PaymentOrder.findOneAndUpdate(
-        { orderId },
-        {
-          status: 'PAID',
-          ...(paymentId ? { paymentId: String(paymentId) } : {}),
-        },
-        { upsert: false, new: true }
-      );
+      try {
+        await PaymentOrder.findOneAndUpdate(
+          { orderId },
+          {
+            status: 'PAID',
+            ...(paymentId ? { paymentId: String(paymentId) } : {}),
+          },
+          { upsert: false, new: true }
+        );
+      } catch (dbErr) {
+        console.error('[paymentWebhook] Failed to mark order PAID:', dbErr.message);
+      }
     } else if (isFailed) {
-      await PaymentOrder.findOneAndUpdate(
-        { orderId },
-        { status: 'FAILED' },
-        { upsert: false }
-      );
+      try {
+        await PaymentOrder.findOneAndUpdate(
+          { orderId },
+          { status: 'FAILED' },
+          { upsert: false }
+        );
+      } catch (dbErr) {
+        console.error('[paymentWebhook] Failed to mark order FAILED:', dbErr.message);
+      }
     }
 
     return res.status(200).send('OK');
   } catch (err) {
     if (err.code === 'WEBHOOK_SECRET_MISSING') {
       console.error('[paymentWebhook]', err.message);
-      return res.status(503).json({ success: false, message: 'Webhook not configured' });
+      return res.status(200).send('OK');
     }
     console.error('[paymentWebhook] error:', err.message);
-    return res.status(500).json({ success: false, message: 'Webhook processing failed' });
+    return res.status(200).send('OK');
   }
 };

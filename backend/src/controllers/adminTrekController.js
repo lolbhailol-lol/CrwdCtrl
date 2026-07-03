@@ -7,6 +7,7 @@ const { sanitizeTrekBatches } = require('../utils/sanitizeTrekBatches');
 const { sanitizeTrekDetailBoxes } = require('../utils/sanitizeTrekDetailBoxes');
 const { sanitizeItinerary } = require('../utils/sanitizeItinerary');
 const { sanitizeTrekRegistrationFee, sanitizeTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
+const { normalizeAvailableDates, parseTrekDateForIndex } = require('../utils/trekDateNormalize');
 
 function normalizeTrekPayload(body) {
     const payload = { ...body };
@@ -21,8 +22,8 @@ function normalizeTrekPayload(body) {
         payload.trekBatches = sanitizeTrekBatches(payload.trekBatches);
         const firstDated = payload.trekBatches.find((b) => b.date);
         if (firstDated?.date) {
-            const parsed = new Date(firstDated.date);
-            payload.trekDate = Number.isNaN(parsed.getTime()) ? payload.trekDate : parsed;
+            const parsed = parseTrekDateForIndex(firstDated.date);
+            if (parsed) payload.trekDate = parsed;
         }
     }
     if (payload.detailBoxes !== undefined) {
@@ -39,6 +40,15 @@ function normalizeTrekPayload(body) {
     }
     if (payload.platformFeePercent !== undefined) {
         payload.platformFeePercent = sanitizeTrekPlatformFeePercent(payload.platformFeePercent);
+    }
+    if (payload.maxParticipants !== undefined) {
+        payload.maxParticipants = Math.max(0, Number(payload.maxParticipants) || 0);
+    }
+    if (payload.registration?.availableDates !== undefined) {
+        payload.registration = {
+            ...payload.registration,
+            availableDates: normalizeAvailableDates(payload.registration.availableDates),
+        };
     }
     return payload;
 }

@@ -61,6 +61,34 @@ const fileUpload = multer({
 });
 
 
+const ALLOWED_UPLOAD_FOLDERS = new Set([
+  'crwdctrl',
+  'crwdctrl/fests',
+  'crwdctrl/competitions',
+  'crwdctrl/treks',
+  'crwdctrl/events',
+  'crwdctrl/sports',
+  'crwdctrl/profiles',
+  'crwdctrl/registrations',
+  'crwdctrl/admin',
+  'crwdctrl/gallery',
+]);
+
+function sanitizeUploadFolder(folder) {
+  if (typeof folder !== 'string' || !folder.trim()) return 'crwdctrl';
+  const normalized = folder.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!normalized.startsWith('crwdctrl')) return 'crwdctrl';
+  if (normalized.includes('..')) return 'crwdctrl';
+  const base = normalized.split('/').filter(Boolean).join('/');
+  if (!base) return 'crwdctrl';
+  if (ALLOWED_UPLOAD_FOLDERS.has(base)) return base;
+  // Allow one extra sub-segment under known roots, e.g. crwdctrl/fests/abc
+  const root = base.split('/').slice(0, 2).join('/');
+  if (ALLOWED_UPLOAD_FOLDERS.has(root)) return base;
+  return 'crwdctrl';
+}
+
+
 // Single image upload
 exports.uploadImage = async (req, res) => {
   try {
@@ -77,7 +105,7 @@ exports.uploadImage = async (req, res) => {
     const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
 
     // Upload to Cloudinary
-    const folder = req.body.folder || 'crwdctrl';
+    const folder = sanitizeUploadFolder(req.body.folder);
     // Store originals at full quality — optimize on delivery via Cloudinary URL transforms
     const result = await cloudinary.uploader.upload(base64Image, {
       folder: folder,
@@ -114,10 +142,7 @@ exports.uploadMultipleImages = async (req, res) => {
       });
     }
 
-    const folder =
-      typeof req.body.folder === 'string' && req.body.folder.startsWith('crwdctrl/')
-        ? req.body.folder
-        : 'crwdctrl';
+    const folder = sanitizeUploadFolder(req.body.folder);
 
     const uploadPromises = req.files.map(file => {
       const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
@@ -159,7 +184,7 @@ exports.uploadFile = async (req, res) => {
     const base64File = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
 
     // Upload to Cloudinary
-    const folder = req.body.folder || 'crwdctrl';
+    const folder = sanitizeUploadFolder(req.body.folder);
     const resourceType = req.file.mimetype.startsWith('image/') ? 'image' : 'raw';
     
     const uploadOptions = {

@@ -35,6 +35,13 @@ async function startServer() {
       logger.info(`Server running on ${HOST}:${PORT}`, {
         env: process.env.NODE_ENV || 'development',
       });
+
+      try {
+        const { initReminderCron } = require('./services/reminderService');
+        initReminderCron();
+      } catch (cronErr) {
+        logger.warn('Reminder cron failed to start', { error: cronErr.message });
+      }
     });
 
     const gracefulShutdown = (signal) => {

@@ -2289,7 +2289,10 @@ const submitEventShowRegistration = async (req, res) => {
 
     if (ticketPrice > 0) {
       const { verifyPaymentForRegistration } = require('../utils/paymentVerification');
-      const paymentCheck = await verifyPaymentForRegistration(req.body);
+      const paymentCheck = await verifyPaymentForRegistration(req.body, {
+        expectedTotalAmount: totalAmount,
+        entityId: eventShow._id,
+      });
       if (!paymentCheck.ok) {
         return res.status(400).json({ error: paymentCheck.error || 'Payment is required for this event.' });
       }

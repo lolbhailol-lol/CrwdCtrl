@@ -14,14 +14,11 @@ const generateToken = (userId) => {
     });
 };
 
-// Extract the real client IP, accounting for reverse proxies (Nginx, Cloudflare, etc.)
-const getClientIp = (req) => {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-        return forwarded.split(',')[0].trim();
-    }
-    return req.ip || req.connection?.remoteAddress || '';
-};
+// Use Express-trusted IP (respects trust proxy setting)
+const getClientIp = (req) => req.ip || req.socket?.remoteAddress || '';
+
+const LOGIN_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
+const lastLoginNotifyAt = new Map();
 
 // Persist login metadata without blocking the auth response
 const recordLogin = (userId, req, method) => {
@@ -43,6 +40,11 @@ const recordLogin = (userId, req, method) => {
 
 const notifyLoginSuccess = async (user) => {
     if (!user || !user._id) return;
+
+    const userKey = String(user._id);
+    const last = lastLoginNotifyAt.get(userKey) || 0;
+    if (Date.now() - last < LOGIN_NOTIFY_COOLDOWN_MS) return;
+    lastLoginNotifyAt.set(userKey, Date.now());
 
     try {
         await createNotification({
@@ -419,7 +421,7 @@ const socialAuth = async (req, res) => {
         }
 
         // Validate provider
-        const validProviders = ['google', 'facebook', 'twitter'];
+        const validProviders = ['google', 'facebook', 'twitter', 'apple'];
         if (!validProviders.includes(provider.toLowerCase())) {
             return res.status(400).json({
                 success: false,
@@ -765,7 +767,21 @@ const updateUserProfile = async (req, res) => {
             updateData.phoneNumber = phoneNumber;
         }
         if (college !== undefined) updateData.college = college; // Allow empty string
-        if (profilePic !== undefined) updateData.profilePic = profilePic; // Allow empty string to remove photo
+        if (profilePic !== undefined) {
+            if (!profilePic || profilePic === '') {
+                updateData.profilePic = '';
+            } else if (
+                /^https:\/\/res\.cloudinary\.com\//i.test(profilePic)
+                || /^https:\/\/[a-z0-9.-]+\.(cloudinary\.com|amazonaws\.com)\//i.test(profilePic)
+            ) {
+                updateData.profilePic = profilePic;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Profile photo must be a valid HTTPS image URL',
+                });
+            }
+        }
 
         // Handle date of birth
         if (dateOfBirth !== undefined) {

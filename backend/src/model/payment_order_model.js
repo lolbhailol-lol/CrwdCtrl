@@ -10,7 +10,7 @@ const paymentOrderSchema = new mongoose.Schema(
     },
     entityType: {
       type: String,
-      enum: ['trek', 'fest', 'competition', 'event', 'sports'],
+      enum: ['trek', 'fest', 'competition', 'event', 'event_show', 'sports'],
       required: true,
     },
     entityId: {
@@ -33,6 +33,7 @@ const paymentOrderSchema = new mongoose.Schema(
       default: 'PENDING',
     },
     paymentId: { type: String, default: null },
+    paymentSessionId: { type: String, default: null },
     orderTags: { type: mongoose.Schema.Types.Mixed, default: {} },
     customerEmail: { type: String, trim: true, lowercase: true },
   },
@@ -41,7 +42,7 @@ const paymentOrderSchema = new mongoose.Schema(
 
 paymentOrderSchema.index({ entityType: 1, entityId: 1 });
 paymentOrderSchema.index({ status: 1 });
-paymentOrderSchema.index({ userId: 1, status: 1 });
+paymentOrderSchema.index({ userId: 1, entityType: 1, entityId: 1, status: 1, createdAt: -1 });
 paymentOrderSchema.index({ status: 1, updatedAt: -1 });
 
 module.exports =

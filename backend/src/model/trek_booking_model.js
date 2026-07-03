@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const trekBookingSchema = new mongoose.Schema(
     {
         trekId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Trek', required: true },
-        userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         userEmail: { type: String, trim: true, lowercase: true },
         userName:  { type: String, trim: true },
         formData:  { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -29,6 +29,14 @@ const trekBookingSchema = new mongoose.Schema(
 trekBookingSchema.index({ userId: 1 });
 trekBookingSchema.index({ trekId: 1 });
 trekBookingSchema.index({ payment_order_id: 1 }, { unique: true, sparse: true });
+
+trekBookingSchema.pre('validate', function enforcePaidBookingPaymentOrder(next) {
+    const amountPaid = Number(this.bookingDetails?.amountPaid) || 0;
+    if (amountPaid > 0 && !this.payment_order_id) {
+        this.invalidate('payment_order_id', 'payment_order_id is required for paid bookings');
+    }
+    next();
+});
 
 trekBookingSchema.pre('save', function assignQrCodeData(next) {
     if (!this.qrCodeData) {

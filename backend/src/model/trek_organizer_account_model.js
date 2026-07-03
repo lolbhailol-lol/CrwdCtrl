@@ -23,7 +23,8 @@ trekOrganizerAccountSchema.methods.comparePassword = function comparePassword(pl
 };
 
 trekOrganizerAccountSchema.statics.hashPassword = async function hashPassword(plain) {
-    return bcrypt.hash(String(plain), 10);
+    const salt = await bcrypt.genSalt(12);
+    return bcrypt.hash(String(plain), salt);
 };
 
 module.exports = mongoose.model('TrekOrganizerAccount', trekOrganizerAccountSchema);

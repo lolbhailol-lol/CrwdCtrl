@@ -67,18 +67,16 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-const authorizeRoles = (...roles) => async (req, res, next) => {
+const authorizeRoles = (...roles) => (req, res, next) => {
     try {
-        const user = await User.findById(req.user.userId).select('role');
-
-        if (!user) {
-            return res.status(404).json({
+        if (!req.user?.userId) {
+            return res.status(401).json({
                 success: false,
-                message: 'User not found',
+                message: 'Authentication required',
             });
         }
 
-        if (!roles.includes(user.role)) {
+        if (!roles.includes(req.user.role)) {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied. Insufficient permissions.',

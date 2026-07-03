@@ -56,6 +56,15 @@ const registrationLimiter = rateLimit({
   message: { success: false, message: 'Too many registration requests, please try again later.' },
 });
 
+/** Scanner / QR check-in — prevent brute-force scans */
+const scannerCheckinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 300 : 80,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many check-in attempts, please slow down.' },
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
@@ -63,4 +72,5 @@ module.exports = {
   paymentLimiter,
   competitionRegisterLimiter,
   registrationLimiter,
+  scannerCheckinLimiter,
 };

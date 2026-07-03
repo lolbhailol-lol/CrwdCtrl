@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/authmiddleware');
 const adminAuth = require('../middleware/adminAuth');
+const { scannerCheckinLimiter } = require('../middleware/rateLimiter');
 const {
   generateQR,
   generateTrekQR,
@@ -19,8 +20,8 @@ router.get('/sports-registrations/:registrationId/qr', authenticateToken, genera
 router.get('/event-registrations/:registrationId/qr', authenticateToken, generateEventShowQR);
 
 // Admin: Verify scanned QR payload or hash and check in
-router.post('/checkin', adminAuth, verifyQRFromPayload);
-router.post('/checkin/:hash', adminAuth, verifyQR);
+router.post('/checkin', scannerCheckinLimiter, adminAuth, verifyQRFromPayload);
+router.post('/checkin/:hash', scannerCheckinLimiter, adminAuth, verifyQR);
 
 // Admin: Get check-in stats for a fest
 router.get('/fests/:festId/checkin-stats', adminAuth, getCheckinStats);
