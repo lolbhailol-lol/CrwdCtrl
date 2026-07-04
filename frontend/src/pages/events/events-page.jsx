@@ -5,6 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../../components/HomeCategoryBar';
@@ -47,7 +48,7 @@ function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) 
             <div className="card-portrait-image relative overflow-hidden">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardPortrait' })}
+                        src={getCoverImageUrl(show, 'cardPortrait') || getImageUrl(show.image, { preset: 'cardPortrait' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2a1a3a', show.title || 'Event')}
@@ -90,7 +91,7 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
             <div className="card-wide-image relative">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardWide' })}
+                        src={getCoverImageUrl(show, 'cardWide') || getImageUrl(show.image, { preset: 'cardWide' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#2a1a3a', show.title || 'Event')}
@@ -133,7 +134,7 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
             <div className="card-portrait-image relative overflow-hidden">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardPortrait' })}
+                        src={getCoverImageUrl(show, 'cardPortrait') || getImageUrl(show.image, { preset: 'cardPortrait' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2a1a3a', show.title || 'Event')}
@@ -260,7 +261,7 @@ export default function EventsPage() {
     const heroBannerEvents = useMemo(
         () => heroShows.map((show) => ({
             id: show.id,
-            image: show.image,
+            image: getCoverImageUrl(show, 'hero') || show.image,
             title: show.title,
             subtitle: show.basedIn,
             dateTime: show.date,
@@ -403,7 +404,9 @@ export default function EventsPage() {
                             In the Spotlight
                         </h2>
                         {loading ? (
-                            <CompactPortraitCardsRowSkeleton count={3} />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <CompactPortraitCardsRowSkeleton count={3} className="" />
+                            </div>
                         ) : spotlightShows.length === 0 ? (
                             <EmptyState label="No spotlight events yet" />
                         ) : (
@@ -433,20 +436,22 @@ export default function EventsPage() {
                             Upcoming Shows
                         </h2>
                         {loading ? (
-                            <WideActivityCardsRowSkeleton count={2} />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <WideActivityCardsRowSkeleton count={2} className="" />
+                            </div>
                         ) : upcomingShows.length === 0 ? (
                             <EmptyState label="No upcoming shows yet" />
                         ) : (
                             <>
                                 <div
                                     ref={upcomingScrollRef}
-                                    className="carousel-scroll-center carousel-scroll-center--wide overflow-x-auto scrollbar-hide"
+                                    className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                                     onScroll={(e) => setUpcomingPg(Math.round(e.target.scrollLeft / 328))}
                                 >
                                     <div className="flex gap-4 pb-1">
                                         {upcomingShows.map((show) => (
-                                            <div key={show.id} className="snap-center">
+                                            <div key={show.id} className="shrink-0">
                                                 <UpcomingShowCard
                                                     show={show}
                                                     isDark={isDark}
@@ -468,7 +473,9 @@ export default function EventsPage() {
                             Community Events
                         </h2>
                         {loading ? (
-                            <CompactPortraitCardsRowSkeleton count={3} />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <CompactPortraitCardsRowSkeleton count={3} className="" />
+                            </div>
                         ) : communityShows.length === 0 ? (
                             <EmptyState label="No community events yet" />
                         ) : (

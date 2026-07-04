@@ -96,7 +96,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
     );
 }
 
-/* ── Weekend Plans Card — fluid wide card, Trek Name + Type + share ── */
+/* ── Weekend Plans Card — fluid wide card, Trek Name + community + share ── */
 function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div
@@ -125,7 +125,7 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
                         {toCardText(trek.title)}
                     </p>
                     <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(trek.type || 'Trek')}
+                        {toCardText(trek.communityName || trek.subtitle || 'Trek')}
                     </p>
                 </div>
                 <CardShareButton
@@ -229,13 +229,17 @@ function TreksPage() {
             })));
             const list = Array.isArray(trekData?.treks) ? trekData.treks : [];
             setRawTreks(list);
-            setTreks(list.map(t => ({
+            setTreks(list.map(t => {
+                const communityName = commList.find(c => String(c._id) === String(t.communityId))?.name || '';
+                return {
                 id: t._id,
                 title: t.trekName,
                 subtitle: t.city || t.startingPoint || '',
                 coverImage: t.coverImage || null,
                 coverImages: t.coverImages || null,
                 image: t.coverImage || t.images?.[0] || null,
+                communityId: t.communityId || null,
+                communityName,
                 difficulty: t.difficultyLevel,
                 duration: t.trekDuration,
                 trekDate: t.trekDate || null,
@@ -249,7 +253,8 @@ function TreksPage() {
                 type: t.difficultyLevel
                     ? t.difficultyLevel.charAt(0).toUpperCase() + t.difficultyLevel.slice(1)
                     : 'Trek',
-            })));
+            };
+            }));
         } catch { setTreks([]); }
         finally { setLoading(false); }
     }, []);
@@ -475,7 +480,9 @@ function TreksPage() {
                             Explore the Communities
                         </h2>
                         {loading ? (
-                            <CompactPortraitCardsRowSkeleton count={3} />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <CompactPortraitCardsRowSkeleton count={3} className="" />
+                            </div>
                         ) : exploreCommunities.length === 0 ? (
                             <EmptyState label="No communities added yet" />
                         ) : (
@@ -506,20 +513,22 @@ function TreksPage() {
                             Upcoming Weekend Plans
                         </h2>
                         {loading ? (
-                            <WideActivityCardsRowSkeleton count={2} />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <WideActivityCardsRowSkeleton count={2} className="" />
+                            </div>
                         ) : weekendTreks.length === 0 ? (
                             <EmptyState label="No weekend plans added yet" />
                         ) : (
                             <>
                                 <div
                                     ref={weekendScrollRef}
-                                    className="carousel-scroll-center carousel-scroll-center--wide overflow-x-auto scrollbar-hide"
+                                    className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                                     onScroll={(e) => setWeekendPg(Math.round(e.target.scrollLeft / 328))}
                                 >
                                     <div className="flex gap-4 pb-1">
                                         {weekendTreks.map((trek) => (
-                                            <div key={trek.id} className="snap-center">
+                                            <div key={trek.id} className="shrink-0">
                                                 <WeekendCard
                                                     trek={trek}
                                                     isDark={isDark}
@@ -590,19 +599,20 @@ function TreksPage() {
                             <div className="mt-4">
                                 {categoryTreks.length > 0 ? (
                                     <div
-                                        className="carousel-scroll-center carousel-scroll-center--portrait overflow-x-auto scrollbar-hide"
+                                        className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                                     >
                                         <div className="flex gap-4 pb-2">
                                             {categoryTreks.map(trek => (
-                                                <BeginnerCard
-                                                    key={trek.id}
+                                                <div key={trek.id} className="shrink-0">
+                                                    <BeginnerCard
                                                     trek={trek}
                                                     isDark={isDark}
                                                     isFavorite={isFavorite(trek.id)}
                                                     onToggleFavorite={() => handleFav(trek)}
                                                     onClick={() => navigate(`/trek/${trek.id}`, { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
                                                 />
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -622,17 +632,19 @@ function TreksPage() {
                             Beginner Friendly
                         </h2>
                         {loading ? (
-                            <CompactPortraitCardsRowSkeleton count={3} />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <CompactPortraitCardsRowSkeleton count={3} className="" />
+                            </div>
                         ) : beginnerTreks.length === 0 ? (
                             <EmptyState label="No beginner treks added yet" />
                         ) : (
                             <div
-                                className="carousel-scroll-center carousel-scroll-center--portrait overflow-x-auto scrollbar-hide"
+                                className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
                                 <div className="flex gap-4 pb-2">
                                     {beginnerTreks.map((trek) => (
-                                        <div key={trek.id} className="snap-center">
+                                        <div key={trek.id} className="shrink-0">
                                             <BeginnerCard
                                                 trek={trek}
                                                 isDark={isDark}

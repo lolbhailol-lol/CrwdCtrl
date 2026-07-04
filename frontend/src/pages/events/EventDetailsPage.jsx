@@ -10,6 +10,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlLogin from '../auth/login';
 import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl, normalizeCoverImages, primaryCoverUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
@@ -32,6 +33,8 @@ function formatPrice(price) {
 
 function mapEventDetail(raw) {
   if (!raw) return null;
+  const coverImages = normalizeCoverImages(raw.coverImages);
+  const poster = primaryCoverUrl(coverImages, raw.poster);
   return {
     id: raw._id,
     title: raw.title || 'Event',
@@ -56,7 +59,9 @@ function mapEventDetail(raw) {
     rounds: Array.isArray(raw.rounds) ? raw.rounds.filter((r) => r?.title || r?.content) : [],
     contacts: Array.isArray(raw.contacts) ? raw.contacts.filter((c) => c?.name || c?.phone || c?.email || c?.instagramId) : [],
     galleryImages: Array.isArray(raw.galleryImages) ? raw.galleryImages.filter(Boolean) : [],
-    image: raw.poster || '',
+    coverImages,
+    image: poster || '',
+    poster,
     banner: raw.banner || '',
     registration: raw.registration || {},
   };
@@ -264,7 +269,7 @@ export default function EventDetailsPage() {
         <div className="relative h-80 sm:h-96 w-full">
           {event.image ? (
             <img
-              src={getImageUrl(event.image, { preset: 'hero' })}
+              src={getCoverImageUrl(event, 'hero') || getImageUrl(event.image, { preset: 'hero' })}
               alt={event.title}
               className="absolute inset-0 w-full h-full object-cover"
               onError={(e) => handleImageErrorWithFallback(e, 400, 384, '#6366f1', event.title)}

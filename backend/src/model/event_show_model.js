@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const coverImagesSchema = require('./coverImagesSchema');
 
 const customPageSectionAssignmentSchema = new mongoose.Schema(
     {
@@ -99,6 +100,8 @@ const eventShowSchema = new mongoose.Schema(
         performerDetails: { type: String, trim: true },
         sponsors: { type: [String], default: [] },
         poster: { type: String, trim: true },
+        /** Per-layout cover URLs — portrait, wide, hero, etc. */
+        coverImages: { type: coverImagesSchema, default: () => ({}) },
         banner: { type: String, trim: true },
         trailerLink: { type: String, trim: true },
         bookingLink: { type: String, trim: true },

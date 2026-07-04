@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const EventShow = require('../model/event_show_model');
 const { sanitizeEventPlatformFeePercent } = require('../utils/trekRegistrationFee');
+const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
 
 function normalizeEventShowPayload(body = {}) {
     const payload = { ...body };
@@ -9,6 +10,10 @@ function normalizeEventShowPayload(body = {}) {
     }
     if (payload.platformFeePercent !== undefined) {
         payload.platformFeePercent = sanitizeEventPlatformFeePercent(payload.platformFeePercent);
+    }
+    if (payload.coverImages !== undefined) {
+        payload.coverImages = sanitizeCoverImages(payload.coverImages);
+        payload.poster = primaryCoverUrl(payload.coverImages, payload.poster) || '';
     }
     return payload;
 }

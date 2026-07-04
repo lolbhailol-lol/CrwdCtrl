@@ -29,7 +29,11 @@ export function formatEventShowDate(showTimings) {
     return upcoming[0].toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+import { normalizeCoverImages, primaryCoverUrl } from '../utils/coverImages';
+
 export function mapEventShow(raw) {
+    const coverImages = normalizeCoverImages(raw.coverImages);
+    const poster = primaryCoverUrl(coverImages, raw.poster);
     return {
         id: raw._id,
         title: raw.title,
@@ -37,8 +41,9 @@ export function mapEventShow(raw) {
         basedIn: raw.city || raw.organizer || 'Based in',
         type: EVENT_TYPE_LABELS[raw.eventType] || raw.eventType || 'Event',
         eventType: raw.eventType,
-        image: raw.poster || null,
-        poster: raw.poster,
+        image: poster || null,
+        poster,
+        coverImages,
         city: raw.city,
         venue: raw.venue,
         organizer: raw.organizer,

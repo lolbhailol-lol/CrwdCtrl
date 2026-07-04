@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import { X, Upload, Plus, Trash2 } from 'lucide-react';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { X, Plus, Trash2 } from 'lucide-react';
+import { adminFetchJSON } from '../../utils/adminApi';
 import EventRegistrationFeePicker from './EventRegistrationFeePicker';
+import MultiCoverImagesUpload from './MultiCoverImagesUpload';
+import CoverImageUploadField from './CoverImageUploadField';
+import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { sanitizeEventPlatformFeePercent } from '../../utils/trekRegistrationFee';
+import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
 
 const EVENT_TYPE_OPTIONS = [
     { value: 'play', label: 'Play' },
@@ -16,7 +20,7 @@ const EVENT_TYPE_OPTIONS = [
 const EMPTY = {
     title: '', displayName: '', description: '', eventType: '', eventHeading: '', organizer: '',
     venue: '', city: '', ticketPrice: 0, platformFeePercent: 2.5,
-    sponsors: '', poster: '', banner: '', bookingLink: '',
+    sponsors: '', poster: '', coverImages: EMPTY_COVER_IMAGES(), banner: '', bookingLink: '',
     generalRules: '', process: '', prizePool: '',
     whatsIncluded: '', benefits: '', eligibility: '', slots: '', registrationProcess: '', registrationLink: '',
     rounds: [], contacts: [], galleryImages: [],
@@ -46,14 +50,21 @@ const newField = () => ({
 export default function EventShowFormModal({ show, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
+    const [uploadingCover, setUploadingCover] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
         if (show) {
+            const legacyPoster = (show.poster || '').trim();
+            const coverImages = normalizeCoverImages(
+                show.coverImages || (legacyPoster ? { portrait: legacyPoster } : {}),
+            );
             setForm({
                 ...EMPTY,
                 ...show,
+                coverImages,
+                poster: primaryCoverUrl(coverImages, legacyPoster),
                 registration: {
                     ...EMPTY.registration,
                     ...(show.registration || {}),
@@ -78,91 +89,6 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
     }, [show]);
 
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-    const handlePosterUpload = async (e) => {
-        const files = Array.from(e.target.files || []);
-        if (!files.length) return;
-        setUploading(true);
-        try {
-            const urls = [];
-            for (const file of files) {
-                const fd = new FormData();
-                fd.append('image', file);
-                const res = await adminFetch('/admin/upload/image', { method: 'POST', body: fd });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.message || 'Upload failed');
-                const url = data.url || data.imageUrl || '';
-                if (url) urls.push(url);
-            }
-            if (urls.length) {
-                setForm((prev) => {
-                    const next = { ...prev };
-                    let extras = urls;
-                    // First uploaded image becomes the main poster if none set yet.
-                    if (!prev.poster) {
-                        next.poster = urls[0];
-                        extras = urls.slice(1);
-                    }
-                    if (extras.length) {
-                        next.galleryImages = [...(prev.galleryImages || []), ...extras];
-                    }
-                    return next;
-                });
-            }
-        } catch (err) {
-            setError(`Upload failed: ${err.message}`);
-        } finally {
-            setUploading(false);
-            e.target.value = '';
-        }
-    };
-
-    const handleBannerUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setUploading(true);
-        try {
-            const fd = new FormData();
-            fd.append('image', file);
-            const res = await adminFetch('/admin/upload/image', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Upload failed');
-            set('banner', data.url || data.imageUrl || '');
-        } catch (err) {
-            setError(`Upload failed: ${err.message}`);
-        } finally {
-            setUploading(false);
-            e.target.value = '';
-        }
-    };
-
-    const handleGalleryUpload = async (e) => {
-        const files = Array.from(e.target.files || []);
-        if (!files.length) return;
-        setUploading(true);
-        try {
-            const urls = [];
-            for (const file of files) {
-                const fd = new FormData();
-                fd.append('image', file);
-                const res = await adminFetch('/admin/upload/image', { method: 'POST', body: fd });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.message || 'Upload failed');
-                const url = data.url || data.imageUrl || '';
-                if (url) urls.push(url);
-            }
-            set('galleryImages', [...form.galleryImages, ...urls]);
-        } catch (err) {
-            setError(`Gallery upload failed: ${err.message}`);
-        } finally {
-            setUploading(false);
-            e.target.value = '';
-        }
-    };
-
-    const removeGalleryImage = (idx) => {
-        set('galleryImages', form.galleryImages.filter((_, i) => i !== idx));
-    };
 
     const addRound = () => set('rounds', [...form.rounds, { title: '', content: '' }]);
     const updateRound = (idx, field, value) => set('rounds', form.rounds.map((r, i) => i === idx ? { ...r, [field]: value } : r));
@@ -233,8 +159,11 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                 };
             };
             const validField = (f) => !!(f.label?.trim());
+            const coverImages = normalizeCoverImages(form.coverImages);
             const payload = {
                 ...form,
+                coverImages,
+                poster: primaryCoverUrl(coverImages, form.poster),
                 sponsors: form.sponsors ? form.sponsors.split(',').map(s => s.trim()).filter(Boolean) : [],
                 ticketPrice: Number(form.ticketPrice) || 0,
                 platformFeePercent: sanitizeEventPlatformFeePercent(form.platformFeePercent),
@@ -574,26 +503,32 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                         ))}
                     </div>
 
-                    {/* Gallery */}
-                    <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium text-gray-300">Gallery Images</label>
-                            <label className="flex items-center gap-1 text-xs text-[#0ECCEE] hover:opacity-80 transition-opacity cursor-pointer">
-                                <Plus size={12} /> {uploading ? 'Uploading...' : 'Add Images'}
-                                <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} disabled={uploading} className="hidden" />
-                            </label>
+                    {/* Cover images — crop per card layout (same as treks) */}
+                    <div className="rounded-xl border border-gray-700/60 p-4 space-y-4">
+                        <div>
+                            <p className="text-sm font-medium text-gray-200">Cover images</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Crop separately for portrait cards, wide cards, hero banners, and other layouts.</p>
                         </div>
-                        {form.galleryImages.length > 0 && (
-                            <div className="grid grid-cols-4 gap-2">
-                                {form.galleryImages.map((img, idx) => (
-                                    <div key={idx} className="relative group">
-                                        <img src={img} alt={`gallery ${idx + 1}`} className="w-full h-20 object-cover rounded-lg border border-gray-600" />
-                                        <button type="button" onClick={() => removeGalleryImage(idx)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12} /></button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <MultiCoverImagesUpload
+                            value={form.coverImages}
+                            onChange={(coverImages) => {
+                                set('coverImages', coverImages);
+                                set('poster', primaryCoverUrl(coverImages, form.poster));
+                            }}
+                            onError={(msg) => setError(`Cover upload failed: ${msg}`)}
+                            onUploadingChange={setUploadingCover}
+                            hint="Upload a cropped image per layout where this event appears."
+                        />
                     </div>
+
+                    {/* Gallery */}
+                    <GalleryImagesUploadField
+                        value={form.galleryImages}
+                        onChange={(galleryImages) => set('galleryImages', galleryImages)}
+                        onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                        onUploadingChange={setUploading}
+                        uploadLabel="Upload gallery images"
+                    />
 
                     {/* Event Date & Time */}
                     <div className="grid grid-cols-2 gap-4">
@@ -607,26 +542,17 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                         </div>
                     </div>
 
-                    {/* Poster + Banner */}
-                    <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Poster <span className="text-xs text-gray-500">(main image — can add more than one)</span></label>
-                        {form.poster && <img src={form.poster} alt="poster" className="w-24 h-32 object-cover rounded-lg border border-gray-600 mb-2" />}
-                        <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                            {uploading ? <span className="text-[#0ECCEE]">Uploading...</span> : <><Upload size={14} /><span>{form.poster ? 'Replace / add images' : 'Upload images'}</span></>}
-                            <input type="file" accept="image/*" multiple onChange={handlePosterUpload} disabled={uploading} className="hidden" />
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">First image is the main poster; extra images go to the gallery below.</p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">Banner</label>
-                            {form.banner && <img src={form.banner} alt="banner" className="w-full max-h-48 object-contain rounded-lg border border-gray-600 mb-2 bg-[#0D0E10]" />}
-                            <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                                {uploading ? <span className="text-[#0ECCEE]">Uploading...</span> : <><Upload size={14} /><span>{form.banner ? 'Replace banner' : 'Upload banner'}</span></>}
-                                <input type="file" accept="image/*" onChange={handleBannerUpload} disabled={uploading} className="hidden" />
-                            </label>
-                        </div>
-                    </div>
+                    {/* Detail page banner */}
+                    <CoverImageUploadField
+                        label="Detail page banner"
+                        hint="Use the Original tab for a full-width banner, or Hero for a cropped banner strip."
+                        value={form.banner}
+                        onChange={(banner) => set('banner', banner)}
+                        onError={(msg) => setError(`Banner upload failed: ${msg}`)}
+                        onUploadingChange={setUploading}
+                        uploadLabel="Upload banner"
+                        replaceLabel="Replace banner"
+                    />
 
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
@@ -642,7 +568,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
 
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">Cancel</button>
-                        <button type="submit" disabled={saving || uploading} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+                        <button type="submit" disabled={saving || uploading || uploadingCover} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
                             {saving ? 'Saving...' : show ? 'Update' : 'Create'}
                         </button>
                     </div>
