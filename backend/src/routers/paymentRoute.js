@@ -6,7 +6,7 @@ const { createOrder, getPaymentQuote, verifyPayment, createTrekOrder, verifyTrek
 router.post('/quote', authenticateToken, getPaymentQuote);
 router.post('/order', authenticateToken, createOrder);
 router.post('/verify', authenticateToken, verifyPayment);
-router.post('/trek-order', createTrekOrder);       // public — no auth
+router.post('/trek-order', authenticateToken, createTrekOrder);
 router.post('/trek-verify', verifyTrekPayment);    // public — no auth
 router.post('/sports-order', createSportsOrder);   // public — no auth
 router.post('/sports-verify', verifySportsPayment); // public — no auth

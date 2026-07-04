@@ -7,6 +7,12 @@ const trekBookingSchema = new mongoose.Schema(
         userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         userEmail: { type: String, trim: true, lowercase: true },
         userName:  { type: String, trim: true },
+        /** Female | Male | Others — for gender quota counting */
+        participantGender: {
+            type: String,
+            enum: ['Female', 'Male', 'Others'],
+            default: null,
+        },
         formData:  { type: mongoose.Schema.Types.Mixed, default: {} },
         // Top-level for idempotency queries (security: one order → one booking)
         payment_order_id: { type: String },

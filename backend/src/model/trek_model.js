@@ -36,6 +36,8 @@ const trekSchema = new mongoose.Schema(
         trekLeader: { type: String, trim: true },
         emergencyContact: { type: String, trim: true },
         contactInstagram: { type: String, trim: true },
+        /** WhatsApp / Telegram group for this trek — overrides community groupLink in emails & booking UI */
+        groupLink: { type: String, trim: true, default: '' },
         /** Repeatable point-of-contact list (name + role + phone) */
         contacts: { type: [trekContactSchema], default: [] },
         termsAndConditions: { type: [String], default: [] },
@@ -120,6 +122,19 @@ const trekSchema = new mongoose.Schema(
             timeSlots:         { type: [String], default: [] },   // ["6:00 AM", "8:30 AM", …]
             locationOptions:   { type: [String], default: [] },   // ["Rishikesh", "Manali", …] or leave empty for single location
             maxPeoplePerBooking: { type: Number, default: 10 },
+            /** Gender-based seat caps + phased registration (women first, etc.) */
+            genderQuotas: {
+                enabled: { type: Boolean, default: false },
+                femaleSeats: { type: Number, default: 0, min: 0 },
+                maleSeats: { type: Number, default: 0, min: 0 },
+                othersSeats: { type: Number, default: 0, min: 0 },
+            },
+            /** closed | women_only | men_only | all — used when genderQuotas.enabled */
+            genderPhase: {
+                type: String,
+                enum: ['closed', 'women_only', 'men_only', 'all'],
+                default: 'all',
+            },
             formSchema: [{
                 id:          String,
                 label:       String,

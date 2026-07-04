@@ -25,6 +25,7 @@ export const PRESET_ALIASES = {
     cardLg: 'portrait',
     cardSm: 'portrait',
     hero: 'hero',
+    communityBanner: 'hero',
     square: 'square',
     thumb: 'square',
 };

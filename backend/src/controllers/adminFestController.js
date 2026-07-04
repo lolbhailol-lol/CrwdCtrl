@@ -153,34 +153,6 @@ exports.createFest = async (req, res) => {
       fest
     });
 
-    // 7. BACKGROUND TASK: Send Broadcast Emails to all users
-    setImmediate(async () => {
-      try {
-        console.log('📢 Starting auto-broadcast for new fest...');
-        
-        // Fetch all verified users who have opted into email reminders
-        const users = await User.find({ 
-          isVerified: true, 
-          'notificationPreferences.emailReminders': true 
-        }, 'name email');
-
-        if (users.length > 0) {
-          // sendEventBroadcast is imported from emailService at the top of your file
-          await sendEventBroadcast(users, {
-            name: fest.festName,
-            date: fest.festDate,
-            location: fest.venue,
-            id: fest._id
-          });
-          console.log(`✅ Auto-broadcast completed for ${users.length} users.`);
-        } else {
-          console.log('ℹ️ No eligible users found for broadcast.');
-        }
-      } catch (broadcastErr) {
-        console.error('❌ Auto-broadcast background error:', broadcastErr.message);
-      }
-    });
-
   } catch (error) {
     console.error('💥 Admin create fest error:', error);
     res.status(500).json({
@@ -253,7 +225,7 @@ exports.updateFest = async (req, res) => {
       return res.status(400).json({ message: 'Invalid fest ID' });
     }
 
-    // 1. Get the current fest to compare changes (for broadcast logic)
+    // 1. Get the current fest (cover image fallback logic)
     const existingFest = await FestOrganizer.findById(id);
     if (!existingFest) {
       console.error('❌ Fest not found:', id);
@@ -301,37 +273,6 @@ exports.updateFest = async (req, res) => {
       timestamp: Date.now(),
       cacheCleared: true
     });
-
-    // 7. BACKGROUND TASK: Notify users if Date or Venue changed
-    // We check existingFest (before update) vs updateData (from request)
-    const dateChanged = existingFest.festDate !== updateData.festDate;
-    const venueChanged = existingFest.venue !== updateData.venue;
-
-    if (dateChanged || venueChanged) {
-      setImmediate(async () => {
-        try {
-          console.log('📢 Critical update detected (Date/Venue). Triggering broadcast...');
-          
-          const users = await User.find({ 
-            isVerified: true, 
-            'notificationPreferences.emailReminders': true 
-          }, 'name email');
-
-          if (users.length > 0) {
-            // sendEventBroadcast imported from emailService
-            await sendEventBroadcast(users, {
-              name: `UPDATED: ${fest.festName}`,
-              date: fest.festDate,
-              location: fest.venue,
-              id: fest._id
-            });
-            console.log(`✅ Update notification sent to ${users.length} users.`);
-          }
-        } catch (broadcastErr) {
-          console.error('❌ Update broadcast error:', broadcastErr.message);
-        }
-      });
-    }
 
   } catch (error) {
     console.error('💥 Admin update fest error:', error);

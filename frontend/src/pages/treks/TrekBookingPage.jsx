@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Loader, CheckCircle } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -22,6 +22,8 @@ import { buildTrekPriceBreakdown } from '../../utils/platformFee';
 import { isTrekFormFieldEmpty } from '../../constants/trekFormFields';
 import { API_BASE_URL } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
+import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../utils/trekGenderRegistration';
+import GenderQuickPick from '../../components/GenderQuickPick';
 
 const API = API_BASE_URL;
 
@@ -58,6 +60,7 @@ function getInitialTrekBookingUi(trekId, search) {
         selTime: '',
         people: 1,
         extraFields: {},
+        bookingGender: '',
     };
     if (!trekId) return defaults;
 
@@ -85,19 +88,21 @@ function getInitialTrekBookingUi(trekId, search) {
             paying: true,
             selDate: draft.selDate || '',
             selTime: draft.selTime || '',
-            people: draft.people || 1,
+            people: 1,
             extraFields: draft.extraFields || {},
+            bookingGender: draft.bookingGender || '',
         };
     }
 
     return {
-        step: draft.step || 1,
+        step: 1,
         payDone: false,
         paying: false,
         selDate: draft.selDate || '',
         selTime: draft.selTime || '',
-        people: draft.people || 1,
+        people: 1,
         extraFields: draft.extraFields || {},
+        bookingGender: draft.bookingGender || '',
     };
 }
 
@@ -146,6 +151,7 @@ export default function TrekBookingPage() {
     }, [isAuthenticated, showLogin, showRegister]);
 
     const [trek, setTrek] = useState(location.state?.trek || null);
+    const [genderRegistration, setGenderRegistration] = useState(location.state?.genderRegistration || null);
     const [loadingTrek, setLoadingTrek] = useState(!location.state?.trek);
     const [step,        setStep]       = useState(initialUi.step);
     const [selDate,     setSelDate]    = useState(initialUi.selDate);
@@ -159,6 +165,8 @@ export default function TrekBookingPage() {
     const [bookingId,   setBookingId]  = useState('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
     const [postPaymentError, setPostPaymentError] = useState('');
+    const [bookingGender, setBookingGender] = useState(initialUi.bookingGender || '');
+    const [existingBookingId, setExistingBookingId] = useState('');
     const retryCheckoutRef = useRef(null);
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
@@ -182,7 +190,36 @@ export default function TrekBookingPage() {
         () => (reg.timeSlots?.length ? reg.timeSlots : trek?.departureTime ? [trek.departureTime] : ['6:00 AM', '8:30 AM']),
         [reg.timeSlots, trek?.departureTime],
     );
-    const maxPeople = reg.maxPeoplePerBooking || trek?.maxParticipants || 15;
+    useEffect(() => {
+        setPeople(1);
+    }, [trek?._id, trek?.id]);
+
+    const genderAccess = useMemo(
+        () => evaluateUserRegistrationAccess({
+            genderRegistration,
+            userGender: bookingGender,
+            people: 1,
+        }),
+        [genderRegistration, bookingGender],
+    );
+
+    const step1Blocked = !bookingGender || (
+        genderRegistration?.enabled
+        && bookingGender
+        && genderAccess.canRegister === false
+    );
+
+    const phaseStepNotice = genderRegistration?.enabled
+        && isGenderPhaseRestricted(genderRegistration.phase)
+        ? getGenderPhaseStepNotice(genderRegistration.phase)
+        : null;
+
+    const showGenderPhaseError = Boolean(
+        genderRegistration?.enabled
+        && bookingGender
+        && genderAccess.canRegister === false
+        && isGenderPhaseRestricted(genderRegistration.phase),
+    );
 
     const regSchema = useMemo(() => {
         const custom = (reg.formSchema || []).filter((f) => f?.label?.trim() && f?.fieldName?.trim());
@@ -201,10 +238,17 @@ export default function TrekBookingPage() {
         let cancelled = false;
         (async () => {
             try {
-                const r = await fetch(`${API}/treks/${trekId}`);
+                const token = localStorage.getItem('crwdctrl_token');
+                const r = await fetch(`${API}/treks/${trekId}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
                 const d = await r.json();
                 if (!cancelled && d.trek) {
                     setTrek(d.trek);
+                    setGenderRegistration(d.genderRegistration || null);
+                    if (d.userBooking?.bookingId) {
+                        setExistingBookingId(String(d.userBooking.bookingId));
+                    }
                 } else if (!cancelled && location.state?.trek) {
                     setTrek(location.state.trek);
                 }
@@ -218,7 +262,7 @@ export default function TrekBookingPage() {
         })();
 
         return () => { cancelled = true; };
-    }, [id, location.state?.trek]);
+    }, [id, location.state?.trek, isAuthenticated, authToken]);
 
     useEffect(() => {
         if (!trek) return;
@@ -235,6 +279,19 @@ export default function TrekBookingPage() {
             return;
         }
 
+        if (location.state?.freshBooking) {
+            sessionStorage.removeItem(trekDraftKey(trekId));
+            setStep(1);
+            setPayDone(false);
+            setPaying(false);
+            setExtraFields({});
+            setBookingGender('');
+            setSelDate('');
+            setSelTime('');
+            setError('');
+            return;
+        }
+
         const raw = sessionStorage.getItem(trekDraftKey(trekId));
         if (!raw) return;
         try {
@@ -242,12 +299,12 @@ export default function TrekBookingPage() {
             if (draft.extraFields) setExtraFields(draft.extraFields);
             if (draft.selDate) setSelDate(draft.selDate);
             if (draft.selTime) setSelTime(draft.selTime);
-            if (draft.people) setPeople(draft.people);
-            if (draft.step) setStep(draft.step);
+            if (draft.people) setPeople(1);
+            if (draft.bookingGender) setBookingGender(draft.bookingGender);
         } catch {
             /* ignore corrupt draft */
         }
-    }, [id, trek?._id, trek?.id, location.search]);
+    }, [id, trek?._id, trek?.id, location.search, location.state?.freshBooking]);
 
     useEffect(() => {
         const trekId = id || trek?._id || trek?.id;
@@ -276,11 +333,19 @@ export default function TrekBookingPage() {
             extraFields,
             selDate,
             selTime,
-            people,
+            people: 1,
             step,
+            bookingGender,
             ...overrides,
         }));
-    }, [id, trek, extraFields, selDate, selTime, people, step]);
+    }, [id, trek, extraFields, selDate, selTime, step, bookingGender]);
+
+    const buildFormData = useCallback(() => {
+        if (bookingGender) {
+            return { ...extraFields, gender: bookingGender };
+        }
+        return extraFields;
+    }, [extraFields, bookingGender]);
 
     const baseFee = fee * people;
     const { platformFee = 0, totalAmount: total = 0 } = fee > 0
@@ -400,7 +465,7 @@ export default function TrekBookingPage() {
         paymentOrderId,
         paymentId,
         amountPaid,
-        formData = extraFields,
+        formData = buildFormData(),
         booking = {},
     }) => {
         const trekId = id || trek?._id || trek?.id;
@@ -422,7 +487,7 @@ export default function TrekBookingPage() {
                 bookingDetails: {
                     date: booking.date ?? selDate,
                     time: booking.time ?? selTime,
-                    people: booking.people ?? people,
+                    people: 1,
                     amountPaid: amountPaid ?? 0,
                     paymentId: paymentId || '',
                     payment_order_id: paymentOrderId || '',
@@ -431,6 +496,9 @@ export default function TrekBookingPage() {
         });
         const regData = await regRes.json().catch(() => ({}));
         if (!regRes.ok) {
+            if (regRes.status === 409 && /already have a registration/i.test(regData.message || '')) {
+                setExistingBookingId(regData.bookingId ? String(regData.bookingId) : 'existing');
+            }
             throw new Error(regData.message || 'Registration failed after payment');
         }
         sessionStorage.removeItem(trekDraftKey(trekId));
@@ -465,7 +533,7 @@ export default function TrekBookingPage() {
                 if (draft.extraFields) setExtraFields(draft.extraFields);
                 if (draft.selDate) setSelDate(draft.selDate);
                 if (draft.selTime) setSelTime(draft.selTime);
-                if (draft.people) setPeople(draft.people);
+                if (draft.people) setPeople(1);
 
                 const { ok, data: v } = await verifyPaymentWithRetry(API, pending.orderId, { kind: 'trek' });
 
@@ -499,7 +567,7 @@ export default function TrekBookingPage() {
                     booking: {
                         date: draft.selDate || selDate,
                         time: draft.selTime || selTime,
-                        people: draft.people || people,
+                        people: 1,
                     },
                 });
                 setStep(3);
@@ -535,9 +603,25 @@ export default function TrekBookingPage() {
             setError('Please log in to book this trek.');
             return;
         }
-        if (step === 1) { setStep(2); return; }
+        if (step === 1) {
+            if (!bookingGender) {
+                setError('Please select Female or Male to continue.');
+                return;
+            }
+            if (genderRegistration?.enabled && genderAccess.canRegister === false) {
+                setError(genderAccess.message || 'You cannot register with this selection right now.');
+                return;
+            }
+            saveDraft({ step: 2, bookingGender });
+            setStep(2);
+            return;
+        }
 
         if (step === 2) {
+            if (genderRegistration?.enabled && !genderAccess.canRegister) {
+                setError(genderAccess.message || 'You cannot register for this trek right now.');
+                return;
+            }
             const missing = regSchema.filter((f) => f.required && isTrekFormFieldEmpty(f, extraFields[f.fieldName]));
             if (missing.length > 0) { setError(`Please fill: ${missing.map(f => f.label).join(', ')}`); return; }
 
@@ -555,6 +639,9 @@ export default function TrekBookingPage() {
                     setPayDone(true);
                     setPaying(false);
                 } catch (e) {
+                    if (/already have a registration/i.test(e.message || '')) {
+                        setExistingBookingId('existing');
+                    }
                     setError(e.message || 'Registration failed');
                 }
                 return;
@@ -564,13 +651,18 @@ export default function TrekBookingPage() {
 
             setPaying(true);
             try {
+                const token = localStorage.getItem('crwdctrl_token');
                 const res = await fetch(`${API}/payment/trek-order`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
                     body: JSON.stringify({
                         trekId: id || trek._id || trek.id,
                         trekName,
-                        people,
+                        people: 1,
+                        formData: buildFormData(),
                         customerName: extraFields.full_name || extraFields.name || extraFields.fullname || '',
                         customerEmail,
                         customerPhone:
@@ -582,14 +674,21 @@ export default function TrekBookingPage() {
                     }),
                 });
                 const order = await res.json();
-                if (!res.ok) { setError(order.message || 'Failed to create order.'); setPaying(false); return; }
+                if (!res.ok) {
+                    if (res.status === 409 && /already have a registration/i.test(order.message || '')) {
+                        setExistingBookingId('existing');
+                    }
+                    setError(order.message || 'Failed to create order.');
+                    setPaying(false);
+                    return;
+                }
                 if (!order.paymentSessionId) {
                     setError('Payment session missing from server. Restart backend and try again.');
                     setPaying(false);
                     return;
                 }
 
-                saveDraft({ step: 2, extraFields, selDate, selTime, people });
+                saveDraft({ step: 2, extraFields: buildFormData(), selDate, selTime, people: 1, bookingGender });
 
                 let checkoutResult;
                 try {
@@ -683,6 +782,56 @@ export default function TrekBookingPage() {
         );
     }
 
+    if (existingBookingId && !showSuccess && !showProcessing) {
+        const ticketId = existingBookingId !== 'existing' ? existingBookingId : '';
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex items-center justify-center px-4">
+                <div className="text-center max-w-md mx-auto p-8 w-full">
+                    <CheckCircle className="w-14 h-14 text-[#0ECCEE] mx-auto mb-5" />
+                    <h1 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Already registered
+                    </h1>
+                    <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        You already have one registration for <span className="text-[#0ECCEE] font-semibold">{trekName}</span> with this account. Only one ticket is allowed per login.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        {ticketId && (
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/qr-ticket/${ticketId}?type=trek`)}
+                                className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                            >
+                                View Ticket
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => goToBookings(navigate)}
+                            className={`w-full py-3.5 rounded-xl font-semibold transition ${
+                                ticketId
+                                    ? isDark
+                                        ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
+                                        : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                                    : 'text-black bg-[#0ECCEE] hover:opacity-90'
+                            }`}
+                        >
+                            View My Bookings
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/trek/${id || trek?._id || trek?.id}`)}
+                            className={`w-full py-2.5 rounded-xl text-sm font-medium transition ${
+                                isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            Back to trek
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (showProcessing) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
@@ -744,7 +893,7 @@ export default function TrekBookingPage() {
                         {[
                             { label: 'Date',  value: selDate || '—' },
                             { label: 'Time',  value: selTime },
-                            { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
+                            { label: 'Tickets', value: '1 person' },
                             { label: 'Trek Fee', value: fee > 0 ? `₹${baseFee.toLocaleString('en-IN')}` : 'Free' },
                             ...(total > 0 ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }] : []),
                             ...(paymentId    ? [{ label: 'Payment ID',  value: paymentId.slice(0, 18) + '…' }] : []),
@@ -922,35 +1071,34 @@ export default function TrekBookingPage() {
                                     </div>
                                 </div>
 
-                                {/* People + Entry Fee combined box */}
+                                {phaseStepNotice ? (
+                                    <p className={`text-xs leading-relaxed rounded-lg px-3 py-2.5 ${isDark ? 'bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/25' : 'bg-cyan-50 text-cyan-800 border border-cyan-200'}`}>
+                                        {phaseStepNotice}
+                                    </p>
+                                ) : null}
+                                <GenderQuickPick
+                                    value={bookingGender}
+                                    onChange={(g) => {
+                                        setBookingGender(g);
+                                        setError('');
+                                    }}
+                                    label="You are"
+                                    error={showGenderPhaseError ? genderAccess.message : undefined}
+                                />
+
+                                {/* Entry fee — 1 ticket per account */}
                                 <div className={`rounded-xl p-3 border flex items-center justify-between gap-4 ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
                                     <div>
-                                        <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Number of People</p>
-                                        <div className="flex items-center">
-                                            <button type="button" onClick={() => setPeople(p => Math.max(1, p - 1))}
-                                                className={`w-9 h-9 rounded-l-lg flex items-center justify-center border-2 border-r-0 transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}>
-                                                <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
-                                            </button>
-                                            <div className={`w-12 h-9 flex items-center justify-center border-y-2 ${isDark ? 'bg-[#111213] border-gray-600' : 'bg-white border-gray-300'}`}>
-                                                <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{people}</span>
-                                            </div>
-                                            <button type="button" onClick={() => setPeople(p => Math.min(maxPeople, p + 1))}
-                                                className={`w-9 h-9 rounded-r-lg flex items-center justify-center border-2 border-l-0 transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}>
-                                                <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
-                                            </button>
-                                        </div>
+                                        <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Tickets</p>
+                                        <p className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>1 person</p>
+                                        <p className={`text-[10px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>One registration per login</p>
                                     </div>
                                     <div className="text-right">
                                         <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Entry Fee</p>
                                         {fee > 0 ? (
-                                            <>
-                                                <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    ₹{baseFee.toLocaleString('en-IN')}
-                                                </p>
-                                                <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                    ₹{fee.toLocaleString('en-IN')} × {people}
-                                                </p>
-                                            </>
+                                            <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                ₹{fee.toLocaleString('en-IN')}
+                                            </p>
                                         ) : (
                                             <p className="text-lg font-bold text-green-500">Free</p>
                                         )}
@@ -999,13 +1147,8 @@ export default function TrekBookingPage() {
                             <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
                             <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                 <div className="flex justify-between gap-4">
-                                    <span>
-                                        Ticket Price{' '}
-                                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                            (₹{fee.toLocaleString('en-IN')} × {people})
-                                        </span>
-                                    </span>
-                                    <span>₹{baseFee.toLocaleString('en-IN')}</span>
+                                    <span>Ticket Price</span>
+                                    <span>₹{fee.toLocaleString('en-IN')}</span>
                                 </div>
                                 <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                     <span>Platform Fee</span>
@@ -1033,7 +1176,7 @@ export default function TrekBookingPage() {
                         <button
                             type="button"
                             onClick={next}
-                            disabled={paying}
+                            disabled={paying || (step === 1 && step1Blocked)}
                             className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60"
                         >
                             {paying ? (

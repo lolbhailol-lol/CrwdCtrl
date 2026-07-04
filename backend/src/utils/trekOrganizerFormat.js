@@ -120,6 +120,7 @@ function formatParticipantRow(booking, trek = null) {
         checkedInAt: booking.checkedInAt || null,
         status: booking.status || 'confirmed',
         userEmail: booking.userEmail || booking.userId?.email || pickFormField(form, ['email', 'e_mail']),
+        participantGender: booking.participantGender || pickFormField(form, ['gender', 'sex', 'Gender']) || booking.userId?.gender || '—',
         qrCodeData: booking.qrCodeData || '',
         trekName: trek?.trekName || booking.trekId?.trekName || '',
     };
@@ -152,6 +153,7 @@ function buildSheetColumns(formSchema = []) {
     return [
         { key: '_index', label: '#', group: 'system', sticky: true, minWidth: 46 },
         { key: 'bookingId', label: 'Booking ID', group: 'system', sticky: true, minWidth: 112 },
+        { key: 'participantGender', label: 'Gender', group: 'booking', minWidth: 88 },
         ...formCols,
         { key: 'trekDate', label: 'Trek Date', group: 'booking', minWidth: 118 },
         { key: 'trekTime', label: 'Time Slot', group: 'booking', minWidth: 96 },
@@ -274,6 +276,7 @@ function participantsToCsv(rows, options = {}) {
         'Booking ID',
         'QR Status',
         'Participant Name',
+        'Gender',
         'Phone',
         'Emergency Contact',
         'Payment Status',
@@ -296,6 +299,7 @@ function participantsToCsv(rows, options = {}) {
             r.bookingId,
             r.qrStatus,
             r.participantName,
+            r.participantGender || '—',
             r.phone,
             r.emergencyContact,
             r.paymentStatus,

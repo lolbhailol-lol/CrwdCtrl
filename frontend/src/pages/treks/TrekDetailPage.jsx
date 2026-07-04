@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, Heart, ChevronRight, Backpack } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { ScrollProgress, ScrollReveal } from '../../motion';
-import { shareContent } from '../../utils/externalLink';
+import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
@@ -175,6 +175,7 @@ export default function TrekDetailPage() {
     const { isDark } = useDarkMode();
 
     const [trek,      setTrek]      = useState(null);
+    const [genderRegistration, setGenderRegistration] = useState(null);
     const [community, setCommunity] = useState(location.state?.community || null);
     const [loading,   setLoading]   = useState(true);
     const [liked,     setLiked]     = useState(false);
@@ -226,6 +227,7 @@ export default function TrekDetailPage() {
                 const d = await r.json();
                 if (d.trek) {
                     setTrek(d.trek);
+                    setGenderRegistration(d.genderRegistration || null);
                     const populated = d.trek.communityId;
                     if (populated && typeof populated === 'object' && populated.name) {
                         setCommunity((prev) => prev || populated);
@@ -287,7 +289,7 @@ export default function TrekDetailPage() {
         trek.communityName ||
         trek.trekLeader ||
         null;
-    // Build overview from available trek fields
+    // WhatsApp group link is only shown to registered users (My Bookings → View Details + email).
     const buildOverview = () => {
         if (trek.description) return trek.description;
         const parts = [];
@@ -421,7 +423,7 @@ export default function TrekDetailPage() {
                     )}
                 </div>
 
-                {/* CTA button — respects registration status, then internal form / external link */}
+                {/* CTA button — respects registration status, gender phase, then internal form / external link */}
                 {(() => {
                     const regStatus = trek.registration?.status || 'open';
                     const extLink = trek.registration?.mode === 'external_link'
@@ -455,11 +457,11 @@ export default function TrekDetailPage() {
                                     return;
                                 }
                                 const trekId = id || trek._id || trek.id;
-                                navigate(`/trek/${trekId}/book`, { state: { trek } });
+                                navigate(`/trek/${trekId}/book`, { state: { trek, genderRegistration, freshBooking: true } });
                             }}
                             className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                         >
-                            {extLink ? 'Book Now' : 'Check Availability'}
+                            Book Now
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="m9 18 6-6-6-6"/>
                             </svg>

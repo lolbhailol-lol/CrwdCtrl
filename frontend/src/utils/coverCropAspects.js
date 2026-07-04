@@ -25,6 +25,14 @@ export const CROP_ASPECT_OPTIONS = [
         outputH: 560,
     },
     {
+        id: 'communityBanner',
+        label: 'Community page',
+        short: '393:396',
+        ratio: 393 / 396,
+        outputW: 786,
+        outputH: 792,
+    },
+    {
         id: 'square',
         label: 'Square',
         short: '1:1',

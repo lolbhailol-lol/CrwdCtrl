@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
     Download, Loader, Search, ChevronLeft, ChevronRight,
-    Users, UserCheck, Clock, ChevronsDownUp, X,
+    Users, UserCheck, Clock, ChevronsDownUp, X, Mail,
 } from 'lucide-react';
 import {
     exportTrekOrganizerParticipants,
@@ -10,9 +10,11 @@ import {
     fetchTrekOrganizerDashboard,
     resendTrekOrganizerConfirmation,
     deleteTrekOrganizerParticipant,
+    sendTrekOrganizerParticipantMessage,
 } from '../../services/api/trekOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import ParticipantCard from './ParticipantCard';
+import TrekOrganizerMessageModal from './TrekOrganizerMessageModal';
 
 function FilterChip({ active, onClick, children }) {
     return (
@@ -52,14 +54,17 @@ export default function TrekOrganizerParticipantsPage() {
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
     const [expandAll, setExpandAll] = useState(false);
+    const [selectedIds, setSelectedIds] = useState(() => new Set());
+    const [messageModal, setMessageModal] = useState({ open: false, bookingIds: [], label: '' });
 
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [paymentFilter, setPaymentFilter] = useState('');
     const [checkInFilter, setCheckInFilter] = useState('');
+    const [genderFilter, setGenderFilter] = useState('');
     const [page, setPage] = useState(1);
 
-    const hasFilters = search || paymentFilter || checkInFilter;
+    const hasFilters = search || paymentFilter || checkInFilter || genderFilter;
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -77,6 +82,7 @@ export default function TrekOrganizerParticipantsPage() {
             if (search) params.search = search;
             if (paymentFilter) params.paymentStatus = paymentFilter;
             if (checkInFilter) params.checkInStatus = checkInFilter;
+            if (genderFilter) params.gender = genderFilter;
 
             const [listData, dashData] = await Promise.all([
                 fetchTrekOrganizerParticipants(trekId, params),
@@ -92,11 +98,53 @@ export default function TrekOrganizerParticipantsPage() {
         } finally {
             setLoading(false);
         }
-    }, [trekId, page, search, paymentFilter, checkInFilter, hasFilters, toast]);
+    }, [trekId, page, search, paymentFilter, checkInFilter, genderFilter, hasFilters, toast]);
 
     useEffect(() => {
         load();
     }, [load]);
+
+    useEffect(() => {
+        setSelectedIds(new Set());
+    }, [page, search, paymentFilter, checkInFilter, genderFilter, trekId]);
+
+    const toggleSelect = (bookingId) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(bookingId)) next.delete(bookingId);
+            else next.add(bookingId);
+            return next;
+        });
+    };
+
+    const toggleSelectPage = () => {
+        const pageIds = rows.map((r) => r.bookingId);
+        const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (allSelected) pageIds.forEach((id) => next.delete(id));
+            else pageIds.forEach((id) => next.add(id));
+            return next;
+        });
+    };
+
+    const openMessageModal = (bookingIds, label = '') => {
+        setMessageModal({ open: true, bookingIds, label });
+    };
+
+    const handleSendMessage = async (payload) => {
+        const res = await sendTrekOrganizerParticipantMessage(trekId, {
+            bookingIds: messageModal.bookingIds,
+            ...payload,
+        });
+        const d = res.delivery;
+        const parts = [];
+        if (d?.email) parts.push(`${d.email} email`);
+        if (d?.inApp) parts.push(`${d.inApp} in-app`);
+        if (d?.push) parts.push(`${d.push} push`);
+        toast(parts.length ? `${res.message} · ${parts.join(', ')}` : res.message || 'Sent');
+        setSelectedIds(new Set());
+    };
 
     const pageStats = useMemo(() => {
         const paid = rows.filter((r) => r.paymentStatus === 'Paid').length;
@@ -161,6 +209,7 @@ export default function TrekOrganizerParticipantsPage() {
         setSearch('');
         setPaymentFilter('');
         setCheckInFilter('');
+        setGenderFilter('');
         setPage(1);
     };
 
@@ -174,6 +223,16 @@ export default function TrekOrganizerParticipantsPage() {
                     <p className="text-sm text-gray-500 mt-0.5">{trekName || 'Trek registrations'}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
+                    {selectedIds.size > 0 ? (
+                        <button
+                            type="button"
+                            onClick={() => openMessageModal([...selectedIds])}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366] text-white text-xs font-bold hover:opacity-90"
+                        >
+                            <Mail size={14} />
+                            Email selected ({selectedIds.size})
+                        </button>
+                    ) : null}
                     {rows.length > 0 ? (
                         <button
                             type="button"
@@ -235,13 +294,16 @@ export default function TrekOrganizerParticipantsPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <FilterChip active={!paymentFilter && !checkInFilter} onClick={() => { setPaymentFilter(''); setCheckInFilter(''); setPage(1); }}>All</FilterChip>
+                    <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter} onClick={() => { setPaymentFilter(''); setCheckInFilter(''); setGenderFilter(''); setPage(1); }}>All</FilterChip>
                     <span className="w-px h-4 bg-gray-700 hidden sm:block" />
                     <FilterChip active={paymentFilter === 'paid'} onClick={() => { setPaymentFilter(paymentFilter === 'paid' ? '' : 'paid'); setPage(1); }}>Paid</FilterChip>
                     <FilterChip active={paymentFilter === 'free'} onClick={() => { setPaymentFilter(paymentFilter === 'free' ? '' : 'free'); setPage(1); }}>Free</FilterChip>
                     <span className="w-px h-4 bg-gray-700 hidden sm:block" />
                     <FilterChip active={checkInFilter === 'checked_in'} onClick={() => { setCheckInFilter(checkInFilter === 'checked_in' ? '' : 'checked_in'); setPage(1); }}>Checked in</FilterChip>
                     <FilterChip active={checkInFilter === 'pending'} onClick={() => { setCheckInFilter(checkInFilter === 'pending' ? '' : 'pending'); setPage(1); }}>Not yet</FilterChip>
+                    <span className="w-px h-4 bg-gray-700 hidden sm:block" />
+                    <FilterChip active={genderFilter === 'Female'} onClick={() => { setGenderFilter(genderFilter === 'Female' ? '' : 'Female'); setPage(1); }}>Women</FilterChip>
+                    <FilterChip active={genderFilter === 'Male'} onClick={() => { setGenderFilter(genderFilter === 'Male' ? '' : 'Male'); setPage(1); }}>Men</FilterChip>
                     {hasFilters ? (
                         <button type="button" onClick={clearFilters} className="text-xs text-[#0ECCEE] ml-auto hover:underline">
                             Clear filters
@@ -251,11 +313,22 @@ export default function TrekOrganizerParticipantsPage() {
             </div>
 
             {!loading && rows.length > 0 ? (
-                <p className="text-xs text-gray-500">
-                    Showing {rows.length} of {pagination.total}
-                    {hasFilters ? ' (filtered)' : ''}
-                    {' · '}{pageStats.checkedIn} checked in on this page
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-gray-500">
+                        Showing {rows.length} of {pagination.total}
+                        {hasFilters ? ' (filtered)' : ''}
+                        {' · '}{pageStats.checkedIn} checked in on this page
+                    </p>
+                    <label className="inline-flex items-center gap-2 text-xs text-gray-400 cursor-pointer shrink-0">
+                        <input
+                            type="checkbox"
+                            checked={rows.length > 0 && rows.every((r) => selectedIds.has(r.bookingId))}
+                            onChange={toggleSelectPage}
+                            className="rounded border-gray-600"
+                        />
+                        Select page
+                    </label>
+                </div>
             ) : null}
 
             {loading ? (
@@ -279,7 +352,10 @@ export default function TrekOrganizerParticipantsPage() {
                             participant={row}
                             index={startIndex + i + 1}
                             forceOpen={expandAll}
+                            selected={selectedIds.has(row.bookingId)}
+                            onToggleSelect={toggleSelect}
                             onResend={handleResend}
+                            onSendEmail={(p) => openMessageModal([p.bookingId], p.participantName)}
                             onDelete={handleDelete}
                             onCopied={(msg) => toast(msg)}
                         />
@@ -300,6 +376,14 @@ export default function TrekOrganizerParticipantsPage() {
                     </div>
                 </div>
             ) : null}
+
+            <TrekOrganizerMessageModal
+                open={messageModal.open}
+                onClose={() => setMessageModal({ open: false, bookingIds: [], label: '' })}
+                recipientCount={messageModal.bookingIds.length}
+                recipientLabel={messageModal.label}
+                onSend={handleSendMessage}
+            />
         </div>
     );
 }

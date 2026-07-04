@@ -73,6 +73,157 @@ const getDefaultFrom = () => {
     return 'CrwdCtrl <onboarding@crwdctrl.in>';
 };
 
+const getSiteUrl = () => (process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '');
+
+const REGISTRATION_TYPE_META = {
+    trek: { icon: '🥾', noun: 'Trek', thankHeadline: 'Thanks for booking!', confirmHeadline: 'Your trek is confirmed' },
+    fest: { icon: '🎪', noun: 'Fest', thankHeadline: 'Thanks for registering!', confirmHeadline: 'Registration confirmed' },
+    event: { icon: '🎟️', noun: 'Event', thankHeadline: 'Thanks for registering!', confirmHeadline: 'Your spot is confirmed' },
+    competition: { icon: '🏆', noun: 'Competition', thankHeadline: 'Thanks for registering!', confirmHeadline: 'Registration confirmed' },
+};
+
+function resolveRegistrationMeta(type = 'fest') {
+    return REGISTRATION_TYPE_META[type] || REGISTRATION_TYPE_META.fest;
+}
+
+function formatSubmissionDateIST(date = new Date()) {
+    return new Date(date).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function resolveTicketHref(ticketLink) {
+    if (!ticketLink) return `${getSiteUrl()}/profile/bookings`;
+    return ticketLink.startsWith('http') ? ticketLink : `${getSiteUrl()}${ticketLink.startsWith('/') ? '' : '/'}${ticketLink}`;
+}
+
+/** Shared responsive email shell — CrwdCtrl brand */
+function buildEmailShell({
+    preheader = '',
+    eyebrow = 'CrwdCtrl',
+    title,
+    subtitle = '',
+    bodyHtml = '',
+    ctaLabel = '',
+    ctaHref = '',
+    footnote = 'Need help? Reply to this email or contact us at team.crwdctrl@gmail.com',
+}) {
+    const safePreheader = preheader.replace(/"/g, '&quot;');
+    const ctaBlock = ctaLabel && ctaHref ? `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 28px 0 8px;">
+            <tr>
+                <td align="center">
+                    <a href="${ctaHref}" style="display: inline-block; background: linear-gradient(135deg, #053780, #0a5ea8); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 28px; border-radius: 999px;">
+                        ${ctaLabel}
+                    </a>
+                </td>
+            </tr>
+        </table>` : '';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1f2937;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${safePreheader}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2f7;padding:24px 12px;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 30px rgba(5,55,128,0.08);">
+                    <tr>
+                        <td style="background:linear-gradient(135deg,#053780 0%,#0ECCEE 100%);padding:28px 24px;text-align:center;">
+                            <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.85);">${eyebrow}</p>
+                            <h1 style="margin:0;font-size:24px;line-height:1.3;color:#ffffff;font-weight:800;">${title}</h1>
+                            ${subtitle ? `<p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,0.92);">${subtitle}</p>` : ''}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:28px 24px 12px;font-size:15px;line-height:1.7;color:#374151;">
+                            ${bodyHtml}
+                            ${ctaBlock}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0 24px 24px;">
+                            <p style="margin:0;font-size:12px;line-height:1.6;color:#9ca3af;text-align:center;">${footnote}</p>
+                            <p style="margin:8px 0 0;font-size:12px;color:#9ca3af;text-align:center;">© ${new Date().getFullYear()} CrwdCtrl</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+}
+
+function buildDetailsTable(rows = []) {
+    const items = (rows || []).filter((r) => r?.label && r?.value);
+    if (!items.length) return '';
+    const rowHtml = items.map((r) => `
+        <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;width:38%;vertical-align:top;">${r.label}</td>
+            <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:14px;color:#111827;font-weight:600;text-align:right;vertical-align:top;">${r.value}</td>
+        </tr>`).join('');
+    return `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0;background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:4px 16px;">
+            ${rowHtml}
+        </table>`;
+}
+
+function buildWhatsAppJoinBlock(groupLink, communityName) {
+    const url = String(groupLink || '').trim();
+    if (!url) return '';
+    const fromLabel = communityName ? ` from <strong>${communityName}</strong>` : '';
+    return `
+        <div style="margin:20px 0;padding:18px;border-radius:14px;background:#ecfdf5;border:1px solid #6ee7b7;">
+            <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#065f46;">Join the WhatsApp group</p>
+            <p style="margin:0 0 14px;font-size:13px;line-height:1.6;color:#047857;">Get trek updates, meetup details and announcements${fromLabel}.</p>
+            <a href="${url}" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 20px;border-radius:999px;">Join WhatsApp group</a>
+            <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#047857;word-break:break-all;">Or copy this link: <a href="${url}" style="color:#047857;">${url}</a></p>
+        </div>`;
+}
+
+function buildPaymentNotice(paymentContext = {}) {
+    const status = paymentContext?.status || 'unknown';
+    const method = paymentContext?.method || '';
+    const methodLabel = method === 'cashfree' ? 'Cashfree' : method;
+
+    if (status === 'paid') {
+        return `
+            <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#ecfdf5;border:1px solid #a7f3d0;">
+                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#065f46;">Payment received</p>
+                <p style="margin:0;font-size:13px;line-height:1.6;color:#047857;">Your payment${methodLabel ? ` via ${methodLabel}` : ''} is confirmed. You're all set.</p>
+            </div>`;
+    }
+    if (status === 'free') {
+        return `
+            <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#eff6ff;border:1px solid #bfdbfe;">
+                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#1e40af;">Free registration</p>
+                <p style="margin:0;font-size:13px;line-height:1.6;color:#1d4ed8;">No payment was required. See you there!</p>
+            </div>`;
+    }
+    if (status === 'pending') {
+        return `
+            <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#fffbeb;border:1px solid #fde68a;">
+                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#92400e;">Payment under review</p>
+                <p style="margin:0;font-size:13px;line-height:1.6;color:#b45309;">We'll confirm once verification is complete.</p>
+            </div>`;
+    }
+    return `
+        <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#f9fafb;border:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:13px;line-height:1.6;color:#4b5563;">We'll share updates and next steps closer to the date.</p>
+        </div>`;
+}
+
 // ✅ UNIVERSAL EMAIL SENDER - Uses queue to prevent rate limiting
 const sendEmail = async (mailOptions) => {
     return queueEmail(async () => {
@@ -133,37 +284,32 @@ const sendEventBroadcast = async (userList, eventDetails) => {
     return results;
 };
 
-const generateTrekParticipantEmailHTML = ({ name, title, message, trekName, link, kind }) => {
+const generateTrekParticipantEmailHTML = ({ name, title, message, trekName, link, kind, groupLink, communityName }) => {
     const headerLabel = kind === 'registration'
         ? 'Booking update'
         : kind === 'reminder'
             ? 'Trek reminder'
-            : 'Trek announcement';
-    const siteUrl = process.env.FRONTEND_URL || 'https://crwdctrl.in';
-    const fullLink = link?.startsWith('http') ? link : `${siteUrl.replace(/\/$/, '')}${link || '/treks'}`;
+            : kind === 'organizer'
+                ? 'Message from organizer'
+                : 'Trek update';
+    const fullLink = resolveTicketHref(link || '/treks');
+    const bodyMessage = String(message || '').replace(/\n/g, '<br/>');
 
-    return `
-    <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 12px; overflow: hidden;">
-        <div style="background: linear-gradient(135deg, #053780, #0ECCEE); padding: 28px; text-align: center; color: white;">
-            <p style="margin: 0 0 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.9;">${headerLabel}</p>
-            <h1 style="margin: 0; font-size: 22px;">${title}</h1>
-        </div>
-        <div style="padding: 28px; color: #333; line-height: 1.6;">
-            <p>Hi <b>${name || 'there'}</b>,</p>
-            <p>${message}</p>
-            <div style="background: #f0f9ff; padding: 16px; border-radius: 10px; border-left: 4px solid #0ECCEE; margin: 20px 0;">
-                <p style="margin: 0; font-size: 14px;"><b>Trek:</b> ${trekName}</p>
-            </div>
-            <p style="text-align: center; margin-top: 24px;">
-                <a href="${fullLink}" style="background: #053780; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
-                    View details
-                </a>
-            </p>
-            <p style="font-size: 12px; color: #777; text-align: center; margin-top: 24px;">
-                You received this about your trek registration on CrwdCtrl.
-            </p>
-        </div>
-    </div>`;
+    return buildEmailShell({
+        preheader: `${trekName} — ${title}`,
+        eyebrow: headerLabel,
+        title,
+        subtitle: trekName,
+        bodyHtml: `
+            <p style="margin:0 0 12px;">Hi <strong>${name || 'there'}</strong>,</p>
+            <p style="margin:0 0 12px;line-height:1.6;">${bodyMessage}</p>
+            ${buildDetailsTable([{ label: 'Trek', value: trekName }])}
+            ${buildWhatsAppJoinBlock(groupLink, communityName)}
+        `,
+        ctaLabel: 'View booking',
+        ctaHref: fullLink,
+        footnote: 'You received this about your trek on CrwdCtrl.',
+    });
 };
 
 const sendTrekParticipantEmails = async (recipients = []) => {
@@ -428,8 +574,8 @@ const generateWelcomeEmailHTML = (userData) => {
     `;
 };
 
-// Send immediate thank you email after registration submission (GENERALIZED)
-const sendRegistrationThankYouEmail = async (userEmail, userName, festName) => {
+// Send immediate thank you email after registration submission
+const sendRegistrationThankYouEmail = async (userEmail, userName, eventName, options = {}) => {
     try {
         console.log('📧 Sending thank you email to:', userEmail);
 
@@ -438,11 +584,12 @@ const sendRegistrationThankYouEmail = async (userEmail, userName, festName) => {
             return { success: false, error: 'User email missing' };
         }
 
+        const meta = resolveRegistrationMeta(options.type);
         const mailOptions = {
             from: getDefaultFrom(),
             to: userEmail,
-            subject: `Thank you for registering - ${festName}`,
-            html: generateThankYouEmailHTML(userName, festName)
+            subject: `${meta.icon} You're in — ${eventName}`,
+            html: generateThankYouEmailHTML(userName, eventName, options),
         };
 
         const result = await sendEmail(mailOptions);
@@ -450,12 +597,11 @@ const sendRegistrationThankYouEmail = async (userEmail, userName, festName) => {
         return result;
     } catch (error) {
         console.error('❌ Thank you email sending failed:', error);
-        // Don't throw error - email failure shouldn't break registration
         return { success: false, error: error.message };
     }
 };
 
-// Send registration confirmation email with details (GENERALIZED)
+// Send registration confirmation email with details
 const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, competitionName, registrationId, submissionDate, paymentContext = {}) => {
     try {
         console.log('📧 Sending confirmation email to:', userEmail);
@@ -465,11 +611,12 @@ const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, 
             return { success: false, error: 'User email missing' };
         }
 
+        const meta = resolveRegistrationMeta(paymentContext.type);
         const mailOptions = {
             from: getDefaultFrom(),
             to: userEmail,
-            subject: `Registration Confirmed - ${festName}`,
-            html: generateConfirmationEmailHTML(userName, festName, competitionName, registrationId, submissionDate, paymentContext)
+            subject: `${meta.icon} ${meta.confirmHeadline} — ${festName}`,
+            html: generateConfirmationEmailHTML(userName, festName, competitionName, registrationId, submissionDate, paymentContext),
         };
 
         const result = await sendEmail(mailOptions);
@@ -477,307 +624,112 @@ const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, 
         return result;
     } catch (error) {
         console.error('❌ Confirmation email sending failed:', error);
-        // Don't throw error - email failure shouldn't break registration
         return { success: false, error: error.message };
     }
 };
 
-// Generate HTML content for thank you email (GENERALIZED)
-const generateThankYouEmailHTML = (userName, festName) => {
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                line-height: 1.6; 
-                color: #333; 
-                margin: 0; 
-                padding: 0;
-                background-color: #f5f5f5;
-            }
-            .container { 
-                max-width: 600px; 
-                margin: 20px auto; 
-                background: white;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .header { 
-                background: linear-gradient(135deg, #053780, #0ECCEE); 
-                color: white; 
-                padding: 30px 20px; 
-                text-align: center;
-            }
-            .header h1 {
-                margin: 0;
-                font-size: 28px;
-                font-weight: bold;
-            }
-            .content { 
-                padding: 30px 20px;
-                text-align: center;
-            }
-            .message {
-                font-size: 18px;
-                line-height: 1.8;
-                color: #555;
-            }
-            .fest-name {
-                color: #053780;
-                font-weight: bold;
-                font-size: 20px;
-            }
-            .footer {
-                background: #f8f9fa;
-                padding: 20px;
-                text-align: center;
-                border-top: 1px solid #e9ecef;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🎉 Thank You!</h1>
-            </div>
-            
-            <div class="content">
-                <div class="message">
-                    <p>Hi <strong>${userName}</strong>,</p>
-                    <p>Thank you for registering for</p>
-                    <p class="fest-name">${festName}</p>
-                    <p>We're processing your registration and will send you a confirmation email shortly.</p>
-                </div>
-            </div>
-            
-            <div class="footer">
-                <p><strong>Team CrwdCtrl</strong></p>
-                <p style="font-size: 12px; color: #999;">This is an automated email</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
+/** Trek booking — thank you + confirmation after register */
+const sendTrekRegistrationEmails = async ({
+    userEmail,
+    userName,
+    trekName,
+    bookingId,
+    bookingDetails = {},
+    amountPaid = 0,
+    groupLink = '',
+    communityName = '',
+}) => {
+    if (!userEmail) return { success: false, error: 'User email missing' };
+
+    const submissionDate = formatSubmissionDateIST();
+    const ticketLink = `/registration-details/${bookingId}?type=trek`;
+    const details = [
+        bookingDetails.date ? { label: 'Date', value: bookingDetails.date } : null,
+        bookingDetails.time ? { label: 'Time', value: bookingDetails.time } : null,
+        { label: 'Tickets', value: '1 person' },
+    ].filter(Boolean);
+    const payment = {
+        status: amountPaid > 0 ? 'paid' : 'free',
+        method: amountPaid > 0 ? 'cashfree' : '',
+        type: 'trek',
+        ticketLink,
+        details,
+        groupLink,
+        communityName,
+    };
+
+    await sendRegistrationThankYouEmail(userEmail, userName, trekName, {
+        type: 'trek',
+        ticketLink,
+        details,
+        groupLink,
+        communityName,
+    });
+    return sendRegistrationConfirmationEmail(
+        userEmail,
+        userName,
+        trekName,
+        null,
+        String(bookingId),
+        submissionDate,
+        payment,
+    );
 };
 
-// Generate HTML content for confirmation email (GENERALIZED)
+// Generate HTML content for thank you email
+const generateThankYouEmailHTML = (userName, eventName, options = {}) => {
+    const meta = resolveRegistrationMeta(options.type);
+    const ticketHref = resolveTicketHref(options.ticketLink);
+    const details = options.details || [];
+
+    return buildEmailShell({
+        preheader: `We received your ${meta.noun.toLowerCase()} registration for ${eventName}.`,
+        eyebrow: `${meta.icon} Registration received`,
+        title: meta.thankHeadline,
+        subtitle: eventName,
+        bodyHtml: `
+            <p style="margin:0 0 12px;">Hi <strong>${userName || 'there'}</strong>,</p>
+            <p style="margin:0 0 12px;">Your registration for <strong>${eventName}</strong> is in. We've saved your spot and sent a confirmation with your booking details.</p>
+            ${buildDetailsTable(details)}
+            ${buildWhatsAppJoinBlock(options.groupLink, options.communityName)}
+            <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">Keep this email handy. You can also view your ticket anytime from My Bookings in the app.</p>
+        `,
+        ctaLabel: options.ticketLink ? 'View ticket' : 'Open My Bookings',
+        ctaHref: ticketHref,
+    });
+};
+
+// Generate HTML content for confirmation email
 const generateConfirmationEmailHTML = (userName, festName, competitionName, registrationId, submissionDate, paymentContext = {}) => {
-    const paymentStatus = paymentContext?.status || 'unknown';
-    const paymentMethod = paymentContext?.method || '';
-    const paymentMethodLabel = paymentMethod === 'cashfree' ? 'Cashfree' : paymentMethod;
+    const meta = resolveRegistrationMeta(paymentContext.type);
+    const ticketHref = resolveTicketHref(paymentContext.ticketLink);
+    const extraDetails = paymentContext.details || [];
 
-    const nextStepsHtml = (() => {
-        if (paymentStatus === 'paid') {
-            const methodText = paymentMethodLabel ? ` via ${paymentMethodLabel}` : '';
-            return `
-                <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 25px 0; border: 2px solid #c3e6cb;">
-                    <h4 style="color: #155724; margin-bottom: 15px;">Payment confirmed</h4>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li style="color: #155724; margin-bottom: 8px;">Your payment${methodText} is verified.</li>
-                        <li style="color: #155724; margin-bottom: 8px;">We will share event updates and check-in details closer to the date.</li>
-                    </ul>
-                    <p style="color: #155724; margin: 15px 0 5px 0;">– Team ${festName}</p>
-                    <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
-                </div>
-            `;
-        }
+    const rows = [
+        { label: 'Name', value: userName },
+        { label: meta.noun, value: festName },
+        competitionName ? { label: 'Activity', value: competitionName } : null,
+        { label: 'Booking ID', value: registrationId },
+        { label: 'Registered on', value: submissionDate },
+        ...extraDetails,
+    ].filter(Boolean);
 
-        if (paymentStatus === 'free') {
-            return `
-                <div style="background: #e3f2fd; border: 1px solid #bbdefb; padding: 20px; border-radius: 8px; margin: 25px 0;">
-                    <h4 style="color: #0b4b74; margin-bottom: 15px;">No payment required</h4>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li style="color: #0b4b74; margin-bottom: 8px;">This registration did not require a payment.</li>
-                        <li style="color: #0b4b74; margin-bottom: 8px;">We will send next steps and updates shortly.</li>
-                    </ul>
-                    <p style="color: #0b4b74; margin: 15px 0 5px 0;">– Team ${festName}</p>
-                    <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
-                </div>
-            `;
-        }
-
-        if (paymentStatus === 'pending') {
-            return `
-                <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 25px 0;">
-                    <h4 style="color: #856404; margin-bottom: 15px;">Payment under review</h4>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li style="color: #856404; margin-bottom: 8px;">Your payment will be reviewed manually.</li>
-                        <li style="color: #856404; margin-bottom: 8px;">We will confirm once verification is complete.</li>
-                    </ul>
-                    <p style="color: #856404; margin: 15px 0 5px 0;">– Team ${festName}</p>
-                    <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
-                </div>
-            `;
-        }
-
-        return `
-            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 25px 0;">
-                <h4 style="color: #856404; margin-bottom: 15px;">What happens next?</h4>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                    <li style="color: #856404; margin-bottom: 8px;">We will review your registration details for completeness and accuracy.</li>
-                    <li style="color: #856404; margin-bottom: 8px;">We will share updates and next steps soon.</li>
-                </ul>
-                <p style="color: #856404; margin: 15px 0 5px 0;">– Team ${festName}</p>
-                <p style="font-size: 12px; color: #777; margin: 5px 0 0 0;">This is an automated message. Please do not reply.</p>
-            </div>
-        `;
-    })();
-
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                line-height: 1.6; 
-                color: #333; 
-                margin: 0; 
-                padding: 0;
-                background-color: #f5f5f5;
-            }
-            .container { 
-                max-width: 600px; 
-                margin: 20px auto; 
-                background: white;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .header { 
-                background: linear-gradient(135deg, #053780, #0ECCEE); 
-                color: white; 
-                padding: 30px 20px; 
-                text-align: center;
-            }
-            .header h1 {
-                margin: 0;
-                font-size: 28px;
-                font-weight: bold;
-            }
-            .content { 
-                padding: 30px 20px;
-            }
-            .success-message {
-                text-align: center;
-                margin-bottom: 30px;
-                padding: 20px;
-                background: #d4edda;
-                border: 2px solid #c3e6cb;
-                border-radius: 8px;
-            }
-            .success-message h2 {
-                color: #155724;
-                font-size: 24px;
-                margin: 0 0 10px 0;
-            }
-            .registration-details {
-                background: #f8f9fa;
-                padding: 20px;
-                border-radius: 8px;
-                margin: 25px 0;
-            }
-            .detail-row {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px 0;
-                border-bottom: 1px solid #e9ecef;
-            }
-            .detail-row:last-child {
-                border-bottom: none;
-            }
-            .detail-label {
-                font-weight: 600;
-                color: #495057;
-            }
-            .detail-value {
-                color: #6c757d;
-                text-align: right;
-                font-weight: 500;
-            }
-            .registration-id {
-                background: #e3f2fd;
-                padding: 15px;
-                border-radius: 8px;
-                text-align: center;
-                margin: 20px 0;
-                border: 2px solid #bbdefb;
-            }
-            .registration-id strong {
-                color: #053780;
-                font-size: 18px;
-            }
-            .footer {
-                background: #f8f9fa;
-                padding: 20px;
-                text-align: center;
-                border-top: 1px solid #e9ecef;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>✅ Registration Confirmed</h1>
-            </div>
-            
-            <div class="content">
-                <div class="success-message">
-                    <h2>Registration Successful!</h2>
-                    <p>Your registration has been confirmed</p>
-                </div>
-
-                <div class="registration-id">
-                    <p>Registration ID</p>
-                    <strong>${registrationId}</strong>
-                </div>
-
-                <div class="registration-details">
-                    <div class="detail-row">
-                        <span class="detail-label">Name</span>
-                        <span class="detail-value">${userName}</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="detail-label">Fest</span>
-                        <span class="detail-value">${festName}</span>
-                    </div>
-                    
-                    ${competitionName ? `
-                    <div class="detail-row">
-                        <span class="detail-label">Competition</span>
-                        <span class="detail-value">${competitionName}</span>
-                    </div>
-                    ` : ''}
-                    
-                    <div class="detail-row">
-                        <span class="detail-label">Submission Date</span>
-                        <span class="detail-value">${submissionDate}</span>
-                    </div>
-                </div>
-
-                <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; text-align: center; margin-top: 25px; border: 2px solid #c3e6cb;">
-                    <p style="color: #155724; margin: 0; font-size: 16px;">
-                        <strong>Thank you for registering!</strong><br>
-                        We'll keep you updated with further information.
-                    </p>
-                </div>
-
-                ${nextStepsHtml}
-            </div>
-            
-            <div class="footer">
-                <p><strong>Team CrwdCtrl</strong></p>
-                <p style="font-size: 12px; color: #999;">This is an automated confirmation email</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
+    return buildEmailShell({
+        preheader: `Confirmed — ${festName}. Booking ID ${registrationId}`,
+        eyebrow: `${meta.icon} Confirmed`,
+        title: meta.confirmHeadline,
+        subtitle: festName,
+        bodyHtml: `
+            <p style="margin:0 0 12px;">Hi <strong>${userName || 'there'}</strong>,</p>
+            <p style="margin:0 0 8px;">You're all set! Here are your registration details:</p>
+            ${buildDetailsTable(rows)}
+            ${buildPaymentNotice(paymentContext)}
+            ${buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName)}
+            <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">Show your ticket at check-in. We'll notify you if anything changes.</p>
+        `,
+        ctaLabel: paymentContext.ticketLink ? 'View ticket & QR' : 'View My Bookings',
+        ctaHref: ticketHref,
+    });
 };
 
 // Send organizer notification email when user registers
@@ -1134,6 +1086,7 @@ module.exports = {
     sendWelcomeEmail,
     sendRegistrationThankYouEmail,
     sendRegistrationConfirmationEmail,
+    sendTrekRegistrationEmails,
     sendOrganizerNotificationEmail,
     sendLoginConfirmationEmail,
     sendEventBroadcast,

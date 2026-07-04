@@ -5,6 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 
 import { userFetchJSON } from '../../services/api/client';
+import JoinCommunityButton from '../../components/JoinCommunityButton';
 
 function normalizeResponses(responses) {
   if (!responses) return {};
@@ -210,6 +211,15 @@ export default function RegistrationDetails() {
       ? `/payment-invoice/${registrationId}?type=event`
       : `/payment-invoice/${registrationId}`;
 
+  const trekCommunityGroupLink = isTrekBooking
+    ? String(
+        registration.groupLink ||
+        registration.trekId?.groupLink ||
+        registration.trekId?.communityId?.groupLink ||
+        '',
+      ).trim()
+    : '';
+
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 sm:pt-[calc(env(safe-area-inset-top)+2rem)] sm:pb-8">
       <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -319,6 +329,22 @@ export default function RegistrationDetails() {
             </div>
           </div>
         </div>
+
+        {isTrekBooking && trekCommunityGroupLink && (
+          <div className={`${isDark ? 'bg-[#0d2818] border border-green-900/50' : 'bg-green-50 border border-green-100'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
+            <h2 className={`text-lg sm:text-xl font-semibold mb-2 ${isDark ? 'text-green-300' : 'text-green-800'}`}>
+              Join WhatsApp for trek updates
+            </h2>
+            <p className={`text-sm mb-4 ${isDark ? 'text-green-400/80' : 'text-green-700'}`}>
+              Get announcements, meetup details and everything about <strong>{eventName}</strong> in the group.
+            </p>
+            <JoinCommunityButton
+              groupLink={trekCommunityGroupLink}
+              label="Join WhatsApp group"
+              className="bg-[#25D366] text-white hover:opacity-90"
+            />
+          </div>
+        )}
 
         {hasPaymentReceipt && (
           <div className={`${isDark ? 'bg-[#1D1E20]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>

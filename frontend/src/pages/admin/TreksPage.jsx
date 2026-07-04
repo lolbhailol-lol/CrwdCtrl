@@ -4,6 +4,11 @@ import TrekFormModal from '../../components/admin/TrekFormModal';
 import TrekCommunityFormModal from '../../components/admin/TrekCommunityFormModal';
 import { adminFetchJSON } from '../../utils/adminApi';
 import { useDialog } from '../../context/DialogContext';
+import { resolveCoverImage } from '../../utils/coverImages';
+
+function communityBannerUrl(c) {
+    return resolveCoverImage(c, 'hero') || c.coverImage || '';
+}
 
 const DIFFICULTY_BADGE = {
     easy:     'bg-green-900/60 text-green-300 border border-green-700',
@@ -287,8 +292,8 @@ export default function TreksPage() {
                                 <div className="flex items-center gap-3 p-4">
                                     {/* Thumbnail */}
                                     <div className="size-12 rounded-xl overflow-hidden shrink-0 bg-gray-800">
-                                        {c.coverImage
-                                            ? <img src={c.coverImage} alt={c.name} className="w-full h-full object-cover" />
+                                        {communityBannerUrl(c)
+                                            ? <img src={communityBannerUrl(c)} alt={c.name} className="w-full h-full object-cover" />
                                             : <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-green-900 to-emerald-700"><Users2 size={20} className="text-white/40" /></div>
                                         }
                                     </div>
@@ -336,7 +341,7 @@ export default function TreksPage() {
                                         <button
                                             onClick={() => { setSelectedComm(c); setShowCommForm(true); }}
                                             className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded-lg transition-colors"
-                                            title="Edit community"
+                                            title="Edit community (banner, details, gallery)"
                                         >
                                             <Edit2 size={13} className="text-gray-300" />
                                         </button>

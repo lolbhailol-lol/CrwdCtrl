@@ -5,6 +5,7 @@ const User = require('../model/usermodel');
 const { testGoogleSheetsConnection, appendPaymentOnlyToSheets } = require('../services/googleSheetsService');
 const { uploadToCloudinary } = require('../services/cloudinaryService');
 const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOrganizerNotificationEmail } = require('../services/emailService');
+const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
 const { createNotification } = require('./notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
@@ -437,7 +438,11 @@ const submitCustomCompetitionRegistration = async (req, res) => {
           await sendRegistrationThankYouEmail(
             user.email,
             user.name,
-            competition.name
+            competition.fest?.festName || competition.name,
+            {
+              type: 'competition',
+              ticketLink: `/registration-details/${registration._id}`,
+            },
           );
           console.log('✅ Thank you email sent successfully');
         } catch (emailError) {
@@ -463,7 +468,12 @@ const submitCustomCompetitionRegistration = async (req, res) => {
             competition.name,
             registrationId,
             submissionDate,
-            { status: paymentStatus, method: paymentStatus === 'paid' ? 'cashfree' : 'free' }
+            {
+              status: paymentStatus,
+              method: paymentStatus === 'paid' ? 'cashfree' : 'free',
+              type: 'competition',
+              ticketLink: `/registration-details/${registration._id}`,
+            },
           );
           console.log('✅ Confirmation email sent successfully');
         } catch (emailError) {
@@ -878,7 +888,10 @@ const submitCompetitionRegistration = async (req, res) => {
         // STEP 1: Send thank you email (async, non-blocking)
         try {
           console.log('📧 Sending thank you email for competition (async)...');
-          await sendRegistrationThankYouEmail(user.email, user.name, fest.festName);
+          await sendRegistrationThankYouEmail(user.email, user.name, fest.festName, {
+            type: 'fest',
+            ticketLink: `/registration-details/${registration._id}`,
+          });
           console.log('✅ Thank you email sent successfully');
         } catch (emailError) {
           console.error('⚠️ Thank you email failed:', emailError.message);
@@ -905,7 +918,12 @@ const submitCompetitionRegistration = async (req, res) => {
             competition.name, // Use competition name
             registration._id.toString(),
             submissionDate,
-            { status: paymentStatusRoute, method: paymentStatusRoute === 'paid' ? 'cashfree' : 'free' }
+            {
+              status: paymentStatusRoute,
+              method: paymentStatusRoute === 'paid' ? 'cashfree' : 'free',
+              type: 'competition',
+              ticketLink: `/registration-details/${registration._id}`,
+            },
           );
           console.log('✅ Confirmation email sent successfully');
 
@@ -1335,7 +1353,10 @@ const submitRegistration = async (req, res) => {
         // STEP 1: Send immediate thank you email (async)
         try {
           console.log('📧 Sending thank you email (async)...');
-          await sendRegistrationThankYouEmail(user.email, user.name, fest.festName);
+          await sendRegistrationThankYouEmail(user.email, user.name, fest.festName, {
+            type: 'fest',
+            ticketLink: `/registration-details/${registration._id}`,
+          });
           console.log('✅ Thank you email sent successfully');
         } catch (emailError) {
           console.error('⚠️ Thank you email failed:', emailError.message);
@@ -1376,7 +1397,13 @@ const submitRegistration = async (req, res) => {
             fest.festName,
             competitionName,
             registration._id.toString(),
-            submissionDate
+            submissionDate,
+            {
+              status: registration.paymentStatus || 'free',
+              method: registration.paymentStatus === 'paid' ? 'cashfree' : '',
+              type: 'fest',
+              ticketLink: `/registration-details/${registration._id}`,
+            },
           );
           
           console.log('✅ Confirmation email sent successfully');
@@ -1757,13 +1784,20 @@ const getTrekBookingDetails = async (req, res) => {
     const userId = req.user.userId;
 
     const booking = await TrekBooking.findOne({ _id: bookingId, userId })
-      .populate('trekId', 'trekName city coverImage images trekDate difficultyLevel registration');
+      .populate({
+        path: 'trekId',
+        select: 'trekName city coverImage images trekDate difficultyLevel registration communityId groupLink',
+        populate: { path: 'communityId', select: 'name groupLink' },
+      });
 
     if (!booking) {
       return res.status(404).json({ error: 'Trek booking not found' });
     }
 
-    res.json(booking);
+    const payload = booking.toObject ? booking.toObject() : booking;
+    const { groupLink, communityName } = resolveTrekGroupLink(payload.trekId);
+
+    res.json({ ...payload, groupLink, communityName });
   } catch (error) {
     console.error('Error fetching trek booking details:', error);
     res.status(500).json({ error: 'Failed to fetch trek booking details' });
@@ -2040,13 +2074,16 @@ const payAndRegisterFest = async (req, res) => {
 
     setImmediate(async () => {
       try {
-        await sendRegistrationThankYouEmail(user.email, user.name, fest.festName).catch(() => {});
+        await sendRegistrationThankYouEmail(user.email, user.name, fest.festName, {
+          type: 'fest',
+          ticketLink: festRegistrationLink,
+        }).catch(() => {});
         await sendRegistrationConfirmationEmail(
           user.email, user.name,
           fest.festName, null,
           registration._id.toString(),
           new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          { status: 'paid', method: 'cashfree' }
+          { status: 'paid', method: 'cashfree', type: 'fest', ticketLink: festRegistrationLink },
         ).catch(() => {});
 
         // Google Sheets
@@ -2179,14 +2216,17 @@ const payAndRegister = async (req, res) => {
     // Background: emails + sheets
     setImmediate(async () => {
       try {
-        await sendRegistrationThankYouEmail(user.email, user.name, competition.name).catch(() => {});
+        await sendRegistrationThankYouEmail(user.email, user.name, competition.fest?.festName || competition.name, {
+          type: 'competition',
+          ticketLink: payCompRegistrationLink,
+        }).catch(() => {});
         await sendRegistrationConfirmationEmail(
           user.email, user.name,
           competition.fest?.festName || competition.name,
           competition.name,
           registration._id.toString(),
           new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          { status: 'paid', method: 'cashfree' }
+          { status: 'paid', method: 'cashfree', type: 'competition', ticketLink: payCompRegistrationLink },
         ).catch(() => {});
 
         // Google Sheets — use the fest's Google Sheets URL if configured
@@ -2358,7 +2398,26 @@ const submitEventShowRegistration = async (req, res) => {
     setImmediate(async () => {
       try {
         if (user?.email) {
-          await sendRegistrationThankYouEmail(user.email, user.name, eventShow.title).catch(() => {});
+          const eventTicketLink = `/registration-details/${registration._id}?type=event`;
+          const eventPaymentStatus = registration.amountPaid > 0 ? 'paid' : 'free';
+          await sendRegistrationThankYouEmail(user.email, user.name, eventShow.title, {
+            type: 'event',
+            ticketLink: eventTicketLink,
+          }).catch(() => {});
+          await sendRegistrationConfirmationEmail(
+            user.email,
+            user.name,
+            eventShow.title,
+            null,
+            registration._id.toString(),
+            new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+            {
+              status: eventPaymentStatus,
+              method: eventPaymentStatus === 'paid' ? 'cashfree' : '',
+              type: 'event',
+              ticketLink: eventTicketLink,
+            },
+          ).catch(() => {});
         }
 
         // Auto-append the registration to the organiser's Google Sheet (incl. payment id)

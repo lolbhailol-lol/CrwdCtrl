@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
@@ -8,7 +8,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
-import { shareContent } from '../../utils/externalLink';
+import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
 import {
     AnimatedCard,
@@ -73,6 +73,7 @@ const normalizeCommunity = (raw) => {
         galleryImages,
         contactPhone: raw.contactPhone || '',
         contactInstagram: raw.contactInstagram || '',
+        groupLink: raw.groupLink || '',
         contacts: Array.isArray(raw.contacts)
             ? raw.contacts.filter((c) => c && (c.name || c.role || c.phone))
             : [],
@@ -298,7 +299,7 @@ export default function CommunityDetailPage() {
             {/* Full-bleed on phones, centered & aligned with content on larger screens (matches events) */}
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
             <ImmersiveHero
-                imageSrc={getCoverImageUrl(community, 'hero') || getCoverImageUrl(community, 'cardPortrait') || null}
+                imageSrc={getCoverImageUrl(community, 'communityBanner') || getCoverImageUrl(community, 'hero') || getCoverImageUrl(community, 'cardPortrait') || null}
                 imageAlt={name}
                 height="396px"
                 onImageError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}

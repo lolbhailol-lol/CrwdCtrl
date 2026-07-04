@@ -46,6 +46,13 @@ export async function fetchTrekOrganizerDashboard(trekId) {
     return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/dashboard`);
 }
 
+export async function updateTrekOrganizerRegistration(trekId, body) {
+    return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/registration`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+    });
+}
+
 export async function fetchTrekOrganizerParticipants(trekId, params = {}) {
     const qs = new URLSearchParams(params).toString();
     return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/participants?${qs}`);
@@ -98,6 +105,13 @@ export async function deleteTrekOrganizerParticipant(trekId, bookingId) {
 
 export async function sendTrekOrganizerReminder(trekId, body) {
     return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/notifications/reminder`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+    });
+}
+
+export async function sendTrekOrganizerParticipantMessage(trekId, body) {
+    return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/participants/message`, {
         method: 'POST',
         body: JSON.stringify(body),
     });

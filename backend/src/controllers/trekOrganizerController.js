@@ -8,7 +8,11 @@ const { performCheckinFromRaw } = require('../services/checkinService');
 const {
     notifyTrekParticipant,
     notifyTrekParticipants,
+    resolveParticipantEmail,
+    resolveParticipantName,
 } = require('../utils/trekParticipantOutreach');
+const { sendTrekRegistrationEmails, sendTrekParticipantEmails } = require('../services/emailService');
+const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
 const {
     formatParticipantRow,
     formatParticipantDetail,
@@ -16,6 +20,12 @@ const {
     buildSheetColumns,
     participantsToCsv,
 } = require('../utils/trekOrganizerFormat');
+const {
+    sanitizeGenderQuotas,
+    sanitizeGenderPhase,
+    getGenderRegistrationSnapshot,
+    aggregateGenderQuotaStats,
+} = require('../utils/trekGenderRegistration');
 const {
     normalizeUsername,
     getOrganizerTreks,
@@ -141,7 +151,9 @@ exports.getMe = async (req, res) => {
 exports.getDashboard = async (req, res) => {
     try {
         const trekId = req.trekId;
-        const trek = await Trek.findById(trekId).select('trekName city trekDate status maxParticipants trekBatches registration.status registrationFee platformFeePercent').lean();
+        const trek = await Trek.findById(trekId).select(
+            'trekName city trekDate status maxParticipants trekBatches registration.status registrationFee platformFeePercent registration.genderQuotas registration.genderPhase'
+        ).lean();
         if (!trek) return res.status(404).json({ success: false, message: 'Trek not found' });
 
         const today = startOfToday();
@@ -172,6 +184,8 @@ exports.getDashboard = async (req, res) => {
         const seatsFilled = seatAgg[0]?.seats || totalRegistrations;
         const capacity = await getTrekCapacity(trek);
         const seatsRemaining = capacity > 0 ? Math.max(0, capacity - seatsFilled) : null;
+        const genderRegistration = await getGenderRegistrationSnapshot(trek);
+        const genderStats = await aggregateGenderQuotaStats(trekId);
 
         res.json({
             success: true,
@@ -182,7 +196,11 @@ exports.getDashboard = async (req, res) => {
                 trekDate: trek.trekDate,
                 status: trek.status,
                 capacity,
+                registrationStatus: trek.registration?.status || 'open',
+                genderQuotas: trek.registration?.genderQuotas || {},
+                genderPhase: trek.registration?.genderPhase || 'all',
             },
+            genderRegistration,
             stats: {
                 totalRegistrations,
                 seatsFilled,
@@ -194,6 +212,8 @@ exports.getDashboard = async (req, res) => {
                 platformFees,
                 grossCollected,
                 todayRegistrations,
+                femaleCount: genderStats.female?.bookings || 0,
+                maleCount: genderStats.male?.bookings || 0,
             },
         });
     } catch (error) {
@@ -211,6 +231,7 @@ exports.listParticipants = async (req, res) => {
         const search = String(req.query.search || '').trim();
         const paymentStatus = req.query.paymentStatus;
         const checkInStatus = req.query.checkInStatus;
+        const genderFilter = req.query.gender;
         const sortBy = req.query.sortBy || 'createdAt';
         const sortDir = req.query.sortDir === 'asc' ? 1 : -1;
 
@@ -220,6 +241,9 @@ exports.listParticipants = async (req, res) => {
         if (paymentStatus === 'free') filter['bookingDetails.amountPaid'] = { $lte: 0 };
         if (checkInStatus === 'checked_in') filter.checkedIn = true;
         if (checkInStatus === 'pending') filter.checkedIn = { $ne: true };
+        if (genderFilter === 'Female' || genderFilter === 'Male' || genderFilter === 'Others') {
+            filter.participantGender = genderFilter;
+        }
 
         if (search) {
             const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -248,7 +272,7 @@ exports.listParticipants = async (req, res) => {
 
         const [bookings, total, trek] = await Promise.all([
             TrekBooking.find(filter)
-                .populate('userId', 'name email phoneNumber')
+                .populate('userId', 'name email phoneNumber gender')
                 .sort({ [sortKey]: sortDir })
                 .skip(skip)
                 .limit(limit)
@@ -410,13 +434,20 @@ exports.resendConfirmation = async (req, res) => {
         const { bookingId } = req.params;
         const booking = await TrekBooking.findOne({ _id: bookingId, trekId: req.trekId })
             .populate('userId', 'name email notificationPreferences')
-            .populate('trekId', 'trekName');
+            .populate({
+                path: 'trekId',
+                select: 'trekName groupLink communityId',
+                populate: { path: 'communityId', select: 'name groupLink' },
+            });
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
 
         const trekName = booking.trekId?.trekName || 'your trek';
+        const { groupLink, communityName } = resolveTrekGroupLink(booking.trekId);
         const link = `/registration-details/${booking._id}?type=trek`;
         const title = 'Trek Booking Confirmed';
-        const message = `Your registration for ${trekName} is confirmed. View your ticket anytime.`;
+        const message = groupLink
+            ? `Your registration for ${trekName} is confirmed. Join the WhatsApp group for trek updates.`
+            : `Your registration for ${trekName} is confirmed. View your ticket anytime.`;
 
         const result = await notifyTrekParticipant({
             booking: booking.toObject ? booking.toObject() : booking,
@@ -427,10 +458,35 @@ exports.resendConfirmation = async (req, res) => {
             type: 'registration',
             link,
             emailSubject: `Trek booking confirmed — ${trekName}`,
-            metadata: { registrationId: booking._id, resentBy: 'trek_organizer' },
+            metadata: { registrationId: booking._id, resentBy: 'trek_organizer', groupLink: groupLink || undefined },
+            skipEmail: true,
         });
 
-        if (!result.inApp && !result.push && !result.email) {
+        const userEmail = booking.userId?.email || booking.userEmail;
+        const userName = booking.userId?.name || booking.userName;
+        let emailSent = false;
+        if (userEmail) {
+            try {
+                await sendTrekRegistrationEmails({
+                    userEmail,
+                    userName,
+                    trekName,
+                    bookingId: booking._id,
+                    bookingDetails: {
+                        date: booking.bookingDetails?.date || '',
+                        time: booking.bookingDetails?.time || '',
+                    },
+                    amountPaid: booking.bookingDetails?.amountPaid || 0,
+                    groupLink,
+                    communityName,
+                });
+                emailSent = true;
+            } catch (emailErr) {
+                console.error('[Trek Organizer] Resend confirmation email failed:', emailErr.message);
+            }
+        }
+
+        if (!result.inApp && !result.push && !emailSent) {
             return res.status(400).json({
                 success: false,
                 message: 'No email or linked account found for this participant',
@@ -443,11 +499,125 @@ exports.resendConfirmation = async (req, res) => {
             delivery: {
                 inApp: result.inApp,
                 push: result.push,
-                email: result.email,
+                email: emailSent,
             },
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to resend confirmation' });
+    }
+};
+
+exports.sendParticipantMessages = async (req, res) => {
+    try {
+        const title = String(req.body.title || '').trim();
+        const message = String(req.body.message || '').trim();
+        if (!title || !message) {
+            return res.status(400).json({ success: false, message: 'Title and message are required' });
+        }
+
+        const bookingIds = (Array.isArray(req.body.bookingIds) ? req.body.bookingIds : [])
+            .map((id) => String(id || '').trim())
+            .filter((id) => mongoose.Types.ObjectId.isValid(id));
+        if (!bookingIds.length) {
+            return res.status(400).json({ success: false, message: 'Select at least one participant' });
+        }
+
+        const includeWhatsAppLink = req.body.includeWhatsAppLink === true;
+        const notifyInApp = req.body.notifyInApp !== false;
+
+        const trek = await Trek.findById(req.trekId)
+            .populate('communityId', 'name groupLink')
+            .select('trekName groupLink communityId')
+            .lean();
+        if (!trek) return res.status(404).json({ success: false, message: 'Trek not found' });
+
+        const resolved = resolveTrekGroupLink(trek);
+        const groupLink = includeWhatsAppLink ? resolved.groupLink : '';
+        const communityName = includeWhatsAppLink ? resolved.communityName : '';
+        const trekName = trek.trekName || 'Trek';
+
+        const bookings = await TrekBooking.find({
+            _id: { $in: bookingIds },
+            trekId: req.trekId,
+            status: 'confirmed',
+        }).populate('userId', 'name email notificationPreferences');
+
+        const stats = {
+            email: 0,
+            emailFailed: 0,
+            inApp: 0,
+            push: 0,
+            skipped: bookingIds.length - bookings.length,
+            requested: bookingIds.length,
+        };
+
+        for (const booking of bookings) {
+            const bookingObj = booking.toObject ? booking.toObject() : booking;
+            const email = resolveParticipantEmail(bookingObj);
+            const name = resolveParticipantName(bookingObj);
+            const link = `/registration-details/${booking._id}?type=trek`;
+            let delivered = false;
+
+            if (email) {
+                const result = await sendTrekParticipantEmails([{
+                    email,
+                    name,
+                    subject: title,
+                    title,
+                    message,
+                    trekName,
+                    link,
+                    kind: 'organizer',
+                    groupLink,
+                    communityName,
+                }]);
+                if (result.success > 0) {
+                    stats.email += 1;
+                    delivered = true;
+                } else {
+                    stats.emailFailed += 1;
+                }
+            }
+
+            if (notifyInApp) {
+                const notif = await notifyTrekParticipant({
+                    booking: bookingObj,
+                    trekId: req.trekId,
+                    trekName,
+                    title,
+                    message,
+                    type: 'announcement',
+                    link,
+                    emailSubject: title,
+                    metadata: { source: 'trek_organizer_direct', bookingId: booking._id },
+                    skipEmail: true,
+                });
+                if (notif.inApp) {
+                    stats.inApp += 1;
+                    delivered = true;
+                }
+                if (notif.push) stats.push += 1;
+            }
+
+            if (!delivered) stats.skipped += 1;
+        }
+
+        if (stats.email === 0 && stats.inApp === 0 && stats.push === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Could not deliver to any selected participant (missing email or app account)',
+                delivery: stats,
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `Message sent to ${stats.email + stats.inApp} participant(s)`,
+            delivery: stats,
+        });
+    } catch (error) {
+        console.error('[trekOrganizer.sendParticipantMessages]', error);
+        res.status(500).json({ success: false, message: 'Failed to send messages' });
     }
 };
 
@@ -510,6 +680,54 @@ exports.broadcastAnnouncement = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to broadcast announcement' });
+    }
+};
+
+exports.updateRegistrationSettings = async (req, res) => {
+    try {
+        const trek = await Trek.findById(req.trekId);
+        if (!trek) {
+            return res.status(404).json({ success: false, message: 'Trek not found' });
+        }
+
+        const body = req.body || {};
+        if (!trek.registration) trek.registration = {};
+
+        if (body.genderQuotas !== undefined) {
+            trek.registration.genderQuotas = sanitizeGenderQuotas({
+                ...(trek.registration.genderQuotas?.toObject?.() || trek.registration.genderQuotas || {}),
+                ...body.genderQuotas,
+            });
+        }
+        if (body.genderPhase !== undefined) {
+            trek.registration.genderPhase = sanitizeGenderPhase(body.genderPhase);
+        }
+        if (body.registrationStatus !== undefined) {
+            const allowed = ['open', 'closed', 'not_open_yet'];
+            if (allowed.includes(body.registrationStatus)) {
+                trek.registration.status = body.registrationStatus;
+            }
+        }
+
+        trek.markModified('registration');
+        await trek.save();
+
+        const genderRegistration = await getGenderRegistrationSnapshot(trek.toObject());
+
+        res.json({
+            success: true,
+            message: 'Registration settings updated',
+            trek: {
+                id: trek._id,
+                registrationStatus: trek.registration.status,
+                genderQuotas: trek.registration.genderQuotas,
+                genderPhase: trek.registration.genderPhase,
+            },
+            genderRegistration,
+        });
+    } catch (error) {
+        console.error('[trekOrganizer.updateRegistrationSettings]', error);
+        res.status(500).json({ success: false, message: 'Failed to update registration settings' });
     }
 };
 

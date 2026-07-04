@@ -4,6 +4,7 @@ const TrekBooking = require('../model/trek_booking_model');
 const CategoryRegistration = require('../model/category_registration_model');
 const SportsEvent = require('../model/sports_model');
 const { performCheckinFromRaw } = require('../services/checkinService');
+const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
 
 // ===== GET: Generate QR code for a registration =====
 const generateQR = async (req, res) => {
@@ -53,7 +54,11 @@ const generateTrekQR = async (req, res) => {
     const { bookingId } = req.params;
 
     const booking = await TrekBooking.findOne({ _id: bookingId, userId })
-      .populate('trekId', 'trekName trekDate city')
+      .populate({
+        path: 'trekId',
+        select: 'trekName trekDate city groupLink communityId',
+        populate: { path: 'communityId', select: 'name groupLink' },
+      })
       .populate('userId', 'name');
 
     if (!booking) {
@@ -64,6 +69,8 @@ const generateTrekQR = async (req, res) => {
       booking.qrCodeData = crypto.randomBytes(16).toString('hex');
       await booking.save();
     }
+
+    const { groupLink } = resolveTrekGroupLink(booking.trekId);
 
     res.json({
       success: true,
@@ -79,6 +86,7 @@ const generateTrekQR = async (req, res) => {
         trekTime: booking.bookingDetails?.time || null,
         venue: booking.trekId?.city || null,
         people: booking.bookingDetails?.people || 1,
+        groupLink,
         checkedIn: booking.checkedIn || false,
         checkedInAt: booking.checkedInAt || null,
       },

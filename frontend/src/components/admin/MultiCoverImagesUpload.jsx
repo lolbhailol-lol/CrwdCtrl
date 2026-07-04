@@ -15,9 +15,11 @@ export default function MultiCoverImagesUpload({
     onError,
     onUploadingChange,
     hint = 'Upload a separate image for each layout where this content appears.',
+    excludeKeys = [],
     className = '',
 }) {
     const covers = normalizeCoverImages(value);
+    const slots = COVER_IMAGE_SLOTS.filter((slot) => !excludeKeys.includes(slot.key));
     const [cropState, setCropState] = useState(null);
     const [uploadingKey, setUploadingKey] = useState(null);
 
@@ -54,7 +56,7 @@ export default function MultiCoverImagesUpload({
         <div className={className}>
             <p className="text-xs text-gray-500 mb-3">{hint}</p>
             <div className="space-y-3">
-                {COVER_IMAGE_SLOTS.map((slot) => {
+                {slots.map((slot) => {
                     const url = covers[slot.key];
                     const busy = uploadingKey === slot.key;
                     return (

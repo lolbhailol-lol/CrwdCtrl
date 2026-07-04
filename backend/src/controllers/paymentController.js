@@ -9,6 +9,7 @@ const PlatformEvent = require('../model/platform_event_model');
 const SportsEvent = require('../model/sports_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
+const { validateTrekGenderRegistration } = require('../utils/trekGenderRegistration');
 const {
   createCashfreeOrder,
   verifyCashfreePayment,
@@ -296,14 +297,26 @@ exports.createTrekOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Trek not found or not published' });
     }
 
+    const peopleCount = Math.max(1, Number(people) || 1);
+    const genderCheck = await validateTrekGenderRegistration({
+      trek,
+      userId: req.user?.userId,
+      formData: req.body.formData || {},
+      people: peopleCount,
+    });
+    if (!genderCheck.ok) {
+      return res.status(genderCheck.status || 400).json({
+        success: false,
+        message: genderCheck.message,
+      });
+    }
+
     const ticketPricePerPerson = Number(trek.registrationFee) || 0;
     if (ticketPricePerPerson <= 0) {
       return res.status(400).json({ success: false, message: 'This trek does not require payment' });
     }
 
-    const peopleCount = Math.max(1, Number(people) || 1);
-    const maxPeople =
-      trek.registration?.maxPeoplePerBooking || trek.maxParticipants || 15;
+    const maxPeople = 1;
     if (peopleCount > maxPeople) {
       return res.status(400).json({
         success: false,

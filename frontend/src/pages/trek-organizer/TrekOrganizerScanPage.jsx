@@ -40,7 +40,11 @@ export default function TrekOrganizerScanPage() {
             toast('Already checked in');
             return;
         }
-        const ok = await confirm(`Check in ${participant.participantName}?`);
+        const ok = await confirm(
+            (participant.people ?? 1) > 1
+                ? `Check in ${participant.participantName} (${participant.people} people on ticket)?`
+                : `Check in ${participant.participantName}?`,
+        );
         if (!ok) return;
         setCheckinLoading(participant.bookingId);
         try {
@@ -109,7 +113,7 @@ export default function TrekOrganizerScanPage() {
                             <div key={p.bookingId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-gray-800 bg-[#111213]">
                                 <div>
                                     <p className="font-medium">{p.participantName}</p>
-                                    <p className="text-xs text-gray-500">{p.phone} · {p.bookingId.slice(-8)}</p>
+                                    <p className="text-xs text-gray-500">{p.phone} · {p.bookingId.slice(-8)}{(p.people ?? 1) > 1 ? ` · ${p.people} people` : ''}</p>
                                     <p className="text-xs mt-0.5">{p.checkInStatus}</p>
                                 </div>
                                 <div className="flex gap-2">

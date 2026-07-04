@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     ChevronDown, Phone, Calendar, Users, ExternalLink,
-    CheckCircle, Clock, Copy, MessageCircle, Trash2,
+    CheckCircle, Clock, Copy, MessageCircle, Trash2, Mail,
 } from 'lucide-react';
 
 function Pill({ children, tone = 'neutral' }) {
@@ -40,7 +40,17 @@ function previewFields(fields, limit = 2) {
     return fields.filter((f) => !skip.has(f.fieldName)).slice(0, limit);
 }
 
-export default function ParticipantCard({ participant, index, forceOpen = false, onResend, onDelete, onCopied }) {
+export default function ParticipantCard({
+    participant,
+    index,
+    forceOpen = false,
+    selected = false,
+    onToggleSelect,
+    onResend,
+    onSendEmail,
+    onDelete,
+    onCopied,
+}) {
     const [open, setOpen] = useState(false);
     const isOpen = forceOpen || open;
     const fields = participant.registrationFields || [];
@@ -56,11 +66,21 @@ export default function ParticipantCard({ participant, index, forceOpen = false,
             : 'border-l-amber-500';
 
     return (
-        <article className={`rounded-xl border border-gray-800 border-l-[3px] ${borderTone} bg-[#161718] overflow-hidden transition-shadow hover:shadow-lg hover:shadow-black/20`}>
+        <article className={`rounded-xl border border-gray-800 border-l-[3px] ${borderTone} bg-[#161718] overflow-hidden transition-shadow hover:shadow-lg hover:shadow-black/20 ${selected ? 'ring-1 ring-[#0ECCEE]/50' : ''}`}>
+            <div className="flex items-start gap-2 p-4 pb-0">
+                {onToggleSelect ? (
+                    <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => onToggleSelect(participant.bookingId)}
+                        className="mt-3 rounded border-gray-600 shrink-0"
+                        aria-label={`Select ${participant.participantName}`}
+                    />
+                ) : null}
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className="w-full text-left p-4 flex gap-3 items-start hover:bg-white/2 transition-colors"
+                className="flex-1 min-w-0 text-left flex gap-3 items-start hover:bg-white/2 transition-colors pb-4 -mr-2 pr-2 rounded-lg"
             >
                 <div className="relative shrink-0">
                     <div className="size-11 rounded-xl bg-linear-to-br from-[#0ECCEE]/20 to-[#053780]/30 text-[#0ECCEE] flex items-center justify-center text-sm font-bold">
@@ -75,6 +95,9 @@ export default function ParticipantCard({ participant, index, forceOpen = false,
                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
                         <h3 className="font-semibold text-base">{participant.participantName}</h3>
                         <Pill tone={paid ? 'paid' : 'free'}>{participant.paymentStatus}</Pill>
+                        {participant.participantGender && participant.participantGender !== '—' ? (
+                            <Pill tone="neutral">{participant.participantGender}</Pill>
+                        ) : null}
                         <Pill tone={checkedIn ? 'in' : 'pending'}>{checkedIn ? 'Checked in' : 'Awaiting'}</Pill>
                     </div>
 
@@ -110,6 +133,7 @@ export default function ParticipantCard({ participant, index, forceOpen = false,
 
                 <ChevronDown size={18} className={`text-gray-500 shrink-0 mt-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
+            </div>
 
             <div
                 className={`grid transition-[grid-template-rows] duration-200 ease-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
@@ -148,6 +172,15 @@ export default function ParticipantCard({ participant, index, forceOpen = false,
                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-700 text-xs text-gray-300 hover:border-[#0ECCEE]/40 hover:text-[#0ECCEE]"
                                 >
                                     <MessageCircle size={13} /> Resend ticket
+                                </button>
+                            ) : null}
+                            {onSendEmail ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onSendEmail(participant)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-700 text-xs text-gray-300 hover:border-[#0ECCEE]/40 hover:text-[#0ECCEE]"
+                                >
+                                    <Mail size={13} /> Send email
                                 </button>
                             ) : null}
                             {onDelete ? (

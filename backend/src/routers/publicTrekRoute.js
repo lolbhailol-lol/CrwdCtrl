@@ -1,15 +1,47 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const Trek = require('../model/trek_model');
 const TrekBooking = require('../model/trek_booking_model');
 const { appendToGoogleSheets } = require('../services/googleSheetsService');
 const { verifyTrekBookingPayment } = require('../utils/trekPaymentVerification');
 const { createNotification } = require('../controllers/notificationController');
 const { sendPushNotification } = require('../services/pushService');
+const { sendTrekRegistrationEmails } = require('../services/emailService');
 const { authenticateToken } = require('../middleware/authmiddleware');
+const { getJwtSecret } = require('../config/jwtSecret');
+const {
+    getGenderRegistrationSnapshot,
+    validateTrekGenderRegistration,
+} = require('../utils/trekGenderRegistration');
+const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
+
+function stripTrekGroupLinks(trek) {
+    if (!trek) return trek;
+    const copy = { ...trek };
+    delete copy.groupLink;
+    if (copy.communityId && typeof copy.communityId === 'object') {
+        const { groupLink: _omit, ...communityRest } = copy.communityId;
+        copy.communityId = communityRest;
+    }
+    return copy;
+}
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function getOptionalUserId(req) {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) return null;
+        const token = authHeader.substring(7);
+        if (!token) return null;
+        const decoded = jwt.verify(token, getJwtSecret());
+        return decoded.userId || null;
+    } catch {
+        return null;
+    }
+}
 
 function extractEmail(formData = {}) {
     return (
@@ -64,7 +96,22 @@ router.get('/:id', async (req, res) => {
             .populate('communityId', 'name basedIn contactPhone contactInstagram')
             .lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
-        res.json({ trek });
+        const genderRegistration = await getGenderRegistrationSnapshot(trek);
+
+        let userBooking = null;
+        const userId = getOptionalUserId(req);
+        if (userId) {
+            const existing = await TrekBooking.findOne({
+                trekId: trek._id,
+                userId,
+                status: 'confirmed',
+            }).select('_id').lean();
+            if (existing) {
+                userBooking = { bookingId: existing._id };
+            }
+        }
+
+        res.json({ trek: stripTrekGroupLinks(trek), genderRegistration, userBooking });
     } catch (error) {
         console.error('publicTrek getTrekById error:', error);
         res.status(500).json({ message: 'Failed to fetch trek' });
@@ -77,8 +124,12 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
             return res.status(400).json({ message: 'Invalid trek ID' });
         }
-        const trek = await Trek.findOne({ _id: req.params.id, status: 'published' }).lean();
+        const trek = await Trek.findOne({ _id: req.params.id, status: 'published' })
+            .populate('communityId', 'name groupLink')
+            .lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
+
+        const { groupLink, communityName } = resolveTrekGroupLink(trek);
 
         if (trek.registration?.status === 'closed') {
             return res.status(400).json({ message: 'Registration is currently closed for this trek' });
@@ -88,8 +139,18 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         }
 
         const { formData = {}, bookingDetails = {} } = req.body;
-        const people = Math.max(1, Number(bookingDetails.people) || 1);
+        const people = 1;
         const registrationFee = Number(trek.registrationFee) || 0;
+
+        const genderCheck = await validateTrekGenderRegistration({
+            trek,
+            userId: req.user.userId,
+            formData,
+            people,
+        });
+        if (!genderCheck.ok) {
+            return res.status(genderCheck.status || 400).json({ message: genderCheck.message });
+        }
 
         const userName =
             formData.full_name ||
@@ -155,6 +216,7 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             userId,
             userName,
             userEmail,
+            participantGender: genderCheck.participantGender || null,
             formData,
             payment_order_id: paymentOrderId || undefined,
             bookingDetails: {
@@ -195,12 +257,30 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             }
         }
 
-        res.json({ success: true, message: 'Registration recorded', bookingId: booking._id });
+        res.json({
+            success: true,
+            message: 'Registration recorded',
+            bookingId: booking._id,
+        });
 
         const trekName = trek.trekName || 'your trek';
         const link = `/registration-details/${booking._id}?type=trek`;
         setImmediate(async () => {
             try {
+                await sendTrekRegistrationEmails({
+                    userEmail,
+                    userName,
+                    trekName,
+                    bookingId: booking._id,
+                    bookingDetails: {
+                        date: bookingDetails.date || '',
+                        time: bookingDetails.time || '',
+                    },
+                    amountPaid,
+                    groupLink,
+                    communityName,
+                }).catch((err) => console.error('[Trek Register] Email error:', err.message));
+
                 await createNotification({
                     userId,
                     title: 'Trek Booking Confirmed!',
@@ -211,7 +291,7 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
                 });
                 sendPushNotification(userId, {
                     title: 'Trek Booking Confirmed!',
-                    body: `You've registered for ${trekName}`,
+                    body: `You've registered for ${trekName}.`,
                     link,
                     type: 'registration',
                 }).catch(() => {});

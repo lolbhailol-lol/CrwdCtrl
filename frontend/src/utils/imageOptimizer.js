@@ -25,6 +25,8 @@ export const IMAGE_PRESETS = {
     card: { width: 640, height: 832, crop: 'fill' },
     cardLg: { width: 800, height: 1040, crop: 'fill' },
     hero: { width: 1200, height: 560, crop: 'fill' },
+    /** Community detail page header — matches mobile ImmersiveHero (393×396) */
+    communityBanner: { width: 786, height: 792, crop: 'fill' },
     detail: { width: 1600, height: 900, crop: 'limit' },
 };
 

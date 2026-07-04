@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
+import CommunityHeroBannerField from './CommunityHeroBannerField';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
@@ -18,6 +19,7 @@ const EMPTY = {
     galleryImages: [],
     contactPhone: '',
     contactInstagram: '',
+    groupLink: '',
     contacts: [],
     status: 'published',
 };
@@ -45,6 +47,7 @@ function pickCommunityFormFields(source = {}) {
         galleryImages: normalizeImageList(source.galleryImages),
         contactPhone: source.contactPhone || '',
         contactInstagram: source.contactInstagram || '',
+        groupLink: source.groupLink || '',
         contacts: normalizeContacts(source.contacts),
         status: source.status || 'published',
     };
@@ -65,6 +68,7 @@ function AdminFormSection({ title, hint, children }) {
 export default function TrekCommunityFormModal({ community, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
+    const [uploadingHero, setUploadingHero] = useState(false);
     const [uploadingGallery, setUploadingGallery] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -105,7 +109,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
         e.preventDefault();
         setError('');
         if (!form.name.trim()) { setError('Community name is required.'); return; }
-        if (uploading || uploadingGallery) {
+        if (uploading || uploadingHero || uploadingGallery) {
             setError('Please wait for image upload to finish.');
             return;
         }
@@ -140,6 +144,13 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
             setSaving(false);
         }
     };
+
+    const heroBannerDisplay =
+        form.coverImages?.hero
+        || form.coverImages?.portrait
+        || form.coverImage
+        || '';
+    const usingFallbackBanner = !form.coverImages?.hero && Boolean(form.coverImages?.portrait || form.coverImage);
 
     const inp = "w-full bg-[#1D1E20] border border-gray-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#0ECCEE]";
 
@@ -178,18 +189,41 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                     </AdminFormSection>
 
                     <AdminFormSection
-                        title="Cover images"
-                        hint="Card layouts and hero banner — separate from the gallery below"
+                        title="Community page banner"
+                        hint="393 × 396 crop — matches the mobile header on /treks/community/:id (back, share, stats badges)"
+                    >
+                        <CommunityHeroBannerField
+                            value={heroBannerDisplay}
+                            communityName={form.name}
+                            onChange={(heroUrl) => {
+                                const coverImages = { ...normalizeCoverImages(form.coverImages), hero: heroUrl || '' };
+                                set('coverImages', coverImages);
+                                set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
+                            }}
+                            onError={(msg) => setError(`Banner upload failed: ${msg}`)}
+                            onUploadingChange={setUploadingHero}
+                        />
+                        {usingFallbackBanner ? (
+                            <p className="text-xs text-amber-500/90 rounded-lg border border-amber-700/40 bg-amber-900/20 px-3 py-2">
+                                This community is using a card image as the page banner. Upload above and crop to the 393×396 frame for a proper fit.
+                            </p>
+                        ) : null}
+                    </AdminFormSection>
+
+                    <AdminFormSection
+                        title="Card & listing images"
+                        hint="Optional — portrait/wide cards on treks page and home sections (banner above is separate)"
                     >
                         <MultiCoverImagesUpload
                             value={form.coverImages}
+                            excludeKeys={['hero']}
                             onChange={(coverImages) => {
                                 set('coverImages', coverImages);
                                 set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
                             }}
                             onError={(msg) => setError(`Cover upload failed: ${msg}`)}
                             onUploadingChange={setUploading}
-                            hint="Upload a cropped image per layout (portrait cards, wide cards, hero, etc.)."
+                            hint="Upload cropped images for trek cards and carousels — not the community page header."
                         />
                     </AdminFormSection>
 
@@ -254,7 +288,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                         />
                     </AdminFormSection>
 
-                    <AdminFormSection title="Contact Details" hint="Phone enables the call button next to the community name; Instagram shows in the contact section">
+                    <AdminFormSection title="Contact Details" hint="Phone enables the call button; Instagram and group link show on the community & trek pages">
                         <div className="space-y-3">
                             <div className="flex items-center gap-3">
                                 <span className="text-gray-400 text-sm w-24 shrink-0">Phone</span>
@@ -263,6 +297,19 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                             <div className="flex items-center gap-3">
                                 <span className="text-gray-400 text-sm w-24 shrink-0">Instagram</span>
                                 <input type="text" value={form.contactInstagram} onChange={e => set('contactInstagram', e.target.value)} className={inp} placeholder="@handle" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Community group link</label>
+                                <input
+                                    type="url"
+                                    value={form.groupLink}
+                                    onChange={e => set('groupLink', e.target.value)}
+                                    className={inp}
+                                    placeholder="https://chat.whatsapp.com/... or Telegram invite link"
+                                />
+                                <p className="text-[11px] text-gray-600 mt-1.5">
+                                    Fallback when a trek has no trek-specific link. Sent only in registration emails and My Bookings → View Details.
+                                </p>
                             </div>
                         </div>
                     </AdminFormSection>
@@ -333,7 +380,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">
                             Cancel
                         </button>
-                        <button type="submit" disabled={saving || uploading || uploadingGallery} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+                        <button type="submit" disabled={saving || uploading || uploadingHero || uploadingGallery} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
                             {saving ? 'Saving...' : community ? 'Update Community' : 'Add Community'}
                         </button>
                     </div>

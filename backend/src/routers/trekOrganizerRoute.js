@@ -9,9 +9,11 @@ router.post('/auth/login', authLimiter, ctrl.login);
 router.get('/me', authenticateTrekOrganizer, ctrl.getMe);
 
 router.get('/treks/:trekId/dashboard', authenticateTrekOrganizer, requireTrekAccess, ctrl.getDashboard);
+router.patch('/treks/:trekId/registration', authenticateTrekOrganizer, requireTrekAccess, ctrl.updateRegistrationSettings);
 // Specific participant paths before :bookingId and the list route
 router.get('/treks/:trekId/participants/export', authenticateTrekOrganizer, requireTrekAccess, ctrl.exportParticipants);
 router.get('/treks/:trekId/participants/lookup', authenticateTrekOrganizer, requireTrekAccess, ctrl.lookupParticipant);
+router.post('/treks/:trekId/participants/message', authenticateTrekOrganizer, requireTrekAccess, ctrl.sendParticipantMessages);
 router.get('/treks/:trekId/participants/:bookingId', authenticateTrekOrganizer, requireTrekAccess, ctrl.getParticipant);
 router.delete('/treks/:trekId/participants/:bookingId', authenticateTrekOrganizer, requireTrekAccess, ctrl.deleteParticipant);
 router.get('/treks/:trekId/participants', authenticateTrekOrganizer, requireTrekAccess, ctrl.listParticipants);

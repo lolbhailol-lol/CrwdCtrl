@@ -223,6 +223,7 @@ function TreksPage() {
                 galleryImages: c.galleryImages || [],
                 contactPhone: c.contactPhone,
                 contactInstagram: c.contactInstagram,
+                groupLink: c.groupLink || '',
                 trekPageSection: c.trekPageSection || 'communities',
                 trekPagePriority: c.trekPagePriority || 999,
                 type: 'Community',

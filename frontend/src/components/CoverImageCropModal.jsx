@@ -10,12 +10,23 @@ import {
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
+const FILL_FRAME_MIN_ZOOM = 1;
 const DEFAULT_FRAMING = () => ({ zoom: 1, offset: { x: 0, y: 0 } });
 
 /**
  * Cover cropper with per-layout aspect tabs (portrait, wide, hero, square, …).
+ * fillFrame — image must always cover the crop box (min zoom 1, no letterbox gaps).
  */
-export default function CoverImageCropModal({ file, isDark = true, fixedAspectId, onCancel, onCropped }) {
+export default function CoverImageCropModal({
+    file,
+    isDark = true,
+    fixedAspectId,
+    fillFrame = false,
+    title = 'Crop cover image',
+    onCancel,
+    onCropped,
+}) {
+    const minZoom = fillFrame ? FILL_FRAME_MIN_ZOOM : MIN_ZOOM;
     const [imgSrc, setImgSrc] = useState('');
     const [imgEl, setImgEl] = useState(null);
     const [activeAspectId, setActiveAspectId] = useState(fixedAspectId || CROP_ASPECT_OPTIONS[0].id);
@@ -93,6 +104,10 @@ export default function CoverImageCropModal({ file, isDark = true, fixedAspectId
     );
 
     useEffect(() => {
+        if (fillFrame && zoom < minZoom) setZoom(minZoom);
+    }, [fillFrame, zoom, minZoom, setZoom]);
+
+    useEffect(() => {
         setFramingByAspect((prev) => {
             const current = prev[activeAspectId] || DEFAULT_FRAMING();
             const clamped = clampOffset(current.offset);
@@ -130,7 +145,7 @@ export default function CoverImageCropModal({ file, isDark = true, fixedAspectId
             const dist = pinchDistance();
             if (dist > 0) {
                 const next = pinchRef.current.baseZoom * (dist / pinchRef.current.startDist);
-                setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)));
+                setZoom(Math.min(MAX_ZOOM, Math.max(minZoom, next)));
             }
             return;
         }
@@ -229,9 +244,9 @@ export default function CoverImageCropModal({ file, isDark = true, fixedAspectId
 
     const cropViewport = (
         <div
-            className={`relative overflow-hidden rounded-xl bg-black touch-none select-none ring-2 ring-white/30 mx-auto ${
+            className={`relative overflow-hidden rounded-xl touch-none select-none ring-2 ring-white/30 mx-auto ${
                 isOriginal ? '' : 'cursor-grab active:cursor-grabbing'
-            }`}
+            } ${fillFrame ? 'bg-[#1a3a2a]' : 'bg-black'}`}
             style={{ width: viewW, height: viewH, maxWidth: '100%' }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -268,20 +283,27 @@ export default function CoverImageCropModal({ file, isDark = true, fixedAspectId
     );
 
     const zoomControls = !isOriginal ? (
-        <div className="flex items-center gap-3 mt-4">
-            <ZoomOut className={`w-5 h-5 shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-            <input
-                type="range"
-                min={MIN_ZOOM}
-                max={MAX_ZOOM}
-                step="0.01"
-                value={zoom}
-                onChange={(e) => setZoom(parseFloat(e.target.value))}
-                className="w-full accent-[#0ECCEE]"
-                aria-label="Zoom"
-            />
-            <ZoomIn className={`w-5 h-5 shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-        </div>
+        <>
+            <div className="flex items-center gap-3 mt-4">
+                <ZoomOut className={`w-5 h-5 shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                <input
+                    type="range"
+                    min={minZoom}
+                    max={MAX_ZOOM}
+                    step="0.01"
+                    value={Math.max(minZoom, zoom)}
+                    onChange={(e) => setZoom(parseFloat(e.target.value))}
+                    className="w-full accent-[#0ECCEE]"
+                    aria-label="Zoom"
+                />
+                <ZoomIn className={`w-5 h-5 shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+            </div>
+            {fillFrame ? (
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                    Drag to reposition · zoom in to crop tighter — frame stays full, no empty borders
+                </p>
+            ) : null}
+        </>
     ) : (
         <p className="text-xs text-gray-500 mt-3 text-center">Full image — site auto-crops per card layout</p>
     );
@@ -396,7 +418,7 @@ export default function CoverImageCropModal({ file, isDark = true, fixedAspectId
             >
                 <div className="flex items-center justify-between mb-3">
                     <div>
-                        <h3 className="text-lg font-semibold">Crop cover image</h3>
+                        <h3 className="text-lg font-semibold">{title}</h3>
                         <p className="text-xs text-gray-500 mt-0.5">{headerHint}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-2">

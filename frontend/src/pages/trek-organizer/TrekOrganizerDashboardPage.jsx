@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Users, UserCheck, Clock, IndianRupee, Calendar, Loader, Bell } from 'lucide-react';
 import { fetchTrekOrganizerDashboard } from '../../services/api/trekOrganizer.api';
+import TrekOrganizerRegistrationPanel from './TrekOrganizerRegistrationPanel';
 
 function StatCard({ label, value, icon: Icon, accent, hint }) {
     return (
@@ -46,7 +47,7 @@ export default function TrekOrganizerDashboardPage() {
     if (error) return <div className="text-red-400 text-sm">{error}</div>;
     if (!data) return null;
 
-    const { trek, stats } = data;
+    const { trek, stats, genderRegistration } = data;
 
     return (
         <div className="space-y-6">
@@ -54,6 +55,13 @@ export default function TrekOrganizerDashboardPage() {
                 <h1 className="text-2xl font-bold">{trek.trekName}</h1>
                 <p className="text-sm text-gray-500">{trek.city || '—'} · Organizer dashboard</p>
             </div>
+
+            <TrekOrganizerRegistrationPanel
+                trekId={trekId}
+                trek={trek}
+                genderRegistration={genderRegistration}
+                onUpdated={(res) => setData((prev) => ({ ...prev, ...res, trek: { ...prev.trek, ...res.trek }, genderRegistration: res.genderRegistration }))}
+            />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard label="Total registrations" value={stats.totalRegistrations} icon={Users} accent="bg-blue-500/15 text-blue-400" />
@@ -69,6 +77,8 @@ export default function TrekOrganizerDashboardPage() {
                     accent="bg-purple-500/15 text-purple-400"
                 />
                 <StatCard label="Today's registrations" value={stats.todayRegistrations} icon={Calendar} accent="bg-pink-500/15 text-pink-400" />
+                <StatCard label="Women registered" value={stats.femaleCount ?? 0} icon={Users} accent="bg-pink-500/10 text-pink-300" />
+                <StatCard label="Men registered" value={stats.maleCount ?? 0} icon={Users} accent="bg-blue-500/10 text-blue-300" />
             </div>
 
             <div className="flex flex-wrap gap-3">

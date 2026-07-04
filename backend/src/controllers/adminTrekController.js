@@ -8,6 +8,7 @@ const { sanitizeTrekDetailBoxes } = require('../utils/sanitizeTrekDetailBoxes');
 const { sanitizeItinerary } = require('../utils/sanitizeItinerary');
 const { sanitizeTrekRegistrationFee, sanitizeTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { normalizeAvailableDates, parseTrekDateForIndex } = require('../utils/trekDateNormalize');
+const { sanitizeGenderQuotas, sanitizeGenderPhase } = require('../utils/trekGenderRegistration');
 
 function normalizeTrekPayload(body) {
     const payload = { ...body };
@@ -44,11 +45,24 @@ function normalizeTrekPayload(body) {
     if (payload.maxParticipants !== undefined) {
         payload.maxParticipants = Math.max(0, Number(payload.maxParticipants) || 0);
     }
+    if (payload.groupLink !== undefined) {
+        payload.groupLink = String(payload.groupLink || '').trim();
+    }
     if (payload.registration?.availableDates !== undefined) {
         payload.registration = {
             ...payload.registration,
             availableDates: normalizeAvailableDates(payload.registration.availableDates),
         };
+    }
+    if (payload.registration) {
+        const reg = { ...payload.registration };
+        if (reg.genderQuotas !== undefined) {
+            reg.genderQuotas = sanitizeGenderQuotas(reg.genderQuotas);
+        }
+        if (reg.genderPhase !== undefined) {
+            reg.genderPhase = sanitizeGenderPhase(reg.genderPhase);
+        }
+        payload.registration = reg;
     }
     return payload;
 }

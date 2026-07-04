@@ -851,6 +851,9 @@ export default function CheckinScannerPage({
                   {scanResult.data.competitionName && (
                     <p className="text-gray-400">{scanResult.data.competitionName}</p>
                   )}
+                  {Number(scanResult.data.people) > 1 && (
+                    <p className="text-[#0ECCEE] font-medium">{scanResult.data.people} people on this ticket</p>
+                  )}
                 </div>
               )}
 

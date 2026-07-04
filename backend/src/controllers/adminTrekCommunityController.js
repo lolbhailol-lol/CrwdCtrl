@@ -21,6 +21,9 @@ function normalizeCommunityPayload(body) {
     const payload = { ...body };
     if (body.homeSection === '') payload.homeSection = null;
     if (body.contacts !== undefined) payload.contacts = sanitizeContacts(body.contacts);
+    if (body.groupLink !== undefined) {
+        payload.groupLink = String(body.groupLink || '').trim();
+    }
     if (body.coverImages !== undefined) {
         payload.coverImages = sanitizeCoverImages(body.coverImages);
         payload.coverImage = primaryCoverUrl(payload.coverImages, body.coverImage);

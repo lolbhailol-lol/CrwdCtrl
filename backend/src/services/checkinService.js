@@ -415,17 +415,21 @@ async function performCheckinFromRaw(raw, options = {}) {
     }
 
     if (trekBooking.checkedIn) {
+      const peopleCount = Math.max(1, Number(trekBooking.bookingDetails?.people) || 1);
       return {
         status: 200,
         body: {
           success: true,
           status: 'already_checked_in',
-          message: 'Already checked in',
+          message: peopleCount > 1
+            ? `Already checked in (${peopleCount} people on this ticket)`
+            : 'Already checked in',
           data: {
             userName: trekBooking.userId?.name || trekBooking.userName,
             festName: trekBooking.trekId?.trekName,
             trekName: trekBooking.trekId?.trekName,
             ticketType: 'trek',
+            people: peopleCount,
             checkedInAt: trekBooking.checkedInAt,
           },
         },
@@ -494,7 +498,12 @@ async function performCheckinFromRaw(raw, options = {}) {
       body: {
         success: true,
         status: 'checked_in',
-        message: 'Check-in successful!',
+        message: (() => {
+          const peopleCount = Math.max(1, Number(trekBooking.bookingDetails?.people) || 1);
+          return peopleCount > 1
+            ? `Check-in successful! ${peopleCount} people on this ticket.`
+            : 'Check-in successful!';
+        })(),
         data: {
           userName: trekBooking.userId?.name || trekBooking.userName,
           userEmail: trekBooking.userId?.email || trekBooking.userEmail,
@@ -502,6 +511,7 @@ async function performCheckinFromRaw(raw, options = {}) {
           festName: trekName,
           trekName,
           ticketType: 'trek',
+          people: Math.max(1, Number(trekBooking.bookingDetails?.people) || 1),
           checkedInAt: trekBooking.checkedInAt,
           bookingId: trekBooking._id,
         },

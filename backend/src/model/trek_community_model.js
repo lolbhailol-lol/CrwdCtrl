@@ -21,6 +21,8 @@ const trekCommunitySchema = new mongoose.Schema(
         galleryImages:     { type: [String], default: [] },
         contactPhone:      { type: String, trim: true, default: '' },
         contactInstagram:  { type: String, trim: true, default: '' },
+        /** WhatsApp / Telegram group invite link — shown as Join Community on trek & community pages */
+        groupLink:         { type: String, trim: true, default: '' },
         /** Repeatable point-of-contact list (name + role + phone) */
         contacts:          { type: [communityContactSchema], default: [] },
         status:            { type: String, enum: ['published', 'draft'], default: 'published' },

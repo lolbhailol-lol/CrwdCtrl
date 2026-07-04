@@ -49,9 +49,14 @@ const EMPTY = {
     trekName: '', description: '', difficultyLevel: '', trekDuration: '',
     startingPoint: '', destination: '', meetingLocation: '', departureTime: '',
     returnTime: '', fitnessRequirements: '', ageRestrictions: '', trekLeader: '',
-    emergencyContact: '', contactInstagram: '', contacts: [], registrationFee: 0, platformFeePercent: 3, registrationLink: '', maxParticipants: 0,
+    emergencyContact: '', contactInstagram: '', groupLink: '', contacts: [], registrationFee: 0, platformFeePercent: 3, registrationLink: '', maxParticipants: 0,
     trekDate: '', dateLabel: '', trekBatches: [], detailBoxes: [], city: '', trekCategory: '', status: 'published',
-    registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [] },
+    registration: {
+        status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '',
+        availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [],
+        genderQuotas: { enabled: false, femaleSeats: 0, maleSeats: 0, othersSeats: 0 },
+        genderPhase: 'all',
+    },
     inclusions: '', exclusions: '', thingsToCarry: '', termsAndConditions: '',
     itinerary: [],
     coverImage: '',
@@ -304,6 +309,15 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                     ...(trek.trekFilters || {}),
                 },
                 platformFeePercent: trek.platformFeePercent ?? 3,
+                registration: {
+                    ...EMPTY.registration,
+                    ...(trek.registration || {}),
+                    genderQuotas: {
+                        ...EMPTY.registration.genderQuotas,
+                        ...(trek.registration?.genderQuotas || {}),
+                    },
+                    formSchema: Array.isArray(trek.registration?.formSchema) ? trek.registration.formSchema : [],
+                },
             });
         } else {
             setForm({ ...EMPTY, communityId: communityId || null });
@@ -644,6 +658,19 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                             <div><label className="block text-sm font-medium text-gray-300 mb-1">Emergency Contact</label><input type="text" value={form.emergencyContact} onChange={e => set('emergencyContact', e.target.value)} className={inp} /></div>
                         </div>
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Instagram</label><input type="text" value={form.contactInstagram || ''} onChange={e => set('contactInstagram', e.target.value)} className={inp} placeholder="@yourtrek" /></div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">WhatsApp group link (this trek)</label>
+                            <input
+                                type="url"
+                                value={form.groupLink || ''}
+                                onChange={e => set('groupLink', e.target.value)}
+                                className={inp}
+                                placeholder="https://chat.whatsapp.com/..."
+                            />
+                            <p className="text-[11px] text-gray-600 mt-1.5">
+                                Sent only in registration emails and My Bookings → View Details for registered participants.
+                            </p>
+                        </div>
                         <div className="rounded-lg border border-gray-700/60 p-3">
                             <div className="flex items-center justify-between mb-2">
                                 <label className="text-sm font-medium text-gray-300">People to contact</label>
@@ -725,6 +752,75 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                         <option value="external_link">External Link</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div className="rounded-xl border border-gray-700/80 p-4 space-y-3">
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Gender seat limits</p>
+                                    <p className="text-[10px] text-gray-600 mt-1">
+                                        Split capacity by gender. Organizers can open women-only registration first from their portal.
+                                    </p>
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(form.registration?.genderQuotas?.enabled)}
+                                        onChange={(e) => set('registration', {
+                                            ...form.registration,
+                                            genderQuotas: {
+                                                ...(form.registration?.genderQuotas || {}),
+                                                enabled: e.target.checked,
+                                            },
+                                        })}
+                                        className="w-4 h-4 accent-[#0ECCEE]"
+                                    />
+                                    <span className="text-sm text-gray-300">Enable gender-based seats</span>
+                                </label>
+                                {form.registration?.genderQuotas?.enabled ? (
+                                    <>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {[
+                                                { key: 'femaleSeats', label: 'Women seats' },
+                                                { key: 'maleSeats', label: 'Men seats' },
+                                                { key: 'othersSeats', label: 'Others seats' },
+                                            ].map(({ key, label }) => (
+                                                <div key={key}>
+                                                    <label className="block text-[10px] text-gray-500 mb-1">{label}</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={form.registration?.genderQuotas?.[key] ?? 0}
+                                                        onChange={(e) => set('registration', {
+                                                            ...form.registration,
+                                                            genderQuotas: {
+                                                                ...(form.registration?.genderQuotas || {}),
+                                                                [key]: Math.max(0, Number(e.target.value) || 0),
+                                                            },
+                                                        })}
+                                                        className={inp}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-400 mb-1">Starting registration phase</label>
+                                            <select
+                                                value={form.registration?.genderPhase || 'all'}
+                                                onChange={(e) => set('registration', { ...form.registration, genderPhase: e.target.value })}
+                                                className={inp}
+                                            >
+                                                <option value="women_only">Women only (open women first)</option>
+                                                <option value="men_only">Men only</option>
+                                                <option value="all">Open to all</option>
+                                                <option value="closed">Paused</option>
+                                            </select>
+                                        </div>
+                                        <p className="text-[10px] text-gray-600">
+                                            When enabled, each booking is 1 person. Users pick Male/Female in booking step 1;
+                                            if phase is women-only and they pick male, they cannot continue.
+                                        </p>
+                                    </>
+                                ) : null}
                             </div>
 
                             {(form.registration?.mode || 'internal_form') === 'external_link' ? (
