@@ -94,6 +94,9 @@ export default function FestRegistration() {
   const [paymentError, setPaymentError] = useState('');
   const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
   const retryCheckoutRef = useRef(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCouponCode, setAppliedCouponCode] = useState('');
+  const [couponError, setCouponError] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   // True once we've waited long enough for Firebase -> backend JWT sync to finish
@@ -415,9 +418,9 @@ export default function FestRegistration() {
 
     let pricingPayload = null;
     if (isCompetitionRegistration && competitionBaseFee > 0) {
-      pricingPayload = { competitionId: competition?._id || competitionId };
+      pricingPayload = { competitionId: competition?._id || competitionId, couponCode: appliedCouponCode || undefined };
     } else if ((fest.feeAmount || 0) > 0) {
-      pricingPayload = { festId: fest._id || festId };
+      pricingPayload = { festId: fest._id || festId, couponCode: appliedCouponCode || undefined };
     }
 
     if (!pricingPayload) {
@@ -431,6 +434,7 @@ export default function FestRegistration() {
     (async () => {
       try {
         const quote = await fetchPaymentQuoteApi(pricingPayload, authToken);
+        if (!cancelled) setCouponError('');
         if (!cancelled) setPriceBreakdown(quote);
       } catch (err) {
         if (cancelled) return;
@@ -441,6 +445,7 @@ export default function FestRegistration() {
             setError('Please log in to register for events');
           }
         } else {
+          setCouponError(err?.message || 'Invalid coupon');
           console.warn('Payment quote failed:', msg);
         }
       }
@@ -457,6 +462,7 @@ export default function FestRegistration() {
     loading,
     isAuthProcessing,
     firebaseUser,
+    appliedCouponCode,
   ]);
 
   useEffect(() => {
@@ -1620,7 +1626,7 @@ export default function FestRegistration() {
         const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
           method: 'POST',
           headers: getBearerAuthHeaders(authToken),
-          body: JSON.stringify(orderNotes),
+          body: JSON.stringify({ ...orderNotes, couponCode: appliedCouponCode || undefined }),
         });
         if (orderRes.status === 401) {
           clearStoredAuthSession();
@@ -2158,7 +2164,7 @@ export default function FestRegistration() {
       const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
         method: 'POST',
         headers: getBearerAuthHeaders(authToken),
-        body: JSON.stringify({ festId }),
+        body: JSON.stringify({ festId, couponCode: appliedCouponCode || undefined }),
       });
       if (orderRes.status === 401) {
         clearStoredAuthSession();
@@ -2259,6 +2265,19 @@ export default function FestRegistration() {
           </div>
 
           <div className={`rounded-xl p-5 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
+            <div className="mb-3">
+              <p className={`text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Coupon code</p>
+              <div className="flex gap-2">
+                <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
+                <button type="button" onClick={() => setAppliedCouponCode(couponCode.trim().toUpperCase())} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">{Number(priceBreakdown?.couponDiscount || 0) > 0 && (appliedCouponCode || '').toUpperCase() === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply'}</button>
+              </div>
+              {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
+              {Number(priceBreakdown?.couponDiscount || 0) > 0 ? (
+                <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 animate-pulse ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                  Coupon `{appliedCouponCode || couponCode}` applied · You save ₹{priceBreakdown.couponDiscount}
+                </div>
+              ) : null}
+            </div>
             <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Payment Breakdown</p>
             {priceBreakdown && (
               <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -2270,6 +2289,12 @@ export default function FestRegistration() {
                   <span>Platform Fee</span>
                   <span>₹{priceBreakdown.platformFee}</span>
                 </div>
+                {Number(priceBreakdown.couponDiscount || 0) > 0 ? (
+                  <div className="flex justify-between gap-4 text-green-400">
+                    <span>Coupon Discount</span>
+                    <span>-₹{priceBreakdown.couponDiscount}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
                   <span>Amount Payable</span>
                   <span>₹{priceBreakdown.totalAmount}</span>
@@ -2601,6 +2626,19 @@ export default function FestRegistration() {
               if (!priceBreakdown) return null;
               return (
                 <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
+                  <div className="mb-3">
+                    <p className={`text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Coupon code</p>
+                    <div className="flex gap-2">
+                      <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
+                      <button type="button" onClick={() => setAppliedCouponCode(couponCode.trim().toUpperCase())} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">{Number(priceBreakdown?.couponDiscount || 0) > 0 && (appliedCouponCode || '').toUpperCase() === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply'}</button>
+                    </div>
+                    {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
+                    {Number(priceBreakdown?.couponDiscount || 0) > 0 ? (
+                      <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 animate-pulse ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                        Coupon `{appliedCouponCode || couponCode}` applied · You save ₹{priceBreakdown.couponDiscount}
+                      </div>
+                    ) : null}
+                  </div>
                   <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
                   <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     <div className="flex justify-between gap-4">
@@ -2611,6 +2649,12 @@ export default function FestRegistration() {
                       <span>Platform Fee</span>
                       <span>₹{priceBreakdown.platformFee}</span>
                     </div>
+                    {Number(priceBreakdown.couponDiscount || 0) > 0 ? (
+                      <div className="flex justify-between gap-4 text-green-400">
+                        <span>Coupon Discount</span>
+                        <span>-₹{priceBreakdown.couponDiscount}</span>
+                      </div>
+                    ) : null}
                     <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
                       <span>Amount Payable</span>
                       <span>₹{priceBreakdown.totalAmount}</span>

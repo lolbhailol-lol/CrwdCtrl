@@ -13,6 +13,7 @@ import {
   AdminEventsPage,
   SectionManager,
   PageSectionsPage,
+  CouponsPage,
   AdminProtectedRoute,
   TrekOrganizersPage,
   RunClubOrganizersPage,
@@ -43,5 +44,6 @@ export const adminRoutes = (
       {adminTheatreRedirect}
       <Route path="sections" element={<SectionManager />} />
       <Route path="page-sections" element={<PageSectionsPage />} />
+      <Route path="coupons" element={<CouponsPage />} />
     </Route>
 );

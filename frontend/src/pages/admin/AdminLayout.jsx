@@ -18,6 +18,7 @@ import {
   Users,
   UserCog,
   Footprints,
+  TicketPercent,
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -53,6 +54,7 @@ export default function AdminLayout() {
     { icon: Theater, label: 'Events', path: '/admin/events' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
     { icon: LayoutGrid, label: 'Page Sections', path: '/admin/page-sections' },
+    { icon: TicketPercent, label: 'Coupons', path: '/admin/coupons' },
     { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
     { icon: Users, label: 'User Logins', path: '/admin/user-logins' },
     { icon: QrCode, label: 'Scanner Access', path: '/admin/scanner-access', exact: true },

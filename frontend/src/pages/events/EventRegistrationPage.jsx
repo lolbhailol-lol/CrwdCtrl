@@ -75,6 +75,10 @@ export default function EventRegistrationPage() {
     const [done, setDone] = useState(false);
     const [paymentResumeError, setPaymentResumeError] = useState('');
     const [registrationId, setRegistrationId] = useState('');
+    const [couponCode, setCouponCode] = useState('');
+    const [couponInfo, setCouponInfo] = useState(null);
+    const [couponLoading, setCouponLoading] = useState(false);
+    const [couponError, setCouponError] = useState('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
     const retryRef = useRef(null);
     const resumeRef = useRef(false);
@@ -115,6 +119,7 @@ export default function EventRegistrationPage() {
         () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
         [ticketPrice, platformFeePercent],
     );
+    const payableAmount = couponInfo?.amountAfterDiscount ?? breakdown.totalAmount;
     const title = event?.displayName || event?.title || 'Event';
 
     useBookingSuccessPopup(done, {
@@ -413,6 +418,7 @@ export default function EventRegistrationPage() {
                     customerName: customer.name,
                     customerEmail: customer.email,
                     customerPhone: customer.phone,
+                    couponCode: couponCode.trim() || undefined,
                 }),
             });
             const order = await orderRes.json();
@@ -470,6 +476,31 @@ export default function EventRegistrationPage() {
         } catch (e) {
             setError('Payment error: ' + e.message);
             setPaying(false);
+        }
+    };
+
+    const applyCoupon = async () => {
+        setCouponError('');
+        const code = couponCode.trim();
+        if (!code) {
+            setCouponInfo(null);
+            return;
+        }
+        setCouponLoading(true);
+        try {
+            const res = await fetch(`${API}/payment/coupon-validate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventShowId: eventId, couponCode: code }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || 'Invalid coupon');
+            setCouponInfo(data);
+        } catch (e) {
+            setCouponInfo(null);
+            setCouponError(e.message || 'Invalid coupon');
+        } finally {
+            setCouponLoading(false);
         }
     };
 
@@ -646,12 +677,30 @@ export default function EventRegistrationPage() {
                     {/* Payment / confirm step */}
                     {isPaymentStep && (
                         <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
+                            {ticketPrice > 0 && (
+                                <div className="mb-3">
+                                    <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
+                                    <div className="flex gap-2">
+                                        <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
+                                        <button type="button" onClick={applyCoupon} disabled={couponLoading} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">
+                                            {couponLoading ? 'Applying...' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply')}
+                                        </button>
+                                    </div>
+                                    {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
+                                    {couponInfo?.couponApplied ? (
+                                        <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 animate-pulse ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                                            Coupon `{couponInfo.couponCode}` applied · You save ₹{couponInfo.discountAmount}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            )}
                             <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{ticketPrice > 0 ? 'Payment Breakdown' : 'Confirm Registration'}</p>
                             {ticketPrice > 0 ? (
                                 <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     <div className="flex justify-between gap-4"><span>Registration Fee</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
-                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}><span>Platform Fee ({platformFeePercent}%)</span><span>₹{breakdown.platformFee}</span></div>
-                                    <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]"><span>Amount Payable</span><span>₹{breakdown.totalAmount.toLocaleString('en-IN')}</span></div>
+                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}><span>Platform Fee</span><span>₹{breakdown.platformFee}</span></div>
+                                    {couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
+                                    <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]"><span>Amount Payable</span><span>₹{payableAmount.toLocaleString('en-IN')}</span></div>
                                     <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Includes all charges · Secure payment via Cashfree</p>
                                 </div>
                             ) : (
@@ -667,7 +716,7 @@ export default function EventRegistrationPage() {
                         </button>
                         {isPaymentStep ? (
                             <button type="button" onClick={handleFinalSubmit} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                                {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0 ? `Pay ₹${breakdown.totalAmount.toLocaleString('en-IN')} & Register` : 'Confirm Registration'}
+                                {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0 ? `Pay ₹${payableAmount.toLocaleString('en-IN')} & Register` : 'Confirm Registration'}
                             </button>
                         ) : (
                             <button type="button" onClick={next} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm">

@@ -24,6 +24,7 @@ async function findReusablePendingOrder({
   entityId,
   totalAmount,
   people = null,
+  couponCode = '',
 }) {
   if (!entityType || !entityId || !totalAmount) return null;
 
@@ -33,6 +34,7 @@ async function findReusablePendingOrder({
     entityId,
     status: 'PENDING',
     totalAmount: Number(totalAmount),
+    couponCode: String(couponCode || '').trim().toUpperCase(),
     createdAt: { $gte: since },
   };
 
@@ -57,6 +59,10 @@ function buildOrderResponse(existing, extras = {}) {
     currency: existing.currency || 'INR',
     ticketPrice: existing.ticketPrice,
     platformFee: existing.platformFee,
+    couponCode: existing.couponCode || '',
+    couponDiscount: existing.couponDiscount || 0,
+    amountBeforeDiscount: existing.amountBeforeDiscount ?? existing.totalAmount,
+    amountAfterDiscount: existing.amountAfterDiscount ?? existing.totalAmount,
     totalAmount: existing.totalAmount,
     reusedPendingOrder: true,
     ...extras,

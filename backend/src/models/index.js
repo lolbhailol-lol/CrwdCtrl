@@ -21,4 +21,6 @@ require('../model/category_registration_model');
 require('../model/notification_model');
 require('../model/analytics_model');
 require('../model/payment_order_model');
+require('../model/coupon_model');
+require('../model/coupon_usage_model');
 require('../model/homepage_section_model');

@@ -6,6 +6,7 @@ const { testGoogleSheetsConnection, appendPaymentOnlyToSheets } = require('../se
 const { uploadToCloudinary } = require('../services/cloudinaryService');
 const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOrganizerNotificationEmail } = require('../services/emailService');
 const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
+const { consumeCouponUsageForOrder } = require('../utils/couponPricing');
 const { createNotification } = require('./notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { buildPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
@@ -394,6 +395,9 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     await registration.save();
     console.log('✅ Registration saved to database');
+    if (paymentOrderId) {
+      consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
+    }
 
     const customCompRegistrationLink = `/registration-details/${registration._id}`;
 
@@ -853,6 +857,9 @@ const submitCompetitionRegistration = async (req, res) => {
     await registration.save();
     console.log('💾 Registration saved to database with ID:', registration._id);
     console.log('💾 Saved competitionId field:', registration.competitionId);
+    if (paymentOrderId) {
+      consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
+    }
 
     // Get user details for emails and Google Sheets
     const user = await User.findById(userId).select('name email phoneNumber');
@@ -2052,6 +2059,9 @@ const payAndRegisterFest = async (req, res) => {
 
     await registration.save();
     console.log('✅ Fest pay-and-register saved:', registration._id);
+    if (payment_order_id) {
+      consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
+    }
 
     const festRegistrationLink = `/registration-details/${registration._id}`;
 
@@ -2189,6 +2199,9 @@ const payAndRegister = async (req, res) => {
 
     await registration.save();
     console.log('✅ Pay-and-register saved:', registration._id);
+    if (payment_order_id) {
+      consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
+    }
 
     const payCompRegistrationLink = `/registration-details/${registration._id}`;
 
@@ -2377,6 +2390,9 @@ const submitEventShowRegistration = async (req, res) => {
     });
 
     await registration.save();
+    if (payment_order_id) {
+      consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
+    }
 
     res.status(201).json({
       success: true,

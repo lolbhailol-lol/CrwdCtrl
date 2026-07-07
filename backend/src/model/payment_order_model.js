@@ -24,6 +24,11 @@ const paymentOrderSchema = new mongoose.Schema(
     },
     ticketPrice: { type: Number, default: 0 },
     platformFee: { type: Number, default: 0 },
+    couponCode: { type: String, default: '', trim: true, uppercase: true },
+    couponDiscount: { type: Number, default: 0 },
+    amountBeforeDiscount: { type: Number, default: 0 },
+    amountAfterDiscount: { type: Number, default: 0 },
+    couponConsumedAt: { type: Date, default: null },
     totalAmount: { type: Number, required: true },
     people: { type: Number, default: 1 },
     currency: { type: String, default: 'INR' },
@@ -42,6 +47,7 @@ const paymentOrderSchema = new mongoose.Schema(
 
 paymentOrderSchema.index({ entityType: 1, entityId: 1 });
 paymentOrderSchema.index({ status: 1 });
+paymentOrderSchema.index({ couponCode: 1, status: 1 });
 paymentOrderSchema.index({ userId: 1, entityType: 1, entityId: 1, status: 1, createdAt: -1 });
 paymentOrderSchema.index({ status: 1, updatedAt: -1 });
 

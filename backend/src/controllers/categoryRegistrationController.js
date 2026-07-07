@@ -4,6 +4,7 @@ const SportsEvent = require('../model/sports_model');
 const Trek = require('../model/trek_model');
 const EventShow = require('../model/event_show_model');
 const { verifySportsBookingPayment } = require('../utils/sportsPaymentVerification');
+const { consumeCouponUsageForOrder } = require('../utils/couponPricing');
 
 const MODEL_MAP = {
     sports: SportsEvent,
@@ -102,6 +103,9 @@ exports.registerForEvent = async (req, res) => {
         });
 
         await registration.save();
+        if (paymentOrderId) {
+            consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
+        }
 
         res.status(201).json({ message: 'Registration successful', registration });
     } catch (error) {

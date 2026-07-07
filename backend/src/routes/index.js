@@ -33,6 +33,7 @@ const publicSearchRoutes = require('../routers/publicSearchRoute');
 const publicHomepageSectionRoutes = require('../routers/publicHomepageSectionRoute');
 const publicHomeRoutes = require('../routers/publicHomeRoute');
 const adminSiteSettingRoutes = require('../routers/adminSiteSettingRoute');
+const adminCouponRoutes = require('../routers/adminCouponRoute');
 const { authLimiter, paymentLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -51,6 +52,7 @@ router.use('/admin/trek-organizers', adminTrekOrganizerRoutes);
 router.use('/admin/run-club-organizers', adminRunClubOrganizerRoutes);
 router.use('/admin/trek-communities', adminTrekCommunityRoutes);
 router.use('/admin/site-settings', adminSiteSettingRoutes);
+router.use('/admin/coupons', adminCouponRoutes);
 router.use('/trek-communities', publicTrekCommunityRoutes);
 router.use('/admin/events', adminEventShowRoutes);
 router.use('/platform-events', publicPlatformEventRoutes);

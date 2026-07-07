@@ -6,6 +6,7 @@ const Trek = require('../model/trek_model');
 const TrekBooking = require('../model/trek_booking_model');
 const { appendToGoogleSheets } = require('../services/googleSheetsService');
 const { verifyTrekBookingPayment } = require('../utils/trekPaymentVerification');
+const { consumeCouponUsageForOrder } = require('../utils/couponPricing');
 const { createNotification } = require('../controllers/notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { sendTrekRegistrationEmails } = require('../services/emailService');
@@ -229,6 +230,9 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             },
             status: 'confirmed',
         });
+        if (paymentOrderId) {
+            consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
+        }
 
         const sheetsUrl = process.env.TREK_REGISTRATION_USE_SHEETS === 'true'
             ? trek.registration?.googleSheetsUrl
