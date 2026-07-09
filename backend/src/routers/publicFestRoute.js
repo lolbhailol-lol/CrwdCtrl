@@ -154,24 +154,22 @@ router.get('/search', festOrganizerController.searchFests);
 // ✅ Get upcoming fests
 router.get('/upcoming', festOrganizerController.getUpcomingFests);
 
-// ✅ Get single fest details (public view)
-router.get('/:id/public', festOrganizerController.getFestById);
-
-// ✅ Get single competition details (public view)
+// ✅ Get single competition details (public view) — before /:id/public
 router.get('/competitions/:competitionId/public', async (req, res) => {
     try {
         const { competitionId } = req.params;
+        const { findByIdOrSlug } = require('../utils/slug');
+        const Competition = require('../model/competition_model');
 
-        // Validate ObjectId
-        if (!require('mongoose').Types.ObjectId.isValid(competitionId)) {
-            return res.status(400).json({
-                error: 'Invalid competition ID format',
-                message: 'The provided ID is not a valid MongoDB ObjectId'
-            });
+        const found = await findByIdOrSlug(Competition, competitionId, {
+            pickName: (row) => row.name,
+        });
+
+        if (!found) {
+            return res.status(404).json({ message: 'Competition not found' });
         }
 
-        const Competition = require('../model/competition_model');
-        const competition = await Competition.findById(competitionId)
+        const competition = await Competition.findById(found._id)
             .populate({
                 path: 'fest',
                 select: 'festName collegeName isApproved registration',
@@ -281,6 +279,9 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         res.status(500).json({ error: 'Server error', details: err.message });
     }
 });
+
+// ✅ Get single fest details (public view)
+router.get('/:id/public', festOrganizerController.getFestById);
 
 // Debug route — development only
 router.get('/:id/debug', devOnly, async (req, res) => {

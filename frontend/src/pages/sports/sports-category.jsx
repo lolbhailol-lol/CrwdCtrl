@@ -29,6 +29,7 @@ import {
 import { normalizeImageUrl } from '../../utils/uploadUrls';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { navigateToSearchResult } from '../../utils/searchNavigation';
+import { festPath, runClubPath, sportRunPath } from '../../utils/slugRoutes';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 import Seo from '../../components/Seo';
@@ -202,11 +203,11 @@ export default function SportsCategoryPage() {
 
     const handleActivityClick = (item) => {
         if (item.kind === 'fest' && item.festId) {
-            navigate(`/view-details/${item.festId}`);
+            navigate(festPath({ _id: item.festId, festName: item.title, title: item.title }));
             return;
         }
         if (item.kind === 'event' && item.id) {
-            navigate(`/sports/run/${item.id}`);
+            navigate(sportRunPath(item));
             return;
         }
         if (item.registrationLink) {
@@ -270,10 +271,10 @@ export default function SportsCategoryPage() {
                         items: [
                             ...runClubEntities
                                 .filter((c) => (c?._id || c?.id) && (c?.name || c?.clubName))
-                                .map((c) => ({ name: c.name || c.clubName, url: `/sports/run-club/${c._id || c.id}` })),
+                                .map((c) => ({ name: c.name || c.clubName, url: runClubPath(c) })),
                             ...sportsFests
                                 .filter((f) => f?._id && f?.festName)
-                                .map((f) => ({ name: f.festName, url: `/view-details/${f._id}` })),
+                                .map((f) => ({ name: f.festName, url: festPath(f) })),
                         ],
                     }),
                     faqSchema(SPORTS_FAQ),
@@ -397,7 +398,7 @@ export default function SportsCategoryPage() {
                                             })
                                         }
                                         onClick={() => {
-                                            navigate(`/sports/run-club/${club.id}`, {
+                                            navigate(runClubPath(club), {
                                                 state: {
                                                     club: {
                                                         _id: club.id,

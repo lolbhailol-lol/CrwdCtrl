@@ -33,6 +33,7 @@ import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentC
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 import { fetchPaymentQuote } from '../../services/api/payment.api';
 import { API_BASE_URL } from '../../services/api/client';
+import { competitionRegistrationPath } from '../../utils/slugRoutes';
 
 function getInitialCompetitionRegistrationUi(pathname, search) {
     const currentPath = `${pathname}${search}`;
@@ -270,6 +271,14 @@ export default function CompetitionRegistration() {
     }, [competitionId, authLoading, token, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing, navigate, fetchCompetitionDetails]);
 
     useEffect(() => {
+        if (!competition) return;
+        const canonical = competitionRegistrationPath(competition);
+        if (window.location.pathname !== canonical) {
+            navigate(`${canonical}${location.search || ''}`, { replace: true });
+        }
+    }, [competition, navigate, location.search]);
+
+    useEffect(() => {
         if (loading || !competition) return;
 
         const fee = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
@@ -298,7 +307,8 @@ export default function CompetitionRegistration() {
     }, [competition, competitionId, token, loading, isAuthProcessing, fetchPaymentQuoteForRegistration]);
 
     const completePayOnlyRegistration = useCallback(async (verifiedFields, submitToken) => {
-        const regRes = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/pay-and-register`, {
+        const resolvedId = competition?._id || competition?.id || competitionId;
+        const regRes = await fetch(`${API_BASE_URL}/registrations/competitions/${resolvedId}/pay-and-register`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -318,7 +328,7 @@ export default function CompetitionRegistration() {
         if (regId) setRegistrationId(regId);
         clearRegistrationDraft(draftKey);
         setSuccess(true);
-    }, [competitionId, draftKey]);
+    }, [competition, competitionId, draftKey]);
 
     // Resume after Cashfree redirect — verify payment, then auto-complete registration
     useEffect(() => {
@@ -1249,7 +1259,8 @@ export default function CompetitionRegistration() {
             }, baseTimeout);
 
             console.log(`⏱️ Request timeout: ${(baseTimeout / 1000).toFixed(0)}s`);
-            console.log('🌐 Making fetch request to:', `${API_BASE_URL}/registrations/competitions/${competitionId}/custom`);
+            const resolvedId = competition?._id || competition?.id || competitionId;
+            console.log('🌐 Making fetch request to:', `${API_BASE_URL}/registrations/competitions/${resolvedId}/custom`);
 
             // ✅ FIX: Ensure we have a valid token before submission
             const submitToken = token || localStorage.getItem('crwdctrl_token');
@@ -1264,7 +1275,7 @@ export default function CompetitionRegistration() {
                 throw new Error('Authentication required. Please log in again to submit your registration.');
             }
 
-            const response = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/custom`, {
+            const response = await fetch(`${API_BASE_URL}/registrations/competitions/${resolvedId}/custom`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${submitToken}`,

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
+import CommunityHeroBannerField from './CommunityHeroBannerField';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
@@ -194,6 +195,26 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                             onError={(msg) => setError(`Cover upload failed: ${msg}`)}
                             onUploadingChange={setUploading}
                             hint="Upload a cropped image per layout (portrait cards, wide cards, hero, etc.)."
+                        />
+                    </AdminFormSection>
+
+                    <AdminFormSection
+                        title="Run Club detail banner (393 × 396)"
+                        hint="Separate upload for the Run Club page top banner frame. Use this for exact-fit hero crop."
+                    >
+                        <CommunityHeroBannerField
+                            value={form.coverImages?.hero || ''}
+                            onChange={(url) => {
+                                const nextCoverImages = normalizeCoverImages({
+                                    ...form.coverImages,
+                                    hero: url || '',
+                                });
+                                set('coverImages', nextCoverImages);
+                                set('coverImage', primaryCoverUrl(nextCoverImages, form.coverImage));
+                            }}
+                            onError={(msg) => setError(`Detail banner upload failed: ${msg}`)}
+                            onUploadingChange={setUploading}
+                            communityName={form.name || 'Run Club'}
                         />
                     </AdminFormSection>
 

@@ -19,6 +19,7 @@ import {
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 import { formatTrekCardDate } from '../../utils/trekDateDisplay';
+import { communityPath, trekPath } from '../../utils/slugRoutes';
 
 const GALLERY_PREVIEW_COUNT = 4;
 
@@ -213,6 +214,14 @@ export default function CommunityDetailPage() {
     }, [id]);
 
     useEffect(() => {
+        if (!community || !id) return;
+        const canonical = communityPath(community);
+        if (canonical && window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [community, id, navigate, location.state]);
+
+    useEffect(() => {
         if (!communityId) return;
         const controller = new AbortController();
         setLoadingTreks(true);
@@ -270,7 +279,7 @@ export default function CommunityDetailPage() {
         shareContent({ title: name, url: window.location.href });
     };
 
-    const canonicalPath = `/treks/community/${id || community?._id || community?.id}`;
+    const canonicalPath = communityPath(community || { id });
 
     return (
         <div className="crwdctrl-page flex flex-col min-h-screen pb-8" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
@@ -291,7 +300,7 @@ export default function CommunityDetailPage() {
                         url: canonicalPath,
                         items: treks
                             .filter((t) => t?.id && t?.title)
-                            .map((t) => ({ name: t.title, url: `/trek/${t.id}` })),
+                            .map((t) => ({ name: t.title, url: trekPath(t) })),
                     }),
                 ]}
             />
@@ -467,7 +476,7 @@ export default function CommunityDetailPage() {
                                         isDark={isDark}
                                         isFav={isFavorite(trek.id)}
                                         onFav={() => toggleFavorite(trek.id, trek)}
-                                        onClick={() => navigate(`/trek/${trek.id}`, {
+                                        onClick={() => navigate(trekPath(trek), {
                                             state: {
                                                 trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] },
                                                 community: community ? {

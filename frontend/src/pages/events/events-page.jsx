@@ -33,6 +33,7 @@ import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { EVENTS_FAQ } from '../../constants/faqs';
+import { eventShowPath } from '../../utils/slugRoutes';
 
 const EVENTS_DESCRIPTION =
     'Discover events, shows and meetups near you — concerts, stand-up comedy, workshops and more. Find and book tickets to events around you on CrwdCtrl.';
@@ -271,7 +272,7 @@ export default function EventsPage() {
 
     const handleShowClick = useCallback((show) => {
         if (show?.id) {
-            navigate(`/events/${show.id}`);
+            navigate(eventShowPath(show));
         } else if (show.bookingLink) {
             openExternalUrl(show.bookingLink);
         }

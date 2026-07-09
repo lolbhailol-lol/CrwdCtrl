@@ -25,6 +25,7 @@ import CrwdCtrlRegister from '../auth/register';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
+import { festPath, competitionPath } from '../../utils/slugRoutes';
 
 function formatCompetitionTabLabel(tab) {
   if (!tab || tab === 'OTHER') return 'Other';
@@ -219,6 +220,14 @@ function EventDetailsPage() {
     fetchEventData();
   }, [eventId, navigate]);
 
+  useEffect(() => {
+    if (!eventData || !eventId) return;
+    const canonical = festPath({ id: eventData.id, _id: eventData.id, festName: eventData.title, title: eventData.title });
+    if (canonical && window.location.pathname !== canonical) {
+      navigate(`${canonical}${window.location.search || ''}`, { replace: true });
+    }
+  }, [eventData, eventId, navigate]);
+
   // 🔄 Listen for admin updates and refetch data
   useEffect(() => {
     const handleAdminUpdate = (e) => {
@@ -378,7 +387,7 @@ function EventDetailsPage() {
   };
 
   const handleCompetitionRegister = (competition) => {
-    navigate(`/competitions-view-details/${competition.id}`, {
+    navigate(competitionPath(competition), {
       state: {
         competition: buildCompetitionNavPayload(competition, eventData),
         eventData,
@@ -456,7 +465,7 @@ function EventDetailsPage() {
     ? 'bg-green-600 text-white'
     : 'bg-gray-400 text-white cursor-not-allowed';
 
-  const canonicalPath = `/view-details/${eventId}`;
+  const canonicalPath = festPath({ id: eventData.id, _id: eventData.id, festName: eventData.title, title: eventData.title });
   const festDescription = `${eventData.title}${eventData.collegeName && eventData.collegeName !== 'Unknown College' ? ` by ${eventData.collegeName}` : ''} — ${eventData.description}`;
 
   return (

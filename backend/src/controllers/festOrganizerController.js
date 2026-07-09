@@ -17,6 +17,7 @@ const User = require('../model/usermodel');
 const Event = require('../model/event_model');
 const Competition = require('../model/competition_model');
 const { parseTicketPrice } = require('../utils/platformFee');
+const { findByIdOrSlug } = require('../utils/slug');
 
 const getCompetitionBaseFee = (registrationFee, feeAmount) => {
     const numericFeeAmount = parseTicketPrice(feeAmount);
@@ -282,14 +283,6 @@ exports.getFestById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Validate if the provided ID is a valid MongoDB ObjectId
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({
-                error: 'Invalid fest ID format',
-                message: 'The provided ID is not a valid MongoDB ObjectId'
-            });
-        }
-
         // Check cache first
         const cachedFest = getFromCache('festDetails', id);
         if (cachedFest) {
@@ -309,7 +302,17 @@ exports.getFestById = async (req, res) => {
         console.log('🔄 Fetching fresh fest details from database');
 
         // Handle case where organizer might be null (admin-created fests)
-        let fest = await FestOrganizer.findById(id)
+        const festMatch = await findByIdOrSlug(FestOrganizer, id, {
+            baseFilter: { isApproved: true },
+            pickName: (row) => row.festName,
+            lean: true,
+        });
+        if (!festMatch) {
+            console.log(`❌ Fest not found in database: ${id}`);
+            return res.status(404).json({ message: 'Fest not found' });
+        }
+
+        let fest = await FestOrganizer.findById(festMatch._id)
             .populate({
                 path: 'organizer',
                 select: 'name email college',
@@ -334,10 +337,7 @@ exports.getFestById = async (req, res) => {
             }
         }
 
-        if (!fest) {
-            console.log(`❌ Fest not found in database: ${id}`);
-            return res.status(404).json({ message: 'Fest not found' });
-        }
+        if (!fest) return res.status(404).json({ message: 'Fest not found' });
 
         console.log(`🔍 Fest found: ${fest.festName}, isApproved: ${fest.isApproved}, formType: ${fest.registration?.formType}, schemaFields: ${fest.registration?.formSchema?.length || 0}, steps: ${fest.registration?.steps?.length || 0}`);
 

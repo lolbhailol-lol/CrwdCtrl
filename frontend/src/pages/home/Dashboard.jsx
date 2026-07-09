@@ -40,6 +40,7 @@ import { HOME_FAQ } from '../../constants/faqs';
 import { mapEventShow } from '../../constants/eventsPage';
 import { getCoverImageUrl } from '../../utils/coverImages';
 import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
+import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
 
 const HOME_JSON_LD = [
     webPageSchema({
@@ -1054,11 +1055,11 @@ const Dashboard = () => {
 
     const navigateToHomeItem = useCallback((item) => {
         if (item._type === 'fest') {
-            navigate(`/view-details/${item.id}`);
+            navigate(festPath(item));
         } else if (item._type === 'trek') {
-            navigate(`/trek/${item._id}`, { state: { trek: item } });
+            navigate(trekPath(item), { state: { trek: item } });
         } else if (item._type === 'community') {
-            navigate(`/treks/community/${item._id}`, {
+            navigate(communityPath(item), {
                 state: {
                     community: {
                         id: item._id,
@@ -1070,7 +1071,7 @@ const Dashboard = () => {
                 },
             });
         } else if (item._type === 'runclub') {
-            navigate(`/sports/run-club/${item._id}`, {
+            navigate(runClubPath(item), {
                 state: {
                     club: {
                         _id: item._id,
@@ -1081,21 +1082,21 @@ const Dashboard = () => {
                 },
             });
         } else if (item._type === 'sport') {
-            navigate(`/sports/run/${item.id || item._id}`);
+            navigate(sportRunPath(item));
         } else if (item._type === 'events') {
-            navigate(`/events/${item.id || item._id}`);
+            navigate(eventShowPath(item));
         }
     }, [navigate]);
 
     const getHomeItemShareUrl = useCallback((item) => {
         const origin = window.location.origin;
-        if (item._type === 'fest') return `${origin}/view-details/${item.id}`;
-        if (item._type === 'trek') return `${origin}/trek/${item._id}`;
-        if (item._type === 'community') return `${origin}/treks/community/${item._id}`;
-        if (item._type === 'runclub') return `${origin}/sports/run-club/${item._id}`;
-        if (item._type === 'sport') return `${origin}/sports/run/${item.id || item._id}`;
-        if (item._type === 'events') return `${origin}/events/${item.id || item._id}`;
-        return `${origin}/view-details/${item.id || item._id}`;
+        if (item._type === 'fest') return `${origin}${festPath(item)}`;
+        if (item._type === 'trek') return `${origin}${trekPath(item)}`;
+        if (item._type === 'community') return `${origin}${communityPath(item)}`;
+        if (item._type === 'runclub') return `${origin}${runClubPath(item)}`;
+        if (item._type === 'sport') return `${origin}${sportRunPath(item)}`;
+        if (item._type === 'events') return `${origin}${eventShowPath(item)}`;
+        return `${origin}${festPath(item)}`;
     }, []);
 
     const getHomeItemId = (item) => item.id || item._id;
@@ -1116,7 +1117,7 @@ const Dashboard = () => {
         const type = result.resultType || result._type;
         const id = result.id || result._id;
         if (type === 'competition') {
-            navigate(`/competitions-view-details/${id}`);
+            navigate(competitionPath({ _id: id, id, name: result.title, title: result.title }));
         } else if (type === 'fest') {
             navigate(`/view-details/${id}`);
         } else if (type === 'trek' || type === 'community' || type === 'sport') {
@@ -1254,9 +1255,9 @@ const Dashboard = () => {
                         events={heroEvents}
                         onEventClick={(id) => {
                             const slide = heroEvents.find((e) => e.id === id);
-                            if (slide?._type === 'events') navigate(`/events/${id}`);
-                            else if (slide?._type === 'runclub') navigate(`/sports/run-club/${id}`);
-                            else navigate(`/view-details/${id}`);
+                            if (slide?._type === 'events') navigate(eventShowPath(slide));
+                            else if (slide?._type === 'runclub') navigate(runClubPath(slide));
+                            else navigate(festPath(slide));
                         }}
                         isDark={isDark}
                     />

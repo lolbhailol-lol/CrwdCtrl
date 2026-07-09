@@ -13,6 +13,7 @@ import { verifyPaymentWithRetry, goToBookings } from '../../utils/paymentNavigat
 import { buildEventPriceBreakdown } from '../../utils/platformFee';
 import { API_BASE_URL } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
+import { eventShowPath } from '../../utils/slugRoutes';
 
 const API = API_BASE_URL;
 
@@ -111,6 +112,14 @@ export default function EventRegistrationPage() {
         })();
         return () => { cancelled = true; };
     }, [eventId]);
+
+    useEffect(() => {
+        if (!event) return;
+        const canonical = `${eventShowPath(event)}/register`;
+        if (window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [event, navigate, location.state]);
 
     const reg = event?.registration || {};
     const ticketPrice = Number(event?.ticketPrice) || 0;

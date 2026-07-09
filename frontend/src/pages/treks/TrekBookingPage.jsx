@@ -24,6 +24,7 @@ import { API_BASE_URL } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../utils/trekGenderRegistration';
 import GenderQuickPick from '../../components/GenderQuickPick';
+import { trekPath } from '../../utils/slugRoutes';
 
 const API = API_BASE_URL;
 
@@ -267,6 +268,14 @@ export default function TrekBookingPage() {
 
         return () => { cancelled = true; };
     }, [id, location.state?.trek, isAuthenticated, authToken]);
+
+    useEffect(() => {
+        if (!trek) return;
+        const canonical = `${trekPath(trek)}/book`;
+        if (window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [trek, navigate, location.state]);
 
     useEffect(() => {
         if (!trek) return;

@@ -16,6 +16,7 @@ import {
     saveRecentSearch,
     FALLBACK_SEARCH_TERMS,
 } from '../../utils/heroSearchSuggestions';
+import { competitionPath, festPath } from '../../utils/slugRoutes';
 
 const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests' },
@@ -531,11 +532,9 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
         
         // Navigate based on result type
         if (event.resultType === 'competition') {
-            // Navigate to competition details page
-            navigate(`/competitions-view-details/${event.id}`);
+            navigate(competitionPath({ _id: event.id, id: event.id, name: event.title, title: event.title }));
         } else {
-            // Navigate to fest details page
-            navigate(`/view-details/${event.id}`);
+            navigate(festPath({ _id: event.id, id: event.id, festName: event.title, title: event.title }));
         }
     };
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const RunClub = require('../model/run_club_model');
+const { findByIdOrSlug } = require('../utils/slug');
 
 router.get('/', async (req, res) => {
     try {
@@ -19,13 +20,16 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:idOrSlug', async (req, res) => {
     try {
-        const club = await RunClub.findOne({
-            _id: req.params.id,
+        const club = await findByIdOrSlug(RunClub, req.params.idOrSlug, {
+            baseFilter: {
             status: 'published',
             showOnSportsPage: { $ne: false },
-        }).lean();
+            },
+            pickName: (row) => row.name,
+            lean: true,
+        });
         if (!club) return res.status(404).json({ message: 'Run club not found' });
         res.json({ club });
     } catch (err) {

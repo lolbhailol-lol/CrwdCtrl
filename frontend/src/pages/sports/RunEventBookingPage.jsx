@@ -21,6 +21,7 @@ import {
 import { calculatePlatformFee } from '../../utils/platformFee';
 import { API_BASE_URL } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
+import { sportRunPath } from '../../utils/slugRoutes';
 
 const API = API_BASE_URL;
 
@@ -181,6 +182,14 @@ export default function RunEventBookingPage() {
 
         return () => { cancelled = true; };
     }, [id, location.state?.event]);
+
+    useEffect(() => {
+        if (!event) return;
+        const canonical = `${sportRunPath(event)}/book`;
+        if (window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [event, navigate, location.state]);
 
     useEffect(() => {
         if (!event) return;

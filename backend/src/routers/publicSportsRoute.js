@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
 const SportsEvent = require('../model/sports_model');
+const { findByIdOrSlug } = require('../utils/slug');
 
 // GET /api/sports — list published sports events
 router.get('/', async (req, res) => {
@@ -26,13 +26,16 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/sports/:id — single published sports event
-router.get('/:id', async (req, res) => {
+router.get('/:idOrSlug', async (req, res) => {
     try {
-        const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: 'Invalid sports event ID' });
-        }
-        const event = await SportsEvent.findOne({ _id: id, status: 'published' })
+        const eventMatch = await findByIdOrSlug(SportsEvent, req.params.idOrSlug, {
+            baseFilter: { status: 'published' },
+            pickName: (row) => row.title,
+            lean: true,
+        });
+        if (!eventMatch) return res.status(404).json({ message: 'Sports event not found' });
+
+        const event = await SportsEvent.findOne({ _id: eventMatch._id, status: 'published' })
             .populate('runClubId', 'name basedIn contactPhone contactInstagram')
             .lean();
         if (!event) return res.status(404).json({ message: 'Sports event not found' });

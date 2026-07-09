@@ -18,6 +18,7 @@ import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../services/ap
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
+import { competitionPath, competitionRegistrationPath, festRegisterPath } from '../../utils/slugRoutes';
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -411,6 +412,14 @@ function EventPage() {
         };
     }, [competitionId]);
 
+    useEffect(() => {
+        if (!competitionData) return;
+        const canonical = competitionPath(competitionData);
+        if (canonical && window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [competitionData, navigate, location.state]);
+
     // Check for login modal parameter
     useEffect(() => {
         const urlParams = new URLSearchParams(location.search);
@@ -656,7 +665,7 @@ function EventPage() {
                 const festId = eventData?.fest?._id || passedEventData?.id || eventData?.festId || eventData?.fest?.id;
                 const compId = eventData?.id;
                 festId
-                    ? navigate(`/fest/${festId}/register?competition=${compId}`)
+                    ? navigate(`${festRegisterPath(eventData?.fest || { _id: festId, festName: eventData?.fest?.festName })}?competition=${compId}`)
                     : showAlert({ title: 'Registration unavailable', message: 'Registration is not available. Please contact the organizers.' });
             } else if (mode === 'NOT_STARTED') {
                 showAlert({ title: 'Registration not started', message: 'Registration has not started yet for this competition.' });
@@ -667,7 +676,7 @@ function EventPage() {
             }
         } else if (registrationType === 'custom') {
             if (registrationStatus === 'internal_form') {
-                navigate(`/competition-registration/${eventData?.id || eventData?._id}`);
+                navigate(competitionRegistrationPath(eventData));
             } else if (registrationStatus === 'external_link') {
                 const externalUrl = eventData?.registration?.externalUrl;
                 externalUrl?.trim()
@@ -806,7 +815,7 @@ function EventPage() {
         setShowLogin(true);
     };
 
-    const canonicalPath = `/competitions-view-details/${competitionId}`;
+    const canonicalPath = competitionPath(competitionData || { id: competitionId, name: eventData?.title });
     const competitionDescription =
         eventData.description || eventData.subtitle || `${eventData.title} — a competition on CrwdCtrl.`;
 

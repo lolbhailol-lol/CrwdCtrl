@@ -1,4 +1,6 @@
 const { google } = require('googleapis');
+const { buildSlugPathLookup, mergePageViewStats } = require('../utils/analyticsPathNormalizer');
+const { ensurePageViewPathsMigrated } = require('./analyticsPathMigration');
 
 /**
  * Google Analytics (GA4) Data API integration.
@@ -86,6 +88,9 @@ const getAnalyticsSummary = async ({ days = 28, startDate: customStart, endDate:
   const dateRanges = [{ startDate, endDate }];
   const client = getAnalyticsClient();
 
+  // Rewrite stored internal analytics + normalize GA page paths using slug names.
+  ensurePageViewPathsMigrated().catch(() => {});
+
   const run = (requestBody) =>
     client.properties.runReport({ property, requestBody });
 
@@ -129,7 +134,7 @@ const getAnalyticsSummary = async ({ days = 28, startDate: customStart, endDate:
       dimensions: [{ name: 'pagePath' }],
       metrics: [{ name: 'screenPageViews' }],
       orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-      limit: 8,
+      limit: 100,
     }),
     run({
       dateRanges,
@@ -169,6 +174,10 @@ const getAnalyticsSummary = async ({ days = 28, startDate: customStart, endDate:
     devices[d.device] = d.value;
   });
 
+  const slugLookup = await buildSlugPathLookup();
+  const topPages = mergePageViewStats(mapRows(topPagesRes, { keyName: 'page' }), slugLookup)
+    .slice(0, 8);
+
   return {
     configured: true,
     range: { days: useCustom ? null : (Number(days) || 28), startDate, endDate },
@@ -196,7 +205,7 @@ const getAnalyticsSummary = async ({ days = 28, startDate: customStart, endDate:
         bounceRate: `${(v(7) * 100).toFixed(1)}%`,
       };
     }),
-    topPages: mapRows(topPagesRes, { keyName: 'page' }),
+    topPages: topPages,
     topCountries: mapRows(countriesRes, { keyName: 'country' }),
     devices,
     trafficSources: mapRows(sourcesRes, { keyName: 'source' }),

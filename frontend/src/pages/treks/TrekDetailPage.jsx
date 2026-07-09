@@ -15,6 +15,7 @@ import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../utils/trekI
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { fetchTrekCommunity } from '../../services/api/public.api';
+import { trekPath } from '../../utils/slugRoutes';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -265,6 +266,14 @@ export default function TrekDetailPage() {
         return () => controller.abort();
     }, [trek?.communityId]);
 
+    useEffect(() => {
+        if (!trek || !id) return;
+        const canonical = trekPath(trek);
+        if (canonical && window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [trek, id, navigate, location.state]);
+
     if (loading) return (
         <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
             <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
@@ -311,7 +320,7 @@ export default function TrekDetailPage() {
 
     const trekName = trek.trekName || trek.title || trek.name || 'Trek';
     const trekLocation = trek.city || trek.destination || trek.meetingLocation || trek.startingPoint || null;
-    const canonicalPath = `/trek/${id || trek._id || trek.id}`;
+    const canonicalPath = trekPath(trek);
 
     return (
         <div className="crwdctrl-page flex flex-col min-h-screen pb-28">
@@ -456,8 +465,7 @@ export default function TrekDetailPage() {
                                     window.open(extLink, '_blank', 'noopener,noreferrer');
                                     return;
                                 }
-                                const trekId = id || trek._id || trek.id;
-                                navigate(`/trek/${trekId}/book`, { state: { trek, genderRegistration, freshBooking: true } });
+                                navigate(`${trekPath(trek)}/book`, { state: { trek, genderRegistration, freshBooking: true } });
                             }}
                             className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                         >

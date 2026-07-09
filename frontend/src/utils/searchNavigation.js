@@ -1,3 +1,5 @@
+import { communityPath, competitionPath, festPath, runClubPath, sportRunPath, trekPath } from './slugRoutes';
+
 /**
  * Navigate to the correct page from a unified search result.
  */
@@ -7,15 +9,15 @@ export function navigateToSearchResult(navigate, result) {
   const id = result.id || result._id;
 
   if (type === 'competition') {
-    navigate(`/competitions-view-details/${id}`);
+    navigate(competitionPath({ _id: id, id, name: result.title, title: result.title }));
     return;
   }
   if (type === 'fest') {
-    navigate(`/view-details/${id}`);
+    navigate(festPath({ _id: id, id, festName: result.title, title: result.title }));
     return;
   }
   if (type === 'trek') {
-    navigate(`/trek/${id}`, {
+    navigate(trekPath({ _id: id, id, trekName: result.title, title: result.title }), {
       state: {
         trek: {
           ...result,
@@ -27,7 +29,7 @@ export function navigateToSearchResult(navigate, result) {
     return;
   }
   if (type === 'community') {
-    navigate(`/treks/community/${id}`, {
+    navigate(communityPath({ _id: id, id, name: result.title, title: result.title }), {
       state: {
         community: {
           id,
@@ -41,7 +43,7 @@ export function navigateToSearchResult(navigate, result) {
     return;
   }
   if (type === 'runclub') {
-    navigate(`/sports/run-club/${id}`, {
+    navigate(runClubPath({ _id: id, id, name: result.title, title: result.title }), {
       state: {
         club: {
           _id: id,
@@ -54,7 +56,7 @@ export function navigateToSearchResult(navigate, result) {
     return;
   }
   if (type === 'sport') {
-    navigate(`/sports/run/${id}`);
+    navigate(sportRunPath({ _id: id, id, title: result.title }));
     return;
   }
   if (id) {

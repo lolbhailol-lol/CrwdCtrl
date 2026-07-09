@@ -17,6 +17,7 @@ import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPage';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
+import { eventShowPath } from '../../utils/slugRoutes';
 
 function formatEventDateTime(showTimings) {
   if (!showTimings?.length) return 'Date & time TBA';
@@ -129,6 +130,14 @@ export default function EventDetailsPage() {
     return () => { active = false; };
   }, [eventId, navigate]);
 
+  useEffect(() => {
+    if (!event || !eventId) return;
+    const canonical = eventShowPath(event);
+    if (canonical && window.location.pathname !== canonical) {
+      navigate(`${canonical}${window.location.search || ''}`, { replace: true });
+    }
+  }, [event, eventId, navigate]);
+
   const tabs = event
     ? [
         { key: 'general', label: 'General Rules', content: event.generalRules, type: 'list' },
@@ -179,7 +188,7 @@ export default function EventDetailsPage() {
         setShowLogin(true);
         return;
       }
-      navigate(`/events/${eventId}/register`);
+      navigate(`${eventShowPath(event)}/register`);
       return;
     }
     const link = event?.registrationLink || event?.bookingLink;
@@ -243,19 +252,19 @@ export default function EventDetailsPage() {
       <Seo
         title={event.title}
         description={event.about ? event.about.slice(0, 160) : `${event.title} — ${event.type}`}
-        canonical={`/events/${eventId}`}
+        canonical={eventShowPath(event)}
         image={event.image}
         type="article"
         jsonLd={[
           breadcrumbSchema([
             { name: 'Home', path: '/' },
             { name: 'Events', path: '/events' },
-            { name: event.title, path: `/events/${eventId}` },
+            { name: event.title, path: eventShowPath(event) },
           ]),
           eventSchema({
             name: event.title,
             description: event.about,
-            url: `/events/${eventId}`,
+            url: eventShowPath(event),
             image: event.image,
             location: event.venue !== 'Venue TBA' ? event.venue : undefined,
             price: event.ticketPrice,
@@ -700,7 +709,7 @@ export default function EventDetailsPage() {
           <CrwdCtrlLogin
             onClose={() => {
               setShowLogin(false);
-              if (isLoggedIn()) navigate(`/events/${eventId}/register`);
+              if (isLoggedIn()) navigate(`${eventShowPath(event)}/register`);
             }}
           />
         </div>

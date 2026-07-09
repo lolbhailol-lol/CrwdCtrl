@@ -17,6 +17,7 @@ const {
     validateTrekGenderRegistration,
 } = require('../utils/trekGenderRegistration');
 const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
+const { findByIdOrSlug } = require('../utils/slug');
 
 function stripTrekGroupLinks(trek) {
     if (!trek) return trek;
@@ -87,13 +88,15 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/treks/:id — single trek detail
-router.get('/:id', async (req, res) => {
+router.get('/:idOrSlug', async (req, res) => {
     try {
-        const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: 'Invalid trek ID' });
-        }
-        const trek = await Trek.findOne({ _id: id, status: 'published' })
+        const trekMatch = await findByIdOrSlug(Trek, req.params.idOrSlug, {
+            baseFilter: { status: 'published' },
+            pickName: (row) => row.trekName,
+            lean: true,
+        });
+        if (!trekMatch) return res.status(404).json({ message: 'Trek not found' });
+        const trek = await Trek.findOne({ _id: trekMatch._id, status: 'published' })
             .populate('communityId', 'name basedIn contactPhone contactInstagram')
             .lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });

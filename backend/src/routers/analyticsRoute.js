@@ -8,6 +8,7 @@ const {
   getFestAnalytics,
   getRealtimeStats,
   getRevenueSummary,
+  migratePageViewPaths,
 } = require('../controllers/analyticsController');
 const {
   getGoogleAnalytics,
@@ -36,6 +37,7 @@ router.get('/dashboard', adminAuth, getDashboardStats);
 router.get('/revenue-summary', adminAuth, getRevenueSummary);
 router.get('/fests/:festId', adminAuth, getFestAnalytics);
 router.get('/realtime', adminAuth, getRealtimeStats);
+router.post('/migrate-paths', adminAuth, migratePageViewPaths);
 
 // ===== GOOGLE ANALYTICS (GA4 Data API) =====
 // Declare the more specific path first as a convention/safety measure.

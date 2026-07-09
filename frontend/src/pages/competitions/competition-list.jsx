@@ -9,6 +9,7 @@ import {
   buildCompetitionNavPayload,
 } from '../../utils/festPublicTransform';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
+import { competitionPath } from '../../utils/slugRoutes';
 
 const CompetitionListPage = () => {
     const { isDark } = useDarkMode();
@@ -122,7 +123,7 @@ const CompetitionListPage = () => {
     };
 
     const handleCompetitionClick = (competition) => {
-        navigate(`/competitions-view-details/${competition.id}`, {
+        navigate(competitionPath(competition), {
             state: {
                 competition: buildCompetitionNavPayload(competition, eventData),
                 eventData,

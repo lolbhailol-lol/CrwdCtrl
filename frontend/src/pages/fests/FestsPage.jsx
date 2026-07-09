@@ -30,6 +30,7 @@ import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { FESTS_FAQ } from '../../constants/faqs';
+import { festPath } from '../../utils/slugRoutes';
 
 const FESTS_DESCRIPTION =
     'Browse and register for college fests near you — cultural, technical and sports festivals. Find upcoming and ongoing fests, competitions and events on CrwdCtrl.';
@@ -73,7 +74,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
         shareContent({
             title: fest.festName,
             text: `Check out ${fest.festName}`,
-            url: `${window.location.origin}/view-details/${fest._id}`,
+            url: `${window.location.origin}${festPath(fest)}`,
         });
     };
 
@@ -143,7 +144,7 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
                                 isDark={isDark}
                                 isFavorite={isFavorite(fest._id)}
                                 onToggleFavorite={() => toggleFavorite(fest._id, fest)}
-                                onViewDetails={() => navigate(`/view-details/${fest._id}`)}
+                                onViewDetails={() => navigate(festPath(fest))}
                             />
                         ))
                     }
@@ -243,7 +244,7 @@ export default function FestsPage() {
                         url: '/fests',
                         items: fests
                             .filter((fest) => fest?._id && fest?.festName)
-                            .map((fest) => ({ name: fest.festName, url: `/view-details/${fest._id}` })),
+                                .map((fest) => ({ name: fest.festName, url: festPath(fest) })),
                     }),
                     faqSchema(FESTS_FAQ),
                 ]}
@@ -302,7 +303,10 @@ export default function FestsPage() {
                             dateTime: f.festDate,
                             status: f.status || 'ongoing',
                         }))}
-                    onEventClick={(id) => navigate(`/view-details/${id}`)}
+                    onEventClick={(id) => {
+                        const selected = [...ongoingFests, ...upcomingFests].find((f) => f._id === id || f.id === id);
+                        navigate(festPath(selected || { _id: id }));
+                    }}
                     isDark={isDark}
                 />
 

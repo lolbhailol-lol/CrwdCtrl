@@ -37,6 +37,7 @@ import {
 import { parseTicketPrice } from '../../utils/platformFee';
 import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../services/api/payment.api';
 import { API_BASE_URL } from '../../services/api/client';
+import { festRegisterPath } from '../../utils/slugRoutes';
 
 function getInitialFestRegistrationUi(pathname, search) {
   const currentPath = `${pathname}${search}`;
@@ -408,6 +409,14 @@ export default function FestRegistration() {
     initializeRegistration();
      
   }, [festId, competitionId, authLoading, authToken, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing, location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!fest) return;
+    const canonical = festRegisterPath(fest);
+    if (window.location.pathname !== canonical) {
+      navigate(`${canonical}${location.search || ''}`, { replace: true });
+    }
+  }, [fest, navigate, location.search]);
 
   useEffect(() => {
     if (loading || !fest) return;

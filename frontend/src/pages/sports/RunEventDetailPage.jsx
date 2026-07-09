@@ -8,6 +8,7 @@ import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { shareContent } from '../../utils/externalLink';
+import { sportRunPath } from '../../utils/slugRoutes';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -137,6 +138,14 @@ export default function RunEventDetailPage() {
         return () => controller.abort();
     }, [id, location.state?.event]);
 
+    useEffect(() => {
+        if (!event || !id) return;
+        const canonical = sportRunPath(event);
+        if (canonical && window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [event, id, navigate, location.state]);
+
     if (loading) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
@@ -181,8 +190,7 @@ export default function RunEventDetailPage() {
         shareContent({ title: event.title, url: window.location.href });
     };
 
-    const eventId = id || event._id || event.id;
-    const canonicalPath = `/sports/run/${eventId}`;
+    const canonicalPath = sportRunPath(event || { id });
 
     return (
         <div className="crwdctrl-page flex flex-col min-h-screen" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
@@ -325,7 +333,7 @@ export default function RunEventDetailPage() {
                                         window.open(extLink, '_blank', 'noopener,noreferrer');
                                         return;
                                     }
-                                    navigate(`/sports/run/${eventId}/book`, { state: { event, runClub: club } });
+                                    navigate(`${sportRunPath(event)}/book`, { state: { event, runClub: club } });
                                 }}
                                 className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                             >

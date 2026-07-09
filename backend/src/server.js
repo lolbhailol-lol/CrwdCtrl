@@ -16,6 +16,11 @@ async function startServer() {
   try {
     await connectDB();
 
+    try {
+      const { ensurePageViewPathsMigrated } = require('./services/analyticsPathMigration');
+      ensurePageViewPathsMigrated().catch(() => {});
+    } catch (_) { /* non-critical */ }
+
     const firebaseStatus = getFirebaseAdminStatus();
     if (firebaseStatus.configured) {
       logger.info('Firebase Admin ready for push notifications', {

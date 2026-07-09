@@ -34,6 +34,7 @@ import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { TREKS_FAQ } from '../../constants/faqs';
 import { formatTrekCardDate } from '../../utils/trekDateDisplay';
+import { communityPath, competitionPath, festPath, trekPath } from '../../utils/slugRoutes';
 
 const TREKS_DESCRIPTION =
     'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';
@@ -286,18 +287,18 @@ function TreksPage() {
 
     const handleTrekSearchNavigate = useCallback((result) => {
         if (result.resultType === 'competition') {
-            navigate(`/competitions-view-details/${result.id}`);
+            navigate(competitionPath({ _id: result.id, id: result.id, name: result.title, title: result.title }));
             return;
         }
         if (result.resultType === 'fest') {
-            navigate(`/view-details/${result.id}`);
+            navigate(festPath({ _id: result.id, festName: result.title, title: result.title }));
             return;
         }
         if (result.resultType === 'community' || result.type === 'Community') {
-            navigate(`/treks/community/${result.id}`, { state: { community: result } });
+            navigate(communityPath({ _id: result.id, id: result.id, name: result.title, title: result.title }), { state: { community: result } });
             return;
         }
-        navigate(`/trek/${result.id}`, {
+        navigate(trekPath({ _id: result.id, id: result.id, trekName: result.title, title: result.title }), {
             state: { trek: { ...result, trekName: result.title, images: result.image ? [result.image] : [] } },
         });
     }, [navigate]);
@@ -341,10 +342,10 @@ function TreksPage() {
         const item = heroItems.find(i => i.id === id);
         if (!item) return;
         if (item.type === 'Community') {
-            navigate(`/treks/community/${id}`, { state: { community: item } });
+            navigate(communityPath(item), { state: { community: item } });
             return;
         }
-        navigate(`/trek/${id}`, {
+        navigate(trekPath(item), {
             state: { trek: { ...item, trekName: item.title, images: item.image ? [item.image] : [] } },
         });
     }, [heroItems, navigate]);
@@ -363,7 +364,7 @@ function TreksPage() {
     }, [toggleFavorite]);
 
     const handleCommunityClick = useCallback((trek) => {
-        navigate(`/treks/community/${trek.id}`, { state: { community: trek } });
+        navigate(communityPath(trek), { state: { community: trek } });
     }, [navigate]);
 
     const { onItemClick, onToggleFavorite: onSectionFav, getShareUrl } = usePageSectionHandlers(navigate, { toggleFavorite });
@@ -407,10 +408,10 @@ function TreksPage() {
                         items: [
                             ...treks
                                 .filter((t) => t?.id && t?.title)
-                                .map((t) => ({ name: t.title, url: `/trek/${t.id}` })),
+                                .map((t) => ({ name: t.title, url: trekPath(t) })),
                             ...communities
                                 .filter((c) => c?.id && c?.title)
-                                .map((c) => ({ name: c.title, url: `/treks/community/${c.id}` })),
+                                .map((c) => ({ name: c.title, url: communityPath(c) })),
                         ],
                     }),
                     faqSchema(TREKS_FAQ),
@@ -535,7 +536,7 @@ function TreksPage() {
                                                     isDark={isDark}
                                                     isFavorite={isFavorite(trek.id)}
                                                     onToggleFavorite={() => handleFav(trek)}
-                                                    onClick={() => navigate(`/trek/${trek.id}`, { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                    onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
                                                 />
                                             </div>
                                         ))}
@@ -611,7 +612,7 @@ function TreksPage() {
                                                     isDark={isDark}
                                                     isFavorite={isFavorite(trek.id)}
                                                     onToggleFavorite={() => handleFav(trek)}
-                                                    onClick={() => navigate(`/trek/${trek.id}`, { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                    onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
                                                 />
                                                 </div>
                                             ))}
@@ -651,7 +652,7 @@ function TreksPage() {
                                                 isDark={isDark}
                                                 isFavorite={isFavorite(trek.id)}
                                                 onToggleFavorite={() => handleFav(trek)}
-                                                onClick={() => navigate(`/trek/${trek.id}`, { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
                                             />
                                         </div>
                                     ))}

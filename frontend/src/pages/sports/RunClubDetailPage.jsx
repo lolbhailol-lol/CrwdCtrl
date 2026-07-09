@@ -25,6 +25,7 @@ import {
     fetchRunClub,
     fetchSportsByRunClub,
 } from '../../services/api/public.api';
+import { runClubPath, sportRunPath } from '../../utils/slugRoutes';
 
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
@@ -52,6 +53,26 @@ const buildHeroImages = (club) => {
 };
 
 const buildGalleryImages = (club) => normalizeImageList(club?.galleryImages);
+
+function buildReadableParagraphs(text = '') {
+    const cleaned = String(text || '').trim().replace(/\s+/g, ' ');
+    if (!cleaned) return [];
+
+    // Keep manual paragraph breaks when present.
+    const manual = String(text)
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+    if (manual.length > 1) return manual;
+
+    // Auto-group long single blocks into short readable paragraphs.
+    const sentences = cleaned.match(/[^.!?]+[.!?]?/g)?.map((s) => s.trim()).filter(Boolean) || [cleaned];
+    const chunks = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+        chunks.push(sentences.slice(i, i + 2).join(' ').trim());
+    }
+    return chunks;
+}
 
 const normalizeRunClub = (raw) => {
     if (!raw) return null;
@@ -213,6 +234,14 @@ export default function RunClubDetailPage() {
     }, [id]);
 
     useEffect(() => {
+        if (!club || !id) return;
+        const canonical = runClubPath(club);
+        if (canonical && window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [club, id, navigate, location.state]);
+
+    useEffect(() => {
         if (!clubId) return;
         const controller = new AbortController();
         setLoadingRuns(true);
@@ -257,7 +286,9 @@ export default function RunClubDetailPage() {
     const description =
         club?.aboutUs?.trim() ||
         'Run Club is a platform designed for fitness enthusiasts to connect, share experiences, and inspire each other.';
-    const shortDesc = description.slice(0, 130);
+    const paragraphs = useMemo(() => buildReadableParagraphs(description), [description]);
+    const previewParagraphs = paragraphs.slice(0, 2);
+    const hasMoreText = paragraphs.length > 2;
 
     const filteredRuns = activeCategory
         ? runs.filter((run) => run.runCategory === activeCategory)
@@ -273,7 +304,7 @@ export default function RunClubDetailPage() {
     };
 
     const handleRunClick = (run) => {
-        navigate(`/sports/run/${run.id}`, {
+        navigate(sportRunPath(run), {
             state: {
                 event: {
                     _id: run.id,
@@ -288,7 +319,7 @@ export default function RunClubDetailPage() {
         });
     };
 
-    const canonicalPath = `/sports/run-club/${id || club?._id || club?.id}`;
+    const canonicalPath = runClubPath(club || { id });
 
     return (
         <div className="crwdctrl-page flex flex-col min-h-screen pb-24" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
@@ -309,7 +340,7 @@ export default function RunClubDetailPage() {
                         url: canonicalPath,
                         items: runs
                             .filter((r) => r?.id && r?.title)
-                            .map((r) => ({ name: r.title, url: `/sports/run/${r.id}` })),
+                            .map((r) => ({ name: r.title, url: sportRunPath(r) })),
                     }),
                 ]}
             />
@@ -458,16 +489,26 @@ export default function RunClubDetailPage() {
                     >
                         About Us
                     </h2>
-                    <p
-                        className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                    >
-                        {expanded ? description : shortDesc}
-                        {!expanded && description.length > 130 && (
-                            <button onClick={() => setExpanded(true)} className="text-[#0ECCEE] font-medium ml-1">
-                                read more
-                            </button>
-                        )}
-                    </p>
+                    <div className="space-y-3">
+                        {(expanded ? paragraphs : previewParagraphs).map((para, idx) => (
+                            <p
+                                key={`${idx}-${para.slice(0, 24)}`}
+                                className={`text-[14px] sm:text-[15px] font-medium leading-7 tracking-normal text-left ${
+                                    isDark ? 'text-gray-200' : 'text-gray-700'
+                                }`}
+                            >
+                                {para}
+                            </p>
+                        ))}
+                    </div>
+                    {hasMoreText && (
+                        <button
+                            onClick={() => setExpanded((prev) => !prev)}
+                            className="mt-3 text-[#0ECCEE] text-sm font-semibold hover:opacity-90"
+                        >
+                            {expanded ? 'Read less' : 'Read more'}
+                        </button>
+                    )}
                 </ScrollReveal>
 
                 <ScrollReveal className="mb-5" delay={0.05}>
@@ -675,7 +716,7 @@ export default function RunClubDetailPage() {
                                 }}
                                 className="w-full flex items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                             >
-                                {extLink ? 'Book Now' : 'Join Run Club'}
+                                {extLink ? 'Join Community' : 'Join Run Club'}
                             </button>
                         );
                     })()}

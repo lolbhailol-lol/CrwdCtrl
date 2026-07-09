@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const TrekCommunity = require('../model/trek_community_model');
+const { findByIdOrSlug } = require('../utils/slug');
 
 function stripCommunityGroupLink(community) {
     if (!community) return community;
@@ -20,9 +21,13 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:idOrSlug', async (req, res) => {
     try {
-        const community = await TrekCommunity.findOne({ _id: req.params.id, status: 'published' }).lean();
+        const community = await findByIdOrSlug(TrekCommunity, req.params.idOrSlug, {
+            baseFilter: { status: 'published' },
+            pickName: (row) => row.name,
+            lean: true,
+        });
         if (!community) return res.status(404).json({ message: 'Not found' });
         res.json({ community: stripCommunityGroupLink(community) });
     } catch (err) {
