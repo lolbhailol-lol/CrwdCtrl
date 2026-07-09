@@ -128,6 +128,8 @@ const eventShowSchema = new mongoose.Schema(
             default: null,
         },
         pagePriority: { type: Number, default: 999, min: 1, max: 999 },
+        /** Home page moving hero banner (same slot as fest showOnHomeSlide) */
+        showOnHomeSlide: { type: Boolean, default: false },
         homeSection: { type: String, default: null },
         homePriority: { type: Number, default: 999, min: 1, max: 999 },
         customPageSections: {

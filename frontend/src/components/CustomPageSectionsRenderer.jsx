@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import HomeCarouselSection from './HomeCarouselSection';
+import HeroBanner from './HeroBanner';
 import HomeCarouselCardsSkeleton from './HomeEventCardSkeleton';
 import { buildPageCarouselItems } from '../utils/homeCarouselItems';
 import { mapHomeCarouselDisplayItems } from '../utils/mapHomeCarouselDisplayItems';
@@ -79,9 +80,38 @@ export default function CustomPageSectionsRenderer({
 
     if (!carousels.length && !loading) return null;
 
+    const buildHeroBannerEvents = (items) => items.map((item) => ({
+        id: item.id || item._id,
+        image: item._image || item.image || item.coverImage || item.poster,
+        title: item._title || item.title || item.festName || item.name,
+        subtitle: item._subtitle || item.subtitle,
+        dateTime: item.dateTime || item.date,
+    }));
+
     return (
         <>
-            {carousels.map(({ section, items, cardProps }) => (
+            {carousels.map(({ section, items, cardProps }) => {
+                if (cardProps.heroCard && items.length > 0) {
+                    const heroEvents = buildHeroBannerEvents(items);
+                    return (
+                        <div key={section.slug} className="home-section-block">
+                            {section.title && (
+                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {section.title}
+                                </h2>
+                            )}
+                            <HeroBanner
+                                events={heroEvents}
+                                onEventClick={(id) => {
+                                    const hit = items.find((it) => (it.id || it._id) === id);
+                                    if (hit) onItemClick(hit);
+                                }}
+                            />
+                        </div>
+                    );
+                }
+
+                return (
                 <HomeCarouselSection
                     key={section.slug}
                     title={section.title}
@@ -99,7 +129,8 @@ export default function CustomPageSectionsRenderer({
                     onItemClick={onItemClick}
                     getShareUrl={getShareUrl}
                 />
-            ))}
+                );
+            })}
         </>
     );
 }

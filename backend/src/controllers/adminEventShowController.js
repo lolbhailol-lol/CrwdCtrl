@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const EventShow = require('../model/event_show_model');
 const { sanitizeEventPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
+const { applyShowOnHomeSlide, setExclusiveEventsPageHero } = require('../utils/featuredPlacement');
 
 function normalizeEventShowPayload(body = {}) {
     const payload = { ...body };
@@ -89,7 +90,36 @@ exports.updateEventShow = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid ID' });
         }
-        const show = await EventShow.findByIdAndUpdate(id, normalizeEventShowPayload(req.body), { new: true, runValidators: true });
+
+        const body = normalizeEventShowPayload(req.body);
+
+        if (body.showOnHomeSlide === true) {
+            await applyShowOnHomeSlide('events', id, true);
+            delete body.showOnHomeSlide;
+            delete body.homeSection;
+            const show = await EventShow.findByIdAndUpdate(
+                id,
+                { ...body, homePriority: body.homePriority ?? 1 },
+                { new: true, runValidators: true },
+            );
+            if (!show) return res.status(404).json({ message: 'Event not found' });
+            return res.json({ message: 'Event updated successfully', show });
+        }
+
+        if (body.showOnHomeSlide === false) {
+            body.showOnHomeSlide = false;
+        }
+
+        if (body.pageSection === 'hero') {
+            await setExclusiveEventsPageHero(id);
+            delete body.pageSection;
+            delete body.pagePriority;
+            const show = await EventShow.findByIdAndUpdate(id, body, { new: true, runValidators: true });
+            if (!show) return res.status(404).json({ message: 'Event not found' });
+            return res.json({ message: 'Event updated successfully', show });
+        }
+
+        const show = await EventShow.findByIdAndUpdate(id, body, { new: true, runValidators: true });
         if (!show) return res.status(404).json({ message: 'Event not found' });
         res.json({ message: 'Event updated successfully', show });
     } catch (error) {

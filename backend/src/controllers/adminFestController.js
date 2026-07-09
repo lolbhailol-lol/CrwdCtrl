@@ -235,6 +235,16 @@ exports.updateFest = async (req, res) => {
     // 2. Prepare update data
     const updateData = { ...req.body };
 
+    if (updateData.showOnHomeSlide === true) {
+      const { applyShowOnHomeSlide } = require('../utils/featuredPlacement');
+      await applyShowOnHomeSlide('fest', id, true);
+      delete updateData.showOnHomeSlide;
+      updateData.homeSection = null;
+      updateData.homePriority = updateData.homePriority ?? 1;
+    } else if (updateData.showOnHomeSlide === false) {
+      updateData.showOnHomeSlide = false;
+    }
+
     // 3. Auto-set coverImage logic
     const { coverImage, galleryImages } = req.body;
     if (!coverImage && galleryImages && galleryImages.length > 0) {

@@ -551,6 +551,11 @@ export default function SectionManager() {
             () => setEventShows(prev => prev.map(s => s._id === id ? { ...s, ...fields } : s)));
     }, [patch]);
 
+    const saveEventHome = useCallback((id, val) => {
+        if (val === 'movingSlide') saveEventShow(id, { homeSection: null, showOnHomeSlide: true });
+        else saveEventShow(id, { homeSection: val || null, showOnHomeSlide: false });
+    }, [saveEventShow]);
+
     const saveRunPage = useCallback((id, val) => {
         if (val === 'hidden') {
             saveSports(id, { showOnSportsPage: false, showInUpcoming: false, showInRunClubs: false, featuredSection: null });
@@ -615,6 +620,17 @@ export default function SectionManager() {
 
     const sportsHomeSelectOpts = useMemo(
         () => [...SPORTS_HOME_OPTS, ...customHomeOpts],
+        [customHomeOpts],
+    );
+
+    const eventsHomeSelectOpts = useMemo(
+        () => [
+            { value: '', label: '— None —' },
+            { value: 'movingSlide', label: '🎠 Hero Banner Slide' },
+            { value: 'trending', label: 'Ongoing Events' },
+            { value: 'happening', label: '📍 Happening Near You' },
+            ...customHomeOpts,
+        ],
         [customHomeOpts],
     );
 
@@ -742,6 +758,25 @@ export default function SectionManager() {
         [fests],
     );
 
+    const movingSlideEvents = useMemo(
+        () => eventShows.filter((s) => s.showOnHomeSlide).map((s) => normalizeHomeCarouselItem('events', s))
+            .sort((a, b) => a._priority - b._priority),
+        [eventShows],
+    );
+
+    const movingSlideRunClubs = useMemo(
+        () => runClubs
+            .filter((c) => c.homeSection === 'slide')
+            .map((c) => normalizeHomeCarouselItem('runclub', c))
+            .sort((a, b) => a._priority - b._priority),
+        [runClubs],
+    );
+
+    const movingSlideItems = useMemo(
+        () => [...movingSlideFests, ...movingSlideEvents, ...movingSlideRunClubs].sort((a, b) => a._priority - b._priority),
+        [movingSlideFests, movingSlideEvents, movingSlideRunClubs],
+    );
+
     const festPageCarousels = useMemo(() => {
         const out = {};
         FEST_PAGE_SECTIONS.forEach(({ key }) => {
@@ -867,15 +902,27 @@ export default function SectionManager() {
 
     const handleMovingSlideReorder = useCallback((fromIndex, toIndex) => {
         if (fromIndex === toIndex || reordering) return;
-        const next = [...movingSlideFests];
+        const next = [...movingSlideItems];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
-        const updates = next.map((item, i) => ({ type: 'fest', id: item._id, fields: { homePriority: i + 1 } }));
+        const updates = next.map((item, i) => {
+            const fields = { homePriority: i + 1 };
+            if (item._type === 'events') return { type: 'events', id: item._id, fields };
+            if (item._type === 'runclub') return { type: 'runclub', id: item._id, fields: { priority: i + 1 } };
+            return { type: 'fest', id: item._id, fields };
+        });
         next.forEach((item, i) => {
-            setFests((prev) => prev.map((f) => ((f._id || f.id) === item._id ? { ...f, homePriority: i + 1 } : f)));
+            const pri = i + 1;
+            if (item._type === 'events') {
+                setEventShows((prev) => prev.map((s) => (s._id === item._id ? { ...s, homePriority: pri } : s)));
+            } else if (item._type === 'runclub') {
+                setRunClubs((prev) => prev.map((c) => (c._id === item._id ? { ...c, priority: pri } : c)));
+            } else {
+                setFests((prev) => prev.map((f) => ((f._id || f.id) === item._id ? { ...f, homePriority: pri } : f)));
+            }
         });
         batchReorder(updates);
-    }, [movingSlideFests, reordering, batchReorder]);
+    }, [movingSlideItems, reordering, batchReorder]);
 
     // ── Filtered lists ───────────────────────────────────────────────────────
     const q = search.trim().toLowerCase();
@@ -965,8 +1012,8 @@ export default function SectionManager() {
                     ))}
                     <HomeCarouselPanel
                         title="🎠 Moving Hero Slides"
-                        subtitle="Hero banner slides · fests with Moving Slide enabled"
-                        items={movingSlideFests}
+                        subtitle="Hero banner slides · fests or events with Hero Banner Slide enabled"
+                        items={movingSlideItems}
                         onReorder={handleMovingSlideReorder}
                         isReordering={reordering}
                     />
@@ -1440,9 +1487,9 @@ export default function SectionManager() {
                                         </p>
                                     </div>
                                     <AssignPill
-                                        selectValue={s.homeSection || ''}
-                                        selectOpts={entityHomeSelectOpts}
-                                        onSelect={v => saveEventShow(s._id, { homeSection: v || null })}
+                                        selectValue={s.homeSection || (s.showOnHomeSlide ? 'movingSlide' : '')}
+                                        selectOpts={eventsHomeSelectOpts}
+                                        onSelect={v => saveEventHome(s._id, v)}
                                         saveKey={`events-${s._id}-home`}
                                         saving={saving}
                                     />

@@ -5,8 +5,101 @@ const Trek = require('../model/trek_model');
 const TrekCommunity = require('../model/trek_community_model');
 const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
+const EventShow = require('../model/event_show_model');
+const { setHomeFeaturedExperience } = require('../utils/featuredPlacement');
 
-const ENTITY_MODELS = [FestOrganizer, Trek, TrekCommunity, SportsEvent, RunClub];
+const ENTITY_MODELS = [FestOrganizer, Trek, TrekCommunity, SportsEvent, RunClub, EventShow];
+
+function normalizeFeaturedItem(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const entityType = String(raw.entityType || '').trim();
+    const entityId = String(raw.entityId || '').trim();
+    if (!entityType || !entityId) return null;
+    return { entityType, entityId };
+}
+
+async function syncSectionFeaturedItem(section) {
+    const item = normalizeFeaturedItem(section?.featuredItem);
+    if (!item) return;
+
+    const targetPage = section.targetPage || 'home';
+    const sectionSlug = section.slug;
+
+    if (targetPage === 'home' && section.cardSize === 'trending') {
+        await setHomeFeaturedExperience(item.entityType, item.entityId);
+        return;
+    }
+
+    const priority = 1;
+    const assignHome = targetPage === 'home';
+
+    if (item.entityType === 'fest') {
+        if (assignHome) {
+            await FestOrganizer.findByIdAndUpdate(item.entityId, {
+                $set: { homeSection: sectionSlug, homePriority: priority, showOnHomeSlide: false },
+            });
+        } else {
+            await FestOrganizer.findByIdAndUpdate(item.entityId, { $pull: { customPageSections: { page: targetPage } } });
+            await FestOrganizer.findByIdAndUpdate(item.entityId, {
+                $push: { customPageSections: { page: targetPage, sectionSlug, priority } },
+            });
+        }
+        return;
+    }
+
+    const homeFields = assignHome
+        ? { homeSection: sectionSlug, homePriority: priority, showOnHomeSlide: false }
+        : null;
+    const customFields = { page: targetPage, sectionSlug, priority };
+
+    const applyCustom = async (Model) => {
+        await Model.findByIdAndUpdate(item.entityId, { $pull: { customPageSections: { page: targetPage } } });
+        await Model.findByIdAndUpdate(item.entityId, {
+            $push: { customPageSections: customFields },
+            ...(homeFields ? { $set: homeFields } : {}),
+        });
+    };
+
+    switch (item.entityType) {
+        case 'trek':
+            if (assignHome) {
+                await Trek.findByIdAndUpdate(item.entityId, { $set: { homeSection: sectionSlug, priority } });
+            } else {
+                await applyCustom(Trek);
+            }
+            break;
+        case 'community':
+            if (assignHome) {
+                await TrekCommunity.findByIdAndUpdate(item.entityId, { $set: { homeSection: sectionSlug, priority } });
+            } else {
+                await applyCustom(TrekCommunity);
+            }
+            break;
+        case 'sport':
+            if (assignHome) {
+                await SportsEvent.findByIdAndUpdate(item.entityId, { $set: homeFields });
+            } else {
+                await applyCustom(SportsEvent);
+            }
+            break;
+        case 'runclub':
+            if (assignHome) {
+                await RunClub.findByIdAndUpdate(item.entityId, { $set: { homeSection: sectionSlug, priority } });
+            } else {
+                await applyCustom(RunClub);
+            }
+            break;
+        case 'events':
+            if (assignHome) {
+                await EventShow.findByIdAndUpdate(item.entityId, { $set: homeFields });
+            } else {
+                await applyCustom(EventShow);
+            }
+            break;
+        default:
+            break;
+    }
+}
 
 function slugify(title) {
     const base = String(title || '')
@@ -59,7 +152,7 @@ exports.listPublic = async (req, res) => {
     try {
         const sections = await HomepageSection.find(buildPublicQuery(req))
             .sort({ displayOrder: 1, createdAt: 1 })
-            .select('slug title cardSize displayOrder targetPage')
+            .select('slug title cardSize displayOrder targetPage featuredItem')
             .lean();
         res.json({ sections });
     } catch (error) {
@@ -128,7 +221,7 @@ exports.create = async (req, res) => {
 /** PUT /admin/homepage-sections/:id */
 exports.update = async (req, res) => {
     try {
-        const { title, cardSize, enabled, displayOrder } = req.body;
+        const { title, cardSize, enabled, displayOrder, featuredItem } = req.body;
         const updates = {};
         if (title !== undefined) {
             if (!String(title).trim()) {
@@ -139,6 +232,9 @@ exports.update = async (req, res) => {
         if (cardSize !== undefined) updates.cardSize = cardSize;
         if (enabled !== undefined) updates.enabled = Boolean(enabled);
         if (displayOrder !== undefined) updates.displayOrder = Math.max(1, Math.min(999, Number(displayOrder) || 999));
+        if (featuredItem !== undefined) {
+            updates.featuredItem = featuredItem === null ? null : normalizeFeaturedItem(featuredItem);
+        }
 
         const section = await HomepageSection.findByIdAndUpdate(
             req.params.id,
@@ -147,6 +243,10 @@ exports.update = async (req, res) => {
         );
         if (!section) {
             return res.status(404).json({ success: false, message: 'Section not found' });
+        }
+
+        if (updates.featuredItem !== undefined && updates.featuredItem !== null) {
+            await syncSectionFeaturedItem(section);
         }
 
         clearCaches();

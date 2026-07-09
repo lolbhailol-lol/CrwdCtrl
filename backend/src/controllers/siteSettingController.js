@@ -1,6 +1,12 @@
 const SiteSetting = require('../model/site_setting_model');
+const {
+    setHomeHeroSlide,
+    setHomeFeaturedExperience,
+    clearAllHomeHeroSlides,
+} = require('../utils/featuredPlacement');
 
 const HOME_SECTION_LABELS_KEY = 'home_section_labels';
+const HOME_FEATURED_SLOTS_KEY = 'home_featured_slots';
 
 /** Default copy for the fixed home carousels (used as fallback everywhere). */
 const DEFAULT_HOME_SECTION_LABELS = {
@@ -21,6 +27,35 @@ async function readHomeSectionLabels() {
 
 exports.DEFAULT_HOME_SECTION_LABELS = DEFAULT_HOME_SECTION_LABELS;
 exports.readHomeSectionLabels = readHomeSectionLabels;
+
+const DEFAULT_HOME_FEATURED_SLOTS = {
+    heroBanner: null,
+    featuredExperience: null,
+};
+
+function normalizeFeaturedSlot(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const entityType = String(raw.entityType || '').trim();
+    const entityId = String(raw.entityId || '').trim();
+    if (!entityType || !entityId) return null;
+    return { entityType, entityId };
+}
+
+/** Read stored home featured slots. Never throws. */
+async function readHomeFeaturedSlots() {
+    try {
+        const doc = await SiteSetting.findOne({ key: HOME_FEATURED_SLOTS_KEY }).lean();
+        const stored = doc && doc.value && typeof doc.value === 'object' ? doc.value : {};
+        return {
+            heroBanner: normalizeFeaturedSlot(stored.heroBanner),
+            featuredExperience: normalizeFeaturedSlot(stored.featuredExperience),
+        };
+    } catch (_) {
+        return { ...DEFAULT_HOME_FEATURED_SLOTS };
+    }
+}
+
+exports.readHomeFeaturedSlots = readHomeFeaturedSlots;
 
 // GET /api/home/section-labels (public) | GET /api/admin/site-settings/home-section-labels (admin)
 exports.getHomeSectionLabels = async (_req, res) => {
@@ -52,5 +87,51 @@ exports.updateHomeSectionLabels = async (req, res) => {
     } catch (err) {
         console.error('[SiteSetting] updateHomeSectionLabels error:', err.message);
         res.status(500).json({ success: false, message: 'Failed to update labels', error: err.message });
+    }
+};
+
+// GET /api/admin/site-settings/home-featured-slots (admin)
+exports.getHomeFeaturedSlots = async (_req, res) => {
+    const slots = await readHomeFeaturedSlots();
+    res.json({ success: true, slots });
+};
+
+// PUT /api/admin/site-settings/home-featured-slots (admin)
+exports.updateHomeFeaturedSlots = async (req, res) => {
+    try {
+        const incoming = req.body?.slots && typeof req.body.slots === 'object' ? req.body.slots : req.body;
+        const heroBanner = incoming.heroBanner === null
+            ? null
+            : normalizeFeaturedSlot(incoming.heroBanner);
+        const featuredExperience = incoming.featuredExperience === null
+            ? null
+            : normalizeFeaturedSlot(incoming.featuredExperience);
+
+        if (heroBanner === null) {
+            await clearAllHomeHeroSlides();
+        } else {
+            await setHomeHeroSlide(heroBanner.entityType, heroBanner.entityId);
+        }
+
+        if (featuredExperience) {
+            await setHomeFeaturedExperience(featuredExperience.entityType, featuredExperience.entityId);
+        }
+
+        const value = { heroBanner, featuredExperience };
+        await SiteSetting.findOneAndUpdate(
+            { key: HOME_FEATURED_SLOTS_KEY },
+            { $set: { value } },
+            { new: true, upsert: true },
+        );
+
+        try {
+            const { clearAllCaches } = require('./festOrganizerController');
+            clearAllCaches();
+        } catch (_) { /* optional */ }
+
+        res.json({ success: true, slots: value });
+    } catch (err) {
+        console.error('[SiteSetting] updateHomeFeaturedSlots error:', err.message);
+        res.status(500).json({ success: false, message: err.message || 'Failed to update featured slots' });
     }
 };

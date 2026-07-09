@@ -10,6 +10,7 @@ import CardSizePicker from '../../components/admin/CardSizePicker';
 import TargetPagePicker from '../../components/admin/TargetPagePicker';
 import SectionListByPage from '../../components/admin/SectionListByPage';
 import SectionLivePreview from '../../components/admin/SectionLivePreview';
+import HomeFeaturedSlotsEditor from '../../components/admin/HomeFeaturedSlotsEditor';
 import { useDialog } from '../../context/DialogContext';
 
 export default function PageSectionsPage() {
@@ -20,6 +21,7 @@ export default function PageSectionsPage() {
     const [comms, setComms] = useState([]);
     const [sports, setSports] = useState([]);
     const [runClubs, setRunClubs] = useState([]);
+    const [eventShows, setEventShows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -45,13 +47,14 @@ export default function PageSectionsPage() {
         setLoading(true);
         setError('');
         try {
-            const [sectionData, festData, trekData, commData, sportData, clubData] = await Promise.all([
+            const [sectionData, festData, trekData, commData, sportData, clubData, eventData] = await Promise.all([
                 adminFetchJSON('/admin/homepage-sections'),
                 adminFetchJSON('/admin/fests?limit=500'),
                 adminFetchJSON('/admin/treks?limit=500'),
                 adminFetchJSON('/admin/trek-communities?limit=500'),
                 adminFetchJSON('/admin/sports?limit=500'),
                 adminFetchJSON('/admin/run-clubs?limit=500'),
+                adminFetchJSON('/admin/events?limit=500'),
             ]);
             setSections(Array.isArray(sectionData.sections) ? sectionData.sections : []);
             setFests(Array.isArray(festData.fests) ? festData.fests : []);
@@ -59,6 +62,7 @@ export default function PageSectionsPage() {
             setComms(Array.isArray(commData.communities) ? commData.communities : []);
             setSports(Array.isArray(sportData.events) ? sportData.events : []);
             setRunClubs(Array.isArray(clubData.clubs) ? clubData.clubs : []);
+            setEventShows(Array.isArray(eventData.shows) ? eventData.shows : []);
         } catch (e) {
             setError(e.message || 'Failed to load data');
         } finally {
@@ -220,6 +224,15 @@ export default function PageSectionsPage() {
                 </div>
             )}
 
+            <HomeFeaturedSlotsEditor
+                fests={fests}
+                eventShows={eventShows}
+                treks={treks}
+                communities={comms}
+                sports={sports}
+                runClubs={runClubs}
+            />
+
             {/* Wizard + live preview */}
             <div className="grid xl:grid-cols-[1fr_minmax(280px,320px)] gap-5 items-start">
                 <div className="rounded-2xl border border-white/8 bg-[#17181A] p-5 sm:p-6 space-y-5 shadow-xl shadow-black/20">
@@ -293,6 +306,7 @@ export default function PageSectionsPage() {
                 comms={comms}
                 sports={sports}
                 runClubs={runClubs}
+                eventShows={eventShows}
                 saving={saving}
                 onUpdate={handleUpdate}
                 onTitleDraft={handleTitleDraft}

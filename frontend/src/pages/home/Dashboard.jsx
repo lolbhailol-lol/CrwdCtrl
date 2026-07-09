@@ -37,6 +37,8 @@ import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
 import { HOME_FAQ } from '../../constants/faqs';
+import { mapEventShow } from '../../constants/eventsPage';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 
 const HOME_JSON_LD = [
@@ -776,15 +778,53 @@ const Dashboard = () => {
     }, [fests]);
 
     const heroEvents = useMemo(() => {
-        return transformedFests
-            .filter(f => f.showOnHomeSlide)
-            .sort((a, b) => {
-                const priorityA = a.homePriority || 999;
-                const priorityB = b.homePriority || 999;
-                if (priorityA !== priorityB) return priorityA - priorityB;
-                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        const festSlides = transformedFests
+            .filter((f) => f.showOnHomeSlide)
+            .map((f) => ({
+                id: f.id,
+                image: f.image,
+                title: f.title,
+                subtitle: f.subtitle,
+                dateTime: f.dateTime,
+                status: f.status,
+                homePriority: f.homePriority || 999,
+                _type: 'fest',
+            }));
+
+        const eventSlides = (homeEventShows || [])
+            .filter((e) => e.showOnHomeSlide)
+            .map((raw) => {
+                const show = mapEventShow(raw);
+                return {
+                    id: show.id,
+                    image: getCoverImageUrl(show, 'hero') || show.image,
+                    title: show.title,
+                    subtitle: show.basedIn,
+                    dateTime: show.date,
+                    homePriority: raw.homePriority ?? 999,
+                    _type: 'events',
+                };
             });
-    }, [transformedFests]);
+
+        const runClubSlides = (homeRunClubs || [])
+            .filter((club) => club.homeSection === 'slide')
+            .map((club) => ({
+                id: club._id,
+                image: club.coverImage,
+                title: club.name,
+                subtitle: club.basedIn || club.organizer || '',
+                dateTime: 'Join now',
+                homePriority: club.priority ?? 999,
+                _type: 'runclub',
+            }));
+
+        return [...festSlides, ...eventSlides, ...runClubSlides].sort((a, b) => {
+            const priorityA = a.homePriority || 999;
+            const priorityB = b.homePriority || 999;
+            if (priorityA !== priorityB) return priorityA - priorityB;
+            return 0;
+        });
+    }, [transformedFests, homeEventShows, homeRunClubs]);
 
     // Helper function to get city name from coordinates (for major Indian cities)
     const getCityFromCoordinates = (lat, lon) => {
@@ -1212,7 +1252,12 @@ const Dashboard = () => {
                 {!isFestsLoading && heroEvents.length > 0 && (
                     <HeroBanner
                         events={heroEvents}
-                        onEventClick={(id) => navigate(`/view-details/${id}`)}
+                        onEventClick={(id) => {
+                            const slide = heroEvents.find((e) => e.id === id);
+                            if (slide?._type === 'events') navigate(`/events/${id}`);
+                            else if (slide?._type === 'runclub') navigate(`/sports/run-club/${id}`);
+                            else navigate(`/view-details/${id}`);
+                        }}
                         isDark={isDark}
                     />
                 )}
