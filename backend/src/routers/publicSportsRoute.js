@@ -1,7 +1,12 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const SportsEvent = require('../model/sports_model');
 const { findByIdOrSlug } = require('../utils/slug');
+const {
+    expireStalePendingRegistrations,
+    sumSeatsHeld,
+} = require('../utils/runClubRegistrationGuards');
 
 // GET /api/sports — list published sports events
 router.get('/', async (req, res) => {
@@ -43,6 +48,21 @@ router.get('/:idOrSlug', async (req, res) => {
             event.runClub = event.runClubId;
             event.runClubId = event.runClub._id;
         }
+
+        // Seats: expire stale pending QR holds, then compute remaining
+        await expireStalePendingRegistrations(event._id);
+        const capacity = Math.max(0, Number(event.maxParticipants) || 0);
+        if (capacity > 0) {
+            const seatsFilled = await sumSeatsHeld(event._id);
+            event.seatsFilled = seatsFilled;
+            event.seatsRemaining = Math.max(0, capacity - seatsFilled);
+            event.isFull = seatsFilled >= capacity;
+        } else {
+            event.seatsFilled = null;
+            event.seatsRemaining = null;
+            event.isFull = false;
+        }
+
         res.json({ event });
     } catch (error) {
         console.error('publicSports getById error:', error);

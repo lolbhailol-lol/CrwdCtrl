@@ -313,16 +313,17 @@ export default function RunEventDetailPage() {
                     </div>
                     {(() => {
                         const closed = event.registration?.status === 'closed';
+                        const full = Boolean(event.isFull) || (event.seatsRemaining === 0 && event.maxParticipants > 0);
                         const extLink = event.registration?.mode === 'external_link'
                             ? event.registrationLink
                             : null;
-                        if (closed) {
+                        if (closed || full) {
                             return (
                                 <button
                                     disabled
                                     className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
                                 >
-                                    Registration Closed
+                                    {closed ? 'Registration Closed' : 'Sold out'}
                                 </button>
                             );
                         }
@@ -337,7 +338,13 @@ export default function RunEventDetailPage() {
                                 }}
                                 className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                             >
-                                {extLink ? 'Book Now' : 'Check Availability'}
+                                {extLink
+                                    ? 'Book Now'
+                                    : Number(event.registrationFee) <= 0
+                                        ? 'Register free'
+                                        : event.registration?.mode === 'organizer_qr'
+                                            ? 'Pay via UPI'
+                                            : 'Book now'}
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="m9 18 6-6-6-6" />
                                 </svg>
@@ -353,6 +360,19 @@ export default function RunEventDetailPage() {
                         {event.title || 'Run Name'}
                     </h1>
                     <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{communityName}</p>
+                    {event.seatsRemaining != null ? (
+                        <p className={`text-xs mt-1.5 ${
+                            event.seatsRemaining === 0
+                                ? 'text-red-400'
+                                : event.seatsRemaining <= 5
+                                    ? 'text-amber-400'
+                                    : (isDark ? 'text-gray-400' : 'text-gray-500')
+                        }`}>
+                            {event.seatsRemaining === 0
+                                ? 'No seats left'
+                                : `${event.seatsRemaining} seat${event.seatsRemaining === 1 ? '' : 's'} left`}
+                        </p>
+                    ) : null}
                 </div>
 
                 <div className="px-4 flex items-start gap-3 mb-5">

@@ -2,7 +2,7 @@ const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
 
 const EVENT_SELECT =
-    'title city eventDate status maxParticipants registration.status registrationFee runClubId sportType distance runCategory';
+    'title city venue eventDate status maxParticipants registration.status registration.mode registrationFee runClubId sportType distance runCategory coverImage reportingTime';
 
 function normalizeUsername(value) {
     return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');

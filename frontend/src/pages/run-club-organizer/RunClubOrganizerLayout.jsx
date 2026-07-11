@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
-import { LayoutDashboard, Users, QrCode, LogOut, Footprints, Bell, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, QrCode, LogOut, Footprints, Bell, Menu, Home, ArrowLeft, ExternalLink } from 'lucide-react';
 import { clearRunClubOrganizerSession, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 
 const navForEvent = (eventId) => [
-    { label: 'Dashboard', path: `/run-club-organizer/events/${eventId}`, icon: LayoutDashboard, end: true },
-    { label: 'Participants', path: `/run-club-organizer/events/${eventId}/participants`, icon: Users },
-    { label: 'Scan QR', path: `/run-club-organizer/events/${eventId}/scan`, icon: QrCode },
-    { label: 'Notify', path: `/run-club-organizer/events/${eventId}/notifications`, icon: Bell },
+    { label: 'Home', path: `/run-club-organizer/events/${eventId}`, icon: LayoutDashboard, end: true, short: 'Dash' },
+    { label: 'Guests', path: `/run-club-organizer/events/${eventId}/participants`, icon: Users, short: 'Guests' },
+    { label: 'Scan', path: `/run-club-organizer/events/${eventId}/scan`, icon: QrCode, short: 'Scan' },
+    { label: 'Notify', path: `/run-club-organizer/events/${eventId}/notifications`, icon: Bell, short: 'Notify' },
 ];
 
 export default function RunClubOrganizerLayout() {
@@ -21,8 +21,9 @@ export default function RunClubOrganizerLayout() {
         navigate('/run-club-organizer/login', { replace: true });
     };
 
-    const nav = eventId ? navForEvent(eventId) : [];
-    const activeEvent = eventId
+    const hasEventContext = Boolean(eventId && eventId !== 'new');
+    const nav = hasEventContext ? navForEvent(eventId) : [];
+    const activeEvent = hasEventContext
         ? session?.events?.find((e) => String(e._id) === String(eventId))
         : null;
 
@@ -51,7 +52,7 @@ export default function RunClubOrganizerLayout() {
                             }`
                         }
                     >
-                        <Footprints size={16} />
+                        <Home size={16} />
                         Club home
                     </NavLink>
                     {nav.map((item) => (
@@ -67,29 +68,47 @@ export default function RunClubOrganizerLayout() {
                             }
                         >
                             <item.icon size={16} />
-                            {item.label}
+                            {item.label === 'Home' ? 'Dashboard' : item.label === 'Guests' ? 'Participants' : item.label}
                         </NavLink>
                     ))}
                 </nav>
-                <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-800">
+                <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-800 space-y-1">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSidebarOpen(false);
+                            navigate('/');
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-[#0ECCEE] hover:bg-white/5"
+                    >
+                        <ExternalLink size={16} /> Back to CrwdCtrl
+                    </button>
                     <button type="button" onClick={logout} className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10">
                         <LogOut size={16} /> Log out
                     </button>
                 </div>
             </aside>
 
-            <div className="flex-1 lg:ml-64 min-w-0">
-                <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <div className="flex-1 lg:ml-64 min-w-0 flex flex-col">
+                <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-gray-800 px-3 sm:px-4 py-3 flex items-center gap-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
                     <button
                         type="button"
-                        className="lg:hidden inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 rounded-lg text-gray-300 border border-gray-800 hover:bg-white/5"
+                        className="lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg text-gray-300 border border-gray-800 hover:bg-white/5"
                         onClick={() => setSidebarOpen((v) => !v)}
                         aria-label="Open menu"
                     >
                         <Menu size={20} />
-                        <span className="text-sm font-medium">Menu</span>
                     </button>
-                    <div className="min-w-0 flex-1 text-right sm:text-left">
+                    <button
+                        type="button"
+                        onClick={() => navigate('/')}
+                        className="lg:hidden inline-flex items-center gap-1 min-h-[44px] px-2.5 rounded-lg text-[#0ECCEE] text-xs font-semibold border border-[#0ECCEE]/25 hover:bg-[#0ECCEE]/10"
+                        aria-label="Back to CrwdCtrl website"
+                    >
+                        <ArrowLeft size={14} />
+                        Website
+                    </button>
+                    <div className="min-w-0 flex-1">
                         <p className="text-sm text-gray-300 truncate font-medium">
                             {activeEvent?.title || session?.runClub?.name || 'Run Club Organizer'}
                         </p>
@@ -97,11 +116,54 @@ export default function RunClubOrganizerLayout() {
                             {activeEvent ? 'Run organizer portal' : 'CrwdCtrl'}
                         </p>
                     </div>
+                    {hasEventContext ? (
+                        <button
+                            type="button"
+                            onClick={() => navigate('/run-club-organizer')}
+                            className="text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2 font-medium"
+                        >
+                            All runs
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => navigate('/')}
+                            className="hidden lg:inline-flex items-center gap-1 text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2 font-medium"
+                        >
+                            <ArrowLeft size={14} /> Website
+                        </button>
+                    )}
                 </header>
-                <main className="p-4 sm:p-6 max-w-7xl mx-auto">
+                <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${hasEventContext ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6' : ''}`}>
                     <Outlet />
                 </main>
             </div>
+
+            {hasEventContext ? (
+                <nav
+                    className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-800 bg-[#161718]/95 backdrop-blur pb-[env(safe-area-inset-bottom)]"
+                    aria-label="Run tools"
+                >
+                    <div className="grid grid-cols-4">
+                        {nav.map((item) => (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                end={item.end}
+                                className={({ isActive }) =>
+                                    `flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px] text-[10px] font-medium transition-colors ${
+                                        isActive ? 'text-[#0ECCEE]' : 'text-gray-500'
+                                    }`
+                                }
+                            >
+                                <item.icon size={20} strokeWidth={2} />
+                                {item.short}
+                            </NavLink>
+                        ))}
+                    </div>
+                </nav>
+            ) : null}
+
             {sidebarOpen ? <button type="button" className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" /> : null}
         </div>
     );

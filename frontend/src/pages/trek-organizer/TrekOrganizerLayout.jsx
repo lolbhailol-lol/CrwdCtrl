@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
-import { LayoutDashboard, Users, QrCode, LogOut, Mountain, Bell, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, QrCode, LogOut, Mountain, Bell, Menu, Home } from 'lucide-react';
 import { clearTrekOrganizerSession, getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
 
 const navForTrek = (trekId) => [
-    { label: 'Dashboard', path: `/trek-organizer/treks/${trekId}`, icon: LayoutDashboard, end: true },
-    { label: 'Participants', path: `/trek-organizer/treks/${trekId}/participants`, icon: Users },
-    { label: 'Scan QR', path: `/trek-organizer/treks/${trekId}/scan`, icon: QrCode },
-    { label: 'Notify', path: `/trek-organizer/treks/${trekId}/notifications`, icon: Bell },
+    { label: 'Dashboard', path: `/trek-organizer/treks/${trekId}`, icon: LayoutDashboard, end: true, short: 'Dash' },
+    { label: 'Participants', path: `/trek-organizer/treks/${trekId}/participants`, icon: Users, short: 'Guests' },
+    { label: 'Scan QR', path: `/trek-organizer/treks/${trekId}/scan`, icon: QrCode, short: 'Scan' },
+    { label: 'Notify', path: `/trek-organizer/treks/${trekId}/notifications`, icon: Bell, short: 'Notify' },
 ];
 
 export default function TrekOrganizerLayout() {
@@ -51,7 +51,7 @@ export default function TrekOrganizerLayout() {
                             }`
                         }
                     >
-                        <Mountain size={16} />
+                        <Home size={16} />
                         Community home
                     </NavLink>
                     {nav.map((item) => (
@@ -78,11 +78,11 @@ export default function TrekOrganizerLayout() {
                 </div>
             </aside>
 
-            <div className="flex-1 lg:ml-64 min-w-0">
+            <div className="flex-1 lg:ml-64 min-w-0 flex flex-col">
                 <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
                     <button
                         type="button"
-                        className="lg:hidden inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 rounded-lg text-gray-300 border border-gray-800 hover:bg-white/5 touch-manipulation"
+                        className="lg:hidden inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 rounded-lg text-gray-300 border border-gray-800 hover:bg-white/5"
                         onClick={() => setSidebarOpen((v) => !v)}
                         aria-label="Open menu"
                     >
@@ -91,21 +91,55 @@ export default function TrekOrganizerLayout() {
                     </button>
                     <div className="min-w-0 flex-1 text-right sm:text-left">
                         <p className="text-sm text-gray-300 truncate font-medium">
-                            {activeTrek?.trekName || (session?.community?.name ? `${session.community.name}` : 'Community Organizer')}
+                            {activeTrek?.trekName || session?.community?.name || 'Community Organizer'}
                         </p>
                         <p className="text-[11px] text-gray-500 truncate hidden sm:block">
-                            {activeTrek ? 'Trek organizer portal' : session?.community?.name ? 'Organizer portal' : 'CrwdCtrl'}
+                            {activeTrek ? 'Trek dashboard' : 'Community home'}
                         </p>
                     </div>
-                    {!trekId ? (
-                        <button type="button" onClick={() => navigate('/trek-organizer')} className="text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2">My treks</button>
+                    {trekId ? (
+                        <button
+                            type="button"
+                            onClick={() => navigate('/trek-organizer')}
+                            className="text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2 font-medium"
+                        >
+                            All treks
+                        </button>
                     ) : null}
                 </header>
-                <main className="p-4 sm:p-6 max-w-7xl mx-auto">
+                <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${trekId ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6' : ''}`}>
                     <Outlet />
                 </main>
             </div>
-            {sidebarOpen ? <button type="button" className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" /> : null}
+
+            {trekId ? (
+                <nav
+                    className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-800 bg-[#161718]/95 backdrop-blur pb-[env(safe-area-inset-bottom)]"
+                    aria-label="Trek tools"
+                >
+                    <div className="grid grid-cols-4">
+                        {nav.map((item) => (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                end={item.end}
+                                className={({ isActive }) =>
+                                    `flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px] text-[10px] font-medium ${
+                                        isActive ? 'text-[#0ECCEE]' : 'text-gray-500'
+                                    }`
+                                }
+                            >
+                                <item.icon size={20} />
+                                {item.short}
+                            </NavLink>
+                        ))}
+                    </div>
+                </nav>
+            ) : null}
+
+            {sidebarOpen ? (
+                <button type="button" className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" />
+            ) : null}
         </div>
     );
 }

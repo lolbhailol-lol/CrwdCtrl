@@ -160,7 +160,7 @@ export default function SportsCategoryPage() {
             sportType: e.sportType,
             title: e.title,
             subtitle: getSportsDisplayType(e, SPORT_TYPE_LABELS),
-            image: normalizeImageUrl(e.images?.[0]) || null,
+            image: normalizeImageUrl(e.coverImage) || normalizeImageUrl(e.images?.[0]) || null,
             shareUrl: e.registrationLink || `${window.location.origin}/sports`,
             registrationLink: e.registrationLink,
             festId: null,

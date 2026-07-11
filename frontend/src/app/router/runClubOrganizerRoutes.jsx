@@ -1,6 +1,7 @@
 import { Route } from 'react-router-dom';
 import {
     RunClubOrganizerLoginPage,
+    RunClubOrganizerSignupPage,
     RunClubOrganizerLayout,
     RunClubOrganizerProtectedRoute,
     RunClubOrganizerHomePage,
@@ -13,6 +14,7 @@ import {
 export const runClubOrganizerRoutes = (
     <>
         <Route path="/run-club-organizer/login" element={<RunClubOrganizerLoginPage />} />
+        <Route path="/run-club-organizer/signup" element={<RunClubOrganizerSignupPage />} />
         <Route
             path="/run-club-organizer"
             element={

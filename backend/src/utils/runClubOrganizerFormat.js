@@ -18,6 +18,10 @@ function normalizeRegistrationForFormat(reg) {
     const formData = responsesToObject(reg);
     const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
     const amountPaid = Number(reg.amountPaid) || 0;
+    const people = Math.max(
+        1,
+        Number(reg.bookingPeople) || Number(formData.people) || 1,
+    );
 
     return {
         _id: reg._id,
@@ -26,9 +30,9 @@ function normalizeRegistrationForFormat(reg) {
         userName: user?.name || '',
         userEmail: user?.email || pickFormField(formData, ['email', 'e_mail', 'Email']) || '',
         bookingDetails: {
-            date: pickFormField(formData, ['date', 'run_date', 'booking_date', 'event_date']) || '',
-            time: pickFormField(formData, ['time', 'time_slot', 'reporting_time']) || '',
-            people: Math.max(1, Number(formData.people) || 1),
+            date: reg.bookingDate || pickFormField(formData, ['date', 'run_date', 'booking_date', 'event_date']) || '',
+            time: reg.bookingTime || pickFormField(formData, ['time', 'time_slot', 'reporting_time']) || '',
+            people,
             amountPaid,
             paymentId: reg.payment_id || '',
             payment_order_id: reg.payment_order_id || '',
@@ -62,7 +66,14 @@ function formatParticipantRow(reg, event = null) {
         emergencyContact:
             pickFormField(form, ['emergency_contact', 'emergency', 'emergency_phone', 'guardian_contact']) ||
             '—',
-        paymentStatus: grossCollected > 0 || reg.paymentStatus === 'paid' ? 'Paid' : 'Free',
+        paymentStatus:
+            booking.status === 'cancelled' && (reg.paymentStatus === 'failed' || reg.paymentReviewNote)
+                ? 'Rejected'
+                : reg.paymentStatus === 'pending' || booking.status === 'pending'
+                    ? 'Pending review'
+                    : grossCollected > 0 || reg.paymentStatus === 'paid'
+                        ? 'Paid'
+                        : 'Free',
         amountPaid: grossCollected,
         people,
         bookingDate: booking.createdAt,
@@ -77,6 +88,14 @@ function formatParticipantRow(reg, event = null) {
         grossCollected,
         organizerNet: grossCollected,
         platformFee: 0,
+        paymentScreenshotUrl: reg.paymentScreenshotUrl || '',
+        transactionId: reg.transactionId || '',
+        paymentReviewNote: reg.paymentReviewNote || '',
+        paymentReviewedAt: reg.paymentReviewedAt || null,
+        paymentGateway: reg.payment_gateway || '',
+        expectedAmount: event?.registrationFee != null
+            ? (Number(event.registrationFee) || 0) * people
+            : grossCollected,
     };
 }
 

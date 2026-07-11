@@ -41,6 +41,27 @@ const categoryRegistrationSchema = new mongoose.Schema(
         payment_order_id: { type: String, default: null },
         payment_id: { type: String, default: null },
         payment_gateway: { type: String, default: null },
+        /** Organizer QR / screenshot payment proof */
+        paymentScreenshotUrl: { type: String, default: '' },
+        transactionId: { type: String, default: '' },
+        paymentReviewNote: { type: String, default: '' },
+        paymentReviewedAt: { type: Date, default: null },
+        paymentReviewedBy: { type: String, default: '' },
+        /** Persisted booking slot (sports / run club) */
+        bookingDate: { type: String, default: '' },
+        bookingTime: { type: String, default: '' },
+        bookingPeople: { type: Number, default: 1 },
+        /**
+         * Run-club organizer-only PII encryption (AES-GCM).
+         * Sensitive form/payment fields live in *Cipher; plaintext responses
+         * keep only operational keys (people/date/time).
+         */
+        piiEncrypted: { type: Boolean, default: false },
+        runClubId: { type: mongoose.Schema.Types.ObjectId, ref: 'RunClub', default: null },
+        responsesCipher: { type: String, default: '' },
+        paymentScreenshotCipher: { type: String, default: '' },
+        transactionIdCipher: { type: String, default: '' },
+        piiSearchTokens: { type: [String], default: [] },
         // QR check-in
         qrCodeData: { type: String, unique: true, sparse: true },
         checkedIn: { type: Boolean, default: false },
@@ -50,47 +71,79 @@ const categoryRegistrationSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-// Non-unique index for fast lookups. Repeat registrations are allowed —
-// duplicate-payment protection lives in the controllers (payment_order_id
-// scoped idempotency), not in a unique index.
+// Non-unique index for fast lookups.
 categoryRegistrationSchema.index({ category: 1, eventId: 1, user: 1 });
+
+// At most one active (pending|confirmed) registration per user per event.
+// Cancelled/failed rows are excluded so re-register after reject still works.
+categoryRegistrationSchema.index(
+    { category: 1, eventId: 1, user: 1 },
+    {
+        unique: true,
+        name: 'unique_active_category_registration',
+        partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } },
+    },
+);
 
 categoryRegistrationSchema.index({ category: 1 });
 categoryRegistrationSchema.index({ eventId: 1 });
 categoryRegistrationSchema.index({ user: 1 });
 categoryRegistrationSchema.index({ status: 1 });
+categoryRegistrationSchema.index({ category: 1, eventId: 1, status: 1, paymentStatus: 1, createdAt: 1 });
+categoryRegistrationSchema.index({ runClubId: 1, piiEncrypted: 1 });
+categoryRegistrationSchema.index({ eventId: 1, piiSearchTokens: 1 });
 
 const CategoryRegistration =
     mongoose.models.CategoryRegistration ||
     mongoose.model('CategoryRegistration', categoryRegistrationSchema);
 
-// Drop the legacy unique index if it exists so repeat registrations are
-// allowed. Without this a second registration throws E11000 → error → the
-// user is bounced back to the form even after a successful payment.
-const dropLegacyCategoryUniqueIndex = async () => {
+// Drop the legacy *full* unique index (blocked all re-registers including after
+// cancel). Keep the partial unique index for active pending|confirmed only.
+const ensureCategoryRegistrationIndexes = async () => {
     try {
         const indexes = await CategoryRegistration.collection.indexes();
-        const legacy = indexes.find(
-            (idx) => idx.unique && idx.key && idx.key.category === 1 && idx.key.eventId === 1 && idx.key.user === 1
-        );
-        if (legacy) {
-            await CategoryRegistration.collection.dropIndex(legacy.name);
-            console.log('ℹ️ Dropped legacy unique index on CategoryRegistration:', legacy.name);
+        for (const idx of indexes) {
+            const isCatEventUser =
+                idx.unique &&
+                idx.key &&
+                idx.key.category === 1 &&
+                idx.key.eventId === 1 &&
+                idx.key.user === 1;
+            const isPartialActive = idx.name === 'unique_active_category_registration'
+                || idx.partialFilterExpression;
+            if (isCatEventUser && !isPartialActive) {
+                await CategoryRegistration.collection.dropIndex(idx.name);
+                console.log('ℹ️ Dropped legacy full unique index on CategoryRegistration:', idx.name);
+            }
         }
     } catch {
-        // Index may not exist — nothing to drop
+        /* ignore */
     }
     try {
         await CategoryRegistration.collection.createIndex({ category: 1, eventId: 1, user: 1 });
     } catch {
         /* ignore */
     }
+    try {
+        await CategoryRegistration.collection.createIndex(
+            { category: 1, eventId: 1, user: 1 },
+            {
+                unique: true,
+                name: 'unique_active_category_registration',
+                partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } },
+            },
+        );
+    } catch (err) {
+        if (err?.code !== 85 && err?.code !== 86) {
+            console.warn('⚠️ Could not ensure unique_active_category_registration:', err.message);
+        }
+    }
 };
 
 if (mongoose.connection.readyState === 1) {
-    dropLegacyCategoryUniqueIndex();
+    ensureCategoryRegistrationIndexes();
 } else {
-    mongoose.connection.once('open', dropLegacyCategoryUniqueIndex);
+    mongoose.connection.once('open', ensureCategoryRegistrationIndexes);
 }
 
 module.exports = CategoryRegistration;

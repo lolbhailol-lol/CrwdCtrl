@@ -28,7 +28,7 @@ const EMPTY = {
     images: [],
     sponsors: '',
     registrationLink: '',
-    registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [] },
+    registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [], paymentQR: '', paymentQRMessage: '', paymentUpiId: '' },
     description: '',
     status: 'published',
     runClubId: null,
@@ -135,6 +135,14 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
             setError('Run must belong to a run club.');
             return;
         }
+        if (
+            (form.registration?.mode || 'internal_form') === 'organizer_qr'
+            && Number(form.registrationFee) > 0
+            && !String(form.registration?.paymentQR || '').trim()
+        ) {
+            setError('Upload a payment QR image for Form + QR mode when fee is greater than 0.');
+            return;
+        }
         setSaving(true);
         try {
             const coverImages = normalizeCoverImages(form.coverImages);
@@ -166,10 +174,13 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                     googleSheetsUrl: form.registration?.googleSheetsUrl || '',
                     organizerEmail: form.registration?.organizerEmail || '',
                     formInstructions: form.registration?.formInstructions || '',
-                    availableDates: Array.isArray(form.registration?.availableDates) ? form.registration.availableDates : [],
-                    timeSlots: Array.isArray(form.registration?.timeSlots) ? form.registration.timeSlots : [],
-                    locationOptions: Array.isArray(form.registration?.locationOptions) ? form.registration.locationOptions : [],
+                    availableDates: [],
+                    timeSlots: [],
+                    locationOptions: [],
                     maxPeoplePerBooking: Number(form.registration?.maxPeoplePerBooking) || 10,
+                    paymentQR: form.registration?.paymentQR || '',
+                    paymentQRMessage: form.registration?.paymentQRMessage || '',
+                    paymentUpiId: form.registration?.paymentUpiId || '',
                     formSchema: Array.isArray(form.registration?.formSchema) ? form.registration.formSchema : [],
                 },
                 description: form.description?.trim() || '',
@@ -349,8 +360,9 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                                     onChange={(e) => set('registration', { ...form.registration, mode: e.target.value })}
                                     className={inp}
                                 >
-                                    <option value="internal_form">Internal Form (in-app booking)</option>
-                                    <option value="external_link">External Link</option>
+                                    <option value="internal_form">1. Internal app booking (Cashfree when paid)</option>
+                                    <option value="external_link">2. External link</option>
+                                    <option value="organizer_qr">3. Form + QR / screenshot upload</option>
                                 </select>
                             </Field>
                         </div>
@@ -360,34 +372,90 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                             </Field>
                         )}
 
-                        {(form.registration?.mode || 'internal_form') === 'internal_form' && (
+                        {(form.registration?.mode || 'internal_form') === 'organizer_qr' && (
                             <div className="space-y-4 border-t border-[#0ECCEE]/15 pt-4 mt-1">
                                 <p className="text-xs text-gray-500">
-                                    In-app booking form. Paid runs add a <span className="text-[#0ECCEE] font-semibold">3% platform fee</span> at checkout (secure Cashfree payment), same as treks.
+                                    Users fill the in-app form, pay the organizer via UPI QR, and upload a payment screenshot.
+                                    {Number(form.registrationFee) > 0
+                                        ? ' Paid runs stay pending until the run club organizer approves the screenshot.'
+                                        : ' Fee is ₹0 — registration confirms instantly (no screenshot required).'}
+                                </p>
+                                <Field label="Organizer payment QR" hint="Upload UPI / payment QR image">
+                                    <div className="flex flex-wrap gap-3 items-center">
+                                        {form.registration?.paymentQR ? (
+                                            <img src={form.registration.paymentQR} alt="Payment QR" className="h-28 w-28 object-contain rounded-lg border border-gray-700 bg-white p-1" />
+                                        ) : null}
+                                        <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-600 text-xs cursor-pointer hover:border-[#0ECCEE]">
+                                            {uploadingCover ? 'Uploading…' : 'Upload QR'}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    setUploadingCover(true);
+                                                    setError('');
+                                                    try {
+                                                        const fd = new FormData();
+                                                        fd.append('image', file);
+                                                        fd.append('folder', 'crwdctrl/sports');
+                                                        const res = await adminFetch('/admin/upload/image', { method: 'POST', body: fd });
+                                                        const data = await res.json().catch(() => ({}));
+                                                        if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
+                                                        set('registration', { ...form.registration, paymentQR: data.url || '' });
+                                                    } catch (err) {
+                                                        setError(err.message || 'QR upload failed');
+                                                    } finally {
+                                                        setUploadingCover(false);
+                                                    }
+                                                }}
+                                            />
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={form.registration?.paymentQR || ''}
+                                            onChange={(e) => set('registration', { ...form.registration, paymentQR: e.target.value })}
+                                            className={`${inp} flex-1 min-w-[180px]`}
+                                            placeholder="Or paste QR image URL"
+                                        />
+                                    </div>
+                                </Field>
+                                <Field label="UPI ID (optional)" hint="Shown with a Copy button on the booking page">
+                                    <input
+                                        type="text"
+                                        value={form.registration?.paymentUpiId || ''}
+                                        onChange={(e) => set('registration', { ...form.registration, paymentUpiId: e.target.value })}
+                                        className={inp}
+                                        placeholder="club@upi"
+                                    />
+                                </Field>
+                                <Field label="Payment instructions" hint="Shown under the QR (amount note, etc.)">
+                                    <textarea
+                                        rows={2}
+                                        value={form.registration?.paymentQRMessage || ''}
+                                        onChange={(e) => set('registration', { ...form.registration, paymentQRMessage: e.target.value })}
+                                        className={`${inp} resize-none`}
+                                        placeholder="Pay the exact amount and upload the screenshot"
+                                    />
+                                </Field>
+                            </div>
+                        )}
+
+                        {['internal_form', 'organizer_qr'].includes(form.registration?.mode || 'internal_form') && (
+                            <div className="space-y-4 border-t border-[#0ECCEE]/15 pt-4 mt-1">
+                                <p className="text-xs text-gray-500">
+                                    {(form.registration?.mode || 'internal_form') === 'internal_form' ? (
+                                        <>
+                                            In-app booking form. Paid runs add a <span className="text-[#0ECCEE] font-semibold">3% platform fee</span> at checkout (secure Cashfree payment), same as treks.
+                                        </>
+                                    ) : (
+                                        <>Form fields for QR / screenshot booking. No Cashfree — payment goes to the organizer.</>
+                                    )}
+                                    {' '}Runners see the single Event Date / Reporting Time from above — no multi-date picker.
                                 </p>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <Field label="Available Dates" hint="Comma-separated. Leave empty to auto-generate.">
-                                        <input type="text"
-                                            value={(form.registration?.availableDates || []).join(', ')}
-                                            onChange={(e) => set('registration', { ...form.registration, availableDates: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-                                            className={inp} placeholder="e.g. 6 July 2026, 13 July 2026" />
-                                    </Field>
-                                    <Field label="Time Slots" hint="Comma-separated.">
-                                        <input type="text"
-                                            value={(form.registration?.timeSlots || []).join(', ')}
-                                            onChange={(e) => set('registration', { ...form.registration, timeSlots: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-                                            className={inp} placeholder="e.g. 6:00 AM, 7:30 AM" />
-                                    </Field>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <Field label="Location Options" hint="Comma-separated (optional).">
-                                        <input type="text"
-                                            value={(form.registration?.locationOptions || []).join(', ')}
-                                            onChange={(e) => set('registration', { ...form.registration, locationOptions: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-                                            className={inp} placeholder="e.g. Start point A, Start point B" />
-                                    </Field>
                                     <Field label="Max People per Booking">
                                         <input type="number" min="1" max="50"
                                             value={form.registration?.maxPeoplePerBooking ?? 10}

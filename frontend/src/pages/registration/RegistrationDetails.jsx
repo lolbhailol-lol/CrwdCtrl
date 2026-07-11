@@ -62,6 +62,7 @@ export default function RegistrationDetails() {
   const [searchParams] = useSearchParams();
   const isTrekBooking = searchParams.get('type') === 'trek';
   const isEventRegistration = searchParams.get('type') === 'event';
+  const isSportsRegistration = searchParams.get('type') === 'sports';
   const navigate = useNavigate();
   const { isDark } = useDarkMode();
   const { isAuthenticated } = useAuth();
@@ -77,7 +78,7 @@ export default function RegistrationDetails() {
     }
 
     fetchRegistrationDetails();
-  }, [registrationId, isAuthenticated, isTrekBooking, isEventRegistration, navigate]);
+  }, [registrationId, isAuthenticated, isTrekBooking, isEventRegistration, isSportsRegistration, navigate]);
 
   const fetchRegistrationDetails = async () => {
     try {
@@ -87,12 +88,22 @@ export default function RegistrationDetails() {
         ? `/registrations/trek-booking/${registrationId}`
         : isEventRegistration
           ? `/registrations/event-registration/${registrationId}`
-          : `/registrations/details/${registrationId}`;
+          : isSportsRegistration
+            ? `/category-registrations/details/${registrationId}`
+            : `/registrations/details/${registrationId}`;
 
       const data = await userFetchJSON(path);
 
       if (!data) {
-        throw new Error(isTrekBooking ? 'Trek booking not found' : isEventRegistration ? 'Event registration not found' : 'Failed to fetch registration details');
+        throw new Error(
+          isTrekBooking
+            ? 'Trek booking not found'
+            : isEventRegistration
+              ? 'Event registration not found'
+              : isSportsRegistration
+                ? 'Run registration not found'
+                : 'Failed to fetch registration details',
+        );
       }
 
       setRegistration(data);
@@ -147,29 +158,34 @@ export default function RegistrationDetails() {
     );
   }
 
-  const isCompetitionRegistration = !isTrekBooking && !isEventRegistration && !!registration.competitionId;
+  const isCompetitionRegistration = !isTrekBooking && !isEventRegistration && !isSportsRegistration && !!registration.competitionId;
   const eventShow = registration.eventShow || {};
+  const sportsEvent = registration.event || {};
   const eventShowDate = eventShow.showTimings?.[0]?.date || null;
   const eventShowTime = eventShow.showTimings?.[0]?.time || null;
   const eventName = isTrekBooking
     ? registration.trekId?.trekName || 'Trek'
     : isEventRegistration
       ? eventShow.displayName || eventShow.title || 'Event'
-      : isCompetitionRegistration
-        ? registration.competitionId?.name
-        : registration.fest?.festName;
+      : isSportsRegistration
+        ? sportsEvent.title || 'Run'
+        : isCompetitionRegistration
+          ? registration.competitionId?.name
+          : registration.fest?.festName;
   const eventImage = isTrekBooking
     ? registration.trekId?.coverImage || registration.trekId?.images?.[0]
     : isEventRegistration
       ? eventShow.coverImage || eventShow.banner
-      : isCompetitionRegistration
-        ? registration.competitionId?.coverImage
-        : registration.fest?.coverImage;
+      : isSportsRegistration
+        ? sportsEvent.coverImage || sportsEvent.images?.[0]
+        : isCompetitionRegistration
+          ? registration.competitionId?.coverImage
+          : registration.fest?.coverImage;
   const formEntries = isTrekBooking
     ? Object.entries(registration.formData || {})
     : null;
 
-  const registrationFormFields = !isTrekBooking && !isEventRegistration
+  const registrationFormFields = !isTrekBooking && !isEventRegistration && !isSportsRegistration
     ? getRegistrationFormFields(registration)
     : [];
 
@@ -178,6 +194,14 @@ export default function RegistrationDetails() {
     ? (eventShow.registration?.formType === 'MULTI_STEP'
         ? (eventShow.registration?.steps || []).flatMap((s) => s.fields || [])
         : (eventShow.registration?.formSchema || []))
+    : [];
+
+  const sportsFormFields = isSportsRegistration
+    ? (sportsEvent.registration?.formSchema || [])
+    : [];
+
+  const sportsResponses = isSportsRegistration
+    ? Object.entries(normalizeResponses(registration.responses) || {}).filter(([k]) => !['people', 'date', 'time'].includes(k))
     : [];
 
   const paymentInfo = isTrekBooking
@@ -199,8 +223,14 @@ export default function RegistrationDetails() {
         status: registration.paymentStatus || 'free',
       };
 
+  const isPendingSports = isSportsRegistration && registration.status === 'pending';
+  const isRejectedSports = isSportsRegistration && registration.status === 'cancelled';
+
   const hasPaymentReceipt =
-    (paymentInfo.amountPaid > 0 || paymentInfo.status === 'paid') && !!paymentInfo.orderId;
+    !isPendingSports &&
+    !isRejectedSports &&
+    (paymentInfo.amountPaid > 0 || paymentInfo.status === 'paid') &&
+    !!paymentInfo.orderId;
 
   const formatAmount = (amount) =>
     `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -209,7 +239,9 @@ export default function RegistrationDetails() {
     ? `/payment-invoice/${registrationId}?type=trek`
     : isEventRegistration
       ? `/payment-invoice/${registrationId}?type=event`
-      : `/payment-invoice/${registrationId}`;
+      : isSportsRegistration
+        ? `/payment-invoice/${registrationId}?type=sports`
+        : `/payment-invoice/${registrationId}`;
 
   const trekCommunityGroupLink = isTrekBooking
     ? String(
@@ -235,16 +267,39 @@ export default function RegistrationDetails() {
           </button>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 shrink-0" />
+              <CheckCircle className={`w-5 h-5 sm:w-6 sm:h-6 shrink-0 ${isPendingSports ? 'text-amber-400' : isRejectedSports ? 'text-red-400' : 'text-green-500'}`} />
               <h1 className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Registration Confirmed
+                {isPendingSports
+                  ? 'Awaiting payment approval'
+                  : isRejectedSports
+                    ? 'Payment not approved'
+                    : 'Registration Confirmed'}
               </h1>
             </div>
             <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-0.5`}>
-              {isTrekBooking ? 'Trek Booking' : isEventRegistration ? 'Event Registration' : isCompetitionRegistration ? 'Competition Registration' : 'Fest Registration'}
+              {isTrekBooking
+                ? 'Trek Booking'
+                : isEventRegistration
+                  ? 'Event Registration'
+                  : isSportsRegistration
+                    ? 'Run Registration'
+                    : isCompetitionRegistration
+                      ? 'Competition Registration'
+                      : 'Fest Registration'}
             </p>
           </div>
         </div>
+
+        {isPendingSports ? (
+          <div className={`rounded-xl p-4 mb-4 border ${isDark ? 'bg-amber-900/20 border-amber-700/40 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+            Your payment screenshot is with the run club. You’ll get a ticket once they approve it.
+          </div>
+        ) : null}
+        {isRejectedSports && registration.paymentReviewNote ? (
+          <div className={`rounded-xl p-4 mb-4 border ${isDark ? 'bg-red-900/20 border-red-700/40 text-red-200' : 'bg-red-50 border-red-200 text-red-800'}`}>
+            {registration.paymentReviewNote}
+          </div>
+        ) : null}
 
         {/* Event Information */}
         <div className={`${isDark ? 'bg-[#1D1E20]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
@@ -278,11 +333,35 @@ export default function RegistrationDetails() {
                   </div>
                 )}
 
-                {!isTrekBooking && !isEventRegistration && registration.fest?.collegeName && (
+                {!isTrekBooking && !isEventRegistration && !isSportsRegistration && registration.fest?.collegeName && (
                   <div className="flex items-center gap-2 text-gray-500">
                     <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
                     <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
                       {registration.fest.collegeName}
+                    </span>
+                  </div>
+                )}
+
+                {isSportsRegistration && (sportsEvent.venue || sportsEvent.city) && (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
+                      {sportsEvent.venue || sportsEvent.city}
+                    </span>
+                  </div>
+                )}
+
+                {isSportsRegistration && (registration.bookingDate || sportsEvent.eventDate) && (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+                      {registration.bookingDate
+                        || (sportsEvent.eventDate
+                          ? new Date(sportsEvent.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                          : '')}
+                      {(registration.bookingTime || sportsEvent.reportingTime)
+                        ? ` · ${registration.bookingTime || sportsEvent.reportingTime}`
+                        : ''}
                     </span>
                   </div>
                 )}
@@ -316,7 +395,7 @@ export default function RegistrationDetails() {
                   </div>
                 )}
 
-                {!isTrekBooking && registration.fest?.festDate && (
+                {!isTrekBooking && !isEventRegistration && !isSportsRegistration && registration.fest?.festDate && (
                   <div className="flex items-center gap-2 text-gray-500">
                     <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
                     <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
@@ -443,6 +522,70 @@ export default function RegistrationDetails() {
             </div>
           )}
 
+          {isSportsRegistration && (
+            <div className="space-y-3 sm:space-y-4">
+              {(registration.bookingPeople || sportsResponses.length > 0) && (
+                <>
+                  {registration.bookingPeople ? (
+                    <div className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                        <div className="sm:w-1/3">
+                          <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>People</span>
+                        </div>
+                        <div className="sm:w-2/3">
+                          <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{registration.bookingPeople}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  {sportsFormFields.length > 0
+                    ? sportsFormFields.map((field, index) => {
+                        const value = getResponseValue(registration.responses, field);
+                        const renderedValue = renderFieldValue(field, value);
+                        if (!renderedValue) return null;
+                        return (
+                          <div key={index} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                            <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                              <div className="sm:w-1/3">
+                                <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{field.label}</label>
+                              </div>
+                              <div className="sm:w-2/3">
+                                <div className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{renderedValue}</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    : sportsResponses.map(([key, value]) => (
+                        <div key={key} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                          <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                            <div className="sm:w-1/3">
+                              <label className={`text-sm font-medium capitalize ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {key.replace(/_/g, ' ')}
+                              </label>
+                            </div>
+                            <div className="sm:w-2/3">
+                              <div className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {typeof value === 'object' ? JSON.stringify(value) : (value || 'Not provided')}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                </>
+              )}
+              {!isPendingSports && !isRejectedSports ? (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/qr-ticket/${registrationId}?type=sports`)}
+                  className="mt-2 w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                >
+                  Download Ticket
+                </button>
+              ) : null}
+            </div>
+          )}
+
           {isEventRegistration && eventFormFields.length > 0 && (
             <div className="space-y-3 sm:space-y-4">
               {eventFormFields.map((field, index) => {
@@ -472,7 +615,7 @@ export default function RegistrationDetails() {
             </div>
           )}
 
-          {!isTrekBooking && !isEventRegistration && registrationFormFields.length > 0 && (
+          {!isTrekBooking && !isEventRegistration && !isSportsRegistration && registrationFormFields.length > 0 && (
             <div className="space-y-3 sm:space-y-4">
               {registrationFormFields.map((field, index) => {
                 const value = getResponseValue(registration.responses, field);

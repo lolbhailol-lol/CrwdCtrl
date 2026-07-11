@@ -106,10 +106,22 @@ const generateSportsQR = async (req, res) => {
       _id: registrationId,
       user: userId,
       category: 'sports',
-      status: { $ne: 'cancelled' },
+      status: 'confirmed',
     }).populate('user', 'name');
 
     if (!registration) {
+      const pending = await CategoryRegistration.findOne({
+        _id: registrationId,
+        user: userId,
+        category: 'sports',
+        status: 'pending',
+      }).lean();
+      if (pending) {
+        return res.status(400).json({
+          success: false,
+          message: 'Ticket available after the run club approves your payment',
+        });
+      }
       return res.status(404).json({ success: false, message: 'Sports registration not found' });
     }
 

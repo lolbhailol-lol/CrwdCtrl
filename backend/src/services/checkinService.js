@@ -261,6 +261,17 @@ async function performCheckinFromRaw(raw, options = {}) {
       };
     }
 
+    if (sportsReg.status === 'pending' || sportsReg.paymentStatus === 'pending') {
+      return {
+        status: 400,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'Payment is still under review. Approve the screenshot before check-in.',
+        },
+      };
+    }
+
     const event = await SportsEvent.findById(sportsReg.eventId).select(
       'title city sportType eventDate registration.googleSheetsUrl',
     );

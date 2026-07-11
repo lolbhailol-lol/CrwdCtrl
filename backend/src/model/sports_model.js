@@ -85,8 +85,17 @@ const sportsEventSchema = new mongoose.Schema(
         registration: {
             /** Whether registration is currently accepting bookings */
             status: { type: String, enum: ['open', 'closed'], default: 'open' },
-            /** How users register: in-app form, or an external link */
-            mode: { type: String, enum: ['internal_form', 'external_link'], default: 'internal_form' },
+            /**
+             * How users register:
+             * - internal_form: in-app form + Cashfree when fee > 0
+             * - external_link: open registrationLink
+             * - organizer_qr: in-app form + organizer UPI QR + screenshot upload
+             */
+            mode: {
+                type: String,
+                enum: ['internal_form', 'external_link', 'organizer_qr'],
+                default: 'internal_form',
+            },
             googleSheetsUrl: { type: String, default: '' },
             organizerEmail: { type: String, default: '' },
             formInstructions: { type: String, default: '' },
@@ -94,6 +103,11 @@ const sportsEventSchema = new mongoose.Schema(
             timeSlots: { type: [String], default: [] },
             locationOptions: { type: [String], default: [] },
             maxPeoplePerBooking: { type: Number, default: 10 },
+            /** Organizer UPI / payment QR image URL (organizer_qr mode) */
+            paymentQR: { type: String, default: '' },
+            paymentQRMessage: { type: String, default: '' },
+            /** Structured UPI ID for copy-to-clipboard on booking */
+            paymentUpiId: { type: String, default: '' },
             formSchema: [{
                 id:          String,
                 label:       String,

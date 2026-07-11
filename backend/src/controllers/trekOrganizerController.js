@@ -207,6 +207,9 @@ exports.getDashboard = async (req, res) => {
                 seatsRemaining,
                 checkedIn,
                 pendingCheckIn: Math.max(0, totalRegistrations - checkedIn),
+                checkInRate: totalRegistrations > 0
+                    ? Math.round((checkedIn / totalRegistrations) * 100)
+                    : 0,
                 revenue: organizerRevenue,
                 organizerRevenue,
                 platformFees,
@@ -214,6 +217,7 @@ exports.getDashboard = async (req, res) => {
                 todayRegistrations,
                 femaleCount: genderStats.female?.bookings || 0,
                 maleCount: genderStats.male?.bookings || 0,
+                othersCount: genderStats.others?.bookings || 0,
             },
         });
     } catch (error) {

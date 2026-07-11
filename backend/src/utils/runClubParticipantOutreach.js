@@ -4,6 +4,8 @@ const { sendPushNotification } = require('../services/pushService');
 const { sendTrekParticipantEmails } = require('../services/emailService');
 const { responsesToObject, normalizeRegistrationForFormat } = require('./runClubOrganizerFormat');
 const { pickFormField } = require('./trekOrganizerFormat');
+const { decryptRegistrationPii, decryptManyRegistrations } = require('./runClubPiiCrypto');
+const SportsEvent = require('../model/sports_model');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
@@ -37,13 +39,18 @@ function shouldSendChannel(prefs = {}, key) {
 }
 
 async function loadConfirmedParticipants(eventId) {
-    return CategoryRegistration.find({
-        category: 'sports',
-        eventId,
-        status: 'confirmed',
-    })
-        .populate('user', 'name email phoneNumber notificationPreferences')
-        .lean();
+    const [regs, event] = await Promise.all([
+        CategoryRegistration.find({
+            category: 'sports',
+            eventId,
+            status: 'confirmed',
+        })
+            .populate('user', 'name email phoneNumber notificationPreferences')
+            .lean(),
+        SportsEvent.findById(eventId).select('runClubId').lean(),
+    ]);
+    const runClubId = event?.runClubId || null;
+    return decryptManyRegistrations(regs, runClubId);
 }
 
 async function notifyRunClubParticipant({
@@ -58,10 +65,11 @@ async function notifyRunClubParticipant({
     metadata = {},
     skipEmail = false,
 }) {
-    const userId = resolveUserId(registration);
-    const email = resolveParticipantEmail(registration);
-    const name = resolveParticipantName(registration);
-    const prefs = registration.user?.notificationPreferences || {};
+    const decrypted = decryptRegistrationPii(registration, registration?.runClubId);
+    const userId = resolveUserId(decrypted);
+    const email = resolveParticipantEmail(decrypted);
+    const name = resolveParticipantName(decrypted);
+    const prefs = decrypted.user?.notificationPreferences || {};
     const keys = preferenceKeysForType(type);
 
     const result = { inApp: false, push: false, email: false, userId, emailAddress: email };

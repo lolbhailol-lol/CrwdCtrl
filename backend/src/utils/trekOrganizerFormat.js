@@ -257,6 +257,7 @@ function escapeCsv(value) {
 
 function participantsToCsv(rows, options = {}) {
     const formSchema = Array.isArray(options.formSchema) ? options.formSchema : [];
+    const includePaymentProof = Boolean(options.includePaymentProof);
     const dynamicCols = formSchema
         .filter((f) => f?.fieldName)
         .map((f) => ({ key: f.fieldName, label: f.label || humanizeFieldName(f.fieldName) }));
@@ -280,6 +281,7 @@ function participantsToCsv(rows, options = {}) {
         'Phone',
         'Emergency Contact',
         'Payment Status',
+        'Registration Status',
         'Your Share (Organizer)',
         'Platform Fee (CrwdCtrl)',
         'Customer Paid (Total)',
@@ -290,6 +292,9 @@ function participantsToCsv(rows, options = {}) {
         'Check-in Status',
         'Check-in Time',
         'Email',
+        ...(includePaymentProof
+            ? ['Transaction ID', 'Payment Screenshot URL', 'Payment Review Note']
+            : []),
         ...dynamicCols.map((c) => c.label),
     ];
 
@@ -303,6 +308,7 @@ function participantsToCsv(rows, options = {}) {
             r.phone,
             r.emergencyContact,
             r.paymentStatus,
+            r.status || '',
             r.organizerNet ?? 0,
             r.platformFee ?? 0,
             r.grossCollected ?? r.amountPaid ?? 0,
@@ -313,6 +319,9 @@ function participantsToCsv(rows, options = {}) {
             r.checkInStatus,
             r.checkedInAt ? new Date(r.checkedInAt).toISOString() : '',
             r.userEmail || '',
+            ...(includePaymentProof
+                ? [r.transactionId || '', r.paymentScreenshotUrl || '', r.paymentReviewNote || '']
+                : []),
             ...dynamicCols.map((c) => formatFormValue(form[c.key])),
         ];
     });

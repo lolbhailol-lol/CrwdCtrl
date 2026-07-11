@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
     Download, Loader, Search, ChevronLeft, ChevronRight,
-    Users, UserCheck, Clock, ChevronsDownUp, X, Mail,
+    Users, UserCheck, ChevronsDownUp, X, Mail,
 } from 'lucide-react';
 import {
     exportTrekOrganizerParticipants,
@@ -21,7 +21,7 @@ function FilterChip({ active, onClick, children }) {
         <button
             type="button"
             onClick={onClick}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+            className={`px-3 py-2 min-h-[36px] rounded-full text-xs font-medium border transition-colors ${
                 active
                     ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]'
                     : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
@@ -53,7 +53,7 @@ export default function TrekOrganizerParticipantsPage() {
     const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
-    const [expandAll, setExpandAll] = useState(false);
+    const [expandAll, setExpandAll] = useState(true);
     const [selectedIds, setSelectedIds] = useState(() => new Set());
     const [messageModal, setMessageModal] = useState({ open: false, bookingIds: [], label: '' });
 
@@ -227,27 +227,27 @@ export default function TrekOrganizerParticipantsPage() {
                         <button
                             type="button"
                             onClick={() => openMessageModal([...selectedIds])}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366] text-white text-xs font-bold hover:opacity-90"
+                            className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg bg-[#25D366] text-white text-xs font-bold hover:opacity-90"
                         >
                             <Mail size={14} />
-                            Email selected ({selectedIds.size})
+                            Email ({selectedIds.size})
                         </button>
                     ) : null}
                     {rows.length > 0 ? (
                         <button
                             type="button"
                             onClick={() => setExpandAll((v) => !v)}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-300 hover:border-[#0ECCEE]/40"
+                            className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg border border-gray-700 text-xs font-medium text-gray-300 hover:border-[#0ECCEE]/40"
                         >
                             <ChevronsDownUp size={14} />
-                            {expandAll ? 'Collapse all' : 'Expand all'}
+                            {expandAll ? 'Hide forms' : 'Show forms'}
                         </button>
                     ) : null}
                     <button
                         type="button"
                         onClick={handleExport}
                         disabled={exporting}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0ECCEE] text-black text-xs font-bold hover:opacity-90 disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg bg-[#0ECCEE] text-black text-xs font-bold hover:opacity-90 disabled:opacity-60"
                     >
                         {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
                         Export
@@ -262,17 +262,16 @@ export default function TrekOrganizerParticipantsPage() {
                         <p className="text-xl font-bold mt-0.5">{stats.totalRegistrations}</p>
                     </div>
                     <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
+                        <p className="text-[10px] uppercase text-gray-500">Women</p>
+                        <p className="text-xl font-bold mt-0.5 text-pink-300">{stats.femaleCount ?? 0}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
+                        <p className="text-[10px] uppercase text-gray-500">Men</p>
+                        <p className="text-xl font-bold mt-0.5 text-sky-300">{stats.maleCount ?? 0}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
                         <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><UserCheck size={11} /> Checked in</p>
                         <p className="text-xl font-bold mt-0.5 text-emerald-400">{stats.checkedIn}</p>
-                    </div>
-                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
-                        <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><Clock size={11} /> Pending</p>
-                        <p className="text-xl font-bold mt-0.5 text-amber-400">{stats.pendingCheckIn}</p>
-                    </div>
-                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
-                        <p className="text-[10px] uppercase text-gray-500">Your revenue</p>
-                        <p className="text-xl font-bold mt-0.5">₹{Number(stats.organizerRevenue ?? stats.revenue ?? 0).toLocaleString('en-IN')}</p>
-                        <p className="text-[10px] text-gray-600 mt-0.5">Excludes platform fee</p>
                     </div>
                 </div>
             ) : null}
@@ -283,8 +282,8 @@ export default function TrekOrganizerParticipantsPage() {
                     <input
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Search name, phone, email, booking ID…"
-                        className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-[#111213] border border-gray-700 text-sm focus:outline-none focus:border-[#0ECCEE]/50"
+                        placeholder="Search name or phone…"
+                        className="w-full pl-10 pr-10 py-3 min-h-[48px] rounded-lg bg-[#111213] border border-gray-700 text-base focus:outline-none focus:border-[#0ECCEE]/50"
                     />
                     {searchInput ? (
                         <button type="button" onClick={() => setSearchInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">

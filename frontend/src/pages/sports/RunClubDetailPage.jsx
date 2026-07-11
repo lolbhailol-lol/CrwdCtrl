@@ -214,9 +214,11 @@ export default function RunClubDetailPage() {
     const clubId = club?.id || id || null;
 
     const categoryOptions = useMemo(() => {
-        return (club?.runCategories || [])
+        const fromClub = (club?.runCategories || [])
             .map((label) => ({ label, value: normalizeRunCategory(label) }))
             .filter((option) => option.value);
+        if (!fromClub.length) return [];
+        return [{ label: 'All', value: 'all' }, ...fromClub];
     }, [club]);
 
     const heroImages = useMemo(() => buildHeroImages(club), [club]);
@@ -259,7 +261,7 @@ export default function RunClubDetailPage() {
                                   year: 'numeric',
                               })
                             : null,
-                        image: e.images?.[0] || null,
+                        image: e.coverImage || e.images?.[0] || null,
                         runCategory: normalizeRunCategory(e.runCategory),
                         registrationLink: e.registrationLink || '',
                     })),
@@ -276,7 +278,7 @@ export default function RunClubDetailPage() {
             return;
         }
         if (!activeCategory || !categoryOptions.some((option) => option.value === activeCategory)) {
-            setActiveCategory(categoryOptions[0].value);
+            setActiveCategory('all');
         }
     }, [categoryOptions, activeCategory]);
 
@@ -290,9 +292,9 @@ export default function RunClubDetailPage() {
     const previewParagraphs = paragraphs.slice(0, 2);
     const hasMoreText = paragraphs.length > 2;
 
-    const filteredRuns = activeCategory
-        ? runs.filter((run) => run.runCategory === activeCategory)
-        : runs;
+    const filteredRuns = !activeCategory || activeCategory === 'all'
+        ? runs
+        : runs.filter((run) => run.runCategory === activeCategory);
 
     const openGallery = (index = 0) => {
         setGalleryIndex(index);
@@ -383,7 +385,7 @@ export default function RunClubDetailPage() {
                 <div className="absolute bottom-20 left-4 right-4 flex gap-2 pointer-events-none z-10">
                     {[
                         { label: 'Upcoming Runs', value: runs.length },
-                        { label: 'Categories', value: categoryOptions.length },
+                        { label: 'Categories', value: Math.max(0, categoryOptions.filter((o) => o.value !== 'all').length) },
                     ].map((stat) => (
                         <div
                             key={stat.label}

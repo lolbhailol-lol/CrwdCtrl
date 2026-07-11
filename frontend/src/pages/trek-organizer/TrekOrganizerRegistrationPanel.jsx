@@ -1,13 +1,27 @@
-import { useState } from 'react';
-import { Loader, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader } from 'lucide-react';
 import { updateTrekOrganizerRegistration } from '../../services/api/trekOrganizer.api';
-import { GENDER_PHASE_OPTIONS, formatQuotaLine } from '../../utils/trekGenderRegistration';
+import { GENDER_PHASE_OPTIONS } from '../../utils/trekGenderRegistration';
 
-export default function TrekOrganizerRegistrationPanel({ trekId, trek, genderRegistration, onUpdated }) {
+/**
+ * Gender phase controls. When `embedded`, skips outer card chrome
+ * (parent dashboard already wraps registration).
+ */
+export default function TrekOrganizerRegistrationPanel({
+    trekId,
+    trek,
+    genderRegistration,
+    onUpdated,
+    embedded = false,
+}) {
     const [phase, setPhase] = useState(trek?.genderPhase || genderRegistration?.phase || 'all');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
+
+    useEffect(() => {
+        setPhase(trek?.genderPhase || genderRegistration?.phase || 'all');
+    }, [trek?.genderPhase, genderRegistration?.phase]);
 
     const quotasEnabled = Boolean(genderRegistration?.enabled);
     const quotaRows = genderRegistration?.quotas
@@ -15,13 +29,14 @@ export default function TrekOrganizerRegistrationPanel({ trekId, trek, genderReg
         : [];
 
     const savePhase = async (nextPhase) => {
+        if (nextPhase === phase) return;
         setPhase(nextPhase);
         setSaving(true);
         setError('');
         setMessage('');
         try {
             const res = await updateTrekOrganizerRegistration(trekId, { genderPhase: nextPhase });
-            setMessage('Registration phase updated');
+            setMessage('Phase updated');
             onUpdated?.(res);
         } catch (e) {
             setError(e.message || 'Update failed');
@@ -32,53 +47,53 @@ export default function TrekOrganizerRegistrationPanel({ trekId, trek, genderReg
     };
 
     if (!quotasEnabled) {
-        return (
-            <div className="rounded-xl border border-gray-800 bg-[#161718] p-4">
-                <p className="text-sm font-semibold text-gray-200">Gender seat limits</p>
-                <p className="text-xs text-gray-500 mt-1">
-                    Not enabled for this trek. Ask your admin to turn on gender quotas in the trek form (Booking &amp; registration).
-                </p>
-            </div>
-        );
+        if (embedded) return null;
+        return null;
     }
 
-    return (
-        <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 space-y-4">
-            <div className="flex items-start gap-3">
-                <div className="size-9 rounded-lg bg-[#0ECCEE]/15 text-[#0ECCEE] flex items-center justify-center shrink-0">
-                    <Users size={16} />
-                </div>
-                <div>
-                    <p className="text-sm font-semibold text-gray-100">Registration phase</p>
+    const body = (
+        <div className="space-y-3">
+            <div>
+                <p className={embedded ? 'text-xs uppercase tracking-wide text-gray-500' : 'text-sm font-semibold text-gray-100'}>
+                    {embedded ? 'Who can register' : 'Who can register now'}
+                </p>
+                {!embedded ? (
                     <p className="text-xs text-gray-500 mt-0.5">
-                        Control who can register now — e.g. open women&apos;s seats first, then men later.
-                        Users pick Male or Female in booking step 1; wrong choice for the current phase cannot proceed.
+                        Switch between women-only, men-only, or open to all.
                     </p>
-                </div>
+                ) : null}
             </div>
 
-            {quotaRows.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {quotaRows.map((q) => (
-                        <div key={q.label} className="rounded-lg border border-gray-800 bg-[#111213] px-3 py-2">
-                            <p className="text-[10px] uppercase tracking-wide text-gray-500">{q.label}</p>
-                            <p className="text-sm font-semibold tabular-nums mt-0.5">
-                                {q.filled}/{q.cap}
-                            </p>
-                            <p className="text-[11px] text-gray-500">{q.remaining ?? 0} left</p>
-                        </div>
-                    ))}
+            {quotaRows.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2">
+                    {quotaRows.map((q) => {
+                        const pct = q.cap > 0 ? Math.min(100, Math.round((q.filled / q.cap) * 100)) : 0;
+                        return (
+                            <div key={q.label} className="rounded-xl border border-gray-800 bg-[#111213] px-2.5 py-2.5">
+                                <p className="text-[10px] uppercase tracking-wide text-gray-500">{q.label}</p>
+                                <p className="text-sm font-semibold tabular-nums mt-0.5">
+                                    {q.filled}<span className="text-gray-500 font-normal">/{q.cap}</span>
+                                </p>
+                                <div className="mt-1.5 h-1 rounded-full bg-gray-800 overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full ${pct >= 100 ? 'bg-red-400' : 'bg-[#0ECCEE]'}`}
+                                        style={{ width: `${pct}%` }}
+                                    />
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
-            )}
+            ) : null}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2">
                 {GENDER_PHASE_OPTIONS.map((opt) => (
                     <button
                         key={opt.value}
                         type="button"
                         disabled={saving}
                         onClick={() => savePhase(opt.value)}
-                        className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors min-h-[40px] ${
+                        className={`px-3 py-3 min-h-[48px] rounded-xl text-xs font-semibold border transition-colors ${
                             phase === opt.value
                                 ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]'
                                 : 'border-gray-700 text-gray-300 hover:border-[#0ECCEE]/40'
@@ -87,23 +102,25 @@ export default function TrekOrganizerRegistrationPanel({ trekId, trek, genderReg
                         {opt.label}
                     </button>
                 ))}
-                {saving ? <Loader size={16} className="animate-spin text-[#0ECCEE] self-center" /> : null}
             </div>
 
-            <p className="text-xs text-gray-400">
-                Current: <span className="text-[#0ECCEE] font-medium">{GENDER_PHASE_OPTIONS.find((o) => o.value === phase)?.short || phase}</span>
-            </p>
-
+            {saving ? (
+                <p className="text-xs text-gray-500 inline-flex items-center gap-1.5">
+                    <Loader size={14} className="animate-spin text-[#0ECCEE]" /> Saving…
+                </p>
+            ) : null}
             {error ? <p className="text-xs text-red-400">{error}</p> : null}
             {message ? <p className="text-xs text-emerald-400">{message}</p> : null}
+        </div>
+    );
 
-            {quotaRows.length > 0 && (
-                <ul className="text-[11px] text-gray-600 space-y-0.5">
-                    {quotaRows.map((q) => (
-                        <li key={q.label}>{formatQuotaLine(q)}</li>
-                    ))}
-                </ul>
-            )}
+    if (embedded) {
+        return <div className="pt-3 border-t border-gray-800">{body}</div>;
+    }
+
+    return (
+        <div className="rounded-xl border border-gray-800 bg-[#161718] p-4">
+            {body}
         </div>
     );
 }

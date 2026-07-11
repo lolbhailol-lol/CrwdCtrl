@@ -35,18 +35,14 @@ function runDraftKey(eventId) {
     return `sports_booking_draft_${eventId}`;
 }
 
-function generateDates(baseDate) {
-    const base = baseDate ? new Date(baseDate) : new Date();
-    const dates = [];
-    for (let i = 0; i < 5; i++) {
-        const d = new Date(base);
-        d.setDate(base.getDate() + i * 7);
-        dates.push(d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
-    }
-    return dates;
+function formatRunDate(baseDate) {
+    if (!baseDate) return '';
+    const d = new Date(baseDate);
+    if (Number.isNaN(d.getTime())) return String(baseDate);
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-const STEPS = ['Date & Time', 'Your Details', 'Confirm'];
+const STEPS = ['Party size', 'Your Details', 'Confirm'];
 
 function getInitialUi(eventId, search) {
     const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {} };
@@ -131,28 +127,32 @@ export default function RunEventBookingPage() {
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
+    const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
+    const [transactionId, setTransactionId] = useState('');
+    const [uploadingProof, setUploadingProof] = useState(false);
+    const [upiCopied, setUpiCopied] = useState(false);
     const retryCheckoutRef = useRef(null);
 
     const eventName = event?.title || event?.name || 'Run';
     const fee = Number(event?.registrationFee) || 0;
+    const regMode = event?.registration?.mode || 'internal_form';
+    const isOrganizerQr = regMode === 'organizer_qr';
+    const paymentQR = event?.registration?.paymentQR || '';
+    const paymentQRMessage = event?.registration?.paymentQRMessage || '';
+    const paymentUpiId = event?.registration?.paymentUpiId || '';
     const showSuccess = step === 3 && payDone && !paying;
     const showProcessing = step === 3 && paying;
 
-    useBookingSuccessPopup(showSuccess, {
+    useBookingSuccessPopup(showSuccess && !(fee > 0 && isOrganizerQr), {
         name: eventName,
-        paid: payDone && fee > 0,
+        paid: payDone && fee > 0 && !isOrganizerQr,
         bookingId,
         ticketType: 'sports',
     });
     const reg = event?.registration || {};
-    const dates = useMemo(
-        () => (reg.availableDates?.length ? reg.availableDates : generateDates(event?.eventDate)),
-        [reg.availableDates, event?.eventDate],
-    );
-    const times = useMemo(
-        () => (reg.timeSlots?.length ? reg.timeSlots : event?.reportingTime ? [event.reportingTime] : ['6:00 AM', '7:30 AM']),
-        [reg.timeSlots, event?.reportingTime],
-    );
+    // Runs use a single event date + optional reporting time (no multi-date slots)
+    const runDateLabel = useMemo(() => formatRunDate(event?.eventDate), [event?.eventDate]);
+    const runTimeLabel = String(event?.reportingTime || '').trim();
     const maxPeople = reg.maxPeoplePerBooking || event?.maxParticipants || 10;
 
     const regSchema = useMemo(() => {
@@ -193,9 +193,9 @@ export default function RunEventBookingPage() {
 
     useEffect(() => {
         if (!event) return;
-        setSelDate((prev) => prev || dates[0] || '');
-        setSelTime((prev) => prev || times[0] || '');
-    }, [event, dates, times]);
+        setSelDate((prev) => prev || runDateLabel || '');
+        setSelTime((prev) => prev || runTimeLabel || '');
+    }, [event, runDateLabel, runTimeLabel]);
 
     useEffect(() => {
         const evId = id || event?._id || event?.id;
@@ -242,9 +242,9 @@ export default function RunEventBookingPage() {
     }, [id, event, extraFields, selDate, selTime, people, step]);
 
     const baseFee = fee * people;
-    const platformFee = fee > 0 ? calculatePlatformFee(baseFee) : 0;
+    const platformFee = fee > 0 && !isOrganizerQr ? calculatePlatformFee(baseFee) : 0;
     const total = baseFee + platformFee;
-    const payableAmount = couponInfo?.amountAfterDiscount ?? total;
+    const payableAmount = isOrganizerQr ? baseFee : (couponInfo?.amountAfterDiscount ?? total);
 
     const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`;
 
@@ -293,7 +293,7 @@ export default function RunEventBookingPage() {
         formData = extraFields,
         booking = {},
     }) => {
-        const evId = id || event?._id || event?.id;
+        const evId = event?._id || event?.id || id;
         if (!evId) throw new Error('Run not found');
 
         const token = localStorage.getItem('crwdctrl_token') || localStorage.getItem('token');
@@ -317,6 +317,8 @@ export default function RunEventBookingPage() {
                     amountPaid: amountPaid ?? 0,
                     paymentId: payId || '',
                     payment_order_id: paymentOrderId || '',
+                    paymentScreenshotUrl: booking.paymentScreenshotUrl ?? paymentScreenshotUrl,
+                    transactionId: booking.transactionId ?? transactionId,
                 },
             }),
         });
@@ -446,6 +448,38 @@ export default function RunEventBookingPage() {
                 return;
             }
 
+            if (isOrganizerQr) {
+                if (!paymentQR) {
+                    setError('Organizer payment QR is not configured yet. Please contact the club.');
+                    return;
+                }
+                if (!paymentScreenshotUrl) {
+                    setError('Please upload your payment screenshot.');
+                    return;
+                }
+                if (String(transactionId || '').trim().length < 4) {
+                    setError('Please enter your UPI / transaction ID (at least 4 characters).');
+                    return;
+                }
+                setPaying(true);
+                try {
+                    await submitRunRegistration({
+                        amountPaid: payableAmount,
+                        booking: {
+                            paymentScreenshotUrl,
+                            transactionId,
+                        },
+                    });
+                    setStep(3);
+                    setPayDone(true);
+                } catch (e) {
+                    setError(e.message || 'Registration failed');
+                } finally {
+                    setPaying(false);
+                }
+                return;
+            }
+
             saveDraft({ step: 2 });
             setPaying(true);
             try {
@@ -560,6 +594,27 @@ export default function RunEventBookingPage() {
         );
     }
 
+    const registrationClosed = event?.registration?.status === 'closed';
+    const registrationFull = Boolean(event?.isFull)
+        || (event?.seatsRemaining === 0 && Number(event?.maxParticipants) > 0);
+    if ((registrationClosed || registrationFull) && !showSuccess && !showProcessing) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
+                <span className="text-4xl">🏃</span>
+                <p className={`text-sm text-center font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {registrationClosed ? 'Registration is closed for this run' : 'This run is full'}
+                </p>
+                <button
+                    type="button"
+                    onClick={() => navigate(event ? sportRunPath(event) : '/sports')}
+                    className="text-[#0ECCEE] text-sm font-semibold"
+                >
+                    Back to run
+                </button>
+            </div>
+        );
+    }
+
     if (showProcessing) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
@@ -577,13 +632,27 @@ export default function RunEventBookingPage() {
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
                     <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {fee > 0 ? '🎉 Payment Successful!' : '🎉 Booking Confirmed!'}
+                        {fee > 0 && isOrganizerQr
+                            ? 'Payment proof submitted!'
+                            : fee > 0
+                                ? '🎉 Payment Successful!'
+                                : '🎉 Booking Confirmed!'}
                     </h1>
                     <p className={`mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {fee > 0 && isOrganizerQr ? (
+                            <>
+                                Your booking for <span className="text-[#0ECCEE] font-semibold">{eventName}</span> is pending organizer approval.
+                            </>
+                        ) : (
+                            <>
                         Your booking for <span className="text-[#0ECCEE] font-semibold">{eventName}</span> has been confirmed.
+                            </>
+                        )}
                     </p>
                     <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        Download your ticket or view all bookings whenever you&apos;re ready.
+                        {fee > 0 && isOrganizerQr
+                            ? 'You’ll get a confirmation once the run club approves your payment screenshot.'
+                            : 'Download your ticket or view all bookings whenever you’re ready.'}
                     </p>
 
                     <div className={`rounded-xl p-5 mb-6 text-left ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
@@ -593,7 +662,11 @@ export default function RunEventBookingPage() {
                             { label: 'Time', value: selTime },
                             { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
                             { label: 'Entry Fee', value: fee > 0 ? `₹${baseFee.toLocaleString('en-IN')}` : 'Free' },
-                            ...(total > 0 ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }] : []),
+                            ...(fee > 0 && isOrganizerQr
+                                ? [{ label: 'Amount paid to club', value: `₹${payableAmount.toLocaleString('en-IN')}` }]
+                                : total > 0
+                                    ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }]
+                                    : []),
                             ...(paymentId ? [{ label: 'Payment ID', value: paymentId.slice(0, 18) + '…' }] : []),
                         ].map((r) => (
                             <div key={r.label} className={`flex justify-between text-sm py-2 border-b last:border-0 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -604,7 +677,7 @@ export default function RunEventBookingPage() {
                     </div>
 
                     <div className="flex flex-col gap-3">
-                        {bookingId && (
+                        {bookingId && !(fee > 0 && isOrganizerQr) && (
                             <button type="button"
                                 onClick={() => navigate(`/qr-ticket/${bookingId}?type=sports`, { state: { refreshBookings: true } })}
                                 className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
@@ -613,7 +686,7 @@ export default function RunEventBookingPage() {
                         )}
                         <button type="button"
                             onClick={() => goToBookings(navigate)}
-                            className={`w-full py-3.5 rounded-xl font-semibold transition ${bookingId ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:opacity-90'}`}>
+                            className={`w-full py-3.5 rounded-xl font-semibold transition ${bookingId && !(fee > 0 && isOrganizerQr) ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:opacity-90'}`}>
                             View My Bookings
                         </button>
                         <button type="button"
@@ -701,31 +774,15 @@ export default function RunEventBookingPage() {
                     {step === 1 && (
                         <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                             <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
-                                Select Date & Time
+                                Run details
                             </h3>
                             <div className="space-y-5">
-                                <div>
-                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Choose Date</label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {dates.map((d, i) => (
-                                            <button key={i} type="button" onClick={() => setSelDate(d)}
-                                                className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors whitespace-nowrap ${selDate === d ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-[#0ECCEE]' : isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}>
-                                                {d}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Start Time</label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {times.map((t) => (
-                                            <button key={t} type="button" onClick={() => setSelTime(t)}
-                                                className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${selTime === t ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-[#0ECCEE]' : isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}>
-                                                {t}
-                                            </button>
-                                        ))}
-                                    </div>
+                                <div className={`rounded-xl p-3 border ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
+                                    <p className={`text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Run date</p>
+                                    <p className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        {runDateLabel || 'Date TBA'}
+                                        {runTimeLabel ? ` · ${runTimeLabel}` : ''}
+                                    </p>
                                 </div>
 
                                 <div className={`rounded-xl p-3 border flex items-center justify-between gap-4 ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
@@ -784,7 +841,104 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && fee > 0 && (
+                    {step === 2 && fee > 0 && isOrganizerQr && (
+                        <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
+                            <div className={`rounded-xl px-4 py-3 mb-3 text-center ${isDark ? 'bg-[#0ECCEE]/10' : 'bg-[#0ECCEE]/10'}`}>
+                                <p className={`text-xs uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pay exactly</p>
+                                <p className="text-2xl font-bold text-[#0ECCEE] mt-0.5">₹{payableAmount.toLocaleString('en-IN')}</p>
+                                {people > 1 ? (
+                                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                        ₹{fee.toLocaleString('en-IN')} × {people} people
+                                    </p>
+                                ) : null}
+                            </div>
+                            <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                Scan the QR, pay the organizer, then upload your payment screenshot. Your spot is held until the club approves it.
+                            </p>
+                            {paymentQR ? (
+                                <div className="flex justify-center mb-3">
+                                    <img src={paymentQR} alt="Payment QR" className="h-44 w-44 object-contain rounded-xl bg-white p-2" />
+                                </div>
+                            ) : (
+                                <p className="text-xs text-red-400 mb-3">Payment QR not set by admin yet.</p>
+                            )}
+                            {paymentUpiId ? (
+                                <div className={`flex items-center justify-between gap-2 mb-3 rounded-lg px-3 py-2 border ${isDark ? 'border-gray-700 bg-[#1D1E20]' : 'border-gray-200 bg-white'}`}>
+                                    <div className="min-w-0">
+                                        <p className={`text-[10px] uppercase ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>UPI ID</p>
+                                        <p className={`text-sm font-mono truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{paymentUpiId}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            try {
+                                                await navigator.clipboard.writeText(paymentUpiId);
+                                                setUpiCopied(true);
+                                                setTimeout(() => setUpiCopied(false), 2000);
+                                            } catch {
+                                                setError('Could not copy UPI ID');
+                                            }
+                                        }}
+                                        className="shrink-0 px-3 py-1.5 rounded-lg bg-[#0ECCEE] text-black text-xs font-bold"
+                                    >
+                                        {upiCopied ? 'Copied' : 'Copy'}
+                                    </button>
+                                </div>
+                            ) : null}
+                            {paymentQRMessage ? (
+                                <p className={`text-xs mb-3 whitespace-pre-wrap ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{paymentQRMessage}</p>
+                            ) : null}
+                            <label className="flex flex-col gap-2 mb-3">
+                                <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Payment screenshot *</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={uploadingProof}
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        setUploadingProof(true);
+                                        setError('');
+                                        try {
+                                            const token = localStorage.getItem('crwdctrl_token') || localStorage.getItem('token');
+                                            const fd = new FormData();
+                                            fd.append('image', file);
+                                            const res = await fetch(`${API}/users/upload/image`, {
+                                                method: 'POST',
+                                                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                                body: fd,
+                                            });
+                                            const data = await res.json().catch(() => ({}));
+                                            if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
+                                            setPaymentScreenshotUrl(data.url || '');
+                                        } catch (err) {
+                                            setError(err.message || 'Screenshot upload failed');
+                                        } finally {
+                                            setUploadingProof(false);
+                                        }
+                                    }}
+                                    className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                                />
+                                {uploadingProof ? <span className="text-xs text-[#0ECCEE]">Uploading…</span> : null}
+                                {paymentScreenshotUrl ? (
+                                    <img src={paymentScreenshotUrl} alt="Payment proof" className="h-28 w-auto rounded-lg border border-gray-700 object-cover" />
+                                ) : null}
+                            </label>
+                            <label className="block">
+                                <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>UPI / transaction ID (required)</span>
+                                <input
+                                    value={transactionId}
+                                    onChange={(e) => setTransactionId(e.target.value)}
+                                    required
+                                    minLength={4}
+                                    className={`mt-1 w-full px-3 py-2 rounded-lg border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                                    placeholder="From your UPI app payment confirmation"
+                                />
+                            </label>
+                        </div>
+                    )}
+
+                    {step === 2 && fee > 0 && !isOrganizerQr && (
                         <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
                             <div className="mb-3">
                                 <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
@@ -826,19 +980,30 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
+                    {step === 2 && fee <= 0 && (
+                        <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-emerald-900/15 border-emerald-700/40' : 'bg-emerald-50 border-emerald-200'}`}>
+                            <p className={`text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>Free run</p>
+                            <p className={`text-xs mt-1 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
+                                No payment needed — confirm your details to reserve your spot.
+                            </p>
+                        </div>
+                    )}
+
                     <div className="flex flex-col sm:flex-row gap-3 pt-5">
                         <button type="button" onClick={back} disabled={paying}
                             className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
                             {step === 1 ? 'Cancel' : 'Previous Step'}
                         </button>
-                        <button type="button" onClick={next} disabled={paying}
+                        <button type="button" onClick={next} disabled={paying || uploadingProof}
                             className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60">
                             {paying ? (
                                 <><Loader className="w-4 h-4 animate-spin" /> Processing...</>
+                            ) : step === 2 && fee > 0 && isOrganizerQr ? (
+                                'Submit payment proof'
                             ) : step === 2 && total > 0 ? (
                                 `Pay ₹${payableAmount.toLocaleString('en-IN')} & Book`
                             ) : step === 2 ? (
-                                'Confirm Booking'
+                                'Confirm free booking'
                             ) : (
                                 'Next Step'
                             )}

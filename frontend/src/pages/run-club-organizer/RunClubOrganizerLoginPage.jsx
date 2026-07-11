@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Footprints, Loader } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Footprints, Loader, ArrowLeft } from 'lucide-react';
 import { runClubOrganizerLogin } from '../../services/api/runClubOrganizer.api';
 import { setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { showAppPopup } from '../../utils/appPopup';
@@ -35,7 +35,7 @@ export default function RunClubOrganizerLoginPage() {
             });
             showAppPopup({
                 title: 'Signed in successfully',
-                message: 'Welcome to the run club organizer portal.',
+                message: 'Welcome to your run club organizer portal.',
                 tone: 'login',
             });
             navigate(resolvePostLoginPath(data.events, location.state?.from), { replace: true });
@@ -49,15 +49,27 @@ export default function RunClubOrganizerLoginPage() {
     return (
         <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#161718] p-6 sm:p-8 shadow-xl">
+                <button
+                    type="button"
+                    onClick={() => navigate('/')}
+                    className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#0ECCEE] mb-5"
+                >
+                    <ArrowLeft size={14} /> Back to CrwdCtrl
+                </button>
+
                 <div className="flex items-center gap-3 mb-6">
                     <div className="size-12 rounded-xl bg-[#0ECCEE]/10 flex items-center justify-center">
                         <Footprints className="text-[#0ECCEE]" size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold">Run Club Organizer</h1>
-                        <p className="text-xs text-gray-500">Manage runs, participants & check-ins</p>
+                        <h1 className="text-xl font-bold">Club manager</h1>
+                        <p className="text-xs text-gray-500">Your club dashboard — participants & check-ins</p>
                     </div>
                 </div>
+
+                <p className="text-[11px] text-gray-500 mb-4 rounded-lg border border-gray-800 bg-[#111213] px-3 py-2">
+                    Only your club can see participant details. CrwdCtrl approves access — you set your own password.
+                </p>
 
                 {error ? (
                     <div className="mb-4 rounded-lg border border-red-800 bg-red-900/20 px-3 py-2.5 text-sm text-red-300">{error}</div>
@@ -76,7 +88,7 @@ export default function RunClubOrganizerLoginPage() {
                             required
                             autoComplete="username"
                             className="w-full bg-[#111213] border border-gray-700 rounded-xl px-4 py-3.5 text-white text-base focus:outline-none focus:border-[#0ECCEE] min-h-[48px]"
-                            placeholder="Username from admin"
+                            placeholder="Your username"
                         />
                     </div>
                     <div>
@@ -101,7 +113,10 @@ export default function RunClubOrganizerLoginPage() {
                         Sign in
                     </button>
                 </form>
-                <p className="text-[11px] text-gray-600 mt-5 text-center">Credentials are assigned by CrwdCtrl admin.</p>
+                <p className="text-[11px] text-gray-600 mt-5 text-center">
+                    New club? Ask CrwdCtrl to approve your email, then{' '}
+                    <Link to="/run-club-organizer/signup" className="text-[#0ECCEE] hover:underline">create your account</Link>.
+                </p>
             </div>
         </div>
     );

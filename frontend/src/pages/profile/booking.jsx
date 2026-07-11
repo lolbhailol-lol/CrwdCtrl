@@ -53,9 +53,13 @@ const isEventCompleted = (item) => {
 function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCalendar }) {
     const hasValidDate = item.date && !Number.isNaN(new Date(item.date).getTime());
     const showCalendar = hasValidDate && !isEventCompleted(item);
+    const isPendingPayment = item.isSports && item.registrationStatus === 'pending';
+    const isRejectedPayment = item.isSports && item.registrationStatus === 'cancelled' && (item.paymentStatus === 'failed' || item.paymentReviewNote);
+    const canDownloadTicket = !isPendingPayment && !isRejectedPayment && item.registrationStatus !== 'cancelled';
+
     return (
         <div
-            className={`rounded-2xl p-3 sm:p-4 h-40 flex flex-col transition-all duration-300 ${
+            className={`rounded-2xl p-3 sm:p-4 min-h-40 flex flex-col transition-all duration-300 ${
                 isDark ? 'card-surface' : 'border border-gray-100 bg-white shadow-lg'
             }`}
         >
@@ -101,11 +105,21 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                             {item.festName}
                         </p>
                     )}
+                    {isPendingPayment ? (
+                        <p className="mt-1.5 inline-flex text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
+                            Awaiting payment approval
+                        </p>
+                    ) : null}
+                    {isRejectedPayment ? (
+                        <p className="mt-1.5 text-[11px] text-red-400 line-clamp-2">
+                            Payment not approved{item.paymentReviewNote ? `: ${item.paymentReviewNote}` : ''}
+                        </p>
+                    ) : null}
                 </div>
             </div>
 
             <div className="flex gap-2 mt-3">
-                {showCalendar && (
+                {showCalendar && canDownloadTicket && (
                     <button
                         type="button"
                         onClick={() => onAddToCalendar(item)}
@@ -131,13 +145,15 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                 >
                     View Booking
                 </button>
-                <button
-                    type="button"
-                    onClick={() => onDownloadTicket(item)}
-                    className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-white text-base font-medium font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
-                >
-                    Download ticket
-                </button>
+                {canDownloadTicket ? (
+                    <button
+                        type="button"
+                        onClick={() => onDownloadTicket(item)}
+                        className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-white text-base font-medium font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
+                    >
+                        Download ticket
+                    </button>
+                ) : null}
             </div>
         </div>
     );
@@ -186,7 +202,12 @@ function Booking() {
                     fetchMyRegistrations(),
                     fetchMySportsRegistrations()
                         .then((sportsData) =>
-                            (sportsData.registrations || []).filter((reg) => reg.status !== 'cancelled'),
+                            (sportsData.registrations || []).filter((reg) => {
+                                if (reg.status === 'cancelled') {
+                                    return reg.paymentStatus === 'failed' || !!reg.paymentReviewNote;
+                                }
+                                return true;
+                            }),
                         )
                         .catch(() => []),
                 ]);
@@ -246,7 +267,7 @@ function Booking() {
                 const transformedSports = sportsRegistrations.map((reg) => ({
                     id: reg._id,
                     name: reg.event?.title || 'Sports Event',
-                    image: reg.event?.images?.[0] || null,
+                    image: reg.event?.coverImage || reg.event?.images?.[0] || null,
                     date: reg.event?.eventDate,
                     venue: reg.event?.venue || reg.event?.city || '',
                     type: 'sports',
@@ -260,6 +281,7 @@ function Booking() {
                     sportType: reg.event?.sportType || '',
                     paymentAmount: reg.amountPaid || 0,
                     paymentStatus: reg.paymentStatus,
+                    paymentReviewNote: reg.paymentReviewNote || '',
                     amountPaid: reg.amountPaid || 0,
                     paymentId: reg.payment_id || '',
                     paymentOrderId: reg.payment_order_id || '',
@@ -460,6 +482,10 @@ function Booking() {
         if (!item.id) return;
         if (item.isTrek) {
             navigate(`/registration-details/${item.id}?type=trek`);
+            return;
+        }
+        if (item.isSports) {
+            navigate(`/registration-details/${item.id}?type=sports`);
             return;
         }
         if (item.isEvent) {

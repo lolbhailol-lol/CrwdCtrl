@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon, Footprints } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -8,6 +8,8 @@ import ProfileAvatarUpload from '../ProfileAvatarUpload';
 import ProfileSidebarLoadingSkeleton from '../ProfileSidebarLoadingSkeleton';
 import { SKELETON_LOADING_MS } from '../../constants/skeletonLoading';
 import { usePageTransition } from './PageTransition';
+import { getRunClubOrganizerToken } from '../../utils/runClubOrganizerSession';
+import { fetchClubManagerProfileEligible } from '../../services/api/runClubOrganizer.api';
 
 export default function ProfileSidebar({
     isOpen,
@@ -23,6 +25,7 @@ export default function ProfileSidebar({
     const location = useLocation();
     const { prepareRouteNavigation, startOverlayTransition } = usePageTransition();
     const [sidebarRevealReady, setSidebarRevealReady] = useState(false);
+    const [clubManagerEligible, setClubManagerEligible] = useState(false);
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
 
@@ -36,6 +39,28 @@ export default function ProfileSidebar({
         const revealTimer = window.setTimeout(() => setSidebarRevealReady(true), SKELETON_LOADING_MS);
         return () => window.clearTimeout(revealTimer);
     }, [isOpen]);
+
+    // Only admin-approved emails see Club manager in Profile
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        let cancelled = false;
+
+        if (!isAuthenticated) {
+            setClubManagerEligible(false);
+            return undefined;
+        }
+
+        (async () => {
+            try {
+                const data = await fetchClubManagerProfileEligible();
+                if (!cancelled) setClubManagerEligible(Boolean(data.eligible));
+            } catch {
+                if (!cancelled) setClubManagerEligible(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [isOpen, isAuthenticated, user?.email]);
 
     const isProfileLoading = isOpen && (!sidebarRevealReady || authPending);
 
@@ -66,6 +91,16 @@ export default function ProfileSidebar({
     };
 
     const handleMenuItemClick = (label) => {
+        if (label === 'Club manager') {
+            const path = getRunClubOrganizerToken()
+                ? '/run-club-organizer'
+                : '/run-club-organizer/login';
+            prepareRouteNavigation(path);
+            navigate(path);
+            onClose();
+            return;
+        }
+
         const path = MENU_ROUTES[label];
         if (!path) return;
 
@@ -89,6 +124,9 @@ export default function ProfileSidebar({
 
     const secondaryItems = [
         { icon: HelpCircle, label: 'Help Center' },
+        ...(clubManagerEligible
+            ? [{ icon: Footprints, label: 'Club manager', hint: 'Runs, guests, check-in & notify' }]
+            : []),
     ];
 
     // Mobile menu items - filtered based on authentication status
@@ -97,6 +135,9 @@ export default function ProfileSidebar({
         { icon: Heart, label: 'Favourites', requiresAuth: false },
         { icon: Calendar, label: 'Bookings', requiresAuth: false },
         { icon: HelpCircle, label: 'Help Center', requiresAuth: false },
+        ...(clubManagerEligible
+            ? [{ icon: Footprints, label: 'Club manager', requiresAuth: false, hint: 'Runs, guests, check-in & notify' }]
+            : []),
         { icon: Bell, label: 'Notifications', requiresAuth: true },
     ];
 
@@ -213,16 +254,23 @@ export default function ProfileSidebar({
                                             : 'border border-gray-100 bg-white hover:bg-gray-50'
                                     }`}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
                                             }`}>
                                             <item.icon className="w-5 h-5 text-[#0ECCEE]" />
                                         </div>
-                                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            {item.label}
-                                        </span>
+                                        <div className="min-w-0 text-left">
+                                            <span className={`font-medium block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {item.label}
+                                            </span>
+                                            {item.hint ? (
+                                                <span className={`text-[11px] block truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    {item.hint}
+                                                </span>
+                                            ) : null}
+                                        </div>
                                     </div>
-                                    <ChevronRight className={`w-5 h-5 transition-colors ${isDark
+                                    <ChevronRight className={`w-5 h-5 shrink-0 transition-colors ${isDark
                                         ? 'text-gray-500 group-hover:text-gray-300'
                                         : 'text-gray-400 group-hover:text-gray-600'
                                         }`} />
@@ -348,16 +396,23 @@ export default function ProfileSidebar({
                                                 : 'border border-gray-100 bg-white hover:bg-gray-50'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
+                                        <div className="flex items-center gap-4 min-w-0">
+                                            <div className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
                                                 }`}>
                                                 <item.icon className="w-6 h-6 text-[#0ECCEE]" />
                                             </div>
-                                            <span className={`font-medium text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                {item.label}
-                                            </span>
+                                            <div className="min-w-0 text-left">
+                                                <span className={`font-medium text-lg block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {item.label}
+                                                </span>
+                                                {item.hint ? (
+                                                    <span className={`text-xs block truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                        {item.hint}
+                                                    </span>
+                                                ) : null}
+                                            </div>
                                         </div>
-                                        <ChevronRight className={`w-6 h-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                        <ChevronRight className={`w-6 h-6 shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
                                     </button>
                                 ))}
                             </div>

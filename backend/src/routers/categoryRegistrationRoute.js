@@ -13,6 +13,9 @@ router.post('/:category/:eventId/register', authenticateToken, ctrl.registerForE
 // GET /api/category-registrations/my
 router.get('/my', authenticateToken, ctrl.getMyRegistrations);
 
+// GET /api/category-registrations/details/:registrationId
+router.get('/details/:registrationId', authenticateToken, ctrl.getRegistrationDetails);
+
 // ===== ADMIN ROUTES =====
 
 // GET /api/category-registrations/admin/all?category=sports&eventId=xxx

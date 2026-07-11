@@ -12,17 +12,9 @@ import { showAppPopup } from '../../utils/appPopup';
 
 
 function resolvePostLoginPath(treks, from) {
-
     if (from) return from;
-
-    if (Array.isArray(treks) && treks.length === 1 && treks[0]?._id) {
-
-        return `/trek-organizer/treks/${treks[0]._id}`;
-
-    }
-
+    // Always land on community home so organizers can pick a trek
     return '/trek-organizer';
-
 }
 
 

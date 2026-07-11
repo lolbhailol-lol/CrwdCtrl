@@ -9,6 +9,14 @@ function formatEventDate(d) {
     return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function statusBadge(status) {
+    const s = String(status || 'draft').toLowerCase();
+    if (s === 'published') return 'bg-emerald-500/15 text-emerald-400';
+    if (s === 'cancelled') return 'bg-red-500/15 text-red-400';
+    if (s === 'completed') return 'bg-gray-500/15 text-gray-400';
+    return 'bg-amber-500/15 text-amber-400';
+}
+
 export default function RunClubOrganizerHomePage() {
     const navigate = useNavigate();
     const session = getRunClubOrganizerSession();
@@ -33,16 +41,13 @@ export default function RunClubOrganizerHomePage() {
                         events: nextEvents,
                     });
                 }
-                if (nextEvents.length === 1 && nextEvents[0]?._id) {
-                    navigate(`/run-club-organizer/events/${nextEvents[0]._id}`, { replace: true });
-                }
             } catch (e) {
                 setError(e.message || 'Failed to load run club');
             } finally {
                 setLoading(false);
             }
         })();
-    }, [navigate]);
+    }, []);
 
     if (loading) {
         return <div className="flex justify-center py-20"><Loader className="animate-spin text-[#0ECCEE]" /></div>;
@@ -81,13 +86,10 @@ export default function RunClubOrganizerHomePage() {
                                 <span className="inline-flex items-center gap-1"><Instagram size={12} /> {runClub.contactInstagram}</span>
                             ) : null}
                         </div>
-                        {runClub.runCategories?.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">
-                                {runClub.runCategories.map((cat) => (
-                                    <span key={cat} className="px-2 py-0.5 rounded-full bg-[#0ECCEE]/10 text-[#0ECCEE] text-[10px] font-medium">{cat}</span>
-                                ))}
-                            </div>
-                        ) : null}
+                        <p className="text-xs text-gray-500">
+                            Track registrations, approve payment screenshots, check in runners, and notify your club.
+                            Runs are published by CrwdCtrl admin.
+                        </p>
                     </div>
                 </div>
             ) : (
@@ -98,12 +100,12 @@ export default function RunClubOrganizerHomePage() {
             )}
 
             <div>
-                <h2 className="text-lg font-semibold mb-1">All runs</h2>
-                <p className="text-sm text-gray-500 mb-4">{events.length} run{events.length !== 1 ? 's' : ''} in your club</p>
+                <h2 className="text-lg font-semibold mb-1">Your runs</h2>
+                <p className="text-sm text-gray-500 mb-4">{events.length} run{events.length !== 1 ? 's' : ''} to manage</p>
 
                 {events.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-gray-700 p-8 text-center text-gray-500 text-sm">
-                        No runs found for this club yet.
+                        No runs assigned yet. Ask CrwdCtrl admin to publish a run for your club.
                     </div>
                 ) : (
                     <div className="grid gap-3">
@@ -119,14 +121,21 @@ export default function RunClubOrganizerHomePage() {
                                         <Footprints className="text-[#0ECCEE]" size={18} />
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="font-semibold truncate">{event.title}</p>
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <p className="font-semibold truncate">{event.title}</p>
+                                            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusBadge(event.status)}`}>
+                                                {event.status || 'draft'}
+                                            </span>
+                                            {(event.pendingPaymentReview || 0) > 0 ? (
+                                                <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300">
+                                                    {event.pendingPaymentReview} to review
+                                                </span>
+                                            ) : null}
+                                        </div>
                                         <p className="text-xs text-gray-500">
                                             {event.city || '—'} · {formatEventDate(event.eventDate)}
                                             {event.distance ? ` · ${event.distance}` : ''}
                                         </p>
-                                        {event.registration?.status ? (
-                                            <p className="text-[10px] text-gray-600 mt-0.5 capitalize">Registration: {event.registration.status}</p>
-                                        ) : null}
                                     </div>
                                 </div>
                                 <ChevronRight className="text-gray-600 shrink-0" size={18} />

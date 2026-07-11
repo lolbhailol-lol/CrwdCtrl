@@ -129,7 +129,7 @@ function sanitizeSportsPayload(body = {}) {
         const cleanList = (arr) => (Array.isArray(arr) ? arr.map((s) => String(s || '').trim()).filter(Boolean) : []);
         payload.registration = {
             status: ['open', 'closed'].includes(r.status) ? r.status : 'open',
-            mode: ['internal_form', 'external_link'].includes(r.mode) ? r.mode : 'internal_form',
+            mode: ['internal_form', 'external_link', 'organizer_qr'].includes(r.mode) ? r.mode : 'internal_form',
             googleSheetsUrl: String(r.googleSheetsUrl || '').trim(),
             organizerEmail: String(r.organizerEmail || '').trim(),
             formInstructions: String(r.formInstructions || '').trim(),
@@ -137,6 +137,9 @@ function sanitizeSportsPayload(body = {}) {
             timeSlots: cleanList(r.timeSlots),
             locationOptions: cleanList(r.locationOptions),
             maxPeoplePerBooking: Math.max(1, Number(r.maxPeoplePerBooking) || 10),
+            paymentQR: String(r.paymentQR || '').trim(),
+            paymentQRMessage: String(r.paymentQRMessage || '').trim(),
+            paymentUpiId: String(r.paymentUpiId || '').trim(),
             formSchema: Array.isArray(r.formSchema)
                 ? r.formSchema
                     .filter((f) => f && (f.label || f.fieldName))
@@ -216,12 +219,32 @@ function defaultSectionFlags(payload) {
     return payload;
 }
 
+function validateOrganizerQrPayment(payload, existing = null) {
+    const fee = Number(
+        payload.registrationFee !== undefined
+            ? payload.registrationFee
+            : existing?.registrationFee,
+    ) || 0;
+    const mode = payload.registration?.mode
+        || existing?.registration?.mode
+        || 'internal_form';
+    const paymentQR = payload.registration?.paymentQR !== undefined
+        ? payload.registration.paymentQR
+        : existing?.registration?.paymentQR;
+    if (mode === 'organizer_qr' && fee > 0 && !String(paymentQR || '').trim()) {
+        return 'Payment QR image is required for Form + QR mode when fee is greater than 0';
+    }
+    return null;
+}
+
 exports.createSportsEvent = async (req, res) => {
     try {
         const payload = finalizeSportsPayload(defaultSectionFlags(sanitizeSportsPayload(req.body)));
         if (!payload.title || !payload.sportType) {
             return res.status(400).json({ message: 'title and sportType are required' });
         }
+        const qrErr = validateOrganizerQrPayment(payload);
+        if (qrErr) return res.status(400).json({ message: qrErr });
         const event = new SportsEvent({ ...payload, createdBy: req.user?._id || null });
         await event.save();
         res.status(201).json({ message: 'Sports event created successfully', event });
@@ -295,6 +318,8 @@ exports.updateSportsEvent = async (req, res) => {
         if (!existing) return res.status(404).json({ message: 'Sports event not found' });
 
         const payload = finalizeSportsPayload(sanitizeSportsPayload(req.body), existing);
+        const qrErr = validateOrganizerQrPayment(payload, existing);
+        if (qrErr) return res.status(400).json({ message: qrErr });
         const event = await SportsEvent.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
         if (!event) return res.status(404).json({ message: 'Sports event not found' });
         res.json({ message: 'Sports event updated successfully', event });

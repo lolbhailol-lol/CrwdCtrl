@@ -18,7 +18,7 @@ async function authenticateRunClubOrganizer(req, res, next) {
         }
 
         const organizer = await RunClubOrganizerAccount.findById(decoded.organizerId).lean();
-        if (!organizer || !organizer.isActive) {
+        if (!organizer || !RunClubOrganizerAccount.canLogin(organizer)) {
             return res.status(401).json({ success: false, message: 'Organizer account inactive or not found' });
         }
 
