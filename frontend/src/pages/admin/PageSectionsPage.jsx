@@ -41,6 +41,8 @@ export default function PageSectionsPage() {
     const notifySite = () => {
         localStorage.setItem('admin_data_updated', Date.now().toString());
         setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+        // Same-tab listeners (storage events only fire across tabs)
+        window.dispatchEvent(new Event('admin_data_updated'));
     };
 
     const fetchAll = useCallback(async () => {

@@ -22,6 +22,10 @@ function getCustomPagePriority(entity, targetPage, sectionSlug) {
 
 function entityMatchesPageSection(entity, type, targetPage, sectionSlug) {
     if (targetPage === 'home') {
+        const inMulti = (entity.customPageSections || []).some(
+            (a) => a.page === 'home' && a.sectionSlug === sectionSlug,
+        );
+        if (inMulti) return true;
         if (type === 'fest') return festHomeSection(entity) === sectionSlug;
         return entity.homeSection === sectionSlug;
     }

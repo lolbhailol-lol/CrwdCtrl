@@ -27,6 +27,8 @@ const trekCommunitySchema = new mongoose.Schema(
         contacts:          { type: [communityContactSchema], default: [] },
         status:            { type: String, enum: ['published', 'draft'], default: 'published' },
         homeSection:       { type: String, default: null },
+        /** Home page hero / moving banner */
+        showOnHomeSlide:   { type: Boolean, default: false },
         customPageSections: [{
             page: { type: String, required: true },
             sectionSlug: { type: String, required: true },

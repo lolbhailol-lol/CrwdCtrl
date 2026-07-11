@@ -175,6 +175,18 @@ function sanitizeSportsPayload(body = {}) {
     }
     if (body.homeSection === '') payload.homeSection = null;
     if (body.homePriority !== undefined) payload.homePriority = clampPriority(body.homePriority);
+    if (body.showOnHomeSlide !== undefined) payload.showOnHomeSlide = Boolean(body.showOnHomeSlide);
+    if (body.customPageSections !== undefined) {
+        payload.customPageSections = Array.isArray(body.customPageSections)
+            ? body.customPageSections
+                .filter((a) => a && a.page && a.sectionSlug)
+                .map((a) => ({
+                    page: String(a.page),
+                    sectionSlug: String(a.sectionSlug),
+                    priority: clampPriority(a.priority),
+                }))
+            : [];
+    }
     if (body.runClubId !== undefined) {
         payload.runClubId = body.runClubId && mongoose.Types.ObjectId.isValid(body.runClubId)
             ? body.runClubId

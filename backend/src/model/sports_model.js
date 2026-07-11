@@ -68,6 +68,8 @@ const sportsEventSchema = new mongoose.Schema(
         showOnSportsPage: { type: Boolean, default: true },
         homeSection: { type: String, default: null },
         homePriority: { type: Number, default: 999, min: 1, max: 999 },
+        /** Home page hero / moving banner */
+        showOnHomeSlide: { type: Boolean, default: false },
         customPageSections: [{
             page: { type: String, required: true },
             sectionSlug: { type: String, required: true },

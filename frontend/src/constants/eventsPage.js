@@ -9,10 +9,16 @@ export const EVENT_TYPE_LABELS = {
 
 export const EVENTS_PAGE_SECTION_OPTS = [
     { value: '', label: '— None —' },
-    { value: 'hero', label: '🎬 Hero Banner' },
     { value: 'spotlight', label: '✨ In the Spotlight' },
     { value: 'upcoming', label: '🎭 Upcoming Shows' },
     { value: 'community', label: '🤝 Community Events' },
+];
+
+/** Events page placements as multi checkboxes (Hero Banner lives on Home only). */
+export const EVENTS_PAGE_CHECK_OPTS = [
+    { value: 'spotlight', label: 'In the Spotlight' },
+    { value: 'upcoming', label: 'Upcoming Shows' },
+    { value: 'community', label: 'Community Events' },
 ];
 
 /** @deprecated use EVENTS_PAGE_SECTION_OPTS in Section Manager */

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { adminFetchJSON } from '../../utils/adminApi';
 import FeaturedEntityPicker, { buildFeaturedEntityOptions } from './FeaturedEntityPicker';
 
@@ -11,8 +12,8 @@ export default function HomeFeaturedSlotsEditor({
     sports = [],
     runClubs = [],
 }) {
-    const [slots, setSlots] = useState({ heroBanner: null, featuredExperience: null });
-    const [initial, setInitial] = useState({ heroBanner: null, featuredExperience: null });
+    const [slots, setSlots] = useState({ featuredExperience: null });
+    const [initial, setInitial] = useState({ featuredExperience: null });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -25,8 +26,8 @@ export default function HomeFeaturedSlotsEditor({
                 const data = await adminFetchJSON('/admin/site-settings/home-featured-slots');
                 if (!active) return;
                 const s = data?.slots || {};
-                setSlots(s);
-                setInitial(s);
+                setSlots({ featuredExperience: s.featuredExperience || null });
+                setInitial({ featuredExperience: s.featuredExperience || null });
             } catch (_) {
                 if (active) setError('Could not load home featured picks');
             } finally {
@@ -35,11 +36,6 @@ export default function HomeFeaturedSlotsEditor({
         })();
         return () => { active = false; };
     }, []);
-
-    const heroGroups = useMemo(
-        () => buildFeaturedEntityOptions({ fests, eventShows, allowedTypes: ['fest', 'events'] }),
-        [fests, eventShows],
-    );
 
     const featuredGroups = useMemo(
         () => buildFeaturedEntityOptions({ fests, eventShows, treks, communities, sports, runClubs }),
@@ -51,6 +47,7 @@ export default function HomeFeaturedSlotsEditor({
     const notifySite = useCallback(() => {
         localStorage.setItem('admin_data_updated', Date.now().toString());
         setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+        window.dispatchEvent(new Event('admin_data_updated'));
     }, []);
 
     const save = async () => {
@@ -59,11 +56,16 @@ export default function HomeFeaturedSlotsEditor({
         try {
             const data = await adminFetchJSON('/admin/site-settings/home-featured-slots', {
                 method: 'PUT',
-                body: JSON.stringify({ slots }),
+                body: JSON.stringify({
+                    slots: {
+                        featuredExperience: slots.featuredExperience,
+                    },
+                }),
             });
-            const s = data?.slots || slots;
-            setSlots(s);
-            setInitial(s);
+            const s = data?.slots || {};
+            const next = { featuredExperience: s.featuredExperience || null };
+            setSlots(next);
+            setInitial(next);
             setSaved(true);
             notifySite();
             setTimeout(() => setSaved(false), 2000);
@@ -81,9 +83,13 @@ export default function HomeFeaturedSlotsEditor({
                     <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0ECCEE] mb-1">
                         <Sparkles size={12} /> Home page
                     </div>
-                    <h2 className="text-sm font-bold text-white">Hero Banner &amp; Featured Experience</h2>
+                    <h2 className="text-sm font-bold text-white">Featured Experience</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
-                        Pick one item for the home hero banner and one lead card for Ongoing Events. Selecting a new hero removes the previous slide.
+                        Lead card for Ongoing Events. Hero Banner is set in{' '}
+                        <Link to="/admin/sections?mode=assign" className="text-[#0ECCEE] hover:underline">
+                            Home &amp; Sections → Assign
+                        </Link>
+                        {' '}(Home checkboxes).
                     </p>
                 </div>
                 <button
@@ -99,27 +105,15 @@ export default function HomeFeaturedSlotsEditor({
 
             {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
 
-            <div className="grid sm:grid-cols-2 gap-3">
-                <div>
-                    <label className="block text-xs text-gray-400 mb-1">Hero banner (one fest or event)</label>
-                    <FeaturedEntityPicker
-                        value={slots.heroBanner}
-                        onChange={(heroBanner) => { setSlots((p) => ({ ...p, heroBanner })); setSaved(false); }}
-                        groups={heroGroups}
-                        placeholder="— No hero slide —"
-                        disabled={loading}
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs text-gray-400 mb-1">Featured experience (Ongoing Events lead)</label>
-                    <FeaturedEntityPicker
-                        value={slots.featuredExperience}
-                        onChange={(featuredExperience) => { setSlots((p) => ({ ...p, featuredExperience })); setSaved(false); }}
-                        groups={featuredGroups}
-                        placeholder="— Auto from section —"
-                        disabled={loading}
-                    />
-                </div>
+            <div>
+                <label className="block text-xs text-gray-400 mb-1">Featured experience (Ongoing Events lead)</label>
+                <FeaturedEntityPicker
+                    value={slots.featuredExperience}
+                    onChange={(featuredExperience) => { setSlots((p) => ({ ...p, featuredExperience })); setSaved(false); }}
+                    groups={featuredGroups}
+                    placeholder="— Auto from section —"
+                    disabled={loading}
+                />
             </div>
         </div>
     );

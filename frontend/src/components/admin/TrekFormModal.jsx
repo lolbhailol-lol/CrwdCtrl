@@ -354,46 +354,68 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
     };
 
     const addItineraryDay = () => {
-        const next = normalizeItinerary(form.itinerary);
-        set('itinerary', [
-            ...next,
-            { day: next.length + 1, title: '', description: '', points: [{ ...EMPTY_MAIN_POINT }] },
-        ]);
+        // Do not run normalizeItinerary here — it strips empty in-progress points/days.
+        setForm((f) => {
+            const next = Array.isArray(f.itinerary) ? f.itinerary : [];
+            return {
+                ...f,
+                itinerary: [
+                    ...next,
+                    {
+                        day: next.length + 1,
+                        title: '',
+                        description: '',
+                        points: [{ ...EMPTY_MAIN_POINT }],
+                    },
+                ],
+            };
+        });
     };
 
     const updateItinerary = (idx, field, value) => {
-        const updated = form.itinerary.map((d, i) => (i === idx ? { ...d, [field]: value } : d));
-        set('itinerary', updated);
+        setForm((f) => ({
+            ...f,
+            itinerary: (f.itinerary || []).map((d, i) => (i === idx ? { ...d, [field]: value } : d)),
+        }));
     };
 
     const addItineraryPoint = (dayIdx, level = 'main') => {
         const point = level === 'sub' ? { ...EMPTY_SUB_POINT } : { ...EMPTY_MAIN_POINT };
-        const updated = form.itinerary.map((d, i) => {
-            if (i !== dayIdx) return d;
-            return { ...d, points: [...(d.points || []), point] };
-        });
-        set('itinerary', updated);
+        setForm((f) => ({
+            ...f,
+            itinerary: (f.itinerary || []).map((d, i) => {
+                if (i !== dayIdx) return d;
+                return { ...d, points: [...(d.points || []), point] };
+            }),
+        }));
     };
 
     const updateItineraryPoint = (dayIdx, pointIdx, field, value) => {
-        const updated = form.itinerary.map((d, i) => {
-            if (i !== dayIdx) return d;
-            const points = (d.points || []).map((p, j) => (j === pointIdx ? { ...p, [field]: value } : p));
-            return { ...d, points };
-        });
-        set('itinerary', updated);
+        setForm((f) => ({
+            ...f,
+            itinerary: (f.itinerary || []).map((d, i) => {
+                if (i !== dayIdx) return d;
+                const points = (d.points || []).map((p, j) => (j === pointIdx ? { ...p, [field]: value } : p));
+                return { ...d, points };
+            }),
+        }));
     };
 
     const removeItineraryPoint = (dayIdx, pointIdx) => {
-        const updated = form.itinerary.map((d, i) => {
-            if (i !== dayIdx) return d;
-            return { ...d, points: (d.points || []).filter((_, j) => j !== pointIdx) };
-        });
-        set('itinerary', updated);
+        setForm((f) => ({
+            ...f,
+            itinerary: (f.itinerary || []).map((d, i) => {
+                if (i !== dayIdx) return d;
+                return { ...d, points: (d.points || []).filter((_, j) => j !== pointIdx) };
+            }),
+        }));
     };
 
     const removeItineraryDay = (idx) => {
-        set('itinerary', form.itinerary.filter((_, i) => i !== idx));
+        setForm((f) => ({
+            ...f,
+            itinerary: (f.itinerary || []).filter((_, i) => i !== idx),
+        }));
     };
 
     const handleSubmit = async (e) => {
@@ -569,7 +591,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                             <p className="text-xs text-gray-500">Leave empty if you don&apos;t need a schedule yet.</p>
                             <button type="button" onClick={addItineraryDay} className="flex items-center gap-1 text-xs text-[#0ECCEE] hover:opacity-80 transition-opacity"><Plus size={12} /> Add Day</button>
                         </div>
-                        {form.itinerary.map((day, idx) => (
+                        {(form.itinerary || []).map((day, idx) => (
                             <div key={idx} className="bg-[#1D1E20] rounded-lg p-3 space-y-2.5">
                                 <div className="flex items-center justify-between">
                                     <span className="text-xs font-semibold text-gray-400">Day {day.day || idx + 1}</span>

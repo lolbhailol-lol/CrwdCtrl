@@ -100,21 +100,31 @@ exports.getHomeFeaturedSlots = async (_req, res) => {
 exports.updateHomeFeaturedSlots = async (req, res) => {
     try {
         const incoming = req.body?.slots && typeof req.body.slots === 'object' ? req.body.slots : req.body;
-        const heroBanner = incoming.heroBanner === null
-            ? null
-            : normalizeFeaturedSlot(incoming.heroBanner);
-        const featuredExperience = incoming.featuredExperience === null
-            ? null
-            : normalizeFeaturedSlot(incoming.featuredExperience);
+        const prev = await readHomeFeaturedSlots();
 
-        if (heroBanner === null) {
-            await clearAllHomeHeroSlides();
-        } else {
-            await setHomeHeroSlide(heroBanner.entityType, heroBanner.entityId);
+        // Hero banner is managed in Assign (showOnHomeSlide). Only touch it when explicitly sent.
+        const hasHeroKey = Object.prototype.hasOwnProperty.call(incoming, 'heroBanner');
+        let heroBanner = prev.heroBanner || null;
+        if (hasHeroKey) {
+            heroBanner = incoming.heroBanner === null
+                ? null
+                : normalizeFeaturedSlot(incoming.heroBanner);
+            if (heroBanner === null) {
+                await clearAllHomeHeroSlides();
+            } else {
+                await setHomeHeroSlide(heroBanner.entityType, heroBanner.entityId);
+            }
         }
 
-        if (featuredExperience) {
-            await setHomeFeaturedExperience(featuredExperience.entityType, featuredExperience.entityId);
+        const hasFeaturedKey = Object.prototype.hasOwnProperty.call(incoming, 'featuredExperience');
+        let featuredExperience = prev.featuredExperience || null;
+        if (hasFeaturedKey) {
+            featuredExperience = incoming.featuredExperience === null
+                ? null
+                : normalizeFeaturedSlot(incoming.featuredExperience);
+            if (featuredExperience) {
+                await setHomeFeaturedExperience(featuredExperience.entityType, featuredExperience.entityId);
+            }
         }
 
         const value = { heroBanner, featuredExperience };

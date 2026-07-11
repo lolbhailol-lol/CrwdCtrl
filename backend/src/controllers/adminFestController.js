@@ -236,11 +236,8 @@ exports.updateFest = async (req, res) => {
     const updateData = { ...req.body };
 
     if (updateData.showOnHomeSlide === true) {
-      const { applyShowOnHomeSlide } = require('../utils/featuredPlacement');
-      await applyShowOnHomeSlide('fest', id, true);
-      delete updateData.showOnHomeSlide;
-      updateData.homeSection = null;
-      updateData.homePriority = updateData.homePriority ?? 1;
+      updateData.showOnHomeSlide = true;
+      if (updateData.homeSection === 'slide') updateData.homeSection = null;
     } else if (updateData.showOnHomeSlide === false) {
       updateData.showOnHomeSlide = false;
     }

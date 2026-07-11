@@ -32,6 +32,7 @@ import HomeCarouselSection from '../../components/HomeCarouselSection';
 import HomeEventCard from '../../components/HomeEventCard';
 import { buildHomeCarouselItems } from '../../utils/homeCarouselItems';
 import { mapHomeCarouselDisplayItems } from '../../utils/mapHomeCarouselDisplayItems';
+import { isOnHomeHero } from '../../utils/pageSections';
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
@@ -793,7 +794,7 @@ const Dashboard = () => {
             }));
 
         const eventSlides = (homeEventShows || [])
-            .filter((e) => e.showOnHomeSlide)
+            .filter((e) => isOnHomeHero(e))
             .map((raw) => {
                 const show = mapEventShow(raw);
                 return {
@@ -808,10 +809,10 @@ const Dashboard = () => {
             });
 
         const runClubSlides = (homeRunClubs || [])
-            .filter((club) => club.homeSection === 'slide')
+            .filter((club) => isOnHomeHero(club))
             .map((club) => ({
                 id: club._id,
-                image: club.coverImage,
+                image: getCoverImageUrl(club, 'hero') || club.coverImage,
                 title: club.name,
                 subtitle: club.basedIn || club.organizer || '',
                 dateTime: 'Join now',
@@ -819,13 +820,56 @@ const Dashboard = () => {
                 _type: 'runclub',
             }));
 
-        return [...festSlides, ...eventSlides, ...runClubSlides].sort((a, b) => {
+        const trekSlides = (homeTreks || [])
+            .filter((t) => isOnHomeHero(t))
+            .map((t) => ({
+                id: t._id,
+                image: getCoverImageUrl(t, 'hero') || t.coverImage || t.images?.[0],
+                title: t.trekName,
+                subtitle: t.city || t.difficultyLevel || '',
+                dateTime: t.dateLabel || t.trekDate || 'Trek',
+                homePriority: t.priority ?? 999,
+                _type: 'trek',
+            }));
+
+        const communitySlides = (homeCommunities || [])
+            .filter((c) => isOnHomeHero(c))
+            .map((c) => ({
+                id: c._id,
+                image: getCoverImageUrl(c, 'hero') || c.coverImage,
+                title: c.name,
+                subtitle: c.basedIn || '',
+                dateTime: 'Community',
+                homePriority: c.priority ?? 999,
+                _type: 'community',
+            }));
+
+        const sportSlides = (homeSports || [])
+            .filter((s) => isOnHomeHero(s))
+            .map((s) => ({
+                id: s._id,
+                image: getCoverImageUrl(s, 'hero') || s.images?.[0] || s.coverImage,
+                title: s.title,
+                subtitle: s.city || s.runCategory || '',
+                dateTime: s.date || 'Run',
+                homePriority: s.homePriority ?? s.priority ?? 999,
+                _type: 'sport',
+            }));
+
+        return [
+            ...festSlides,
+            ...eventSlides,
+            ...runClubSlides,
+            ...trekSlides,
+            ...communitySlides,
+            ...sportSlides,
+        ].sort((a, b) => {
             const priorityA = a.homePriority || 999;
             const priorityB = b.homePriority || 999;
             if (priorityA !== priorityB) return priorityA - priorityB;
             return 0;
         });
-    }, [transformedFests, homeEventShows, homeRunClubs]);
+    }, [transformedFests, homeEventShows, homeRunClubs, homeTreks, homeCommunities, homeSports]);
 
     // Helper function to get city name from coordinates (for major Indian cities)
     const getCityFromCoordinates = (lat, lon) => {
@@ -1255,8 +1299,12 @@ const Dashboard = () => {
                         events={heroEvents}
                         onEventClick={(id) => {
                             const slide = heroEvents.find((e) => e.id === id);
-                            if (slide?._type === 'events') navigate(eventShowPath(slide));
-                            else if (slide?._type === 'runclub') navigate(runClubPath(slide));
+                            if (!slide) return;
+                            if (slide._type === 'events') navigate(eventShowPath(slide));
+                            else if (slide._type === 'runclub') navigate(runClubPath(slide));
+                            else if (slide._type === 'trek') navigate(trekPath(slide), { state: { trek: slide } });
+                            else if (slide._type === 'community') navigate(communityPath(slide));
+                            else if (slide._type === 'sport') navigate(sportRunPath(slide));
                             else navigate(festPath(slide));
                         }}
                         isDark={isDark}

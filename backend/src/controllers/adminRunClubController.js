@@ -56,6 +56,28 @@ function sanitizeRunClubBody(body = {}) {
         const allowed = ['trending', 'happening', 'slide', null, ''];
         payload.homeSection = allowed.includes(body.homeSection) ? (body.homeSection || null) : null;
     }
+    if (body.showOnHomeSlide !== undefined) {
+        payload.showOnHomeSlide = Boolean(body.showOnHomeSlide);
+        if (payload.showOnHomeSlide) {
+            // Prefer boolean flag over legacy homeSection:'slide'
+            if (payload.homeSection === 'slide' || body.homeSection === 'slide') {
+                payload.homeSection = null;
+            } else if (body.homeSection === undefined) {
+                // Caller may send homeSection from applyHomeAssignmentSlugs
+            }
+        }
+    }
+    if (body.customPageSections !== undefined) {
+        payload.customPageSections = Array.isArray(body.customPageSections)
+            ? body.customPageSections
+                .filter((a) => a && a.page && a.sectionSlug)
+                .map((a) => ({
+                    page: String(a.page),
+                    sectionSlug: String(a.sectionSlug),
+                    priority: Math.max(1, Math.min(999, Number(a.priority) || 999)),
+                }))
+            : [];
+    }
     if (body.priority !== undefined) {
         const p = parseInt(body.priority, 10);
         payload.priority = Number.isNaN(p) ? 999 : Math.max(1, Math.min(999, p));

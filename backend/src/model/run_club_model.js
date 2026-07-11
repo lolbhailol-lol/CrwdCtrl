@@ -25,6 +25,8 @@ const runClubSchema = new mongoose.Schema(
         showInRunClubs: { type: Boolean, default: true },
         runClubPriority: { type: Number, default: 999, min: 1, max: 999 },
         homeSection: { type: String, default: null },
+        /** Home page hero / moving banner (preferred over legacy homeSection:'slide') */
+        showOnHomeSlide: { type: Boolean, default: false },
         customPageSections: [{
             page: { type: String, required: true },
             sectionSlug: { type: String, required: true },

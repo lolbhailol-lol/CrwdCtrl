@@ -104,6 +104,8 @@ const trekSchema = new mongoose.Schema(
             default: null,
         },
         homeSection:      { type: String, default: null },
+        /** Home page hero / moving banner */
+        showOnHomeSlide:  { type: Boolean, default: false },
         customPageSections: [{
             page: { type: String, required: true },
             sectionSlug: { type: String, required: true },

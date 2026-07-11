@@ -1,13 +1,24 @@
 const FestOrganizer = require('../model/fest_organizer_model');
 const EventShow = require('../model/event_show_model');
 
-const HERO_ENTITY_TYPES = new Set(['fest', 'events']);
+const HERO_ENTITY_TYPES = new Set(['fest', 'events', 'trek', 'community', 'sport', 'runclub']);
 
-/** Clear home hero slides from every fest and event show. */
+/** Clear home hero slides from every supported entity type. */
 async function clearAllHomeHeroSlides() {
+    const Trek = require('../model/trek_model');
+    const TrekCommunity = require('../model/trek_community_model');
+    const SportsEvent = require('../model/sports_model');
+    const RunClub = require('../model/run_club_model');
     await Promise.all([
         FestOrganizer.updateMany({ showOnHomeSlide: true }, { $set: { showOnHomeSlide: false } }),
         EventShow.updateMany({ showOnHomeSlide: true }, { $set: { showOnHomeSlide: false } }),
+        Trek.updateMany({ showOnHomeSlide: true }, { $set: { showOnHomeSlide: false } }),
+        TrekCommunity.updateMany({ showOnHomeSlide: true }, { $set: { showOnHomeSlide: false } }),
+        SportsEvent.updateMany({ showOnHomeSlide: true }, { $set: { showOnHomeSlide: false } }),
+        RunClub.updateMany(
+            { $or: [{ showOnHomeSlide: true }, { homeSection: 'slide' }] },
+            { $set: { showOnHomeSlide: false, homeSection: null } },
+        ),
     ]);
 }
 
@@ -21,22 +32,34 @@ async function setHomeHeroSlide(entityType, entityId) {
         return null;
     }
     if (!HERO_ENTITY_TYPES.has(entityType)) {
-        throw new Error('Hero banner only supports fests and events');
+        throw new Error('Unsupported hero banner entity type');
     }
 
     await clearAllHomeHeroSlides();
 
+    const fields = { showOnHomeSlide: true, homePriority: 1 };
     if (entityType === 'fest') {
-        return FestOrganizer.findByIdAndUpdate(
-            entityId,
-            { $set: { showOnHomeSlide: true, homeSection: null, homePriority: 1 } },
-            { new: true },
-        );
+        return FestOrganizer.findByIdAndUpdate(entityId, { $set: { ...fields, homeSection: null } }, { new: true });
     }
-
-    return EventShow.findByIdAndUpdate(
+    if (entityType === 'events') {
+        return EventShow.findByIdAndUpdate(entityId, { $set: { ...fields, homeSection: null } }, { new: true });
+    }
+    if (entityType === 'trek') {
+        const Trek = require('../model/trek_model');
+        return Trek.findByIdAndUpdate(entityId, { $set: { showOnHomeSlide: true, priority: 1 } }, { new: true });
+    }
+    if (entityType === 'community') {
+        const TrekCommunity = require('../model/trek_community_model');
+        return TrekCommunity.findByIdAndUpdate(entityId, { $set: { showOnHomeSlide: true, priority: 1 } }, { new: true });
+    }
+    if (entityType === 'sport') {
+        const SportsEvent = require('../model/sports_model');
+        return SportsEvent.findByIdAndUpdate(entityId, { $set: fields }, { new: true });
+    }
+    const RunClub = require('../model/run_club_model');
+    return RunClub.findByIdAndUpdate(
         entityId,
-        { $set: { showOnHomeSlide: true, homeSection: null, homePriority: 1 } },
+        { $set: { showOnHomeSlide: true, homeSection: null, priority: 1 } },
         { new: true },
     );
 }
