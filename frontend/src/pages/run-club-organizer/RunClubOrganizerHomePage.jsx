@@ -113,7 +113,11 @@ export default function RunClubOrganizerHomePage() {
                             <button
                                 key={event._id}
                                 type="button"
-                                onClick={() => navigate(`/run-club-organizer/events/${event._id}`)}
+                                onClick={() => navigate(
+                                    (event.pendingPaymentReview || 0) > 0
+                                        ? `/run-club-organizer/events/${event._id}/participants?paymentStatus=pending_review`
+                                        : `/run-club-organizer/events/${event._id}`,
+                                )}
                                 className="flex items-center justify-between rounded-xl border border-gray-800 bg-[#161718] p-4 hover:border-[#0ECCEE]/40 transition-colors text-left"
                             >
                                 <div className="flex items-center gap-3 min-w-0">

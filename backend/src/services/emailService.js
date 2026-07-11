@@ -179,15 +179,23 @@ function buildDetailsTable(rows = []) {
         </table>`;
 }
 
-function buildWhatsAppJoinBlock(groupLink, communityName) {
+function buildWhatsAppJoinBlock(groupLink, communityName, { product = 'trek' } = {}) {
     const url = String(groupLink || '').trim();
     if (!url) return '';
+    const isPhoneChat = /^https?:\/\/wa\.me\//i.test(url);
     const fromLabel = communityName ? ` from <strong>${communityName}</strong>` : '';
+    const heading = isPhoneChat ? 'Message on WhatsApp' : 'Join the WhatsApp group';
+    const cta = isPhoneChat ? 'Message club on WhatsApp' : 'Join WhatsApp group';
+    const blurb = isPhoneChat
+        ? `Have a question${fromLabel}? Reach the club on WhatsApp.`
+        : product === 'run'
+            ? `Get run updates, meetup details and announcements${fromLabel}.`
+            : `Get trek updates, meetup details and announcements${fromLabel}.`;
     return `
         <div style="margin:20px 0;padding:18px;border-radius:14px;background:#ecfdf5;border:1px solid #6ee7b7;">
-            <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#065f46;">Join the WhatsApp group</p>
-            <p style="margin:0 0 14px;font-size:13px;line-height:1.6;color:#047857;">Get trek updates, meetup details and announcements${fromLabel}.</p>
-            <a href="${url}" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 20px;border-radius:999px;">Join WhatsApp group</a>
+            <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#065f46;">${heading}</p>
+            <p style="margin:0 0 14px;font-size:13px;line-height:1.6;color:#047857;">${blurb}</p>
+            <a href="${url}" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 20px;border-radius:999px;">${cta}</a>
             <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#047857;word-break:break-all;">Or copy this link: <a href="${url}" style="color:#047857;">${url}</a></p>
         </div>`;
 }
@@ -214,8 +222,15 @@ function buildPaymentNotice(paymentContext = {}) {
     if (status === 'pending') {
         return `
             <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#fffbeb;border:1px solid #fde68a;">
-                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#92400e;">Payment under review</p>
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#b45309;">We'll confirm once verification is complete.</p>
+                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#92400e;">Waiting for organizer approval</p>
+                <p style="margin:0;font-size:13px;line-height:1.6;color:#b45309;">${paymentContext.message || 'Your payment screenshot was submitted. The organizer will review it and confirm your spot. You’ll get another email once it’s approved.'}</p>
+            </div>`;
+    }
+    if (status === 'failed') {
+        return `
+            <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#fef2f2;border:1px solid #fecaca;">
+                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#991b1b;">Payment not approved</p>
+                <p style="margin:0;font-size:13px;line-height:1.6;color:#b91c1c;">${paymentContext.message || 'Your payment was not approved. You can register again from My Bookings or the run page.'}</p>
             </div>`;
     }
     return `
@@ -284,16 +299,21 @@ const sendEventBroadcast = async (userList, eventDetails) => {
     return results;
 };
 
-const generateTrekParticipantEmailHTML = ({ name, title, message, trekName, link, kind, groupLink, communityName }) => {
+const generateTrekParticipantEmailHTML = ({
+    name, title, message, trekName, link, kind, groupLink, communityName, product = 'trek', paymentContext = null,
+}) => {
+    const isRun = product === 'run';
     const headerLabel = kind === 'registration'
         ? 'Booking update'
         : kind === 'reminder'
-            ? 'Trek reminder'
+            ? (isRun ? 'Run reminder' : 'Trek reminder')
             : kind === 'organizer'
                 ? 'Message from organizer'
-                : 'Trek update';
-    const fullLink = resolveTicketHref(link || '/treks');
+                : (isRun ? 'Run update' : 'Trek update');
+    const fullLink = resolveTicketHref(link || (isRun ? '/sports' : '/treks'));
     const bodyMessage = String(message || '').replace(/\n/g, '<br/>');
+    const entityLabel = isRun ? 'Run' : 'Trek';
+    const paymentNoticeHtml = paymentContext ? buildPaymentNotice(paymentContext) : '';
 
     return buildEmailShell({
         preheader: `${trekName} — ${title}`,
@@ -303,12 +323,17 @@ const generateTrekParticipantEmailHTML = ({ name, title, message, trekName, link
         bodyHtml: `
             <p style="margin:0 0 12px;">Hi <strong>${name || 'there'}</strong>,</p>
             <p style="margin:0 0 12px;line-height:1.6;">${bodyMessage}</p>
-            ${buildDetailsTable([{ label: 'Trek', value: trekName }])}
-            ${buildWhatsAppJoinBlock(groupLink, communityName)}
+            ${paymentNoticeHtml}
+            ${buildDetailsTable([{ label: entityLabel, value: trekName }])}
+            ${buildWhatsAppJoinBlock(groupLink, communityName, { product: isRun ? 'run' : 'trek' })}
         `,
-        ctaLabel: 'View booking',
+        ctaLabel: isRun && kind === 'registration' && String(title || '').toLowerCase().includes('approved')
+            ? 'Download ticket'
+            : 'View booking',
         ctaHref: fullLink,
-        footnote: 'You received this about your trek on CrwdCtrl.',
+        footnote: isRun
+            ? 'You received this about your run booking on CrwdCtrl.'
+            : 'You received this about your trek on CrwdCtrl.',
     });
 };
 

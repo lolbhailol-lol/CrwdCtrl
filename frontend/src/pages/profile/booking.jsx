@@ -42,6 +42,8 @@ const formatEventDate = (date) => {
 };
 
 const isEventCompleted = (item) => {
+    // Pending club payment approval always stays in Upcoming until resolved
+    if (item.isSports && item.registrationStatus === 'pending') return false;
     if (item.status === 'completed') return true;
     if (!item.date) return false;
     const eventDate = new Date(item.date);
@@ -50,12 +52,198 @@ const isEventCompleted = (item) => {
     return eventDate < new Date();
 };
 
+function mapFestRegistrations(internalRegistrations = []) {
+    return internalRegistrations.map((reg) => {
+        const isCompetitionRegistration = !!(reg.competitionId && (reg.competitionId._id || reg.competitionId));
+        if (isCompetitionRegistration) {
+            return {
+                id: reg._id,
+                name: reg.competitionId?.name || 'Competition',
+                image: reg.competitionId?.coverImage || reg.fest?.coverImage,
+                date: reg.fest?.festDate,
+                venue: reg.fest?.venue,
+                type: 'competition',
+                festName: reg.fest?.festName,
+                collegeName: reg.fest?.collegeName,
+                status: reg.fest?.status || 'upcoming',
+                registrationStatus: reg.status,
+                registrationType: 'internal',
+                isCompetition: true,
+                isTrek: false,
+                isSports: false,
+                paymentAmount: reg.competitionId?.registrationFee || reg.fest?.ticketPrice || 'N/A',
+                paymentStatus: reg.paymentStatus,
+                amountPaid: reg.amountPaid || 0,
+                paymentId: reg.payment_id || '',
+                paymentOrderId: reg.payment_order_id || '',
+                registeredAt: reg.submittedAt,
+            };
+        }
+        return {
+            id: reg._id,
+            name: reg.fest?.festName,
+            image: reg.fest?.coverImage,
+            date: reg.fest?.festDate,
+            venue: reg.fest?.venue,
+            type: 'fest',
+            collegeName: reg.fest?.collegeName,
+            status: reg.fest?.status || 'upcoming',
+            registrationStatus: reg.status,
+            registrationType: 'internal',
+            isCompetition: false,
+            isTrek: false,
+            isSports: false,
+            paymentAmount: reg.fest?.ticketPrice || 'N/A',
+            paymentStatus: reg.paymentStatus,
+            amountPaid: reg.amountPaid || 0,
+            paymentId: reg.payment_id || '',
+            paymentOrderId: reg.payment_order_id || '',
+            registeredAt: reg.submittedAt,
+        };
+    });
+}
+
+function mapSportsRegistrations(sportsRegistrations = []) {
+    return sportsRegistrations
+        .filter((reg) => {
+            if (reg.status === 'cancelled') {
+                return reg.paymentStatus === 'failed' || !!reg.paymentReviewNote;
+            }
+            // Keep confirmed + pending (awaiting organizer approval)
+            return reg.status === 'pending' || reg.status === 'confirmed';
+        })
+        .map((reg) => ({
+            id: reg._id,
+            name: reg.event?.title || 'Sports Event',
+            image: reg.event?.coverImage || reg.event?.images?.[0] || null,
+            date: reg.bookingDate || reg.event?.eventDate || null,
+            venue: reg.event?.venue || reg.event?.city || '',
+            type: 'sports',
+            collegeName: '',
+            status: reg.event?.status === 'completed' ? 'completed' : 'upcoming',
+            registrationStatus: reg.status,
+            registrationType: 'sports',
+            isCompetition: false,
+            isTrek: false,
+            isSports: true,
+            sportType: reg.event?.sportType || '',
+            clubName: reg.clubName || '',
+            paymentAmount: reg.amountPaid || 0,
+            paymentStatus: reg.paymentStatus,
+            paymentReviewNote: reg.paymentReviewNote || '',
+            amountPaid: reg.amountPaid || 0,
+            paymentId: reg.payment_id || '',
+            paymentOrderId: reg.payment_order_id || '',
+            registeredAt: reg.submittedAt || reg.createdAt,
+        }));
+}
+
+function mapTrekBookings(trekBookings = []) {
+    return trekBookings.map((booking) => ({
+        id: booking._id,
+        name: booking.trekId?.trekName || 'Trek',
+        image: booking.trekId?.coverImage || booking.trekId?.images?.[0] || null,
+        date: booking.bookingDetails?.date || booking.trekId?.trekDate,
+        venue: booking.trekId?.city || '',
+        type: 'trek',
+        collegeName: '',
+        status: 'upcoming',
+        registrationStatus: booking.status || 'confirmed',
+        registrationType: 'trek',
+        isCompetition: false,
+        isTrek: true,
+        isSports: false,
+        people: booking.bookingDetails?.people || 1,
+        amountPaid: booking.bookingDetails?.amountPaid || 0,
+        paymentId: booking.bookingDetails?.paymentId || '',
+        paymentOrderId:
+            booking.payment_order_id ||
+            booking.bookingDetails?.payment_order_id ||
+            '',
+        paymentStatus: booking.bookingDetails?.amountPaid > 0 ? 'paid' : 'free',
+        difficulty: booking.trekId?.difficultyLevel || '',
+        registeredAt: booking.createdAt,
+    }));
+}
+
+function mapEventRegistrations(eventRegistrations = []) {
+    return eventRegistrations.map((reg) => ({
+        id: reg._id,
+        name: reg.eventShow?.displayName || reg.eventShow?.title || 'Event',
+        image: reg.eventShow?.coverImage || reg.eventShow?.banner || null,
+        date: reg.eventShow?.showTimings?.[0]?.date || null,
+        venue: reg.eventShow?.venue || reg.eventShow?.city || '',
+        type: 'event',
+        collegeName: '',
+        status: reg.eventShow?.status === 'completed' ? 'completed' : 'upcoming',
+        registrationStatus: reg.status,
+        registrationType: 'event',
+        isCompetition: false,
+        isTrek: false,
+        isSports: false,
+        isEvent: true,
+        paymentAmount: reg.eventShow?.ticketPrice || reg.amountPaid || 0,
+        paymentStatus: reg.paymentStatus,
+        amountPaid: reg.amountPaid || 0,
+        paymentId: reg.payment_id || '',
+        paymentOrderId: reg.payment_order_id || '',
+        registeredAt: reg.submittedAt || reg.createdAt,
+    }));
+}
+
+async function loadAllBookings(authToken = null) {
+    const opts = { cacheBust: true, token: authToken };
+    const [festResult, sportsResult] = await Promise.allSettled([
+        fetchMyRegistrations(opts),
+        fetchMySportsRegistrations(opts),
+    ]);
+
+    const festFailed = festResult.status === 'rejected';
+    const sportsFailed = sportsResult.status === 'rejected';
+    if (festFailed) console.warn('Fest/trek bookings fetch failed:', festResult.reason);
+    if (sportsFailed) console.warn('Sports bookings fetch failed:', sportsResult.reason);
+    if (festFailed && sportsFailed) {
+        throw festResult.reason || sportsResult.reason || new Error('Failed to load bookings');
+    }
+
+    const registrationsData = festFailed
+        ? { registrations: [], trekBookings: [], eventRegistrations: [] }
+        : festResult.value || {};
+    const sportsData = sportsFailed
+        ? { registrations: [] }
+        : sportsResult.value || {};
+
+    const transformedFests = mapFestRegistrations(registrationsData.registrations || []);
+    const transformedTreks = mapTrekBookings(registrationsData.trekBookings || []);
+    const transformedEvents = mapEventRegistrations(registrationsData.eventRegistrations || []);
+    const transformedSports = mapSportsRegistrations(sportsData.registrations || []);
+
+    return {
+        bookings: [...transformedFests, ...transformedTreks, ...transformedSports, ...transformedEvents]
+            .sort((a, b) => {
+                const ap = a.isSports && a.registrationStatus === 'pending' ? 1 : 0;
+                const bp = b.isSports && b.registrationStatus === 'pending' ? 1 : 0;
+                if (ap !== bp) return bp - ap;
+                return new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0);
+            }),
+        sportsFailed,
+        festFailed,
+    };
+}
+
+function mergeOptimisticPending(list, pending) {
+    if (!pending?.id) return list;
+    if (list.some((b) => String(b.id) === String(pending.id))) return list;
+    return [pending, ...list];
+}
+
 function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCalendar }) {
     const hasValidDate = item.date && !Number.isNaN(new Date(item.date).getTime());
     const showCalendar = hasValidDate && !isEventCompleted(item);
     const isPendingPayment = item.isSports && item.registrationStatus === 'pending';
     const isRejectedPayment = item.isSports && item.registrationStatus === 'cancelled' && (item.paymentStatus === 'failed' || item.paymentReviewNote);
     const canDownloadTicket = !isPendingPayment && !isRejectedPayment && item.registrationStatus !== 'cancelled';
+    const clubLabel = item.clubName || 'The club';
 
     return (
         <div
@@ -106,9 +294,15 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                         </p>
                     )}
                     {isPendingPayment ? (
-                        <p className="mt-1.5 inline-flex text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
-                            Awaiting payment approval
-                        </p>
+                        <span
+                            className={`mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                                isDark
+                                    ? 'bg-amber-500/15 text-amber-300'
+                                    : 'bg-amber-50 text-amber-800'
+                            }`}
+                        >
+                            Awaiting {clubLabel} approval
+                        </span>
                     ) : null}
                     {isRejectedPayment ? (
                         <p className="mt-1.5 text-[11px] text-red-400 line-clamp-2">
@@ -161,21 +355,31 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
 
 function Booking() {
     const { isDark } = useDarkMode();
-    const { isAuthenticated, user } = useAuth();
+    const { isAuthenticated, user, token } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [sportsRefreshFailed, setSportsRefreshFailed] = useState(false);
     const [activeTab, setActiveTab] = useState('upcoming');
     const [refreshTick, setRefreshTick] = useState(0);
+    const [optimisticPending, setOptimisticPending] = useState(null);
 
     useEffect(() => {
-        if (location.state?.refreshBookings) {
+        const pending = location.state?.pendingBooking;
+        if (pending) {
+            setOptimisticPending(pending);
+            if (user) {
+                const existing = readBookingsCache(user) || [];
+                writeBookingsCache(user, mergeOptimisticPending(existing, pending));
+            }
+        }
+        if (location.state?.refreshBookings || pending) {
             setRefreshTick((n) => n + 1);
             navigate(location.pathname + location.search, { replace: true, state: {} });
         }
-    }, [location.state?.refreshBookings, location.pathname, location.search, navigate]);
+    }, [location.state, location.pathname, location.search, navigate, user]);
 
     // Fetch user's registered events from backend API
     useEffect(() => {
@@ -185,167 +389,36 @@ function Booking() {
                 return;
             }
 
-            // Instant paint from cache while we revalidate in the background.
-            const cached = readBookingsCache(user);
+            const forceRefresh = refreshTick > 0 && !optimisticPending;
+            const cached = forceRefresh ? null : readBookingsCache(user);
             if (cached) {
-                setBookings(cached);
+                setBookings(mergeOptimisticPending(cached, optimisticPending));
+                setLoading(false);
+            } else if (optimisticPending) {
+                setBookings([optimisticPending]);
                 setLoading(false);
             }
 
             try {
-                if (!cached) setLoading(true);
+                if (!cached && !optimisticPending) setLoading(true);
                 setError(null);
-                
-                // Fetch both sources in parallel (was sequential → ~2x slower).
-                // Sports is optional, so it degrades to [] on failure without blocking.
-                const [registrationsData, sportsRegistrations] = await Promise.all([
-                    fetchMyRegistrations(),
-                    fetchMySportsRegistrations()
-                        .then((sportsData) =>
-                            (sportsData.registrations || []).filter((reg) => {
-                                if (reg.status === 'cancelled') {
-                                    return reg.paymentStatus === 'failed' || !!reg.paymentReviewNote;
-                                }
-                                return true;
-                            }),
-                        )
-                        .catch(() => []),
-                ]);
-                const internalRegistrations = registrationsData.registrations || [];
-                const trekBookings = registrationsData.trekBookings || [];
-                const eventRegistrations = registrationsData.eventRegistrations || [];
-
-                // Transform fest/competition registrations
-                const transformedFests = internalRegistrations.map(reg => {
-                    const isCompetitionRegistration = !!(reg.competitionId && reg.competitionId._id);
-                    if (isCompetitionRegistration) {
-                        return {
-                            id: reg._id,
-                            name: reg.competitionId?.name || 'Competition',
-                            image: reg.competitionId?.coverImage || reg.fest?.coverImage,
-                            date: reg.fest?.festDate,
-                            venue: reg.fest?.venue,
-                            type: 'competition',
-                            festName: reg.fest?.festName,
-                            collegeName: reg.fest?.collegeName,
-                            status: reg.fest?.status || 'upcoming',
-                            registrationStatus: reg.status,
-                            registrationType: 'internal',
-                            isCompetition: true,
-                            isTrek: false,
-                            paymentAmount: reg.competitionId?.registrationFee || reg.fest?.ticketPrice || 'N/A',
-                            paymentStatus: reg.paymentStatus,
-                            amountPaid: reg.amountPaid || 0,
-                            paymentId: reg.payment_id || '',
-                            paymentOrderId: reg.payment_order_id || '',
-                            registeredAt: reg.submittedAt
-                        };
-                    } else {
-                        return {
-                            id: reg._id,
-                            name: reg.fest?.festName,
-                            image: reg.fest?.coverImage,
-                            date: reg.fest?.festDate,
-                            venue: reg.fest?.venue,
-                            type: 'fest',
-                            collegeName: reg.fest?.collegeName,
-                            status: reg.fest?.status || 'upcoming',
-                            registrationStatus: reg.status,
-                            registrationType: 'internal',
-                            isCompetition: false,
-                            isTrek: false,
-                            paymentAmount: reg.fest?.ticketPrice || 'N/A',
-                            paymentStatus: reg.paymentStatus,
-                            amountPaid: reg.amountPaid || 0,
-                            paymentId: reg.payment_id || '',
-                            paymentOrderId: reg.payment_order_id || '',
-                            registeredAt: reg.submittedAt
-                        };
-                    }
-                });
-
-                const transformedSports = sportsRegistrations.map((reg) => ({
-                    id: reg._id,
-                    name: reg.event?.title || 'Sports Event',
-                    image: reg.event?.coverImage || reg.event?.images?.[0] || null,
-                    date: reg.event?.eventDate,
-                    venue: reg.event?.venue || reg.event?.city || '',
-                    type: 'sports',
-                    collegeName: '',
-                    status: reg.event?.status || 'upcoming',
-                    registrationStatus: reg.status,
-                    registrationType: 'sports',
-                    isCompetition: false,
-                    isTrek: false,
-                    isSports: true,
-                    sportType: reg.event?.sportType || '',
-                    paymentAmount: reg.amountPaid || 0,
-                    paymentStatus: reg.paymentStatus,
-                    paymentReviewNote: reg.paymentReviewNote || '',
-                    amountPaid: reg.amountPaid || 0,
-                    paymentId: reg.payment_id || '',
-                    paymentOrderId: reg.payment_order_id || '',
-                    registeredAt: reg.submittedAt || reg.createdAt,
-                }));
-
-                // Transform trek bookings
-                const transformedTreks = trekBookings.map(booking => ({
-                    id: booking._id,
-                    name: booking.trekId?.trekName || 'Trek',
-                    image: booking.trekId?.coverImage || booking.trekId?.images?.[0] || null,
-                    date: booking.bookingDetails?.date || booking.trekId?.trekDate,
-                    venue: booking.trekId?.city || '',
-                    type: 'trek',
-                    collegeName: '',
-                    status: 'upcoming',
-                    registrationStatus: booking.status || 'confirmed',
-                    registrationType: 'trek',
-                    isCompetition: false,
-                    isTrek: true,
-                    isSports: false,
-                    people: booking.bookingDetails?.people || 1,
-                    amountPaid: booking.bookingDetails?.amountPaid || 0,
-                    paymentId: booking.bookingDetails?.paymentId || '',
-                    paymentOrderId:
-                        booking.payment_order_id ||
-                        booking.bookingDetails?.payment_order_id ||
-                        '',
-                    paymentStatus: booking.bookingDetails?.amountPaid > 0 ? 'paid' : 'free',
-                    difficulty: booking.trekId?.difficultyLevel || '',
-                    registeredAt: booking.createdAt
-                }));
-
-                const transformedEvents = eventRegistrations.map((reg) => ({
-                    id: reg._id,
-                    name: reg.eventShow?.displayName || reg.eventShow?.title || 'Event',
-                    image: reg.eventShow?.coverImage || reg.eventShow?.banner || null,
-                    date: reg.eventShow?.showTimings?.[0]?.date || null,
-                    venue: reg.eventShow?.venue || reg.eventShow?.city || '',
-                    type: 'event',
-                    collegeName: '',
-                    status: reg.eventShow?.status === 'completed' ? 'completed' : 'upcoming',
-                    registrationStatus: reg.status,
-                    registrationType: 'event',
-                    isCompetition: false,
-                    isTrek: false,
-                    isSports: false,
-                    isEvent: true,
-                    paymentAmount: reg.eventShow?.ticketPrice || reg.amountPaid || 0,
-                    paymentStatus: reg.paymentStatus,
-                    amountPaid: reg.amountPaid || 0,
-                    paymentId: reg.payment_id || '',
-                    paymentOrderId: reg.payment_order_id || '',
-                    registeredAt: reg.submittedAt || reg.createdAt,
-                }));
-
-                const all = [...transformedFests, ...transformedTreks, ...transformedSports, ...transformedEvents]
-                    .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
-                setBookings(all);
-                writeBookingsCache(user, all);
+                const { bookings: all, sportsFailed } = await loadAllBookings(token);
+                setSportsRefreshFailed(!!sportsFailed);
+                const merged = mergeOptimisticPending(all, optimisticPending);
+                setBookings(merged);
+                writeBookingsCache(user, merged);
+                if (optimisticPending && all.some((b) => String(b.id) === String(optimisticPending.id))) {
+                    setOptimisticPending(null);
+                }
             } catch (err) {
-                console.error('Error fetching bookings:', err);
-                // Keep any cached data on screen rather than blanking the page.
-                if (!cached) {
+                console.warn('Error fetching bookings:', err);
+                if (optimisticPending) {
+                    setBookings((prev) => mergeOptimisticPending(prev.length ? prev : [], optimisticPending));
+                    setError(null);
+                } else if (cached?.length) {
+                    setBookings(cached);
+                    setError(null);
+                } else {
                     setError(err.message);
                     setBookings([]);
                 }
@@ -355,126 +428,25 @@ function Booking() {
         };
 
         fetchBookings();
-    }, [isAuthenticated, user, refreshTick]);
+    }, [isAuthenticated, user, token, refreshTick, optimisticPending]);
 
-    // Refetch data when component becomes visible (user navigates back)
+    // Refetch when tab becomes visible — must include sports (pending QR approvals)
     useEffect(() => {
         const handleVisibilityChange = () => {
-            if (!document.hidden && isAuthenticated && user) {
-                // Refetch data when page becomes visible
-                const fetchData = async () => {
-                    try {
-                        const registrationsData = await fetchMyRegistrations({ cacheBust: false });
-                        const internalRegistrations = registrationsData.registrations || [];
-                            
-                            const transformedFests = internalRegistrations.map(reg => {
-                                // Check if this is a competition registration
-                                const isCompetitionRegistration = !!reg.competitionId;
-                                
-                                if (isCompetitionRegistration) {
-                                    return {
-                                        id: reg._id,
-                                        name: reg.competitionId?.name || 'Competition',
-                                        image: reg.competitionId?.coverImage || reg.fest?.coverImage,
-                                        date: reg.fest?.festDate,
-                                        venue: reg.fest?.venue,
-                                        type: 'competition',
-                                        festName: reg.fest?.festName,
-                                        collegeName: reg.fest?.collegeName,
-                                        status: reg.fest?.status || 'upcoming',
-                                        registrationStatus: reg.status,
-                                        registrationType: 'internal',
-                                        isCompetition: true,
-                                        isTrek: false,
-                                        paymentStatus: reg.paymentStatus,
-                                        amountPaid: reg.amountPaid || 0,
-                                        paymentId: reg.payment_id || '',
-                                        paymentOrderId: reg.payment_order_id || '',
-                                        registeredAt: reg.submittedAt
-                                    };
-                                }
-                                return {
-                                    id: reg._id,
-                                    name: reg.fest?.festName,
-                                    image: reg.fest?.coverImage,
-                                    date: reg.fest?.festDate,
-                                    venue: reg.fest?.venue,
-                                    type: 'fest',
-                                    collegeName: reg.fest?.collegeName,
-                                    status: reg.fest?.status || 'upcoming',
-                                    registrationStatus: reg.status,
-                                    registrationType: 'internal',
-                                    isCompetition: false,
-                                    isTrek: false,
-                                    paymentStatus: reg.paymentStatus,
-                                    amountPaid: reg.amountPaid || 0,
-                                    paymentId: reg.payment_id || '',
-                                    paymentOrderId: reg.payment_order_id || '',
-                                    registeredAt: reg.submittedAt
-                                };
-                            });
-                            
-                            const trekBookings = registrationsData.trekBookings || [];
-                            const transformedTreks = trekBookings.map(booking => ({
-                                id: booking._id,
-                                name: booking.trekId?.trekName || 'Trek',
-                                image: booking.trekId?.coverImage || booking.trekId?.images?.[0] || null,
-                                date: booking.bookingDetails?.date || booking.trekId?.trekDate,
-                                venue: booking.trekId?.city || '',
-                                type: 'trek',
-                                collegeName: '',
-                                status: 'upcoming',
-                                registrationStatus: booking.status || 'confirmed',
-                                registrationType: 'trek',
-                                isCompetition: false,
-                                isTrek: true,
-                                people: booking.bookingDetails?.people || 1,
-                                amountPaid: booking.bookingDetails?.amountPaid || 0,
-                                paymentId: booking.bookingDetails?.paymentId || '',
-                                paymentOrderId:
-                                    booking.payment_order_id ||
-                                    booking.bookingDetails?.payment_order_id ||
-                                    '',
-                                paymentStatus: booking.bookingDetails?.amountPaid > 0 ? 'paid' : 'free',
-                                registeredAt: booking.createdAt
-                            }));
-                            const eventRegistrations = registrationsData.eventRegistrations || [];
-                            const transformedEvents = eventRegistrations.map((reg) => ({
-                                id: reg._id,
-                                name: reg.eventShow?.displayName || reg.eventShow?.title || 'Event',
-                                image: reg.eventShow?.coverImage || reg.eventShow?.banner || null,
-                                date: reg.eventShow?.showTimings?.[0]?.date || null,
-                                venue: reg.eventShow?.venue || reg.eventShow?.city || '',
-                                type: 'event',
-                                collegeName: '',
-                                status: reg.eventShow?.status === 'completed' ? 'completed' : 'upcoming',
-                                registrationStatus: reg.status,
-                                registrationType: 'event',
-                                isCompetition: false,
-                                isTrek: false,
-                                isSports: false,
-                                isEvent: true,
-                                paymentStatus: reg.paymentStatus,
-                                amountPaid: reg.amountPaid || 0,
-                                paymentId: reg.payment_id || '',
-                                paymentOrderId: reg.payment_order_id || '',
-                                registeredAt: reg.submittedAt || reg.createdAt,
-                            }));
-                            const all = [...transformedFests, ...transformedTreks, ...transformedEvents]
-                                .sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));
-                            setBookings(all);
-                    } catch (err) {
-                        console.warn('Error refetching bookings:', err);
-                    }
-                };
-                
-                fetchData();
-            }
+            if (document.hidden || !isAuthenticated || !user) return;
+            loadAllBookings(token)
+                .then(({ bookings: all, sportsFailed }) => {
+                    setSportsRefreshFailed(!!sportsFailed);
+                    const merged = mergeOptimisticPending(all, optimisticPending);
+                    setBookings(merged);
+                    writeBookingsCache(user, merged);
+                })
+                .catch((err) => console.warn('Error refetching bookings:', err));
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [isAuthenticated, user]);
+    }, [isAuthenticated, user, token, optimisticPending]);
 
     const allBookings = [...bookings];
 
@@ -485,7 +457,17 @@ function Booking() {
             return;
         }
         if (item.isSports) {
-            navigate(`/registration-details/${item.id}?type=sports`);
+            navigate(`/registration-details/${item.id}?type=sports`, {
+                state: item.registrationStatus === 'pending'
+                    ? {
+                        pendingApproval: {
+                            clubName: item.clubName || 'The club',
+                            eventName: item.name || 'your run',
+                            registrationId: item.id,
+                        },
+                    }
+                    : undefined,
+            });
             return;
         }
         if (item.isEvent) {
@@ -521,6 +503,28 @@ function Booking() {
         'bookings-page crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300 pb-24 lg:pb-8';
 
     usePageContentLoading(loading);
+
+    if (!isAuthenticated) {
+        return (
+            <div className={`${pageShellClass} flex items-center justify-center px-4`}>
+                <div className="text-center max-w-sm">
+                    <h2 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Log in to see your bookings
+                    </h2>
+                    <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Your run bookings and tickets appear here after you sign in.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/login', { state: { from: '/booking' } })}
+                        className="bg-[#0ECCEE] text-black px-6 py-3 rounded-xl font-semibold hover:opacity-90 transition"
+                    >
+                        Log in
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
@@ -565,6 +569,25 @@ function Booking() {
                                 My Bookings
                             </h1>
                         </div>
+
+                        {sportsRefreshFailed ? (
+                            <div
+                                className={`mb-4 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-xs ${
+                                    isDark
+                                        ? 'bg-amber-500/10 border border-amber-500/25 text-amber-200'
+                                        : 'bg-amber-50 border border-amber-200 text-amber-900'
+                                }`}
+                            >
+                                <span>Couldn’t refresh run bookings.</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setRefreshTick((n) => n + 1)}
+                                    className="shrink-0 font-semibold underline underline-offset-2"
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        ) : null}
 
                         <div className="flex items-end gap-6 px-2">
                             <button

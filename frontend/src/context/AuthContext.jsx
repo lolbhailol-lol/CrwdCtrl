@@ -388,6 +388,12 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             console.error('❌ Error clearing localStorage:', error);
         }
+
+        try {
+            window.dispatchEvent(new Event('crwdctrl:user-logout'));
+        } catch {
+            /* ignore */
+        }
     };
 
     // ✅ POPUP-FIRST LOGIN FUNCTION

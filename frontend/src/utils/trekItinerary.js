@@ -21,6 +21,36 @@ export function parseDescriptionToPoints(description = '') {
         .map((text) => ({ text, level: 'main' }));
 }
 
+/**
+ * Parse a pasted block into schedule points.
+ * - One line = one point
+ * - Indented lines (spaces/tabs) → sub
+ * - Leading -, *, • stripped from text
+ * Defaults to main so admin can flip Main/Sub after paste.
+ */
+export function parsePastedSchedulePoints(raw = '') {
+    return String(raw)
+        .split(/\r?\n/)
+        .map((line) => {
+            const leading = line.match(/^(\s*)/)?.[1] || '';
+            const indented = leading.length >= 2 || leading.includes('\t');
+            let rest = line.trim();
+            if (!rest) return null;
+
+            const bulletMatch = rest.match(/^([•●▪◦\-–—*]+)\s+(.*)$/);
+            if (bulletMatch) {
+                rest = bulletMatch[2].trim();
+                const bullet = bulletMatch[1];
+                const looksSub = indented || /[◦▪]/.test(bullet) || bullet === '–';
+                if (!rest) return null;
+                return { text: rest, level: looksSub ? 'sub' : 'main' };
+            }
+
+            return { text: rest, level: indented ? 'sub' : 'main' };
+        })
+        .filter(Boolean);
+}
+
 export function normalizeItineraryDay(day, index = 0) {
     if (!day) {
         return { day: index + 1, title: '', description: '', points: [] };

@@ -8,7 +8,7 @@ function pendingCutoffDate() {
 
 /**
  * Cancel stale organizer_qr pending registrations so they stop holding seats.
- * Safe to call on dashboard/list/register (idempotent).
+ * Notifies each affected runner (email + in-app). Safe / idempotent.
  */
 async function expireStalePendingRegistrations(eventId = null) {
     const filter = {
@@ -20,17 +20,79 @@ async function expireStalePendingRegistrations(eventId = null) {
     };
     if (eventId) filter.eventId = eventId;
 
-    const result = await CategoryRegistration.updateMany(filter, {
-        $set: {
-            status: 'cancelled',
-            paymentStatus: 'failed',
-            paymentReviewNote: `Auto-expired after ${PENDING_TTL_HOURS}h without organizer approval`,
-            paymentReviewedAt: new Date(),
-            paymentReviewedBy: 'system',
+    const stale = await CategoryRegistration.find(filter)
+        .populate('user', 'name email phoneNumber notificationPreferences')
+        .limit(200)
+        .lean();
+
+    if (!stale.length) return 0;
+
+    const ids = stale.map((r) => r._id);
+    const note = `Auto-expired after ${PENDING_TTL_HOURS}h without organizer approval`;
+    const reviewedAt = new Date();
+
+    await CategoryRegistration.updateMany(
+        { _id: { $in: ids } },
+        {
+            $set: {
+                status: 'cancelled',
+                paymentStatus: 'failed',
+                paymentReviewNote: note,
+                paymentReviewedAt: reviewedAt,
+                paymentReviewedBy: 'system',
+            },
         },
+    );
+
+    // Fire-and-forget notifications so expiry stays fast on request paths
+    setImmediate(() => {
+        Promise.resolve()
+            .then(async () => {
+                const { notifyRunClubParticipant } = require('./runClubParticipantOutreach');
+                const { decryptRegistrationPii } = require('./runClubPiiCrypto');
+                const SportsEvent = require('../model/sports_model');
+
+                for (const reg of stale) {
+                    try {
+                        const event = await SportsEvent.findById(reg.eventId).select('title runClubId').lean();
+                        const eventTitle = event?.title || 'your run';
+                        const lean = decryptRegistrationPii(
+                            {
+                                ...reg,
+                                status: 'cancelled',
+                                paymentStatus: 'failed',
+                                paymentReviewNote: note,
+                            },
+                            event?.runClubId || reg.runClubId,
+                        );
+                        await notifyRunClubParticipant({
+                            registration: lean,
+                            eventId: reg.eventId,
+                            eventTitle,
+                            title: 'Payment hold expired',
+                            message: `Your payment hold for ${eventTitle} expired after ${PENDING_TTL_HOURS} hours without club approval. You can register again from My Bookings or the run page.`,
+                            type: 'registration',
+                            link: '/booking',
+                            emailSubject: `Payment hold expired — ${eventTitle}`,
+                            metadata: {
+                                registrationId: String(reg._id),
+                                action: 'auto_expire',
+                                ttlHours: PENDING_TTL_HOURS,
+                            },
+                            paymentContext: {
+                                status: 'failed',
+                                message: `Hold released after ${PENDING_TTL_HOURS}h without organizer approval. Register again anytime.`,
+                            },
+                        });
+                    } catch (err) {
+                        console.error('[expireStalePending.notify]', err.message);
+                    }
+                }
+            })
+            .catch((err) => console.error('[expireStalePending.batch]', err.message));
     });
 
-    return result.modifiedCount || 0;
+    return stale.length;
 }
 
 function isAllowedPaymentScreenshotUrl(url) {

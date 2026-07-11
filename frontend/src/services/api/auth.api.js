@@ -70,9 +70,20 @@ export async function validateUserToken(token) {
  * Authenticated JSON fetch that throws on 401 or non-OK responses.
  */
 export async function userFetchJSONStrict(path, options = {}) {
-  const token = resolveAuthToken(options.token);
+  let token = resolveAuthToken(options.token);
+  // Brief retry — AuthContext can set isAuthenticated before localStorage settles
   if (!token) {
-    throw new Error('Authentication failed. Please log in again.');
+    await new Promise((r) => setTimeout(r, 120));
+    token = resolveAuthToken(options.token);
+  }
+  if (!token) {
+    await new Promise((r) => setTimeout(r, 280));
+    token = resolveAuthToken(options.token);
+  }
+  if (!token) {
+    const err = new Error('Authentication failed. Please log in again.');
+    err.code = 'NO_AUTH_TOKEN';
+    throw err;
   }
 
   const bustPath = options.cacheBust === false
@@ -90,11 +101,16 @@ export async function userFetchJSONStrict(path, options = {}) {
     signal: options.signal,
   });
 
-  if (response.status === 401) {
-    throw new Error('Authentication failed. Please log in again.');
+        if (response.status === 401) {
+    const err = new Error('Authentication failed. Please log in again.');
+    err.code = 'AUTH_401';
+    throw err;
   }
   if (!response.ok) {
-    throw new Error(`Failed to fetch (${response.status})`);
+    const err = new Error(`Failed to fetch (${response.status})`);
+    err.code = response.status === 404 ? 'NOT_FOUND' : `HTTP_${response.status}`;
+    err.status = response.status;
+    throw err;
   }
   return response.json();
 }
@@ -104,9 +120,5 @@ export async function fetchMyRegistrations(options = {}) {
 }
 
 export async function fetchMySportsRegistrations(options = {}) {
-  try {
-    return await userFetchJSONStrict('/category-registrations/my?category=sports', options);
-  } catch {
-    return { registrations: [] };
-  }
+  return userFetchJSONStrict('/category-registrations/my?category=sports', options);
 }

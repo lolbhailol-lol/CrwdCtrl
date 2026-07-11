@@ -2,10 +2,11 @@ const CategoryRegistration = require('../model/category_registration_model');
 const { createNotification } = require('../controllers/notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { sendTrekParticipantEmails } = require('../services/emailService');
-const { responsesToObject, normalizeRegistrationForFormat } = require('./runClubOrganizerFormat');
+const { normalizeRegistrationForFormat } = require('./runClubOrganizerFormat');
 const { pickFormField } = require('./trekOrganizerFormat');
 const { decryptRegistrationPii, decryptManyRegistrations } = require('./runClubPiiCrypto');
 const SportsEvent = require('../model/sports_model');
+const { resolveRunClubGroupLink } = require('./resolveRunClubGroupLink');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
@@ -64,6 +65,10 @@ async function notifyRunClubParticipant({
     emailSubject,
     metadata = {},
     skipEmail = false,
+    groupLink = '',
+    communityName = '',
+    paymentContext = null,
+    includeGroupLink = false,
 }) {
     const decrypted = decryptRegistrationPii(registration, registration?.runClubId);
     const userId = resolveUserId(decrypted);
@@ -71,6 +76,13 @@ async function notifyRunClubParticipant({
     const name = resolveParticipantName(decrypted);
     const prefs = decrypted.user?.notificationPreferences || {};
     const keys = preferenceKeysForType(type);
+
+    let resolvedGroup = { groupLink: groupLink || '', communityName: communityName || '' };
+    if (includeGroupLink && !resolvedGroup.groupLink && eventId) {
+        resolvedGroup = await resolveRunClubGroupLink(eventId, {
+            runClubId: registration?.runClubId || decrypted?.runClubId,
+        });
+    }
 
     const result = { inApp: false, push: false, email: false, userId, emailAddress: email };
 
@@ -106,9 +118,13 @@ async function notifyRunClubParticipant({
                 subject: emailSubject || title,
                 title,
                 message,
-                trekName: eventTitle || 'Run',
+                trekName: eventTitle || resolvedGroup.eventTitle || 'Run',
                 link: link || `/sports/run/${eventId}`,
                 kind: type,
+                product: 'run',
+                groupLink: includeGroupLink ? resolvedGroup.groupLink : '',
+                communityName: includeGroupLink ? resolvedGroup.communityName : '',
+                paymentContext,
             },
         ]);
         result.email = (emailResult?.success || 0) > 0;
@@ -126,8 +142,12 @@ async function notifyRunClubParticipants({
     link,
     emailSubject,
     metadata = {},
+    includeGroupLink = false,
 }) {
     const registrations = await loadConfirmedParticipants(eventId);
+    const groupInfo = includeGroupLink
+        ? await resolveRunClubGroupLink(eventId)
+        : { groupLink: '', communityName: '' };
     const stats = { inApp: 0, push: 0, email: 0, participants: registrations.length, skipped: 0 };
     const emailed = new Set();
 
@@ -150,6 +170,9 @@ async function notifyRunClubParticipants({
             emailSubject,
             metadata,
             skipEmail: email ? emailed.has(email) : false,
+            groupLink: groupInfo.groupLink,
+            communityName: groupInfo.communityName,
+            includeGroupLink,
         });
 
         if (result.inApp) stats.inApp += 1;

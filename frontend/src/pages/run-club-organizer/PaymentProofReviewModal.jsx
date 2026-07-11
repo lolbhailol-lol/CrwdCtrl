@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { X, CheckCircle, Phone, Copy, MessageCircle, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
 
+const REJECT_PRESETS = [
+    'Wrong amount',
+    'Unclear screenshot',
+    'Transaction not found',
+];
+
 function whatsappHref(phone, name) {
     const digits = String(phone || '').replace(/\D/g, '');
     if (digits.length < 10) return '';
@@ -11,12 +17,25 @@ function whatsappHref(phone, name) {
     return `https://wa.me/${withCountry}?text=${text}`;
 }
 
+function formatSubmittedAt(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
 export default function PaymentProofReviewModal({
     open,
     participant,
     expectedFee,
     queueIndex = 0,
     queueTotal = 0,
+    eventTitle = '',
     onClose,
     onApprove,
     onReject,
@@ -40,7 +59,11 @@ export default function PaymentProofReviewModal({
     const phone = participant.phone && participant.phone !== '—' ? participant.phone : '';
     const amount = Number(participant.amountPaid || participant.grossCollected || 0);
     const expected = Number(expectedFee ?? participant.expectedAmount ?? amount);
+    const amountMismatch = expected > 0 && amount > 0 && Math.abs(expected - amount) >= 1;
     const hasQueue = queueTotal > 1;
+    const people = Number(participant.people) || 1;
+    const runDate = participant.trekDate || '';
+    const submittedAt = formatSubmittedAt(participant.bookingDate);
 
     const handleApprove = async () => {
         setBusy(true);
@@ -71,6 +94,9 @@ export default function PaymentProofReviewModal({
                             {hasQueue ? ` · ${queueIndex + 1} of ${queueTotal}` : ''}
                         </p>
                         <h2 className="text-lg font-bold truncate">{participant.participantName}</h2>
+                        {eventTitle ? (
+                            <p className="text-[11px] text-gray-500 truncate">{eventTitle}</p>
+                        ) : null}
                     </div>
                     <button
                         type="button"
@@ -90,9 +116,9 @@ export default function PaymentProofReviewModal({
                             onClick={onPrev}
                             className="inline-flex items-center gap-1 px-3 py-2 min-h-[40px] rounded-lg text-xs font-medium text-gray-300 border border-gray-700 disabled:opacity-30"
                         >
-                            <ChevronLeft size={16} /> Prev
+                            <ChevronLeft size={16} /> Previous
                         </button>
-                        <p className="text-[11px] text-gray-500">Swipe through pending payments</p>
+                        <p className="text-[11px] text-gray-500">Next / Previous</p>
                         <button
                             type="button"
                             disabled={!onNext || busy}
@@ -121,14 +147,36 @@ export default function PaymentProofReviewModal({
                     )}
 
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
+                        <div className={`rounded-lg bg-[#111213] border px-3 py-2.5 ${amountMismatch ? 'border-amber-500/50' : 'border-gray-800'}`}>
                             <p className="text-[10px] uppercase text-gray-500">Expected</p>
                             <p className="font-semibold text-[#0ECCEE] text-base">₹{expected.toLocaleString('en-IN')}</p>
                         </div>
-                        <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
+                        <div className={`rounded-lg bg-[#111213] border px-3 py-2.5 ${amountMismatch ? 'border-amber-500/50' : 'border-gray-800'}`}>
                             <p className="text-[10px] uppercase text-gray-500">Recorded</p>
                             <p className="font-semibold text-base">₹{amount.toLocaleString('en-IN')}</p>
                         </div>
+                        {amountMismatch ? (
+                            <div className="col-span-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200">
+                                Amount mismatch — expected ₹{expected.toLocaleString('en-IN')}, recorded ₹{amount.toLocaleString('en-IN')}
+                            </div>
+                        ) : null}
+                        <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
+                            <p className="text-[10px] uppercase text-gray-500">People</p>
+                            <p className="font-semibold">{people}</p>
+                        </div>
+                        <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
+                            <p className="text-[10px] uppercase text-gray-500">Submitted</p>
+                            <p className="font-semibold text-xs">{submittedAt || '—'}</p>
+                        </div>
+                        {runDate ? (
+                            <div className="col-span-2 rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
+                                <p className="text-[10px] uppercase text-gray-500">Run date</p>
+                                <p className="font-semibold text-sm">
+                                    {runDate}
+                                    {participant.trekTime ? ` · ${participant.trekTime}` : ''}
+                                </p>
+                            </div>
+                        ) : null}
                         {participant.transactionId ? (
                             <div className="col-span-2 rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
                                 <p className="text-[10px] uppercase text-gray-500">Txn ID</p>
@@ -165,7 +213,7 @@ export default function PaymentProofReviewModal({
                     </div>
 
                     {!rejectMode ? (
-                        <div className="sticky bottom-0 -mx-4 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-[#161718] via-[#161718] to-transparent space-y-2">
+                        <div className="sticky bottom-0 -mx-4 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-linear-to-t from-[#161718] via-[#161718] to-transparent space-y-2">
                             <button
                                 type="button"
                                 disabled={busy}
@@ -186,6 +234,25 @@ export default function PaymentProofReviewModal({
                         </div>
                     ) : (
                         <div className="space-y-3 pt-1">
+                            <div>
+                                <p className="text-xs text-gray-400 mb-2">Quick reasons</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {REJECT_PRESETS.map((preset) => (
+                                        <button
+                                            key={preset}
+                                            type="button"
+                                            onClick={() => setNote(preset)}
+                                            className={`px-3 py-1.5 rounded-full text-xs border ${
+                                                note === preset
+                                                    ? 'border-red-400/60 bg-red-500/15 text-red-300'
+                                                    : 'border-gray-700 text-gray-300'
+                                            }`}
+                                        >
+                                            {preset}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                             <label className="block">
                                 <span className="text-xs text-gray-400">Reject reason (required)</span>
                                 <textarea
@@ -193,7 +260,7 @@ export default function PaymentProofReviewModal({
                                     onChange={(e) => setNote(e.target.value)}
                                     rows={3}
                                     className="mt-1 w-full rounded-lg bg-[#111213] border border-gray-700 px-3 py-2.5 text-base focus:outline-none focus:border-red-400/50"
-                                    placeholder="e.g. Wrong amount / unclear screenshot / txn not found"
+                                    placeholder="Add or edit the note the runner will see"
                                 />
                             </label>
                             <div className="flex gap-2">

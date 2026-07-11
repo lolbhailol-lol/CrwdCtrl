@@ -18,6 +18,7 @@ export function isTokenExpired(token) {
 
 /**
  * Best available JWT — context first, then localStorage, then token embedded in user JSON.
+ * Prefers non-expired tokens; falls back to the best available JWT so the server can decide.
  */
 export function resolveAuthToken(contextToken = null) {
   const candidates = [];
@@ -27,6 +28,9 @@ export function resolveAuthToken(contextToken = null) {
   try {
     const stored = localStorage.getItem('crwdctrl_token');
     if (isJwtLike(stored)) candidates.push(stored);
+
+    const legacy = localStorage.getItem('token');
+    if (isJwtLike(legacy)) candidates.push(legacy);
 
     const userRaw = localStorage.getItem('crwdctrl_user');
     if (userRaw) {
@@ -38,13 +42,15 @@ export function resolveAuthToken(contextToken = null) {
   }
 
   const seen = new Set();
+  let expiredFallback = null;
   for (const token of candidates) {
     if (seen.has(token)) continue;
     seen.add(token);
     if (!isTokenExpired(token)) return token;
+    if (!expiredFallback) expiredFallback = token;
   }
 
-  return null;
+  return expiredFallback;
 }
 
 export function hasUsableAuthToken(contextToken = null) {

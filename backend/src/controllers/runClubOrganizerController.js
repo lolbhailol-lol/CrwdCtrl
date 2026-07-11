@@ -736,11 +736,13 @@ exports.reviewPayment = async (req, res) => {
                 eventId: req.eventId,
                 eventTitle,
                 title: 'Payment approved — you’re in!',
-                message: `Your payment for ${eventTitle} was approved. Download your ticket anytime.`,
+                message: `Great news! Your payment for ${eventTitle} was approved by the organizer. Download your ticket below and join the club WhatsApp for run updates.`,
                 type: 'registration',
                 link,
-                emailSubject: `Payment approved — ${eventTitle}`,
+                emailSubject: `You’re confirmed — ${eventTitle}`,
                 metadata: { registrationId: String(registration._id), action: 'approve' },
+                includeGroupLink: true,
+                paymentContext: { status: 'paid', method: 'organizer_qr' },
             }).catch((err) => console.error('[reviewPayment.notify.approve]', err));
         } else {
             notifyRunClubParticipant({
@@ -753,6 +755,12 @@ exports.reviewPayment = async (req, res) => {
                 link: '/booking',
                 emailSubject: `Payment not approved — ${eventTitle}`,
                 metadata: { registrationId: String(registration._id), action: 'reject', note },
+                paymentContext: {
+                    status: 'failed',
+                    message: note
+                        ? `Reason: ${note}. You can register again from My Bookings.`
+                        : 'Your payment was not approved. You can register again from My Bookings.',
+                },
             }).catch((err) => console.error('[reviewPayment.notify.reject]', err));
         }
 
@@ -1111,7 +1119,6 @@ exports.resendConfirmation = async (req, res) => {
         const eventTitle = event?.title || 'your run';
         const link = `/registration-details/${bookingId}?type=sports`;
         const title = 'Run Registration Confirmed';
-        const message = `Your registration for ${eventTitle} is confirmed. View your ticket anytime.`;
         const decrypted = decryptRegistrationPii(
             registration,
             resolveEventRunClubId(event, req.organizer),
@@ -1122,11 +1129,15 @@ exports.resendConfirmation = async (req, res) => {
             eventId: req.eventId,
             eventTitle,
             title,
-            message,
+            message: `Your registration for ${eventTitle} is confirmed. Download your ticket and join WhatsApp for run updates.`,
             type: 'registration',
             link,
             emailSubject: `Run registration confirmed — ${eventTitle}`,
             metadata: { registrationId: bookingId, resentBy: 'run_club_organizer' },
+            includeGroupLink: true,
+            paymentContext: {
+                status: Number(registration.amountPaid) > 0 ? 'paid' : 'free',
+            },
         });
 
         if (!result.inApp && !result.push && !result.email) {

@@ -10,6 +10,7 @@ const {
     expireStalePendingRegistrations,
     isAllowedPaymentScreenshotUrl,
     sumSeatsHeld,
+    PENDING_TTL_HOURS,
 } = require('../utils/runClubRegistrationGuards');
 const {
     encryptRegistrationPii,
@@ -17,6 +18,7 @@ const {
     redactRegistrationPii,
     isPiiEncryptionEnabled,
 } = require('../utils/runClubPiiCrypto');
+const { notifyRunClubParticipant } = require('../utils/runClubParticipantOutreach');
 
 const MODEL_MAP = {
     sports: SportsEvent,
@@ -204,6 +206,7 @@ exports.registerForEvent = async (req, res) => {
             bookingTime,
             bookingPeople: people,
             status: regStatus,
+            runClubId: runClubId || null,
         };
 
         // Encrypt participant PII for run-club sports — organizer portal decrypts; admin sees redacted
@@ -247,6 +250,54 @@ exports.registerForEvent = async (req, res) => {
             runClubId,
         );
 
+        // Notify runner: pending QR review vs confirmed booking
+        if (category === 'sports') {
+            const eventTitle = event.title || event.name || 'your run';
+            const detailsLink = `/registration-details/${registration._id}?type=sports`;
+            CategoryRegistration.findById(registration._id)
+                .populate('user', 'name email phoneNumber notificationPreferences')
+                .then((populated) => {
+                    const lean = decryptRegistrationPii(
+                        populated?.toObject ? populated.toObject() : populated || safeReg,
+                        runClubId,
+                    );
+                    if (regStatus === 'pending') {
+                        return notifyRunClubParticipant({
+                            registration: lean,
+                            eventId: resolvedEventId,
+                            eventTitle,
+                            title: 'Payment submitted — awaiting approval',
+                            message: `Thanks! Your payment screenshot for ${eventTitle} was submitted. The run club organizer will review it and confirm your spot. You’ll get another email once it’s approved.`,
+                            type: 'registration',
+                            link: detailsLink,
+                            emailSubject: `Payment submitted — waiting for club approval · ${eventTitle}`,
+                            metadata: { registrationId: String(registration._id), stage: 'pending_review' },
+                            paymentContext: {
+                                status: 'pending',
+                                message: `Your spot is held while the organizer checks your payment. Holds for ${PENDING_TTL_HOURS} hours if not reviewed.`,
+                            },
+                        });
+                    }
+                    return notifyRunClubParticipant({
+                        registration: lean,
+                        eventId: resolvedEventId,
+                        eventTitle,
+                        title: 'Booking confirmed!',
+                        message: `You’re in for ${eventTitle}. Download your ticket and join the club WhatsApp for updates.`,
+                        type: 'registration',
+                        link: detailsLink,
+                        emailSubject: `Booking confirmed — ${eventTitle}`,
+                        metadata: { registrationId: String(registration._id), stage: 'confirmed' },
+                        includeGroupLink: true,
+                        paymentContext: {
+                            status: paymentStatus === 'paid' ? 'paid' : 'free',
+                            method: paymentGateway || '',
+                        },
+                    });
+                })
+                .catch((err) => console.error('[registerForEvent.notify]', err.message));
+        }
+
         res.status(201).json({
             message: regStatus === 'pending'
                 ? 'Registration submitted — waiting for organizer payment approval'
@@ -285,12 +336,22 @@ exports.getMyRegistrations = async (req, res) => {
             ];
             if (sportsIds.length > 0) {
                 const events = await SportsEvent.find({ _id: { $in: sportsIds } })
-                    .select('title eventDate venue city sportType images status coverImage registrationFee')
+                    .select('title eventDate venue city sportType images status coverImage registrationFee runClubId')
                     .lean();
                 const eventMap = Object.fromEntries(events.map((e) => [String(e._id), e]));
+                const clubIds = [...new Set(events.map((e) => e.runClubId).filter(Boolean).map(String))];
+                let clubMap = {};
+                if (clubIds.length > 0) {
+                    const RunClub = require('../model/run_club_model');
+                    const clubs = await RunClub.find({ _id: { $in: clubIds } }).select('name').lean();
+                    clubMap = Object.fromEntries(clubs.map((c) => [String(c._id), c]));
+                }
                 registrations.forEach((reg) => {
                     if (reg.category === 'sports') {
-                        reg.event = eventMap[String(reg.eventId)] || null;
+                        const event = eventMap[String(reg.eventId)] || null;
+                        reg.event = event;
+                        const clubId = event?.runClubId || reg.runClubId;
+                        reg.clubName = clubId ? (clubMap[String(clubId)]?.name || '') : '';
                     }
                 });
             }
@@ -328,9 +389,25 @@ exports.getRegistrationDetails = async (req, res) => {
 
         if (registration.category === 'sports') {
             const event = await SportsEvent.findById(registration.eventId)
-                .select('title eventDate venue city sportType images coverImage status registrationFee reportingTime registration.formSchema registration.formInstructions')
+                .select('title eventDate venue city sportType images coverImage status registrationFee reportingTime registration.formSchema registration.formInstructions runClubId')
                 .lean();
             registration.event = event || null;
+            const clubId = event?.runClubId || registration.runClubId;
+            if (clubId) {
+                const RunClub = require('../model/run_club_model');
+                const club = await RunClub.findById(clubId).select('name groupLink contactPhone').lean();
+                if (club) {
+                    registration.groupLink = String(club.groupLink || '').trim();
+                    registration.clubName = club.name || '';
+                    if (!registration.groupLink) {
+                        const digits = String(club.contactPhone || '').replace(/\D/g, '');
+                        if (digits.length >= 10) {
+                            const phone = digits.length === 10 ? `91${digits}` : digits;
+                            registration.groupLink = `https://wa.me/${phone}`;
+                        }
+                    }
+                }
+            }
         } else if (registration.category === 'trek') {
             const event = await Trek.findById(registration.eventId)
                 .select('trekName city coverImage images trekDate')

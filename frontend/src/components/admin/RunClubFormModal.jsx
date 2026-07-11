@@ -21,6 +21,7 @@ const EMPTY = {
     registration: { status: 'open', mode: 'internal_form' },
     contactPhone: '',
     contactInstagram: '',
+    groupLink: '',
     status: 'published',
 };
 
@@ -41,6 +42,7 @@ function pickClubFormFields(source = {}) {
         registration: { ...EMPTY.registration, ...(source.registration || {}) },
         contactPhone: source.contactPhone || '',
         contactInstagram: source.contactInstagram || '',
+        groupLink: source.groupLink || '',
         status: source.status || 'published',
     };
 }
@@ -287,6 +289,21 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                                     className={inp}
                                     placeholder="@handle"
                                 />
+                            </div>
+                            <div className="flex items-start gap-3">
+                                <span className="text-gray-400 text-sm w-24 shrink-0 pt-2.5">WhatsApp</span>
+                                <div className="flex-1 min-w-0">
+                                    <input
+                                        type="url"
+                                        value={form.groupLink}
+                                        onChange={(e) => set('groupLink', e.target.value)}
+                                        className={inp}
+                                        placeholder="https://chat.whatsapp.com/…"
+                                    />
+                                    <p className="text-[11px] text-gray-500 mt-1">
+                                        Sent to runners after payment is approved. Falls back to club phone if empty.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </AdminFormSection>

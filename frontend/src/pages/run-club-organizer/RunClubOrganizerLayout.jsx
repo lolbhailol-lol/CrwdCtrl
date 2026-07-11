@@ -145,21 +145,33 @@ export default function RunClubOrganizerLayout() {
                     aria-label="Run tools"
                 >
                     <div className="grid grid-cols-4">
-                        {nav.map((item) => (
+                        {nav.map((item) => {
+                            const pendingBadge = item.short === 'Guests'
+                                ? Number(activeEvent?.pendingPaymentReview || 0)
+                                : 0;
+                            return (
                             <NavLink
                                 key={item.path}
                                 to={item.path}
                                 end={item.end}
                                 className={({ isActive }) =>
-                                    `flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px] text-[10px] font-medium transition-colors ${
+                                    `relative flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px] text-[10px] font-medium transition-colors ${
                                         isActive ? 'text-[#0ECCEE]' : 'text-gray-500'
                                     }`
                                 }
                             >
-                                <item.icon size={20} strokeWidth={2} />
+                                <span className="relative">
+                                    <item.icon size={20} strokeWidth={2} />
+                                    {pendingBadge > 0 ? (
+                                        <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-black flex items-center justify-center">
+                                            {pendingBadge > 99 ? '99+' : pendingBadge}
+                                        </span>
+                                    ) : null}
+                                </span>
                                 {item.short}
                             </NavLink>
-                        ))}
+                            );
+                        })}
                     </div>
                 </nav>
             ) : null}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle, Clock } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -22,14 +22,10 @@ import { calculatePlatformFee } from '../../utils/platformFee';
 import { API_BASE_URL } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { sportRunPath } from '../../utils/slugRoutes';
+import { mergeRunFormFields } from '../../utils/formFieldDedupe';
+import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 
 const API = API_BASE_URL;
-
-const DEFAULT_RUN_FORM_FIELDS = [
-    { id: 'default_full_name', label: 'Full Name', fieldName: 'full_name', type: 'text', required: true, placeholder: 'Enter your full name' },
-    { id: 'default_contact', label: 'Contact No.', fieldName: 'contact_no', type: 'tel', required: true, placeholder: '10-digit mobile number' },
-    { id: 'default_email', label: 'E-mail', fieldName: 'email', type: 'email', required: true, placeholder: 'your@email.com' },
-];
 
 function runDraftKey(eventId) {
     return `sports_booking_draft_${eventId}`;
@@ -134,6 +130,11 @@ export default function RunEventBookingPage() {
     const retryCheckoutRef = useRef(null);
 
     const eventName = event?.title || event?.name || 'Run';
+    const clubName =
+        event?.runClub?.name ||
+        location.state?.runClub?.name ||
+        event?.clubName ||
+        'The club';
     const fee = Number(event?.registrationFee) || 0;
     const regMode = event?.registration?.mode || 'internal_form';
     const isOrganizerQr = regMode === 'organizer_qr';
@@ -155,10 +156,7 @@ export default function RunEventBookingPage() {
     const runTimeLabel = String(event?.reportingTime || '').trim();
     const maxPeople = reg.maxPeoplePerBooking || event?.maxParticipants || 10;
 
-    const regSchema = useMemo(() => {
-        const custom = (reg.formSchema || []).filter((f) => f?.label?.trim() && f?.fieldName?.trim());
-        return custom.length > 0 ? [...DEFAULT_RUN_FORM_FIELDS, ...custom] : DEFAULT_RUN_FORM_FIELDS;
-    }, [reg.formSchema]);
+    const regSchema = useMemo(() => mergeRunFormFields(reg.formSchema || []), [reg.formSchema]);
 
     const formInstructions = reg.formInstructions || '';
 
@@ -296,17 +294,14 @@ export default function RunEventBookingPage() {
         const evId = event?._id || event?.id || id;
         if (!evId) throw new Error('Run not found');
 
-        const token = localStorage.getItem('crwdctrl_token') || localStorage.getItem('token');
-        if (!token) {
+        const resolvedToken = resolveAuthToken(authToken);
+        if (!resolvedToken) {
             setShowLogin(true);
             throw new Error('Please log in to complete your booking.');
         }
         const res = await fetch(`${API}/category-registrations/sports/${evId}/register`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
+            headers: getBearerAuthHeaders(resolvedToken),
             body: JSON.stringify({
                 formData,
                 responses: formData,
@@ -627,57 +622,64 @@ export default function RunEventBookingPage() {
     }
 
     if (showSuccess) {
+        const isPendingQr = fee > 0 && isOrganizerQr;
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
-                    <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
-                    <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {fee > 0 && isOrganizerQr
-                            ? 'Payment proof submitted!'
+                    {isPendingQr ? (
+                        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15">
+                            <Clock className="w-9 h-9 text-amber-400" />
+                        </div>
+                    ) : (
+                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
+                    )}
+                    <h1 className={`text-3xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {isPendingQr
+                            ? 'Payment submitted'
                             : fee > 0
                                 ? '🎉 Payment Successful!'
                                 : '🎉 Booking Confirmed!'}
                     </h1>
-                    <p className={`mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {fee > 0 && isOrganizerQr ? (
-                            <>
-                                Your booking for <span className="text-[#0ECCEE] font-semibold">{eventName}</span> is pending organizer approval.
-                            </>
+                    <p className={`${isPendingQr ? 'mb-2' : 'mb-6'} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {isPendingQr ? (
+                            <>{clubName} will confirm your payment soon.</>
                         ) : (
                             <>
-                        Your booking for <span className="text-[#0ECCEE] font-semibold">{eventName}</span> has been confirmed.
+                                Your booking for <span className="text-[#0ECCEE] font-semibold">{eventName}</span> has been confirmed.
                             </>
                         )}
                     </p>
-                    <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        {fee > 0 && isOrganizerQr
-                            ? 'You’ll get a confirmation once the run club approves your payment screenshot.'
-                            : 'Download your ticket or view all bookings whenever you’re ready.'}
-                    </p>
+                    {isPendingQr ? (
+                        <p className={`mb-6 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            Holds for 48 hours if not reviewed.
+                        </p>
+                    ) : null}
 
                     <div className={`rounded-xl p-5 mb-6 text-left ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
                         <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Booking Details</p>
                         {[
+                            { label: 'Status', value: isPendingQr ? 'Pending club approval' : 'Confirmed' },
                             { label: 'Date', value: selDate || '—' },
-                            { label: 'Time', value: selTime },
+                            ...(selTime ? [{ label: 'Time', value: selTime }] : []),
                             { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
                             { label: 'Entry Fee', value: fee > 0 ? `₹${baseFee.toLocaleString('en-IN')}` : 'Free' },
-                            ...(fee > 0 && isOrganizerQr
+                            ...(isPendingQr
                                 ? [{ label: 'Amount paid to club', value: `₹${payableAmount.toLocaleString('en-IN')}` }]
                                 : total > 0
                                     ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }]
                                     : []),
                             ...(paymentId ? [{ label: 'Payment ID', value: paymentId.slice(0, 18) + '…' }] : []),
+                            ...(transactionId && isPendingQr ? [{ label: 'UPI / Txn ID', value: transactionId }] : []),
                         ].map((r) => (
                             <div key={r.label} className={`flex justify-between text-sm py-2 border-b last:border-0 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                                 <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{r.label}</span>
-                                <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{r.value}</span>
+                                <span className={`font-semibold text-right max-w-[60%] break-all ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{r.value}</span>
                             </div>
                         ))}
                     </div>
 
                     <div className="flex flex-col gap-3">
-                        {bookingId && !(fee > 0 && isOrganizerQr) && (
+                        {bookingId && !isPendingQr && (
                             <button type="button"
                                 onClick={() => navigate(`/qr-ticket/${bookingId}?type=sports`, { state: { refreshBookings: true } })}
                                 className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
@@ -685,8 +687,37 @@ export default function RunEventBookingPage() {
                             </button>
                         )}
                         <button type="button"
-                            onClick={() => goToBookings(navigate)}
-                            className={`w-full py-3.5 rounded-xl font-semibold transition ${bookingId && !(fee > 0 && isOrganizerQr) ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:opacity-90'}`}>
+                            onClick={() => {
+                                const pending = isPendingQr && bookingId
+                                    ? {
+                                        id: bookingId,
+                                        name: eventName,
+                                        image: event?.coverImage || event?.images?.[0] || null,
+                                        date: event?.eventDate || selDate || null,
+                                        venue: event?.venue || event?.city || '',
+                                        type: 'sports',
+                                        status: 'upcoming',
+                                        registrationStatus: 'pending',
+                                        registrationType: 'sports',
+                                        isCompetition: false,
+                                        isTrek: false,
+                                        isSports: true,
+                                        clubName,
+                                        paymentAmount: payableAmount,
+                                        paymentStatus: 'pending',
+                                        amountPaid: payableAmount,
+                                        registeredAt: new Date().toISOString(),
+                                    }
+                                    : null;
+                                goToBookings(navigate, pending);
+                            }}
+                            className={`w-full py-3.5 rounded-xl font-semibold transition ${
+                                isPendingQr || !bookingId
+                                    ? 'text-black bg-[#0ECCEE] hover:opacity-90'
+                                    : isDark
+                                        ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
+                                        : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                            }`}>
                             View My Bookings
                         </button>
                         <button type="button"
@@ -900,12 +931,12 @@ export default function RunEventBookingPage() {
                                         setUploadingProof(true);
                                         setError('');
                                         try {
-                                            const token = localStorage.getItem('crwdctrl_token') || localStorage.getItem('token');
+                                            const uploadToken = resolveAuthToken(authToken);
                                             const fd = new FormData();
                                             fd.append('image', file);
                                             const res = await fetch(`${API}/users/upload/image`, {
                                                 method: 'POST',
-                                                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                                headers: uploadToken ? { Authorization: `Bearer ${uploadToken}` } : {},
                                                 body: fd,
                                             });
                                             const data = await res.json().catch(() => ({}));

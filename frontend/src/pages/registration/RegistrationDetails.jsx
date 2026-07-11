@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Calendar, MapPin, Receipt } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { ArrowLeft, CheckCircle, Calendar, MapPin, Receipt, Clock } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 
-import { userFetchJSON } from '../../services/api/client';
+import { userFetchJSONStrict } from '../../services/api/auth.api';
 import JoinCommunityButton from '../../components/JoinCommunityButton';
+import {
+  dedupeFormFields,
+  dedupeResponseEntries,
+  responseAliasGroup,
+  mergeRunFormFields,
+} from '../../utils/formFieldDedupe';
 
 function normalizeResponses(responses) {
   if (!responses) return {};
@@ -41,17 +47,17 @@ function getRegistrationFormFields(registration) {
   if (comp?.registrationType === 'custom' && comp.registration) {
     const reg = comp.registration;
     if (reg.formType === 'MULTI_STEP' && reg.steps?.length) {
-      return reg.steps.flatMap((s) => s.fields || []);
+      return dedupeFormFields(reg.steps.flatMap((s) => s.fields || []));
     }
-    return reg.formSchema || [];
+    return dedupeFormFields(reg.formSchema || []);
   }
 
   if (fest?.registration) {
     const reg = fest.registration;
     if (reg.formType === 'MULTI_STEP' && reg.steps?.length) {
-      return reg.steps.flatMap((s) => s.fields || []);
+      return dedupeFormFields(reg.steps.flatMap((s) => s.fields || []));
     }
-    return reg.formSchema || [];
+    return dedupeFormFields(reg.formSchema || []);
   }
 
   return [];
@@ -60,30 +66,33 @@ function getRegistrationFormFields(registration) {
 export default function RegistrationDetails() {
   const { registrationId } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const isTrekBooking = searchParams.get('type') === 'trek';
   const isEventRegistration = searchParams.get('type') === 'event';
   const isSportsRegistration = searchParams.get('type') === 'sports';
   const navigate = useNavigate();
   const { isDark } = useDarkMode();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token } = useAuth();
   const [registration, setRegistration] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState('');
+  const pendingHint = location.state?.pendingApproval || null;
 
-   
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate('/login', { state: { from: location.pathname + location.search } });
       return;
     }
 
     fetchRegistrationDetails();
-  }, [registrationId, isAuthenticated, isTrekBooking, isEventRegistration, isSportsRegistration, navigate]);
+  }, [registrationId, isAuthenticated, token, isTrekBooking, isEventRegistration, isSportsRegistration, navigate]);
 
   const fetchRegistrationDetails = async () => {
     try {
       setLoading(true);
       setError('');
+      setErrorCode('');
       const path = isTrekBooking
         ? `/registrations/trek-booking/${registrationId}`
         : isEventRegistration
@@ -92,23 +101,11 @@ export default function RegistrationDetails() {
             ? `/category-registrations/details/${registrationId}`
             : `/registrations/details/${registrationId}`;
 
-      const data = await userFetchJSON(path);
-
-      if (!data) {
-        throw new Error(
-          isTrekBooking
-            ? 'Trek booking not found'
-            : isEventRegistration
-              ? 'Event registration not found'
-              : isSportsRegistration
-                ? 'Run registration not found'
-                : 'Failed to fetch registration details',
-        );
-      }
-
+      const data = await userFetchJSONStrict(path, { token, cacheBust: true });
       setRegistration(data);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Something went wrong');
+      setErrorCode(err.code || '');
     } finally {
       setLoading(false);
     }
@@ -141,18 +138,76 @@ export default function RegistrationDetails() {
   }
 
   if (error || !registration) {
+    const clubLabel = pendingHint?.clubName || 'The club';
+    const isAuthError = errorCode === 'AUTH_401' || errorCode === 'NO_AUTH_TOKEN'
+      || /authentication failed/i.test(error || '');
+    const isNotFound = errorCode === 'NOT_FOUND' || /not found/i.test(error || '');
+    // Only show pending-friendly UI when we arrived from a known pending submit/card
+    const showPendingFriendly = isSportsRegistration && !!pendingHint && !isAuthError;
+
+    if (showPendingFriendly) {
+      return (
+        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+          <div className="text-center max-w-md mx-auto w-full">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15">
+              <Clock className="w-9 h-9 text-amber-400" />
+            </div>
+            <h2 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Payment submitted
+            </h2>
+            <p className={`mb-6 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {clubLabel} will confirm your payment soon.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/booking', { state: { refreshBookings: true } })}
+              className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+            >
+              View My Bookings
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const title = isAuthError
+      ? 'Please log in again'
+      : isNotFound
+        ? 'Booking not found'
+        : 'Couldn’t load this booking';
+    const body = isAuthError
+      ? 'Your session expired. Log in to view this booking.'
+      : isNotFound
+        ? 'This registration isn’t available. Check My Bookings for your latest runs.'
+        : (error || 'Please go back to My Bookings and try again.');
+
     return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-            {error || 'Registration not found'}
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+        <div className="text-center max-w-sm">
+          <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-3`}>
+            {title}
           </h2>
-          <button
-            onClick={() => navigate('/booking')}
-            className="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-600 transition"
-          >
-            Back to Registered Events
-          </button>
+          <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            {body}
+          </p>
+          <div className="flex flex-col gap-3">
+            {isAuthError ? (
+              <button
+                type="button"
+                onClick={() => navigate('/login', { state: { from: location.pathname + location.search } })}
+                className="bg-[#0ECCEE] text-black px-6 py-3 rounded-xl font-semibold hover:opacity-90 transition"
+              >
+                Log in again
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => navigate('/booking')}
+              className={`${isAuthError ? 'border border-gray-600 text-gray-200' : 'bg-[#0ECCEE] text-white'} px-6 py-3 rounded-xl font-semibold hover:opacity-90 transition`}
+            >
+              Back to My Bookings
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -197,11 +252,24 @@ export default function RegistrationDetails() {
     : [];
 
   const sportsFormFields = isSportsRegistration
-    ? (sportsEvent.registration?.formSchema || [])
+    ? mergeRunFormFields(sportsEvent.registration?.formSchema || [])
     : [];
 
+  const sportsSchemaKeys = new Set(
+    sportsFormFields.flatMap((f) => [f.fieldName, f.id, f.id ? `field_${f.id}` : null].filter(Boolean)),
+  );
+
   const sportsResponses = isSportsRegistration
-    ? Object.entries(normalizeResponses(registration.responses) || {}).filter(([k]) => !['people', 'date', 'time'].includes(k))
+    ? dedupeResponseEntries(
+        Object.entries(normalizeResponses(registration.responses) || {}).filter(([k]) => {
+          if (['people', 'date', 'time'].includes(k)) return false;
+          if (k.endsWith('_file')) return false;
+          if (sportsSchemaKeys.has(k)) return false;
+          const alias = responseAliasGroup(k);
+          if (alias && [...sportsSchemaKeys].some((sk) => responseAliasGroup(sk) === alias)) return false;
+          return true;
+        }),
+      )
     : [];
 
   const paymentInfo = isTrekBooking
@@ -252,6 +320,13 @@ export default function RegistrationDetails() {
       ).trim()
     : '';
 
+  const sportsGroupLink = isSportsRegistration && !isPendingSports && !isRejectedSports
+    ? String(registration.groupLink || '').trim()
+    : '';
+  const sportsClubName = registration.clubName || '';
+  const sportsWaIsPhone = /^https?:\/\/wa\.me\//i.test(sportsGroupLink);
+  const sportsWaLabel = sportsWaIsPhone ? 'Message club on WhatsApp' : 'Join WhatsApp group';
+
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 sm:pt-[calc(env(safe-area-inset-top)+2rem)] sm:pb-8">
       <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -267,17 +342,23 @@ export default function RegistrationDetails() {
           </button>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <CheckCircle className={`w-5 h-5 sm:w-6 sm:h-6 shrink-0 ${isPendingSports ? 'text-amber-400' : isRejectedSports ? 'text-red-400' : 'text-green-500'}`} />
+              {isPendingSports ? (
+                <Clock className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 text-amber-400" />
+              ) : (
+                <CheckCircle className={`w-5 h-5 sm:w-6 sm:h-6 shrink-0 ${isRejectedSports ? 'text-red-400' : 'text-green-500'}`} />
+              )}
               <h1 className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {isPendingSports
-                  ? 'Awaiting payment approval'
+                  ? 'Payment submitted'
                   : isRejectedSports
                     ? 'Payment not approved'
                     : 'Registration Confirmed'}
               </h1>
             </div>
             <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-0.5`}>
-              {isTrekBooking
+              {isPendingSports
+                ? `${sportsClubName || 'The club'} will confirm your payment soon.`
+                : isTrekBooking
                 ? 'Trek Booking'
                 : isEventRegistration
                   ? 'Event Registration'
@@ -291,10 +372,30 @@ export default function RegistrationDetails() {
         </div>
 
         {isPendingSports ? (
-          <div className={`rounded-xl p-4 mb-4 border ${isDark ? 'bg-amber-900/20 border-amber-700/40 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-            Your payment screenshot is with the run club. You’ll get a ticket once they approve it.
+          <div className={`rounded-xl p-4 mb-4 border ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Status</span>
+                <span className={`font-medium ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>Pending approval</span>
+              </div>
+              {paymentInfo.amountPaid > 0 ? (
+                <div className="flex justify-between gap-3">
+                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Amount paid to club</span>
+                  <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatAmount(paymentInfo.amountPaid)}</span>
+                </div>
+              ) : null}
+              {registration.transactionId ? (
+                <div className="flex justify-between gap-3">
+                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>UPI / Txn ID</span>
+                  <span className={`font-medium text-right break-all max-w-[60%] ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {registration.transactionId}
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
         ) : null}
+
         {isRejectedSports && registration.paymentReviewNote ? (
           <div className={`rounded-xl p-4 mb-4 border ${isDark ? 'bg-red-900/20 border-red-700/40 text-red-200' : 'bg-red-50 border-red-200 text-red-800'}`}>
             {registration.paymentReviewNote}
@@ -425,6 +526,23 @@ export default function RegistrationDetails() {
           </div>
         )}
 
+        {sportsGroupLink && (
+          <div className={`${isDark ? 'bg-[#0d2818] border border-green-900/50' : 'bg-green-50 border border-green-100'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
+            <h2 className={`text-lg sm:text-xl font-semibold mb-2 ${isDark ? 'text-green-300' : 'text-green-800'}`}>
+              Join WhatsApp for run updates
+            </h2>
+            <p className={`text-sm mb-4 ${isDark ? 'text-green-400/80' : 'text-green-700'}`}>
+              Stay in the loop for <strong>{eventName}</strong>
+              {sportsClubName ? <> with <strong>{sportsClubName}</strong></> : null}.
+            </p>
+            <JoinCommunityButton
+              groupLink={sportsGroupLink}
+              label={sportsWaLabel}
+              className="bg-[#25D366] text-white hover:opacity-90"
+            />
+          </div>
+        )}
+
         {hasPaymentReceipt && (
           <div className={`${isDark ? 'bg-[#1D1E20]' : 'bg-white'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
             <div className="flex items-center gap-2 mb-4">
@@ -539,23 +657,43 @@ export default function RegistrationDetails() {
                     </div>
                   ) : null}
                   {sportsFormFields.length > 0
-                    ? sportsFormFields.map((field, index) => {
-                        const value = getResponseValue(registration.responses, field);
-                        const renderedValue = renderFieldValue(field, value);
-                        if (!renderedValue) return null;
-                        return (
-                          <div key={index} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                    ? (
+                      <>
+                        {sportsFormFields.map((field, index) => {
+                          const value = getResponseValue(registration.responses, field);
+                          const renderedValue = renderFieldValue(field, value);
+                          if (!renderedValue) return null;
+                          return (
+                            <div key={field.fieldName || field.id || index} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                              <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                                <div className="sm:w-1/3">
+                                  <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{field.label}</label>
+                                </div>
+                                <div className="sm:w-2/3">
+                                  <div className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{renderedValue}</div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {sportsResponses.map(([key, value]) => (
+                          <div key={key} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
                             <div className="flex flex-col sm:flex-row sm:items-start gap-2">
                               <div className="sm:w-1/3">
-                                <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{field.label}</label>
+                                <label className={`text-sm font-medium capitalize ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                  {key.replace(/_/g, ' ')}
+                                </label>
                               </div>
                               <div className="sm:w-2/3">
-                                <div className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{renderedValue}</div>
+                                <div className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                  {typeof value === 'object' ? JSON.stringify(value) : (value || 'Not provided')}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        );
-                      })
+                        ))}
+                      </>
+                    )
                     : sportsResponses.map(([key, value]) => (
                         <div key={key} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
                           <div className="flex flex-col sm:flex-row sm:items-start gap-2">
@@ -644,7 +782,7 @@ export default function RegistrationDetails() {
             </div>
           )}
 
-          {!isTrekBooking && !isEventRegistration && registrationFormFields.length === 0 && (
+          {!isTrekBooking && !isEventRegistration && !isSportsRegistration && registrationFormFields.length === 0 && (
             <div className="space-y-3 sm:space-y-4">
               {Object.entries(normalizeResponses(registration.responses))
                 .filter(([key]) => !key.endsWith('_file'))
@@ -707,23 +845,36 @@ export default function RegistrationDetails() {
                 : 'border-gray-300 text-gray-700 hover:bg-gray-50'
             }`}
           >
-            Back to Registered Events
+            Back to My Bookings
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              navigate(
-                isTrekBooking
-                  ? `/qr-ticket/${registrationId}?type=trek`
-                  : isEventRegistration
-                    ? `/qr-ticket/${registrationId}?type=event`
-                    : `/qr-ticket/${registrationId}`
-              )
-            }
-            className="px-6 py-3 rounded-lg bg-[#0ECCEE] text-black font-medium hover:opacity-90 transition"
-          >
-            Download Ticket
-          </button>
+          {!isPendingSports && !isRejectedSports ? (
+            <button
+              type="button"
+              onClick={() =>
+                navigate(
+                  isTrekBooking
+                    ? `/qr-ticket/${registrationId}?type=trek`
+                    : isEventRegistration
+                      ? `/qr-ticket/${registrationId}?type=event`
+                      : isSportsRegistration
+                        ? `/qr-ticket/${registrationId}?type=sports`
+                        : `/qr-ticket/${registrationId}`
+                )
+              }
+              className="px-6 py-3 rounded-lg bg-[#0ECCEE] text-black font-medium hover:opacity-90 transition"
+            >
+              Download Ticket
+            </button>
+          ) : null}
+          {isRejectedSports && isSportsRegistration ? (
+            <button
+              type="button"
+              onClick={() => navigate('/sports')}
+              className="px-6 py-3 rounded-lg bg-[#0ECCEE] text-black font-medium hover:opacity-90 transition"
+            >
+              Browse runs &amp; register again
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

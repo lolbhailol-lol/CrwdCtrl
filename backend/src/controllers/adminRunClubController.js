@@ -46,6 +46,7 @@ function sanitizeRunClubBody(body = {}) {
     }
     if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
     if (body.contactInstagram !== undefined) payload.contactInstagram = String(body.contactInstagram || '').trim();
+    if (body.groupLink !== undefined) payload.groupLink = String(body.groupLink || '').trim();
     if (body.showOnSportsPage !== undefined) payload.showOnSportsPage = Boolean(body.showOnSportsPage);
     if (body.showInRunClubs !== undefined) payload.showInRunClubs = Boolean(body.showInRunClubs);
     if (body.runClubPriority !== undefined) {

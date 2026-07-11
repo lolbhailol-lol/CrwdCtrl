@@ -21,6 +21,8 @@ const runClubSchema = new mongoose.Schema(
         },
         contactPhone: { type: String, trim: true, default: '' },
         contactInstagram: { type: String, trim: true, default: '' },
+        /** WhatsApp / community invite — sent after payment approval */
+        groupLink: { type: String, trim: true, default: '' },
         showOnSportsPage: { type: Boolean, default: true },
         showInRunClubs: { type: Boolean, default: true },
         runClubPriority: { type: Number, default: 999, min: 1, max: 999 },

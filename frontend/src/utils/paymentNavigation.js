@@ -3,8 +3,14 @@
 export const BOOKING_REDIRECT_MS = 800;
 export const PAYMENT_VERIFY_RETRY_MS = [600, 1000, 1500, 2000];
 
-export function goToBookings(navigate) {
-  navigate('/booking', { replace: true, state: { refreshBookings: true } });
+export function goToBookings(navigate, pendingBooking = null) {
+  navigate('/booking', {
+    replace: true,
+    state: {
+      refreshBookings: true,
+      ...(pendingBooking ? { pendingBooking } : {}),
+    },
+  });
 }
 
 export function scheduleGoToBookings(navigate, delayMs = BOOKING_REDIRECT_MS) {

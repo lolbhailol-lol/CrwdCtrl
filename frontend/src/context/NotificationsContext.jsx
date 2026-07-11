@@ -102,7 +102,7 @@ export const NotificationsProvider = ({ children }) => {
         }
     }, [pushPopup]);
 
-    const fetchNotifications = useCallback(async () => {
+    const fetchNotifications = useCallback(async ({ announceNew = true } = {}) => {
         try {
             const data = await authFetchJSON('/notifications?limit=20');
             if (data && data.success) {
@@ -110,22 +110,12 @@ export const NotificationsProvider = ({ children }) => {
                 setNotifications(nextNotifications);
 
                 const seenIds = seenNotificationIdsRef.current;
-                const now = Date.now();
-                const isFresh = (notification) => {
-                    if (!notification?.timestamp) return false;
-                    const createdAt = new Date(notification.timestamp).getTime();
-                    return Number.isFinite(createdAt) && (now - createdAt) < 2 * 60 * 1000;
-                };
 
-                if (!hasInitializedRef.current) {
+                // First load (or post-login hydrate): seed seen IDs only — never replay old toasts.
+                if (!hasInitializedRef.current || !announceNew) {
                     nextNotifications.forEach((notification) => {
                         if (notification?.id) seenIds.add(notification.id);
                     });
-
-                    nextNotifications
-                        .filter(isFresh)
-                        .forEach((notification) => notifyUser(notification));
-
                     hasInitializedRef.current = true;
                     return;
                 }
@@ -204,12 +194,13 @@ export const NotificationsProvider = ({ children }) => {
         }
 
         setIsLoading(true);
-        fetchNotifications().finally(() => setIsLoading(false));
+        // Hydrate list quietly — do not replay history as toasts
+        fetchNotifications({ announceNew: false }).finally(() => setIsLoading(false));
         fetchUnreadCount();
 
         const poll = () => {
             fetchUnreadCount();
-            fetchNotifications();
+            fetchNotifications({ announceNew: true });
         };
 
         pollIntervalRef.current = setInterval(poll, VISIBLE_POLL_MS);
@@ -239,7 +230,7 @@ export const NotificationsProvider = ({ children }) => {
         const unsubFCM = onForegroundMessage((payload) => {
             const { title, body } = payload.notification || {};
             const notificationId = payload.data?.notificationId || payload.messageId;
-            fetchNotifications();
+            fetchNotifications({ announceNew: true });
             fetchUnreadCount();
             if (title) {
                 notifyUser({
@@ -265,23 +256,54 @@ export const NotificationsProvider = ({ children }) => {
     }, [fetchNotifications, fetchUnreadCount, registerPushToken, notifyUser]);
 
     useEffect(() => {
+        let absorbTimer = null;
+        let pushTimer = null;
+
         const onUserLogin = () => {
-            // Refresh bell list but do not re-popup login — showLoginPopup handles that once.
-            hasInitializedRef.current = true;
-            fetchNotifications();
+            // Re-hydrate quietly so login / old items don't flood the screen.
+            // Live toasts still come from FCM, explicit app popups, and later polls for truly new IDs.
+            setPopupItems([]);
+            seenNotificationIdsRef.current = new Set();
+            hasInitializedRef.current = false;
+            fetchNotifications({ announceNew: false });
             fetchUnreadCount();
-            setTimeout(registerPushToken, 2000);
+            if (absorbTimer) window.clearTimeout(absorbTimer);
+            // Server may create a "Login successful" row slightly after auth — absorb it silently.
+            absorbTimer = window.setTimeout(() => {
+                fetchNotifications({ announceNew: false });
+                fetchUnreadCount();
+            }, 2500);
+            if (pushTimer) window.clearTimeout(pushTimer);
+            pushTimer = window.setTimeout(registerPushToken, 2000);
+        };
+
+        const onUserLogout = () => {
+            if (absorbTimer) window.clearTimeout(absorbTimer);
+            if (pushTimer) window.clearTimeout(pushTimer);
+            setNotifications([]);
+            setUnreadCount(0);
+            setPopupItems([]);
+            seenNotificationIdsRef.current = new Set();
+            hasInitializedRef.current = false;
         };
 
         window.addEventListener('crwdctrl:user-login', onUserLogin);
-        return () => window.removeEventListener('crwdctrl:user-login', onUserLogin);
+        window.addEventListener('crwdctrl:user-logout', onUserLogout);
+        return () => {
+            if (absorbTimer) window.clearTimeout(absorbTimer);
+            if (pushTimer) window.clearTimeout(pushTimer);
+            window.removeEventListener('crwdctrl:user-login', onUserLogin);
+            window.removeEventListener('crwdctrl:user-logout', onUserLogout);
+        };
     }, [fetchNotifications, fetchUnreadCount, registerPushToken]);
 
     useEffect(() => {
         const handleStorageChange = (e) => {
             if (e.key === 'crwdctrl_token') {
                 if (e.newValue) {
-                    fetchNotifications();
+                    hasInitializedRef.current = false;
+                    seenNotificationIdsRef.current = new Set();
+                    fetchNotifications({ announceNew: false });
                     fetchUnreadCount();
                 } else {
                     setNotifications([]);
@@ -351,14 +373,14 @@ export const NotificationsProvider = ({ children }) => {
     };
 
     const refreshNotifications = () => {
-        fetchNotifications();
+        fetchNotifications({ announceNew: true });
         fetchUnreadCount();
     };
 
     const enableBrowserNotifications = async () => {
         const ok = await registerPushToken({ forcePrompt: true });
         if (ok) {
-            fetchNotifications();
+            fetchNotifications({ announceNew: false });
             fetchUnreadCount();
         }
         return ok;

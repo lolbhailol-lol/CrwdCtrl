@@ -12,7 +12,7 @@ import {
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 import { normalizeTrekBatches, EMPTY_BATCH } from '../../utils/trekDateDisplay';
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
-import { normalizeItineraryForForm, serializeItineraryForSave, EMPTY_MAIN_POINT, EMPTY_SUB_POINT } from '../../utils/trekItinerary';
+import { normalizeItineraryForForm, serializeItineraryForSave, EMPTY_MAIN_POINT, EMPTY_SUB_POINT, parsePastedSchedulePoints } from '../../utils/trekItinerary';
 import { ScheduleMainMarker, ScheduleSubMarker } from '../SchedulePointMarkers';
 import TrekDetailBoxesEditor from './TrekDetailBoxesEditor';
 import TrekRegistrationFeePicker from './TrekRegistrationFeePicker';
@@ -276,6 +276,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
     const [uploadingCover, setUploadingCover] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [pasteByDay, setPasteByDay] = useState({});
 
     const categoryOptions = (communityCategories || [])
         .map(label => ({ label, value: normalizeCategory(label) }))
@@ -388,6 +389,32 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 return { ...d, points: [...(d.points || []), point] };
             }),
         }));
+    };
+
+    const applyPastedPoints = (dayIdx) => {
+        const raw = pasteByDay[dayIdx] || '';
+        const parsed = parsePastedSchedulePoints(raw);
+        if (!parsed.length) return;
+        setForm((f) => ({
+            ...f,
+            itinerary: (f.itinerary || []).map((d, i) => {
+                if (i !== dayIdx) return d;
+                const existing = (d.points || []).filter((p) => String(p.text || '').trim());
+                return { ...d, points: [...existing, ...parsed] };
+            }),
+        }));
+        setPasteByDay((prev) => ({ ...prev, [dayIdx]: '' }));
+    };
+
+    const replaceWithPastedPoints = (dayIdx) => {
+        const raw = pasteByDay[dayIdx] || '';
+        const parsed = parsePastedSchedulePoints(raw);
+        if (!parsed.length) return;
+        setForm((f) => ({
+            ...f,
+            itinerary: (f.itinerary || []).map((d, i) => (i === dayIdx ? { ...d, points: parsed } : d)),
+        }));
+        setPasteByDay((prev) => ({ ...prev, [dayIdx]: '' }));
     };
 
     const updateItineraryPoint = (dayIdx, pointIdx, field, value) => {
@@ -586,7 +613,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         </div>
                     </FormSection>
 
-                    <FormSection step="5" title="Trek Info — Schedule" subtitle="Main points with a dot; sub-points sit indented under the main text." optional>
+                    <FormSection step="5" title="Trek Info — Schedule" subtitle="Paste all lines at once, then mark Main or Sub on each row." optional>
                         <div className="flex items-center justify-between">
                             <p className="text-xs text-gray-500">Leave empty if you don&apos;t need a schedule yet.</p>
                             <button type="button" onClick={addItineraryDay} className="flex items-center gap-1 text-xs text-[#0ECCEE] hover:opacity-80 transition-opacity"><Plus size={12} /> Add Day</button>
@@ -599,9 +626,40 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 </div>
                                 <input type="text" value={day.title || ''} onChange={e => updateItinerary(idx, 'title', e.target.value)} className={inp} placeholder="Day title" />
                                 <div className="space-y-2">
-                                    <p className="text-[11px] font-medium text-gray-400">Schedule points</p>
+                                    <div className="rounded-lg border border-dashed border-gray-600/80 p-2.5 space-y-2">
+                                        <p className="text-[11px] font-medium text-gray-400">Paste schedule (one point per line)</p>
+                                        <textarea
+                                            value={pasteByDay[idx] || ''}
+                                            onChange={(e) => setPasteByDay((prev) => ({ ...prev, [idx]: e.target.value }))}
+                                            rows={4}
+                                            className={`${inp} resize-y min-h-[88px]`}
+                                            placeholder={'Reach base camp\n  Check-in & briefing\nEvening trek\n  Sunset viewpoint'}
+                                        />
+                                        <p className="text-[10px] text-gray-600">
+                                            Tip: indent a line (2 spaces) to auto-mark it as Sub. You can still switch Main / Sub after.
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={!String(pasteByDay[idx] || '').trim()}
+                                                onClick={() => replaceWithPastedPoints(idx)}
+                                                className="px-3 py-1.5 rounded-lg bg-[#0ECCEE] text-black text-xs font-semibold disabled:opacity-40"
+                                            >
+                                                Replace with paste
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={!String(pasteByDay[idx] || '').trim()}
+                                                onClick={() => applyPastedPoints(idx)}
+                                                className="px-3 py-1.5 rounded-lg border border-gray-600 text-gray-300 text-xs font-medium disabled:opacity-40"
+                                            >
+                                                Append paste
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] font-medium text-gray-400">Schedule points — tap Main or Sub</p>
                                     {(day.points || []).length === 0 ? (
-                                        <p className="text-xs text-gray-600 border border-dashed border-gray-600 rounded-lg px-3 py-2">No points yet.</p>
+                                        <p className="text-xs text-gray-600 border border-dashed border-gray-600 rounded-lg px-3 py-2">No points yet — paste above or add one.</p>
                                     ) : (
                                         (day.points || []).map((point, pointIdx) => {
                                             const isSub = point.level === 'sub';

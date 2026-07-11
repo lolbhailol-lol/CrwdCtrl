@@ -137,14 +137,17 @@ export default function RunClubOrganizerParticipantsPage() {
     const [checkInFilter, setCheckInFilter] = useState('');
     const [page, setPage] = useState(1);
     const [reviewTarget, setReviewTarget] = useState(null);
+    const [reviewQueue, setReviewQueue] = useState([]);
     const [notifyTarget, setNotifyTarget] = useState(null);
+
+    const pendingCount = Number(stats?.pendingPaymentReview ?? 0);
 
     const hasFilters = search || paymentFilter || checkInFilter;
 
-    const pendingQueue = useMemo(
-        () => rows.filter((r) => r.paymentStatus === 'Pending review' || r.status === 'pending'),
-        [rows],
-    );
+    const pendingQueue = useMemo(() => {
+        if (reviewQueue.length > 0) return reviewQueue;
+        return rows.filter((r) => r.paymentStatus === 'Pending review' || r.status === 'pending');
+    }, [rows, reviewQueue]);
     const reviewIndex = reviewTarget
         ? pendingQueue.findIndex((r) => r.bookingId === reviewTarget.bookingId)
         : -1;
@@ -156,6 +159,24 @@ export default function RunClubOrganizerParticipantsPage() {
         }, 350);
         return () => clearTimeout(t);
     }, [searchInput]);
+
+    const loadReviewQueue = useCallback(async () => {
+        if (!eventId) return [];
+        try {
+            const data = await fetchRunClubOrganizerParticipants(eventId, {
+                page: 1,
+                limit: 200,
+                paymentStatus: 'pending_review',
+                sortBy: 'createdAt',
+                sortDir: 'asc',
+            });
+            const list = data.participants || [];
+            setReviewQueue(list);
+            return list;
+        } catch {
+            return [];
+        }
+    }, [eventId]);
 
     const load = useCallback(async () => {
         if (!eventId) return;
@@ -186,17 +207,39 @@ export default function RunClubOrganizerParticipantsPage() {
         load();
     }, [load]);
 
+    useEffect(() => {
+        if (paymentFilter === 'pending_review') {
+            loadReviewQueue();
+        }
+    }, [paymentFilter, loadReviewQueue]);
+
     const advanceReviewQueue = useCallback((bookingIdJustHandled) => {
-        const remaining = pendingQueue.filter((r) => r.bookingId !== bookingIdJustHandled);
-        if (remaining.length === 0) {
-            setReviewTarget(null);
+        setReviewQueue((prev) => {
+            const source = prev.length > 0
+                ? prev
+                : rows.filter((r) => r.paymentStatus === 'Pending review' || r.status === 'pending');
+            const remaining = source.filter((r) => r.bookingId !== bookingIdJustHandled);
+            if (remaining.length === 0) {
+                setReviewTarget(null);
+                toast('All caught up — no pending payments left');
+                return [];
+            }
+            const idx = source.findIndex((r) => r.bookingId === bookingIdJustHandled);
+            const next = remaining[Math.min(Math.max(idx, 0), remaining.length - 1)] || remaining[0];
+            setReviewTarget(next);
+            return remaining;
+        });
+    }, [rows, toast]);
+
+    const startReviewQueue = useCallback(async () => {
+        const list = await loadReviewQueue();
+        if (list.length === 0) {
+            toast('No payments need review');
             return;
         }
-        const idx = pendingQueue.findIndex((r) => r.bookingId === bookingIdJustHandled);
-        const next = remaining[Math.min(Math.max(idx, 0), remaining.length - 1)]
-            || remaining[0];
-        setReviewTarget(next);
-    }, [pendingQueue]);
+        setPaymentFilter('pending_review');
+        setReviewTarget(list[0]);
+    }, [loadReviewQueue, toast]);
 
     const handleExport = async () => {
         setExporting(true);
@@ -280,7 +323,6 @@ export default function RunClubOrganizerParticipantsPage() {
     };
 
     const startIndex = (pagination.page - 1) * pagination.limit;
-    const pendingCount = stats?.pendingPaymentReview ?? 0;
 
     return (
         <div className="space-y-5 max-w-4xl mx-auto">
@@ -326,7 +368,7 @@ export default function RunClubOrganizerParticipantsPage() {
             {paymentFilter === 'pending_review' && pendingQueue.length > 0 ? (
                 <button
                     type="button"
-                    onClick={() => setReviewTarget(pendingQueue[0])}
+                    onClick={() => startReviewQueue()}
                     className="w-full rounded-xl bg-amber-400 text-black font-bold text-sm py-3.5 min-h-[52px] active:scale-[0.99]"
                 >
                     Start review queue ({pendingQueue.length})
@@ -431,6 +473,8 @@ export default function RunClubOrganizerParticipantsPage() {
             <PaymentProofReviewModal
                 open={!!reviewTarget}
                 participant={reviewTarget}
+                expectedFee={reviewTarget?.expectedAmount}
+                eventTitle={eventTitle}
                 queueIndex={Math.max(0, reviewIndex)}
                 queueTotal={pendingQueue.length}
                 onClose={() => setReviewTarget(null)}

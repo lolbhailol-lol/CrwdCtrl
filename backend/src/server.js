@@ -42,8 +42,9 @@ async function startServer() {
       });
 
       try {
-        const { initReminderCron } = require('./services/reminderService');
+        const { initReminderCron, initPendingPaymentExpiryCron } = require('./services/reminderService');
         initReminderCron();
+        initPendingPaymentExpiryCron();
       } catch (cronErr) {
         logger.warn('Reminder cron failed to start', { error: cronErr.message });
       }
