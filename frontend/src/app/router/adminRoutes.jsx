@@ -14,6 +14,7 @@ import {
   SectionManager,
   PageSectionsPage,
   CouponsPage,
+  AdminNotificationsPage,
   AdminProtectedRoute,
   TrekOrganizersPage,
   RunClubOrganizersPage,
@@ -45,5 +46,6 @@ export const adminRoutes = (
       <Route path="sections" element={<SectionManager />} />
       <Route path="page-sections" element={<PageSectionsPage />} />
       <Route path="coupons" element={<CouponsPage />} />
+      <Route path="notifications" element={<AdminNotificationsPage />} />
     </Route>
 );

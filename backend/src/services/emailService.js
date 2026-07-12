@@ -363,6 +363,114 @@ const sendTrekParticipantEmails = async (recipients = []) => {
     return results;
 };
 
+const generateAdminCampaignEmailHTML = ({ name, title, message, link, eventContext = null }) => {
+    const escapeHtml = (value) =>
+        String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+    const safeHttpsImage = (url) => {
+        const raw = String(url || '').trim();
+        if (!raw) return '';
+        try {
+            const parsed = new URL(raw);
+            if (parsed.protocol !== 'https:') return '';
+            return parsed.toString();
+        } catch {
+            return '';
+        }
+    };
+
+    const safeName = escapeHtml(name || 'there');
+    const safeTitle = escapeHtml(title || 'Update from CrwdCtrl');
+    const bodyMessage = escapeHtml(message || '').replace(/\n/g, '<br/>');
+    const ctx = eventContext && typeof eventContext === 'object' ? eventContext : null;
+    const ctaPath = ctx?.ctaPath || link || '/';
+    const ctaHref = resolveTicketHref(ctaPath);
+    const ctaLabel = escapeHtml(ctx?.ctaLabel || (link ? 'Open on CrwdCtrl' : 'Visit CrwdCtrl'));
+
+    if (!ctx || !ctx.name) {
+        return buildEmailShell({
+            preheader: safeTitle,
+            eyebrow: 'CrwdCtrl announcement',
+            title: safeTitle,
+            subtitle: '',
+            bodyHtml: `
+                <p style="margin:0 0 12px;">Hi <strong>${safeName}</strong>,</p>
+                <p style="margin:0 0 12px;line-height:1.6;">${bodyMessage}</p>
+            `,
+            ctaLabel,
+            ctaHref,
+            footnote: 'You received this because you have an account on CrwdCtrl. Manage notification preferences in your profile.',
+        });
+    }
+
+    const imageUrl = safeHttpsImage(ctx.imageUrl);
+    const eventName = escapeHtml(ctx.name);
+    const heroBlock = imageUrl
+        ? `
+        <div style="margin:0 0 20px;border-radius:14px;overflow:hidden;">
+            <img src="${escapeHtml(imageUrl)}" alt="${eventName}" width="512" style="display:block;width:100%;max-width:512px;height:auto;border:0;" />
+        </div>`
+        : '';
+
+    const detailRows = [
+        ctx.dateLabel ? { label: 'When', value: escapeHtml(ctx.dateLabel) } : null,
+        ctx.placeLabel ? { label: 'Where', value: escapeHtml(ctx.placeLabel) } : null,
+        ctx.subtitle ? { label: 'About', value: escapeHtml(ctx.subtitle) } : null,
+    ].filter(Boolean);
+
+    return buildEmailShell({
+        preheader: escapeHtml(`${ctx.name} — ${title || 'Update from CrwdCtrl'}`),
+        eyebrow: 'On CrwdCtrl',
+        title: title ? safeTitle : escapeHtml(`Update: ${ctx.name}`),
+        subtitle: eventName,
+        bodyHtml: `
+            ${heroBlock}
+            <p style="margin:0 0 12px;">Hi <strong>${safeName}</strong>,</p>
+            <p style="margin:0 0 12px;line-height:1.6;">${bodyMessage}</p>
+            ${buildDetailsTable(detailRows)}
+        `,
+        ctaLabel,
+        ctaHref,
+        footnote: 'You received this about an event on CrwdCtrl. Manage notification preferences in your profile.',
+    });
+};
+
+/** Queue admin Notification Center campaign emails (batched via existing sendEmail). */
+const sendAdminCampaignEmails = async (recipients = []) => {
+    const results = { success: 0, failed: 0 };
+    const list = Array.isArray(recipients) ? recipients : [];
+
+    for (const item of list) {
+        if (!item?.email) {
+            results.failed += 1;
+            continue;
+        }
+        try {
+            await sendEmail({
+                from: getDefaultFrom(),
+                to: item.email,
+                subject: item.subject || item.title || 'Update from CrwdCtrl',
+                html: generateAdminCampaignEmailHTML(item),
+            });
+            results.success += 1;
+        } catch (err) {
+            console.error('❌ Admin campaign email failed:', item.email, err.message);
+            results.failed += 1;
+        }
+    }
+
+    return results;
+};
+
+/** Return HTML for admin compose preview (same template as production). */
+const previewAdminCampaignEmailHTML = ({ name, title, message, link, eventContext }) =>
+    generateAdminCampaignEmailHTML({ name, title, message, link, eventContext });
+
 // ✅ HTML Generator for Broadcasts
 const generateEventEmailHTML = (userName, event) => {
     const isUpdate = event.name.includes('UPDATED');
@@ -1116,4 +1224,6 @@ module.exports = {
     sendLoginConfirmationEmail,
     sendEventBroadcast,
     sendTrekParticipantEmails,
+    sendAdminCampaignEmails,
+    previewAdminCampaignEmailHTML,
 };

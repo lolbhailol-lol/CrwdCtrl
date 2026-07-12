@@ -21,6 +21,16 @@ async function startServer() {
       ensurePageViewPathsMigrated().catch(() => {});
     } catch (_) { /* non-critical */ }
 
+    try {
+      const { recoverStuckCampaigns } = require('./controllers/adminNotificationController');
+      const recovered = await recoverStuckCampaigns(30);
+      if (recovered > 0) {
+        logger.warn('Recovered stuck notification campaigns', { count: recovered });
+      }
+    } catch (recoverErr) {
+      logger.warn('Stuck campaign recovery skipped', { error: recoverErr.message });
+    }
+
     const firebaseStatus = getFirebaseAdminStatus();
     if (firebaseStatus.configured) {
       logger.info('Firebase Admin ready for push notifications', {
