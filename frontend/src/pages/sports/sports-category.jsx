@@ -7,13 +7,14 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { toCardText } from '../../utils/cardText';
-import { openExternalUrl } from '../../utils/externalLink';
+import { openExternalUrl, shareContent } from '../../utils/externalLink';
 import HomeCategoryBar from '../../components/HomeCategoryBar';
 import MobileStickyHeader from '../../components/MobileStickyHeader';
 import CategorySearchRow from '../../components/CategorySearchRow';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import AppLogo from '../../components/AppLogo';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
+import CardShareButton from '../../components/CardShareButton';
 import HomeCarouselSection from '../../components/HomeCarouselSection';
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
@@ -69,8 +70,14 @@ const BROWSE_CATEGORIES = SPORTS_BROWSE_CATEGORIES;
 
 function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
     const imgSrc = getCoverImageUrl(club, 'cardPortrait');
+    const shareUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}${runClubPath(club)}`
+        : runClubPath(club);
     return (
-        <div className="card-portrait shrink-0 cursor-pointer active:scale-95 transition-all" onClick={onClick}>
+        <div
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200 shrink-0"
+            onClick={onClick}
+        >
             <div className="card-portrait-image relative">
                 {imgSrc ? (
                     <ContentImage
@@ -88,13 +95,22 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eage
                 )}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
-            <div className="mt-2 w-full min-w-0 max-w-(--card-portrait-w)">
-                <p className={`card-event-title font-inter truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {toCardText(club.title)}
-                </p>
-                <p className={`card-event-subtitle font-inter truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {toCardText(club.subtitle || 'Based in')}
-                </p>
+            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full">
+                <div className="flex-1 min-w-0 pr-1">
+                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {toCardText(club.title)}
+                    </p>
+                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {toCardText(club.subtitle || 'Based in')}
+                    </p>
+                </div>
+                <CardShareButton
+                    isDark={isDark}
+                    className="mt-0.5 shrink-0"
+                    onClick={() => {
+                        shareContent({ title: club.title, url: shareUrl });
+                    }}
+                />
             </div>
         </div>
     );
@@ -418,7 +434,7 @@ export default function SportsCategoryPage() {
                 <section className="home-section-block">
                     <h2 className={sectionTitle}>Explore Run Clubs</h2>
                     {loading ? (
-                        <CompactPortraitCardsRowSkeleton count={3} withShare={false} />
+                        <CompactPortraitCardsRowSkeleton count={3} withShare />
                     ) : runClubs.length === 0 ? (
                         <div
                             className={`mx-4 py-8 text-center rounded-2xl text-sm ${

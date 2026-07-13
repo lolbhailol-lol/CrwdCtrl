@@ -480,7 +480,7 @@ export default function TrekDetailPage() {
             </div>
         </div>
 
-        <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}>
+        <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
 
                 {/* Trek name + community */}
                 <ScrollReveal className="px-4 pt-5 pb-3">

@@ -372,7 +372,7 @@ export default function RunEventDetailPage() {
                 </div>
             </div>
 
-            <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}>
+            <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                 <div className="px-4 pt-5 pb-3">
                     <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {event.title || 'Run Name'}

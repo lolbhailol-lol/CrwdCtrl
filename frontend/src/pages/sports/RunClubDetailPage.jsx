@@ -487,7 +487,7 @@ export default function RunClubDetailPage() {
 
             <div
                 className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
-                ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}
+                ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
             >
                 <div className="flex items-start justify-between mb-1">
                     <div className="flex-1 min-w-0 pr-3">

@@ -378,7 +378,7 @@ export default function CommunityDetailPage() {
 
             {/* ── Content card — slides up over the image ── */}
             <div className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
-                ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}>
+                ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
 
                 {/* Community name + call */}
                 <div className="flex items-start justify-between mb-1">
