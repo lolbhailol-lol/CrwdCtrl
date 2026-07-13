@@ -48,6 +48,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        // Bump when changing runtime cache strategy so installed iPhones drop old api-cache
+        cacheId: 'crwdctrl-v2',
         // Ensure new builds activate quickly and old caches are removed.
         cleanupOutdatedCaches: true,
         clientsClaim: true,
@@ -67,13 +69,11 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            // Cache API responses (NetworkFirst)
+            // Never cache API JSON — empty cold-start 200s were sticking on iOS Safari/PWA
             urlPattern: /^https?:\/\/.*\/api\/.*/i,
-            handler: 'NetworkFirst',
+            handler: 'NetworkOnly',
             options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
-              networkTimeoutSeconds: 10,
+              cacheName: 'api-cache-v2',
             },
           },
           {

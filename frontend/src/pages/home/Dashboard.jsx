@@ -96,7 +96,7 @@ const AutoRetryError = React.memo(({ isDark, onRetry }) => {
                     : <Wifi className="w-9 h-9 text-gray-400" />}
             </div>
             <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                {isRetrying ? 'Loading events...' : 'Connecting to server...'}
+                {isRetrying ? 'Loading events...' : "Couldn't load events"}
             </p>
             <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 {isRetrying
@@ -299,10 +299,10 @@ const Dashboard = () => {
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
     usePageContentLoading(isFestsLoading);
 
-    // Never leave home on a blank screen if the API is slow or cold-starting
+    // Soft safety only — do not end loading before cold-start fetches can finish (iOS)
     useEffect(() => {
         if (!isFestsLoading) return undefined;
-        const timer = window.setTimeout(() => setIsFestsLoading(false), 6000);
+        const timer = window.setTimeout(() => setIsFestsLoading(false), 45000);
         return () => window.clearTimeout(timer);
     }, [isFestsLoading]);
 
@@ -318,6 +318,8 @@ const Dashboard = () => {
     // Admin-customisable headings for the fixed home carousels (fallback to defaults).
     const [sectionLabels, setSectionLabels] = useState({ ongoing: 'Ongoing Events', happening: 'Happening near you' });
     const [festError, setFestError] = useState(null);
+    /** Set when home feed fetch failed (aggregate + fallback) — show Retry, not fake empty catalog */
+    const [homeFeedError, setHomeFeedError] = useState(null);
     const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
     const [currentLocation, setCurrentLocation] = useState({
         city: 'Pune', // Default fallback
@@ -360,6 +362,8 @@ const Dashboard = () => {
         clearCache();
         clearSearchKeywordsCache();
         setFestError(null);
+        setHomeFeedError(null);
+        setHomeAuxLoaded(false);
         refreshTreksAndComms();
 
         // Keep showing current cards while refreshing  avoid loading flash (log evidence: hypothesis B)
@@ -381,12 +385,14 @@ const Dashboard = () => {
                 
                 setFests(festsList);
                 setFestError(null);
+                setHomeFeedError(null);
                 
                 if (festsList.length > 0) {
                     setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
                 }
                 
                 setIsFestsLoading(false);
+                setHomeAuxLoaded(true);
                 console.log('Dashboard data refreshed successfully');
             } catch (error) {
                 console.error(` Refresh attempt ${attempt + 1}/${maxAttempts} failed:`, error.message);
@@ -395,8 +401,11 @@ const Dashboard = () => {
                     console.log(` Retrying in ${delay}ms...`);
                     setTimeout(() => fetchFreshData(attempt + 1), delay);
                 } else {
-                    setFestError('Unable to load events. Please check your connection and try again.');
+                    const msg = 'Unable to load events. Please check your connection and try again.';
+                    setFestError(msg);
+                    setHomeFeedError(msg);
                     setIsFestsLoading(false);
+                    setHomeAuxLoaded(true);
                 }
             }
         };
@@ -563,28 +572,56 @@ const Dashboard = () => {
             }
         }
 
-        // Primary: one aggregated request. Single-shot with a short timeout so a
-        // cold backend fails fast to the resilient path (avoids a double wait).
+        // Primary: aggregated /home. Reject empty success so cold-start empty 200s
+        // fall through to the resilient multi-endpoint path (iPhone fix).
+        const countHomeItems = (d) => {
+            const lens = [
+                d.fests, d.treks, d.communities, d.sports, d.runClubs, d.eventShows,
+            ].map((a) => (Array.isArray(a) ? a.length : 0));
+            return lens.reduce((s, n) => s + n, 0);
+        };
+
         const tryAggregate = async () => {
             try {
-                const res = await fetchJSON(`/home?_cb=${Date.now()}`, { timeout: 8000, retries: 0 });
+                const res = await fetchJSON(`/home?_cb=${Date.now()}`, {
+                    timeout: baseTimeout,
+                    retries: 2,
+                });
                 const d = res?.data;
                 if (!d || d.success !== true || !Array.isArray(d.fests)) return false;
+                // Empty aggregate or failed core fest fetch — fall through so
+                // per-endpoint fetches can recover after a cold start.
+                if (countHomeItems(d) === 0 || d.partial === true) {
+                    try { localStorage.removeItem(CACHE_KEYS.HOME_AUX); } catch (_) { /* ignore */ }
+                    return false;
+                }
                 if (cancelled) return true;
                 if (d.fests.length > 0) setCachedData(CACHE_KEYS.FESTS_LIST, d.fests);
                 setFests(d.fests);
                 setFestError(null);
+                setHomeFeedError(null);
                 setIsFestsLoading(false);
                 applyAux(d);
                 setHomeAuxLoaded(true);
-                setCachedData(CACHE_KEYS.HOME_AUX, {
+                const auxPayload = {
                     communities: Array.isArray(d.communities) ? d.communities : [],
                     treks: Array.isArray(d.treks) ? d.treks : [],
                     sports: Array.isArray(d.sports) ? d.sports : [],
                     runClubs: Array.isArray(d.runClubs) ? d.runClubs : [],
                     eventShows: Array.isArray(d.eventShows) ? d.eventShows : [],
                     sectionLabels: d.sectionLabels && typeof d.sectionLabels === 'object' ? d.sectionLabels : undefined,
-                });
+                };
+                const auxCount =
+                    auxPayload.communities.length +
+                    auxPayload.treks.length +
+                    auxPayload.sports.length +
+                    auxPayload.runClubs.length +
+                    auxPayload.eventShows.length;
+                if (auxCount > 0) {
+                    setCachedData(CACHE_KEYS.HOME_AUX, auxPayload);
+                } else {
+                    try { localStorage.removeItem(CACHE_KEYS.HOME_AUX); } catch (_) { /* ignore */ }
+                }
                 return true;
             } catch (_) {
                 return false;
@@ -607,6 +644,7 @@ const Dashboard = () => {
                     }
                     setFests(festsList);
                     setFestError(null);
+                    setHomeFeedError(null);
                     setIsFestsLoading(false);
                     console.log(`Fests loaded successfully (${festsList.length} fests)`);
                     return;
@@ -621,10 +659,13 @@ const Dashboard = () => {
             }
             if (cancelled) return;
             if (!hadFreshCache) {
-                setFestError('Unable to load events. Please check your connection and try again.');
+                const msg = 'Unable to load events. Please check your connection and try again.';
+                setFestError(msg);
+                setHomeFeedError(msg);
                 setFests([]);
             } else {
                 setFestError(null);
+                setHomeFeedError(null);
             }
             setIsFestsLoading(false);
         };
@@ -656,7 +697,7 @@ const Dashboard = () => {
         (async () => {
             const ok = await tryAggregate();
             if (cancelled || ok) return;
-            // Aggregate unavailable — use the resilient per-source path.
+            // Aggregate unavailable / empty — use the resilient per-source path.
             fetchFests();
             runAuxFetches();
             // Aggregate carried section labels; fetch them separately on the fallback path.
@@ -666,10 +707,10 @@ const Dashboard = () => {
             }).catch(() => {});
         })();
 
-        // Safety: never keep the skeleton forever if something hangs.
+        // Safety: never keep the skeleton forever if something hangs (allow cold starts).
         const auxSafety = window.setTimeout(() => {
             if (!cancelled) setHomeAuxLoaded(true);
-        }, 12000);
+        }, 45000);
 
         return () => { cancelled = true; window.clearTimeout(auxSafety); };
     }, []);
@@ -1322,7 +1363,7 @@ const Dashboard = () => {
                         cardGap={TRENDING_CARD_GAP}
                         loading={isFestsLoading || !homeAuxLoaded}
                         emptyFallback={
-                            festError && trendingItems.length === 0 ? (
+                            (homeFeedError || festError) && trendingItems.length === 0 ? (
                                 <section className="home-section-block">
                                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                         {sectionLabels.ongoing}
@@ -1354,14 +1395,23 @@ const Dashboard = () => {
                         wideCard
                         loading={isFestsLoading || !homeAuxLoaded}
                         emptyFallback={
-                            <section className="home-section-block">
-                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {sectionLabels.happening}
-                                </h2>
-                                <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
-                                    <p className="text-sm">No events happening near you right now</p>
-                                </div>
-                            </section>
+                            (homeFeedError || festError) && happeningItems.length === 0 ? (
+                                <section className="home-section-block">
+                                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        {sectionLabels.happening}
+                                    </h2>
+                                    <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
+                                </section>
+                            ) : (
+                                <section className="home-section-block">
+                                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        {sectionLabels.happening}
+                                    </h2>
+                                    <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
+                                        <p className="text-sm">No events happening near you right now</p>
+                                    </div>
+                                </section>
+                            )
                         }
                         isFavorite={(id) => isFavorite(id)}
                         onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}

@@ -42,8 +42,9 @@ const safe = async (fn, fallback) => {
 /**
  * GET /api/home — single aggregated payload for the homepage.
  * Collapses the 6 separate public reads (fests, treks, communities, sports,
- * run clubs, event shows) into one cacheable request. Each section degrades to
- * an empty list independently, so a partial failure still returns 200.
+ * run clubs, event shows) into one request. Each section degrades to an empty
+ * list independently; `partial: true` when the core fest fetch fails so clients
+ * can fall back instead of treating empty arrays as a healthy catalog.
  */
 exports.getHomeFeed = async (_req, res) => {
   const [festsBody, treks, communities, sports, runClubs, eventShows, sectionLabels] = await Promise.all([
@@ -56,10 +57,16 @@ exports.getHomeFeed = async (_req, res) => {
     safe(() => readHomeSectionLabels(), { ...DEFAULT_HOME_SECTION_LABELS }),
   ]);
 
-  res.set('Cache-Control', 'public, max-age=30');
+  const festsOk = festsBody != null && Array.isArray(festsBody.fests);
+  const fests = festsOk ? festsBody.fests : [];
+  const partial = !festsOk;
+
+  // Do not let intermediaries / SW cache empty or partial home payloads
+  res.set('Cache-Control', 'no-store');
   res.status(200).json({
     success: true,
-    fests: Array.isArray(festsBody?.fests) ? festsBody.fests : [],
+    partial,
+    fests,
     treks: Array.isArray(treks) ? treks : [],
     communities: Array.isArray(communities) ? communities : [],
     sports: Array.isArray(sports) ? sports : [],

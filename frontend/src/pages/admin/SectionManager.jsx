@@ -382,6 +382,12 @@ const TREK_PAGE_SECTIONS = [
     { key: 'beginner', label: '🌿 Beginner Friendly' },
 ];
 
+/** Trek communities on /treks — separate from individual trek carousels */
+const TREK_COMMUNITY_PAGE_SECTIONS = [
+    { key: 'communities', label: '🧭 Explore Communities' },
+    { key: 'comingSoon', label: '✨ Coming Soon (Communities)' },
+];
+
 const EVENTS_PAGE_SECTIONS = [
     { key: 'hero', label: '🎬 Hero Banner' },
     { key: 'spotlight', label: '✨ In the Spotlight' },
@@ -878,6 +884,34 @@ export default function SectionManager() {
         [movingSlideFests, movingSlideEvents, movingSlideRunClubs, movingSlideTreks, movingSlideComms, movingSlideSports],
     );
 
+    const trekPageCarousels = useMemo(() => {
+        const norm = (t) => ({ ...normalizeHomeCarouselItem('trek', t), _priority: t.trekPagePriority ?? 999 });
+        const inSection = (key) => treks.filter((t) => t.featuredSection === key || t.featuredSection === 'both').map(norm)
+            .sort((a, b) => a._priority - b._priority);
+
+        const normComm = (c) => ({
+            ...normalizeHomeCarouselItem('community', c),
+            _priority: c.trekPagePriority ?? 999,
+        });
+        const inCommSection = (key) => comms
+            .filter((c) => {
+                if (c.status === 'draft') return false;
+                if (c.showOnTreks === false) return false;
+                const sec = c.trekPageSection || 'communities';
+                return sec === key || sec === 'both';
+            })
+            .map(normComm)
+            .sort((a, b) => a._priority - b._priority);
+
+        return {
+            hero: inSection('hero'),
+            weekend: inSection('weekend'),
+            beginner: inSection('beginner'),
+            communities: inCommSection('communities'),
+            comingSoon: inCommSection('comingSoon'),
+        };
+    }, [treks, comms]);
+
     const festPageCarousels = useMemo(() => {
         const out = {};
         FEST_PAGE_SECTIONS.forEach(({ key }) => {
@@ -888,13 +922,6 @@ export default function SectionManager() {
         });
         return out;
     }, [fests]);
-
-    const trekPageCarousels = useMemo(() => {
-        const norm = (t) => ({ ...normalizeHomeCarouselItem('trek', t), _priority: t.trekPagePriority ?? 999 });
-        const inSection = (key) => treks.filter((t) => t.featuredSection === key || t.featuredSection === 'both').map(norm)
-            .sort((a, b) => a._priority - b._priority);
-        return { hero: inSection('hero'), weekend: inSection('weekend'), beginner: inSection('beginner') };
-    }, [treks]);
 
     const sportsPageCarousels = useMemo(() => {
         const norm = (s, pri) => ({ ...normalizeHomeCarouselItem('sport', s), _priority: pri });
@@ -936,6 +963,12 @@ export default function SectionManager() {
         });
     }, []);
 
+    const applyLocalCommPageOrder = useCallback((ordered) => {
+        ordered.forEach((item, index) => {
+            setComms((prev) => prev.map((c) => (c._id === item._id ? { ...c, trekPagePriority: index + 1 } : c)));
+        });
+    }, []);
+
     const applyLocalSportsPageOrder = useCallback((section, ordered) => {
         ordered.forEach((item, index) => {
             const pri = index + 1;
@@ -970,10 +1003,23 @@ export default function SectionManager() {
         const next = [...source];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
+
+        const isCommunitySection = section === 'communities' || section === 'comingSoon';
+        if (isCommunitySection) {
+            const updates = next.map((item, i) => ({
+                type: 'community',
+                id: item._id,
+                fields: { trekPagePriority: i + 1 },
+            }));
+            applyLocalCommPageOrder(next);
+            batchReorder(updates);
+            return;
+        }
+
         const updates = next.map((item, i) => ({ type: 'trek', id: item._id, fields: { trekPagePriority: i + 1 } }));
         applyLocalTrekPageOrder(next);
         batchReorder(updates);
-    }, [trekPageCarousels, reordering, applyLocalTrekPageOrder, batchReorder]);
+    }, [trekPageCarousels, reordering, applyLocalTrekPageOrder, applyLocalCommPageOrder, batchReorder]);
 
     const handleSportsPageReorder = useCallback((section, fromIndex, toIndex) => {
         if (fromIndex === toIndex || reordering) return;
@@ -1150,6 +1196,16 @@ export default function SectionManager() {
                         </div>
                     )}
                     <p className="text-[11px] text-gray-500">Treks page sections on /treks — drag within each row</p>
+                    {TREK_COMMUNITY_PAGE_SECTIONS.map(({ key, label }) => (
+                        <HomeCarouselPanel
+                            key={key}
+                            title={label}
+                            subtitle="Trek community order on /treks"
+                            items={trekPageCarousels[key] || []}
+                            onReorder={(from, to) => handleTrekPageReorder(key, from, to)}
+                            isReordering={reordering}
+                        />
+                    ))}
                     {TREK_PAGE_SECTIONS.map(({ key, label }) => (
                         <HomeCarouselPanel
                             key={key}
