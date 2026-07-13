@@ -137,7 +137,7 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
                         src={resolveGallerySrc(current, 'detail')}
                         alt={`${name} gallery ${index + 1}`}
                         className="max-h-full max-w-full object-contain rounded-xl"
-                        onError={(e) => handleImageErrorWithFallback(e, 360, 360, '#14532d', name)}
+                        onError={(e) => handleImageErrorWithFallback(e, 360, 360, '#2A2B2E', name)}
                     />
                 )}
                 {hasNext && (
@@ -698,7 +698,7 @@ export default function RunClubDetailPage() {
                                             className="absolute inset-0 w-full h-full object-cover"
                                             loading="lazy"
                                             decoding="async"
-                                            onError={(e) => handleImageErrorWithFallback(e, 120, 120, '#14532d', name)}
+                                            onError={(e) => handleImageErrorWithFallback(e, 120, 120, '#2A2B2E', name)}
                                         />
                                         {isOverflowTile && (
                                             <div className="absolute inset-0 flex items-center justify-center bg-black/55">

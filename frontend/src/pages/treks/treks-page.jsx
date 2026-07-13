@@ -164,9 +164,7 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
                         fallbackLabel={trek.title || 'Trek'}
                     />
                 ) : (
-                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
-                        <span className="text-5xl">🏔️</span>
-                    </div>
+                    <div className="w-full h-full bg-[#1A1B1D]" />
                 )}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
@@ -212,9 +210,7 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, eage
                         fallbackLabel={trek.title || 'Trek'}
                     />
                 ) : (
-                    <div className="w-full h-full bg-linear-to-br from-slate-700 to-slate-900 flex items-center justify-center">
-                        <span className="text-6xl">🏔️</span>
-                    </div>
+                    <div className="w-full h-full bg-[#1A1B1D]" />
                 )}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
@@ -260,9 +256,7 @@ function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, eag
                         fallbackLabel={trek.title || 'Trek'}
                     />
                 ) : (
-                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
-                        <span className="text-5xl">🏔️</span>
-                    </div>
+                    <div className="w-full h-full bg-[#1A1B1D]" />
                 )}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
@@ -460,7 +454,7 @@ function TreksPage() {
 
     const ComingSoon = () => (
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-            <h2 className={`text-3xl font-bold font-inter tracking-tight animate-pulse ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <h2 className={`text-3xl font-bold font-inter tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 Coming Soon
             </h2>
             <div className="flex gap-1.5 mt-5">

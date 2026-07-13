@@ -149,7 +149,7 @@ export default function RunEventDetailPage() {
         }
     }, [event, id, navigate, location.state]);
 
-    if (loading) {
+    if (loading && !event) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
                 <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
@@ -160,7 +160,6 @@ export default function RunEventDetailPage() {
     if (!event) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
-                <span className="text-4xl">🏃</span>
                 <p className="text-gray-500 text-sm text-center">Run not found</p>
                 <button onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">
                     ← Go back

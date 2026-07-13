@@ -175,10 +175,22 @@ export default function TrekDetailPage() {
     const { id }    = useParams();
     const { isDark } = useDarkMode();
 
-    const [trek,      setTrek]      = useState(null);
+    const seedFromNav = (raw) => {
+        if (!raw) return null;
+        return {
+            ...raw,
+            trekName:        raw.trekName || raw.title || 'Trek',
+            trekDuration:    raw.trekDuration || raw.duration,
+            difficultyLevel: raw.difficultyLevel || raw.difficulty,
+            images:          raw.images?.length ? raw.images : raw.image ? [raw.image] : [],
+            coverImage:      raw.coverImage || raw.image || raw.images?.[0] || null,
+        };
+    };
+
+    const [trek,      setTrek]      = useState(() => seedFromNav(location.state?.trek));
     const [genderRegistration, setGenderRegistration] = useState(null);
     const [community, setCommunity] = useState(location.state?.community || null);
-    const [loading,   setLoading]   = useState(true);
+    const [loading,   setLoading]   = useState(() => !location.state?.trek);
     const [liked,     setLiked]     = useState(false);
     const [imgPg,     setImgPg]     = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -209,17 +221,8 @@ export default function TrekDetailPage() {
         const fetchTrek = async () => {
             const trekId = id || location.state?.trek?.id || location.state?.trek?._id;
             if (!trekId) {
-                // Fallback: use state data and normalise field names
                 const raw = location.state?.trek;
-                if (raw) {
-                    setTrek({
-                        ...raw,
-                        trekName:       raw.trekName || raw.title || 'Trek',
-                        trekDuration:   raw.trekDuration || raw.duration,
-                        difficultyLevel: raw.difficultyLevel || raw.difficulty,
-                        images:         raw.images?.length ? raw.images : raw.image ? [raw.image] : [],
-                    });
-                }
+                if (raw) setTrek(seedFromNav(raw));
                 setLoading(false);
                 return;
             }
@@ -234,17 +237,17 @@ export default function TrekDetailPage() {
                         setCommunity((prev) => prev || populated);
                     }
                 } else {
-                    // Fallback to state
                     const raw = location.state?.trek;
-                    if (raw) setTrek({ ...raw, trekName: raw.trekName || raw.title, trekDuration: raw.trekDuration || raw.duration, difficultyLevel: raw.difficultyLevel || raw.difficulty, images: raw.images?.length ? raw.images : raw.image ? [raw.image] : [] });
+                    if (raw) setTrek(seedFromNav(raw));
                 }
             } catch {
                 const raw = location.state?.trek;
-                if (raw) setTrek({ ...raw, trekName: raw.trekName || raw.title, trekDuration: raw.trekDuration || raw.duration, difficultyLevel: raw.difficultyLevel || raw.difficulty, images: raw.images?.length ? raw.images : raw.image ? [raw.image] : [] });
+                if (raw) setTrek(seedFromNav(raw));
             }
             setLoading(false);
         };
         fetchTrek();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     useEffect(() => {
@@ -274,7 +277,7 @@ export default function TrekDetailPage() {
         }
     }, [trek, id, navigate, location.state]);
 
-    if (loading) return (
+    if (loading && !trek) return (
         <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
             <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
         </div>
@@ -357,7 +360,7 @@ export default function TrekDetailPage() {
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain' }}
                     onScroll={e => { const p = Math.round(e.target.scrollLeft / e.target.clientWidth); setImgPg(prev => (prev === p ? prev : p)); }}
                 >
                     <div className="flex h-full">
@@ -366,10 +369,8 @@ export default function TrekDetailPage() {
                                 {img
                                     ? <img src={getImageUrl(img, { preset: 'hero' })} alt={trek.trekName} className="w-full h-full object-cover content-image"
                                         loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async"
-                                        onError={e => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', trek.trekName)} />
-                                    : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
-                                        <span className="text-7xl opacity-40">⛰️</span>
-                                      </div>
+                                        onError={e => handleImageErrorWithFallback(e, 393, 396, '#2A2B2E', trek.trekName)} />
+                                    : <div className="w-full h-full bg-[#1A1B1D]" />
                                 }
                             </div>
                         ))}

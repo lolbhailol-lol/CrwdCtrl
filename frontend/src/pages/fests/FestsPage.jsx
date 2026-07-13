@@ -35,6 +35,24 @@ import { festPath } from '../../utils/slugRoutes';
 const FESTS_DESCRIPTION =
     'Browse and register for college fests near you — cultural, technical and sports festivals. Find upcoming and ongoing fests, competitions and events on CrwdCtrl.';
 
+const FESTS_CACHE_KEY = 'crwdctrl_fests_page_v1';
+const readFestsCache = () => {
+    try {
+        const raw = sessionStorage.getItem(FESTS_CACHE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        return Array.isArray(parsed) ? parsed : null;
+    } catch {
+        return null;
+    }
+};
+const writeFestsCache = (list) => {
+    try {
+        sessionStorage.setItem(FESTS_CACHE_KEY, JSON.stringify(list));
+    } catch {
+        /* storage full / unavailable */
+    }
+};
+
 const SUBCATEGORIES = [
     { id: 'cultural',   label: 'CULTURAL', icon: CulturalIcon, path: '/cultural-fest' },
     { id: 'technical',  label: 'TECH',     icon: TechIcon,     path: '/tech-fest' },
@@ -161,8 +179,9 @@ export default function FestsPage() {
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
 
-    const [fests, setFests] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const cached = readFestsCache();
+    const [fests, setFests] = useState(cached || []);
+    const [loading, setLoading] = useState(!cached);
     usePageContentLoading(loading);
 
     // Fetch all fests
@@ -171,7 +190,10 @@ export default function FestsPage() {
         const load = async () => {
             try {
                 const list = await fetchRawPublicFests({ cacheBust: false });
-                if (!cancelled) setFests(list);
+                if (!cancelled) {
+                    setFests(list);
+                    writeFestsCache(list);
+                }
             } catch (err) {
                 console.error('FestsPage fetch error:', err);
             } finally {

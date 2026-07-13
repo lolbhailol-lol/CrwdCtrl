@@ -40,6 +40,25 @@ const EVENTS_DESCRIPTION =
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
+const EVENTS_CACHE_KEY = 'crwdctrl_events_page_v1';
+const readEventsCache = () => {
+    try {
+        const raw = sessionStorage.getItem(EVENTS_CACHE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (!parsed || typeof parsed !== 'object') return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+};
+const writeEventsCache = (payload) => {
+    try {
+        sessionStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+        /* storage full / unavailable */
+    }
+};
+
 function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div
@@ -175,19 +194,21 @@ export default function EventsPage() {
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
 
-    const [shows, setShows] = useState([]);
-    const [rawShows, setRawShows] = useState([]);
-    const [carouselFests, setCarouselFests] = useState([]);
-    const [carouselTreks, setCarouselTreks] = useState([]);
-    const [carouselCommunities, setCarouselCommunities] = useState([]);
-    const [carouselSports, setCarouselSports] = useState([]);
-    const [carouselRunClubs, setCarouselRunClubs] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const cached = readEventsCache();
+    const [shows, setShows] = useState(() => (Array.isArray(cached?.shows) ? cached.shows.map(mapEventShow) : []));
+    const [rawShows, setRawShows] = useState(() => (Array.isArray(cached?.shows) ? cached.shows : []));
+    const [carouselFests, setCarouselFests] = useState(() => (Array.isArray(cached?.fests) ? cached.fests : []));
+    const [carouselTreks, setCarouselTreks] = useState(() => (Array.isArray(cached?.treks) ? cached.treks : []));
+    const [carouselCommunities, setCarouselCommunities] = useState(() => (Array.isArray(cached?.communities) ? cached.communities : []));
+    const [carouselSports, setCarouselSports] = useState(() => (Array.isArray(cached?.sports) ? cached.sports : []));
+    const [carouselRunClubs, setCarouselRunClubs] = useState(() => (Array.isArray(cached?.clubs) ? cached.clubs : []));
+    const [loading, setLoading] = useState(!cached);
     const [upcomingPg, setUpcomingPg] = useState(0);
     const upcomingScrollRef = useRef(null);
     usePageContentLoading(loading);
 
     const loadData = useCallback(async () => {
+        const hasCache = Boolean(readEventsCache());
         try {
             const [eventsRes, festsRes, treksRes, commRes, sportsRes, clubsRes] = await Promise.all([
                 fetch(`${API}/events?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
@@ -198,37 +219,58 @@ export default function EventsPage() {
                 fetch(`${API}/run-clubs?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
             ]);
 
+            let nextShows = [];
+            let nextFests = [];
+            let nextTreks = [];
+            let nextCommunities = [];
+            let nextSports = [];
+            let nextClubs = [];
+
             if (eventsRes.ok) {
                 const data = await eventsRes.json();
-                const list = Array.isArray(data?.shows) ? data.shows : [];
-                setRawShows(list);
-                setShows(list.map(mapEventShow));
-            } else {
+                nextShows = Array.isArray(data?.shows) ? data.shows : [];
+                setRawShows(nextShows);
+                setShows(nextShows.map(mapEventShow));
+            } else if (!hasCache) {
                 setRawShows([]);
                 setShows([]);
             }
             if (festsRes.ok) {
                 const data = await festsRes.json();
-                setCarouselFests(Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : []);
+                nextFests = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+                setCarouselFests(nextFests);
             }
             if (treksRes.ok) {
                 const data = await treksRes.json();
-                setCarouselTreks(Array.isArray(data?.treks) ? data.treks : []);
+                nextTreks = Array.isArray(data?.treks) ? data.treks : [];
+                setCarouselTreks(nextTreks);
             }
             if (commRes.ok) {
                 const data = await commRes.json();
-                setCarouselCommunities(Array.isArray(data?.communities) ? data.communities : []);
+                nextCommunities = Array.isArray(data?.communities) ? data.communities : [];
+                setCarouselCommunities(nextCommunities);
             }
             if (sportsRes.ok) {
                 const data = await sportsRes.json();
-                setCarouselSports(Array.isArray(data?.events) ? data.events : []);
+                nextSports = Array.isArray(data?.events) ? data.events : [];
+                setCarouselSports(nextSports);
             }
             if (clubsRes.ok) {
                 const data = await clubsRes.json();
-                setCarouselRunClubs(Array.isArray(data?.clubs) ? data.clubs : []);
+                nextClubs = Array.isArray(data?.clubs) ? data.clubs : [];
+                setCarouselRunClubs(nextClubs);
             }
+
+            writeEventsCache({
+                shows: nextShows,
+                fests: nextFests,
+                treks: nextTreks,
+                communities: nextCommunities,
+                sports: nextSports,
+                clubs: nextClubs,
+            });
         } catch {
-            setShows([]);
+            if (!hasCache) setShows([]);
         } finally {
             setLoading(false);
         }

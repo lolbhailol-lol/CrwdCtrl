@@ -161,12 +161,10 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick, eager = false }) {
                         fetchPriority={eager ? 'high' : undefined}
                         showPlaceholderUntilLoad
                         className="absolute inset-0 w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title)}
+                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', trek.title)}
                     />
                 ) : (
-                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
-                        <span className="text-4xl">🏔️</span>
-                    </div>
+                    <div className="w-full h-full bg-[#1A1B1D]" />
                 )}
                 <CardFavoriteButton isFavorite={isFav} onClick={onFav} />
             </div>
@@ -317,7 +315,7 @@ export default function CommunityDetailPage() {
                 height="396px"
                 onImageError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}
                 fallback={
-                    <div className="absolute inset-0 bg-linear-to-br from-green-900 via-emerald-800 to-teal-700" />
+                    <div className="absolute inset-0 bg-[#1A1B1D]" />
                 }
             >
                 {/* Floating stats */}

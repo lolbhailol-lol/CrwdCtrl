@@ -220,7 +220,7 @@ export default function SportsCategoryPage() {
 
     const ComingSoon = () => (
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-            <h2 className={`text-3xl font-bold font-inter tracking-tight animate-pulse ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <h2 className={`text-3xl font-bold font-inter tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 Coming Soon
             </h2>
             <div className="flex gap-1.5 mt-5">
