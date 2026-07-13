@@ -280,6 +280,10 @@ const Dashboard = () => {
     const [showRegister, setShowRegister] = useState(false);
     const [fests, setFests] = useState(readInitialFestsFromCache);
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
+    // True once all secondary section sources (treks, sports, run clubs, events, ...)
+    // have settled. Carousels wait for this so the centered priority card doesn't
+    // change as later sources stream in (no "wrong card briefly in center" flash).
+    const [homeAuxLoaded, setHomeAuxLoaded] = useState(false);
     usePageContentLoading(isFestsLoading || !homeAuxLoaded);
 
     // Soft safety only — do not end loading before cold-start fetches can finish (iOS)
@@ -294,10 +298,6 @@ const Dashboard = () => {
     const [homeSports, setHomeSports] = useState([]);
     const [homeRunClubs, setHomeRunClubs] = useState([]);
     const [homeEventShows, setHomeEventShows] = useState([]);
-    // True once all secondary section sources (treks, sports, run clubs, events, ...)
-    // have settled. Carousels wait for this so the centered priority card doesn't
-    // change as later sources stream in (no "wrong card briefly in center" flash).
-    const [homeAuxLoaded, setHomeAuxLoaded] = useState(false);
     // Admin-customisable headings for the fixed home carousels (fallback to defaults).
     const [sectionLabels, setSectionLabels] = useState({ ongoing: 'Ongoing Events', happening: 'Happening near you' });
     const [festError, setFestError] = useState(null);
