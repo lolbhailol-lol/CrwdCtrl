@@ -37,8 +37,20 @@ if (!shouldShowBootSplash()) {
 // PWA service worker — web only (not Capacitor native shell)
 if (import.meta.env.PROD && !isNativeApp()) {
   import('virtual:pwa-register').then(({ registerSW }) => {
-    registerSW({ immediate: true })
-  })
+    registerSW({
+      immediate: true,
+      onRegisteredSW() {
+        // Drop legacy Workbox API caches (NetworkFirst/NetworkOnly) that threw
+        // no-response when Railway was cold and could serve stale empty JSON.
+        if (!('caches' in window)) return;
+        caches.keys().then((keys) => {
+          keys
+            .filter((key) => /api-cache/i.test(key))
+            .forEach((key) => caches.delete(key));
+        }).catch(() => {});
+      },
+    });
+  });
 }
 
 createRoot(document.getElementById('root')).render(

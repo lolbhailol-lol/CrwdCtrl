@@ -48,15 +48,18 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        // Bump when changing runtime cache strategy so installed iPhones drop old api-cache
-        cacheId: 'crwdctrl-v2',
+        // Bump when changing runtime cache strategy so installed devices drop old SW caches
+        cacheId: 'crwdctrl-v3',
         // Ensure new builds activate quickly and old caches are removed.
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
         // Don't precache the firebase messaging sw
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/firebase-messaging-sw\.js$/],
+        navigateFallbackDenylist: [
+          /^\/firebase-messaging-sw\.js$/,
+          /^\/api\//,
+        ],
         runtimeCaching: [
           {
             // Always prefer network for HTML navigations after deploy
@@ -68,14 +71,10 @@ export default defineConfig(({ mode }) => ({
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 },
             },
           },
-          {
-            // Never cache API JSON — empty cold-start 200s were sticking on iOS Safari/PWA
-            urlPattern: /^https?:\/\/.*\/api\/.*/i,
-            handler: 'NetworkOnly',
-            options: {
-              cacheName: 'api-cache-v2',
-            },
-          },
+          // Intentionally NO /api runtimeCaching rule.
+          // Workbox NetworkOnly/NetworkFirst throw uncaught "no-response" when Railway
+          // is cold/unreachable; that surfaces as SW errors on iPhone/laptop and can
+          // block normal fetch retries. Let API requests bypass the SW entirely.
           {
             // Cache images (CacheFirst)
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
