@@ -12,6 +12,9 @@ import {
 } from '../hooks/useHomeCarousel';
 import CarouselDotPagination from './CarouselDotPagination';
 import { getCoverImageUrl } from '../utils/coverImages';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { preloadImages } from '../utils/preloadImages';
+import { getImageUrl } from '../utils/imageImports';
 
 const SKELETON_COUNT = CENTERED_SKELETON_COUNT;
 
@@ -342,6 +345,21 @@ export default function HomeCarouselSection({
         loading ? [] : items,
         alignStart,
     );
+
+    // Warm cache for the first few visible cards as soon as data arrives
+    useEffect(() => {
+        if (loading || !items.length) return;
+        const preset = resolveSlideCoverPreset({ portraitCard, wideCard, heroCard });
+        const urls = items.slice(0, 6).map((item) => {
+            const raw = resolveSlideImage(item, preset);
+            if (!raw) return null;
+            // getCoverImageUrl already optimizes; still normalize non-cover paths
+            if (typeof raw === 'string' && raw.includes('res.cloudinary.com')) return raw;
+            return optimizeImageUrl(getImageUrl(raw) || raw, preset);
+        });
+        preloadImages(urls, { limit: 6 });
+    }, [loading, items, portraitCard, wideCard, heroCard]);
+
     // On mobile (centered loop) keep the track invisible until it has been scrolled
     // onto the correct first slide, so no clone/wrong card is ever painted center.
     const trackHidden = !alignStart && !positioned;

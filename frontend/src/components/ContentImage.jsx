@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { getImageUrl } from '../utils/imageImports';
-import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { optimizeImageUrl, IMAGE_PRESET_SIZES } from '../utils/imageOptimizer';
 
 /**
  * Optimized image for cards, heroes, and admin-uploaded content.
- * Lazy-loads by default; Cloudinary URLs get retina-ready delivery transforms.
- * Optional shimmer until load to avoid empty aspect-box pop-in.
+ * Cloudinary URLs get compact delivery transforms; lazy images are low-priority.
  */
 export default function ContentImage({
     src,
@@ -14,6 +13,7 @@ export default function ContentImage({
     className = '',
     loading = 'lazy',
     fetchPriority,
+    sizes,
     draggable = false,
     onError,
     onLoad,
@@ -25,6 +25,11 @@ export default function ContentImage({
     const optimized = optimizeImageUrl(resolved, preset);
     const finalSrc = optimized || resolved;
     const [loaded, setLoaded] = useState(!showPlaceholderUntilLoad || !finalSrc);
+
+    const resolvedSizes = sizes || IMAGE_PRESET_SIZES[preset] || undefined;
+    const resolvedPriority =
+        fetchPriority
+        ?? (loading === 'eager' ? 'high' : 'low');
 
     useEffect(() => {
         setLoaded(!showPlaceholderUntilLoad || !finalSrc);
@@ -46,7 +51,8 @@ export default function ContentImage({
                 src={finalSrc}
                 alt={alt}
                 loading={loading}
-                fetchPriority={fetchPriority}
+                fetchPriority={resolvedPriority}
+                sizes={resolvedSizes}
                 decoding="async"
                 draggable={draggable}
                 className={`content-image ${className}`.trim()}
@@ -69,7 +75,8 @@ export default function ContentImage({
                 src={finalSrc}
                 alt={alt}
                 loading={loading}
-                fetchPriority={fetchPriority}
+                fetchPriority={resolvedPriority}
+                sizes={resolvedSizes}
                 decoding="async"
                 draggable={draggable}
                 className={`content-image ${className} ${loaded ? 'opacity-100' : 'opacity-0'}`.trim()}

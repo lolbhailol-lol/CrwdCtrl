@@ -36,6 +36,7 @@ import { TREKS_FAQ } from '../../constants/faqs';
 import { formatTrekCardDate } from '../../utils/trekDateDisplay';
 import { communityPath, competitionPath, festPath, trekPath } from '../../utils/slugRoutes';
 import ContentImage from '../../components/ContentImage';
+import { preloadImages } from '../../utils/preloadImages';
 
 const TREKS_DESCRIPTION =
     'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';
@@ -353,6 +354,17 @@ function TreksPage() {
     const heroItems = sortTrekPage([...heroTreks, ...comingSoonCommunities]);
     const categoryTreks = activeCategory ? treks.filter(t => t.trekCategory === activeCategory && matchesSearch(t)) : [];
     const hasTrekContent = treks.length > 0 || communities.length > 0;
+
+    useEffect(() => {
+        if (loading) return;
+        const urls = [
+            ...exploreCommunities.slice(0, 3).map((c) => getCoverImageUrl(c, 'cardPortrait')),
+            ...weekendTreks.slice(0, 2).map((t) => getCoverImageUrl(t, 'cardWide')),
+            ...beginnerTreks.slice(0, 3).map((t) => getCoverImageUrl(t, 'cardPortrait')),
+            ...heroItems.slice(0, 2).map((t) => getCoverImageUrl(t, 'hero')),
+        ];
+        preloadImages(urls, { limit: 10 });
+    }, [loading, exploreCommunities, weekendTreks, beginnerTreks, heroItems]);
 
     const heroBannerEvents = useMemo(() => heroItems.map(item => ({
         id: item.id,

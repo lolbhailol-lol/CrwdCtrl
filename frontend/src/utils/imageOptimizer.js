@@ -1,33 +1,54 @@
 /**
- * Cloudinary on-the-fly transforms — crisp on Retina, right-sized for performance.
- * Originals stay full quality in Cloudinary; delivery is optimized per context.
+ * Cloudinary on-the-fly transforms — crisp enough on Retina, sized for real card CSS.
+ * Prefer smaller delivery over max quality: slow cards kill UX on mobile networks.
  */
 
 const CLOUDINARY_UPLOAD = '/upload/';
 
-/** @type {Record<string, { width: number, height?: number, crop: string }>} */
+/**
+ * Widths target ~2× CSS display size (portrait ~160px, wide ~320–360px, hero ~full mobile).
+ * Cap DPR at 2.0 in transforms — dpr_auto on 3× phones was pulling 3× payloads.
+ * @type {Record<string, { width: number, height?: number, crop: string, quality?: string }>}
+ */
 export const IMAGE_PRESETS = {
-    thumb: { width: 192, height: 192, crop: 'fill' },
-    /** Square gallery tiles */
-    square: { width: 480, height: 480, crop: 'fill' },
-    /** Portrait cards — matches .card-portrait-image (10:13) */
-    cardPortrait: { width: 520, height: 676, crop: 'fill' },
-    /** Wide activity cards — matches .card-wide-image (10:7) */
-    cardWide: { width: 800, height: 560, crop: 'fill' },
+    thumb: { width: 128, height: 128, crop: 'fill', quality: 'eco' },
+    square: { width: 360, height: 360, crop: 'fill', quality: 'eco' },
+    /** Portrait cards — .card-portrait-image ~160×208 CSS */
+    cardPortrait: { width: 360, height: 468, crop: 'fill', quality: 'eco' },
+    /** Wide activity cards — .card-wide-image ~320×224 CSS */
+    cardWide: { width: 720, height: 504, crop: 'fill', quality: 'eco' },
     /** Full-width community row — aspect 5:3 */
-    cardLandscape: { width: 750, height: 450, crop: 'fill' },
+    cardLandscape: { width: 720, height: 432, crop: 'fill', quality: 'eco' },
     /** 16:9 carousel / video-style cards */
-    cardVideo: { width: 640, height: 360, crop: 'fill' },
+    cardVideo: { width: 640, height: 360, crop: 'fill', quality: 'eco' },
     /** 7:5 home artist tiles */
-    cardPanel: { width: 700, height: 500, crop: 'fill' },
-    cardSm: { width: 480, height: 624, crop: 'fill' },
-    /** @deprecated use cardPortrait — kept for callers; now 10:13 */
-    card: { width: 640, height: 832, crop: 'fill' },
-    cardLg: { width: 800, height: 1040, crop: 'fill' },
-    hero: { width: 1200, height: 560, crop: 'fill' },
-    /** Community detail page header — matches mobile ImmersiveHero (393×396) */
-    communityBanner: { width: 786, height: 792, crop: 'fill' },
-    detail: { width: 1600, height: 900, crop: 'limit' },
+    cardPanel: { width: 560, height: 400, crop: 'fill', quality: 'eco' },
+    cardSm: { width: 360, height: 468, crop: 'fill', quality: 'eco' },
+    /** @deprecated use cardPortrait */
+    card: { width: 400, height: 520, crop: 'fill', quality: 'eco' },
+    cardLg: { width: 560, height: 728, crop: 'fill', quality: 'eco' },
+    /** Home / hub hero — mobile-first; still sharp on desktop via dpr_2 */
+    hero: { width: 960, height: 448, crop: 'fill', quality: 'good' },
+    /** Community detail header */
+    communityBanner: { width: 786, height: 792, crop: 'fill', quality: 'good' },
+    detail: { width: 1200, height: 675, crop: 'limit', quality: 'good' },
+};
+
+/** Hint for `<img sizes>` so the browser can pick the right candidate when srcset is added later */
+export const IMAGE_PRESET_SIZES = {
+    thumb: '64px',
+    square: '180px',
+    cardPortrait: '(min-width: 1024px) 160px, 42vw',
+    cardWide: '(min-width: 1024px) 360px, 84vw',
+    cardLandscape: '100vw',
+    cardVideo: '(min-width: 1024px) 320px, 80vw',
+    cardPanel: '(min-width: 1024px) 280px, 78vw',
+    cardSm: '160px',
+    card: '(min-width: 1024px) 200px, 50vw',
+    cardLg: '(min-width: 1024px) 280px, 70vw',
+    hero: '(min-width: 1024px) 960px, 100vw',
+    communityBanner: '100vw',
+    detail: '(min-width: 1024px) 1200px, 100vw',
 };
 
 export function isCloudinaryUrl(url) {
@@ -39,11 +60,12 @@ export function isCloudinaryUrl(url) {
 // g_auto is only valid with cropping modes; it errors with limit/fit/scale/pad
 const GRAVITY_SAFE_CROPS = ['fill', 'lfill', 'fill_pad', 'crop', 'thumb', 'auto'];
 
-function buildTransform({ width, height, crop }) {
+function buildTransform({ width, height, crop, quality = 'eco' }) {
     const parts = [`c_${crop}`, `w_${width}`];
     if (height) parts.push(`h_${height}`);
     if (GRAVITY_SAFE_CROPS.includes(crop)) parts.push('g_auto');
-    parts.push('q_auto:good', 'f_auto', 'dpr_auto', 'fl_progressive');
+    // eco for cards (faster), good for heroes; cap DPR so 3× phones don't download 3× pixels
+    parts.push(`q_auto:${quality}`, 'f_auto', 'dpr_2.0');
     return parts.join(',');
 }
 

@@ -1,33 +1,10 @@
 import { useEffect, useRef } from 'react';
 
 const DEFAULT_COLLAPSE_DISTANCE = 82;
-const MIN_COLLAPSE_DISTANCE = 28;
-const IDLE_MS = 220;
-const LERP_ACTIVE = 0.38;
-const LERP_ACTIVE_MAX = 0.78;
-const LERP_IDLE = 0.14;
-const LERP_IDLE_MAX = 0.42;
+/** Only show the CrwdCtrl logo when the page is at (or very near) the top */
+const EXPAND_AT_Y = 8;
+const LERP = 0.42;
 const SNAP_EPSILON = 0.004;
-/** px/ms — ~1.8 ≈ brisk flick, ~3+ ≈ very fast momentum scroll */
-const FAST_SCROLL_VELOCITY = 1.8;
-
-function smoothstep(t) {
-    return t * t * (3 - 2 * t);
-}
-
-function getSpeedFactor(velocityPxPerMs) {
-    return Math.min(1, Math.abs(velocityPxPerMs) / FAST_SCROLL_VELOCITY);
-}
-
-function getEffectiveCollapseDistance(baseDistance, speedFactor) {
-    return baseDistance - (baseDistance - MIN_COLLAPSE_DISTANCE) * speedFactor;
-}
-
-function getTargetProgress(scrollY, speedFactor, baseDistance) {
-    const distance = getEffectiveCollapseDistance(baseDistance, speedFactor);
-    const raw = Math.min(1, Math.max(0, scrollY / distance));
-    return smoothstep(raw);
-}
 
 function measureCollapseDistance(el) {
     const row = el?.querySelector('.mobile-header-branding-row__inner');
@@ -35,15 +12,11 @@ function measureCollapseDistance(el) {
     return measured > 0 ? measured + 6 : DEFAULT_COLLAPSE_DISTANCE;
 }
 
-function getLerpFactor(isActivelyScrolling, speedFactor) {
-    const base = isActivelyScrolling ? LERP_ACTIVE : LERP_IDLE;
-    const max = isActivelyScrolling ? LERP_ACTIVE_MAX : LERP_IDLE_MAX;
-    return base + (max - base) * speedFactor;
-}
-
 /**
- * Scroll-linked header collapse with rAF lerp — buttery on iOS momentum scroll.
- * Writes CSS vars directly to the DOM (zero React re-renders during scroll).
+ * Mobile header branding collapse.
+ * Logo is visible only at the top of the page (refresh / scrolled to top).
+ * Once the user scrolls away, it stays hidden until they return to the top —
+ * so it does not flash back mid-page while scrolling up.
  */
 export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
     const collapsedRef = useRef(false);
@@ -58,14 +31,12 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
         let loopActive = false;
         let idleTimer = null;
         let lastScrollEvent = 0;
-        let lastScrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
-        let lastScrollTime = performance.now();
-        let scrollVelocity = 0;
-        let speedFactor = 0;
         let currentProgress = 0;
         let targetProgress = 0;
         let collapseDistance = measureCollapseDistance(el);
         let inputFocused = false;
+        /** Once collapsed mid-page, stay collapsed until EXPAND_AT_Y */
+        let lockedCollapsed = false;
 
         const isFormField = (node) => {
             if (!node || node === document.body) return false;
@@ -104,27 +75,28 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
             }
         };
 
+        const computeTarget = (scrollY) => {
+            if (scrollY <= EXPAND_AT_Y) {
+                lockedCollapsed = false;
+                return 0;
+            }
+
+            if (scrollY >= collapseDistance || lockedCollapsed) {
+                lockedCollapsed = true;
+                return 1;
+            }
+
+            // Near the top, collapsing for the first time — ease out with scroll
+            const raw = Math.min(1, Math.max(0, scrollY / collapseDistance));
+            return raw * raw * (3 - 2 * raw);
+        };
+
         const tick = () => {
             const now = performance.now();
             const isActivelyScrolling = now - lastScrollEvent < 80;
 
-            if (!isActivelyScrolling) {
-                scrollVelocity *= 0.88;
-                const prevSpeed = speedFactor;
-                speedFactor = getSpeedFactor(scrollVelocity);
-
-                if (Math.abs(speedFactor - prevSpeed) > 0.02) {
-                    const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
-                    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                        targetProgress = getTargetProgress(scrollY, speedFactor, collapseDistance);
-                    }
-                }
-            }
-
-            const factor = getLerpFactor(isActivelyScrolling, speedFactor);
-
             if (Math.abs(targetProgress - currentProgress) > SNAP_EPSILON) {
-                currentProgress += (targetProgress - currentProgress) * factor;
+                currentProgress += (targetProgress - currentProgress) * LERP;
             } else {
                 currentProgress = targetProgress;
             }
@@ -143,23 +115,14 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
 
         const syncTarget = () => {
             if (inputFocused) return;
-
             const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
-            const now = performance.now();
-            const dt = Math.max(now - lastScrollTime, 1);
-            const dy = scrollY - lastScrollY;
-            const instantVelocity = dy / dt;
-
-            scrollVelocity = scrollVelocity * 0.45 + instantVelocity * 0.55;
-            speedFactor = getSpeedFactor(scrollVelocity);
-
-            lastScrollY = scrollY;
-            lastScrollTime = now;
-
             const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            targetProgress = prefersReducedMotion
-                ? (scrollY > collapseDistance * 0.5 ? 1 : 0)
-                : getTargetProgress(scrollY, speedFactor, collapseDistance);
+            if (prefersReducedMotion) {
+                targetProgress = scrollY > EXPAND_AT_Y ? 1 : 0;
+                lockedCollapsed = scrollY > EXPAND_AT_Y;
+            } else {
+                targetProgress = computeTarget(scrollY);
+            }
         };
 
         const onResize = () => {
@@ -190,7 +153,7 @@ export function useMobileHeaderCollapse(headerRef, onCollapsedChange) {
                     loopActive = true;
                     rafId = window.requestAnimationFrame(tick);
                 }
-            }, IDLE_MS);
+            }, 180);
         };
 
         syncTarget();

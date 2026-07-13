@@ -31,6 +31,7 @@ import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords'
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { festPath, runClubPath, sportRunPath } from '../../utils/slugRoutes';
 import ContentImage from '../../components/ContentImage';
+import { preloadImages } from '../../utils/preloadImages';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
 import Seo from '../../components/Seo';
@@ -179,6 +180,13 @@ export default function SportsCategoryPage() {
     }, [runClubEntities]);
 
     const hasSportsContent = runClubs.length > 0 || filteredActivities.length > 0;
+
+    useEffect(() => {
+        if (loading) return;
+        const clubUrls = runClubs.slice(0, 4).map((c) => getCoverImageUrl(c, 'cardPortrait'));
+        const activityUrls = filteredActivities.slice(0, 4).map((a) => a.image);
+        preloadImages([...clubUrls, ...activityUrls], { limit: 8 });
+    }, [loading, runClubs, filteredActivities]);
 
     const ComingSoon = () => (
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">

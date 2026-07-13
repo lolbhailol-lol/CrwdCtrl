@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import ContentImage from './ContentImage';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
+import { getImageUrl } from '../utils/imageImports';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { preloadImages } from '../utils/preloadImages';
 
 export default function HeroBanner({
     events = [],
@@ -13,6 +16,17 @@ export default function HeroBanner({
     const scrollRef = useRef(null);
     const pauseAutoUntilRef = useRef(0);
     const items = events.slice(0, 5);
+
+    useEffect(() => {
+        const slice = events.slice(0, 5);
+        if (!slice.length) return;
+        const urls = slice.slice(0, 3).map((item) => {
+            const raw = item.image;
+            if (!raw) return null;
+            return optimizeImageUrl(getImageUrl(raw) || raw, 'hero');
+        });
+        preloadImages(urls, { limit: 3 });
+    }, [events]);
 
     const syncActiveFromScroll = useCallback(() => {
         const el = scrollRef.current;
