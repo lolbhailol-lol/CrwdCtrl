@@ -6,6 +6,8 @@ import {
     fetchRunClubOrganizerEvent,
     setRunClubOrganizerRegistrationStatus,
     expireRunClubOrganizerPendingPayments,
+    updateRunClubOrganizerEvent,
+    uploadRunClubOrganizerImage,
 } from '../../services/api/runClubOrganizer.api';
 import { sportRunPath } from '../../utils/slugRoutes';
 
@@ -22,6 +24,189 @@ function StatCard({ label, value, icon: Icon, accent, hint }) {
                     <Icon size={16} />
                 </div>
             </div>
+        </div>
+    );
+}
+
+const MODE_LABELS = {
+    internal_form: 'In-app form (admin)',
+    external_link: 'External link (admin)',
+    organizer_qr: 'Form + UPI QR (admin)',
+};
+
+function RegistrationPricingPanel({ eventId, eventDetail, onSaved, busy, setBusy }) {
+    const [fee, setFee] = useState('0');
+    const [paymentQR, setPaymentQR] = useState('');
+    const [paymentUpiId, setPaymentUpiId] = useState('');
+    const [paymentQRMessage, setPaymentQRMessage] = useState('');
+    const [notice, setNotice] = useState('');
+    const [error, setError] = useState('');
+    const [uploading, setUploading] = useState(false);
+
+    const mode = eventDetail?.registration?.mode || 'internal_form';
+
+    useEffect(() => {
+        if (!eventDetail) return;
+        setFee(String(Number(eventDetail.registrationFee) || 0));
+        setPaymentQR(eventDetail.registration?.paymentQR || '');
+        setPaymentUpiId(eventDetail.registration?.paymentUpiId || '');
+        setPaymentQRMessage(eventDetail.registration?.paymentQRMessage || '');
+        setNotice('');
+        setError('');
+    }, [eventDetail]);
+
+    const feeNum = Math.max(0, Number(fee) || 0);
+    const needsQr = mode === 'organizer_qr' && feeNum > 0;
+
+    const save = async () => {
+        setError('');
+        setNotice('');
+        if (needsQr && !String(paymentQR || '').trim()) {
+            setError('Upload a payment QR when fee is greater than ₹0.');
+            return;
+        }
+        setBusy(true);
+        try {
+            const payload = { registrationFee: feeNum };
+            if (mode === 'organizer_qr') {
+                payload.registration = {
+                    paymentQR,
+                    paymentUpiId: String(paymentUpiId || '').trim(),
+                    paymentQRMessage: String(paymentQRMessage || '').trim(),
+                    status: eventDetail?.registration?.status || 'open',
+                    formInstructions: eventDetail?.registration?.formInstructions || '',
+                    formSchema: eventDetail?.registration?.formSchema || [],
+                    maxPeoplePerBooking: eventDetail?.registration?.maxPeoplePerBooking || 10,
+                };
+            }
+            await updateRunClubOrganizerEvent(eventId, payload);
+            setNotice('Registration fee saved');
+            await onSaved?.();
+        } catch (e) {
+            setError(e.message || 'Failed to save fee');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const onQrFile = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        setUploading(true);
+        setError('');
+        try {
+            const res = await uploadRunClubOrganizerImage(file);
+            const url = res?.url || res?.secure_url || res?.imageUrl || '';
+            if (!url) throw new Error('Upload failed');
+            setPaymentQR(url);
+        } catch (err) {
+            setError(err.message || 'QR upload failed');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const inputClass = 'w-full rounded-lg border border-gray-700 bg-[#0E0E0F] px-3 py-2.5 text-sm text-white focus:border-[#0ECCEE] focus:outline-none';
+
+    return (
+        <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 space-y-4">
+            <div>
+                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <IndianRupee size={16} className="text-[#0ECCEE]" />
+                    Registration fees
+                </h2>
+                <p className="text-[11px] text-gray-500 mt-1">
+                    Set the fee for this run. Registration mode is set in the admin panel.
+                </p>
+            </div>
+
+            <label className="block space-y-1.5">
+                <span className="text-[11px] uppercase tracking-wide text-gray-500">Fee (₹)</span>
+                <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={fee}
+                    onChange={(e) => setFee(e.target.value)}
+                    className={inputClass}
+                    disabled={busy}
+                />
+            </label>
+
+            <p className="text-[11px] text-gray-500">
+                Mode: <span className="text-gray-300">{MODE_LABELS[mode] || mode}</span>
+            </p>
+
+            {mode === 'organizer_qr' ? (
+                <div className="space-y-3 border-t border-gray-800 pt-3">
+                    <p className="text-[11px] text-gray-500">
+                        {feeNum > 0
+                            ? 'Runners fill the form, pay via your UPI QR, and upload a screenshot for you to approve.'
+                            : 'Fee is ₹0 — registration confirms without a payment screenshot.'}
+                    </p>
+                    <label className="block space-y-1.5">
+                        <span className="text-[11px] uppercase tracking-wide text-gray-500">
+                            Payment QR {needsQr ? '(required)' : '(optional)'}
+                        </span>
+                        {paymentQR ? (
+                            <div className="flex items-start gap-3">
+                                <img src={paymentQR} alt="Payment QR" className="w-24 h-24 rounded-lg object-cover border border-gray-700" />
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentQR('')}
+                                    className="text-xs text-red-400 hover:underline"
+                                    disabled={busy || uploading}
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        ) : null}
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={onQrFile}
+                            disabled={busy || uploading}
+                            className="block w-full text-xs text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-[#0ECCEE] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-black"
+                        />
+                        {uploading ? <p className="text-[11px] text-gray-500">Uploading…</p> : null}
+                    </label>
+                    <label className="block space-y-1.5">
+                        <span className="text-[11px] uppercase tracking-wide text-gray-500">UPI ID (optional)</span>
+                        <input
+                            type="text"
+                            value={paymentUpiId}
+                            onChange={(e) => setPaymentUpiId(e.target.value)}
+                            placeholder="name@upi"
+                            className={inputClass}
+                            disabled={busy}
+                        />
+                    </label>
+                    <label className="block space-y-1.5">
+                        <span className="text-[11px] uppercase tracking-wide text-gray-500">Payment note (optional)</span>
+                        <input
+                            type="text"
+                            value={paymentQRMessage}
+                            onChange={(e) => setPaymentQRMessage(e.target.value)}
+                            placeholder="Add run name in UPI remark"
+                            className={inputClass}
+                            disabled={busy}
+                        />
+                    </label>
+                </div>
+            ) : null}
+
+            {error ? <p className="text-[11px] text-red-400">{error}</p> : null}
+            {notice ? <p className="text-[11px] text-emerald-400">{notice}</p> : null}
+
+            <button
+                type="button"
+                onClick={save}
+                disabled={busy || uploading}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
+            >
+                {busy ? 'Saving…' : 'Save fee'}
+            </button>
         </div>
     );
 }
@@ -133,7 +318,7 @@ export default function RunClubOrganizerDashboardPage() {
                         {status || 'draft'}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-700/40 text-gray-300">
-                        {fee > 0 ? (mode === 'organizer_qr' ? 'QR payment' : 'Paid') : 'Free'}
+                        {fee > 0 ? (mode === 'organizer_qr' ? `QR · ₹${fee}` : `Paid · ₹${fee}`) : 'Free'}
                     </span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
                         regStatus === 'open'
@@ -184,6 +369,14 @@ export default function RunClubOrganizerDashboardPage() {
                     </div>
                 </div>
             ) : null}
+
+            <RegistrationPricingPanel
+                eventId={eventId}
+                eventDetail={eventDetail}
+                onSaved={() => load({ silent: true })}
+                busy={actionBusy}
+                setBusy={setActionBusy}
+            />
 
             <div className="grid grid-cols-2 gap-3">
                 <StatCard label="Confirmed" value={stats.totalRegistrations} icon={Users} accent="bg-blue-500/15 text-blue-400" />

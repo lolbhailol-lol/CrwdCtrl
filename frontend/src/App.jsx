@@ -123,9 +123,7 @@ function ConditionalFooter() {
 
 function RouteSuspenseFallback() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true" aria-label="Loading page">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0ECCEE] border-t-transparent" />
-    </div>
+    <div className="min-h-[40vh] w-full bg-transparent" aria-busy="true" aria-label="Loading page" />
   );
 }
 

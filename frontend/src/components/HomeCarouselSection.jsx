@@ -458,19 +458,32 @@ export default function HomeCarouselSection({
             </h2>
             <div
                 ref={scrollRef}
-                className={carouselClassName}
+                className={`${carouselClassName} relative`}
                 style={scrollStyle}
             >
+                {/* Overlay skeleton until loop track is centered — no blank/invisible flash */}
+                {trackHidden ? (
+                    <div
+                        className="pointer-events-none absolute inset-0 z-10 flex w-max pb-1"
+                        style={{ gap: cardGap, paddingInline: scrollStyle.paddingInline }}
+                        aria-hidden
+                    >
+                        {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
+                            <div key={`ov-${index}`} className="carousel-slide shrink-0 snap-center">
+                                <HomeEventCardSkeleton tallCard={tallCard} wideCard={wideCard} miniCard={miniCard} portraitCard={portraitCard} heroCard={heroCard} />
+                            </div>
+                        ))}
+                    </div>
+                ) : null}
                 <div
                     ref={trackRef}
                     className="flex w-max pb-1"
                     style={{
                         gap: cardGap,
-                        visibility: trackHidden ? 'hidden' : 'visible',
+                        opacity: trackHidden ? 0 : 1,
                     }}
                 >
                     {slides.map((slide, slideIndex) => {
-                        // Map loop clone indices to logical item index for eager-load window
                         const logicalIndex = alignStart || items.length <= 1
                             ? slideIndex
                             : Math.max(0, Math.min(items.length - 1, slideIndex - 1));
@@ -496,7 +509,9 @@ export default function HomeCarouselSection({
                     })}
                 </div>
             </div>
-            <CarouselDotPagination total={items.length} active={activeIndex} className="mt-4" />
+            {!trackHidden ? (
+                <CarouselDotPagination total={items.length} active={activeIndex} className="mt-4" />
+            ) : null}
         </section>
     );
 }

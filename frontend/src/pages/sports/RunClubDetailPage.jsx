@@ -170,12 +170,10 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
                         className="w-full h-full object-cover"
                         loading="lazy"
                         decoding="async"
-                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#14532d', run.title)}
+                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', run.title)}
                     />
                 ) : (
-                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
-                        <span className="text-4xl">🏃</span>
-                    </div>
+                    <div className="w-full h-full bg-[#1A1B1D]" />
                 )}
                 <CardFavoriteButton isFavorite={isFav} onClick={onFav} />
             </div>
@@ -367,7 +365,13 @@ export default function RunClubDetailPage() {
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+                    style={{
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none',
+                        WebkitOverflowScrolling: 'touch',
+                        touchAction: 'pan-x',
+                        overscrollBehaviorX: 'contain',
+                    }}
                     onScroll={(e) => {
                         const p = Math.round(e.target.scrollLeft / e.target.clientWidth);
                         setImgPg((prev) => (prev === p ? prev : p));
@@ -379,28 +383,30 @@ export default function RunClubDetailPage() {
                                 {img ? (
                                     <>
                                         {i === 0 && !heroLoaded && (
-                                            <div aria-hidden className="absolute inset-0 bg-gray-800 animate-pulse" />
+                                            <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
                                         )}
                                         <img
                                             src={getImageUrl(img, { preset: 'hero' })}
                                             alt={name}
-                                            className={`w-full h-full object-cover transition-opacity duration-200 ${
+                                            className={`w-full h-full object-cover pointer-events-none select-none ${
                                                 i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
                                             }`}
+                                            draggable={false}
                                             loading={i === 0 ? 'eager' : 'lazy'}
                                             fetchPriority={i === 0 ? 'high' : 'auto'}
                                             decoding="async"
-                                            onLoad={() => {
+                                            onLoad={(e) => {
                                                 if (i === 0) setHeroLoaded(true);
+                                                if (e.currentTarget.complete) setHeroLoaded(true);
                                             }}
                                             onError={(e) => {
                                                 if (i === 0) setHeroLoaded(true);
-                                                handleImageErrorWithFallback(e, 393, 396, '#14532d', name);
+                                                handleImageErrorWithFallback(e, 393, 396, '#2A2B2E', name);
                                             }}
                                         />
                                     </>
                                 ) : (
-                                    <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700" />
+                                    <div className="w-full h-full bg-[#1A1B1D]" />
                                 )}
                             </div>
                         ))}

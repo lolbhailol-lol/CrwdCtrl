@@ -90,7 +90,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
                     alt={fest.festName}
                     preset="cardVideo"
                     className="w-full h-full object-cover"
-                    onError={(e) => handleImageErrorWithFallback(e, 320, 190, '#6366f1', fest.festName || 'Fest')}
+                    onError={(e) => handleImageErrorWithFallback(e, 320, 190, '#2A2B2E', fest.festName || 'Fest')}
                 />
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>

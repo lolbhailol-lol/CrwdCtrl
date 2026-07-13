@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
 import ContentImage from './ContentImage';
 import CardFavoriteButton from './CardFavoriteButton';
 import CardShareButton from './CardShareButton';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 import { toCardText } from '../utils/cardText';
 import { shareContent } from '../utils/externalLink';
+
+const FALLBACK_BG = '#2A2B2E';
 
 function CardCoverImage({
     src,
@@ -14,36 +15,19 @@ function CardCoverImage({
     loading = 'lazy',
     fetchPriority,
     onError,
-    fill = false,
 }) {
-    const [loaded, setLoaded] = useState(!src);
-
-    useEffect(() => {
-        setLoaded(!src);
-    }, [src]);
-
     return (
-        <>
-            {!loaded && (
-                <div
-                    aria-hidden
-                    className={`absolute inset-0 animate-pulse ${fill ? '' : ''} bg-gray-200 dark:bg-gray-800`}
-                />
-            )}
-            <ContentImage
-                src={src}
-                alt={alt}
-                preset={preset}
-                loading={loading}
-                fetchPriority={fetchPriority}
-                className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200`}
-                onLoad={() => setLoaded(true)}
-                onError={(e) => {
-                    setLoaded(true);
-                    onError?.(e);
-                }}
-            />
-        </>
+        <ContentImage
+            src={src}
+            alt={alt}
+            preset={preset}
+            loading={loading}
+            fetchPriority={fetchPriority}
+            showPlaceholderUntilLoad
+            placeholderClassName="bg-[#E8EAED] dark:bg-[#1A1B1D]"
+            className={className}
+            onError={onError}
+        />
     );
 }
 
@@ -95,12 +79,12 @@ export default function HomeEventCard({
                         preset="cardWide"
                         loading={loading}
                         fetchPriority={fetchPriority}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover absolute inset-0"
                         onError={(e) => handleImageErrorWithFallback(
                             e,
                             320,
                             224,
-                            '#6366f1',
+                            FALLBACK_BG,
                             event.title || 'Event',
                         )}
                     />
@@ -170,13 +154,12 @@ export default function HomeEventCard({
                     preset={imagePreset}
                     loading={loading}
                     fetchPriority={fetchPriority}
-                    fill
                     className="absolute inset-0 h-full w-full object-cover object-center"
                     onError={(e) => handleImageErrorWithFallback(
                         e,
                         portraitCard ? 160 : prominentImage ? (heroCard ? 400 : 300) : 300,
                         portraitCard ? 200 : prominentImage ? (heroCard ? 200 : (tallImage ? 273 : 200)) : 225,
-                        '#6366f1',
+                        FALLBACK_BG,
                         event.title || 'Event',
                     )}
                 />

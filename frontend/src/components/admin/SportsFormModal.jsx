@@ -57,6 +57,23 @@ function SectionBlock({ title, hint, children }) {
     );
 }
 
+/** Must live outside SportsFormModal — defining Field inside remounts inputs every keystroke. */
+function Field({ label, required, children, hint }) {
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+                {label}
+                {required && <span className="text-red-400 ml-1">*</span>}
+            </label>
+            {hint && <p className="text-[10px] text-gray-600 mb-1.5">{hint}</p>}
+            {children}
+        </div>
+    );
+}
+
+const INPUT_CLASS =
+    'w-full bg-[#1D1E20] border border-gray-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#0ECCEE]';
+
 export default function SportsFormModal({ event, runClubId, clubName, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploadingCover, setUploadingCover] = useState(false);
@@ -224,18 +241,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
         }
     };
 
-    const Field = ({ label, required, children, hint }) => (
-        <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-                {label}
-                {required && <span className="text-red-400 ml-1">*</span>}
-            </label>
-            {hint && <p className="text-[10px] text-gray-600 mb-1.5">{hint}</p>}
-            {children}
-        </div>
-    );
-
-    const inp = 'w-full bg-[#1D1E20] border border-gray-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#0ECCEE]';
+    const inp = INPUT_CLASS;
 
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 py-8 px-4">

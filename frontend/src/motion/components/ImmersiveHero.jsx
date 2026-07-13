@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /**
  * Full-width hero with a gradient overlay. Static, full-bleed image (object-cover)
@@ -14,10 +14,19 @@ export default function ImmersiveHero({
     onImageError,
     className = '',
 }) {
+    const imgRef = useRef(null);
     const [loaded, setLoaded] = useState(!imageSrc);
 
     useEffect(() => {
-        setLoaded(!imageSrc);
+        if (!imageSrc) {
+            setLoaded(true);
+            return;
+        }
+        setLoaded(false);
+        const el = imgRef.current;
+        if (el?.complete && el.naturalWidth > 0) {
+            setLoaded(true);
+        }
     }, [imageSrc]);
 
     return (
@@ -25,12 +34,13 @@ export default function ImmersiveHero({
             {imageSrc ? (
                 <>
                     {!loaded && (
-                        <div aria-hidden className="absolute inset-0 bg-gray-800 animate-pulse" />
+                        <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
                     )}
                     <img
+                        ref={imgRef}
                         src={imageSrc}
                         alt={imageAlt}
-                        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${
+                        className={`absolute inset-0 w-full h-full object-cover ${
                             loaded ? 'opacity-100' : 'opacity-0'
                         }`}
                         loading="eager"

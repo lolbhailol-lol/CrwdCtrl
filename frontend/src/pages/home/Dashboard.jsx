@@ -193,16 +193,10 @@ function readInitialFestsFromCache() {
 const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName, venue: _venue, dateTime, ticketPrice: _ticketPrice, isDark, onRegister: _onRegister, onToggleFavorite, isFavorite }) => {
     const navigate = useNavigate();
     const [imageError, setImageError] = useState(false);
-    const [imageLoading, setImageLoading] = useState(true);
 
     const handleImageError = (e) => {
-        handleImageErrorWithFallback(e, 240, 170, '#6366f1', artistName || 'Event');
+        handleImageErrorWithFallback(e, 240, 170, '#2A2B2E', artistName || 'Event');
         setImageError(true);
-        setImageLoading(false);
-    };
-
-    const handleImageLoad = () => {
-        setImageLoading(false);
     };
 
     const handleCardClick = () => {
@@ -215,19 +209,8 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
             className="card-surface card-carousel rounded-xl overflow-hidden duration-300 transition-shadow cursor-pointer"
         >
             <div className="relative aspect-7/5 overflow-hidden rounded-t-xl">
-                {/* Loading placeholder */}
-                {imageLoading && (
-                    <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
-                        <div className="animate-pulse text-center">
-                            <div className={`w-8 h-8 rounded-full mx-auto mb-2 ${isDark ? 'bg-gray-800' : 'bg-gray-300'}`}></div>
-                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Error fallback */}
                 {imageError ? (
-                    <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#0E0E0F]' : 'bg-gray-200'}`}>
+                    <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1A1B1D]' : 'bg-[#E8EAED]'}`}>
                         <div className="text-center">
                             <ImageOff className={`w-9 h-9 mx-auto mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Image unavailable</p>
@@ -238,11 +221,11 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
                         src={image}
                         alt={artistName || 'Event image'}
                         preset="cardPanel"
-                        className="w-full h-full object-cover"
+                        showPlaceholderUntilLoad
+                        placeholderClassName={isDark ? 'bg-[#1A1B1D]' : 'bg-[#E8EAED]'}
+                        className="w-full h-full object-cover absolute inset-0"
                         onError={handleImageError}
-                        onLoad={handleImageLoad}
                         style={{
-                            display: imageLoading ? 'none' : 'block',
                             WebkitUserSelect: 'none',
                             userSelect: 'none',
                             WebkitTouchCallout: 'none',
@@ -297,7 +280,7 @@ const Dashboard = () => {
     const [showRegister, setShowRegister] = useState(false);
     const [fests, setFests] = useState(readInitialFestsFromCache);
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
-    usePageContentLoading(isFestsLoading);
+    usePageContentLoading(isFestsLoading || !homeAuxLoaded);
 
     // Soft safety only — do not end loading before cold-start fetches can finish (iOS)
     useEffect(() => {

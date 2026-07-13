@@ -281,7 +281,7 @@ export default function EventDetailsPage() {
               src={getCoverImageUrl(event, 'hero') || getImageUrl(event.image, { preset: 'hero' })}
               alt={event.title}
               className="absolute inset-0 w-full h-full object-cover"
-              onError={(e) => handleImageErrorWithFallback(e, 400, 384, '#6366f1', event.title)}
+              onError={(e) => handleImageErrorWithFallback(e, 400, 384, '#2A2B2E', event.title)}
             />
           ) : (
             <div className="absolute inset-0 bg-linear-to-br from-purple-800 to-indigo-600 flex items-center justify-center">
@@ -591,7 +591,7 @@ export default function EventDetailsPage() {
                 src={getImageUrl(event.banner, { preset: 'detail' })}
                 alt={`${event.title} banner`}
                 className="w-full h-auto"
-                onError={(e) => handleImageErrorWithFallback(e, 400, 160, '#6366f1', event.title)}
+                onError={(e) => handleImageErrorWithFallback(e, 400, 160, '#2A2B2E', event.title)}
               />
             </div>
           )}
@@ -614,7 +614,7 @@ export default function EventDetailsPage() {
                         src={getImageUrl(img, { preset: 'thumb' })}
                         alt={`Gallery ${idx + 1}`}
                         className="w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 80, 80, '#6366f1', 'Gallery')}
+                        onError={(e) => handleImageErrorWithFallback(e, 80, 80, '#2A2B2E', 'Gallery')}
                       />
                       {isLast && (
                         <span className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-lg font-semibold">
@@ -675,7 +675,7 @@ export default function EventDetailsPage() {
             alt={`Gallery ${lightboxIndex + 1}`}
             className="max-w-[92vw] max-h-[82vh] object-contain rounded-xl"
             onClick={(e) => e.stopPropagation()}
-            onError={(e) => handleImageErrorWithFallback(e, 600, 600, '#6366f1', 'Gallery')}
+            onError={(e) => handleImageErrorWithFallback(e, 600, 600, '#2A2B2E', 'Gallery')}
           />
           {gallery.length > 1 && (
             <>

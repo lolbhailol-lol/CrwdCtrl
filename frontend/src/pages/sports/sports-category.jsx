@@ -42,6 +42,29 @@ import { SPORTS_FAQ } from '../../constants/faqs';
 const SPORTS_DESCRIPTION =
     'Discover sports events, running clubs and gym communities near you. Find runs, tournaments and sports fests, and join active communities on CrwdCtrl.';
 
+const SPORTS_CACHE_KEY = 'crwdctrl_sports_page_v1';
+const readSportsCache = () => {
+    try {
+        const raw = sessionStorage.getItem(SPORTS_CACHE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (!parsed || typeof parsed !== 'object') return null;
+        return {
+            events: Array.isArray(parsed.events) ? parsed.events : [],
+            fests: Array.isArray(parsed.fests) ? parsed.fests : [],
+            clubs: Array.isArray(parsed.clubs) ? parsed.clubs : [],
+        };
+    } catch {
+        return null;
+    }
+};
+const writeSportsCache = (payload) => {
+    try {
+        sessionStorage.setItem(SPORTS_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+        /* storage full / unavailable */
+    }
+};
+
 const BROWSE_CATEGORIES = SPORTS_BROWSE_CATEGORIES;
 
 function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
@@ -58,12 +81,10 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eage
                         fetchPriority={eager ? 'high' : undefined}
                         showPlaceholderUntilLoad
                         className="absolute inset-0 w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#14532d', club.title || 'Run Club')}
+                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', club.title || 'Run Club')}
                     />
                 ) : (
-                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
-                        <span className="text-5xl">🏃</span>
-                    </div>
+                    <div className="w-full h-full bg-[#1A1B1D]" />
                 )}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
@@ -85,15 +106,17 @@ export default function SportsCategoryPage() {
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
 
-    const [sportsEvents, setSportsEvents] = useState([]);
-    const [sportsFests, setSportsFests] = useState([]);
-    const [runClubEntities, setRunClubEntities] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const cached = readSportsCache();
+    const [sportsEvents, setSportsEvents] = useState(cached?.events || []);
+    const [sportsFests, setSportsFests] = useState(cached?.fests || []);
+    const [runClubEntities, setRunClubEntities] = useState(cached?.clubs || []);
+    const [loading, setLoading] = useState(!cached);
     const [loadError, setLoadError] = useState('');
     usePageContentLoading(loading);
 
     const loadData = useCallback(async () => {
-        setLoading(true);
+        const hasCache = Boolean(readSportsCache());
+        if (!hasCache) setLoading(true);
         setLoadError('');
         try {
             const [eventsRes, festsRes, clubsRes] = await Promise.all([
@@ -103,7 +126,8 @@ export default function SportsCategoryPage() {
             ]);
 
             const eventsData = eventsRes?.data;
-            setSportsEvents(Array.isArray(eventsData?.events) ? eventsData.events : []);
+            const nextEvents = Array.isArray(eventsData?.events) ? eventsData.events : [];
+            setSportsEvents(nextEvents);
 
             const festsData = festsRes?.data;
             const all = Array.isArray(festsData?.fests)
@@ -111,14 +135,20 @@ export default function SportsCategoryPage() {
                 : Array.isArray(festsData)
                     ? festsData
                     : [];
-            setSportsFests(all.filter((f) => f.festType === 'sports' && f.status !== 'lastyearhit'));
+            const nextFests = all.filter((f) => f.festType === 'sports' && f.status !== 'lastyearhit');
+            setSportsFests(nextFests);
 
             const clubsData = clubsRes?.data;
-            setRunClubEntities(Array.isArray(clubsData?.clubs) ? clubsData.clubs : []);
+            const nextClubs = Array.isArray(clubsData?.clubs) ? clubsData.clubs : [];
+            setRunClubEntities(nextClubs);
+
+            writeSportsCache({ events: nextEvents, fests: nextFests, clubs: nextClubs });
         } catch (err) {
-            setSportsEvents([]);
-            setSportsFests([]);
-            setRunClubEntities([]);
+            if (!hasCache) {
+                setSportsEvents([]);
+                setSportsFests([]);
+                setRunClubEntities([]);
+            }
             setLoadError(
                 err?.isNetworkError || err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED'
                     ? 'Could not load sports events. Check your connection and try again.'
@@ -346,7 +376,7 @@ export default function SportsCategoryPage() {
 
             <main className="pb-8">
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0">
-                {!loading && loadError ? (
+                {!loading && loadError && !hasSportsContent ? (
                     <LoadFailed />
                 ) : !loading && !hasSportsContent ? (
                     <ComingSoon />

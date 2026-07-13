@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import { getImageUrl } from '../utils/imageImports';
 import { optimizeImageUrl, IMAGE_PRESET_SIZES } from '../utils/imageOptimizer';
 
+const PLACEHOLDER_LIGHT = 'bg-[#E8EAED]';
+const PLACEHOLDER_DARK = 'dark:bg-[#1A1B1D]';
+
 /**
- * Optimized image for cards, heroes, and admin-uploaded content.
- * Cloudinary URLs get compact delivery transforms; lazy images are low-priority.
+ * Optimized image — skips flash when the browser already has the file cached.
  */
-export default function ContentImage({
+const ContentImage = forwardRef(function ContentImage({
     src,
     alt = '',
     preset = 'card',
@@ -18,36 +20,56 @@ export default function ContentImage({
     onError,
     onLoad,
     showPlaceholderUntilLoad = false,
-    placeholderClassName = 'bg-gray-200 dark:bg-gray-800 animate-pulse',
+    placeholderClassName = `${PLACEHOLDER_LIGHT} ${PLACEHOLDER_DARK}`,
     ...props
-}) {
+}, ref) {
     const resolved = getImageUrl(src);
     const optimized = optimizeImageUrl(resolved, preset);
     const finalSrc = optimized || resolved;
+    const localRef = useRef(null);
     const [loaded, setLoaded] = useState(!showPlaceholderUntilLoad || !finalSrc);
+
+    const setRefs = useCallback((node) => {
+        localRef.current = node;
+        if (typeof ref === 'function') ref(node);
+        else if (ref) ref.current = node;
+    }, [ref]);
+
+    const markLoaded = useCallback(() => {
+        setLoaded(true);
+    }, []);
+
+    useEffect(() => {
+        if (!showPlaceholderUntilLoad || !finalSrc) {
+            setLoaded(true);
+            return;
+        }
+        setLoaded(false);
+        const el = localRef.current;
+        if (el?.complete && el.naturalWidth > 0) {
+            setLoaded(true);
+        }
+    }, [finalSrc, showPlaceholderUntilLoad]);
+
+    const handleLoad = (e) => {
+        markLoaded();
+        onLoad?.(e);
+    };
+
+    const handleError = (e) => {
+        markLoaded();
+        onError?.(e);
+    };
 
     const resolvedSizes = sizes || IMAGE_PRESET_SIZES[preset] || undefined;
     const resolvedPriority =
         fetchPriority
         ?? (loading === 'eager' ? 'high' : 'low');
 
-    useEffect(() => {
-        setLoaded(!showPlaceholderUntilLoad || !finalSrc);
-    }, [finalSrc, showPlaceholderUntilLoad]);
-
-    const handleLoad = (e) => {
-        setLoaded(true);
-        onLoad?.(e);
-    };
-
-    const handleError = (e) => {
-        setLoaded(true);
-        onError?.(e);
-    };
-
     if (!showPlaceholderUntilLoad) {
         return (
             <img
+                ref={setRefs}
                 src={finalSrc}
                 alt={alt}
                 loading={loading}
@@ -72,6 +94,7 @@ export default function ContentImage({
                 />
             )}
             <img
+                ref={setRefs}
                 src={finalSrc}
                 alt={alt}
                 loading={loading}
@@ -86,4 +109,6 @@ export default function ContentImage({
             />
         </>
     );
-}
+});
+
+export default ContentImage;

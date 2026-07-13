@@ -512,7 +512,7 @@ function EventDetailsPage() {
                     alt={eventData.title}
                     className="w-full h-64 sm:h-80 xl:h-96 object-cover"
                     onError={(e) => {
-                      handleImageErrorWithFallback(e, 400, 300, '#6366f1', eventData.title || 'Event');
+                      handleImageErrorWithFallback(e, 400, 300, '#2A2B2E', eventData.title || 'Event');
                     }}
                   />
                   {eventData.id === 'fest_001' && (
@@ -536,7 +536,7 @@ function EventDetailsPage() {
                           alt={`Gallery ${idx + 1}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            handleImageErrorWithFallback(e, 100, 100, '#6366f1', 'Gallery');
+                            handleImageErrorWithFallback(e, 100, 100, '#2A2B2E', 'Gallery');
                           }}
                         />
                       </button>
@@ -716,7 +716,7 @@ function EventDetailsPage() {
                               alt={eventData.artists[currentArtist].name}
                               className="w-full h-full object-cover transition-transform duration-300 rounded-[16px]"
                               onError={(e) => {
-                                handleImageErrorWithFallback(e, 300, 300, '#6366f1', eventData.artists[currentArtist].name || 'Artist');
+                                handleImageErrorWithFallback(e, 300, 300, '#2A2B2E', eventData.artists[currentArtist].name || 'Artist');
                               }}
                           />
 
@@ -877,7 +877,7 @@ function EventDetailsPage() {
             alt={eventData.title}
             className="absolute inset-0 w-full h-full object-cover object-[center_30%]"
             onError={(e) => {
-              handleImageErrorWithFallback(e, 400, 320, '#6366f1', eventData.title || 'Event');
+              handleImageErrorWithFallback(e, 400, 320, '#2A2B2E', eventData.title || 'Event');
             }}
           />
           <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
@@ -1165,7 +1165,7 @@ function EventDetailsPage() {
                     alt={`Gallery ${idx + 1}`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      handleImageErrorWithFallback(e, 80, 80, '#6366f1', 'Gallery');
+                      handleImageErrorWithFallback(e, 80, 80, '#2A2B2E', 'Gallery');
                     }}
                   />
                 </button>
@@ -1181,7 +1181,7 @@ function EventDetailsPage() {
                     alt="More gallery"
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      handleImageErrorWithFallback(e, 80, 80, '#6366f1', 'Gallery');
+                      handleImageErrorWithFallback(e, 80, 80, '#2A2B2E', 'Gallery');
                     }}
                   />
                   {galleryExtraCount > 0 && (
@@ -1220,7 +1220,7 @@ function EventDetailsPage() {
             className="max-w-[92vw] max-h-[82vh] object-contain rounded-xl"
             onClick={(e) => e.stopPropagation()}
             onError={(e) => {
-              handleImageErrorWithFallback(e, 600, 600, '#6366f1', 'Gallery');
+              handleImageErrorWithFallback(e, 600, 600, '#2A2B2E', 'Gallery');
             }}
           />
 

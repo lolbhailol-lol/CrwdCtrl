@@ -41,6 +41,83 @@ import { preloadImages } from '../../utils/preloadImages';
 const TREKS_DESCRIPTION =
     'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';
 
+const TREKS_CACHE_KEY = 'crwdctrl_treks_page_v1';
+const readTreksCache = () => {
+    try {
+        const raw = sessionStorage.getItem(TREKS_CACHE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (!parsed || typeof parsed !== 'object') return null;
+        return {
+            trekData: parsed.trekData ?? null,
+            commData: parsed.commData ?? null,
+        };
+    } catch {
+        return null;
+    }
+};
+const writeTreksCache = (payload) => {
+    try {
+        sessionStorage.setItem(TREKS_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+        /* storage full / unavailable */
+    }
+};
+
+function mapTrekCommunities(commData) {
+    return (Array.isArray(commData?.communities) ? commData.communities : [])
+        .filter((c) => c.showOnTreks !== false);
+}
+
+function mapCommunityCards(commList) {
+    return commList.map((c) => ({
+        id: c._id,
+        title: c.name,
+        subtitle: c.basedIn || '',
+        coverImage: c.coverImage || null,
+        coverImages: c.coverImages || null,
+        image: c.coverImage || c.galleryImages?.[0] || null,
+        aboutUs: c.aboutUs,
+        trekCategories: c.trekCategories || [],
+        galleryImages: c.galleryImages || [],
+        contactPhone: c.contactPhone,
+        contactInstagram: c.contactInstagram,
+        groupLink: c.groupLink || '',
+        trekPageSection: c.trekPageSection || 'communities',
+        trekPagePriority: c.trekPagePriority || 999,
+        type: 'Community',
+    }));
+}
+
+function mapTrekCards(trekData, commList) {
+    const list = Array.isArray(trekData?.treks) ? trekData.treks : [];
+    return list.map((t) => {
+        const communityName = commList.find((c) => String(c._id) === String(t.communityId))?.name || '';
+        return {
+            id: t._id,
+            title: t.trekName,
+            subtitle: t.city || t.startingPoint || '',
+            coverImage: t.coverImage || null,
+            coverImages: t.coverImages || null,
+            image: t.coverImage || t.images?.[0] || null,
+            communityId: t.communityId || null,
+            communityName,
+            difficulty: t.difficultyLevel,
+            duration: t.trekDuration,
+            trekDate: t.trekDate || null,
+            dateLabel: t.dateLabel || '',
+            trekBatches: t.trekBatches || [],
+            date: formatTrekCardDate(t),
+            trekCategory: t.trekCategory || null,
+            featuredSection: t.featuredSection || null,
+            homeSection: t.homeSection || null,
+            trekPagePriority: t.trekPagePriority || 999,
+            type: t.difficultyLevel
+                ? t.difficultyLevel.charAt(0).toUpperCase() + t.difficultyLevel.slice(1)
+                : 'Trek',
+        };
+    });
+}
+
 const fetchJSON = async (endpoint) => {
     const { data } = await publicFetchJSONRetry(endpoint, { cacheBust: true });
     return data;
@@ -218,74 +295,42 @@ function TreksPage() {
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
 
-    const [treks, setTreks] = useState([]);
-    const [communities, setCommunities] = useState([]);
-    const [rawTreks, setRawTreks] = useState([]);
-    const [rawCommunities, setRawCommunities] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const cached = readTreksCache();
+    const initialCommList = cached ? mapTrekCommunities(cached.commData) : [];
+    const [treks, setTreks] = useState(() => (cached ? mapTrekCards(cached.trekData, initialCommList) : []));
+    const [communities, setCommunities] = useState(() => (cached ? mapCommunityCards(initialCommList) : []));
+    const [rawTreks, setRawTreks] = useState(() => (Array.isArray(cached?.trekData?.treks) ? cached.trekData.treks : []));
+    const [rawCommunities, setRawCommunities] = useState(() => initialCommList);
+    const [loading, setLoading] = useState(!cached);
     const [activeCategory, _setActiveCategory] = useState(null);
     const [weekendPg, setWeekendPg] = useState(0);
     usePageContentLoading(loading);
 
     const weekendScrollRef = useRef(null);
 
+    const applyTrekPayload = useCallback((trekData, commData) => {
+        const commList = mapTrekCommunities(commData);
+        setRawCommunities(commList);
+        setCommunities(mapCommunityCards(commList));
+        setRawTreks(Array.isArray(trekData?.treks) ? trekData.treks : []);
+        setTreks(mapTrekCards(trekData, commList));
+    }, []);
+
     const loadData = useCallback(async () => {
+        const hasCache = Boolean(readTreksCache());
         try {
             const [trekData, commData] = await Promise.all([
                 fetchJSON('/treks'),
                 fetchJSON('/trek-communities'),
             ]);
-            const commList = (Array.isArray(commData?.communities) ? commData.communities : [])
-                .filter(c => c.showOnTreks !== false);
-            setRawCommunities(commList);
-            setCommunities(commList.map(c => ({
-                id: c._id,
-                title: c.name,
-                subtitle: c.basedIn || '',
-                coverImage: c.coverImage || null,
-                coverImages: c.coverImages || null,
-                image: c.coverImage || c.galleryImages?.[0] || null,
-                aboutUs: c.aboutUs,
-                trekCategories: c.trekCategories || [],
-                galleryImages: c.galleryImages || [],
-                contactPhone: c.contactPhone,
-                contactInstagram: c.contactInstagram,
-                groupLink: c.groupLink || '',
-                trekPageSection: c.trekPageSection || 'communities',
-                trekPagePriority: c.trekPagePriority || 999,
-                type: 'Community',
-            })));
-            const list = Array.isArray(trekData?.treks) ? trekData.treks : [];
-            setRawTreks(list);
-            setTreks(list.map(t => {
-                const communityName = commList.find(c => String(c._id) === String(t.communityId))?.name || '';
-                return {
-                id: t._id,
-                title: t.trekName,
-                subtitle: t.city || t.startingPoint || '',
-                coverImage: t.coverImage || null,
-                coverImages: t.coverImages || null,
-                image: t.coverImage || t.images?.[0] || null,
-                communityId: t.communityId || null,
-                communityName,
-                difficulty: t.difficultyLevel,
-                duration: t.trekDuration,
-                trekDate: t.trekDate || null,
-                dateLabel: t.dateLabel || '',
-                trekBatches: t.trekBatches || [],
-                date: formatTrekCardDate(t),
-                trekCategory: t.trekCategory || null,
-                featuredSection: t.featuredSection || null,
-                homeSection: t.homeSection || null,
-                trekPagePriority: t.trekPagePriority || 999,
-                type: t.difficultyLevel
-                    ? t.difficultyLevel.charAt(0).toUpperCase() + t.difficultyLevel.slice(1)
-                    : 'Trek',
-            };
-            }));
-        } catch { setTreks([]); }
-        finally { setLoading(false); }
-    }, []);
+            applyTrekPayload(trekData, commData);
+            writeTreksCache({ trekData, commData });
+        } catch {
+            if (!hasCache) setTreks([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [applyTrekPayload]);
 
     useEffect(() => {
         loadData();

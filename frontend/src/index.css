@@ -14,6 +14,7 @@
         display: block;
         max-width: 100%;
         height: auto;
+        -webkit-user-drag: none;
     }
 
     html {
@@ -39,6 +40,8 @@
         overscroll-behavior-y: none;
         scroll-behavior: smooth;
         -webkit-overflow-scrolling: touch;
+        /* Reduce accidental double-tap zoom while scrolling on iPhone */
+        touch-action: manipulation;
         font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -72,12 +75,24 @@
         max-width: 100%;
     }
 
-    /* Prevent zoom on focus — 16px minimum on mobile inputs */
-    input,
-    select,
-    textarea,
-    .hero-search-bar input {
-        font-size: var(--text-sm);
+    /* iOS Safari zooms the page when focused inputs are < 16px.
+       Must beat Tailwind text-sm/text-xs on form controls on mobile. */
+    @media (max-width: 1023px) {
+        input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='hidden']):not([type='image']):not([type='button']):not([type='submit']):not([type='reset']),
+        select,
+        textarea,
+        .hero-search-bar input {
+            font-size: 16px !important;
+        }
+    }
+
+    @media (min-width: 1024px) {
+        input,
+        select,
+        textarea,
+        .hero-search-bar input {
+            font-size: var(--text-sm);
+        }
     }
 
     table {
@@ -306,6 +321,8 @@
         overflow-y: hidden;
         scroll-snap-type: x mandatory;
         overscroll-behavior-x: contain;
+        touch-action: pan-x;
+        -webkit-overflow-scrolling: touch;
     }
 
     .hero-banner-track::-webkit-scrollbar {

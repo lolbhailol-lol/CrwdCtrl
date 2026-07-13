@@ -112,13 +112,14 @@ export default function RunEventDetailPage() {
     const { isDark } = useDarkMode();
 
     const [event, setEvent] = useState(location.state?.event || null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => !(location.state?.event));
     const [liked, setLiked] = useState(false);
     const [imgPg, setImgPg] = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [activeRunTab, setActiveRunTab] = useState('Details');
     const [openInfo, setOpenInfo] = useState(null);
     const [termsOpen, setTermsOpen] = useState(false);
+    const [heroLoaded, setHeroLoaded] = useState(false);
     const imgRef = useRef(null);
 
     useEffect(() => {
@@ -127,6 +128,8 @@ export default function RunEventDetailPage() {
             setLoading(false);
             return;
         }
+        // Keep showing seeded event while refreshing — no full-page spinner flash
+        if (!location.state?.event) setLoading(true);
         const controller = new AbortController();
         fetch(`${API}/sports/${eventId}`, { signal: controller.signal })
             .then((r) => r.json())
@@ -223,7 +226,13 @@ export default function RunEventDetailPage() {
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+                    style={{
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none',
+                        WebkitOverflowScrolling: 'touch',
+                        touchAction: 'pan-x',
+                        overscrollBehaviorX: 'contain',
+                    }}
                     onScroll={(e) => {
                         const p = Math.round(e.target.scrollLeft / e.target.clientWidth);
                         setImgPg((prev) => (prev === p ? prev : p));
@@ -233,19 +242,29 @@ export default function RunEventDetailPage() {
                         {images.map((img, i) => (
                             <div key={i} className="shrink-0 w-full h-full snap-start">
                                 {img ? (
-                                    <img
+                                    <>
+                                        {!heroLoaded && i === 0 && (
+                                            <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
+                                        )}
+                                        <img
                                         src={getImageUrl(img, { preset: 'hero' })}
                                         alt={event.title}
-                                        className="w-full h-full object-cover content-image"
+                                        className={`w-full h-full object-cover content-image pointer-events-none select-none ${
+                                            i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
+                                        }`}
+                                        draggable={false}
                                         loading={i === 0 ? 'eager' : 'lazy'}
                                         fetchPriority={i === 0 ? 'high' : 'auto'}
                                         decoding="async"
-                                        onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#14532d', event.title)}
+                                        onLoad={() => { if (i === 0) setHeroLoaded(true); }}
+                                        onError={(e) => {
+                                            if (i === 0) setHeroLoaded(true);
+                                            handleImageErrorWithFallback(e, 393, 396, '#1A1B1D', event.title);
+                                        }}
                                     />
+                                    </>
                                 ) : (
-                                    <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
-                                        <span className="text-7xl opacity-40">🏃</span>
-                                    </div>
+                                    <div className="w-full h-full bg-[#1A1B1D]" />
                                 )}
                             </div>
                         ))}

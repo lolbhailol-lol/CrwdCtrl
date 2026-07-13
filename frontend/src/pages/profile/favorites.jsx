@@ -47,7 +47,7 @@ function FavoriteGridCard({ fest, onRemove, onViewDetails, isDark }) {
                     alt={title}
                     className="absolute inset-0 w-full h-full object-cover"
                     onError={(e) => {
-                        handleImageErrorWithFallback(e, 180, 225, '#6366f1', title);
+                        handleImageErrorWithFallback(e, 180, 225, '#2A2B2E', title);
                     }}
                 />
                 <CardFavoriteButton isFavorite onClick={() => onRemove(fest.id)} />

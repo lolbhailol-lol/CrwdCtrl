@@ -259,7 +259,7 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                             alt={item.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                                handleImageErrorWithFallback(e, 84, 84, '#6366f1', item.name || 'Event');
+                                handleImageErrorWithFallback(e, 84, 84, '#2A2B2E', item.name || 'Event');
                             }}
                         />
                     ) : (

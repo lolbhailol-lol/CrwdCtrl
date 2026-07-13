@@ -105,10 +105,12 @@ export default function HeroBanner({
                                 preset="hero"
                                 loading={i === 0 ? 'eager' : 'lazy'}
                                 fetchPriority={i === 0 ? 'high' : 'auto'}
+                                showPlaceholderUntilLoad
+                                placeholderClassName="bg-[#1A1B1D]"
                                 width={560}
                                 height={280}
-                                className="hero-banner-image z-0 pointer-events-none"
-                                onError={(e) => handleImageErrorWithFallback(e, 560, 280, '#0ECCEE', item.title || 'Event')}
+                                className="hero-banner-image z-0 pointer-events-none absolute inset-0"
+                                onError={(e) => handleImageErrorWithFallback(e, 560, 280, '#1A1B1D', item.title || 'Event')}
                             />
                         </div>
                     ))}

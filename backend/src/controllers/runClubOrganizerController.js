@@ -107,14 +107,20 @@ function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = nul
     if (body.runCategory !== undefined) payload.runCategory = String(body.runCategory || '').trim();
     if (body.status !== undefined && STATUSES.has(body.status)) payload.status = body.status;
 
+    if (body.registrationFee !== undefined) {
+        payload.registrationFee = Math.max(0, Number(body.registrationFee) || 0);
+    }
+    // registrationLink / mode stay admin-owned — do not accept organizer overrides
+
     if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
-        const r = body.registration;
         const existingReg = existing?.registration || {};
+        // Registration mode is admin-owned — organizers cannot change it
+        const nextMode = existingReg.mode || 'internal_form';
         payload.registration = {
             status: ['open', 'closed'].includes(r.status)
                 ? r.status
                 : (existingReg.status || 'open'),
-            mode: existingReg.mode || 'internal_form',
+            mode: nextMode,
             googleSheetsUrl: r.googleSheetsUrl !== undefined
                 ? String(r.googleSheetsUrl || '').trim()
                 : (existingReg.googleSheetsUrl || ''),
@@ -131,19 +137,38 @@ function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = nul
                 1,
                 Number(r.maxPeoplePerBooking ?? existingReg.maxPeoplePerBooking) || 10,
             ),
-            paymentQR: existingReg.paymentQR || '',
-            paymentQRMessage: existingReg.paymentQRMessage || '',
-            paymentUpiId: existingReg.paymentUpiId || '',
+            paymentQR: r.paymentQR !== undefined
+                ? normalizeImageUrl(r.paymentQR)
+                : (existingReg.paymentQR || ''),
+            paymentQRMessage: r.paymentQRMessage !== undefined
+                ? String(r.paymentQRMessage || '').trim()
+                : (existingReg.paymentQRMessage || ''),
+            paymentUpiId: r.paymentUpiId !== undefined
+                ? String(r.paymentUpiId || '').trim()
+                : (existingReg.paymentUpiId || ''),
             formSchema: r.formSchema !== undefined
                 ? sanitizeFormSchema(r.formSchema)
                 : (Array.isArray(existingReg.formSchema) ? existingReg.formSchema : []),
         };
     }
 
-    // Organizers never change fee / sport type via API (admin owns payment config)
     payload.sportType = 'run_club';
 
     return payload;
+}
+
+function assertOrganizerPricingValid(payload, existing = null) {
+    const fee = payload.registrationFee !== undefined
+        ? payload.registrationFee
+        : Number(existing?.registrationFee) || 0;
+    const mode = existing?.registration?.mode || 'internal_form';
+    const paymentQR = payload.registration?.paymentQR !== undefined
+        ? payload.registration.paymentQR
+        : existing?.registration?.paymentQR;
+    if (mode === 'organizer_qr' && fee > 0 && !String(paymentQR || '').trim()) {
+        return 'Upload a payment QR image when fee is greater than ₹0 (Form + QR mode).';
+    }
+    return null;
 }
 
 function resolveEventRunClubId(event, organizer) {
@@ -499,6 +524,10 @@ exports.createEvent = async (req, res) => {
         if (!body.title) {
             return res.status(400).json({ success: false, message: 'Title is required' });
         }
+        const pricingError = assertOrganizerPricingValid(body, null);
+        if (pricingError) {
+            return res.status(400).json({ success: false, message: pricingError });
+        }
 
         const runClub = await getOrganizerRunClub(req.organizer);
         const status = body.status && STATUSES.has(body.status) ? body.status : 'draft';
@@ -515,7 +544,8 @@ exports.createEvent = async (req, res) => {
             city: body.city || runClub?.basedIn || '',
             eventDate: body.eventDate || null,
             reportingTime: body.reportingTime || '',
-            registrationFee: 0,
+            registrationFee: body.registrationFee ?? 0,
+            registrationLink: body.registrationLink || '',
             maxParticipants: body.maxParticipants || 0,
             distance: body.distance || '',
             coverImage: body.coverImage || '',
@@ -543,6 +573,9 @@ exports.createEvent = async (req, res) => {
                 timeSlots: [],
                 locationOptions: [],
                 maxPeoplePerBooking: 10,
+                paymentQR: '',
+                paymentQRMessage: '',
+                paymentUpiId: '',
                 formSchema: [],
             },
         });
@@ -572,8 +605,11 @@ exports.updateEvent = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Title is required' });
         }
 
-        // Never overwrite admin fee / payment mode from organizer writes
-        delete body.registrationFee;
+        const pricingError = assertOrganizerPricingValid(body, existing);
+        if (pricingError) {
+            return res.status(400).json({ success: false, message: pricingError });
+        }
+
         body.sportType = 'run_club';
         body.runClubId = req.organizer.runClubId;
         if (body.coverImage !== undefined) {
@@ -582,7 +618,17 @@ exports.updateEvent = async (req, res) => {
         body.showOnSportsPage = true;
         if (body.showInUpcoming === undefined) body.showInUpcoming = true;
 
-        Object.assign(existing, body);
+        Object.keys(body).forEach((key) => {
+            if (key === 'registration' && body.registration) {
+                existing.registration = {
+                    ...(existing.registration?.toObject?.() || existing.registration || {}),
+                    ...body.registration,
+                };
+                existing.markModified('registration');
+            } else {
+                existing[key] = body[key];
+            }
+        });
         await existing.save();
 
         res.json({
