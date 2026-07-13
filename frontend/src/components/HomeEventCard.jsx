@@ -1,9 +1,51 @@
+import { useState, useEffect } from 'react';
 import ContentImage from './ContentImage';
 import CardFavoriteButton from './CardFavoriteButton';
 import CardShareButton from './CardShareButton';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 import { toCardText } from '../utils/cardText';
 import { shareContent } from '../utils/externalLink';
+
+function CardCoverImage({
+    src,
+    alt,
+    preset,
+    className,
+    loading = 'lazy',
+    fetchPriority,
+    onError,
+    fill = false,
+}) {
+    const [loaded, setLoaded] = useState(!src);
+
+    useEffect(() => {
+        setLoaded(!src);
+    }, [src]);
+
+    return (
+        <>
+            {!loaded && (
+                <div
+                    aria-hidden
+                    className={`absolute inset-0 animate-pulse ${fill ? '' : ''} bg-gray-200 dark:bg-gray-800`}
+                />
+            )}
+            <ContentImage
+                src={src}
+                alt={alt}
+                preset={preset}
+                loading={loading}
+                fetchPriority={fetchPriority}
+                className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200`}
+                onLoad={() => setLoaded(true)}
+                onError={(e) => {
+                    setLoaded(true);
+                    onError?.(e);
+                }}
+            />
+        </>
+    );
+}
 
 export default function HomeEventCard({
     event,
@@ -19,6 +61,8 @@ export default function HomeEventCard({
     miniCard = false,
     portraitCard = false,
     heroCard = false,
+    loading = 'lazy',
+    fetchPriority,
 }) {
     const isWeekendWideCard = wideCard && !heroCard;
     const isTrendingCard = prominentImage && tallImage && !wideCard && !miniCard && !portraitCard && !heroCard;
@@ -44,11 +88,13 @@ export default function HomeEventCard({
                 className={`card-surface card-wide rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200 ${className}`}
                 onClick={onViewDetails}
             >
-                <div className="card-wide-image">
-                    <ContentImage
+                <div className="card-wide-image relative">
+                    <CardCoverImage
                         src={event.image}
                         alt={event.title}
                         preset="cardWide"
+                        loading={loading}
+                        fetchPriority={fetchPriority}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(
                             e,
@@ -96,6 +142,8 @@ export default function HomeEventCard({
         ? 'card-carousel-sm'
         : 'card-carousel';
 
+    const imagePreset = portraitCard ? 'cardPortrait' : wideCard ? 'cardWide' : heroCard ? 'hero' : 'cardPortrait';
+
     return (
         <div
             className={`card-surface cursor-pointer overflow-hidden ${cardRadius}
@@ -116,10 +164,13 @@ export default function HomeEventCard({
                         }`
                 }`}
             >
-                <ContentImage
+                <CardCoverImage
                     src={event.image}
                     alt={event.title}
-                    preset={portraitCard ? 'cardPortrait' : wideCard ? 'cardWide' : heroCard ? 'hero' : 'cardPortrait'}
+                    preset={imagePreset}
+                    loading={loading}
+                    fetchPriority={fetchPriority}
+                    fill
                     className="absolute inset-0 h-full w-full object-cover object-center"
                     onError={(e) => handleImageErrorWithFallback(
                         e,

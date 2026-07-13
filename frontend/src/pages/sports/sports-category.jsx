@@ -30,6 +30,7 @@ import { normalizeImageUrl } from '../../utils/uploadUrls';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { festPath, runClubPath, sportRunPath } from '../../utils/slugRoutes';
+import ContentImage from '../../components/ContentImage';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
 import Seo from '../../components/Seo';
@@ -42,17 +43,20 @@ const SPORTS_DESCRIPTION =
 
 const BROWSE_CATEGORIES = SPORTS_BROWSE_CATEGORIES;
 
-function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
+function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
+    const imgSrc = getCoverImageUrl(club, 'cardPortrait');
     return (
         <div className="card-portrait shrink-0 cursor-pointer active:scale-95 transition-all" onClick={onClick}>
-            <div className="card-portrait-image">
-                {getCoverImageUrl(club, 'cardPortrait') ? (
-                    <img
-                        src={getCoverImageUrl(club, 'cardPortrait')}
+            <div className="card-portrait-image relative">
+                {imgSrc ? (
+                    <ContentImage
+                        src={imgSrc}
                         alt={club.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        decoding="async"
+                        preset="cardPortrait"
+                        loading={eager ? 'eager' : 'lazy'}
+                        fetchPriority={eager ? 'high' : undefined}
+                        showPlaceholderUntilLoad
+                        className="absolute inset-0 w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#14532d', club.title || 'Run Club')}
                     />
                 ) : (
@@ -148,7 +152,7 @@ export default function SportsCategoryPage() {
             sportType: e.sportType,
             title: e.title,
             subtitle: getSportsDisplayType(e, SPORT_TYPE_LABELS),
-            image: normalizeImageUrl(e.coverImage) || normalizeImageUrl(e.images?.[0]) || null,
+            image: getCoverImageUrl(e, 'cardWide') || normalizeImageUrl(e.coverImage) || normalizeImageUrl(e.images?.[0]) || null,
             shareUrl: e.registrationLink || `${window.location.origin}/sports`,
             registrationLink: e.registrationLink,
             festId: null,
@@ -391,11 +395,12 @@ export default function SportsCategoryPage() {
                             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                         >
                             <div className="flex gap-4 pb-2">
-                                {runClubs.map((club) => (
+                                {runClubs.map((club, index) => (
                                     <RunClubCard
                                         key={club.id}
                                         club={club}
                                         isDark={isDark}
+                                        eager={index < 3}
                                         isFavorite={isFavorite(club.id)}
                                         onToggleFavorite={() =>
                                             toggleFavorite(club.id, {

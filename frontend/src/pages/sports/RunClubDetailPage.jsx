@@ -210,6 +210,7 @@ export default function RunClubDetailPage() {
     const [liked, setLiked] = useState(false);
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [galleryIndex, setGalleryIndex] = useState(0);
+    const [heroLoaded, setHeroLoaded] = useState(false);
     const imgRef = useRef(null);
 
     const clubId = club?.id || id || null;
@@ -224,6 +225,11 @@ export default function RunClubDetailPage() {
 
     const heroImages = useMemo(() => buildHeroImages(club), [club]);
     const galleryImages = useMemo(() => buildGalleryImages(club), [club]);
+    const firstHeroSrc = heroImages[0] || '';
+
+    useEffect(() => {
+        setHeroLoaded(!firstHeroSrc);
+    }, [firstHeroSrc]);
 
     useEffect(() => {
         if (!id) return;
@@ -369,17 +375,30 @@ export default function RunClubDetailPage() {
                 >
                     <div className="flex h-full">
                         {heroImages.map((img, i) => (
-                            <div key={i} className="shrink-0 w-full h-full snap-start">
+                            <div key={i} className="shrink-0 w-full h-full snap-start relative">
                                 {img ? (
-                                    <img
-                                        src={getImageUrl(img, { preset: 'hero' })}
-                                        alt={name}
-                                        className="w-full h-full object-cover"
-                                        loading={i === 0 ? 'eager' : 'lazy'}
-                                        fetchPriority={i === 0 ? 'high' : 'auto'}
-                                        decoding="async"
-                                        onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#14532d', name)}
-                                    />
+                                    <>
+                                        {i === 0 && !heroLoaded && (
+                                            <div aria-hidden className="absolute inset-0 bg-gray-800 animate-pulse" />
+                                        )}
+                                        <img
+                                            src={getImageUrl(img, { preset: 'hero' })}
+                                            alt={name}
+                                            className={`w-full h-full object-cover transition-opacity duration-200 ${
+                                                i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
+                                            }`}
+                                            loading={i === 0 ? 'eager' : 'lazy'}
+                                            fetchPriority={i === 0 ? 'high' : 'auto'}
+                                            decoding="async"
+                                            onLoad={() => {
+                                                if (i === 0) setHeroLoaded(true);
+                                            }}
+                                            onError={(e) => {
+                                                if (i === 0) setHeroLoaded(true);
+                                                handleImageErrorWithFallback(e, 393, 396, '#14532d', name);
+                                            }}
+                                        />
+                                    </>
                                 ) : (
                                     <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700" />
                                 )}

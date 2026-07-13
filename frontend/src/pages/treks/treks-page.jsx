@@ -35,6 +35,7 @@ import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { TREKS_FAQ } from '../../constants/faqs';
 import { formatTrekCardDate } from '../../utils/trekDateDisplay';
 import { communityPath, competitionPath, festPath, trekPath } from '../../utils/slugRoutes';
+import ContentImage from '../../components/ContentImage';
 
 const TREKS_DESCRIPTION =
     'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';
@@ -47,8 +48,25 @@ const fetchJSON = async (endpoint) => {
 /* Browse by Trek Categories — circular PNG icons */
 const TREK_CATEGORIES = TREK_BROWSE_CATEGORIES;
 
+function TrekCoverImg({ src, alt, preset, eager = false, fallbackW, fallbackH, fallbackLabel }) {
+    return (
+        <ContentImage
+            src={src}
+            alt={alt}
+            preset={preset}
+            loading={eager ? 'eager' : 'lazy'}
+            fetchPriority={eager ? 'high' : undefined}
+            showPlaceholderUntilLoad
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => handleImageErrorWithFallback(e, fallbackW, fallbackH, '#1a3a2a', fallbackLabel)}
+        />
+    );
+}
+
 /* ── Community Card — fluid portrait card, heart overlay, Name + Based in + share below ── */
-function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fullWidth = false }) {
+function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fullWidth = false, eager = false }) {
+    const preset = fullWidth ? 'cardLandscape' : 'cardPortrait';
+    const imgSrc = getCoverImageUrl(trek, preset);
     return (
         <div
             className={`card-surface flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200 ${
@@ -57,22 +75,21 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
             onClick={onClick}
         >
             <div className={`relative overflow-hidden ${fullWidth ? 'w-full aspect-5/3' : 'card-portrait-image'}`}>
-                {(() => {
-                    const preset = fullWidth ? 'cardLandscape' : 'cardPortrait';
-                    const imgSrc = getCoverImageUrl(trek, preset);
-                    return imgSrc ? (
-                        <img
-                            src={imgSrc}
-                            alt={trek.title}
-                            className="w-full h-full object-cover"
-                            onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
-                        />
-                    ) : (
-                        <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
-                            <span className="text-5xl">🏔️</span>
-                        </div>
-                    );
-                })()}
+                {imgSrc ? (
+                    <TrekCoverImg
+                        src={imgSrc}
+                        alt={trek.title}
+                        preset={preset}
+                        eager={eager}
+                        fallbackW={160}
+                        fallbackH={208}
+                        fallbackLabel={trek.title || 'Trek'}
+                    />
+                ) : (
+                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
+                        <span className="text-5xl">🏔️</span>
+                    </div>
+                )}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
 
@@ -98,19 +115,23 @@ function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fu
 }
 
 /* ── Weekend Plans Card — fluid wide card, Trek Name + community + share ── */
-function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
+function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
+    const imgSrc = getCoverImageUrl(trek, 'cardWide');
     return (
         <div
             className="card-surface card-wide rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200"
             onClick={onClick}
         >
-            <div className="card-wide-image">
-                {getCoverImageUrl(trek, 'cardWide') ? (
-                    <img
-                        src={getCoverImageUrl(trek, 'cardWide')}
+            <div className="card-wide-image relative">
+                {imgSrc ? (
+                    <TrekCoverImg
+                        src={imgSrc}
                         alt={trek.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#1a3a2a', trek.title || 'Trek')}
+                        preset="cardWide"
+                        eager={eager}
+                        fallbackW={320}
+                        fallbackH={224}
+                        fallbackLabel={trek.title || 'Trek'}
                     />
                 ) : (
                     <div className="w-full h-full bg-linear-to-br from-slate-700 to-slate-900 flex items-center justify-center">
@@ -142,19 +163,23 @@ function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
 }
 
 /* ── Beginner Card — portrait card, Name + Date + share below ── */
-function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
+function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
+    const imgSrc = getCoverImageUrl(trek, 'cardPortrait');
     return (
         <div
             className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
             onClick={onClick}
         >
-            <div className="card-portrait-image">
-                {getCoverImageUrl(trek, 'cardPortrait') ? (
-                    <img
-                        src={getCoverImageUrl(trek, 'cardPortrait')}
+            <div className="card-portrait-image relative">
+                {imgSrc ? (
+                    <TrekCoverImg
+                        src={imgSrc}
                         alt={trek.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title || 'Trek')}
+                        preset="cardPortrait"
+                        eager={eager}
+                        fallbackW={160}
+                        fallbackH={208}
+                        fallbackLabel={trek.title || 'Trek'}
                     />
                 ) : (
                     <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
@@ -331,7 +356,7 @@ function TreksPage() {
 
     const heroBannerEvents = useMemo(() => heroItems.map(item => ({
         id: item.id,
-        image: item.image,
+        image: getCoverImageUrl(item, 'hero') || item.image,
         title: item.title,
         subtitle: item.subtitle,
         dateTime: item.date,
@@ -493,7 +518,7 @@ function TreksPage() {
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
                                 <div className="flex gap-4 pb-2">
-                                    {exploreCommunities.map((comm) => (
+                                    {exploreCommunities.map((comm, index) => (
                                         <div key={comm.id} className="shrink-0">
                                             <CommunityCard
                                                 trek={comm}
@@ -501,6 +526,7 @@ function TreksPage() {
                                                 isFavorite={isFavorite(comm.id)}
                                                 onToggleFavorite={() => handleFav(comm)}
                                                 onClick={() => handleCommunityClick(comm)}
+                                                eager={index < 3}
                                             />
                                         </div>
                                     ))}
@@ -529,7 +555,7 @@ function TreksPage() {
                                     onScroll={(e) => setWeekendPg(Math.round(e.target.scrollLeft / 328))}
                                 >
                                     <div className="flex gap-4 pb-1">
-                                        {weekendTreks.map((trek) => (
+                                        {weekendTreks.map((trek, index) => (
                                             <div key={trek.id} className="shrink-0">
                                                 <WeekendCard
                                                     trek={trek}
@@ -537,6 +563,7 @@ function TreksPage() {
                                                     isFavorite={isFavorite(trek.id)}
                                                     onToggleFavorite={() => handleFav(trek)}
                                                     onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                    eager={index < 2}
                                                 />
                                             </div>
                                         ))}
@@ -605,7 +632,7 @@ function TreksPage() {
                                         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                                     >
                                         <div className="flex gap-4 pb-2">
-                                            {categoryTreks.map(trek => (
+                                            {categoryTreks.map((trek, index) => (
                                                 <div key={trek.id} className="shrink-0">
                                                     <BeginnerCard
                                                     trek={trek}
@@ -613,6 +640,7 @@ function TreksPage() {
                                                     isFavorite={isFavorite(trek.id)}
                                                     onToggleFavorite={() => handleFav(trek)}
                                                     onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                    eager={index < 3}
                                                 />
                                                 </div>
                                             ))}
@@ -645,7 +673,7 @@ function TreksPage() {
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
                                 <div className="flex gap-4 pb-2">
-                                    {beginnerTreks.map((trek) => (
+                                    {beginnerTreks.map((trek, index) => (
                                         <div key={trek.id} className="shrink-0">
                                             <BeginnerCard
                                                 trek={trek}
@@ -653,6 +681,7 @@ function TreksPage() {
                                                 isFavorite={isFavorite(trek.id)}
                                                 onToggleFavorite={() => handleFav(trek)}
                                                 onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                eager={index < 3}
                                             />
                                         </div>
                                     ))}

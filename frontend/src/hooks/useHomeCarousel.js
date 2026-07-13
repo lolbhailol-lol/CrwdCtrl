@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 
 const LG_MEDIA = '(min-width: 1024px)';
 
@@ -72,7 +72,7 @@ export function scrollCarouselToSlideStart(scrollEl, slideEl, behavior = 'instan
 export function useCenteredCarouselSidePad(ref, cardWidth, enabled = true) {
     const [sidePad, setSidePad] = useState(0);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!enabled) {
             setSidePad(0);
             return undefined;
@@ -101,7 +101,7 @@ export function useCenteredCarouselSidePad(ref, cardWidth, enabled = true) {
 export function useMeasuredCardWidth(trackRef, slideCount, fallbackWidth = 280) {
     const [cardWidth, setCardWidth] = useState(fallbackWidth);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const firstSlide = trackRef.current?.firstElementChild;
         if (!firstSlide) return;
 

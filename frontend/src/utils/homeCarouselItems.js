@@ -1,3 +1,5 @@
+import { getCoverImageUrl, resolveCoverImage } from './coverImages';
+
 /** Admin-assigned home section only (no status-based auto placement). */
 export function festHomeSection(fest) {
     if (fest.showOnHomeSlide) return null;
@@ -51,11 +53,18 @@ export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sect
             : type === 'sport' ? (raw.title || 'Untitled')
             : type === 'events' ? (raw.title || 'Untitled')
             : (raw.name || 'Untitled'),
-        _image: type === 'fest' ? raw.coverImage
-            : type === 'trek' ? (raw.coverImage || raw.images?.[0])
-            : type === 'sport' ? (raw.images?.[0] || raw.coverImage)
-            : type === 'events' ? (raw.poster || raw.banner)
-            : raw.coverImage,
+        _image: (() => {
+            const preset = type === 'sport' || type === 'events' ? 'cardWide' : 'cardPortrait';
+            return (
+                getCoverImageUrl(raw, preset)
+                || resolveCoverImage(raw, preset)
+                || (type === 'fest' ? raw.coverImage
+                    : type === 'trek' ? (raw.coverImage || raw.images?.[0])
+                    : type === 'sport' ? (raw.images?.[0] || raw.coverImage)
+                    : type === 'events' ? (raw.poster || raw.banner)
+                    : raw.coverImage)
+            );
+        })(),
         _subtitle: type === 'fest' ? (raw.collegeName || '')
             : type === 'trek' ? (raw.city || '')
             : type === 'sport' ? (raw.city || raw.sportType || '')

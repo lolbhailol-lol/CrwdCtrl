@@ -11,8 +11,29 @@ import {
     HOME_CARD_GAP,
 } from '../hooks/useHomeCarousel';
 import CarouselDotPagination from './CarouselDotPagination';
+import { getCoverImageUrl } from '../utils/coverImages';
 
 const SKELETON_COUNT = CENTERED_SKELETON_COUNT;
+
+function resolveSlideCoverPreset({ portraitCard, wideCard, heroCard }) {
+    if (heroCard) return 'hero';
+    if (wideCard) return 'cardWide';
+    if (portraitCard) return 'cardPortrait';
+    return 'cardPortrait';
+}
+
+function resolveSlideImage(item, preset) {
+    return (
+        getCoverImageUrl(item, preset)
+        || item.image
+        || item.coverImage
+        || item._image
+        || item.images?.[0]
+        || item.poster
+        || item.banner
+        || null
+    );
+}
 
 function getItemId(item) {
     return item.id || item._id;
@@ -234,9 +255,29 @@ function useHomeLoopCarousel(scrollRef, trackRef, items, alignStart = false) {
     return { slides, activeIndex, positioned };
 }
 
-function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, getShareUrl, tallCard, wideCard, miniCard, portraitCard, heroCard, alignStart = false }) {
+function SlideCard({
+    slide,
+    slideIndex = 0,
+    activeIndex = 0,
+    isDark,
+    isFavorite,
+    onToggleFavorite,
+    onItemClick,
+    getShareUrl,
+    tallCard,
+    wideCard,
+    miniCard,
+    portraitCard,
+    heroCard,
+    alignStart = false,
+}) {
     const item = slide.item;
     const id = getItemId(item);
+    const preset = resolveSlideCoverPreset({ portraitCard, wideCard, heroCard });
+    // Eager-load active slide and neighbors so center cards don't wait on lazy
+    const nearActive = Math.abs(slideIndex - activeIndex) <= 1;
+    const imgLoading = nearActive || slideIndex < 2 ? 'eager' : 'lazy';
+    const imgPriority = nearActive || slideIndex === 0 ? 'high' : undefined;
 
     return (
         <div className={`carousel-slide shrink-0${alignStart ? ' snap-start' : ''}`}>
@@ -245,7 +286,7 @@ function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, g
                     id,
                     title: item.title || item.festName || item.trekName || item.name,
                     subtitle: item.subtitle || item.collegeName || item.city || item.basedIn,
-                    image: item.image || item.coverImage || item.images?.[0],
+                    image: resolveSlideImage(item, preset),
                 }}
                 isDark={isDark}
                 isFavorite={isFavorite?.(id)}
@@ -258,6 +299,8 @@ function SlideCard({ slide, isDark, isFavorite, onToggleFavorite, onItemClick, g
                 miniCard={miniCard}
                 portraitCard={portraitCard}
                 heroCard={heroCard}
+                loading={imgLoading}
+                fetchPriority={imgPriority}
             />
         </div>
     );
@@ -360,6 +403,11 @@ export default function HomeCarouselSection({
 
         return (
             <section className="home-section-block">
+                {title ? (
+                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {title}
+                    </h2>
+                ) : null}
                 <div
                     ref={scrollRef}
                     className={carouselClassName}
@@ -403,23 +451,31 @@ export default function HomeCarouselSection({
                         visibility: trackHidden ? 'hidden' : 'visible',
                     }}
                 >
-                    {slides.map((slide) => (
-                        <SlideCard
-                            key={slide.key}
-                            slide={slide}
-                            isDark={isDark}
-                            isFavorite={isFavorite}
-                            onToggleFavorite={onToggleFavorite}
-                            onItemClick={onItemClick}
-                            getShareUrl={getShareUrl}
-                            tallCard={tallCard}
-                            wideCard={wideCard}
-                            miniCard={miniCard}
-                            portraitCard={portraitCard}
-                            heroCard={heroCard}
-                            alignStart={alignStart}
-                        />
-                    ))}
+                    {slides.map((slide, slideIndex) => {
+                        // Map loop clone indices to logical item index for eager-load window
+                        const logicalIndex = alignStart || items.length <= 1
+                            ? slideIndex
+                            : Math.max(0, Math.min(items.length - 1, slideIndex - 1));
+                        return (
+                            <SlideCard
+                                key={slide.key}
+                                slide={slide}
+                                slideIndex={logicalIndex}
+                                activeIndex={activeIndex}
+                                isDark={isDark}
+                                isFavorite={isFavorite}
+                                onToggleFavorite={onToggleFavorite}
+                                onItemClick={onItemClick}
+                                getShareUrl={getShareUrl}
+                                tallCard={tallCard}
+                                wideCard={wideCard}
+                                miniCard={miniCard}
+                                portraitCard={portraitCard}
+                                heroCard={heroCard}
+                                alignStart={alignStart}
+                            />
+                        );
+                    })}
                 </div>
             </div>
             <CarouselDotPagination total={items.length} active={activeIndex} className="mt-4" />

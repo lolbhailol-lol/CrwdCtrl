@@ -20,6 +20,7 @@ import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 import { formatTrekCardDate } from '../../utils/trekDateDisplay';
 import { communityPath, trekPath } from '../../utils/slugRoutes';
+import ContentImage from '../../components/ContentImage';
 
 const GALLERY_PREVIEW_COUNT = 4;
 
@@ -142,21 +143,24 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
 }
 
 /* ── Trek Card — matches treks-page BeginnerCard (white surface + shadow) ── */
-function TrekCard({ trek, isDark, isFav, onFav, onClick }) {
+function TrekCard({ trek, isDark, isFav, onFav, onClick, eager = false }) {
+    const imgSrc = getCoverImageUrl(trek, 'cardPortrait');
     return (
         <AnimatedCard
             enableHover={false}
             className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
             onClick={onClick}
         >
-            <div className="card-portrait-image">
-                {getCoverImageUrl(trek, 'cardPortrait') ? (
-                    <img
-                        src={getCoverImageUrl(trek, 'cardPortrait')}
+            <div className="card-portrait-image relative">
+                {imgSrc ? (
+                    <ContentImage
+                        src={imgSrc}
                         alt={trek.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        decoding="async"
+                        preset="cardPortrait"
+                        loading={eager ? 'eager' : 'lazy'}
+                        fetchPriority={eager ? 'high' : undefined}
+                        showPlaceholderUntilLoad
+                        className="absolute inset-0 w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#1a3a2a', trek.title)}
                     />
                 ) : (
@@ -469,13 +473,14 @@ export default function CommunityDetailPage() {
                             </div>
                         ) : (
                             <div className="flex gap-4 pb-2">
-                                {filteredTreks.map(trek => (
+                                {filteredTreks.map((trek, index) => (
                                     <TrekCard
                                         key={trek.id}
                                         trek={trek}
                                         isDark={isDark}
                                         isFav={isFavorite(trek.id)}
                                         onFav={() => toggleFavorite(trek.id, trek)}
+                                        eager={index < 3}
                                         onClick={() => navigate(trekPath(trek), {
                                             state: {
                                                 trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] },

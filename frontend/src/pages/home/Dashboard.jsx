@@ -1335,7 +1335,7 @@ const Dashboard = () => {
             {/* Main content - shared mobile + desktop */}
             <main className="flex-1 pb-4">
                 {/* Hero  full chrome width on desktop (aligns with navbar Pune  profile) */}
-                {!isFestsLoading && heroEvents.length > 0 && (
+                {!isFestsLoading && homeAuxLoaded && heroEvents.length > 0 && (
                     <HeroBanner
                         events={heroEvents}
                         onEventClick={(id) => {
@@ -1351,7 +1351,7 @@ const Dashboard = () => {
                         isDark={isDark}
                     />
                 )}
-                {isFestsLoading && <HeroBannerSkeleton />}
+                {(isFestsLoading || !homeAuxLoaded) && <HeroBannerSkeleton />}
 
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     {/* Ongoing Events */}
