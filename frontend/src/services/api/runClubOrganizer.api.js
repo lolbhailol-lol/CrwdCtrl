@@ -252,6 +252,10 @@ export async function exportRunClubOrganizerParticipants(eventId) {
         throw new Error('Session expired');
     }
     if (!res.ok) throw new Error('Export failed');
+    const contentType = String(res.headers.get('content-type') || '');
+    if (contentType.includes('text/html') || contentType.includes('application/json')) {
+        throw new Error('Export failed — unexpected server response');
+    }
     return res.blob();
 }
 

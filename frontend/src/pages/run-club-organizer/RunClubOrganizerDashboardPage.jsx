@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Users, UserCheck, Clock, IndianRupee, Calendar, Loader, Bell, Copy, ExternalLink, Hourglass } from 'lucide-react';
 import {
     fetchRunClubOrganizerDashboard,
@@ -213,6 +213,7 @@ function RegistrationPricingPanel({ eventId, eventDetail, onSaved, busy, setBusy
 
 export default function RunClubOrganizerDashboardPage() {
     const { eventId } = useParams();
+    const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [eventDetail, setEventDetail] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -358,14 +359,16 @@ export default function RunClubOrganizerDashboardPage() {
                         >
                             <Copy size={14} /> Copy
                         </button>
-                        <a
-                            href={publicPath}
-                            target="_blank"
-                            rel="noreferrer"
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (!publicUrl) return;
+                                window.open(publicUrl, '_blank', 'noopener,noreferrer');
+                            }}
                             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-700 text-sm hover:border-[#0ECCEE]/50"
                         >
                             <ExternalLink size={14} /> Open
-                        </a>
+                        </button>
                     </div>
                 </div>
             ) : null}
@@ -407,11 +410,21 @@ export default function RunClubOrganizerDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Link to={`/run-club-organizer/events/${eventId}/participants`} className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center rounded-xl bg-[#0ECCEE] text-black text-sm font-bold">View participants</Link>
+                <button
+                    type="button"
+                    onClick={() => navigate(`/run-club-organizer/events/${eventId}/participants`)}
+                    className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                >
+                    View participants
+                </button>
                 {(stats.pendingPaymentReview ?? 0) > 0 ? (
-                    <Link to={`/run-club-organizer/events/${eventId}/participants?paymentStatus=pending_review`} className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center rounded-xl border border-amber-500/40 text-amber-300 text-sm font-bold hover:bg-amber-500/10">
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/run-club-organizer/events/${eventId}/participants?paymentStatus=pending_review`)}
+                        className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center rounded-xl border border-amber-500/40 text-amber-300 text-sm font-bold hover:bg-amber-500/10"
+                    >
                         Review {stats.pendingPaymentReview} payment{stats.pendingPaymentReview === 1 ? '' : 's'}
-                    </Link>
+                    </button>
                 ) : null}
                 <button
                     type="button"
@@ -432,8 +445,20 @@ export default function RunClubOrganizerDashboardPage() {
                         Expire stale ({ttlHours}h+)
                     </button>
                 ) : null}
-                <Link to={`/run-club-organizer/events/${eventId}/scan`} className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center rounded-xl border border-gray-700 text-sm font-medium hover:border-[#0ECCEE]/50">Open QR scanner</Link>
-                <Link to={`/run-club-organizer/events/${eventId}/notifications`} className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-700 text-sm font-medium hover:border-[#0ECCEE]/50"><Bell size={16} /> Notify runners</Link>
+                <button
+                    type="button"
+                    onClick={() => navigate(`/run-club-organizer/events/${eventId}/scan`)}
+                    className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center rounded-xl border border-gray-700 text-sm font-medium hover:border-[#0ECCEE]/50"
+                >
+                    Open QR scanner
+                </button>
+                <button
+                    type="button"
+                    onClick={() => navigate(`/run-club-organizer/events/${eventId}/notifications`)}
+                    className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-700 text-sm font-medium hover:border-[#0ECCEE]/50"
+                >
+                    <Bell size={16} /> Notify runners
+                </button>
             </div>
         </div>
     );

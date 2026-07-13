@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, QrCode, LogOut, Footprints, Bell, Menu, Home, ArrowLeft, ExternalLink } from 'lucide-react';
 import { clearRunClubOrganizerSession, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 
@@ -9,6 +9,33 @@ const navForEvent = (eventId) => [
     { label: 'Scan', path: `/run-club-organizer/events/${eventId}/scan`, icon: QrCode, short: 'Scan' },
     { label: 'Notify', path: `/run-club-organizer/events/${eventId}/notifications`, icon: Bell, short: 'Notify' },
 ];
+
+function pathIsActive(pathname, to, end = false) {
+    if (end) return pathname === to;
+    return pathname === to || pathname.startsWith(`${to}/`) || pathname.startsWith(`${to}?`);
+}
+
+/** Button nav — avoids <a href> full-document loads that some WebViews treat as HTML downloads */
+function OrgNavButton({ to, end = false, className, onNavigate, children, ...rest }) {
+    const navigate = useNavigate();
+    const { pathname } = useLocation();
+    const isActive = pathIsActive(pathname, to, end);
+    const resolvedClass = typeof className === 'function' ? className({ isActive }) : className;
+
+    return (
+        <button
+            type="button"
+            {...rest}
+            className={resolvedClass}
+            onClick={() => {
+                onNavigate?.();
+                if (pathname !== to) navigate(to);
+            }}
+        >
+            {children}
+        </button>
+    );
+}
 
 export default function RunClubOrganizerLayout() {
     const navigate = useNavigate();
@@ -42,34 +69,34 @@ export default function RunClubOrganizerLayout() {
                     </div>
                 </div>
                 <nav className="p-3 space-y-1">
-                    <NavLink
+                    <OrgNavButton
                         to="/run-club-organizer"
                         end
-                        onClick={() => setSidebarOpen(false)}
+                        onNavigate={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
-                            `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                            `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                                 isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`
                         }
                     >
                         <Home size={16} />
                         Club home
-                    </NavLink>
+                    </OrgNavButton>
                     {nav.map((item) => (
-                        <NavLink
+                        <OrgNavButton
                             key={item.path}
                             to={item.path}
                             end={item.end}
-                            onClick={() => setSidebarOpen(false)}
+                            onNavigate={() => setSidebarOpen(false)}
                             className={({ isActive }) =>
-                                `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                                     isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`
                             }
                         >
                             <item.icon size={16} />
                             {item.label === 'Home' ? 'Dashboard' : item.label === 'Guests' ? 'Participants' : item.label}
-                        </NavLink>
+                        </OrgNavButton>
                     ))}
                 </nav>
                 <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-800 space-y-1">
@@ -150,7 +177,7 @@ export default function RunClubOrganizerLayout() {
                                 ? Number(activeEvent?.pendingPaymentReview || 0)
                                 : 0;
                             return (
-                            <NavLink
+                            <OrgNavButton
                                 key={item.path}
                                 to={item.path}
                                 end={item.end}
@@ -169,7 +196,7 @@ export default function RunClubOrganizerLayout() {
                                     ) : null}
                                 </span>
                                 {item.short}
-                            </NavLink>
+                            </OrgNavButton>
                             );
                         })}
                     </div>

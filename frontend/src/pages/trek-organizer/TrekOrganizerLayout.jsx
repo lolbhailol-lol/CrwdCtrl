@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, QrCode, LogOut, Mountain, Bell, Menu, Home } from 'lucide-react';
 import { clearTrekOrganizerSession, getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
 
@@ -9,6 +9,33 @@ const navForTrek = (trekId) => [
     { label: 'Scan QR', path: `/trek-organizer/treks/${trekId}/scan`, icon: QrCode, short: 'Scan' },
     { label: 'Notify', path: `/trek-organizer/treks/${trekId}/notifications`, icon: Bell, short: 'Notify' },
 ];
+
+function pathIsActive(pathname, to, end = false) {
+    if (end) return pathname === to;
+    return pathname === to || pathname.startsWith(`${to}/`) || pathname.startsWith(`${to}?`);
+}
+
+/** Button nav — avoids <a href> full-document loads that some WebViews treat as HTML downloads */
+function OrgNavButton({ to, end = false, className, onNavigate, children, ...rest }) {
+    const navigate = useNavigate();
+    const { pathname } = useLocation();
+    const isActive = pathIsActive(pathname, to, end);
+    const resolvedClass = typeof className === 'function' ? className({ isActive }) : className;
+
+    return (
+        <button
+            type="button"
+            {...rest}
+            className={resolvedClass}
+            onClick={() => {
+                onNavigate?.();
+                if (pathname !== to) navigate(to);
+            }}
+        >
+            {children}
+        </button>
+    );
+}
 
 export default function TrekOrganizerLayout() {
     const navigate = useNavigate();
@@ -41,34 +68,34 @@ export default function TrekOrganizerLayout() {
                     </div>
                 </div>
                 <nav className="p-3 space-y-1">
-                    <NavLink
+                    <OrgNavButton
                         to="/trek-organizer"
                         end
-                        onClick={() => setSidebarOpen(false)}
+                        onNavigate={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
-                            `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                            `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                                 isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`
                         }
                     >
                         <Home size={16} />
                         Community home
-                    </NavLink>
+                    </OrgNavButton>
                     {nav.map((item) => (
-                        <NavLink
+                        <OrgNavButton
                             key={item.path}
                             to={item.path}
                             end={item.end}
-                            onClick={() => setSidebarOpen(false)}
+                            onNavigate={() => setSidebarOpen(false)}
                             className={({ isActive }) =>
-                                `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                                     isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`
                             }
                         >
                             <item.icon size={16} />
                             {item.label}
-                        </NavLink>
+                        </OrgNavButton>
                     ))}
                 </nav>
                 <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-800">
@@ -119,7 +146,7 @@ export default function TrekOrganizerLayout() {
                 >
                     <div className="grid grid-cols-4">
                         {nav.map((item) => (
-                            <NavLink
+                            <OrgNavButton
                                 key={item.path}
                                 to={item.path}
                                 end={item.end}
@@ -131,7 +158,7 @@ export default function TrekOrganizerLayout() {
                             >
                                 <item.icon size={20} />
                                 {item.short}
-                            </NavLink>
+                            </OrgNavButton>
                         ))}
                     </div>
                 </nav>

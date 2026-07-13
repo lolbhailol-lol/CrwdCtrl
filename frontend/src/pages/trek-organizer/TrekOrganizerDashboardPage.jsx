@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Loader, Bell, QrCode,
     Copy, ExternalLink, RefreshCw, Download,
@@ -23,6 +23,7 @@ function formatTrekDate(d) {
 }
 
 function StatTile({ label, value, tone = 'default', onClick, to }) {
+    const navigate = useNavigate();
     const tones = {
         default: 'border-gray-800 bg-[#161718]',
         accent: 'border-[#0ECCEE]/25 bg-[#0ECCEE]/5',
@@ -41,7 +42,11 @@ function StatTile({ label, value, tone = 'default', onClick, to }) {
         </>
     );
     if (to) {
-        return <Link to={to} className={className}>{inner}</Link>;
+        return (
+            <button type="button" onClick={() => navigate(to)} className={className}>
+                {inner}
+            </button>
+        );
     }
     if (onClick) {
         return <button type="button" onClick={onClick} className={className}>{inner}</button>;
@@ -51,6 +56,7 @@ function StatTile({ label, value, tone = 'default', onClick, to }) {
 
 export default function TrekOrganizerDashboardPage() {
     const { trekId } = useParams();
+    const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -375,30 +381,33 @@ export default function TrekOrganizerDashboardPage() {
             <div>
                 <p className="text-xs uppercase tracking-wide text-gray-500 mb-2 px-0.5">Quick actions</p>
                 <div className="grid grid-cols-2 gap-3">
-                    <Link
-                        to={`/trek-organizer/treks/${trekId}/participants`}
-                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/trek-organizer/treks/${trekId}/participants`)}
+                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
                     >
                         <Users className="text-[#0ECCEE] mb-2" size={20} />
                         <p className="text-sm font-semibold">Participants</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">List, filter, message</p>
-                    </Link>
-                    <Link
-                        to={`/trek-organizer/treks/${trekId}/scan`}
-                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/trek-organizer/treks/${trekId}/scan`)}
+                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
                     >
                         <QrCode className="text-[#0ECCEE] mb-2" size={20} />
                         <p className="text-sm font-semibold">Scan QR</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">Check-in at gate</p>
-                    </Link>
-                    <Link
-                        to={`/trek-organizer/treks/${trekId}/notifications`}
-                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/trek-organizer/treks/${trekId}/notifications`)}
+                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
                     >
                         <Bell className="text-[#0ECCEE] mb-2" size={20} />
                         <p className="text-sm font-semibold">Notify</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">Remind or announce</p>
-                    </Link>
+                    </button>
                     <button
                         type="button"
                         onClick={handleExport}
@@ -417,16 +426,17 @@ export default function TrekOrganizerDashboardPage() {
             </div>
 
             {pending > 0 ? (
-                <Link
-                    to={`/trek-organizer/treks/${trekId}/scan`}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3.5 min-h-[52px]"
+                <button
+                    type="button"
+                    onClick={() => navigate(`/trek-organizer/treks/${trekId}/scan`)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3.5 min-h-[52px]"
                 >
                     <span className="inline-flex items-center gap-2 text-sm text-amber-100 font-medium">
                         <Clock size={16} />
                         {pending} still need check-in
                     </span>
                     <span className="text-xs text-amber-300 font-semibold shrink-0">Open scanner →</span>
-                </Link>
+                </button>
             ) : null}
         </div>
     );
