@@ -31,7 +31,7 @@ import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords'
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { festPath, runClubPath, sportRunPath } from '../../utils/slugRoutes';
 
-import { API_BASE_URL as API } from '../../services/api/client';
+import { publicFetchJSONRetry } from '../../services/api/client';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
@@ -84,53 +84,41 @@ export default function SportsCategoryPage() {
     const [sportsFests, setSportsFests] = useState([]);
     const [runClubEntities, setRunClubEntities] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     usePageContentLoading(loading);
 
     const loadData = useCallback(async () => {
+        setLoading(true);
+        setLoadError('');
         try {
             const [eventsRes, festsRes, clubsRes] = await Promise.all([
-                fetch(`${API}/sports?_cb=${Date.now()}`, {
-                    credentials: 'omit',
-                    mode: 'cors',
-                    headers: { Accept: 'application/json' },
-                }),
-                fetch(`${API}/fests/all?_cb=${Date.now()}`, {
-                    credentials: 'omit',
-                    mode: 'cors',
-                    headers: { Accept: 'application/json' },
-                }),
-                fetch(`${API}/run-clubs?_cb=${Date.now()}`, {
-                    credentials: 'omit',
-                    mode: 'cors',
-                    headers: { Accept: 'application/json' },
-                }),
+                publicFetchJSONRetry('/sports', { cacheBust: true }),
+                publicFetchJSONRetry('/fests/all', { cacheBust: true }),
+                publicFetchJSONRetry('/run-clubs', { cacheBust: true }),
             ]);
 
-            if (eventsRes.ok) {
-                const data = await eventsRes.json();
-                setSportsEvents(Array.isArray(data?.events) ? data.events : []);
-            } else {
-                setSportsEvents([]);
-            }
+            const eventsData = eventsRes?.data;
+            setSportsEvents(Array.isArray(eventsData?.events) ? eventsData.events : []);
 
-            if (festsRes.ok) {
-                const data = await festsRes.json();
-                const all = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-                setSportsFests(all.filter((f) => f.festType === 'sports' && f.status !== 'lastyearhit'));
-            } else {
-                setSportsFests([]);
-            }
+            const festsData = festsRes?.data;
+            const all = Array.isArray(festsData?.fests)
+                ? festsData.fests
+                : Array.isArray(festsData)
+                    ? festsData
+                    : [];
+            setSportsFests(all.filter((f) => f.festType === 'sports' && f.status !== 'lastyearhit'));
 
-            if (clubsRes.ok) {
-                const data = await clubsRes.json();
-                setRunClubEntities(Array.isArray(data?.clubs) ? data.clubs : []);
-            } else {
-                setRunClubEntities([]);
-            }
-        } catch {
+            const clubsData = clubsRes?.data;
+            setRunClubEntities(Array.isArray(clubsData?.clubs) ? clubsData.clubs : []);
+        } catch (err) {
             setSportsEvents([]);
             setSportsFests([]);
             setRunClubEntities([]);
+            setLoadError(
+                err?.isNetworkError || err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED'
+                    ? 'Could not load sports events. Check your connection and try again.'
+                    : (err?.message || 'Could not load sports events. Try again.'),
+            );
         } finally {
             setLoading(false);
         }
@@ -198,6 +186,24 @@ export default function SportsCategoryPage() {
                 <span className="w-2.5 h-2.5 rounded-full bg-[#0ECCEE] animate-bounce" style={{ animationDelay: '150ms' }} />
                 <span className="w-2.5 h-2.5 rounded-full bg-[#0ECCEE] animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
+        </div>
+    );
+
+    const LoadFailed = () => (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center gap-4">
+            <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Couldn’t load events
+            </h2>
+            <p className={`text-sm max-w-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {loadError || 'Check your connection and try again.'}
+            </p>
+            <button
+                type="button"
+                onClick={() => loadData()}
+                className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+            >
+                Retry
+            </button>
         </div>
     );
 
@@ -328,7 +334,9 @@ export default function SportsCategoryPage() {
 
             <main className="pb-8">
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0">
-                {!loading && !hasSportsContent ? (
+                {!loading && loadError ? (
+                    <LoadFailed />
+                ) : !loading && !hasSportsContent ? (
                     <ComingSoon />
                 ) : (
                 <>

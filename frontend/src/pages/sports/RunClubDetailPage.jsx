@@ -203,6 +203,7 @@ export default function RunClubDetailPage() {
     const [club, setClub] = useState(() => normalizeRunClub(location.state?.club || null));
     const [runs, setRuns] = useState([]);
     const [loadingRuns, setLoadingRuns] = useState(true);
+    const [runsError, setRunsError] = useState('');
     const [activeCategory, setActiveCategory] = useState(null);
     const [expanded, setExpanded] = useState(false);
     const [imgPg, setImgPg] = useState(0);
@@ -247,6 +248,7 @@ export default function RunClubDetailPage() {
         if (!clubId) return;
         const controller = new AbortController();
         setLoadingRuns(true);
+        setRunsError('');
         fetchSportsByRunClub(clubId, controller.signal)
             .then((data) => {
                 const list = Array.isArray(data?.events) ? data.events : [];
@@ -267,8 +269,14 @@ export default function RunClubDetailPage() {
                     })),
                 );
             })
-            .catch(() => setRuns([]))
-            .finally(() => setLoadingRuns(false));
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                setRuns([]);
+                setRunsError(err?.message || 'Could not load runs');
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoadingRuns(false);
+            });
         return () => controller.abort();
     }, [clubId]);
 
@@ -561,7 +569,9 @@ export default function RunClubDetailPage() {
                             <div
                                 className={`card-surface mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
                             >
-                                No upcoming runs in this category yet.
+                                {runsError
+                                    ? `${runsError}. Pull to refresh or try again.`
+                                    : 'No upcoming runs in this category yet.'}
                             </div>
                         ) : (
                             <div className="flex gap-4 pb-2">

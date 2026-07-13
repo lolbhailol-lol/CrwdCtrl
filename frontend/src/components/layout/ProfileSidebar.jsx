@@ -20,12 +20,13 @@ export default function ProfileSidebar({
     embedBottomNav = true,
 }) {
     const { isDark, toggleDarkMode } = useDarkMode();
-    const { user, logout, isAuthenticated, isLoading, isAuthProcessing, isRedirectProcessing } = useAuth();
+    const { user, logout, isAuthenticated, isLoading, isAuthProcessing, isRedirectProcessing, token } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const { prepareRouteNavigation, startOverlayTransition } = usePageTransition();
     const [sidebarRevealReady, setSidebarRevealReady] = useState(false);
     const [clubManagerEligible, setClubManagerEligible] = useState(false);
+    const [clubManagerLoading, setClubManagerLoading] = useState(false);
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
 
@@ -40,29 +41,39 @@ export default function ProfileSidebar({
         return () => window.clearTimeout(revealTimer);
     }, [isOpen]);
 
-    // Only admin-approved emails see Club manager in Profile
+    // Only admin-approved emails / approved organizers see Club manager in Profile
     useEffect(() => {
         if (!isOpen) return undefined;
         let cancelled = false;
 
-        if (!isAuthenticated) {
-            setClubManagerEligible(false);
+        if (!isAuthenticated || authPending) {
+            if (!isAuthenticated) {
+                setClubManagerEligible(false);
+                setClubManagerLoading(false);
+            }
             return undefined;
         }
 
+        setClubManagerLoading(true);
         (async () => {
             try {
-                const data = await fetchClubManagerProfileEligible();
+                const data = await fetchClubManagerProfileEligible(token);
                 if (!cancelled) setClubManagerEligible(Boolean(data.eligible));
             } catch {
                 if (!cancelled) setClubManagerEligible(false);
+            } finally {
+                if (!cancelled) setClubManagerLoading(false);
             }
         })();
 
         return () => { cancelled = true; };
-    }, [isOpen, isAuthenticated, user?.email]);
+    }, [isOpen, isAuthenticated, authPending, user?.email, token]);
 
-    const isProfileLoading = isOpen && (!sidebarRevealReady || authPending);
+    const isProfileLoading = isOpen && (
+        !sidebarRevealReady
+        || authPending
+        || (isAuthenticated && clubManagerLoading)
+    );
 
     useEffect(() => {
         if (!isOpen) return undefined;
@@ -119,25 +130,25 @@ export default function ProfileSidebar({
 
     const menuItems = [
         { icon: User, label: 'Edit profile' },
+        ...(clubManagerEligible
+            ? [{ icon: Footprints, label: 'Club manager', hint: 'Runs, guests, check-in & notify' }]
+            : []),
         { icon: Calendar, label: 'Bookings' },
     ];
 
     const secondaryItems = [
         { icon: HelpCircle, label: 'Help Center' },
-        ...(clubManagerEligible
-            ? [{ icon: Footprints, label: 'Club manager', hint: 'Runs, guests, check-in & notify' }]
-            : []),
     ];
 
     // Mobile menu items - filtered based on authentication status
     const allMobileMenuItems = [
         { icon: User, label: 'Edit profile', requiresAuth: true },
+        ...(clubManagerEligible
+            ? [{ icon: Footprints, label: 'Club manager', requiresAuth: true, hint: 'Runs, guests, check-in & notify' }]
+            : []),
         { icon: Heart, label: 'Favourites', requiresAuth: false },
         { icon: Calendar, label: 'Bookings', requiresAuth: false },
         { icon: HelpCircle, label: 'Help Center', requiresAuth: false },
-        ...(clubManagerEligible
-            ? [{ icon: Footprints, label: 'Club manager', requiresAuth: false, hint: 'Runs, guests, check-in & notify' }]
-            : []),
         { icon: Bell, label: 'Notifications', requiresAuth: true },
     ];
 

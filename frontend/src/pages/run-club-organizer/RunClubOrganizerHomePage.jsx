@@ -54,7 +54,18 @@ export default function RunClubOrganizerHomePage() {
     }
 
     if (error) {
-        return <div className="text-center py-16 text-red-400 text-sm">{error}</div>;
+        return (
+            <div className="text-center py-16 px-4 space-y-4">
+                <p className="text-red-400 text-sm">{error}</p>
+                <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                >
+                    Retry
+                </button>
+            </div>
+        );
     }
 
     return (

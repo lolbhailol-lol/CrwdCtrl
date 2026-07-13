@@ -189,6 +189,7 @@ exports.listSignupClubs = async (req, res) => {
 /**
  * Consumer Profile sidebar: only allowlisted emails see Club manager.
  * Requires normal user JWT (not organizer token).
+ * Eligible if Profile-emails invite OR approved organizer account with same email.
  */
 exports.profileEligible = async (req, res) => {
     try {
@@ -202,11 +203,18 @@ exports.profileEligible = async (req, res) => {
         if (!email) {
             return res.json({ success: true, eligible: false });
         }
+
         const invite = await RunClubManagerProfileInvite.findOne({
             email,
             isActive: true,
         }).select('_id').lean();
-        res.json({ success: true, eligible: Boolean(invite) });
+        if (invite) {
+            return res.json({ success: true, eligible: true });
+        }
+
+        const organizers = await RunClubOrganizerAccount.find({ email }).lean();
+        const approved = organizers.some((org) => RunClubOrganizerAccount.canLogin(org));
+        res.json({ success: true, eligible: approved });
     } catch (error) {
         console.error('[runClubOrganizer.profileEligible]', error);
         res.status(500).json({ success: false, eligible: false, message: 'Failed to check access' });

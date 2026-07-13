@@ -1,20 +1,14 @@
 /**
  * Shared public resource fetches for community, run club, and related detail pages.
  */
-import { resolveUrl } from './client.js';
+import { publicFetchJSONRetry } from './client.js';
 
 async function fetchPublicJSON(path, { signal } = {}) {
-  const response = await fetch(resolveUrl(path), {
-    method: 'GET',
-    credentials: 'omit',
-    mode: 'cors',
-    headers: { Accept: 'application/json' },
+  const { data } = await publicFetchJSONRetry(path, {
     signal,
+    cacheBust: true,
   });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  return response.json();
+  return data;
 }
 
 export const fetchTrekCommunity = (id, signal) =>

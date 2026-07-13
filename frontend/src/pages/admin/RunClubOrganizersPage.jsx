@@ -215,7 +215,7 @@ export default function RunClubOrganizersPage() {
                     runClubId: org.runClubId?._id || org.runClubId || undefined,
                 }),
             });
-            toast('Approved — they can sign in now');
+            toast('Approved — they can sign in. Club manager also shows in Profile if this email matches their CrwdCtrl login.');
             load();
         } catch (err) {
             toast(err.message || 'Approve failed');
@@ -274,6 +274,7 @@ export default function RunClubOrganizersPage() {
                     <h1 className="text-2xl font-bold">Run Club Organizers</h1>
                     <p className="text-sm text-gray-500">
                         Approve club logins, and choose which app emails see Club manager in Profile.
+                        Approved organizers whose email matches their CrwdCtrl login also see Club manager automatically.
                     </p>
                 </div>
                 {section === 'accounts' ? (
@@ -309,7 +310,9 @@ export default function RunClubOrganizersPage() {
                         <div>
                             <h2 className="text-sm font-semibold text-white">Approve Profile → Club manager</h2>
                             <p className="text-xs text-gray-500 mt-1">
-                                Only these CrwdCtrl user emails see Club manager in Profile — and only they can request a club manager signup. Still approve the organizer username separately.
+                                These CrwdCtrl user emails see Club manager in Profile and can request signup.
+                                Separately approve the organizer username under Organizer accounts.
+                                Tip: if you already approved an organizer with the same email, Profile shows Club manager without adding them here.
                             </p>
                         </div>
                         <form onSubmit={addInvite} className="flex flex-col sm:flex-row gap-2">
