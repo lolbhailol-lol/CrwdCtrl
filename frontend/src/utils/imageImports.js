@@ -198,7 +198,11 @@ export const getImageUrl = (imagePath, options = {}) => {
         return imageMap[normalizedPath];
     }
 
-    return null;
+    // Keep absolute-looking and relative upload paths (do not drop already-uploaded URLs)
+    if (preset) {
+        return optimizeImageUrl(imagePath, preset) || imagePath;
+    }
+    return imagePath;
 };
 
 /** Resolved + Cloudinary-optimized URL for a given display context */

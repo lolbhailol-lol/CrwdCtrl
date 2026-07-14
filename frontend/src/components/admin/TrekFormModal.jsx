@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2 } from 'lucide-react';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
+import CroppedMultiImagesUpload from './CroppedMultiImagesUpload';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
+import { seedTrekHeroImagesForForm, seedTrekGalleryForForm } from '../../utils/trekImages';
+import { normalizeImageList } from '../../utils/uploadUrls';
 import {
     TREK_FILTER_SECTIONS,
     emptyTrekFilters,
@@ -61,6 +64,7 @@ const EMPTY = {
     itinerary: [],
     coverImage: '',
     coverImages: EMPTY_COVER_IMAGES(),
+    heroImages: [],
     images: [],
     trekFilters: emptyTrekFilters(),
 };
@@ -274,6 +278,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
     const [uploadingCover, setUploadingCover] = useState(false);
+    const [uploadingHero, setUploadingHero] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [pasteByDay, setPasteByDay] = useState({});
@@ -308,7 +313,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 contacts: Array.isArray(trek.contacts) ? trek.contacts.map(c => ({ name: c?.name || '', role: c?.role || '', phone: c?.phone || '' })) : [],
                 coverImage: legacyCover || primaryCoverUrl(coverImages),
                 coverImages,
-                images: trek.images || [],
+                heroImages: seedTrekHeroImagesForForm(trek),
+                images: seedTrekGalleryForForm(trek),
                 trekFilters: {
                     ...emptyTrekFilters(),
                     ...(trek.trekFilters || {}),
@@ -456,7 +462,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
             setError('Trek name and difficulty level are required.');
             return;
         }
-        if (uploadingCover || uploading) {
+        if (uploadingCover || uploading || uploadingHero) {
             setError('Please wait for image upload to finish.');
             return;
         }
@@ -469,6 +475,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 trekCategory: form.trekCategory || null,
                 coverImages,
                 coverImage: primaryCoverUrl(coverImages, form.coverImage) || null,
+                heroImages: normalizeImageList(form.heroImages).slice(0, 5),
+                images: normalizeImageList(form.images),
                 inclusions: form.inclusions ? form.inclusions.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 exclusions: form.exclusions ? form.exclusions.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 thingsToCarry: form.thingsToCarry ? form.thingsToCarry.split('\n').map(s => s.trim()).filter(Boolean) : [],
@@ -499,6 +507,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
             delete payload.homeSection;
             delete payload.priority;
             delete payload.trekPagePriority;
+            delete payload.communityPriority;
             delete payload.homePriority;
             const path = trek ? `/admin/treks/${trek._id}` : '/admin/treks';
             const data = await adminFetchJSON(path, {
@@ -779,24 +788,64 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                     />
                     </FormSection>
 
-                    <FormSection step="12" title="Cover images & gallery" subtitle="Hero, card layouts and extra photos.">
-                        <MultiCoverImagesUpload
-                            value={form.coverImages}
-                            onChange={(coverImages) => {
-                                set('coverImages', coverImages);
-                                set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
-                            }}
-                            onError={(msg) => setError(`Cover upload failed: ${msg}`)}
-                            onUploadingChange={setUploadingCover}
-                            hint="Upload a cropped image per layout (portrait cards, wide cards, hero, etc.)."
-                        />
-                        <GalleryImagesUploadField
-                            value={form.images}
-                            onChange={(images) => set('images', images)}
-                            onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
-                            onUploadingChange={setUploading}
-                            uploadLabel="Upload gallery images"
-                        />
+                    <FormSection step="12" title="Images" subtitle="Separate slots so you can crop size-wise: cards, detail slider, gallery.">
+                        <div className="space-y-5">
+                            <div className="rounded-xl border border-gray-700/60 bg-[#1D1E20]/40 p-4 space-y-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Cover card images</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">
+                                        Portrait shows on the community page trek cards and treks listing. Upload other layouts for home / wide rows.
+                                    </p>
+                                </div>
+                                <MultiCoverImagesUpload
+                                    value={form.coverImages}
+                                    onChange={(coverImages) => {
+                                        set('coverImages', coverImages);
+                                        set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
+                                    }}
+                                    onError={(msg) => setError(`Cover upload failed: ${msg}`)}
+                                    onUploadingChange={setUploadingCover}
+                                    hint="Crop each layout to its aspect — portrait is the main community card."
+                                />
+                            </div>
+
+                            <div className="rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-4 space-y-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Detail page sliding images</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">
+                                        Top carousel on the trek detail page (same frame as community banner — 393×396). Add up to 5; cropped before upload.
+                                    </p>
+                                </div>
+                                <CroppedMultiImagesUpload
+                                    value={form.heroImages}
+                                    onChange={(heroImages) => set('heroImages', heroImages)}
+                                    onError={(msg) => setError(`Slider upload failed: ${msg}`)}
+                                    onUploadingChange={setUploadingHero}
+                                    max={5}
+                                    fixedAspectId="communityBanner"
+                                    title="Crop sliding hero image"
+                                    uploadLabel="Add sliding image"
+                                    hint="These only appear in the detail hero slider — not on community trek cards."
+                                />
+                            </div>
+
+                            <div className="rounded-xl border border-gray-700/60 bg-[#1D1E20]/40 p-4 space-y-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Gallery images</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">
+                                        Separate gallery grid on the trek detail page (below the info sections). Not mixed into the top slider.
+                                    </p>
+                                </div>
+                                <GalleryImagesUploadField
+                                    value={form.images}
+                                    onChange={(images) => set('images', images)}
+                                    onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                                    onUploadingChange={setUploading}
+                                    uploadLabel="Upload gallery images"
+                                    hint="Square-friendly photos work best for the gallery row."
+                                />
+                            </div>
+                        </div>
                     </FormSection>
 
                     <FormSection step="13" title="Booking & registration" subtitle="Registration status, booking form and payment.">
@@ -1091,7 +1140,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
 
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">Cancel</button>
-                        <button type="submit" disabled={saving || uploading || uploadingCover} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+                        <button type="submit" disabled={saving || uploading || uploadingCover || uploadingHero} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
                             {saving ? 'Saving...' : trek ? 'Update Trek' : 'Create Trek'}
                         </button>
                     </div>

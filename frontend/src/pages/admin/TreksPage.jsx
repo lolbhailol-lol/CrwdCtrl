@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Mountain, Calendar, Clock, Users, MapPin, Edit2, Trash2, Plus, Eye, EyeOff, Users2, ExternalLink, Phone, Images } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Mountain, Calendar, Clock, MapPin, Edit2, Trash2, Plus, Eye, EyeOff, Users2, ExternalLink, Phone, Images, GripVertical } from 'lucide-react';
 import TrekFormModal from '../../components/admin/TrekFormModal';
 import TrekCommunityFormModal from '../../components/admin/TrekCommunityFormModal';
 import { adminFetchJSON } from '../../utils/adminApi';
@@ -20,6 +20,48 @@ function resolveCommunityId(value) {
     return String(value);
 }
 
+function sortByCommunityPriority(list) {
+    return [...list].sort((a, b) => {
+        const pa = Number(a.communityPriority) || 999;
+        const pb = Number(b.communityPriority) || 999;
+        if (pa !== pb) return pa - pb;
+        const da = a.trekDate ? new Date(a.trekDate).getTime() : Infinity;
+        const db = b.trekDate ? new Date(b.trekDate).getTime() : Infinity;
+        if (da !== db) return da - db;
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    });
+}
+
+function useListDragDrop(onReorder) {
+    const [draggedIndex, setDraggedIndex] = useState(null);
+    const [overIndex, setOverIndex] = useState(null);
+
+    const handleDragStart = (e, index) => {
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(index));
+    };
+
+    const handleDragOver = (e) => e.preventDefault();
+
+    const handleDrop = (e, index) => {
+        e.preventDefault();
+        if (draggedIndex !== null && draggedIndex !== index) onReorder(draggedIndex, index);
+        setDraggedIndex(null);
+        setOverIndex(null);
+    };
+
+    return {
+        draggedIndex,
+        overIndex,
+        setOverIndex,
+        handleDragStart,
+        handleDragOver,
+        handleDrop,
+        handleDragEnd: () => { setDraggedIndex(null); setOverIndex(null); },
+    };
+}
+
 const DIFFICULTY_BADGE = {
     easy:     'bg-green-900/60 text-green-300 border border-green-700',
     moderate: 'bg-yellow-900/60 text-yellow-300 border border-yellow-700',
@@ -32,11 +74,6 @@ const STATUS_BADGE = {
     draft:     'bg-gray-700 text-gray-300 border border-gray-600',
     completed: 'bg-blue-900/60 text-blue-300 border border-blue-700',
     cancelled: 'bg-red-900/60 text-red-300 border border-red-700',
-};
-
-const CATEGORY_LABELS = {
-    hiking: '🥾 Hiking', trail: '🌲 Trail Walks', backpacking: '🎒 Backpacking',
-    camping: '⛺ Camping', adventure: '🏔️ Adventure',
 };
 
 const TREK_PAGE_SECTION_LABELS = {
@@ -58,16 +95,50 @@ function formatDate(d) {
 }
 
 /* ── Trek Row (clean list item inside community) ── */
-function AdminTrekCard({ trek, onEdit, onDelete }) {
+function AdminTrekCard({
+    trek,
+    rank,
+    onEdit,
+    onDelete,
+    draggable = false,
+    isDragging = false,
+    isOver = false,
+    onDragStart,
+    onDragOver,
+    onDragEnter,
+    onDragLeave,
+    onDrop,
+    onDragEnd,
+}) {
     const [imgErr, setImgErr] = useState(false);
     const diff = DIFFICULTY_BADGE[trek.difficultyLevel];
 
     return (
-        <div className="flex items-center gap-3 px-4 py-3 hover:bg-white/3 transition-colors group">
+        <div
+            draggable={draggable}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragEnter={onDragEnter}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            onDragEnd={onDragEnd}
+            className={`flex items-center gap-3 px-3 sm:px-4 py-3 transition-colors group ${
+                isDragging ? 'opacity-40' : ''
+            } ${isOver ? 'bg-[#0ECCEE]/10' : 'hover:bg-white/3'}`}
+        >
+            {draggable ? (
+                <div className="flex items-center gap-2 shrink-0 cursor-grab active:cursor-grabbing text-gray-600" title="Drag to set community page order">
+                    <GripVertical size={16} aria-hidden />
+                    <span className="w-6 text-center text-[11px] font-bold tabular-nums text-gray-500">
+                        {rank}
+                    </span>
+                </div>
+            ) : null}
+
             {/* Thumbnail */}
             <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-gray-800">
-                {(trek.coverImage || trek.images?.[0]) && !imgErr
-                    ? <img src={trek.coverImage || trek.images[0]} alt={trek.trekName} className="w-full h-full object-cover" onError={() => setImgErr(true)} />
+                {(trek.coverImages?.portrait || trek.coverImage || trek.images?.[0] || trek.heroImages?.[0]) && !imgErr
+                    ? <img src={trek.coverImages?.portrait || trek.coverImage || trek.images?.[0] || trek.heroImages?.[0]} alt={trek.trekName} className="w-full h-full object-cover" onError={() => setImgErr(true)} />
                     : <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-green-900 to-emerald-700">
                         <Mountain size={20} className="text-white/40" />
                       </div>
@@ -112,7 +183,7 @@ function AdminTrekCard({ trek, onEdit, onDelete }) {
             </span>
 
             {/* Actions */}
-            <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1.5 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <button onClick={() => onEdit(trek)}
                     className="p-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
                     title="Edit trek">
@@ -128,29 +199,30 @@ function AdminTrekCard({ trek, onEdit, onDelete }) {
     );
 }
 
-/* ── Section ── */
-function TrekSection({ title, icon, treks, onEdit, onDelete, color = 'text-white' }) {
-    const [collapsed, setCollapsed] = useState(false);
-    if (treks.length === 0) return null;
+function CommunityTrekList({ treks, saving, onReorder, onEdit, onDelete }) {
+    const ordered = sortByCommunityPriority(treks);
+    const dnd = useListDragDrop((from, to) => onReorder(ordered, from, to));
 
     return (
-        <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-base font-bold flex items-center gap-2 ${color}`}>
-                    <span>{icon}</span> {title}
-                    <span className="text-sm font-normal text-gray-500">({treks.length})</span>
-                </h3>
-                <button onClick={() => setCollapsed(c => !c)} className="text-gray-500 hover:text-gray-300 transition-colors">
-                    {collapsed ? <Eye size={16} /> : <EyeOff size={16} />}
-                </button>
-            </div>
-            {!collapsed && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {treks.map(t => (
-                        <AdminTrekCard key={t._id} trek={t} onEdit={onEdit} onDelete={onDelete} />
-                    ))}
-                </div>
-            )}
+        <div className="rounded-xl border border-white/6 overflow-hidden divide-y divide-white/5">
+            {ordered.map((t, index) => (
+                <AdminTrekCard
+                    key={t._id}
+                    trek={t}
+                    rank={index + 1}
+                    draggable={!saving}
+                    isDragging={dnd.draggedIndex === index}
+                    isOver={dnd.overIndex === index && dnd.draggedIndex !== index}
+                    onDragStart={(e) => dnd.handleDragStart(e, index)}
+                    onDragOver={dnd.handleDragOver}
+                    onDragEnter={() => dnd.setOverIndex(index)}
+                    onDragLeave={() => dnd.setOverIndex(null)}
+                    onDrop={(e) => dnd.handleDrop(e, index)}
+                    onDragEnd={dnd.handleDragEnd}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                />
+            ))}
         </div>
     );
 }
@@ -192,6 +264,7 @@ export default function TreksPage() {
     const [showCommForm, setShowCommForm] = useState(false);
     const [selectedComm, setSelectedComm] = useState(null);
     const [expandedComm, setExpandedComm] = useState(() => new Set());
+    const [reorderSaving, setReorderSaving] = useState(false);
     const { confirm } = useDialog();
 
     const fetchTreks = () => {
@@ -212,6 +285,42 @@ export default function TreksPage() {
     };
 
     useEffect(() => { fetchTreks(); fetchCommunities(); }, []);
+
+    const reorderCommunityTreks = useCallback(async (orderedBefore, fromIndex, toIndex) => {
+        if (fromIndex === toIndex || reorderSaving) return;
+        const next = [...orderedBefore];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+
+        const updates = next.map((t, i) => ({
+            type: 'trek',
+            id: t._id,
+            fields: { communityPriority: i + 1 },
+        }));
+
+        const prev = treks;
+        setTreks((list) => {
+            const byId = new Map(updates.map((u) => [String(u.id), u.fields.communityPriority]));
+            return list.map((t) => {
+                const p = byId.get(String(t._id));
+                return p != null ? { ...t, communityPriority: p } : t;
+            });
+        });
+
+        setReorderSaving(true);
+        setError('');
+        try {
+            await adminFetchJSON('/admin/sections/reorder', {
+                method: 'POST',
+                body: JSON.stringify({ updates }),
+            });
+        } catch (err) {
+            setTreks(prev);
+            setError(err.message || 'Failed to save trek order');
+        } finally {
+            setReorderSaving(false);
+        }
+    }, [reorderSaving, treks]);
 
     const deleteCommunity = async (id, name) => {
         if (!(await confirm({ title: 'Delete community?', message: `Delete "${name}"?`, confirmText: 'Delete', tone: 'danger' }))) return;
@@ -245,7 +354,9 @@ export default function TreksPage() {
         <div className="space-y-6">
         <div>
             <h1 className="text-3xl font-bold mb-2">Trek Management</h1>
-            <p className="text-gray-400">Manage trek communities and the treks inside them</p>
+            <p className="text-gray-400">
+                Manage trek communities and the treks inside them. Drag treks to set first / second / … on the community page.
+            </p>
         </div>
         <div className="bg-[#111213] rounded-xl p-6">
 
@@ -387,7 +498,11 @@ export default function TreksPage() {
                                 {/* Treks inside this community */}
                                 {isOpen && (
                                     <div className="border-t border-gray-700/50 p-4">
-                                        <div className="flex items-center justify-between mb-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                            <p className="text-[11px] text-gray-500">
+                                                Drag ⋮⋮ to prioritize — #1 shows first on the community page
+                                                {reorderSaving ? ' · Saving…' : ''}
+                                            </p>
                                             <button
                                                 onClick={() => { setActiveCommunityId(c._id); setSelected(null); setShowForm(true); }}
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0ECCEE]/10 hover:bg-[#0ECCEE]/20 border border-[#0ECCEE]/30 rounded-lg text-xs font-semibold text-[#0ECCEE] transition-colors"
@@ -403,16 +518,13 @@ export default function TreksPage() {
                                                 <p className="text-xs text-gray-500 mb-3">No treks in this community yet</p>
                                             </div>
                                         ) : (
-                                            <div className="rounded-xl border border-white/6 overflow-hidden divide-y divide-white/5">
-                                                {commTreks.map(t => (
-                                                    <AdminTrekCard
-                                                        key={t._id}
-                                                        trek={t}
-                                                        onEdit={trek => { setSelected(trek); setActiveCommunityId(c._id); setShowForm(true); }}
-                                                        onDelete={deleteTrek}
-                                                    />
-                                                ))}
-                                            </div>
+                                            <CommunityTrekList
+                                                treks={commTreks}
+                                                saving={reorderSaving}
+                                                onReorder={reorderCommunityTreks}
+                                                onEdit={(trek) => { setSelected(trek); setActiveCommunityId(c._id); setShowForm(true); }}
+                                                onDelete={deleteTrek}
+                                            />
                                         )}
                                     </div>
                                 )}

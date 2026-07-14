@@ -211,8 +211,8 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                     </AdminFormSection>
 
                     <AdminFormSection
-                        title="Card & listing images"
-                        hint="Optional — portrait/wide cards on treks page and home sections (banner above is separate)"
+                        title="Cover card images"
+                        hint="Portrait card = community page trek cards & treks listing. Wide/square for other carousels. Separate from the page banner above."
                     >
                         <MultiCoverImagesUpload
                             value={form.coverImages}
@@ -223,7 +223,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                             }}
                             onError={(msg) => setError(`Cover upload failed: ${msg}`)}
                             onUploadingChange={setUploading}
-                            hint="Upload cropped images for trek cards and carousels — not the community page header."
+                            hint="Crop size-wise — start with Portrait card for the horizontal trek cards on the community page."
                         />
                     </AdminFormSection>
 
@@ -277,14 +277,16 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                     </AdminFormSection>
 
                     <AdminFormSection
-                        title="Gallery"
-                        hint="Extra photos only — not used as cover or card images"
+                        title="Gallery images"
+                        hint="Separate gallery grid on the community detail page — not used as banner or cover cards"
                     >
                         <GalleryImagesUploadField
                             value={form.galleryImages}
                             onChange={(galleryImages) => set('galleryImages', galleryImages)}
                             onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
                             onUploadingChange={setUploadingGallery}
+                            uploadLabel="Upload gallery images"
+                            hint="These only appear in the Gallery section on the community page."
                         />
                     </AdminFormSection>
 

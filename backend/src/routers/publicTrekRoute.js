@@ -76,7 +76,7 @@ router.get('/', async (req, res) => {
         }
 
         const treks = await Trek.find(filter)
-            .sort({ trekDate: 1, createdAt: -1 })
+            .sort({ communityPriority: 1, trekDate: 1, createdAt: -1 })
             .limit(50)
             .lean();
 

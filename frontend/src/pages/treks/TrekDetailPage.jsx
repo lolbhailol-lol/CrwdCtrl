@@ -16,8 +16,58 @@ import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { fetchTrekCommunity } from '../../services/api/public.api';
 import { trekPath, toSlug } from '../../utils/slugRoutes';
+import { resolveTrekHeroSlides, resolveTrekGalleryImages } from '../../utils/trekImages';
 
 import { API_BASE_URL as API } from '../../services/api/client';
+
+const GALLERY_PREVIEW_COUNT = 4;
+
+function TrekGalleryLightbox({ images, index, name, onClose, onIndexChange }) {
+    const current = images[index];
+    if (!current) return null;
+    return (
+        <div
+            className="fixed inset-0 z-80 bg-black/92 flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gallery viewer"
+            onClick={onClose}
+        >
+            <div className="flex items-center justify-between px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                <p className="text-white text-sm font-medium truncate">{name}</p>
+                <button type="button" onClick={onClose} className="text-white/80 text-sm px-3 py-1.5 rounded-lg bg-white/10">
+                    Close
+                </button>
+            </div>
+            <div className="flex-1 flex items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
+                <img
+                    src={getImageUrl(current, { preset: 'detail' })}
+                    alt=""
+                    className="max-h-full max-w-full object-contain rounded-lg"
+                />
+            </div>
+            {images.length > 1 ? (
+                <div className="flex items-center justify-between px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                    <button
+                        type="button"
+                        className="px-4 py-2 rounded-xl bg-white/10 text-white text-sm"
+                        onClick={() => onIndexChange((index - 1 + images.length) % images.length)}
+                    >
+                        Prev
+                    </button>
+                    <span className="text-white/70 text-xs tabular-nums">{index + 1} / {images.length}</span>
+                    <button
+                        type="button"
+                        className="px-4 py-2 rounded-xl bg-white/10 text-white text-sm"
+                        onClick={() => onIndexChange((index + 1) % images.length)}
+                    >
+                        Next
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    );
+}
 
 function trekMatchesRouteParam(trek, routeParam) {
     if (!trek || !routeParam) return false;
@@ -208,6 +258,8 @@ export default function TrekDetailPage() {
     const [liked,     setLiked]     = useState(false);
     const [imgPg,     setImgPg]     = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
+    const [galleryOpen, setGalleryOpen] = useState(false);
+    const [galleryIndex, setGalleryIndex] = useState(0);
     const [activeTab, setActiveTab] = useState('Details');
     const [termsOpen, setTermsOpen] = useState(false);
     const [carryOpen, setCarryOpen] = useState(false);
@@ -324,10 +376,12 @@ export default function TrekDetailPage() {
         </div>
     );
 
-    const coverImg  = trek.coverImage || null;
-    const rawImages = trek.images?.filter(Boolean) || [];
-    const allImages = coverImg ? [coverImg, ...rawImages.filter(u => u !== coverImg)] : rawImages;
-    const images    = allImages.length ? allImages : trek.image ? [trek.image] : [null];
+    const coverImg  = trek.coverImage || trek.coverImages?.portrait || null;
+    const images    = (() => {
+        const slides = resolveTrekHeroSlides(trek);
+        return slides.length ? slides : [null];
+    })();
+    const galleryImages = resolveTrekGalleryImages(trek);
     const communityName =
         community?.name ||
         community?.title ||
@@ -398,16 +452,26 @@ export default function TrekDetailPage() {
                     onScroll={e => { const p = Math.round(e.target.scrollLeft / e.target.clientWidth); setImgPg(prev => (prev === p ? prev : p)); }}
                 >
                     <div className="flex h-full">
-                        {images.map((img, i) => (
+                        {images.map((img, i) => {
+                            const raw = typeof img === 'string' ? img : (img?.url || img?.secure_url || '');
+                            const src = getImageUrl(raw, { preset: 'communityBanner' }) || getImageUrl(raw) || raw || null;
+                            return (
                             <div key={i} className="shrink-0 w-full h-full snap-start">
-                                {img
-                                    ? <img src={getImageUrl(img, { preset: 'hero' })} alt={trek.trekName} className="w-full h-full object-cover content-image"
+                                {src
+                                    ? <img src={src} alt={trek.trekName} className="w-full h-full object-cover content-image"
                                         loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async"
-                                        onError={e => handleImageErrorWithFallback(e, 393, 396, '#2A2B2E', trek.trekName)} />
+                                        onError={e => {
+                                            if (raw && e.currentTarget.src !== raw) {
+                                                e.currentTarget.src = raw;
+                                                return;
+                                            }
+                                            handleImageErrorWithFallback(e, 393, 396, '#2A2B2E', trek.trekName);
+                                        }} />
                                     : <div className="w-full h-full bg-[#1A1B1D]" />
                                 }
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -440,7 +504,7 @@ export default function TrekDetailPage() {
                 {/* Dots */}
                 {images.length > 1 && (
                     <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-2 z-10">
-                        {images.slice(0, 4).map((_, i) => (
+                        {images.slice(0, 5).map((_, i) => (
                             <div key={i} className={`rounded-2xl transition-all duration-300
                                 ${i === imgPg ? 'h-2.5 w-6 bg-white' : 'size-2.5 bg-transparent border-2 border-white/60'}`} />
                         ))}
@@ -588,6 +652,49 @@ export default function TrekDetailPage() {
                         )}
                     </p>
                 </ScrollReveal>
+
+                {/* ── Gallery (separate from hero slider) ── */}
+                {galleryImages.length > 0 ? (
+                    <ScrollReveal className="px-4 mb-5" delay={0.09}>
+                        <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            Gallery
+                        </h2>
+                        <div className="grid grid-cols-4 gap-2.5">
+                            {galleryImages.slice(0, GALLERY_PREVIEW_COUNT).map((img, i) => {
+                                const isOverflowTile = galleryImages.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
+                                const remainingCount = galleryImages.length - GALLERY_PREVIEW_COUNT;
+                                return (
+                                    <button
+                                        key={`${img}-${i}`}
+                                        type="button"
+                                        onClick={() => {
+                                            setGalleryIndex(i);
+                                            setGalleryOpen(true);
+                                        }}
+                                        aria-label={isOverflowTile ? `View all ${galleryImages.length} gallery images` : `View gallery image ${i + 1}`}
+                                        className={`relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-transform ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
+                                    >
+                                        <img
+                                            src={getImageUrl(img, { preset: 'square' })}
+                                            alt=""
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            loading="lazy"
+                                            decoding="async"
+                                            onError={(e) => handleImageErrorWithFallback(e, 120, 120, '#1a3a2a', trek.trekName)}
+                                        />
+                                        {isOverflowTile ? (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/55">
+                                                <span className="text-white text-base font-semibold tracking-wide">
+                                                    {remainingCount}+
+                                                </span>
+                                            </div>
+                                        ) : null}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </ScrollReveal>
+                ) : null}
 
                 {/* ── Trek Info Tabs ── */}
                 <ScrollReveal className="px-4 mb-5" delay={0.1}>
@@ -947,6 +1054,16 @@ export default function TrekDetailPage() {
                 </div>
             </div>
             </div>
+
+            {galleryOpen && galleryImages.length > 0 ? (
+                <TrekGalleryLightbox
+                    images={galleryImages}
+                    index={galleryIndex}
+                    name={trekName}
+                    onClose={() => setGalleryOpen(false)}
+                    onIndexChange={setGalleryIndex}
+                />
+            ) : null}
         </div>
     );
 }

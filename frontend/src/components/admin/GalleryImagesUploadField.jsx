@@ -94,7 +94,7 @@ export default function GalleryImagesUploadField({
                     {images.map((url, i) => (
                         <div key={`${url}-${i}`} className="relative w-20 h-20">
                             <img
-                                src={normalizeImageUrl(url)}
+                                src={normalizeImageUrl(url) || url}
                                 alt=""
                                 className="w-full h-full object-cover rounded-lg border border-gray-600"
                             />

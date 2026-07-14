@@ -6,7 +6,7 @@ const PLACEHOLDER_LIGHT = 'bg-[#E8EAED]';
 const PLACEHOLDER_DARK = 'dark:bg-[#1A1B1D]';
 
 /**
- * Optimized image — skips flash when the browser already has the file cached.
+ * Optimized image — falls back to the original URL if a Cloudinary transform fails.
  */
 const ContentImage = forwardRef(function ContentImage({
     src,
@@ -23,11 +23,18 @@ const ContentImage = forwardRef(function ContentImage({
     placeholderClassName = `${PLACEHOLDER_LIGHT} ${PLACEHOLDER_DARK}`,
     ...props
 }, ref) {
-    const resolved = getImageUrl(src);
-    const optimized = optimizeImageUrl(resolved, preset);
-    const finalSrc = optimized || resolved;
+    const resolved = getImageUrl(src) || (typeof src === 'string' ? src.trim() : '') || null;
+    const optimized = resolved ? optimizeImageUrl(resolved, preset) : null;
+    const preferredSrc = optimized || resolved;
     const localRef = useRef(null);
-    const [loaded, setLoaded] = useState(!showPlaceholderUntilLoad || !finalSrc);
+    const [displaySrc, setDisplaySrc] = useState(preferredSrc);
+    const [usedFallback, setUsedFallback] = useState(false);
+    const [loaded, setLoaded] = useState(!showPlaceholderUntilLoad || !preferredSrc);
+
+    useEffect(() => {
+        setDisplaySrc(preferredSrc);
+        setUsedFallback(false);
+    }, [preferredSrc]);
 
     const setRefs = useCallback((node) => {
         localRef.current = node;
@@ -40,7 +47,7 @@ const ContentImage = forwardRef(function ContentImage({
     }, []);
 
     useEffect(() => {
-        if (!showPlaceholderUntilLoad || !finalSrc) {
+        if (!showPlaceholderUntilLoad || !displaySrc) {
             setLoaded(true);
             return;
         }
@@ -49,7 +56,7 @@ const ContentImage = forwardRef(function ContentImage({
         if (el?.complete && el.naturalWidth > 0) {
             setLoaded(true);
         }
-    }, [finalSrc, showPlaceholderUntilLoad]);
+    }, [displaySrc, showPlaceholderUntilLoad]);
 
     const handleLoad = (e) => {
         markLoaded();
@@ -57,6 +64,12 @@ const ContentImage = forwardRef(function ContentImage({
     };
 
     const handleError = (e) => {
+        if (!usedFallback && resolved && displaySrc && displaySrc !== resolved) {
+            setUsedFallback(true);
+            setDisplaySrc(resolved);
+            setLoaded(false);
+            return;
+        }
         markLoaded();
         onError?.(e);
     };
@@ -66,11 +79,13 @@ const ContentImage = forwardRef(function ContentImage({
         fetchPriority
         ?? (loading === 'eager' ? 'high' : 'low');
 
+    if (!displaySrc) return null;
+
     if (!showPlaceholderUntilLoad) {
         return (
             <img
                 ref={setRefs}
-                src={finalSrc}
+                src={displaySrc}
                 alt={alt}
                 loading={loading}
                 fetchPriority={resolvedPriority}
@@ -78,8 +93,8 @@ const ContentImage = forwardRef(function ContentImage({
                 decoding="async"
                 draggable={draggable}
                 className={`content-image ${className}`.trim()}
-                onError={onError}
-                onLoad={onLoad}
+                onError={handleError}
+                onLoad={handleLoad}
                 {...props}
             />
         );
@@ -95,7 +110,7 @@ const ContentImage = forwardRef(function ContentImage({
             )}
             <img
                 ref={setRefs}
-                src={finalSrc}
+                src={displaySrc}
                 alt={alt}
                 loading={loading}
                 fetchPriority={resolvedPriority}

@@ -56,6 +56,9 @@ const trekSchema = new mongoose.Schema(
         ],
         coverImage: { type: String, default: null },
         coverImages: { type: coverImagesSchema, default: () => ({}) },
+        /** Detail page top slider (4–5 cropped hero slides) — separate from listing covers & gallery */
+        heroImages: { type: [String], default: [] },
+        /** Gallery section on trek detail — not mixed into the hero slider when heroImages is set */
         images: { type: [String], default: [] },
         registrationFee: { type: Number, default: 0, min: 0 },
         /** Platform fee % added at checkout on top of registration fee (e.g. 3 = 3%) */
@@ -149,6 +152,8 @@ const trekSchema = new mongoose.Schema(
         },
         priority:         { type: Number, default: 999, min: 1, max: 999 },
         trekPagePriority: { type: Number, default: 999, min: 1, max: 999 },
+        /** Order on community detail page (1 = first). Independent of home /treks carousels. */
+        communityPriority: { type: Number, default: 999, min: 1, max: 999 },
         status: {
             type: String,
             enum: ['draft', 'published', 'completed', 'cancelled'],

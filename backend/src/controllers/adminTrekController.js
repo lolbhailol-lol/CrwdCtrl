@@ -10,6 +10,11 @@ const { sanitizeTrekRegistrationFee, sanitizeTrekPlatformFeePercent } = require(
 const { normalizeAvailableDates, parseTrekDateForIndex } = require('../utils/trekDateNormalize');
 const { sanitizeGenderQuotas, sanitizeGenderPhase } = require('../utils/trekGenderRegistration');
 
+function normalizeImageList(images) {
+    if (!Array.isArray(images)) return [];
+    return images.map((u) => String(u || '').trim()).filter(Boolean);
+}
+
 function normalizeTrekPayload(body) {
     const payload = { ...body };
     if (payload.trekFilters !== undefined) {
@@ -18,6 +23,12 @@ function normalizeTrekPayload(body) {
     if (payload.coverImages !== undefined) {
         payload.coverImages = sanitizeCoverImages(payload.coverImages);
         payload.coverImage = primaryCoverUrl(payload.coverImages, payload.coverImage) || null;
+    }
+    if (payload.heroImages !== undefined) {
+        payload.heroImages = normalizeImageList(payload.heroImages).slice(0, 5);
+    }
+    if (payload.images !== undefined) {
+        payload.images = normalizeImageList(payload.images);
     }
     if (payload.trekBatches !== undefined) {
         payload.trekBatches = sanitizeTrekBatches(payload.trekBatches);
@@ -102,7 +113,7 @@ exports.getAllTreks = async (req, res) => {
 
         const total = await Trek.countDocuments(filter);
         const treks = await Trek.find(filter)
-            .sort({ createdAt: -1 })
+            .sort({ communityPriority: 1, trekDate: 1, createdAt: -1 })
             .skip(skip)
             .limit(limit)
             .populate({ path: 'communityId', select: 'name basedIn', strictPopulate: false })
