@@ -1098,7 +1098,7 @@ export default function RunEventBookingPage() {
                                                             : 'Payment screenshot'}
                                                 </p>
                                                 <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                    {paymentScreenshotUrl ? 'Tap to change' : 'Required'}
+                                                    {paymentScreenshotUrl ? 'Tap to change' : 'Gallery or camera'}
                                                 </p>
                                             </div>
                                             {paymentScreenshotUrl ? (
@@ -1119,7 +1119,6 @@ export default function RunEventBookingPage() {
                                             <input
                                                 type="file"
                                                 accept="image/*"
-                                                capture="environment"
                                                 disabled={uploadingProof}
                                                 className="hidden"
                                                 onChange={(e) => {
