@@ -97,6 +97,7 @@ function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = nul
         payload.maxParticipants = Math.max(0, Number(body.maxParticipants) || 0);
     }
     if (body.meetingPoint !== undefined) payload.meetingPoint = String(body.meetingPoint || '').trim();
+    if (body.routeMap !== undefined) payload.routeMap = String(body.routeMap || '').trim();
     if (body.fitnessLevel !== undefined) payload.fitnessLevel = String(body.fitnessLevel || '').trim();
     if (body.returnTime !== undefined) payload.returnTime = String(body.returnTime || '').trim();
     if (body.ageLimit !== undefined) payload.ageLimit = String(body.ageLimit || '').trim();
@@ -113,6 +114,7 @@ function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = nul
     // registrationLink / mode stay admin-owned — do not accept organizer overrides
 
     if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
+        const r = body.registration;
         const existingReg = existing?.registration || {};
         // Registration mode is admin-owned — organizers cannot change it
         const nextMode = existingReg.mode || 'internal_form';
@@ -551,6 +553,7 @@ exports.createEvent = async (req, res) => {
             coverImage: body.coverImage || '',
             description: body.description || '',
             meetingPoint: body.meetingPoint || '',
+            routeMap: body.routeMap || '',
             fitnessLevel: body.fitnessLevel || '',
             returnTime: body.returnTime || '',
             ageLimit: body.ageLimit || '',

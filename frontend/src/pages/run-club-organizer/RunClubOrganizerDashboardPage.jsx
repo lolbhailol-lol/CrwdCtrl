@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, UserCheck, Clock, IndianRupee, Calendar, Loader, Bell, Copy, ExternalLink, Hourglass } from 'lucide-react';
+import { Users, UserCheck, Clock, IndianRupee, Calendar, Loader, Bell, Copy, ExternalLink, Hourglass, MapPin } from 'lucide-react';
 import {
     fetchRunClubOrganizerDashboard,
     fetchRunClubOrganizerEvent,
@@ -211,6 +211,116 @@ function RegistrationPricingPanel({ eventId, eventDetail, onSaved, busy, setBusy
     );
 }
 
+function CapacityLocationPanel({ eventId, eventDetail, onSaved, busy, setBusy }) {
+    const [maxParticipants, setMaxParticipants] = useState('');
+    const [venue, setVenue] = useState('');
+    const [routeMap, setRouteMap] = useState('');
+    const [notice, setNotice] = useState('');
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (!eventDetail) return;
+        setMaxParticipants(
+            eventDetail.maxParticipants != null && eventDetail.maxParticipants !== ''
+                ? String(eventDetail.maxParticipants)
+                : '',
+        );
+        setVenue(eventDetail.venue || '');
+        setRouteMap(eventDetail.routeMap || '');
+        setNotice('');
+        setError('');
+    }, [eventDetail]);
+
+    const save = async () => {
+        setError('');
+        setNotice('');
+        const link = String(routeMap || '').trim();
+        if (link && !/^https?:\/\//i.test(link)) {
+            setError('Location link must start with https:// (Google Maps share link works best).');
+            return;
+        }
+        setBusy(true);
+        try {
+            await updateRunClubOrganizerEvent(eventId, {
+                maxParticipants: Math.max(0, Number(maxParticipants) || 0),
+                venue: String(venue || '').trim(),
+                routeMap: link,
+            });
+            setNotice('Capacity & location saved');
+            await onSaved?.();
+        } catch (e) {
+            setError(e.message || 'Failed to save');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const inputClass = 'w-full rounded-lg border border-gray-700 bg-[#0E0E0F] px-3 py-2.5 text-sm text-white focus:border-[#0ECCEE] focus:outline-none';
+
+    return (
+        <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 space-y-4">
+            <div>
+                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <MapPin size={16} className="text-[#0ECCEE]" />
+                    Capacity & location
+                </h2>
+                <p className="text-[11px] text-gray-500 mt-1">
+                    Max people shows on the run page. Location label + maps link drive the location box runners see.
+                </p>
+            </div>
+
+            <label className="block space-y-1.5">
+                <span className="text-xs text-gray-400">Max people (0 = unlimited)</span>
+                <input
+                    type="number"
+                    min="0"
+                    value={maxParticipants}
+                    onChange={(e) => setMaxParticipants(e.target.value)}
+                    className={inputClass}
+                    placeholder="e.g. 40"
+                />
+            </label>
+
+            <label className="block space-y-1.5">
+                <span className="text-xs text-gray-400">Location label</span>
+                <input
+                    type="text"
+                    value={venue}
+                    onChange={(e) => setVenue(e.target.value)}
+                    className={inputClass}
+                    placeholder="e.g. Cubbon Park — main gate"
+                />
+            </label>
+
+            <label className="block space-y-1.5">
+                <span className="text-xs text-gray-400">Location link (Google Maps)</span>
+                <input
+                    type="url"
+                    value={routeMap}
+                    onChange={(e) => setRouteMap(e.target.value)}
+                    className={inputClass}
+                    placeholder="https://maps.google.com/… or maps.app.goo.gl/…"
+                />
+                <span className="text-[10px] text-gray-600">
+                    Paste the share link from Google Maps — same idea as Route Map in admin.
+                </span>
+            </label>
+
+            {error ? <p className="text-[11px] text-red-400">{error}</p> : null}
+            {notice ? <p className="text-[11px] text-emerald-400">{notice}</p> : null}
+
+            <button
+                type="button"
+                onClick={save}
+                disabled={busy}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
+            >
+                {busy ? 'Saving…' : 'Save capacity & location'}
+            </button>
+        </div>
+    );
+}
+
 export default function RunClubOrganizerDashboardPage() {
     const { eventId } = useParams();
     const navigate = useNavigate();
@@ -374,6 +484,14 @@ export default function RunClubOrganizerDashboardPage() {
             ) : null}
 
             <RegistrationPricingPanel
+                eventId={eventId}
+                eventDetail={eventDetail}
+                onSaved={() => load({ silent: true })}
+                busy={actionBusy}
+                setBusy={setActionBusy}
+            />
+
+            <CapacityLocationPanel
                 eventId={eventId}
                 eventDetail={eventDetail}
                 onSaved={() => load({ silent: true })}

@@ -175,6 +175,7 @@ export default function RunEventDetailPage() {
     const images = allImages.length ? allImages : [null];
     const communityName = club?.name || event.organizer || 'Community Name';
     const mapQuery = event.venue || event.city || club?.basedIn || '';
+    const mapUrl = String(event.routeMap || '').trim();
     const desc =
         event.description?.trim() ||
         `${event.title || 'This run'} is hosted by ${communityName}. Join fellow runners for a great session.`;
@@ -412,17 +413,17 @@ export default function RunEventDetailPage() {
 
                     <div className="w-60 shrink-0 flex flex-col">
                         <div className="w-full h-[132px] rounded-2xl overflow-hidden relative">
-                            {mapQuery ? (
-                                <LazyMap query={mapQuery} isDark={isDark} title="run-location" />
+                            {(mapQuery || mapUrl) ? (
+                                <LazyMap query={mapQuery} mapUrl={mapUrl || undefined} isDark={isDark} title="run-location" />
                             ) : (
                                 <div className="w-full h-full bg-linear-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
                                     <span className="text-[10px] text-gray-400">No location</span>
                                 </div>
                             )}
                         </div>
-                        {mapQuery && (
+                        {(mapQuery || mapUrl) && (
                             <p className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {mapQuery}
+                                {mapQuery || 'Open map'}
                             </p>
                         )}
                     </div>
