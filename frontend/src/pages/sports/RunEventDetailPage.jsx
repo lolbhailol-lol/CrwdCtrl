@@ -393,24 +393,26 @@ export default function RunEventDetailPage() {
                     return (
                         <div className="px-4 mb-5">
                             <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Run Info</h2>
-                            <div className="flex gap-0.5 mb-3">
-                                {['Details', 'Included'].map((tab) => (
-                                    <button
-                                        key={tab}
-                                        type="button"
-                                        onClick={() => setActiveRunTab(tab)}
-                                        className={`relative flex-1 py-2 text-xs font-semibold transition-all duration-200
-                                            ${activeRunTab === tab
-                                                ? isDark ? 'text-white' : 'text-gray-900'
-                                                : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
-                                            }`}
-                                    >
-                                        {tab === 'Included' ? 'Experience Included' : tab}
-                                        {activeRunTab === tab && (
-                                            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#0ECCEE]" />
-                                        )}
-                                    </button>
-                                ))}
+                            <div className={`rounded-2xl p-1 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
+                                <div className="flex rounded-xl p-1 gap-0.5">
+                                    {['Details', 'Included'].map((tab) => (
+                                        <button
+                                            key={tab}
+                                            type="button"
+                                            onClick={() => setActiveRunTab(tab)}
+                                            className={`relative flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200
+                                                ${activeRunTab === tab
+                                                    ? isDark ? 'bg-[#1D1E20] text-white shadow-sm' : 'bg-gray-100 text-gray-900 shadow-sm'
+                                                    : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                                                }`}
+                                        >
+                                            {tab === 'Included' ? 'Experience Included' : tab}
+                                            {activeRunTab === tab && (
+                                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#0ECCEE]" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             <div className="space-y-2">
