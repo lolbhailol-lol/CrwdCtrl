@@ -106,6 +106,20 @@ function sanitizeSportsPayload(body = {}) {
     if (body.fitnessLevel !== undefined) payload.fitnessLevel = String(body.fitnessLevel || '').trim();
     if (body.meetingPoint !== undefined) payload.meetingPoint = String(body.meetingPoint || '').trim();
     if (body.ageLimit !== undefined) payload.ageLimit = String(body.ageLimit || '').trim();
+    if (body.detailBoxes !== undefined) {
+        payload.detailBoxes = Array.isArray(body.detailBoxes)
+            ? body.detailBoxes
+                .map((box, index) => ({
+                    id: String(box?.id || `box_${index}`).trim(),
+                    label: String(box?.label || '').trim(),
+                    value: String(box?.value || '').trim(),
+                    icon: String(box?.icon || 'default').trim() || 'default',
+                    order: Number.isFinite(Number(box?.order)) ? Number(box.order) : index,
+                }))
+                .filter((box) => box.label || box.value)
+                .map((box, index) => ({ ...box, order: index }))
+            : [];
+    }
     if (body.infoSections !== undefined) {
         payload.infoSections = Array.isArray(body.infoSections)
             ? body.infoSections

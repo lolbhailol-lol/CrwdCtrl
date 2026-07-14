@@ -8,8 +8,9 @@ function toSlug(value = '') {
         .replace(/^-+|-+$/g, '');
 }
 
+/** Strict 24-hex check — do not use mongoose.isValid (12-char strings can pass). */
 function isObjectId(value) {
-    return mongoose.Types.ObjectId.isValid(value);
+    return /^[a-f\d]{24}$/i.test(String(value || '').trim());
 }
 
 /**
@@ -21,22 +22,48 @@ async function findByIdOrSlug(Model, idOrSlug, {
     pickName = () => '',
     lean = true,
     sort = null,
+    select = null,
 } = {}) {
     if (!idOrSlug) return null;
+    const raw = String(idOrSlug).trim();
+    if (!raw) return null;
 
-    if (isObjectId(idOrSlug)) {
-        const q = Model.findOne({ ...baseFilter, _id: idOrSlug });
+    const applyQueryOpts = (q) => {
+        if (select) q.select(select);
         if (sort) q.sort(sort);
-        return lean ? q.lean() : q;
+        return q;
+    };
+
+    if (isObjectId(raw)) {
+        try {
+            const q = applyQueryOpts(Model.findOne({ ...baseFilter, _id: raw }));
+            const doc = lean ? await q.lean() : await q;
+            if (doc) return doc;
+        } catch (err) {
+            // Never surface CastError for bad ids — fall through to slug match
+            if (err?.name !== 'CastError') throw err;
+        }
     }
 
-    const slug = toSlug(idOrSlug);
+    const slug = toSlug(raw);
     if (!slug) return null;
 
-    const q = Model.find(baseFilter);
-    if (sort) q.sort(sort);
+    // Prefer persisted slug field when present
+    try {
+        const bySlugField = applyQueryOpts(Model.findOne({ ...baseFilter, slug }));
+        const hit = lean ? await bySlugField.lean() : await bySlugField;
+        if (hit) return hit;
+    } catch (_) {
+        // Model may not have a slug path — ignore
+    }
+
+    const q = applyQueryOpts(Model.find(baseFilter));
     const rows = lean ? await q.lean() : await q;
-    return rows.find((row) => toSlug(pickName(row)) === slug) || null;
+    return rows.find((row) => {
+        const named = toSlug(pickName(row));
+        const stored = row.slug ? toSlug(row.slug) : '';
+        return named === slug || stored === slug;
+    }) || null;
 }
 
 module.exports = {

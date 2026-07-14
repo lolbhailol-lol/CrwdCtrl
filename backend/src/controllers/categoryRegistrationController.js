@@ -4,7 +4,8 @@ const SportsEvent = require('../model/sports_model');
 const Trek = require('../model/trek_model');
 const EventShow = require('../model/event_show_model');
 const { verifySportsBookingPayment } = require('../utils/sportsPaymentVerification');
-const { consumeCouponUsageForOrder } = require('../utils/couponPricing');
+const { consumeCouponUsageForOrder, consumeCouponUsageForRegistration, validateAndPriceCoupon } = require('../utils/couponPricing');
+const { buildPriceBreakdown } = require('../utils/platformFee');
 const { findByIdOrSlug } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
@@ -144,9 +145,34 @@ exports.registerForEvent = async (req, res) => {
         let regStatus = 'confirmed';
         const paymentScreenshotUrl = String(bookingDetails.paymentScreenshotUrl || '').trim();
         const transactionId = String(bookingDetails.transactionId || '').trim();
+        let appliedCouponCode = '';
+        let appliedCouponDiscount = 0;
+        let appliedAmountBeforeDiscount = 0;
 
         if (isOrganizerQr) {
-            if (registrationFee > 0) {
+            const baseAmount = registrationFee * people;
+            appliedAmountBeforeDiscount = baseAmount;
+
+            const rawCoupon = bookingDetails.couponCode || req.body.couponCode || '';
+            try {
+                const couponResult = await validateAndPriceCoupon({
+                    couponCode: rawCoupon,
+                    entityType: 'sports',
+                    userId,
+                    amountBeforeDiscount: baseAmount,
+                    people,
+                    failOnMissingCode: false,
+                });
+                appliedCouponCode = couponResult.couponCode || '';
+                appliedCouponDiscount = Number(couponResult.discountAmount) || 0;
+                appliedAmountBeforeDiscount = Number(couponResult.amountBeforeDiscount) || baseAmount;
+                amountPaid = Number(couponResult.amountAfterDiscount);
+                if (!Number.isFinite(amountPaid) || amountPaid < 0) amountPaid = baseAmount;
+            } catch (couponErr) {
+                return res.status(400).json({ message: couponErr.message || 'Invalid coupon' });
+            }
+
+            if (amountPaid > 0) {
                 if (!String(event.registration?.paymentQR || '').trim()) {
                     return res.status(400).json({ message: 'Payment QR is not configured for this run' });
                 }
@@ -163,8 +189,6 @@ exports.registerForEvent = async (req, res) => {
                         message: 'Please enter your UPI / transaction ID (helps the club verify faster)',
                     });
                 }
-                // Server-enforced amount — ignore client amountPaid
-                amountPaid = registrationFee * people;
                 paymentStatus = 'pending';
                 regStatus = 'pending';
                 paymentGateway = 'organizer_qr';
@@ -172,21 +196,55 @@ exports.registerForEvent = async (req, res) => {
                 amountPaid = 0;
                 paymentStatus = 'free';
                 regStatus = 'confirmed';
+                paymentGateway = appliedCouponCode ? 'organizer_qr' : null;
             }
         } else if (registrationFee > 0) {
-            const check = await verifySportsBookingPayment({
-                event,
-                people,
-                paymentOrderId,
-                paymentId,
-            });
-            if (!check.ok) {
-                return res.status(check.status || 400).json({ message: check.message });
+            // Cashfree / online — full coupon can skip payment_order entirely
+            if (!paymentOrderId) {
+                const rawCoupon = bookingDetails.couponCode || req.body.couponCode || '';
+                const ticketBase = registrationFee * people;
+                const { totalAmount: gross } = buildPriceBreakdown(ticketBase);
+                try {
+                    const couponResult = await validateAndPriceCoupon({
+                        couponCode: rawCoupon,
+                        entityType: 'sports',
+                        userId,
+                        amountBeforeDiscount: gross,
+                        people,
+                        failOnMissingCode: false,
+                    });
+                    if (couponResult.couponApplied && Number(couponResult.amountAfterDiscount) === 0) {
+                        appliedCouponCode = couponResult.couponCode || '';
+                        appliedCouponDiscount = Number(couponResult.discountAmount) || 0;
+                        appliedAmountBeforeDiscount = Number(couponResult.amountBeforeDiscount) || gross;
+                        amountPaid = 0;
+                        paymentStatus = 'free';
+                        regStatus = 'confirmed';
+                        paymentGateway = null;
+                    } else {
+                        return res.status(400).json({ message: 'payment_order_id is required for paid runs' });
+                    }
+                } catch (couponErr) {
+                    return res.status(400).json({ message: couponErr.message || 'Invalid coupon' });
+                }
+            } else {
+                const check = await verifySportsBookingPayment({
+                    event,
+                    people,
+                    paymentOrderId,
+                    paymentId,
+                });
+                if (!check.ok) {
+                    return res.status(check.status || 400).json({ message: check.message });
+                }
+                paymentStatus = 'paid';
+                amountPaid = check.amountPaid;
+                paymentId = check.paymentId;
+                paymentGateway = 'cashfree';
+                appliedCouponCode = check.couponCode || appliedCouponCode;
+                appliedCouponDiscount = check.couponDiscount || appliedCouponDiscount;
+                appliedAmountBeforeDiscount = check.amountBeforeDiscount || appliedAmountBeforeDiscount;
             }
-            paymentStatus = 'paid';
-            amountPaid = check.amountPaid;
-            paymentId = check.paymentId;
-            paymentGateway = 'cashfree';
         }
 
         const runClubId = category === 'sports' && event.runClubId ? event.runClubId : null;
@@ -197,6 +255,9 @@ exports.registerForEvent = async (req, res) => {
             responses,
             paymentStatus,
             amountPaid,
+            couponCode: appliedCouponCode,
+            couponDiscount: appliedCouponDiscount,
+            amountBeforeDiscount: appliedAmountBeforeDiscount || amountPaid,
             payment_order_id: paymentOrderId || null,
             payment_id: paymentId || null,
             payment_gateway: paymentGateway,
@@ -243,6 +304,8 @@ exports.registerForEvent = async (req, res) => {
 
         if (paymentOrderId) {
             consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
+        } else if (appliedCouponCode) {
+            consumeCouponUsageForRegistration({ registration, userId }).catch(() => {});
         }
 
         const safeReg = decryptRegistrationPii(
@@ -438,7 +501,15 @@ exports.adminGetAllRegistrations = async (req, res) => {
 
         const filter = {};
         if (req.query.category) filter.category = req.query.category;
-        if (req.query.eventId) filter.eventId = req.query.eventId;
+        if (req.query.eventId) {
+            const resolved = await findByIdOrSlug(SportsEvent, req.query.eventId, {
+                pickName: (row) => row.title || '',
+                lean: true,
+                select: '_id title',
+            });
+            // Sports slug → ObjectId; otherwise keep as-is for trek/events ObjectIds
+            filter.eventId = resolved?._id || req.query.eventId;
+        }
         if (req.query.status) filter.status = req.query.status;
 
         const total = await CategoryRegistration.countDocuments(filter);

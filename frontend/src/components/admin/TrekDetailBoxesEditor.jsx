@@ -36,7 +36,13 @@ function useDragDrop(items, onReorder) {
     };
 }
 
-export default function TrekDetailBoxesEditor({ boxes = [], onChange }) {
+export default function TrekDetailBoxesEditor({
+    boxes = [],
+    onChange,
+    presets = DETAIL_BOX_PRESETS,
+    hint = 'Drag cards to reorder how they appear on the Details tab.',
+    emptyText = 'No detail boxes yet. Add presets or a custom box — each appears as a card on the Details tab.',
+}) {
     const update = (idx, field, value) => {
         const next = boxes.map((box, i) => {
             if (i !== idx) return box;
@@ -73,10 +79,10 @@ export default function TrekDetailBoxesEditor({ boxes = [], onChange }) {
 
     return (
         <div className="space-y-3">
-            <p className="text-[11px] text-gray-500">Drag cards to reorder how they appear on the trek Details tab.</p>
+            <p className="text-[11px] text-gray-500">{hint}</p>
 
             <div className="flex flex-wrap gap-2">
-                {DETAIL_BOX_PRESETS.map((preset) => (
+                {presets.map((preset) => (
                     <button
                         key={preset.label}
                         type="button"
@@ -97,7 +103,7 @@ export default function TrekDetailBoxesEditor({ boxes = [], onChange }) {
 
             {boxes.length === 0 ? (
                 <p className="text-xs text-gray-500 rounded-lg border border-dashed border-gray-600 px-3 py-3">
-                    No detail boxes yet. Add presets or a custom box — each appears as a card on the trek Details tab.
+                    {emptyText}
                 </p>
             ) : (
                 <div className="space-y-2.5">

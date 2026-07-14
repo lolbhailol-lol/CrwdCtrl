@@ -38,6 +38,11 @@ const categoryRegistrationSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        /** Coupon applied on booking (Cashfree or organizer UPI/SS) */
+        couponCode: { type: String, default: '', trim: true, uppercase: true },
+        couponDiscount: { type: Number, default: 0 },
+        amountBeforeDiscount: { type: Number, default: 0 },
+        couponConsumedAt: { type: Date, default: null },
         payment_order_id: { type: String, default: null },
         payment_id: { type: String, default: null },
         payment_gateway: { type: String, default: null },

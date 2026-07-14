@@ -101,6 +101,20 @@ function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = nul
     if (body.fitnessLevel !== undefined) payload.fitnessLevel = String(body.fitnessLevel || '').trim();
     if (body.returnTime !== undefined) payload.returnTime = String(body.returnTime || '').trim();
     if (body.ageLimit !== undefined) payload.ageLimit = String(body.ageLimit || '').trim();
+    if (body.detailBoxes !== undefined) {
+        payload.detailBoxes = Array.isArray(body.detailBoxes)
+            ? body.detailBoxes
+                .map((box, index) => ({
+                    id: String(box?.id || `box_${index}`).trim(),
+                    label: String(box?.label || '').trim(),
+                    value: String(box?.value || '').trim(),
+                    icon: String(box?.icon || 'default').trim() || 'default',
+                    order: Number.isFinite(Number(box?.order)) ? Number(box.order) : index,
+                }))
+                .filter((box) => box.label || box.value)
+                .map((box, index) => ({ ...box, order: index }))
+            : [];
+    }
     if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
     if (body.contactInstagram !== undefined) {
         payload.contactInstagram = String(body.contactInstagram || '').trim();
@@ -552,6 +566,7 @@ exports.createEvent = async (req, res) => {
             distance: body.distance || '',
             coverImage: body.coverImage || '',
             description: body.description || '',
+            detailBoxes: body.detailBoxes || [],
             meetingPoint: body.meetingPoint || '',
             routeMap: body.routeMap || '',
             fitnessLevel: body.fitnessLevel || '',

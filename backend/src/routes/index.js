@@ -32,6 +32,7 @@ const analyticsRoutes = require('../routers/analyticsRoute');
 const publicSearchRoutes = require('../routers/publicSearchRoute');
 const publicHomepageSectionRoutes = require('../routers/publicHomepageSectionRoute');
 const publicHomeRoutes = require('../routers/publicHomeRoute');
+const mapsRoutes = require('../routers/mapsRoute');
 const adminSiteSettingRoutes = require('../routers/adminSiteSettingRoute');
 const adminCouponRoutes = require('../routers/adminCouponRoute');
 const adminNotificationRoutes = require('../routers/adminNotificationRoute');
@@ -75,5 +76,6 @@ router.use('/home', publicHomeRoutes);
 router.use('/search', publicSearchRoutes);
 router.use('/homepage-sections', publicHomepageSectionRoutes);
 router.use('/page-sections', publicHomepageSectionRoutes);
+router.use('/maps', mapsRoutes);
 
 module.exports = router;

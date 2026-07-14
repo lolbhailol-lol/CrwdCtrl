@@ -26,6 +26,17 @@ export const DETAIL_BOX_PRESETS = [
     { label: 'Fitness', value: '', icon: 'fitness' },
 ];
 
+export const RUN_DETAIL_BOX_PRESETS = [
+    { label: 'Max People', value: '', icon: 'people' },
+    { label: 'Run Timing', value: '', icon: 'sun' },
+    { label: 'Return Time', value: '', icon: 'moon' },
+    { label: 'Meeting Point', value: '', icon: 'map-pin' },
+    { label: 'Age Limit', value: '', icon: 'age' },
+    { label: 'Fitness', value: '', icon: 'fitness' },
+    { label: 'Distance', value: '', icon: 'route' },
+    { label: 'Pace', value: '', icon: 'clock' },
+];
+
 const LABEL_ICON_RULES = [
     { match: /people|participant|group|seat/i, icon: 'people' },
     { match: /depart|start|timing|morning/i, icon: 'sun' },
@@ -90,4 +101,42 @@ export function normalizeDetailBoxes(list, trek = null) {
     push('Fitness', trek.fitnessRequirements, 'fitness');
 
     return legacy;
+}
+
+/** Same editor shape for sports / run events — falls back to classic run fields. */
+export function normalizeRunDetailBoxes(list, event = null) {
+    if (Array.isArray(list) && list.length > 0) {
+        return normalizeDetailBoxes(list, null);
+    }
+    if (!event) return [];
+
+    const legacy = [];
+    const push = (label, value, icon) => {
+        if (value === undefined || value === null || value === '') return;
+        if (typeof value === 'number' && value <= 0) return;
+        legacy.push({ id: `legacy_${legacy.length}`, label, value: String(value), icon, order: legacy.length });
+    };
+
+    push('Max People', event.maxParticipants > 0 ? event.maxParticipants : '', 'people');
+    push('Run Timing', event.reportingTime, 'sun');
+    push('Return Time', event.returnTime, 'moon');
+    push('Meeting Point', event.meetingPoint, 'map-pin');
+    push('Age Limit', event.ageLimit, 'age');
+    push('Fitness', event.fitnessLevel, 'fitness');
+
+    return legacy;
+}
+
+export function sanitizeDetailBoxesPayload(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+        .map((box, index) => ({
+            id: String(box?.id || `box_${index}`).trim(),
+            label: String(box?.label || '').trim(),
+            value: String(box?.value || '').trim(),
+            icon: String(box?.icon || guessIconForLabel(box?.label) || 'default').trim() || 'default',
+            order: Number.isFinite(Number(box?.order)) ? Number(box.order) : index,
+        }))
+        .filter((box) => box.label || box.value)
+        .map((box, index) => ({ ...box, order: index }));
 }

@@ -148,13 +148,24 @@ export default function PaymentProofReviewModal({
 
                     <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className={`rounded-lg bg-[#111213] border px-3 py-2.5 ${amountMismatch ? 'border-amber-500/50' : 'border-gray-800'}`}>
-                            <p className="text-[10px] uppercase text-gray-500">Expected</p>
+                            <p className="text-[10px] uppercase text-gray-500">Expected UPI</p>
                             <p className="font-semibold text-[#0ECCEE] text-base">₹{expected.toLocaleString('en-IN')}</p>
                         </div>
                         <div className={`rounded-lg bg-[#111213] border px-3 py-2.5 ${amountMismatch ? 'border-amber-500/50' : 'border-gray-800'}`}>
                             <p className="text-[10px] uppercase text-gray-500">Recorded</p>
                             <p className="font-semibold text-base">₹{amount.toLocaleString('en-IN')}</p>
                         </div>
+                        {participant.couponCode ? (
+                            <div className="col-span-2 rounded-lg bg-green-500/10 border border-green-500/30 px-3 py-2 text-xs text-green-300">
+                                Coupon `{participant.couponCode}`
+                                {Number(participant.couponDiscount) > 0
+                                    ? ` · −₹${Number(participant.couponDiscount).toLocaleString('en-IN')}`
+                                    : ''}
+                                {Number(participant.amountBeforeDiscount) > 0
+                                    ? ` (was ₹${Number(participant.amountBeforeDiscount).toLocaleString('en-IN')})`
+                                    : ''}
+                            </div>
+                        ) : null}
                         {amountMismatch ? (
                             <div className="col-span-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200">
                                 Amount mismatch — expected ₹{expected.toLocaleString('en-IN')}, recorded ₹{amount.toLocaleString('en-IN')}

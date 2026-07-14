@@ -1,5 +1,6 @@
 const RunClub = require('../model/run_club_model');
 const SportsEvent = require('../model/sports_model');
+const { findByIdOrSlug } = require('./slug');
 
 /**
  * Resolve WhatsApp group / chat link for a run-club sports event.
@@ -8,7 +9,11 @@ const SportsEvent = require('../model/sports_model');
 async function resolveRunClubGroupLink(eventIdOrEvent, { runClubId } = {}) {
     let event = eventIdOrEvent;
     if (!event || typeof event === 'string' || event._bsontype === 'ObjectId') {
-        event = await SportsEvent.findById(eventIdOrEvent).select('runClubId title').lean();
+        event = await findByIdOrSlug(SportsEvent, eventIdOrEvent, {
+            pickName: (row) => row.title || '',
+            lean: true,
+            select: 'runClubId title',
+        });
     }
     const clubId = runClubId || event?.runClubId;
     if (!clubId) return { groupLink: '', communityName: '', eventTitle: event?.title || 'your run' };

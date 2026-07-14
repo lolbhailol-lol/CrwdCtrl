@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
+import TrekDetailBoxesEditor from './TrekDetailBoxesEditor';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, RUN_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
 
 const EMPTY = {
     title: '',
@@ -39,6 +41,7 @@ const EMPTY = {
     fitnessLevel: '',
     meetingPoint: '',
     ageLimit: '',
+    detailBoxes: [],
     infoSections: [],
     termsAndConditions: '',
     contactPhone: '',
@@ -105,6 +108,8 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 inclusions: Array.isArray(event.inclusions)
                     ? event.inclusions.join('\n')
                     : (event.inclusions || ''),
+                detailBoxes: normalizeRunDetailBoxes(event.detailBoxes, event),
+                infoSections: Array.isArray(event.infoSections) ? event.infoSections : [],
                 termsAndConditions: Array.isArray(event.termsAndConditions) ? event.termsAndConditions.join('\n') : '',
                 contactPhone: event.contactPhone || '',
                 contactInstagram: event.contactInstagram || '',
@@ -210,6 +215,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 fitnessLevel: form.fitnessLevel?.trim() || '',
                 meetingPoint: form.meetingPoint?.trim() || '',
                 ageLimit: form.ageLimit?.trim() || '',
+                detailBoxes: sanitizeDetailBoxesPayload(form.detailBoxes),
                 infoSections: (form.infoSections || [])
                     .map((s) => ({ title: (s.title || '').trim(), details: (s.details || '').trim() }))
                     .filter((s) => s.title || s.details),
@@ -538,20 +544,15 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                         title="Run Info"
                         hint="Shown in the Run Info widget on the run detail page — Details tab"
                     >
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Field label="Return / End Time" hint="Details card">
-                                <input type="text" value={form.returnTime} onChange={(e) => set('returnTime', e.target.value)} className={inp} placeholder="e.g. 8:00 AM" />
-                            </Field>
-                            <Field label="Fitness" hint="Details card">
-                                <input type="text" value={form.fitnessLevel} onChange={(e) => set('fitnessLevel', e.target.value)} className={inp} placeholder="e.g. Beginner friendly" />
-                            </Field>
-                            <Field label="Meeting Point" hint="Details card">
-                                <input type="text" value={form.meetingPoint} onChange={(e) => set('meetingPoint', e.target.value)} className={inp} placeholder="e.g. City Park Gate 2" />
-                            </Field>
-                            <Field label="Age Limit" hint="Details card">
-                                <input type="text" value={form.ageLimit} onChange={(e) => set('ageLimit', e.target.value)} className={inp} placeholder="e.g. 16+" />
-                            </Field>
-                        </div>
+                        <Field label="Detail boxes" hint="Add one by one — same style as treks. Shown on Run Info → Details.">
+                            <TrekDetailBoxesEditor
+                                boxes={form.detailBoxes || []}
+                                onChange={(detailBoxes) => set('detailBoxes', detailBoxes)}
+                                presets={RUN_DETAIL_BOX_PRESETS}
+                                hint="Add presets or a custom box. Drag to reorder on the run page."
+                                emptyText="No detail boxes yet. Add Timing, Meeting Point, Fitness, or a custom box."
+                            />
+                        </Field>
                         <Field label="Experience Included" hint="One point per line — expandable checklist inside Run Info">
                             <textarea
                                 value={form.inclusions}
@@ -561,7 +562,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                                 placeholder={'Finisher medal\nHydration support\nRoute marshals\nPost-run refreshments'}
                             />
                         </Field>
-                        <Field label="Info sections" hint="Repeatable cards (title + details) inside Run Info">
+                        <Field label="Info sections" hint="Longer accordion cards (title + details) under the detail boxes">
                             <div className="space-y-3">
                                 {(form.infoSections || []).map((section, idx) => (
                                     <div key={idx} className="bg-[#1D1E20] rounded-lg p-3 space-y-2 border border-gray-700/60">

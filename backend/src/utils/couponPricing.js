@@ -1,6 +1,7 @@
 const Coupon = require('../model/coupon_model');
 const CouponUsage = require('../model/coupon_usage_model');
 const PaymentOrder = require('../model/payment_order_model');
+const { isCouponExpired, isCouponNotStarted } = require('./couponSchedule');
 
 function normalizeCouponCode(raw = '') {
   return String(raw || '').trim().toUpperCase();
@@ -22,11 +23,34 @@ function computeCouponDiscount({ baseAmount, discountPercent, maxDiscountAmount 
   return { discountAmount, finalAmount };
 }
 
+function assertPeopleAllowed(coupon, people) {
+  const peopleCount = Math.max(1, Number(people) || 1);
+  const minPeople = Math.max(1, Number(coupon.minPeople) || 1);
+  const maxPeople = Math.max(0, Number(coupon.maxPeople) || 0);
+
+  if (peopleCount < minPeople) {
+    throw new Error(
+      minPeople === 1
+        ? 'This coupon cannot be applied to this booking size.'
+        : `This coupon needs at least ${minPeople} people in the booking.`,
+    );
+  }
+  if (maxPeople > 0 && peopleCount > maxPeople) {
+    throw new Error(
+      maxPeople === minPeople
+        ? `This coupon is only valid when booking exactly ${maxPeople} people.`
+        : `This coupon is only valid for up to ${maxPeople} people.`,
+    );
+  }
+  return peopleCount;
+}
+
 async function validateAndPriceCoupon({
   couponCode,
   entityType,
   userId = null,
   amountBeforeDiscount,
+  people = 1,
   failOnMissingCode = false,
 }) {
   const normalizedCode = normalizeCouponCode(couponCode);
@@ -42,6 +66,7 @@ async function validateAndPriceCoupon({
       discountAmount: 0,
       amountBeforeDiscount: baseAmount,
       amountAfterDiscount: baseAmount,
+      people: Math.max(1, Number(people) || 1),
       coupon: null,
     };
   }
@@ -55,11 +80,11 @@ async function validateAndPriceCoupon({
   if (!coupon.active) throw new Error('This coupon is currently inactive.');
 
   const now = new Date();
-  if (coupon.startsAt && new Date(coupon.startsAt) > now) {
+  if (isCouponNotStarted(coupon.startsAt, now)) {
     throw new Error('This coupon is not active yet.');
   }
-  if (coupon.expiresAt && new Date(coupon.expiresAt) < now) {
-    throw new Error('This coupon has expired.');
+  if (isCouponExpired(coupon.expiresAt, now)) {
+    throw new Error('This coupon has expired. Ask the organizer to extend the expiry date in admin.');
   }
   if (!isCouponApplicableToEntity(coupon, entityType)) {
     throw new Error('This coupon is not valid for this registration type.');
@@ -67,6 +92,8 @@ async function validateAndPriceCoupon({
   if (coupon.maxTotalUses > 0 && Number(coupon.usedCount || 0) >= Number(coupon.maxTotalUses)) {
     throw new Error('This coupon has reached its total usage limit.');
   }
+
+  const peopleCount = assertPeopleAllowed(coupon, people);
 
   if (userId && coupon.maxUsesPerUser > 0) {
     const usage = await CouponUsage.findOne({ couponId: coupon._id, userId }).lean();
@@ -87,6 +114,11 @@ async function validateAndPriceCoupon({
     discountAmount,
     amountBeforeDiscount: baseAmount,
     amountAfterDiscount: finalAmount,
+    people: peopleCount,
+    minPeople: Math.max(1, Number(coupon.minPeople) || 1),
+    maxPeople: Math.max(0, Number(coupon.maxPeople) || 0),
+    discountPercent: Number(coupon.discountPercent) || 0,
+    maxDiscountAmount: Number(coupon.maxDiscountAmount) || 0,
     coupon,
   };
 }
@@ -113,9 +145,38 @@ async function consumeCouponUsageForOrder({ paymentOrderId, userId }) {
   await paymentOrder.save();
 }
 
+/** Consume coupon usage for organizer QR / non-Cashfree registrations. */
+async function consumeCouponUsageForRegistration({ registration, userId }) {
+  if (!registration || !userId) return;
+  const couponCode = normalizeCouponCode(registration.couponCode);
+  if (!couponCode || registration.couponConsumedAt) return;
+
+  const coupon = await Coupon.findOne({ code: couponCode });
+  if (!coupon) return;
+
+  await Coupon.updateOne({ _id: coupon._id }, { $inc: { usedCount: 1 } });
+  await CouponUsage.updateOne(
+    { couponId: coupon._id, userId },
+    { $inc: { usedCount: 1 }, $set: { lastUsedAt: new Date() } },
+    { upsert: true },
+  );
+
+  registration.couponConsumedAt = new Date();
+  if (typeof registration.save === 'function') {
+    await registration.save();
+  } else {
+    const CategoryRegistration = require('../model/category_registration_model');
+    await CategoryRegistration.updateOne(
+      { _id: registration._id },
+      { $set: { couponConsumedAt: registration.couponConsumedAt } },
+    );
+  }
+}
+
 module.exports = {
   normalizeCouponCode,
   computeCouponDiscount,
   validateAndPriceCoupon,
   consumeCouponUsageForOrder,
+  consumeCouponUsageForRegistration,
 };

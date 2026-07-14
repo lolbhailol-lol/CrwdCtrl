@@ -54,7 +54,8 @@ export function resolveAuthToken(contextToken = null) {
 }
 
 export function hasUsableAuthToken(contextToken = null) {
-  return !!resolveAuthToken(contextToken);
+  const token = resolveAuthToken(contextToken);
+  return !!token && !isTokenExpired(token);
 }
 
 export function getBearerAuthHeaders(contextToken = null) {

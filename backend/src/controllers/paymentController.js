@@ -19,6 +19,7 @@ const {
 const { extractPaymentFields } = require('../utils/paymentVerification');
 const { signPaymentProof } = require('../utils/paymentProof');
 const { validateAndPriceCoupon } = require('../utils/couponPricing');
+const { findByIdOrSlug } = require('../utils/slug');
 const {
   extractEntityId,
   findReusablePendingOrder,
@@ -112,6 +113,7 @@ const getPricingForRequest = async (req) => {
     entityType: pricedEntity.entityType,
     userId: req.user?.userId || null,
     amountBeforeDiscount: breakdown.totalAmount,
+    people: Math.max(1, Number(req.body.people) || 1),
   });
 
   return {
@@ -185,7 +187,10 @@ exports.validateCoupon = async (req, res) => {
     const { trekId, eventId, people = 1, couponCode } = req.body;
 
     if (trekId) {
-      const trek = await Trek.findById(trekId).select('registrationFee platformFeePercent');
+      const trek = await findByIdOrSlug(Trek, trekId, {
+        pickName: (row) => row.trekName || row.title || '',
+        lean: true,
+      });
       if (!trek) return res.status(404).json({ message: 'Trek not found' });
       const baseTicketTotal = (Number(trek.registrationFee) || 0) * Math.max(1, Number(people) || 1);
       const { totalAmount } = buildTrekPriceBreakdown(baseTicketTotal, resolveTrekPlatformFeePercent(trek.platformFeePercent, 3));
@@ -194,21 +199,29 @@ exports.validateCoupon = async (req, res) => {
         entityType: 'trek',
         userId: req.user?.userId || null,
         amountBeforeDiscount: totalAmount,
+        people: Math.max(1, Number(people) || 1),
         failOnMissingCode: true,
       });
       return res.json(coupon);
     }
 
     if (eventId) {
-      const event = await SportsEvent.findById(eventId).select('registrationFee');
+      const event = await findByIdOrSlug(SportsEvent, eventId, {
+        pickName: (row) => row.title || '',
+        lean: true,
+      });
       if (!event) return res.status(404).json({ message: 'Run not found' });
       const baseTicketTotal = (Number(event.registrationFee) || 0) * Math.max(1, Number(people) || 1);
-      const { totalAmount } = buildPriceBreakdown(baseTicketTotal);
+      // UPI/SS (organizer_qr) has no platform fee — discount against run fee only
+      const amountBeforeDiscount = event.registration?.mode === 'organizer_qr'
+        ? baseTicketTotal
+        : buildPriceBreakdown(baseTicketTotal).totalAmount;
       const coupon = await validateAndPriceCoupon({
         couponCode,
         entityType: 'sports',
         userId: req.user?.userId || null,
-        amountBeforeDiscount: totalAmount,
+        amountBeforeDiscount,
+        people: Math.max(1, Number(people) || 1),
         failOnMissingCode: true,
       });
       return res.json(coupon);
@@ -221,6 +234,7 @@ exports.validateCoupon = async (req, res) => {
       entityType: pricing.entityType,
       userId: req.user?.userId || null,
       amountBeforeDiscount: pricing.amountBeforeDiscount ?? pricing.totalAmount,
+      people: Math.max(1, Number(people) || 1),
       failOnMissingCode: true,
     });
     return res.json(coupon);
@@ -361,7 +375,7 @@ exports.createTrekOrder = async (req, res) => {
       couponCode,
     } = req.body;
 
-    if (!trekId || !mongoose.Types.ObjectId.isValid(trekId)) {
+    if (!trekId) {
       return res.status(400).json({ success: false, message: 'Valid trekId is required' });
     }
 
@@ -371,9 +385,11 @@ exports.createTrekOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Valid customerEmail is required' });
     }
 
-    const trek = await Trek.findOne({ _id: trekId, status: 'published' }).select(
-      'trekName registrationFee platformFeePercent registration maxParticipants'
-    );
+    const trek = await findByIdOrSlug(Trek, trekId, {
+      baseFilter: { status: 'published' },
+      pickName: (row) => row.trekName || row.title || '',
+      lean: false,
+    });
     if (!trek) {
       return res.status(404).json({ success: false, message: 'Trek not found or not published' });
     }
@@ -414,6 +430,7 @@ exports.createTrekOrder = async (req, res) => {
       entityType: 'trek',
       userId: req.user?.userId || null,
       amountBeforeDiscount: grossTotalAmount,
+      people: peopleCount,
     });
     const totalAmount = coupon.amountAfterDiscount;
     const resolvedTrekName = trek.trekName || trekName || 'Trek Booking';
@@ -506,6 +523,19 @@ exports.createTrekOrder = async (req, res) => {
 // POST /api/payment/sports-order — guest-friendly; price computed server-side only
 exports.createSportsOrder = async (req, res) => {
   try {
+    // Prefer logged-in user for coupon per-user limits when Authorization is present
+    if (!req.user?.userId && req.headers.authorization?.startsWith('Bearer ')) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const { getJwtSecret } = require('../config/jwtSecret');
+        const token = req.headers.authorization.substring(7);
+        const decoded = jwt.verify(token, getJwtSecret());
+        if (decoded?.userId) req.user = { userId: decoded.userId };
+      } catch {
+        /* guest checkout still allowed */
+      }
+    }
+
     const {
       eventId,
       eventName = 'Run Booking',
@@ -517,7 +547,7 @@ exports.createSportsOrder = async (req, res) => {
       couponCode,
     } = req.body;
 
-    if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
+    if (!eventId) {
       return res.status(400).json({ success: false, message: 'Valid eventId is required' });
     }
 
@@ -527,11 +557,23 @@ exports.createSportsOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Valid customerEmail is required' });
     }
 
-    const event = await SportsEvent.findOne({ _id: eventId, status: 'published' }).select(
-      'title registrationFee registration maxParticipants'
-    );
+    const event = await findByIdOrSlug(SportsEvent, eventId, {
+      baseFilter: { status: 'published' },
+      pickName: (row) => row.title || '',
+      lean: false,
+    });
     if (!event) {
       return res.status(404).json({ success: false, message: 'Run not found or not published' });
+    }
+
+    if (event.registration?.mode === 'organizer_qr') {
+      return res.status(400).json({
+        success: false,
+        message: 'This run uses UPI + screenshot payment, not online checkout.',
+      });
+    }
+    if (event.registration?.status === 'closed') {
+      return res.status(400).json({ success: false, message: 'Registration is currently closed for this run' });
     }
 
     const ticketPricePerPerson = Number(event.registrationFee) || 0;
@@ -548,6 +590,28 @@ exports.createSportsOrder = async (req, res) => {
       });
     }
 
+    const {
+      expireStalePendingRegistrations,
+      sumSeatsHeld,
+    } = require('../utils/runClubRegistrationGuards');
+    await expireStalePendingRegistrations(event._id);
+    const capacity = Math.max(0, Number(event.maxParticipants) || 0);
+    if (capacity > 0) {
+      const seatsHeld = await sumSeatsHeld(event._id);
+      if (seatsHeld >= capacity) {
+        return res.status(400).json({
+          success: false,
+          message: 'This run is full',
+        });
+      }
+      if (seatsHeld + peopleCount > capacity) {
+        return res.status(400).json({
+          success: false,
+          message: `Only ${capacity - seatsHeld} seat(s) left`,
+        });
+      }
+    }
+
     // Security: ignore client-supplied amount — server is source of truth
     const baseTicketTotal = ticketPricePerPerson * peopleCount;
     const { platformFee, totalAmount: grossTotalAmount } = buildPriceBreakdown(baseTicketTotal);
@@ -556,8 +620,22 @@ exports.createSportsOrder = async (req, res) => {
       entityType: 'sports',
       userId: req.user?.userId || null,
       amountBeforeDiscount: grossTotalAmount,
+      people: peopleCount,
     });
     const totalAmount = coupon.amountAfterDiscount;
+
+    if (totalAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No payment required for this booking — confirm without online checkout.',
+        skipPayment: true,
+        couponCode: coupon.couponCode || '',
+        couponDiscount: coupon.discountAmount || 0,
+        amountBeforeDiscount: coupon.amountBeforeDiscount,
+        amountAfterDiscount: 0,
+        totalAmount: 0,
+      });
+    }
     const resolvedName = event.title || eventName || 'Run Booking';
 
     const existingPending = await findReusablePendingOrder({
@@ -576,11 +654,13 @@ exports.createSportsOrder = async (req, res) => {
       });
     }
 
+    const resolvedEventId = String(event._id);
+
     const order = await createCashfreeOrder({
       orderAmount: totalAmount,
       currency,
       customerDetails: {
-        customerId: `sports_guest_${eventId}`,
+        customerId: `sports_guest_${resolvedEventId}`,
         customerName: customerName || 'Run Guest',
         customerEmail: email,
         customerPhone,
@@ -588,7 +668,7 @@ exports.createSportsOrder = async (req, res) => {
       orderNote: resolvedName,
       orderTags: {
         entityType: 'sports',
-        eventId: String(eventId),
+        eventId: resolvedEventId,
         eventName: resolvedName,
         people: String(peopleCount),
         ticketPrice: String(ticketPricePerPerson),
@@ -618,7 +698,7 @@ exports.createSportsOrder = async (req, res) => {
       currency,
       status: 'PENDING',
       orderTags: {
-        eventId: String(eventId),
+        eventId: resolvedEventId,
         people: String(peopleCount),
         totalAmount: String(totalAmount),
       },

@@ -40,14 +40,16 @@ async function requireEventAccess(req, res, next) {
             return res.status(400).json({ success: false, message: 'Event ID required' });
         }
 
-        const allowed = await organizerCanAccessEvent(req.organizer, eventId);
-        if (!allowed) {
+        const access = await organizerCanAccessEvent(req.organizer, eventId);
+        if (!access.allowed || !access.eventId) {
             return res.status(403).json({ success: false, message: 'You do not have access to this run' });
         }
 
-        req.eventId = eventId;
+        // Always store resolved Mongo id (URL may be a title slug)
+        req.eventId = access.eventId;
         next();
     } catch (error) {
+        console.error('[requireEventAccess]', error.message);
         return res.status(500).json({ success: false, message: 'Access check failed' });
     }
 }

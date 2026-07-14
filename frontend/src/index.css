@@ -1227,6 +1227,84 @@ body.page-content-loading .crwdctrl-footer {
     animation: fadeInUp 0.5s ease-out;
 }
 
+/* Coupon applied success */
+.coupon-applied-banner {
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(14, 204, 238, 0.08));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.08), 0 8px 28px rgba(16, 185, 129, 0.12);
+}
+
+.coupon-applied-glow {
+    position: absolute;
+    inset: -40%;
+    background: radial-gradient(circle at 30% 40%, rgba(52, 211, 153, 0.35), transparent 55%),
+        radial-gradient(circle at 80% 20%, rgba(14, 204, 238, 0.22), transparent 50%);
+    pointer-events: none;
+    animation: couponGlowDrift 4s ease-in-out infinite alternate;
+}
+
+.coupon-applied-pop {
+    animation: couponAppliedPop 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.coupon-applied-check {
+    animation: couponCheckIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes couponAppliedPop {
+    0% {
+        opacity: 0;
+        transform: scale(0.92) translateY(6px);
+        filter: blur(4px);
+    }
+    55% {
+        opacity: 1;
+        transform: scale(1.02) translateY(0);
+        filter: blur(0);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        filter: blur(0);
+    }
+}
+
+@keyframes couponCheckIn {
+    0% {
+        transform: scale(0.4);
+        opacity: 0;
+    }
+    70% {
+        transform: scale(1.12);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes couponGlowDrift {
+    from {
+        transform: translate3d(-4%, -2%, 0) scale(1);
+        opacity: 0.7;
+    }
+    to {
+        transform: translate3d(4%, 3%, 0) scale(1.08);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .coupon-applied-pop,
+    .coupon-applied-check,
+    .coupon-applied-glow {
+        animation: none;
+    }
+}
+
 /* Gradient backgrounds for dark mode */
 .dark .bg-gradient-dark {
     background: linear-gradient(135deg, #161718 0%, #1a1a1a 100%);

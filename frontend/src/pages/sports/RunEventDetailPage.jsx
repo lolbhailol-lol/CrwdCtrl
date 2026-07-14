@@ -6,9 +6,11 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
+import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { shareContent } from '../../utils/externalLink';
 import { sportRunPath } from '../../utils/slugRoutes';
+import { normalizeRunDetailBoxes } from '../../utils/trekDetailBoxes';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -41,67 +43,6 @@ const GridIcon = ({ size = 20 }) => (
         <circle cx="12" cy="12" r="9" stroke="#0ECCEE" strokeWidth="1.5" />
         <circle cx="12" cy="12" r="2" fill="#0ECCEE" />
         <polygon points="12,3 14,10 12,12 10,10" fill="#0ECCEE" opacity="0.9" />
-    </svg>
-);
-
-const PersonIcon = ({ size = 20 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <circle cx="9" cy="6" r="3" fill="#2DD4BF" />
-        <path d="M3 20 Q3 14 9 14 Q15 14 15 20" fill="#0D9488" />
-        <circle cx="17" cy="7" r="2.5" fill="#5EEAD4" opacity="0.8" />
-        <path d="M14 20 Q14 15.5 17 15.5 Q21 15.5 21 20" fill="#0D9488" opacity="0.7" />
-    </svg>
-);
-
-const SunIcon = ({ size = 20 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="5" fill="#FCD34D" />
-        <circle cx="12" cy="12" r="3.5" fill="#FBBF24" />
-        {[0, 45, 90, 135, 180, 225, 270, 315].map((deg, i) => {
-            const r = 8.5;
-            const r2 = 10.5;
-            const rad = (deg * Math.PI) / 180;
-            return (
-                <line
-                    key={i}
-                    x1={12 + r * Math.cos(rad)}
-                    y1={12 + r * Math.sin(rad)}
-                    x2={12 + r2 * Math.cos(rad)}
-                    y2={12 + r2 * Math.sin(rad)}
-                    stroke="#F59E0B"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                />
-            );
-        })}
-    </svg>
-);
-
-const MoonIcon = ({ size = 20 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="url(#re-moon-grad)" />
-        <defs><linearGradient id="re-moon-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#C4B5FD" /><stop offset="100%" stopColor="#7C3AED" /></linearGradient></defs>
-    </svg>
-);
-
-const MapPinIcon = ({ size = 20 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="url(#re-pin-grad)" />
-        <circle cx="12" cy="9" r="3" fill="white" opacity="0.9" />
-        <defs><linearGradient id="re-pin-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F87171" /><stop offset="100%" stopColor="#DC2626" /></linearGradient></defs>
-    </svg>
-);
-
-const AgeIcon = ({ size = 20 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="1.2" />
-        <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1D4ED8">18+</text>
-    </svg>
-);
-
-const FitnessIcon = ({ size = 20 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <path d="M3 12h3l2-6 3 12 3-8 2 4h5" stroke="#F43F5E" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
 );
 
@@ -445,49 +386,41 @@ export default function RunEventDetailPage() {
                 </div>
 
                 {(() => {
-                    const detailCards = [
-                        { show: event.maxParticipants > 0, Icon: PersonIcon, label: 'Max People', value: event.maxParticipants },
-                        { show: !!event.reportingTime, Icon: SunIcon, label: 'Run Timing', value: event.reportingTime },
-                        { show: !!event.returnTime, Icon: MoonIcon, label: 'Return Time', value: event.returnTime },
-                        { show: !!event.meetingPoint, Icon: MapPinIcon, label: 'Meeting Point', value: event.meetingPoint },
-                        { show: !!event.ageLimit, Icon: AgeIcon, label: 'Age Limit', value: event.ageLimit },
-                        { show: !!event.fitnessLevel, Icon: FitnessIcon, label: 'Fitness', value: event.fitnessLevel },
-                    ].filter((r) => r.show);
+                    const detailCards = normalizeRunDetailBoxes(event.detailBoxes, event);
                     const inclusions = event.inclusions || [];
                     const infoSections = event.infoSections || [];
                     if (!detailCards.length && !inclusions.length && !infoSections.length) return null;
                     return (
                         <div className="px-4 mb-5">
                             <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Run Info</h2>
-                            <div className={`rounded-2xl p-1 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
-                                <div className="flex rounded-xl p-1 gap-0.5">
-                                    {['Details', 'Included'].map((tab) => (
-                                        <button
-                                            key={tab}
-                                            type="button"
-                                            onClick={() => setActiveRunTab(tab)}
-                                            className={`relative flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200
-                                                ${activeRunTab === tab
-                                                    ? isDark ? 'bg-[#1D1E20] text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
-                                                    : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
-                                                }`}
-                                        >
-                                            {tab === 'Included' ? 'Experience Included' : tab}
-                                            {activeRunTab === tab && (
-                                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#0ECCEE]" />
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
+                            <div className="flex gap-0.5 mb-3">
+                                {['Details', 'Included'].map((tab) => (
+                                    <button
+                                        key={tab}
+                                        type="button"
+                                        onClick={() => setActiveRunTab(tab)}
+                                        className={`relative flex-1 py-2 text-xs font-semibold transition-all duration-200
+                                            ${activeRunTab === tab
+                                                ? isDark ? 'text-white' : 'text-gray-900'
+                                                : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                                            }`}
+                                    >
+                                        {tab === 'Included' ? 'Experience Included' : tab}
+                                        {activeRunTab === tab && (
+                                            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#0ECCEE]" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
 
-                                <div className="p-3 pt-2 space-y-2">
+                            <div className="space-y-2">
                                 {activeRunTab === 'Details' && (
                                     <>
                                         {detailCards.length > 0 ? (
                                             <div className="grid grid-cols-2 gap-2">
                                                 {detailCards.map((row) => (
-                                                    <div key={row.label} className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                                        <row.Icon size={22} />
+                                                    <div key={row.id || row.label} className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                                        <TrekDetailIcon icon={row.icon || 'default'} size={22} />
                                                         <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
                                                         <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.value}</p>
                                                     </div>
@@ -522,21 +455,18 @@ export default function RunEventDetailPage() {
 
                                 {activeRunTab === 'Included' && (
                                     inclusions.length > 0 ? (
-                                        <div className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
-                                            <ul className="space-y-1.5">
-                                                {inclusions.map((item, i) => (
-                                                    <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                        <span className="mt-[5px] size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
-                                                        <span>{String(item).replace(/^[-*•\s]+/, '')}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
+                                        <ul className="space-y-1.5 px-0.5">
+                                            {inclusions.map((item, i) => (
+                                                <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                    <span className="mt-[5px] size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                                                    <span>{String(item).replace(/^[-*•\s]+/, '')}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
                                     ) : (
                                         <p className={`text-sm px-1 py-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No experience items listed.</p>
                                     )
                                 )}
-                                </div>
                             </div>
                         </div>
                     );

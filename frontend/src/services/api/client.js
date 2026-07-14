@@ -31,23 +31,29 @@ export async function publicFetchJSON(path, options = {}) {
 }
 
 /**
- * Authenticated user JSON fetch. Returns null when unauthenticated or on error.
+ * Authenticated user JSON fetch. Returns null when unauthenticated, offline,
+ * or on any HTTP/network error (callers should treat null as soft failure).
  */
 export async function userFetchJSON(path, options = {}) {
   const token = resolveAuthToken(options.token);
   if (!token) return null;
 
-  const response = await fetch(resolveUrl(path), {
-    ...options,
-    credentials: options.credentials ?? 'include',
-    headers: {
-      ...getBearerAuthHeaders(token),
-      ...(options.headers || {}),
-    },
-  });
+  try {
+    const response = await fetch(resolveUrl(path), {
+      ...options,
+      credentials: options.credentials ?? 'include',
+      headers: {
+        ...getBearerAuthHeaders(token),
+        ...(options.headers || {}),
+      },
+    });
 
-  if (!response.ok) return null;
-  return response.json();
+    if (!response.ok) return null;
+    return response.json().catch(() => null);
+  } catch {
+    // Backend restart / offline / CORS blip — keep UI quiet
+    return null;
+  }
 }
 
 function isIOSBrowser() {

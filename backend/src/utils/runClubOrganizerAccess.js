@@ -1,5 +1,6 @@
 const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
+const { findByIdOrSlug } = require('./slug');
 
 const EVENT_SELECT =
     'title city venue eventDate status maxParticipants registration.status registration.mode registrationFee runClubId sportType distance runCategory coverImage reportingTime';
@@ -20,13 +21,26 @@ async function getOrganizerEvents(organizer) {
         .lean();
 }
 
+/**
+ * @returns {{ allowed: boolean, eventId: string|null }}
+ * Resolves URL slug → real ObjectId so later findById calls never cast-fail.
+ */
 async function organizerCanAccessEvent(organizer, eventId) {
-    if (!organizer || !eventId || !organizer.runClubId) return false;
+    if (!organizer || !eventId || !organizer.runClubId) {
+        return { allowed: false, eventId: null };
+    }
 
-    const event = await SportsEvent.findById(eventId).select('runClubId sportType').lean();
-    if (!event || event.sportType !== 'run_club') return false;
+    const event = await findByIdOrSlug(SportsEvent, eventId, {
+        pickName: (row) => row.title || '',
+        lean: true,
+        select: 'runClubId sportType title',
+    });
+    if (!event || event.sportType !== 'run_club') {
+        return { allowed: false, eventId: null };
+    }
 
-    return String(event.runClubId) === String(organizer.runClubId);
+    const allowed = String(event.runClubId) === String(organizer.runClubId);
+    return { allowed, eventId: allowed ? String(event._id) : null };
 }
 
 async function getOrganizerRunClub(organizer) {

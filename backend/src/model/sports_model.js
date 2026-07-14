@@ -39,6 +39,14 @@ const sportsEventSchema = new mongoose.Schema(
         fitnessLevel: { type: String, trim: true, default: '' },
         meetingPoint: { type: String, trim: true, default: '' },
         ageLimit: { type: String, trim: true, default: '' },
+        /** Custom white detail cards on run Details tab (label + value + icon) — trek-style */
+        detailBoxes: [{
+            id:    { type: String, trim: true, default: '' },
+            label: { type: String, trim: true, default: '' },
+            value: { type: String, trim: true, default: '' },
+            icon:  { type: String, trim: true, default: 'default' },
+            order: { type: Number, default: 0 },
+        }],
         /** Repeatable info cards (title + details) shown in the Run Info widget */
         infoSections: {
             type: [{

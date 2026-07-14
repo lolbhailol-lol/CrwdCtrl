@@ -10,6 +10,12 @@ import {
 } from '../../services/api/runClubOrganizer.api';
 import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { sportRunPath } from '../../utils/slugRoutes';
+import TrekDetailBoxesEditor from '../../components/admin/TrekDetailBoxesEditor';
+import {
+    normalizeRunDetailBoxes,
+    sanitizeDetailBoxesPayload,
+    RUN_DETAIL_BOX_PRESETS,
+} from '../../utils/trekDetailBoxes';
 
 const FIELD_TYPES = [
     { value: 'text', label: 'Text' },
@@ -35,6 +41,7 @@ const emptyForm = () => ({
     fitnessLevel: '',
     returnTime: '',
     ageLimit: '',
+    detailBoxes: [],
     contactPhone: '',
     contactInstagram: '',
     runCategory: '',
@@ -72,6 +79,7 @@ function eventToForm(event) {
         fitnessLevel: event.fitnessLevel || '',
         returnTime: event.returnTime || '',
         ageLimit: event.ageLimit || '',
+        detailBoxes: normalizeRunDetailBoxes(event.detailBoxes, event),
         contactPhone: event.contactPhone || '',
         contactInstagram: event.contactInstagram || '',
         runCategory: event.runCategory || '',
@@ -105,6 +113,7 @@ function formToPayload(form) {
         fitnessLevel: form.fitnessLevel.trim(),
         returnTime: form.returnTime.trim(),
         ageLimit: form.ageLimit.trim(),
+        detailBoxes: sanitizeDetailBoxesPayload(form.detailBoxes),
         contactPhone: form.contactPhone.trim(),
         contactInstagram: form.contactInstagram.trim(),
         runCategory: form.runCategory.trim(),
@@ -447,6 +456,22 @@ export default function RunClubOrganizerEventEditorPage() {
                         placeholder="Or paste image URL"
                     />
                 </div>
+            </section>
+
+            <section className="rounded-2xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">
+                <div>
+                    <h2 className="font-semibold">Detail boxes</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                        Add cards one by one (timing, meeting point, fitness…) — shown on the public run page Details tab.
+                    </p>
+                </div>
+                <TrekDetailBoxesEditor
+                    boxes={form.detailBoxes || []}
+                    onChange={(detailBoxes) => setField('detailBoxes', detailBoxes)}
+                    presets={RUN_DETAIL_BOX_PRESETS}
+                    hint="Tap a preset or Custom box. Drag to reorder."
+                    emptyText="No detail boxes yet. Start with Run Timing or Meeting Point."
+                />
             </section>
 
             <section className="rounded-2xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">

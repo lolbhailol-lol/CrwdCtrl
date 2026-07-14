@@ -127,8 +127,8 @@ export const NotificationsProvider = ({ children }) => {
                         seenIds.add(notification.id);
                     });
             }
-        } catch (error) {
-            console.error('Failed to fetch notifications:', error);
+        } catch {
+            /* soft fail — common during backend restart / brief offline */
         }
     }, [notifyUser, authFetchJSON]);
 
@@ -165,8 +165,8 @@ export const NotificationsProvider = ({ children }) => {
                 return true;
             }
             return false;
-        } catch (err) {
-            console.warn('Push registration skipped:', err.message);
+        } catch {
+            /* soft fail — offline / backend restart */
             return false;
         }
     }, [authFetchJSON]);
@@ -199,6 +199,8 @@ export const NotificationsProvider = ({ children }) => {
         fetchUnreadCount();
 
         const poll = () => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+            if (!getToken()) return;
             fetchUnreadCount();
             fetchNotifications({ announceNew: true });
         };

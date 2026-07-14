@@ -93,9 +93,11 @@ function formatParticipantRow(reg, event = null) {
         paymentReviewNote: reg.paymentReviewNote || '',
         paymentReviewedAt: reg.paymentReviewedAt || null,
         paymentGateway: reg.payment_gateway || '',
-        expectedAmount: event?.registrationFee != null
-            ? (Number(event.registrationFee) || 0) * people
-            : grossCollected,
+        couponCode: reg.couponCode || '',
+        couponDiscount: Number(reg.couponDiscount) || 0,
+        amountBeforeDiscount: Number(reg.amountBeforeDiscount) || 0,
+        // Organizer should verify against the discounted amount the runner was told to pay
+        expectedAmount: Number(reg.amountPaid) || 0,
     };
 }
 

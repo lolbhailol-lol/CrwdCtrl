@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle, Clock, ImagePlus } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -23,7 +23,7 @@ import { API_BASE_URL } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { sportRunPath } from '../../utils/slugRoutes';
 import { mergeRunFormFields } from '../../utils/formFieldDedupe';
-import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
+import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
 
 const API = API_BASE_URL;
 
@@ -88,7 +88,7 @@ export default function RunEventBookingPage() {
     const [showRegister, setShowRegister] = useState(false);
 
     const isAuthed = useCallback(() => {
-        return isAuthenticated || !!authToken || !!localStorage.getItem('crwdctrl_token');
+        return isAuthenticated || hasUsableAuthToken(authToken);
     }, [isAuthenticated, authToken]);
 
     const handleCloseLogin = () => setShowLogin(false);
@@ -122,12 +122,37 @@ export default function RunEventBookingPage() {
     const [couponInfo, setCouponInfo] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
+    const [couponJustApplied, setCouponJustApplied] = useState(false);
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
     const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
     const [transactionId, setTransactionId] = useState('');
     const [uploadingProof, setUploadingProof] = useState(false);
     const [upiCopied, setUpiCopied] = useState(false);
+    const [showCouponField, setShowCouponField] = useState(false);
     const retryCheckoutRef = useRef(null);
+
+    const uploadPaymentScreenshot = useCallback(async (file) => {
+        if (!file) return;
+        setUploadingProof(true);
+        setError('');
+        try {
+            const uploadToken = resolveAuthToken(authToken);
+            const fd = new FormData();
+            fd.append('image', file);
+            const res = await fetch(`${API}/users/upload/image`, {
+                method: 'POST',
+                headers: uploadToken ? { Authorization: `Bearer ${uploadToken}` } : {},
+                body: fd,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
+            setPaymentScreenshotUrl(data.url || '');
+        } catch (err) {
+            setError(err.message || 'Screenshot upload failed');
+        } finally {
+            setUploadingProof(false);
+        }
+    }, [authToken]);
 
     const eventName = event?.title || event?.name || 'Run';
     const clubName =
@@ -143,8 +168,9 @@ export default function RunEventBookingPage() {
     const paymentUpiId = event?.registration?.paymentUpiId || '';
     const showSuccess = step === 3 && payDone && !paying;
     const showProcessing = step === 3 && paying;
+    const qrNeedsReview = fee > 0 && isOrganizerQr && !(couponInfo?.amountAfterDiscount === 0);
 
-    useBookingSuccessPopup(showSuccess && !(fee > 0 && isOrganizerQr), {
+    useBookingSuccessPopup(showSuccess && !qrNeedsReview, {
         name: eventName,
         paid: payDone && fee > 0 && !isOrganizerQr,
         bookingId,
@@ -242,7 +268,9 @@ export default function RunEventBookingPage() {
     const baseFee = fee * people;
     const platformFee = fee > 0 && !isOrganizerQr ? calculatePlatformFee(baseFee) : 0;
     const total = baseFee + platformFee;
-    const payableAmount = isOrganizerQr ? baseFee : (couponInfo?.amountAfterDiscount ?? total);
+    const payableAmount = couponInfo?.amountAfterDiscount != null
+        ? Number(couponInfo.amountAfterDiscount)
+        : (isOrganizerQr ? baseFee : total);
 
     const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`;
 
@@ -314,6 +342,7 @@ export default function RunEventBookingPage() {
                     payment_order_id: paymentOrderId || '',
                     paymentScreenshotUrl: booking.paymentScreenshotUrl ?? paymentScreenshotUrl,
                     transactionId: booking.transactionId ?? transactionId,
+                    couponCode: booking.couponCode ?? (couponCode.trim() || undefined),
                 },
             }),
         });
@@ -329,6 +358,7 @@ export default function RunEventBookingPage() {
 
     const applyCoupon = async () => {
         setCouponError('');
+        setCouponJustApplied(false);
         const code = couponCode.trim();
         if (!code) {
             setCouponInfo(null);
@@ -339,11 +369,15 @@ export default function RunEventBookingPage() {
             const res = await fetch(`${API}/payment/coupon-validate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId: id || event?._id || event?.id, people, couponCode: code }),
+                body: JSON.stringify({ eventId: event?._id || event?.id || id, people, couponCode: code }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.message || 'Invalid coupon');
             setCouponInfo(data);
+            if (data.couponApplied) {
+                setCouponJustApplied(true);
+                window.setTimeout(() => setCouponJustApplied(false), 1600);
+            }
         } catch (e) {
             setCouponInfo(null);
             setCouponError(e.message || 'Invalid coupon');
@@ -431,9 +465,14 @@ export default function RunEventBookingPage() {
             const customerEmail = extraFields.email || extraFields.e_mail_id || extraFields.e_mail || '';
             if (!customerEmail.trim()) { setError('Email is required to complete your booking.'); return; }
 
-            if (total <= 0) {
+            if (payableAmount <= 0) {
                 try {
-                    await submitRunRegistration({ amountPaid: 0 });
+                    await submitRunRegistration({
+                        amountPaid: 0,
+                        booking: {
+                            couponCode: couponCode.trim() || undefined,
+                        },
+                    });
                     setStep(3);
                     setPayDone(true);
                     setPaying(false);
@@ -444,25 +483,28 @@ export default function RunEventBookingPage() {
             }
 
             if (isOrganizerQr) {
-                if (!paymentQR) {
-                    setError('Organizer payment QR is not configured yet. Please contact the club.');
-                    return;
-                }
-                if (!paymentScreenshotUrl) {
-                    setError('Please upload your payment screenshot.');
-                    return;
-                }
-                if (String(transactionId || '').trim().length < 4) {
-                    setError('Please enter your UPI / transaction ID (at least 4 characters).');
-                    return;
+                if (payableAmount > 0) {
+                    if (!paymentQR) {
+                        setError('Organizer payment QR is not configured yet. Please contact the club.');
+                        return;
+                    }
+                    if (!paymentScreenshotUrl) {
+                        setError('Please upload your payment screenshot.');
+                        return;
+                    }
+                    if (String(transactionId || '').trim().length < 4) {
+                        setError('Please enter your UPI / transaction ID (at least 4 characters).');
+                        return;
+                    }
                 }
                 setPaying(true);
                 try {
                     await submitRunRegistration({
                         amountPaid: payableAmount,
                         booking: {
-                            paymentScreenshotUrl,
-                            transactionId,
+                            paymentScreenshotUrl: payableAmount > 0 ? paymentScreenshotUrl : '',
+                            transactionId: payableAmount > 0 ? transactionId : '',
+                            couponCode: couponCode.trim() || undefined,
                         },
                     });
                     setStep(3);
@@ -480,9 +522,9 @@ export default function RunEventBookingPage() {
             try {
                 const res = await fetch(`${API}/payment/sports-order`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getBearerAuthHeaders(resolveAuthToken(authToken)),
                     body: JSON.stringify({
-                        eventId: id || event._id || event.id,
+                        eventId: event._id || event.id || id,
                         eventName,
                         people,
                         customerName: extraFields.full_name || extraFields.name || '',
@@ -492,6 +534,16 @@ export default function RunEventBookingPage() {
                     }),
                 });
                 const order = await res.json();
+                if (order?.skipPayment || Number(order?.totalAmount) === 0) {
+                    await submitRunRegistration({
+                        amountPaid: 0,
+                        booking: { couponCode: couponCode.trim() || undefined },
+                    });
+                    setStep(3);
+                    setPayDone(true);
+                    setPaying(false);
+                    return;
+                }
                 if (!res.ok) { setError(order.message || 'Failed to create order.'); setPaying(false); return; }
                 if (!order.paymentSessionId) {
                     setError('Payment session missing from server. Restart backend and try again.');
@@ -622,7 +674,7 @@ export default function RunEventBookingPage() {
     }
 
     if (showSuccess) {
-        const isPendingQr = fee > 0 && isOrganizerQr;
+        const isPendingQr = fee > 0 && isOrganizerQr && payableAmount > 0;
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
@@ -820,14 +872,14 @@ export default function RunEventBookingPage() {
                                     <div>
                                         <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Number of People</p>
                                         <div className="flex items-center">
-                                            <button type="button" onClick={() => setPeople((p) => Math.max(1, p - 1))}
+                                            <button type="button" onClick={() => { setCouponInfo(null); setPeople((p) => Math.max(1, p - 1)); }}
                                                 className={`w-9 h-9 rounded-l-lg flex items-center justify-center border-2 border-r-0 transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}>
                                                 <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
                                             </button>
                                             <div className={`w-12 h-9 flex items-center justify-center border-y-2 ${isDark ? 'bg-[#111213] border-gray-600' : 'bg-white border-gray-300'}`}>
                                                 <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{people}</span>
                                             </div>
-                                            <button type="button" onClick={() => setPeople((p) => Math.min(maxPeople, p + 1))}
+                                            <button type="button" onClick={() => { setCouponInfo(null); setPeople((p) => Math.min(maxPeople, p + 1)); }}
                                                 className={`w-9 h-9 rounded-r-lg flex items-center justify-center border-2 border-l-0 transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}>
                                                 <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
                                             </button>
@@ -873,99 +925,239 @@ export default function RunEventBookingPage() {
                     )}
 
                     {step === 2 && fee > 0 && isOrganizerQr && (
-                        <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
-                            <div className={`rounded-xl px-4 py-3 mb-3 text-center ${isDark ? 'bg-[#0ECCEE]/10' : 'bg-[#0ECCEE]/10'}`}>
-                                <p className={`text-xs uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pay exactly</p>
-                                <p className="text-2xl font-bold text-[#0ECCEE] mt-0.5">₹{payableAmount.toLocaleString('en-IN')}</p>
-                                {people > 1 ? (
-                                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                        ₹{fee.toLocaleString('en-IN')} × {people} people
+                        <div className={`mt-3 rounded-xl overflow-hidden border ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
+                            {/* Header: amount + coupon */}
+                            <div className={`px-4 py-3.5 flex items-start justify-between gap-3 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
+                                <div className="min-w-0">
+                                    <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Amount to pay</p>
+                                    <p className={`text-2xl font-bold leading-tight tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        ₹{payableAmount.toLocaleString('en-IN')}
                                     </p>
-                                ) : null}
-                            </div>
-                            <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                Scan the QR, pay the organizer, then upload your payment screenshot. Your spot is held until the club approves it.
-                            </p>
-                            {paymentQR ? (
-                                <div className="flex justify-center mb-3">
-                                    <img src={paymentQR} alt="Payment QR" className="h-44 w-44 object-contain rounded-xl bg-white p-2" />
+                                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                        {couponInfo?.couponApplied
+                                            ? `was ₹${(couponInfo.amountBeforeDiscount ?? baseFee).toLocaleString('en-IN')}`
+                                            : people > 1
+                                                ? `₹${fee.toLocaleString('en-IN')} × ${people}`
+                                                : '1 person'}
+                                    </p>
                                 </div>
-                            ) : (
-                                <p className="text-xs text-red-400 mb-3">Payment QR not set by admin yet.</p>
-                            )}
-                            {paymentUpiId ? (
-                                <div className={`flex items-center justify-between gap-2 mb-3 rounded-lg px-3 py-2 border ${isDark ? 'border-gray-700 bg-[#1D1E20]' : 'border-gray-200 bg-white'}`}>
-                                    <div className="min-w-0">
-                                        <p className={`text-[10px] uppercase ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>UPI ID</p>
-                                        <p className={`text-sm font-mono truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{paymentUpiId}</p>
-                                    </div>
+                                {!showCouponField && !couponInfo?.couponApplied ? (
                                     <button
                                         type="button"
-                                        onClick={async () => {
-                                            try {
-                                                await navigator.clipboard.writeText(paymentUpiId);
-                                                setUpiCopied(true);
-                                                setTimeout(() => setUpiCopied(false), 2000);
-                                            } catch {
-                                                setError('Could not copy UPI ID');
-                                            }
-                                        }}
-                                        className="shrink-0 px-3 py-1.5 rounded-lg bg-[#0ECCEE] text-black text-xs font-bold"
+                                        onClick={() => setShowCouponField(true)}
+                                        className="shrink-0 text-xs font-semibold text-[#0ECCEE] pt-1"
                                     >
-                                        {upiCopied ? 'Copied' : 'Copy'}
+                                        Coupon
                                     </button>
+                                ) : null}
+                            </div>
+
+                            {(showCouponField || couponInfo?.couponApplied) ? (
+                                <div className={`px-4 py-3 border-t ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
+                                    {couponInfo?.couponApplied ? (
+                                        <div
+                                            className={`coupon-applied-banner relative overflow-hidden rounded-xl px-3.5 py-3 ${
+                                                couponJustApplied ? 'coupon-applied-pop' : ''
+                                            }`}
+                                        >
+                                            <div className="coupon-applied-glow" aria-hidden />
+                                            <div className="relative flex items-center gap-3">
+                                                <div className="coupon-applied-check shrink-0 size-9 rounded-full flex items-center justify-center bg-emerald-400/20 text-emerald-300">
+                                                    <CheckCircle size={20} strokeWidth={2.4} />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm font-bold text-emerald-300 tracking-wide">
+                                                        Applied · {couponInfo.couponCode}
+                                                    </p>
+                                                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-emerald-200/70' : 'text-emerald-800/80'}`}>
+                                                        You save ₹{Number(couponInfo.discountAmount || 0).toLocaleString('en-IN')}
+                                                        {payableAmount === 0 ? ' · No payment needed' : ''}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setCouponInfo(null);
+                                                        setCouponCode('');
+                                                        setCouponJustApplied(false);
+                                                        setCouponError('');
+                                                    }}
+                                                    className={`text-[11px] font-semibold shrink-0 ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
+                                                >
+                                                    Change
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    value={couponCode}
+                                                    onChange={(e) => {
+                                                        setCouponCode(e.target.value.toUpperCase());
+                                                        setCouponInfo(null);
+                                                        setCouponError('');
+                                                    }}
+                                                    placeholder="Code"
+                                                    className={`flex-1 min-w-0 h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#0ECCEE] ${
+                                                        isDark
+                                                            ? 'bg-[#0E0E0F] border-gray-700 text-white placeholder-gray-600'
+                                                            : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                                                    }`}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={applyCoupon}
+                                                    disabled={couponLoading || !couponCode.trim()}
+                                                    className="h-10 px-3.5 rounded-lg bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
+                                                >
+                                                    {couponLoading ? '…' : 'Apply'}
+                                                </button>
+                                            </div>
+                                            {couponError ? <p className="text-[11px] text-red-400 mt-1.5">{couponError}</p> : null}
+                                        </>
+                                    )}
                                 </div>
                             ) : null}
-                            {paymentQRMessage ? (
-                                <p className={`text-xs mb-3 whitespace-pre-wrap ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{paymentQRMessage}</p>
-                            ) : null}
-                            <label className="flex flex-col gap-2 mb-3">
-                                <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Payment screenshot *</span>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    disabled={uploadingProof}
-                                    onChange={async (e) => {
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
-                                        setUploadingProof(true);
-                                        setError('');
-                                        try {
-                                            const uploadToken = resolveAuthToken(authToken);
-                                            const fd = new FormData();
-                                            fd.append('image', file);
-                                            const res = await fetch(`${API}/users/upload/image`, {
-                                                method: 'POST',
-                                                headers: uploadToken ? { Authorization: `Bearer ${uploadToken}` } : {},
-                                                body: fd,
-                                            });
-                                            const data = await res.json().catch(() => ({}));
-                                            if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
-                                            setPaymentScreenshotUrl(data.url || '');
-                                        } catch (err) {
-                                            setError(err.message || 'Screenshot upload failed');
-                                        } finally {
-                                            setUploadingProof(false);
-                                        }
-                                    }}
-                                    className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                                />
-                                {uploadingProof ? <span className="text-xs text-[#0ECCEE]">Uploading…</span> : null}
-                                {paymentScreenshotUrl ? (
-                                    <img src={paymentScreenshotUrl} alt="Payment proof" className="h-28 w-auto rounded-lg border border-gray-700 object-cover" />
-                                ) : null}
-                            </label>
-                            <label className="block">
-                                <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>UPI / transaction ID (required)</span>
-                                <input
-                                    value={transactionId}
-                                    onChange={(e) => setTransactionId(e.target.value)}
-                                    required
-                                    minLength={4}
-                                    className={`mt-1 w-full px-3 py-2 rounded-lg border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                                    placeholder="From your UPI app payment confirmation"
-                                />
-                            </label>
+
+                            {payableAmount > 0 ? (
+                                <>
+                                    {/* Pay row: QR + UPI aligned */}
+                                    <div className={`px-4 py-4 border-t flex gap-3.5 items-center ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
+                                        {paymentQR ? (
+                                            <div className="shrink-0 size-[148px] rounded-xl bg-white p-2">
+                                                <img src={paymentQR} alt="Payment QR" className="size-full object-contain" />
+                                            </div>
+                                        ) : (
+                                            <div className={`shrink-0 size-[148px] rounded-xl flex items-center justify-center text-[10px] text-center px-2 ${isDark ? 'bg-gray-800 text-red-400' : 'bg-gray-100 text-red-500'}`}>
+                                                QR not set
+                                            </div>
+                                        )}
+                                        <div className="min-w-0 flex-1 space-y-2">
+                                            <p className={`text-xs leading-snug ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                Scan QR or pay on UPI, then add proof below.
+                                            </p>
+                                            {paymentUpiId ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        try {
+                                                            await navigator.clipboard.writeText(paymentUpiId);
+                                                            setUpiCopied(true);
+                                                            setTimeout(() => setUpiCopied(false), 2000);
+                                                        } catch {
+                                                            setError('Could not copy UPI ID');
+                                                        }
+                                                    }}
+                                                    className={`w-full flex items-center justify-between gap-2 h-10 px-3 rounded-lg text-left ${
+                                                        isDark ? 'bg-[#0E0E0F] border border-gray-700' : 'bg-white border border-gray-200'
+                                                    }`}
+                                                >
+                                                    <span className={`text-xs font-mono truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                                        {paymentUpiId}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-[#0ECCEE] shrink-0">
+                                                        {upiCopied ? 'Copied' : 'Copy'}
+                                                    </span>
+                                                </button>
+                                            ) : null}
+                                            {paymentQRMessage ? (
+                                                <p className={`text-[11px] leading-snug line-clamp-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                    {paymentQRMessage}
+                                                </p>
+                                            ) : null}
+                                        </div>
+                                    </div>
+
+                                    {/* Proof rows — same alignment column */}
+                                    <div className={`border-t ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
+                                        <label
+                                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer ${
+                                                uploadingProof ? 'opacity-60 pointer-events-none' : ''
+                                            } ${isDark ? 'active:bg-white/3' : 'active:bg-gray-50'}`}
+                                        >
+                                            {paymentScreenshotUrl ? (
+                                                <img
+                                                    src={paymentScreenshotUrl}
+                                                    alt=""
+                                                    className="size-11 rounded-lg object-cover shrink-0"
+                                                />
+                                            ) : (
+                                                <div className={`size-11 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-[#0E0E0F] border border-gray-700' : 'bg-gray-100'}`}>
+                                                    {uploadingProof
+                                                        ? <Loader className="w-4 h-4 animate-spin text-[#0ECCEE]" />
+                                                        : <ImagePlus size={18} className="text-[#0ECCEE]" />}
+                                                </div>
+                                            )}
+                                            <div className="min-w-0 flex-1">
+                                                <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {uploadingProof
+                                                        ? 'Uploading…'
+                                                        : paymentScreenshotUrl
+                                                            ? 'Screenshot added'
+                                                            : 'Payment screenshot'}
+                                                </p>
+                                                <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                    {paymentScreenshotUrl ? 'Tap to change' : 'Required'}
+                                                </p>
+                                            </div>
+                                            {paymentScreenshotUrl ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setPaymentScreenshotUrl('');
+                                                    }}
+                                                    className={`text-[11px] font-medium shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                                                >
+                                                    Remove
+                                                </button>
+                                            ) : (
+                                                <span className="text-xs font-semibold text-[#0ECCEE] shrink-0">Add</span>
+                                            )}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                disabled={uploadingProof}
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    e.target.value = '';
+                                                    uploadPaymentScreenshot(file);
+                                                }}
+                                            />
+                                        </label>
+
+                                        <div className={`mx-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`} />
+
+                                        <div className="px-4 py-3">
+                                            <label htmlFor="upi-txn-id" className={`block text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                UTR / transaction ID
+                                            </label>
+                                            <input
+                                                id="upi-txn-id"
+                                                value={transactionId}
+                                                onChange={(e) => setTransactionId(e.target.value.replace(/\s+/g, ''))}
+                                                required
+                                                minLength={4}
+                                                autoComplete="off"
+                                                className={`w-full h-10 px-3 rounded-lg border text-sm font-mono focus:outline-none focus:border-[#0ECCEE] ${
+                                                    isDark
+                                                        ? 'bg-[#0E0E0F] border-gray-700 text-white placeholder-gray-600'
+                                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                                                }`}
+                                                placeholder="Paste from UPI app"
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className={`px-4 py-4 border-t text-sm ${isDark ? 'border-gray-700/60 text-gray-400' : 'border-gray-200 text-gray-600'}`}>
+                                    Coupon covers the fee — confirm below.
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -973,18 +1165,39 @@ export default function RunEventBookingPage() {
                         <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
                             <div className="mb-3">
                                 <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
-                                <div className="flex gap-2">
-                                    <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
-                                    <button type="button" onClick={applyCoupon} disabled={couponLoading} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">
-                                        {couponLoading ? 'Applying...' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply')}
-                                    </button>
-                                </div>
-                                {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
                                 {couponInfo?.couponApplied ? (
-                                    <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 animate-pulse ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
-                                        Coupon `{couponInfo.couponCode}` applied · You save ₹{couponInfo.discountAmount}
+                                    <div className={`coupon-applied-banner relative overflow-hidden rounded-xl px-3.5 py-3 mb-2 ${couponJustApplied ? 'coupon-applied-pop' : ''}`}>
+                                        <div className="coupon-applied-glow" aria-hidden />
+                                        <div className="relative flex items-center gap-3">
+                                            <div className="coupon-applied-check shrink-0 size-9 rounded-full flex items-center justify-center bg-emerald-400/20 text-emerald-400">
+                                                <CheckCircle size={20} strokeWidth={2.4} />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                                    Applied · {couponInfo.couponCode}
+                                                </p>
+                                                <p className={`text-[11px] mt-0.5 ${isDark ? 'text-emerald-200/70' : 'text-emerald-800/80'}`}>
+                                                    You save ₹{Number(couponInfo.discountAmount || 0).toLocaleString('en-IN')}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setCouponInfo(null); setCouponCode(''); setCouponJustApplied(false); setCouponError(''); }}
+                                                className={`text-[11px] font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                                            >
+                                                Change
+                                            </button>
+                                        </div>
                                     </div>
-                                ) : null}
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <input value={couponCode} onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(''); }} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
+                                        <button type="button" onClick={applyCoupon} disabled={couponLoading} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">
+                                            {couponLoading ? 'Applying...' : 'Apply'}
+                                        </button>
+                                    </div>
+                                )}
+                                {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
                             </div>
                             <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
                             <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1030,7 +1243,9 @@ export default function RunEventBookingPage() {
                             {paying ? (
                                 <><Loader className="w-4 h-4 animate-spin" /> Processing...</>
                             ) : step === 2 && fee > 0 && isOrganizerQr ? (
-                                'Submit payment proof'
+                                payableAmount > 0
+                                    ? `Pay ₹${payableAmount.toLocaleString('en-IN')} · Submit proof`
+                                    : 'Confirm free booking'
                             ) : step === 2 && total > 0 ? (
                                 `Pay ₹${payableAmount.toLocaleString('en-IN')} & Book`
                             ) : step === 2 ? (
