@@ -846,15 +846,22 @@ const Dashboard = () => {
 
         const trekSlides = (homeTreks || [])
             .filter((t) => isOnHomeHero(t))
-            .map((t) => ({
-                id: t._id,
-                image: getCoverImageUrl(t, 'hero') || t.coverImage || t.images?.[0],
-                title: t.trekName,
-                subtitle: t.city || t.difficultyLevel || '',
-                dateTime: t.dateLabel || t.trekDate || 'Trek',
-                homePriority: t.priority ?? 999,
-                _type: 'trek',
-            }));
+            .map((t) => {
+                const communityName = (
+                    (typeof t.communityId === 'object' && (t.communityId?.name || t.communityId?.title))
+                    || t.communityName
+                    || ''
+                );
+                return {
+                    id: t._id,
+                    image: getCoverImageUrl(t, 'hero') || t.coverImage || t.images?.[0],
+                    title: t.trekName,
+                    subtitle: communityName || t.city || t.difficultyLevel || '',
+                    dateTime: t.dateLabel || t.trekDate || 'Trek',
+                    homePriority: t.priority ?? 999,
+                    _type: 'trek',
+                };
+            });
 
         const communitySlides = (homeCommunities || [])
             .filter((c) => isOnHomeHero(c))

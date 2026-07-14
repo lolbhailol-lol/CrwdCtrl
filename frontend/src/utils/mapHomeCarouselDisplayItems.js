@@ -62,11 +62,17 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
             };
         }
         if (item._type === 'trek') {
+            const communityName = (
+                (typeof item.communityId === 'object' && (item.communityId?.name || item.communityId?.title))
+                || item.communityName
+                || item._subtitle
+                || ''
+            );
             return {
                 ...item,
                 id: item._id || item.id,
                 title: item.trekName || item._title || item.title,
-                subtitle: item.city || item._subtitle,
+                subtitle: communityName || item.city || '',
                 image: getCoverImageUrl(item, 'cardPortrait') || item.coverImage || item.images?.[0] || item._image,
                 _type: 'trek',
                 _priority: item._priority,

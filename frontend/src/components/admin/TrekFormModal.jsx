@@ -291,7 +291,11 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
             setForm({
                 ...EMPTY,
                 ...trek,
-                communityId: trek.communityId || communityId || null,
+                communityId: (() => {
+                    const raw = trek.communityId ?? communityId ?? null;
+                    if (raw && typeof raw === 'object') return raw._id || raw.id || null;
+                    return raw || null;
+                })(),
                 trekDate: trek.trekDate ? new Date(trek.trekDate).toISOString().slice(0, 10) : '',
                 dateLabel: trek.dateLabel || '',
                 trekBatches: normalizeTrekBatches(trek.trekBatches, trek.trekDate),

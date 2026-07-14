@@ -288,7 +288,7 @@ function SlideCard({
                 event={{
                     id,
                     title: item.title || item.festName || item.trekName || item.name,
-                    subtitle: item.subtitle || item.collegeName || item.city || item.basedIn,
+                    subtitle: item.subtitle || item.communityName || item.collegeName || item.basedIn || item.city,
                     image: resolveSlideImage(item, preset),
                 }}
                 isDark={isDark}

@@ -40,12 +40,26 @@ export function buildFeaturedEntityOptions({
         });
     }
     if (allowedTypes.includes('trek') && treks.length) {
+        const communityName = (t) => {
+            if (t?.communityId && typeof t.communityId === 'object') {
+                return t.communityId.name || t.communityId.title || '';
+            }
+            const cid = t?.communityId;
+            if (!cid) return '';
+            const c = communities.find((x) => String(x._id) === String(cid));
+            return c?.name || '';
+        };
         groups.push({
             label: 'Treks',
-            options: treks.map((t) => ({
-                value: `trek:${t._id}`,
-                label: t.trekName || 'Untitled trek',
-            })),
+            options: treks.map((t) => {
+                const community = communityName(t);
+                return {
+                    value: `trek:${t._id}`,
+                    label: community
+                        ? `${t.trekName || 'Untitled trek'} · ${community}`
+                        : (t.trekName || 'Untitled trek'),
+                };
+            }),
         });
     }
     if (allowedTypes.includes('community') && communities.length) {
@@ -106,8 +120,15 @@ export function resolveFeaturedEntityLabel(item, catalogs) {
         return e?.title || 'Event';
     }
     if (item.entityType === 'trek') {
-        const t = treks.find((x) => x._id === id);
-        return t?.trekName || 'Trek';
+        const t = treks.find((x) => String(x._id) === String(id));
+        if (!t) return 'Trek';
+        let community = '';
+        if (t.communityId && typeof t.communityId === 'object') {
+            community = t.communityId.name || t.communityId.title || '';
+        } else if (t.communityId) {
+            community = communities.find((c) => String(c._id) === String(t.communityId))?.name || '';
+        }
+        return community ? `${t.trekName || 'Trek'} · ${community}` : (t.trekName || 'Trek');
     }
     if (item.entityType === 'community') {
         const c = communities.find((x) => x._id === id);

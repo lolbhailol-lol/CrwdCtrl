@@ -10,6 +10,16 @@ function communityBannerUrl(c) {
     return resolveCoverImage(c, 'hero') || c.coverImage || '';
 }
 
+/** communityId may be a raw ObjectId string or a populated `{ _id, name }` object. */
+function resolveCommunityId(value) {
+    if (value == null || value === '') return null;
+    if (typeof value === 'object') {
+        const id = value._id || value.id;
+        return id != null ? String(id) : null;
+    }
+    return String(value);
+}
+
 const DIFFICULTY_BADGE = {
     easy:     'bg-green-900/60 text-green-300 border border-green-700',
     moderate: 'bg-yellow-900/60 text-yellow-300 border border-yellow-700',
@@ -186,7 +196,7 @@ export default function TreksPage() {
 
     const fetchTreks = () => {
         setLoading(true);
-        adminFetchJSON('/admin/treks?limit=200')
+        adminFetchJSON('/admin/treks?limit=500')
             .then(d => setTreks(d.treks || []))
             .catch(err => setError(err.message || 'Failed to load treks'))
             .finally(() => setLoading(false));
@@ -224,10 +234,12 @@ export default function TreksPage() {
         fetchTreks();
     };
 
-    const activeCommunityKey = activeCommunityId || selected?.communityId || null;
+    const activeCommunityKey = resolveCommunityId(activeCommunityId || selected?.communityId || null);
     const activeCommunity = activeCommunityKey
-        ? communities.find(c => String(c._id) === String(activeCommunityKey))
+        ? communities.find(c => String(c._id) === activeCommunityKey)
         : null;
+
+    const unassignedTreks = treks.filter((t) => !resolveCommunityId(t.communityId));
 
     return (
         <div className="space-y-6">
@@ -283,7 +295,10 @@ export default function TreksPage() {
             ) : (
                 <div className="space-y-4">
                     {communities.map(c => {
-                        const commTreks = treks.filter(t => t.communityId === c._id || String(t.communityId) === String(c._id));
+                        const communityKey = String(c._id);
+                        const commTreks = treks.filter(
+                            (t) => resolveCommunityId(t.communityId) === communityKey,
+                        );
                         const isOpen = expandedComm.has(c._id);
 
                         return (
@@ -404,6 +419,36 @@ export default function TreksPage() {
                             </div>
                         );
                     })}
+
+                    {!loading && unassignedTreks.length > 0 && (
+                        <div className="bg-[#232425] rounded-2xl border border-amber-700/40 overflow-hidden">
+                            <div className="flex items-center gap-3 p-4 border-b border-white/5">
+                                <div className="size-12 rounded-xl overflow-hidden shrink-0 bg-amber-900/30 flex items-center justify-center">
+                                    <Mountain size={20} className="text-amber-300/70" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-amber-200 font-bold text-sm">No community assigned</h3>
+                                    <p className="text-gray-500 text-xs">
+                                        {unassignedTreks.length} trek{unassignedTreks.length !== 1 ? 's' : ''} — open edit and pick a community
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="rounded-none overflow-hidden divide-y divide-white/5">
+                                {unassignedTreks.map((t) => (
+                                    <AdminTrekCard
+                                        key={t._id}
+                                        trek={t}
+                                        onEdit={(trek) => {
+                                            setSelected(trek);
+                                            setActiveCommunityId(null);
+                                            setShowForm(true);
+                                        }}
+                                        onDelete={deleteTrek}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

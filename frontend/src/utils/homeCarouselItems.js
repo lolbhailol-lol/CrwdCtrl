@@ -36,12 +36,39 @@ function entityMatchesPageSection(entity, type, targetPage, sectionSlug) {
     );
 }
 
-export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sectionSlug } = {}) {
+/** Prefer community name for trek cards (populated object or lookup map). */
+export function resolveTrekCommunityName(trek, communitiesById) {
+    if (!trek) return '';
+    const raw = trek.communityId;
+    if (raw && typeof raw === 'object') {
+        return String(raw.name || raw.title || '').trim();
+    }
+    if (raw != null && communitiesById) {
+        const hit = communitiesById.get(String(raw._id || raw));
+        if (hit) return String(hit.name || hit.title || '').trim();
+    }
+    return String(trek.communityName || '').trim();
+}
+
+function buildCommunitiesById(communities = []) {
+    const map = new Map();
+    for (const c of communities) {
+        if (c?._id != null) map.set(String(c._id), c);
+        if (c?.id != null) map.set(String(c.id), c);
+    }
+    return map;
+}
+
+export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sectionSlug, communitiesById } = {}) {
     const field = PRIORITY_FIELD[type];
     let priority = raw[field] ?? raw.priority ?? raw.homePriority ?? 999;
     if (targetPage !== 'home' && sectionSlug) {
         priority = getCustomPagePriority(raw, targetPage, sectionSlug);
     }
+
+    const trekCommunityName = type === 'trek'
+        ? resolveTrekCommunityName(raw, communitiesById)
+        : '';
 
     return {
         ...raw,
@@ -65,11 +92,13 @@ export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sect
                     : raw.coverImage)
             );
         })(),
+        // Treks show community name (not city) so section cards identify which community they belong to
         _subtitle: type === 'fest' ? (raw.collegeName || '')
-            : type === 'trek' ? (raw.city || '')
+            : type === 'trek' ? (trekCommunityName || raw.city || '')
             : type === 'sport' ? (raw.city || raw.sportType || '')
             : type === 'events' ? (raw.city || raw.organizer || '')
             : (raw.basedIn || raw.organizer || ''),
+        ...(type === 'trek' && trekCommunityName ? { communityName: trekCommunityName } : {}),
     };
 }
 
@@ -92,7 +121,8 @@ export function buildPageCarouselItems(
         return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     };
 
-    const opts = { targetPage, sectionSlug };
+    const communitiesById = buildCommunitiesById(communities);
+    const opts = { targetPage, sectionSlug, communitiesById };
 
     return [
         ...(fests || []).filter((f) => entityMatchesPageSection(f, 'fest', targetPage, sectionSlug))

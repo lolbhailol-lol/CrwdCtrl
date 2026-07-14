@@ -533,6 +533,15 @@ export default function SectionManager() {
     const [reordering, setReordering] = useState(false);
     const [customSections, setCustomSections] = useState([]);
 
+    const communityById = useMemo(() => {
+        const map = new Map();
+        for (const c of comms) {
+            if (c?._id) map.set(String(c._id), c);
+            if (c?.id) map.set(String(c.id), c);
+        }
+        return map;
+    }, [comms]);
+
     // ── Fetch ────────────────────────────────────────────────────────────────
     const fetchAll = useCallback(async () => {
         setLoading(true); setErrors({});
@@ -887,9 +896,9 @@ export default function SectionManager() {
     );
 
     const movingSlideTreks = useMemo(
-        () => treks.filter((t) => isOnHomeHero(t)).map((t) => normalizeHomeCarouselItem('trek', t))
+        () => treks.filter((t) => isOnHomeHero(t)).map((t) => normalizeHomeCarouselItem('trek', t, { communitiesById: communityById }))
             .sort((a, b) => a._priority - b._priority),
-        [treks],
+        [treks, communityById],
     );
 
     const movingSlideComms = useMemo(
@@ -917,7 +926,7 @@ export default function SectionManager() {
     );
 
     const trekPageCarousels = useMemo(() => {
-        const norm = (t) => ({ ...normalizeHomeCarouselItem('trek', t), _priority: t.trekPagePriority ?? 999 });
+        const norm = (t) => ({ ...normalizeHomeCarouselItem('trek', t, { communitiesById: communityById }), _priority: t.trekPagePriority ?? 999 });
         const inSection = (key) => treks.filter((t) => t.featuredSection === key || t.featuredSection === 'both').map(norm)
             .sort((a, b) => a._priority - b._priority);
 
@@ -942,7 +951,7 @@ export default function SectionManager() {
             communities: inCommSection('communities'),
             comingSoon: inCommSection('comingSoon'),
         };
-    }, [treks, comms]);
+    }, [treks, comms, communityById]);
 
     const festPageCarousels = useMemo(() => {
         const out = {};
@@ -1102,14 +1111,6 @@ export default function SectionManager() {
         });
         batchReorder(updates);
     }, [movingSlideItems, reordering, batchReorder]);
-
-    const communityById = useMemo(() => {
-        const map = new Map();
-        for (const c of comms) {
-            if (c?._id) map.set(String(c._id), c);
-        }
-        return map;
-    }, [comms]);
 
     const resolveTrekCommunity = useCallback((trek) => {
         const raw = trek?.communityId;
