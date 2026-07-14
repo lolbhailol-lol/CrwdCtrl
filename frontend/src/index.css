@@ -289,6 +289,12 @@
         font-weight: 700 !important;
         line-height: 1.35;
         letter-spacing: -0.01em;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        word-break: break-word;
     }
 
     .card-event-title--prominent {
@@ -301,6 +307,12 @@
         font-weight: 600 !important;
         line-height: 1.4;
         letter-spacing: 0;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        word-break: break-word;
     }
 
     /* Hero banner */
@@ -446,6 +458,13 @@
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
         transition: opacity 0.15s ease, transform 0.15s ease;
+        flex-shrink: 0;
+    }
+
+    .card-share-btn--compact {
+        min-width: 1.75rem;
+        min-height: 1.75rem;
+        padding: 0.2rem;
     }
 
     .card-share-btn:active {
@@ -506,7 +525,10 @@
     /* Portrait cards — treks, communities, run clubs */
     .card-portrait {
         width: var(--card-portrait-w);
+        max-width: var(--card-portrait-w);
+        min-width: 0;
         flex-shrink: 0;
+        box-sizing: border-box;
     }
 
     .card-portrait-image {
@@ -520,7 +542,10 @@
     /* Wide activity cards — weekend plans, sports activities */
     .card-wide {
         width: var(--card-wide-w);
+        max-width: var(--card-wide-w);
+        min-width: 0;
         flex-shrink: 0;
+        box-sizing: border-box;
     }
 
     .card-upcoming {

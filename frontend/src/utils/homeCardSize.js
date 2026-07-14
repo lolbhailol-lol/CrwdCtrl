@@ -48,19 +48,21 @@ export const LEGACY_CARD_SIZE_VALUES = ['mini', 'default'];
 export function getCardSizeProps(cardSize) {
     switch (cardSize) {
         case 'trending':
-            return { tallCard: true, wideCard: false, miniCard: false, portraitCard: false, heroCard: false };
+            // Ongoing Events style — centered snap carousel on mobile
+            return { tallCard: true, wideCard: false, miniCard: false, portraitCard: false, heroCard: false, alignStart: false };
         case 'hero':
-            return { tallCard: false, wideCard: true, miniCard: false, portraitCard: false, heroCard: true };
+            return { tallCard: false, wideCard: true, miniCard: false, portraitCard: false, heroCard: true, alignStart: false };
         case 'wide':
-            return { tallCard: false, wideCard: true, miniCard: false, portraitCard: false, heroCard: false };
+            // Weekend Plans style — normal left-to-right scroll (not centered)
+            return { tallCard: false, wideCard: true, miniCard: false, portraitCard: false, heroCard: false, alignStart: true };
         case 'mini':
-            return { tallCard: true, wideCard: false, miniCard: true, portraitCard: false, heroCard: false };
+            return { tallCard: true, wideCard: false, miniCard: true, portraitCard: false, heroCard: false, alignStart: true };
         case 'explore':
-        case 'runclub': {
-            return { tallCard: false, wideCard: false, miniCard: false, portraitCard: true, heroCard: false };
-        }
+        case 'runclub':
+            // Explore Communities / Run Clubs — normal left-to-right scroll (not centered)
+            return { tallCard: false, wideCard: false, miniCard: false, portraitCard: true, heroCard: false, alignStart: true };
         default:
-            return { tallCard: false, wideCard: false, miniCard: false, portraitCard: false, heroCard: false };
+            return { tallCard: false, wideCard: false, miniCard: false, portraitCard: false, heroCard: false, alignStart: true };
     }
 }
 

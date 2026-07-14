@@ -296,6 +296,7 @@ function ContextCarousel({
                 miniCard={props.miniCard}
                 portraitCard={props.portraitCard}
                 heroCard={props.heroCard}
+                alignStart={props.alignStart === true}
                 cardGap={block.cardSize === 'trending' ? TRENDING_CARD_GAP : undefined}
                 onItemClick={() => {}}
             />
@@ -442,6 +443,7 @@ function ExistingSectionPreview({ section, targetPage, fests, treks, comms, spor
                 miniCard={props.miniCard}
                 portraitCard={props.portraitCard}
                 heroCard={props.heroCard}
+                alignStart={props.alignStart === true}
                 onItemClick={() => {}}
             />
         </div>
@@ -764,6 +766,7 @@ function WebsitePreviewContent({
                             miniCard={cardProps.miniCard}
                             portraitCard={cardProps.portraitCard}
                             heroCard={cardProps.heroCard}
+                            alignStart={cardProps.alignStart === true}
                             onItemClick={() => {}}
                         />
                     </div>

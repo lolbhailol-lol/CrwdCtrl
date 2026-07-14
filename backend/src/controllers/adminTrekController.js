@@ -105,6 +105,7 @@ exports.getAllTreks = async (req, res) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
+            .populate('communityId', 'name basedIn')
             .lean();
 
         res.status(200).json({

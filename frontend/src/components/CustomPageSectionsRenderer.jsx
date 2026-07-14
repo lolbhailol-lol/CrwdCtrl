@@ -123,6 +123,7 @@ export default function CustomPageSectionsRenderer({
                     miniCard={cardProps.miniCard}
                     portraitCard={cardProps.portraitCard}
                     heroCard={cardProps.heroCard}
+                    alignStart={cardProps.alignStart === true}
                     cardGap={cardProps.tallCard ? TRENDING_CARD_GAP : undefined}
                     isFavorite={isFavorite}
                     onToggleFavorite={onToggleFavorite}

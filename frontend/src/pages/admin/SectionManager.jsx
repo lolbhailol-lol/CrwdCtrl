@@ -123,22 +123,31 @@ function AssignCheckGroup({ label, options, selected = [], onToggle, saveKey, sa
     const count = selected.filter(Boolean).length;
     return (
         <div className={`rounded-xl border px-2.5 py-2 min-w-[11rem] max-w-[16rem] ${
-            count > 0 ? 'bg-[#0ECCEE]/5 border-[#0ECCEE]/25' : 'bg-[#0D0E10] border-white/8'
+            count > 0 ? 'bg-[#0ECCEE]/8 border-[#0ECCEE]/30 shadow-[inset_0_0_0_1px_rgba(14,204,238,0.08)]' : 'bg-[#0D0E10] border-white/8'
         }`}>
             <div className="flex items-center justify-between gap-2 mb-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
-                <SaveDot state={saving?.[saveKey]} />
+                <div className="flex items-center gap-1.5">
+                    {count > 0 && (
+                        <span className="text-[9px] font-bold text-[#0ECCEE]/80 bg-[#0ECCEE]/10 px-1.5 py-0.5 rounded-full">
+                            {count}
+                        </span>
+                    )}
+                    <SaveDot state={saving?.[saveKey]} />
+                </div>
             </div>
             {!options.length ? (
                 <div className="text-[10px] text-gray-600 leading-snug">{emptyHint || 'No sections yet'}</div>
             ) : (
-                <div className="space-y-1 max-h-36 overflow-y-auto pr-0.5">
+                <div className="space-y-0.5 max-h-36 overflow-y-auto pr-0.5">
                     {options.map((o) => {
                         const checked = selectedSet.has(o.value);
                         return (
                             <label
                                 key={o.value}
-                                className="flex items-start gap-2 cursor-pointer rounded-lg px-1 py-1 hover:bg-white/5"
+                                className={`flex items-start gap-2 cursor-pointer rounded-lg px-1.5 py-1.5 transition-colors ${
+                                    checked ? 'bg-[#0ECCEE]/10' : 'hover:bg-white/5'
+                                }`}
                             >
                                 <input
                                     type="checkbox"
@@ -146,7 +155,7 @@ function AssignCheckGroup({ label, options, selected = [], onToggle, saveKey, sa
                                     onChange={(e) => onToggle(o.value, e.target.checked)}
                                     className="mt-0.5 rounded border-gray-600 text-[#0ECCEE] focus:ring-[#0ECCEE]/40"
                                 />
-                                <span className={`text-[11px] leading-snug ${checked ? 'text-[#0ECCEE]' : 'text-gray-400'}`}>
+                                <span className={`text-[11px] leading-snug ${checked ? 'text-[#0ECCEE] font-medium' : 'text-gray-400'}`}>
                                     {o.label}
                                 </span>
                             </label>
@@ -154,6 +163,29 @@ function AssignCheckGroup({ label, options, selected = [], onToggle, saveKey, sa
                     })}
                 </div>
             )}
+        </div>
+    );
+}
+
+function MetaChip({ children, tone = 'neutral' }) {
+    const tones = {
+        neutral: 'bg-white/5 text-gray-400 border-white/10',
+        sky: 'bg-sky-500/15 text-sky-300 border-sky-500/25',
+        emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
+        amber: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+    };
+    return (
+        <span className={`inline-flex items-center gap-1 max-w-full truncate text-[10px] font-semibold px-2 py-0.5 rounded-full border ${tones[tone] || tones.neutral}`}>
+            {children}
+        </span>
+    );
+}
+
+/** Shared assign-mode row shell */
+function AssignEntityRow({ children, className = '' }) {
+    return (
+        <div className={`flex items-start gap-3 px-3.5 py-3 mx-2 my-1.5 rounded-xl border border-white/6 bg-[#121314] hover:border-white/12 hover:bg-[#151618] transition-colors flex-wrap ${className}`}>
+            {children}
         </div>
     );
 }
@@ -1071,6 +1103,22 @@ export default function SectionManager() {
         batchReorder(updates);
     }, [movingSlideItems, reordering, batchReorder]);
 
+    const communityById = useMemo(() => {
+        const map = new Map();
+        for (const c of comms) {
+            if (c?._id) map.set(String(c._id), c);
+        }
+        return map;
+    }, [comms]);
+
+    const resolveTrekCommunity = useCallback((trek) => {
+        const raw = trek?.communityId;
+        if (!raw) return null;
+        if (typeof raw === 'object' && (raw.name || raw.title)) return raw;
+        const id = String(raw._id || raw);
+        return communityById.get(id) || null;
+    }, [communityById]);
+
     // ── Filtered lists ───────────────────────────────────────────────────────
     const q = search.trim().toLowerCase();
     const filteredFests = useMemo(() =>
@@ -1078,9 +1126,48 @@ export default function SectionManager() {
              .sort((a, b) => String(a.festName || '').localeCompare(String(b.festName || ''))),
         [fests, q]);
     const filteredTreks = useMemo(() =>
-        treks.filter(t => !q || [t.trekName, t.city, t.destination].some(v => String(v || '').toLowerCase().includes(q)))
-             .sort((a, b) => String(a.trekName || '').localeCompare(String(b.trekName || ''))),
-        [treks, q]);
+        treks.filter((t) => {
+            if (!q) return true;
+            const community = resolveTrekCommunity(t);
+            return [t.trekName, t.city, t.destination, community?.name, community?.basedIn]
+                .some((v) => String(v || '').toLowerCase().includes(q));
+        }).sort((a, b) => String(a.trekName || '').localeCompare(String(b.trekName || ''))),
+        [treks, q, resolveTrekCommunity]);
+
+    const trekAssignGroups = useMemo(() => {
+        const groups = new Map();
+        const unassigned = [];
+        for (const t of filteredTreks) {
+            const community = resolveTrekCommunity(t);
+            if (!community?._id && !community?.id) {
+                unassigned.push(t);
+                continue;
+            }
+            const cid = String(community._id || community.id);
+            if (!groups.has(cid)) {
+                groups.set(cid, {
+                    id: cid,
+                    name: community.name || community.title || 'Community',
+                    basedIn: community.basedIn || '',
+                    coverImage: community.coverImage || community.logo || null,
+                    treks: [],
+                });
+            }
+            groups.get(cid).treks.push(t);
+        }
+        const sorted = [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+        if (unassigned.length) {
+            sorted.push({
+                id: '__none__',
+                name: 'No community assigned',
+                basedIn: 'Assign a community on the trek form',
+                coverImage: null,
+                treks: unassigned,
+            });
+        }
+        return sorted;
+    }, [filteredTreks, resolveTrekCommunity]);
+
     const filteredComms = useMemo(() =>
         comms.filter(c => !q || [c.name, c.basedIn].some(v => String(v || '').toLowerCase().includes(q)))
              .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
@@ -1351,6 +1438,7 @@ export default function SectionManager() {
                     <span className="min-w-[11rem] text-center">
                         {tab === 'fests' ? 'Fest status'
                             : tab === 'runs' || tab === 'runclubs' ? 'Sports page'
+                            : tab === 'treks' ? 'Treks page'
                             : tab === 'communities' ? 'Treks page'
                             : tab === 'events' ? 'Events page'
                             : 'Own page'}
@@ -1448,46 +1536,97 @@ export default function SectionManager() {
                         {/* ── TREKS ── */}
                         {tab === 'treks' && (filteredTreks.length === 0
                             ? <EmptyState label="No treks found" />
-                            : filteredTreks.map(t => (
-                                <div key={t._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
-                                    <Thumb src={t.coverImage || t.images?.[0]} icon={Mountain} />
-                                    <PreviewLink type="trek" id={t._id} />
-                                    <div className="flex-1 min-w-[8rem]">
-                                        <p className="text-sm font-semibold text-white truncate">{t.trekName || 'Untitled'}</p>
-                                        <p className="text-[11px] text-gray-600 truncate">{[t.city, t.difficultyLevel].filter(Boolean).join(' · ') || '—'}</p>
+                            : (
+                                <div className="py-2 space-y-1">
+                                    <div className="px-4 pb-2">
+                                        <p className="text-[11px] text-gray-500 leading-relaxed">
+                                            Treks are grouped by the community they belong to. Search also matches community names.
+                                        </p>
                                     </div>
-                                    <AssignCheckGroup
-                                        label="Home"
-                                        options={homeCheckOpts}
-                                        selected={homeSelected(t)}
-                                        onToggle={(slug, checked) => saveEntityHomeMulti('trek', t._id, t, slug, checked)}
-                                        saveKey={`trek-${t._id}-home`}
-                                        saving={saving}
-                                    />
-                                    <AssignCheckGroup
-                                        label="Treks page"
-                                        options={TREK_PAGE_CHECK_OPTS}
-                                        selected={getTrekPageChecks(t.featuredSection)}
-                                        onToggle={(slug, checked) => {
-                                            const cur = new Set(getTrekPageChecks(t.featuredSection));
-                                            if (checked) cur.add(slug);
-                                            else cur.delete(slug);
-                                            saveTrek(t._id, { featuredSection: toTrekFeaturedSection([...cur]) });
-                                        }}
-                                        saveKey={`trek-${t._id}-page`}
-                                        saving={saving}
-                                    />
-                                    <AssignCheckGroup
-                                        label="Custom"
-                                        options={trekCustomPageOpts}
-                                        selected={getCustomPageAssignmentKeys(t, TREK_CUSTOM_PAGES)}
-                                        onToggle={(key, checked) => saveEntityCustomToggle('trek', t._id, t, TREK_CUSTOM_PAGES, key, checked)}
-                                        saveKey={`trek-${t._id}-custom`}
-                                        saving={saving}
-                                        emptyHint="Add sections in Page Sections"
-                                    />
+                                    {trekAssignGroups.map((group) => (
+                                        <div key={group.id} className="pb-2">
+                                            <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-2.5 bg-[#1a1b1d]/95 backdrop-blur border-y border-white/6">
+                                                <Thumb src={group.coverImage} icon={Users} />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className={`text-sm font-bold truncate ${group.id === '__none__' ? 'text-amber-300' : 'text-white'}`}>
+                                                            {group.name}
+                                                        </p>
+                                                        <span className="text-[10px] font-bold text-gray-500 bg-white/5 px-1.5 py-0.5 rounded-full">
+                                                            {group.treks.length} trek{group.treks.length !== 1 ? 's' : ''}
+                                                        </span>
+                                                    </div>
+                                                    {group.basedIn ? (
+                                                        <p className="text-[11px] text-gray-500 truncate mt-0.5">{group.basedIn}</p>
+                                                    ) : null}
+                                                </div>
+                                                {group.id !== '__none__' ? (
+                                                    <PreviewLink type="community" id={group.id} />
+                                                ) : null}
+                                            </div>
+                                            {group.treks.map((t) => {
+                                                const community = resolveTrekCommunity(t);
+                                                return (
+                                                    <AssignEntityRow key={t._id}>
+                                                        <Thumb src={t.coverImage || t.images?.[0]} icon={Mountain} />
+                                                        <PreviewLink type="trek" id={t._id} />
+                                                        <div className="flex-1 min-w-[10rem]">
+                                                            <p className="text-sm font-semibold text-white truncate">{t.trekName || 'Untitled'}</p>
+                                                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                                                {community ? (
+                                                                    <MetaChip tone="sky">
+                                                                        <Users size={10} className="shrink-0" />
+                                                                        <span className="truncate">{community.name || community.title}</span>
+                                                                    </MetaChip>
+                                                                ) : (
+                                                                    <MetaChip tone="amber">No community</MetaChip>
+                                                                )}
+                                                                {t.city ? <MetaChip>{t.city}</MetaChip> : null}
+                                                                {t.difficultyLevel ? <MetaChip tone="emerald">{t.difficultyLevel}</MetaChip> : null}
+                                                                {Number(t.registrationFee) > 0 ? (
+                                                                    <MetaChip>₹{Number(t.registrationFee).toLocaleString('en-IN')}</MetaChip>
+                                                                ) : (
+                                                                    <MetaChip>Free</MetaChip>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <AssignCheckGroup
+                                                            label="Home"
+                                                            options={homeCheckOpts}
+                                                            selected={homeSelected(t)}
+                                                            onToggle={(slug, checked) => saveEntityHomeMulti('trek', t._id, t, slug, checked)}
+                                                            saveKey={`trek-${t._id}-home`}
+                                                            saving={saving}
+                                                        />
+                                                        <AssignCheckGroup
+                                                            label="Treks page"
+                                                            options={TREK_PAGE_CHECK_OPTS}
+                                                            selected={getTrekPageChecks(t.featuredSection)}
+                                                            onToggle={(slug, checked) => {
+                                                                const cur = new Set(getTrekPageChecks(t.featuredSection));
+                                                                if (checked) cur.add(slug);
+                                                                else cur.delete(slug);
+                                                                saveTrek(t._id, { featuredSection: toTrekFeaturedSection([...cur]) });
+                                                            }}
+                                                            saveKey={`trek-${t._id}-page`}
+                                                            saving={saving}
+                                                        />
+                                                        <AssignCheckGroup
+                                                            label="Custom"
+                                                            options={trekCustomPageOpts}
+                                                            selected={getCustomPageAssignmentKeys(t, TREK_CUSTOM_PAGES)}
+                                                            onToggle={(key, checked) => saveEntityCustomToggle('trek', t._id, t, TREK_CUSTOM_PAGES, key, checked)}
+                                                            saveKey={`trek-${t._id}-custom`}
+                                                            saving={saving}
+                                                            emptyHint="Add sections in Page Sections"
+                                                        />
+                                                    </AssignEntityRow>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
                                 </div>
-                            ))
+                            )
                         )}
 
                         {/* ── SPORTS ── */}

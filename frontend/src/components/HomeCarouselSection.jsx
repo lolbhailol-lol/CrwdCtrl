@@ -283,7 +283,7 @@ function SlideCard({
     const imgPriority = nearActive || slideIndex === 0 ? 'high' : undefined;
 
     return (
-        <div className={`carousel-slide shrink-0${alignStart ? ' snap-start' : ''}`}>
+        <div className={`carousel-slide shrink-0 min-w-0${alignStart ? ' snap-start' : ''}`}>
             <HomeEventCard
                 event={{
                     id,
@@ -325,12 +325,15 @@ export default function HomeCarouselSection({
     miniCard = false,
     portraitCard = false,
     heroCard = false,
+    /** Force left-aligned gutter scroll (Explore Communities / Weekend Plans style). */
+    alignStart: forceAlignStart = false,
     cardGap = HOME_CARD_GAP,
 }) {
     const scrollRef = useRef(null);
     const trackRef = useRef(null);
     const isLgUp = useIsLgUp();
-    const alignStart = isLgUp;
+    // Portrait / explicitly left-scroll sections never use the centered snap carousel
+    const alignStart = forceAlignStart || portraitCard || isLgUp;
 
     const slideCount = loading
         ? SKELETON_COUNT
@@ -381,7 +384,10 @@ export default function HomeCarouselSection({
         } : {}),
     };
 
-    const carouselClassName = `home-carousel-scroll overflow-x-auto scrollbar-hide${alignStart ? ' home-carousel-scroll--desktop-gutter' : ''}`;
+    // Left-scroll sections use the same gutter rail as Explore Communities / Weekend Plans
+    const carouselClassName = alignStart
+        ? 'carousel-scroll-gutter overflow-x-auto scrollbar-hide'
+        : 'home-carousel-scroll overflow-x-auto scrollbar-hide';
 
     const activeIndexRef = useRef(activeIndex);
     activeIndexRef.current = activeIndex;
