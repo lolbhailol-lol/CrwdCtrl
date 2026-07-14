@@ -19,12 +19,13 @@ import {
     verifyPaymentWithRetry,
 } from '../../utils/paymentNavigation';
 import { buildTrekPriceBreakdown } from '../../utils/platformFee';
+import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
 import { isTrekFormFieldEmpty } from '../../constants/trekFormFields';
 import { API_BASE_URL } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../utils/trekGenderRegistration';
 import GenderQuickPick from '../../components/GenderQuickPick';
-import { trekPath } from '../../utils/slugRoutes';
+import { trekPath, toSlug } from '../../utils/slugRoutes';
 
 const API = API_BASE_URL;
 
@@ -34,6 +35,16 @@ const DEFAULT_TREK_FORM_FIELDS = [
     { id: 'default_email', label: 'E-mail', fieldName: 'email', type: 'email', required: true, placeholder: 'your@email.com' },
     { id: 'default_id_proof', label: 'ID Proof', fieldName: 'id_proof', type: 'file', required: false, placeholder: 'Upload Aadhaar / PAN / Passport' },
 ];
+
+/** True when nav/cache trek belongs to the current /trek/:id route (id or name slug). */
+function trekMatchesRouteParam(trek, routeParam) {
+    if (!trek || !routeParam) return false;
+    const param = String(routeParam);
+    const tid = String(trek._id || trek.id || '');
+    if (tid && tid === param) return true;
+    const nameSlug = toSlug(trek.trekName || trek.title || '');
+    return Boolean(nameSlug && nameSlug === param);
+}
 
 function trekDraftKey(trekId) {
     return `trek_booking_draft_${trekId}`;
@@ -151,9 +162,17 @@ export default function TrekBookingPage() {
         if (isAuthenticated && showRegister) setShowRegister(false);
     }, [isAuthenticated, showLogin, showRegister]);
 
-    const [trek, setTrek] = useState(location.state?.trek || null);
-    const [genderRegistration, setGenderRegistration] = useState(location.state?.genderRegistration || null);
-    const [loadingTrek, setLoadingTrek] = useState(!location.state?.trek);
+    const [trek, setTrek] = useState(() => {
+        const navTrek = location.state?.trek;
+        return trekMatchesRouteParam(navTrek, id) ? navTrek : null;
+    });
+    const [genderRegistration, setGenderRegistration] = useState(() => (
+        trekMatchesRouteParam(location.state?.trek, id)
+            ? (location.state?.genderRegistration || null)
+            : null
+    ));
+    // Always fetch before painting registration UI so default/demo fields never flash for another trek
+    const [loadingTrek, setLoadingTrek] = useState(true);
     const [step,        setStep]       = useState(initialUi.step);
     const [selDate,     setSelDate]    = useState(initialUi.selDate);
     const [selTime,     setSelTime]    = useState(initialUi.selTime);
@@ -185,7 +204,7 @@ export default function TrekBookingPage() {
         bookingId,
         ticketType: 'trek',
     });
-    const platformPct = Number(trek?.platformFeePercent) || 3;
+    const platformPct = resolveTrekPlatformFeePercent(trek?.platformFeePercent, 3);
     const reg       = trek?.registration || {};
     const dates = useMemo(
         () => (reg.availableDates?.length ? reg.availableDates : generateDates(trek?.trekDate)),
@@ -227,17 +246,35 @@ export default function TrekBookingPage() {
     );
 
     const regSchema = useMemo(() => {
+        // While loading, skip DEFAULT demo fields — avoid flashing generic registration form
+        if (loadingTrek) return [];
         const custom = (reg.formSchema || []).filter((f) => f?.label?.trim() && f?.fieldName?.trim());
         return custom.length > 0 ? custom : DEFAULT_TREK_FORM_FIELDS;
-    }, [reg.formSchema]);
+    }, [reg.formSchema, loadingTrek]);
 
     const sheetsInstructions = reg.formInstructions || '';
 
     useEffect(() => {
         const trekId = id || location.state?.trek?._id || location.state?.trek?.id;
+        const navTrek = location.state?.trek;
+        const seedOk = trekMatchesRouteParam(navTrek, id);
+
+        // Clear previous trek immediately so old/demo registration does not stay on screen
+        setLoadingTrek(true);
+        setExistingBookingId('');
+        setError('');
+        setPostPaymentError('');
+        if (seedOk) {
+            setTrek(navTrek);
+            setGenderRegistration(location.state?.genderRegistration || null);
+        } else {
+            setTrek(null);
+            setGenderRegistration(null);
+        }
+
         if (!trekId) {
             setLoadingTrek(false);
-            return;
+            return undefined;
         }
 
         let cancelled = false;
@@ -248,18 +285,22 @@ export default function TrekBookingPage() {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 const d = await r.json();
-                if (!cancelled && d.trek) {
+                if (cancelled) return;
+                if (d.trek) {
                     setTrek(d.trek);
                     setGenderRegistration(d.genderRegistration || null);
                     if (d.userBooking?.bookingId) {
                         setExistingBookingId(String(d.userBooking.bookingId));
                     }
-                } else if (!cancelled && location.state?.trek) {
-                    setTrek(location.state.trek);
+                } else if (seedOk) {
+                    setTrek(navTrek);
+                } else {
+                    setTrek(null);
                 }
             } catch {
-                if (!cancelled && location.state?.trek) {
-                    setTrek(location.state.trek);
+                if (!cancelled) {
+                    if (seedOk) setTrek(navTrek);
+                    else setTrek(null);
                 }
             } finally {
                 if (!cancelled) setLoadingTrek(false);
@@ -267,7 +308,7 @@ export default function TrekBookingPage() {
         })();
 
         return () => { cancelled = true; };
-    }, [id, location.state?.trek, isAuthenticated, authToken]);
+    }, [id, isAuthenticated, authToken]);
 
     useEffect(() => {
         if (!trek) return;
@@ -292,6 +333,7 @@ export default function TrekBookingPage() {
             return;
         }
 
+        // Clear form whenever route trek changes or user starts a fresh booking
         if (location.state?.freshBooking) {
             sessionStorage.removeItem(trekDraftKey(trekId));
             setStep(1);
@@ -301,23 +343,38 @@ export default function TrekBookingPage() {
             setBookingGender('');
             setSelDate('');
             setSelTime('');
+            setCouponCode('');
+            setCouponInfo(null);
+            setCouponError('');
             setError('');
             return;
         }
 
+        if (loadingTrek) return;
+
         const raw = sessionStorage.getItem(trekDraftKey(trekId));
-        if (!raw) return;
+        if (!raw) {
+            setExtraFields({});
+            setBookingGender('');
+            setSelDate('');
+            setSelTime('');
+            setStep(1);
+            return;
+        }
         try {
             const draft = JSON.parse(raw);
-            if (draft.extraFields) setExtraFields(draft.extraFields);
-            if (draft.selDate) setSelDate(draft.selDate);
-            if (draft.selTime) setSelTime(draft.selTime);
-            if (draft.people) setPeople(1);
-            if (draft.bookingGender) setBookingGender(draft.bookingGender);
+            setExtraFields(draft.extraFields || {});
+            setSelDate(draft.selDate || '');
+            setSelTime(draft.selTime || '');
+            setPeople(1);
+            setBookingGender(draft.bookingGender || '');
+            setStep(1);
+            setPayDone(false);
+            setPaying(false);
         } catch {
             /* ignore corrupt draft */
         }
-    }, [id, trek?._id, trek?.id, location.search, location.state?.freshBooking]);
+    }, [id, trek?._id, trek?.id, loadingTrek, location.search, location.state?.freshBooking]);
 
     useEffect(() => {
         const trekId = id || trek?._id || trek?.id;
@@ -1209,10 +1266,12 @@ export default function TrekBookingPage() {
                                     <span>Ticket Price</span>
                                     <span>₹{fee.toLocaleString('en-IN')}</span>
                                 </div>
-                                <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    <span>Platform Fee</span>
-                                    <span>₹{platformFee}</span>
-                                </div>
+                                {platformFee > 0 ? (
+                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        <span>Platform Fee ({platformPct}%)</span>
+                                        <span>₹{platformFee}</span>
+                                    </div>
+                                ) : null}
                                 {couponInfo?.couponApplied ? (
                                     <div className="flex justify-between gap-4 text-green-400">
                                         <span>Coupon Discount</span>
@@ -1224,7 +1283,11 @@ export default function TrekBookingPage() {
                                     <span>₹{payableAmount.toLocaleString('en-IN')}</span>
                                 </div>
                             </div>
-                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Includes all charges · Secure payment via Cashfree</p>
+                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {platformFee > 0
+                                    ? 'Includes all charges · Secure payment via Cashfree'
+                                    : 'Secure payment via Cashfree · No platform fee'}
+                            </p>
                         </div>
                     )}
 

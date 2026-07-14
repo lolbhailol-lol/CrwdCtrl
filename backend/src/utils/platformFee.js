@@ -15,6 +15,8 @@ const calculatePlatformFee = (ticketPrice) => {
 const calculateTrekPlatformFee = (ticketPrice, platformFeePercent = 3) => {
   const normalizedTicketPrice = normalizeAmount(ticketPrice);
   const rate = Number(platformFeePercent);
+  // Explicit 0% = Cashfree only, no CrwdCtrl platform fee
+  if (Number.isFinite(rate) && rate === 0) return 0;
   const pct = Number.isFinite(rate) && rate > 0 ? rate / 100 : PLATFORM_FEE_RATE;
   return Math.ceil(normalizedTicketPrice * pct);
 };
@@ -118,6 +120,7 @@ function findTicketPriceForTrekPaidTotal(paid, platformFeePercent = 3) {
   if (normalizedPaid <= 0) return null;
 
   const rate = Number(platformFeePercent);
+  if (Number.isFinite(rate) && rate === 0) return normalizedPaid;
   const pct = Number.isFinite(rate) && rate > 0 ? rate / 100 : PLATFORM_FEE_RATE;
 
   let low = 0;

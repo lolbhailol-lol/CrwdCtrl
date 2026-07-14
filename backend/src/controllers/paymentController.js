@@ -9,6 +9,7 @@ const PlatformEvent = require('../model/platform_event_model');
 const SportsEvent = require('../model/sports_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
+const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { validateTrekGenderRegistration } = require('../utils/trekGenderRegistration');
 const {
   createCashfreeOrder,
@@ -187,7 +188,7 @@ exports.validateCoupon = async (req, res) => {
       const trek = await Trek.findById(trekId).select('registrationFee platformFeePercent');
       if (!trek) return res.status(404).json({ message: 'Trek not found' });
       const baseTicketTotal = (Number(trek.registrationFee) || 0) * Math.max(1, Number(people) || 1);
-      const { totalAmount } = buildTrekPriceBreakdown(baseTicketTotal, Number(trek.platformFeePercent) || 3);
+      const { totalAmount } = buildTrekPriceBreakdown(baseTicketTotal, resolveTrekPlatformFeePercent(trek.platformFeePercent, 3));
       const coupon = await validateAndPriceCoupon({
         couponCode,
         entityType: 'trek',
@@ -406,7 +407,7 @@ exports.createTrekOrder = async (req, res) => {
 
     // Security: ignore client-supplied baseAmount/amount — server is source of truth
     const baseTicketTotal = ticketPricePerPerson * peopleCount;
-    const platformFeePercent = Number(trek.platformFeePercent) || 3;
+    const platformFeePercent = resolveTrekPlatformFeePercent(trek.platformFeePercent, 3);
     const { platformFee, totalAmount: grossTotalAmount } = buildTrekPriceBreakdown(baseTicketTotal, platformFeePercent);
     const coupon = await validateAndPriceCoupon({
       couponCode,

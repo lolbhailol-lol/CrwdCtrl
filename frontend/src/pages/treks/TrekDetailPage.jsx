@@ -15,9 +15,18 @@ import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../utils/trekI
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { fetchTrekCommunity } from '../../services/api/public.api';
-import { trekPath } from '../../utils/slugRoutes';
+import { trekPath, toSlug } from '../../utils/slugRoutes';
 
 import { API_BASE_URL as API } from '../../services/api/client';
+
+function trekMatchesRouteParam(trek, routeParam) {
+    if (!trek || !routeParam) return false;
+    const param = String(routeParam);
+    const tid = String(trek._id || trek.id || '');
+    if (tid && tid === param) return true;
+    const nameSlug = toSlug(trek.trekName || trek.title || '');
+    return Boolean(nameSlug && nameSlug === param);
+}
 
 // ── Colorful SVG Icons (no background — work on both light & dark) ─────────────
 function InfoRow({ label, value, isDark }) {
@@ -187,10 +196,15 @@ export default function TrekDetailPage() {
         };
     };
 
-    const [trek,      setTrek]      = useState(() => seedFromNav(location.state?.trek));
+    const [trek,      setTrek]      = useState(() => {
+        const seeded = seedFromNav(location.state?.trek);
+        return trekMatchesRouteParam(seeded, id) ? seeded : null;
+    });
     const [genderRegistration, setGenderRegistration] = useState(null);
-    const [community, setCommunity] = useState(location.state?.community || null);
-    const [loading,   setLoading]   = useState(() => !location.state?.trek);
+    const [community, setCommunity] = useState(() => (
+        trekMatchesRouteParam(location.state?.trek, id) ? (location.state?.community || null) : null
+    ));
+    const [loading,   setLoading]   = useState(true);
     const [liked,     setLiked]     = useState(false);
     const [imgPg,     setImgPg]     = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -217,12 +231,28 @@ export default function TrekDetailPage() {
     }, [activeTab]);
 
     useEffect(() => {
-        // Always fetch full trek data from API so all fields are available
+        const navTrek = location.state?.trek;
+        const seedOk = trekMatchesRouteParam(navTrek, id);
+
+        // Drop previous trek immediately — avoid flashing old trek while fetching
+        setLoading(true);
+        setImgPg(0);
+        setOverviewExpanded(false);
+        setActiveTab('Details');
+        setTermsOpen(false);
+        setCarryOpen(false);
+        setGenderRegistration(null);
+        if (seedOk) {
+            setTrek(seedFromNav(navTrek));
+            setCommunity(location.state?.community || null);
+        } else {
+            setTrek(null);
+            setCommunity(null);
+        }
+
         const fetchTrek = async () => {
-            const trekId = id || location.state?.trek?.id || location.state?.trek?._id;
+            const trekId = id || navTrek?.id || navTrek?._id;
             if (!trekId) {
-                const raw = location.state?.trek;
-                if (raw) setTrek(seedFromNav(raw));
                 setLoading(false);
                 return;
             }
@@ -236,19 +266,23 @@ export default function TrekDetailPage() {
                     if (populated && typeof populated === 'object' && populated.name) {
                         setCommunity((prev) => prev || populated);
                     }
+                } else if (seedOk) {
+                    setTrek(seedFromNav(navTrek));
                 } else {
-                    const raw = location.state?.trek;
-                    if (raw) setTrek(seedFromNav(raw));
+                    setTrek(null);
                 }
             } catch {
-                const raw = location.state?.trek;
-                if (raw) setTrek(seedFromNav(raw));
+                if (seedOk) setTrek(seedFromNav(navTrek));
+                else setTrek(null);
             }
             setLoading(false);
         };
         fetchTrek();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
+
+    // Always clear to loader when switching treks (do not paint previous trek under loading=false)
+    const showPageLoader = loading || (trek && id && !trekMatchesRouteParam(trek, id));
 
     useEffect(() => {
         if (!trek?.communityId) return undefined;
@@ -277,7 +311,7 @@ export default function TrekDetailPage() {
         }
     }, [trek, id, navigate, location.state]);
 
-    if (loading && !trek) return (
+    if (showPageLoader) return (
         <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
             <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
         </div>

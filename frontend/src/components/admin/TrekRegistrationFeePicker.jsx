@@ -3,6 +3,7 @@ import {
     TREK_PLATFORM_FEE_PERCENT_OPTIONS,
     sanitizeTrekRegistrationFee,
     formatTrekPerPersonFee,
+    resolveTrekPlatformFeePercent,
 } from '../../utils/trekRegistrationFee';
 
 export default function TrekRegistrationFeePicker({
@@ -14,7 +15,7 @@ export default function TrekRegistrationFeePicker({
     inputClassName = '',
 }) {
     const fee = Number(registrationFee) || 0;
-    const platformPct = Number(platformFeePercent) || 3;
+    const platformPct = resolveTrekPlatformFeePercent(platformFeePercent, 3);
     const samplePeople = 1;
     const sampleBase = fee * samplePeople;
     const { platformFee: samplePlatform, totalAmount: sampleTotal } = buildTrekPriceBreakdown(
@@ -52,7 +53,8 @@ export default function TrekRegistrationFeePicker({
             <div>
                 <p className="text-sm font-semibold text-gray-200">Platform fee (%)</p>
                 <p className="text-[11px] text-gray-500 mt-0.5 mb-2">
-                    Extra % added on top at checkout (on total trek fee). e.g. 3% on ₹7,000 = ₹210 platform fee.
+                    Choose <span className="text-gray-300 font-medium">0%</span> for Cashfree payment with only the trek fee
+                    (no CrwdCtrl platform fee). Other values add that % on top at checkout.
                 </p>
                 <div className="flex flex-wrap gap-2">
                     {TREK_PLATFORM_FEE_PERCENT_OPTIONS.map((opt) => {
@@ -80,7 +82,11 @@ export default function TrekRegistrationFeePicker({
                 <p>
                     Trek fee: <span className="text-white font-medium">{formatTrekPerPersonFee(fee)}</span>
                     {fee > 0 ? (
-                        <span className="text-gray-500"> · Platform fee: {platformPct}%</span>
+                        <span className="text-gray-500">
+                            {' '}
+                            · Platform fee:{' '}
+                            {platformPct === 0 ? '0% (Cashfree only)' : `${platformPct}%`}
+                        </span>
                     ) : null}
                 </p>
                 {fee > 0 ? (
@@ -89,7 +95,14 @@ export default function TrekRegistrationFeePicker({
                         <span className="text-[#0ECCEE] font-medium">
                             ₹{sampleTotal.toLocaleString('en-IN')}
                         </span>
-                        {' '}(₹{sampleBase.toLocaleString('en-IN')} trek + ₹{samplePlatform} platform fee)
+                        {platformPct === 0 ? (
+                            <> (₹{sampleBase.toLocaleString('en-IN')} trek fee via Cashfree, no platform fee)</>
+                        ) : (
+                            <>
+                                {' '}
+                                (₹{sampleBase.toLocaleString('en-IN')} trek + ₹{samplePlatform} platform fee)
+                            </>
+                        )}
                     </p>
                 ) : (
                     <p>No payment at checkout — booking is free.</p>

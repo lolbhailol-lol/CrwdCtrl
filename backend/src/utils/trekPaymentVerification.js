@@ -2,6 +2,7 @@ const TrekBooking = require('../model/trek_booking_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { verifyCashfreePayment, fetchOrder } = require('../services/cashfreeService');
 const { buildTrekPriceBreakdown } = require('./platformFee');
+const { resolveTrekPlatformFeePercent } = require('./trekRegistrationFee');
 
 /**
  * Server-side payment verification for trek bookings.
@@ -29,11 +30,11 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
 
   const expectedPeople = Math.max(1, Number(people) || 1);
   const ticketPricePerPerson = Number(trek.registrationFee) || 0;
-  const platformFeePercent = Number(trek.platformFeePercent) || 3;
-  const { totalAmount: expectedTotal } = buildTrekPriceBreakdown(
-    ticketPricePerPerson * expectedPeople,
-    platformFeePercent,
-  );
+  const platformFeePercent = resolveTrekPlatformFeePercent(trek.platformFeePercent, 3);
+    const { totalAmount: expectedTotal } = buildTrekPriceBreakdown(
+      ticketPricePerPerson * expectedPeople,
+      platformFeePercent,
+    );
 
   let orderTags = {};
   try {
