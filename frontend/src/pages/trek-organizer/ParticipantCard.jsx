@@ -107,6 +107,9 @@ export default function ParticipantCard({
                             <Pill tone={pendingReview ? 'pending' : rejected ? 'pending' : paid ? 'paid' : 'free'}>
                                 {participant.paymentStatus}
                             </Pill>
+                            {participant.tierName ? (
+                                <Pill tone="paid">{participant.tierName}</Pill>
+                            ) : null}
                             {participant.participantGender && participant.participantGender !== '—' ? (
                                 <Pill tone="neutral">{participant.participantGender}</Pill>
                             ) : null}

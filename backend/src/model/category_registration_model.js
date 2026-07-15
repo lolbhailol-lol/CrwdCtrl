@@ -56,6 +56,10 @@ const categoryRegistrationSchema = new mongoose.Schema(
         bookingDate: { type: String, default: '' },
         bookingTime: { type: String, default: '' },
         bookingPeople: { type: Number, default: 1 },
+        /** Selected registration tier (when event.pricingMode === 'tiers') */
+        tierId: { type: String, default: '', trim: true },
+        tierName: { type: String, default: '', trim: true },
+        tierFee: { type: Number, default: 0 },
         /**
          * Run-club organizer-only PII encryption (AES-GCM).
          * Sensitive form/payment fields live in *Cipher; plaintext responses

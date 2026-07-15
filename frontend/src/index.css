@@ -1249,6 +1249,27 @@ body.page-content-loading .crwdctrl-footer {
     animation: couponAppliedPop 0.65s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+@keyframes tierSheetIn {
+    from {
+        opacity: 0.6;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tier-sheet-in {
+    animation: tierSheetIn 0.28s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tier-sheet-in {
+        animation: none !important;
+    }
+}
+
 .coupon-applied-check {
     animation: couponCheckIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

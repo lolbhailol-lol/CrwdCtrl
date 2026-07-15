@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader, CheckCircle, Clock, ImagePlus } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, ImagePlus, Check } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -24,6 +24,12 @@ import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { sportRunPath } from '../../utils/slugRoutes';
 import { mergeRunFormFields } from '../../utils/formFieldDedupe';
 import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
+import {
+    findSportsTier,
+    isTiersPricing,
+    resolveSportsPerPersonFee,
+    formatInr,
+} from '../../utils/sportsTiers';
 
 const API = API_BASE_URL;
 
@@ -40,8 +46,8 @@ function formatRunDate(baseDate) {
 
 const STEPS = ['Party size', 'Your Details', 'Confirm'];
 
-function getInitialUi(eventId, search) {
-    const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {} };
+function getInitialUi(eventId, search, locationState) {
+    const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {}, tierId: '' };
     if (!eventId) return defaults;
 
     let draft = {};
@@ -49,6 +55,10 @@ function getInitialUi(eventId, search) {
     if (raw) {
         try { draft = JSON.parse(raw); } catch { draft = {}; }
     }
+
+    const params = new URLSearchParams(search || '');
+    const tierFromQuery = params.get('tier') || '';
+    const tierId = tierFromQuery || locationState?.tierId || draft.tierId || '';
 
     const returnPath = `/sports/run/${eventId}/book`;
     const resuming = shouldResumePendingPayment(getPendingPayment(), returnPath, search);
@@ -58,6 +68,7 @@ function getInitialUi(eventId, search) {
             step: 3, payDone: false, paying: true,
             selDate: draft.selDate || '', selTime: draft.selTime || '',
             people: draft.people || 1, extraFields: draft.extraFields || {},
+            tierId: draft.tierId || tierId,
         };
     }
 
@@ -65,6 +76,7 @@ function getInitialUi(eventId, search) {
         step: draft.step || 1, payDone: false, paying: false,
         selDate: draft.selDate || '', selTime: draft.selTime || '',
         people: draft.people || 1, extraFields: draft.extraFields || {},
+        tierId,
     };
 }
 
@@ -72,7 +84,7 @@ export default function RunEventBookingPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const { id } = useParams();
-    const initialUi = getInitialUi(id, location.search);
+    const initialUi = getInitialUi(id, location.search, location.state);
     const { isDark } = useDarkMode();
     const {
         user,
@@ -112,6 +124,7 @@ export default function RunEventBookingPage() {
     const [selDate, setSelDate] = useState(initialUi.selDate);
     const [selTime, setSelTime] = useState(initialUi.selTime);
     const [people, setPeople] = useState(initialUi.people);
+    const [selectedTierId, setSelectedTierId] = useState(initialUi.tierId || '');
     const [extraFields, setExtraFields] = useState(initialUi.extraFields);
     const [error, setError] = useState('');
     const [paying, setPaying] = useState(initialUi.paying);
@@ -129,6 +142,7 @@ export default function RunEventBookingPage() {
     const [uploadingProof, setUploadingProof] = useState(false);
     const [upiCopied, setUpiCopied] = useState(false);
     const [showCouponField, setShowCouponField] = useState(false);
+    const [showTierIncludes, setShowTierIncludes] = useState(false);
     const retryCheckoutRef = useRef(null);
 
     const uploadPaymentScreenshot = useCallback(async (file) => {
@@ -160,7 +174,11 @@ export default function RunEventBookingPage() {
         location.state?.runClub?.name ||
         event?.clubName ||
         'The club';
-    const fee = Number(event?.registrationFee) || 0;
+    const selectedTier = event ? findSportsTier(event, selectedTierId) : null;
+    const priced = event
+        ? resolveSportsPerPersonFee(event, selectedTierId)
+        : { fee: 0, tier: null, error: null };
+    const fee = priced.fee;
     const regMode = event?.registration?.mode || 'internal_form';
     const isOrganizerQr = regMode === 'organizer_qr';
     const paymentQR = event?.registration?.paymentQR || '';
@@ -210,10 +228,18 @@ export default function RunEventBookingPage() {
     useEffect(() => {
         if (!event) return;
         const canonical = `${sportRunPath(event)}/book`;
-        if (window.location.pathname !== canonical) {
-            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        const params = new URLSearchParams(window.location.search || '');
+        const tierParam = params.get('tier') || selectedTierId || '';
+        if (isTiersPricing(event) && !findSportsTier(event, tierParam)) {
+            navigate(sportRunPath(event), { replace: true, state: { event, runClub: location.state?.runClub } });
+            return;
         }
-    }, [event, navigate, location.state]);
+        if (tierParam && tierParam !== selectedTierId) setSelectedTierId(tierParam);
+        const nextSearch = tierParam ? `?tier=${encodeURIComponent(tierParam)}` : '';
+        if (window.location.pathname !== canonical || (tierParam && !window.location.search.includes(tierParam))) {
+            navigate(`${canonical}${nextSearch}`, { replace: true, state: { ...location.state, tierId: tierParam } });
+        }
+    }, [event, navigate, location.state, selectedTierId]);
 
     useEffect(() => {
         if (!event) return;
@@ -235,6 +261,7 @@ export default function RunEventBookingPage() {
             if (draft.selDate) setSelDate(draft.selDate);
             if (draft.selTime) setSelTime(draft.selTime);
             if (draft.people) setPeople(draft.people);
+            if (draft.tierId) setSelectedTierId(draft.tierId);
             if (draft.step) setStep(draft.step);
         } catch { /* ignore corrupt draft */ }
     }, [id, event?._id, event?.id, location.search]);
@@ -261,9 +288,9 @@ export default function RunEventBookingPage() {
         const evId = id || event?._id || event?.id;
         if (!evId) return;
         sessionStorage.setItem(runDraftKey(evId), JSON.stringify({
-            extraFields, selDate, selTime, people, step, ...overrides,
+            extraFields, selDate, selTime, people, step, tierId: selectedTierId, ...overrides,
         }));
-    }, [id, event, extraFields, selDate, selTime, people, step]);
+    }, [id, event, extraFields, selDate, selTime, people, step, selectedTierId]);
 
     const baseFee = fee * people;
     const platformFee = fee > 0 && !isOrganizerQr ? calculatePlatformFee(baseFee) : 0;
@@ -343,6 +370,7 @@ export default function RunEventBookingPage() {
                     paymentScreenshotUrl: booking.paymentScreenshotUrl ?? paymentScreenshotUrl,
                     transactionId: booking.transactionId ?? transactionId,
                     couponCode: booking.couponCode ?? (couponCode.trim() || undefined),
+                    tierId: booking.tierId ?? selectedTierId ?? undefined,
                 },
             }),
         });
@@ -369,7 +397,12 @@ export default function RunEventBookingPage() {
             const res = await fetch(`${API}/payment/coupon-validate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId: event?._id || event?.id || id, people, couponCode: code }),
+                body: JSON.stringify({
+                    eventId: event?._id || event?.id || id,
+                    people,
+                    couponCode: code,
+                    tierId: selectedTierId || undefined,
+                }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.message || 'Invalid coupon');
@@ -436,6 +469,7 @@ export default function RunEventBookingPage() {
                         date: draft.selDate || selDate,
                         time: draft.selTime || selTime,
                         people: draft.people || people,
+                        tierId: draft.tierId || selectedTierId,
                     },
                 });
                 setStep(3);
@@ -531,13 +565,14 @@ export default function RunEventBookingPage() {
                         customerEmail,
                         customerPhone: extraFields.contact_no || extraFields.phone || extraFields.contact || extraFields.mobile || '',
                         couponCode: couponCode.trim() || undefined,
+                        tierId: selectedTierId || undefined,
                     }),
                 });
                 const order = await res.json();
                 if (order?.skipPayment || Number(order?.totalAmount) === 0) {
                     await submitRunRegistration({
                         amountPaid: 0,
-                        booking: { couponCode: couponCode.trim() || undefined },
+                        booking: { couponCode: couponCode.trim() || undefined, tierId: selectedTierId },
                     });
                     setStep(3);
                     setPayDone(true);
@@ -551,7 +586,7 @@ export default function RunEventBookingPage() {
                     return;
                 }
 
-                saveDraft({ step: 2, extraFields, selDate, selTime, people });
+                saveDraft({ step: 2, extraFields, selDate, selTime, people, tierId: selectedTierId });
 
                 let checkoutResult;
                 try {
@@ -714,7 +749,8 @@ export default function RunEventBookingPage() {
                             { label: 'Date', value: selDate || '—' },
                             ...(selTime ? [{ label: 'Time', value: selTime }] : []),
                             { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
-                            { label: 'Entry Fee', value: fee > 0 ? `₹${baseFee.toLocaleString('en-IN')}` : 'Free' },
+                            ...(selectedTier ? [{ label: 'Tier', value: selectedTier.name }] : []),
+                            { label: 'Entry Fee', value: fee > 0 ? formatInr(baseFee) : 'Free' },
                             ...(isPendingQr
                                 ? [{ label: 'Amount paid to club', value: `₹${payableAmount.toLocaleString('en-IN')}` }]
                                 : total > 0
@@ -855,42 +891,103 @@ export default function RunEventBookingPage() {
                     </div>
 
                     {step === 1 && (
-                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
-                            <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
-                                Run details
-                            </h3>
-                            <div className="space-y-5">
-                                <div className={`rounded-xl p-3 border ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
-                                    <p className={`text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Run date</p>
-                                    <p className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {runDateLabel || 'Date TBA'}
-                                        {runTimeLabel ? ` · ${runTimeLabel}` : ''}
-                                    </p>
-                                </div>
+                        <div className={`rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
+                            <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    Booking
+                                </p>
+                                <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {runDateLabel || 'Date TBA'}
+                                    {runTimeLabel ? ` · ${runTimeLabel}` : ''}
+                                </p>
+                            </div>
 
-                                <div className={`rounded-xl p-3 border flex items-center justify-between gap-4 ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
+                            <div className="px-4 py-3 space-y-3">
+                                {selectedTier ? (
                                     <div>
-                                        <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Number of People</p>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Tier</p>
+                                                <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {selectedTier.name}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate(sportRunPath(event), { state: { event } })}
+                                                className="text-[11px] font-semibold text-[#0ECCEE] shrink-0"
+                                            >
+                                                Change
+                                            </button>
+                                        </div>
+                                        {Array.isArray(selectedTier.inclusions) && selectedTier.inclusions.length > 0 ? (
+                                            <div className={`mt-2 rounded-xl ${isDark ? 'bg-[#0E0F10]' : 'bg-gray-50'}`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowTierIncludes((v) => !v)}
+                                                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium ${
+                                                        isDark ? 'text-gray-300' : 'text-gray-600'
+                                                    }`}
+                                                >
+                                                    <span>What’s included ({selectedTier.inclusions.length})</span>
+                                                    <ChevronDown
+                                                        size={14}
+                                                        className={`text-[#0ECCEE] transition-transform ${showTierIncludes ? 'rotate-180' : ''}`}
+                                                    />
+                                                </button>
+                                                {showTierIncludes ? (
+                                                    <ul className="px-3 pb-2.5 space-y-1.5">
+                                                        {selectedTier.inclusions.map((item, i) => (
+                                                            <li key={i} className={`flex gap-2 text-xs leading-snug ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                                <Check size={12} className="text-[#0ECCEE] shrink-0 mt-0.5" strokeWidth={3} />
+                                                                <span>{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                ) : null}
+
+                                <div className={`flex items-center justify-between gap-3 pt-1 ${selectedTier ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
+                                    <div>
+                                        <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>People</p>
                                         <div className="flex items-center">
-                                            <button type="button" onClick={() => { setCouponInfo(null); setPeople((p) => Math.max(1, p - 1)); }}
-                                                className={`w-9 h-9 rounded-l-lg flex items-center justify-center border-2 border-r-0 transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setCouponInfo(null); setPeople((p) => Math.max(1, p - 1)); }}
+                                                className={`w-8 h-8 rounded-l-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
+                                            >
                                                 <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
                                             </button>
-                                            <div className={`w-12 h-9 flex items-center justify-center border-y-2 ${isDark ? 'bg-[#111213] border-gray-600' : 'bg-white border-gray-300'}`}>
-                                                <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{people}</span>
+                                            <div className={`w-10 h-8 flex items-center justify-center border-y ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-300'}`}>
+                                                <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{people}</span>
                                             </div>
-                                            <button type="button" onClick={() => { setCouponInfo(null); setPeople((p) => Math.min(maxPeople, p + 1)); }}
-                                                className={`w-9 h-9 rounded-r-lg flex items-center justify-center border-2 border-l-0 transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setCouponInfo(null); setPeople((p) => Math.min(maxPeople, p + 1)); }}
+                                                className={`w-8 h-8 rounded-r-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
+                                            >
                                                 <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
                                             </button>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Entry Fee</p>
+                                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Total</p>
                                         {fee > 0 ? (
-                                            <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>₹{baseFee.toLocaleString('en-IN')}</p>
+                                            <>
+                                                <p className={`text-xl font-bold tabular-nums leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {formatInr(baseFee)}
+                                                </p>
+                                                {people > 1 ? (
+                                                    <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                        {formatInr(fee)} × {people}
+                                                    </p>
+                                                ) : null}
+                                            </>
                                         ) : (
-                                            <p className="text-lg font-bold text-green-500">Free</p>
+                                            <p className="text-xl font-bold text-green-500 leading-tight">Free</p>
                                         )}
                                     </div>
                                 </div>

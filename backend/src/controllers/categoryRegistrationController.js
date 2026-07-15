@@ -4,13 +4,22 @@ const SportsEvent = require('../model/sports_model');
 const Trek = require('../model/trek_model');
 const EventShow = require('../model/event_show_model');
 const { verifySportsBookingPayment } = require('../utils/sportsPaymentVerification');
-const { consumeCouponUsageForOrder, consumeCouponUsageForRegistration, validateAndPriceCoupon } = require('../utils/couponPricing');
+const {
+    consumeCouponUsageForOrder,
+    validateAndPriceCoupon,
+    reserveCouponUsage,
+} = require('../utils/couponPricing');
 const { buildPriceBreakdown } = require('../utils/platformFee');
 const { findByIdOrSlug } = require('../utils/slug');
+const { resolveSportsPerPersonFee } = require('../utils/sportsPricing');
 const {
     expireStalePendingRegistrations,
     isAllowedPaymentScreenshotUrl,
     sumSeatsHeld,
+    assertSportsCapacityAvailable,
+    assertUserPendingQrRateLimit,
+    findDuplicateTransactionId,
+    normalizeTransactionId,
     PENDING_TTL_HOURS,
 } = require('../utils/runClubRegistrationGuards');
 const {
@@ -71,7 +80,17 @@ exports.registerForEvent = async (req, res) => {
 
         const responses = { ...(req.body.responses || req.body.formData || {}) };
         const bookingDetails = req.body.bookingDetails || {};
-        const registrationFee = Number(event.registrationFee) || 0;
+        let registrationFee = Number(event.registrationFee) || 0;
+        let selectedTier = null;
+        if (category === 'sports') {
+            try {
+                const priced = resolveSportsPerPersonFee(event, bookingDetails.tierId || req.body.tierId);
+                registrationFee = priced.fee;
+                selectedTier = priced.tier;
+            } catch (tierErr) {
+                return res.status(tierErr.status || 400).json({ message: tierErr.message || 'Invalid tier' });
+            }
+        }
         const regMode = event.registration?.mode || 'internal_form';
         const isOrganizerQr = category === 'sports' && regMode === 'organizer_qr';
         const maxPeople = Math.max(1, Number(event.registration?.maxPeoplePerBooking) || 10);
@@ -83,6 +102,10 @@ exports.registerForEvent = async (req, res) => {
         responses.people = people;
         if (bookingDate) responses.date = bookingDate;
         if (bookingTime) responses.time = bookingTime;
+        if (selectedTier) {
+            responses.tierId = selectedTier.id;
+            responses.tierName = selectedTier.name;
+        }
 
         // Idempotent payment retry: the SAME payment must not create a second
         // registration, but must succeed (not 409) so a resume/double-submit
@@ -122,16 +145,16 @@ exports.registerForEvent = async (req, res) => {
             });
         }
 
-        // Capacity: pending + confirmed hold seats (people count)
+        // Capacity: confirmed seats hard-block; pending QR has its own pool cap
         const capacity = Math.max(0, Number(event.maxParticipants) || 0);
-        if (capacity > 0) {
-            const seatsHeld = await sumSeatsHeld(resolvedEventId);
-            if (seatsHeld + people > capacity) {
-                return res.status(400).json({
-                    message: seatsHeld >= capacity
-                        ? 'This run is full'
-                        : `Only ${capacity - seatsHeld} seat(s) left`,
-                });
+        // resolved after we know if this will be pending QR — preliminary confirmed check
+        {
+            const pre = await assertSportsCapacityAvailable(resolvedEventId, people, {
+                capacity,
+                forPendingQr: false,
+            });
+            if (!pre.ok) {
+                return res.status(400).json({ message: pre.message });
             }
         }
 
@@ -144,10 +167,11 @@ exports.registerForEvent = async (req, res) => {
         let paymentGateway = null;
         let regStatus = 'confirmed';
         const paymentScreenshotUrl = String(bookingDetails.paymentScreenshotUrl || '').trim();
-        const transactionId = String(bookingDetails.transactionId || '').trim();
+        const transactionId = normalizeTransactionId(bookingDetails.transactionId || '');
         let appliedCouponCode = '';
         let appliedCouponDiscount = 0;
         let appliedAmountBeforeDiscount = 0;
+        let couponReservedAt = null;
 
         if (isOrganizerQr) {
             const baseAmount = registrationFee * people;
@@ -184,11 +208,33 @@ exports.registerForEvent = async (req, res) => {
                         message: 'Invalid payment screenshot. Please upload the image again in the app.',
                     });
                 }
-                if (transactionId.trim().length < 4) {
+                if (transactionId.length < 4) {
                     return res.status(400).json({
                         message: 'Please enter your UPI / transaction ID (helps the club verify faster)',
                     });
                 }
+
+                const rate = await assertUserPendingQrRateLimit(userId);
+                if (!rate.ok) return res.status(429).json({ message: rate.message });
+
+                const dup = await findDuplicateTransactionId({
+                    eventId: resolvedEventId,
+                    transactionId,
+                });
+                if (dup) {
+                    return res.status(409).json({
+                        message: 'This UPI / transaction ID was already used for this run. Enter a unique ID from your payment app.',
+                    });
+                }
+
+                const pendingCap = await assertSportsCapacityAvailable(resolvedEventId, people, {
+                    capacity,
+                    forPendingQr: true,
+                });
+                if (!pendingCap.ok) {
+                    return res.status(400).json({ message: pendingCap.message });
+                }
+
                 paymentStatus = 'pending';
                 regStatus = 'pending';
                 paymentGateway = 'organizer_qr';
@@ -197,6 +243,14 @@ exports.registerForEvent = async (req, res) => {
                 paymentStatus = 'free';
                 regStatus = 'confirmed';
                 paymentGateway = appliedCouponCode ? 'organizer_qr' : null;
+            }
+
+            if (appliedCouponCode) {
+                const reserved = await reserveCouponUsage({ couponCode: appliedCouponCode, userId });
+                if (!reserved.ok) {
+                    return res.status(400).json({ message: reserved.message || 'Coupon could not be applied' });
+                }
+                couponReservedAt = new Date();
             }
         } else if (registrationFee > 0) {
             // Cashfree / online — full coupon can skip payment_order entirely
@@ -217,6 +271,11 @@ exports.registerForEvent = async (req, res) => {
                         appliedCouponCode = couponResult.couponCode || '';
                         appliedCouponDiscount = Number(couponResult.discountAmount) || 0;
                         appliedAmountBeforeDiscount = Number(couponResult.amountBeforeDiscount) || gross;
+                        const reserved = await reserveCouponUsage({ couponCode: appliedCouponCode, userId });
+                        if (!reserved.ok) {
+                            return res.status(400).json({ message: reserved.message || 'Coupon could not be applied' });
+                        }
+                        couponReservedAt = new Date();
                         amountPaid = 0;
                         paymentStatus = 'free';
                         regStatus = 'confirmed';
@@ -247,6 +306,31 @@ exports.registerForEvent = async (req, res) => {
             }
         }
 
+        // Reserve / consume coupon usage BEFORE persisting so a limit failure
+        // cannot leave a registration with a coupon that was never counted.
+        if (paymentOrderId) {
+            const consumed = await consumeCouponUsageForOrder({ paymentOrderId, userId });
+            if (!consumed.ok) {
+                return res.status(400).json({
+                    message: consumed.message || 'Coupon could not be applied',
+                });
+            }
+            if (appliedCouponCode && !couponReservedAt) {
+                couponReservedAt = new Date();
+            }
+        } else if (appliedCouponCode && !couponReservedAt) {
+            const reserved = await reserveCouponUsage({
+                couponCode: appliedCouponCode,
+                userId,
+            });
+            if (!reserved.ok) {
+                return res.status(400).json({
+                    message: reserved.message || 'Coupon could not be applied',
+                });
+            }
+            couponReservedAt = new Date();
+        }
+
         const runClubId = category === 'sports' && event.runClubId ? event.runClubId : null;
         let regPayload = {
             category,
@@ -258,6 +342,7 @@ exports.registerForEvent = async (req, res) => {
             couponCode: appliedCouponCode,
             couponDiscount: appliedCouponDiscount,
             amountBeforeDiscount: appliedAmountBeforeDiscount || amountPaid,
+            couponConsumedAt: couponReservedAt || null,
             payment_order_id: paymentOrderId || null,
             payment_id: paymentId || null,
             payment_gateway: paymentGateway,
@@ -266,6 +351,9 @@ exports.registerForEvent = async (req, res) => {
             bookingDate,
             bookingTime,
             bookingPeople: people,
+            tierId: selectedTier?.id || '',
+            tierName: selectedTier?.name || '',
+            tierFee: selectedTier ? registrationFee : (category === 'sports' ? registrationFee : 0),
             status: regStatus,
             runClubId: runClubId || null,
         };
@@ -290,22 +378,16 @@ exports.registerForEvent = async (req, res) => {
 
         await registration.save();
 
-        // Capacity race guard: if parallel submits overbooked, roll this one back
-        if (capacity > 0) {
-            const seatsHeld = await sumSeatsHeld(resolvedEventId);
-            if (seatsHeld > capacity) {
+        // Capacity race guard for confirmed seats only (pending soft-held separately)
+        if (capacity > 0 && regStatus === 'confirmed') {
+            const confirmedHeld = await sumSeatsHeld(resolvedEventId, { statuses: ['confirmed'] });
+            if (confirmedHeld > capacity) {
                 registration.status = 'cancelled';
                 registration.paymentStatus = registrationFee > 0 ? 'failed' : 'free';
                 registration.paymentReviewNote = 'Auto-cancelled: run became full';
                 await registration.save();
                 return res.status(400).json({ message: 'This run is full' });
             }
-        }
-
-        if (paymentOrderId) {
-            consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
-        } else if (appliedCouponCode) {
-            consumeCouponUsageForRegistration({ registration, userId }).catch(() => {});
         }
 
         const safeReg = decryptRegistrationPii(
@@ -579,14 +661,39 @@ exports.adminUpdateStatus = async (req, res) => {
             return res.status(400).json({ message: 'status must be: pending, confirmed, or cancelled' });
         }
 
-        const reg = await CategoryRegistration.findByIdAndUpdate(
-            registrationId,
-            { status },
-            { new: true }
-        );
-        if (!reg) return res.status(404).json({ message: 'Registration not found' });
+        const existing = await CategoryRegistration.findById(registrationId);
+        if (!existing) return res.status(404).json({ message: 'Registration not found' });
 
-        res.json({ message: 'Registration status updated', registration: redactRegistrationPii(reg) });
+        if (status === 'confirmed' && existing.status !== 'confirmed') {
+            if (existing.paymentStatus === 'pending') {
+                return res.status(400).json({
+                    message: 'Cannot confirm while payment is still pending. Approve the screenshot from the organizer dashboard or mark payment paid first.',
+                });
+            }
+            if (existing.category === 'sports') {
+                const event = await SportsEvent.findById(existing.eventId).select('maxParticipants').lean();
+                const capacity = Math.max(0, Number(event?.maxParticipants) || 0);
+                if (capacity > 0) {
+                    const people = Math.max(1, Number(existing.bookingPeople) || 1);
+                    const check = await assertSportsCapacityAvailable(existing.eventId, people, {
+                        excludeId: existing._id,
+                        capacity,
+                        forPendingQr: false,
+                    });
+                    if (!check.ok) {
+                        return res.status(400).json({ message: check.message });
+                    }
+                }
+            }
+        }
+
+        existing.status = status;
+        if (status === 'cancelled' && existing.paymentStatus === 'pending') {
+            existing.paymentStatus = 'failed';
+        }
+        await existing.save();
+
+        res.json({ message: 'Registration status updated', registration: redactRegistrationPii(existing) });
     } catch (error) {
         res.status(500).json({ message: 'Failed to update registration status', error: error.message });
     }

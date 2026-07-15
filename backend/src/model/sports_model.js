@@ -15,6 +15,24 @@ const sportsEventSchema = new mongoose.Schema(
         eventDate: { type: Date },
         reportingTime: { type: String, trim: true },
         registrationFee: { type: Number, default: 0 },
+        /**
+         * Pricing style:
+         * - single: use registrationFee only
+         * - tiers: custom tiers[] each with its own fee + inclusions
+         */
+        pricingMode: {
+            type: String,
+            enum: ['single', 'tiers'],
+            default: 'single',
+        },
+        tiers: [{
+            id: { type: String, trim: true, default: '' },
+            name: { type: String, trim: true, default: '' },
+            description: { type: String, trim: true, default: '' },
+            fee: { type: Number, default: 0 },
+            inclusions: { type: [String], default: [] },
+            order: { type: Number, default: 0 },
+        }],
         dressCode: { type: String, trim: true },
         participationType: {
             type: String,

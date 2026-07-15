@@ -83,7 +83,25 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                         <div className="flex flex-wrap gap-2">
                             <Badge tone={participant.paymentStatus === 'Paid' ? 'success' : 'neutral'}>{participant.paymentStatus}</Badge>
                             <Badge tone={participant.checkInStatus === 'Checked In' ? 'success' : 'warning'}>{participant.checkInStatus}</Badge>
+                            {participant.tierName ? (
+                                <Badge tone="info">{participant.tierName}</Badge>
+                            ) : null}
                         </div>
+
+                        {participant.tierName ? (
+                            <div className="rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 px-4 py-3 text-sm">
+                                <p className="text-[11px] uppercase tracking-wide text-[#0ECCEE] font-semibold mb-1">Selected tier</p>
+                                <p className="font-semibold text-white">{participant.tierName}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                    {Number(participant.tierFee) > 0
+                                        ? `₹${Number(participant.tierFee).toLocaleString('en-IN')} per person`
+                                        : 'Free tier'}
+                                    {(participant.people ?? 1) > 1
+                                        ? ` · ${participant.people} people`
+                                        : ''}
+                                </p>
+                            </div>
+                        ) : null}
 
                         <div className="rounded-xl border border-gray-800 bg-[#111213] p-4">
                             <p className="text-xs font-semibold text-[#0ECCEE] mb-3 uppercase tracking-wide">Registration form</p>

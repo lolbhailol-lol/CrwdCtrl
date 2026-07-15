@@ -8,6 +8,7 @@ import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, RUN_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
+import { createEmptyTier, sanitizeSportsTiers } from '../../utils/sportsTiers';
 
 const EMPTY = {
     title: '',
@@ -19,6 +20,8 @@ const EMPTY = {
     eventDate: '',
     reportingTime: '',
     registrationFee: 0,
+    pricingMode: 'single',
+    tiers: [],
     dressCode: '',
     participationType: 'individual',
     maxParticipants: 0,
@@ -108,6 +111,10 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 inclusions: Array.isArray(event.inclusions)
                     ? event.inclusions.join('\n')
                     : (event.inclusions || ''),
+                pricingMode: event.pricingMode === 'tiers' ? 'tiers' : 'single',
+                tiers: Array.isArray(event.tiers) && event.tiers.length
+                    ? sanitizeSportsTiers(event.tiers)
+                    : [],
                 detailBoxes: normalizeRunDetailBoxes(event.detailBoxes, event),
                 infoSections: Array.isArray(event.infoSections) ? event.infoSections : [],
                 termsAndConditions: Array.isArray(event.termsAndConditions) ? event.termsAndConditions.join('\n') : '',
@@ -159,15 +166,35 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
         }
         if (
             (form.registration?.mode || 'internal_form') === 'organizer_qr'
-            && Number(form.registrationFee) > 0
+            && (
+                form.pricingMode === 'tiers'
+                    ? Math.max(0, ...(form.tiers || []).map((t) => Number(t.fee) || 0)) > 0
+                    : Number(form.registrationFee) > 0
+            )
             && !String(form.registration?.paymentQR || '').trim()
         ) {
             setError('Upload a payment QR image for Form + QR mode when fee is greater than 0.');
             return;
         }
+        if (form.pricingMode === 'tiers') {
+            const cleaned = sanitizeSportsTiers(form.tiers);
+            if (!cleaned.length) {
+                setError('Add at least one registration tier, or switch to Normal pricing.');
+                return;
+            }
+            if (cleaned.some((t) => !String(t.name || '').trim())) {
+                setError('Each tier needs a name.');
+                return;
+            }
+        }
         setSaving(true);
         try {
             const coverImages = normalizeCoverImages(form.coverImages);
+            const pricingMode = form.pricingMode === 'tiers' ? 'tiers' : 'single';
+            const tiers = pricingMode === 'tiers' ? sanitizeSportsTiers(form.tiers) : [];
+            const registrationFee = pricingMode === 'tiers'
+                ? (tiers.length ? Math.min(...tiers.map((t) => Number(t.fee) || 0)) : 0)
+                : (Number(form.registrationFee) || 0);
             const payload = {
                 title: form.title.trim(),
                 sportType: 'run_club',
@@ -178,7 +205,9 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 city: form.city?.trim() || '',
                 eventDate: form.eventDate || null,
                 reportingTime: form.reportingTime?.trim() || '',
-                registrationFee: Number(form.registrationFee) || 0,
+                registrationFee,
+                pricingMode,
+                tiers,
                 dressCode: form.dressCode?.trim() || '',
                 participationType: form.participationType,
                 maxParticipants: Number(form.maxParticipants) || 0,
@@ -330,14 +359,156 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                     </SectionBlock>
 
                     <SectionBlock title="Registration">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Field label="Registration Fee (₹)">
-                                <input type="number" min="0" value={form.registrationFee} onChange={(e) => set('registrationFee', e.target.value)} className={inp} />
-                            </Field>
-                            <Field label="Max Participants" hint="0 = unlimited">
-                                <input type="number" min="0" value={form.maxParticipants} onChange={(e) => set('maxParticipants', e.target.value)} className={inp} />
-                            </Field>
-                        </div>
+                        <Field label="Pricing style" hint="Normal = one entry fee. Custom tiers = Register now → pick Basic / Exclusive / etc.">
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { id: 'single', label: 'Normal (single fee)' },
+                                    { id: 'tiers', label: 'Custom tiers' },
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => {
+                                            if (opt.id === 'tiers' && !(form.tiers || []).length) {
+                                                setForm((f) => ({
+                                                    ...f,
+                                                    pricingMode: 'tiers',
+                                                    tiers: [createEmptyTier(0, 'Basic')],
+                                                }));
+                                            } else {
+                                                set('pricingMode', opt.id);
+                                            }
+                                        }}
+                                        className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                                            (form.pricingMode || 'single') === opt.id
+                                                ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                                                : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </Field>
+
+                        {(form.pricingMode || 'single') === 'single' ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Field label="Registration Fee (₹)">
+                                    <input type="number" min="0" value={form.registrationFee} onChange={(e) => set('registrationFee', e.target.value)} className={inp} />
+                                </Field>
+                                <Field label="Max Participants" hint="0 = unlimited">
+                                    <input type="number" min="0" value={form.maxParticipants} onChange={(e) => set('maxParticipants', e.target.value)} className={inp} />
+                                </Field>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <Field label="Max Participants" hint="0 = unlimited — shared across all tiers">
+                                    <input type="number" min="0" value={form.maxParticipants} onChange={(e) => set('maxParticipants', e.target.value)} className={inp} />
+                                </Field>
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-xs text-gray-500">Add tiers users can choose after Register now</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => set('tiers', [...(form.tiers || []), createEmptyTier((form.tiers || []).length)])}
+                                        className="text-xs font-semibold text-[#0ECCEE] hover:underline"
+                                    >
+                                        + Add tier
+                                    </button>
+                                </div>
+                                {(form.tiers || []).map((tier, idx) => (
+                                    <div key={tier.id || idx} className="rounded-xl border border-gray-700 bg-[#1D1E20] p-3 space-y-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className="text-xs font-semibold text-gray-300">Tier {idx + 1}</p>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    disabled={idx === 0}
+                                                    onClick={() => {
+                                                        if (idx === 0) return;
+                                                        const next = [...(form.tiers || [])];
+                                                        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                                                        set('tiers', next.map((t, i) => ({ ...t, order: i })));
+                                                    }}
+                                                    className="text-[10px] text-gray-500 disabled:opacity-30"
+                                                >
+                                                    Up
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={idx >= (form.tiers || []).length - 1}
+                                                    onClick={() => {
+                                                        const next = [...(form.tiers || [])];
+                                                        if (idx >= next.length - 1) return;
+                                                        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                                                        set('tiers', next.map((t, i) => ({ ...t, order: i })));
+                                                    }}
+                                                    className="text-[10px] text-gray-500 disabled:opacity-30"
+                                                >
+                                                    Down
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => set('tiers', (form.tiers || []).filter((_, i) => i !== idx))}
+                                                    className="text-[10px] text-red-400"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            <input
+                                                type="text"
+                                                value={tier.name || ''}
+                                                onChange={(e) => {
+                                                    const next = [...(form.tiers || [])];
+                                                    next[idx] = { ...next[idx], name: e.target.value };
+                                                    set('tiers', next);
+                                                }}
+                                                className={inp}
+                                                placeholder="Name (e.g. Basic, Exclusive)"
+                                            />
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={tier.fee ?? 0}
+                                                onChange={(e) => {
+                                                    const next = [...(form.tiers || [])];
+                                                    next[idx] = { ...next[idx], fee: e.target.value };
+                                                    set('tiers', next);
+                                                }}
+                                                className={inp}
+                                                placeholder="Fee ₹"
+                                            />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={tier.description || ''}
+                                            onChange={(e) => {
+                                                const next = [...(form.tiers || [])];
+                                                next[idx] = { ...next[idx], description: e.target.value };
+                                                set('tiers', next);
+                                            }}
+                                            className={inp}
+                                            placeholder="Short description"
+                                        />
+                                        <textarea
+                                            rows={3}
+                                            value={Array.isArray(tier.inclusions) ? tier.inclusions.join('\n') : ''}
+                                            onChange={(e) => {
+                                                const next = [...(form.tiers || [])];
+                                                next[idx] = {
+                                                    ...next[idx],
+                                                    inclusions: e.target.value.split('\n'),
+                                                };
+                                                set('tiers', next);
+                                            }}
+                                            className={`${inp} resize-none`}
+                                            placeholder={'Inclusions — one per line\nT-shirt\nMedal'}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field label="Participation Type">
                                 <select value={form.participationType} onChange={(e) => set('participationType', e.target.value)} className={inp}>
@@ -388,9 +559,11 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                             <div className="space-y-4 border-t border-[#0ECCEE]/15 pt-4 mt-1">
                                 <p className="text-xs text-gray-500">
                                     Users fill the in-app form, pay the organizer via UPI QR, and upload a payment screenshot.
-                                    {Number(form.registrationFee) > 0
-                                        ? ' Paid runs stay pending until the run club organizer approves the screenshot.'
-                                        : ' Fee is ₹0 — registration confirms instantly (no screenshot required).'}
+                                    {(form.pricingMode === 'tiers'
+                                        ? Math.max(0, ...(form.tiers || []).map((t) => Number(t.fee) || 0))
+                                        : Number(form.registrationFee)) > 0
+                                        ? ' Paid tiers stay pending until the run club organizer approves the screenshot.'
+                                        : ' All fees are ₹0 — registration confirms instantly (no screenshot required).'}
                                 </p>
                                 <Field label="Organizer payment QR" hint="Upload UPI / payment QR image">
                                     <div className="flex flex-wrap gap-3 items-center">

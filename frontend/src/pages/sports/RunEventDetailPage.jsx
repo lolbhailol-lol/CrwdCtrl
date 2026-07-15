@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, ChevronRight, ChevronDown, Check } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
@@ -11,6 +11,7 @@ import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { shareContent } from '../../utils/externalLink';
 import { sportRunPath } from '../../utils/slugRoutes';
 import { normalizeRunDetailBoxes } from '../../utils/trekDetailBoxes';
+import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 
 import { API_BASE_URL as API } from '../../services/api/client';
 
@@ -61,6 +62,9 @@ export default function RunEventDetailPage() {
     const [openInfo, setOpenInfo] = useState(null);
     const [termsOpen, setTermsOpen] = useState(false);
     const [heroLoaded, setHeroLoaded] = useState(false);
+    const [tierSheetOpen, setTierSheetOpen] = useState(false);
+    const [expandedTierId, setExpandedTierId] = useState(null);
+    const [selectingTierId, setSelectingTierId] = useState(null);
     const imgRef = useRef(null);
 
     useEffect(() => {
@@ -156,7 +160,7 @@ export default function RunEventDetailPage() {
                         url: canonicalPath,
                         image: coverImg || images?.[0],
                         location: mapQuery || undefined,
-                        price: event.registrationFee != null ? event.registrationFee : undefined,
+                        price: minSportsFee(event),
                         organizerName: communityName !== 'Community Name' ? communityName : undefined,
                         availabilityUrl: `${canonicalPath}/book`,
                     }),
@@ -262,14 +266,20 @@ export default function RunEventDetailPage() {
             >
                 <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
                     <div className="min-w-0 shrink-0">
-                        <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
-                        {Number(event.registrationFee) > 0 ? (
-                            <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                ₹{Number(event.registrationFee).toLocaleString('en-IN')}
-                            </p>
-                        ) : (
-                            <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
-                        )}
+                        <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {isTiersPricing(event) ? 'From' : 'Registration Fee'}
+                        </p>
+                        {(() => {
+                            const fromFee = minSportsFee(event);
+                            if (fromFee > 0) {
+                                return (
+                                    <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        {formatInr(fromFee)}
+                                    </p>
+                                );
+                            }
+                            return <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>;
+                        })()}
                     </div>
                     {(() => {
                         const closed = event.registration?.status === 'closed';
@@ -277,6 +287,7 @@ export default function RunEventDetailPage() {
                         const extLink = event.registration?.mode === 'external_link'
                             ? event.registrationLink
                             : null;
+                        const tiers = getSportsTiers(event);
                         if (closed || full) {
                             return (
                                 <button
@@ -294,17 +305,25 @@ export default function RunEventDetailPage() {
                                         window.open(extLink, '_blank', 'noopener,noreferrer');
                                         return;
                                     }
+                                    if (tiers.length) {
+                                        setExpandedTierId(null);
+                                        setSelectingTierId(null);
+                                        setTierSheetOpen(true);
+                                        return;
+                                    }
                                     navigate(`${sportRunPath(event)}/book`, { state: { event, runClub: club } });
                                 }}
                                 className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                             >
                                 {extLink
                                     ? 'Book Now'
-                                    : Number(event.registrationFee) <= 0
-                                        ? 'Register free'
-                                        : event.registration?.mode === 'organizer_qr'
-                                            ? 'Pay via UPI'
-                                            : 'Book now'}
+                                    : tiers.length
+                                        ? 'Register now'
+                                        : Number(event.registrationFee) <= 0
+                                            ? 'Register free'
+                                            : event.registration?.mode === 'organizer_qr'
+                                                ? 'Pay via UPI'
+                                                : 'Book now'}
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="m9 18 6-6-6-6" />
                                 </svg>
@@ -312,6 +331,168 @@ export default function RunEventDetailPage() {
                         );
                     })()}
                 </div>
+
+                {tierSheetOpen && (
+                    <div className="fixed inset-0 z-[60] flex items-end justify-center">
+                        <button
+                            type="button"
+                            aria-label="Close"
+                            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+                            onClick={() => {
+                                if (selectingTierId) return;
+                                setTierSheetOpen(false);
+                                setExpandedTierId(null);
+                            }}
+                        />
+                        <div
+                            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] tier-sheet-in ${
+                                isDark ? 'bg-[#161718]' : 'bg-white'
+                            }`}
+                        >
+                            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-500/40" />
+                            <div className="flex items-start justify-between gap-3 mb-4">
+                                <div>
+                                    <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Choose a tier</h3>
+                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                        Tap a plan, expand what’s included, then continue.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={Boolean(selectingTierId)}
+                                    onClick={() => {
+                                        setTierSheetOpen(false);
+                                        setExpandedTierId(null);
+                                    }}
+                                    className={`text-xs font-medium px-2.5 py-1.5 rounded-lg ${isDark ? 'text-gray-400 hover:bg-white/5' : 'text-gray-500 hover:bg-gray-100'}`}
+                                >
+                                    Close
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                {getSportsTiers(event).map((tier) => {
+                                    const inclusions = Array.isArray(tier.inclusions) ? tier.inclusions.filter(Boolean) : [];
+                                    const expanded = expandedTierId === tier.id;
+                                    const selecting = selectingTierId === tier.id;
+                                    const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
+
+                                    return (
+                                        <div
+                                            key={tier.id}
+                                            className={`rounded-2xl border overflow-hidden transition-all duration-200 cursor-pointer ${
+                                                selecting
+                                                    ? 'border-[#0ECCEE] ring-2 ring-[#0ECCEE]/35 scale-[0.985] shadow-[0_0_0_4px_rgba(14,204,238,0.12)]'
+                                                    : isDark
+                                                        ? 'bg-[#111213] border-white/10 hover:border-[#0ECCEE]/45 active:scale-[0.99]'
+                                                        : 'bg-white border-gray-200 hover:border-[#0ECCEE]/55 shadow-sm active:scale-[0.99]'
+                                            } ${isDark && !selecting ? 'bg-[#111213]' : ''}`}
+                                        >
+                                            <button
+                                                type="button"
+                                                disabled={Boolean(selectingTierId)}
+                                                onClick={() => {
+                                                    setSelectingTierId(tier.id);
+                                                    window.setTimeout(() => {
+                                                        setTierSheetOpen(false);
+                                                        setExpandedTierId(null);
+                                                        setSelectingTierId(null);
+                                                        navigate(`${sportRunPath(event)}/book?tier=${encodeURIComponent(tier.id)}`, {
+                                                            state: { event, runClub: club, tierId: tier.id },
+                                                        });
+                                                    }, 320);
+                                                }}
+                                                className="w-full text-left p-4 cursor-pointer disabled:cursor-wait"
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <span
+                                                        className={`mt-0.5 size-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            selecting
+                                                                ? 'border-[#0ECCEE] bg-[#0ECCEE] scale-110'
+                                                                : isDark
+                                                                    ? 'border-gray-600'
+                                                                    : 'border-gray-300'
+                                                        }`}
+                                                        aria-hidden
+                                                    >
+                                                        {selecting ? <Check size={12} className="text-black" strokeWidth={3} /> : null}
+                                                    </span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <p className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                {tier.name}
+                                                            </p>
+                                                            <p className={`text-base font-bold shrink-0 tabular-nums ${
+                                                                Number(tier.fee) > 0
+                                                                    ? (isDark ? 'text-white' : 'text-gray-900')
+                                                                    : 'text-green-500'
+                                                            }`}>
+                                                                {feeLabel}
+                                                            </p>
+                                                        </div>
+                                                        {tier.description ? (
+                                                            <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                                {tier.description}
+                                                            </p>
+                                                        ) : null}
+                                                        <p className={`text-[11px] mt-2 font-medium ${selecting ? 'text-[#0ECCEE]' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                            {selecting ? 'Opening registration…' : 'Tap to select'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </button>
+
+                                            {inclusions.length > 0 ? (
+                                                <div className={`border-t ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                                                    <button
+                                                        type="button"
+                                                        disabled={Boolean(selectingTierId)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setExpandedTierId((prev) => (prev === tier.id ? null : tier.id));
+                                                        }}
+                                                        className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-xs font-semibold cursor-pointer ${
+                                                            isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-600 hover:bg-gray-50'
+                                                        }`}
+                                                    >
+                                                        <span>
+                                                            What’s included
+                                                            <span className={`ml-1.5 font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                                ({inclusions.length})
+                                                            </span>
+                                                        </span>
+                                                        <ChevronDown
+                                                            size={16}
+                                                            className={`shrink-0 text-[#0ECCEE] transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                                                        />
+                                                    </button>
+                                                    <div
+                                                        className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                                                            expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                                                        }`}
+                                                    >
+                                                        <div className="overflow-hidden">
+                                                            <ul className={`px-4 pb-3 space-y-2 ${isDark ? 'bg-[#0E0F10]/60' : 'bg-gray-50/80'}`}>
+                                                                {inclusions.map((item, i) => (
+                                                                    <li key={i} className={`flex gap-2.5 text-xs leading-snug ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                                        <span className="mt-0.5 size-4 rounded-md bg-[#0ECCEE]/15 text-[#0ECCEE] flex items-center justify-center shrink-0">
+                                                                            <Check size={10} strokeWidth={3} />
+                                                                        </span>
+                                                                        <span>{item}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>

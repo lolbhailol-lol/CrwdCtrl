@@ -5,7 +5,7 @@ const SportsEvent = require('../model/sports_model');
 const { findByIdOrSlug } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
-    sumSeatsHeld,
+    sumConfirmedSeats,
 } = require('../utils/runClubRegistrationGuards');
 
 // GET /api/sports — list published sports events
@@ -53,7 +53,7 @@ router.get('/:idOrSlug', async (req, res) => {
         await expireStalePendingRegistrations(event._id);
         const capacity = Math.max(0, Number(event.maxParticipants) || 0);
         if (capacity > 0) {
-            const seatsFilled = await sumSeatsHeld(event._id);
+            const seatsFilled = await sumConfirmedSeats(event._id);
             event.seatsFilled = seatsFilled;
             event.seatsRemaining = Math.max(0, capacity - seatsFilled);
             event.isFull = seatsFilled >= capacity;

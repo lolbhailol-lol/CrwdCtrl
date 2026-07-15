@@ -51,6 +51,9 @@ function formatParticipantRow(reg, event = null) {
     const form = booking.formData;
     const grossCollected = Number(booking.bookingDetails.amountPaid) || 0;
     const people = Number(booking.bookingDetails.people) || 1;
+    const tierName = String(reg.tierName || form.tierName || '').trim();
+    const tierId = String(reg.tierId || form.tierId || '').trim();
+    const tierFee = Number(reg.tierFee) || Number(form.tierFee) || 0;
 
     return {
         bookingId: String(reg._id),
@@ -96,8 +99,23 @@ function formatParticipantRow(reg, event = null) {
         couponCode: reg.couponCode || '',
         couponDiscount: Number(reg.couponDiscount) || 0,
         amountBeforeDiscount: Number(reg.amountBeforeDiscount) || 0,
-        // Organizer should verify against the discounted amount the runner was told to pay
+        // List price (before coupon) for organizer eyeballing screenshots
+        listAmount: (() => {
+            const before = Number(reg.amountBeforeDiscount) || 0;
+            if (before > 0) return before;
+            const perPerson = tierFee || Number(event?.registrationFee) || 0;
+            return perPerson * people;
+        })(),
+        // What the runner was told to pay (after coupon)
         expectedAmount: Number(reg.amountPaid) || 0,
+        tierName,
+        tierId,
+        tierFee,
+        tierLabel: tierName
+            ? (tierFee > 0
+                ? `${tierName} · ₹${Number(tierFee).toLocaleString('en-IN')}/person`
+                : `${tierName} · Free`)
+            : '',
     };
 }
 
@@ -120,6 +138,7 @@ function buildSheetColumns(formSchema = []) {
         { key: 'trekDate', label: 'Run Date', group: 'booking', minWidth: 118 },
         { key: 'trekTime', label: 'Time', group: 'booking', minWidth: 96 },
         { key: 'people', label: 'People', group: 'booking', minWidth: 72 },
+        { key: 'tierLabel', label: 'Tier', group: 'booking', minWidth: 140 },
         { key: 'paymentStatus', label: 'Payment', group: 'status', minWidth: 88 },
         { key: 'organizerNet', label: 'Revenue (₹)', group: 'status', minWidth: 104 },
         { key: 'checkInStatus', label: 'Check-in', group: 'status', minWidth: 100 },
@@ -143,14 +162,34 @@ function buildParticipantTimeline(reg, event = null) {
     const booking = normalizeRegistrationForFormat(reg);
     const items = [{ label: 'Registration created', at: booking.createdAt, status: 'done' }];
     const gross = Number(booking.bookingDetails.amountPaid) || 0;
+    const isQrPending =
+        booking.status === 'pending'
+        || reg.paymentStatus === 'pending'
+        || reg.payment_gateway === 'organizer_qr';
 
-    if (gross > 0) {
-        items.push({
-            label: 'Payment received',
-            at: booking.createdAt,
-            status: 'done',
-            detail: `₹${gross.toLocaleString('en-IN')}`,
-        });
+    if (gross > 0 || (reg.paymentScreenshotUrl && isQrPending)) {
+        if (isQrPending && booking.status === 'pending') {
+            items.push({
+                label: 'Proof submitted',
+                at: booking.createdAt,
+                status: 'pending',
+                detail: gross > 0 ? `₹${gross.toLocaleString('en-IN')} awaiting review` : 'Awaiting review',
+            });
+        } else if (gross > 0 && (reg.paymentStatus === 'paid' || booking.status === 'confirmed')) {
+            items.push({
+                label: 'Payment received',
+                at: reg.paymentReviewedAt || booking.createdAt,
+                status: 'done',
+                detail: `₹${gross.toLocaleString('en-IN')}`,
+            });
+        } else if (gross > 0) {
+            items.push({
+                label: 'Payment recorded',
+                at: booking.createdAt,
+                status: 'done',
+                detail: `₹${gross.toLocaleString('en-IN')}`,
+            });
+        }
     }
     if (booking.checkedIn && booking.checkedInAt) {
         items.push({ label: 'Checked in', at: booking.checkedInAt, status: 'done' });

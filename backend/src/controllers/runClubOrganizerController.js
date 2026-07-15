@@ -772,9 +772,21 @@ exports.reviewPayment = async (req, res) => {
         const runClubId = resolveEventRunClubId(event, req.organizer);
 
         if (action === 'approve') {
+            const due = Number(registration.amountPaid) || 0;
+            const proofUrl = String(registration.paymentScreenshotUrl || '').trim();
+            if (due > 0 && !proofUrl) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Cannot approve — no payment screenshot attached. Reject or ask the runner to re-register with proof.',
+                });
+            }
+
             const capacity = getEventCapacity(event);
             if (capacity > 0) {
-                const seatsHeld = await sumSeatsHeld(req.eventId, { excludeId: registration._id });
+                const seatsHeld = await sumSeatsHeld(req.eventId, {
+                    excludeId: registration._id,
+                    statuses: ['confirmed'],
+                });
                 const people = peopleFromRegistration(registration);
                 if (seatsHeld + people > capacity) {
                     return res.status(400).json({
@@ -784,7 +796,7 @@ exports.reviewPayment = async (req, res) => {
                 }
             }
             registration.status = 'confirmed';
-            registration.paymentStatus = Number(registration.amountPaid) > 0 ? 'paid' : 'free';
+            registration.paymentStatus = due > 0 ? 'paid' : 'free';
             registration.paymentReviewNote = note || 'Approved by organizer';
         } else {
             registration.status = 'cancelled';

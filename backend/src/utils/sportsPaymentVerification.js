@@ -30,10 +30,16 @@ async function verifySportsBookingPayment({ event, people, paymentOrderId, payme
   }
 
   const expectedPeople = Math.max(1, Number(people) || 1);
-  const ticketPricePerPerson = Number(event.registrationFee) || 0;
-  const { totalAmount: fullPriceTotal } = buildPriceBreakdown(ticketPricePerPerson * expectedPeople);
 
   const paymentOrder = await PaymentOrder.findOne({ orderId: paymentOrderId }).lean();
+
+  const ticketPricePerPerson = (() => {
+    if (paymentOrder?.ticketPrice != null && Number.isFinite(Number(paymentOrder.ticketPrice))) {
+      return Number(paymentOrder.ticketPrice);
+    }
+    return Number(event.registrationFee) || 0;
+  })();
+  const { totalAmount: fullPriceTotal } = buildPriceBreakdown(ticketPricePerPerson * expectedPeople);
 
   let orderTags = {};
   try {
@@ -91,6 +97,8 @@ async function verifySportsBookingPayment({ event, people, paymentOrderId, payme
       ?? orderTags.amountBeforeDiscount
       ?? expectedTotal,
     ) || expectedTotal,
+    tierId: String(paymentOrder?.orderTags?.tierId || orderTags.tierId || '').trim(),
+    tierName: String(paymentOrder?.orderTags?.tierName || orderTags.tierName || '').trim(),
   };
 }
 

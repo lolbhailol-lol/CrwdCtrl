@@ -58,12 +58,14 @@ export default function PaymentProofReviewModal({
 
     const phone = participant.phone && participant.phone !== '—' ? participant.phone : '';
     const amount = Number(participant.amountPaid || participant.grossCollected || 0);
+    const listAmount = Number(participant.listAmount || participant.amountBeforeDiscount || 0);
     const expected = Number(expectedFee ?? participant.expectedAmount ?? amount);
-    const amountMismatch = expected > 0 && amount > 0 && Math.abs(expected - amount) >= 1;
-    const hasQueue = queueTotal > 1;
+    const hasScreenshot = Boolean(String(participant.paymentScreenshotUrl || '').trim());
+    const canApprove = hasScreenshot || amount <= 0;
     const people = Number(participant.people) || 1;
     const runDate = participant.trekDate || '';
     const submittedAt = formatSubmittedAt(participant.bookingDate);
+    const hasQueue = queueTotal > 1;
 
     const handleApprove = async () => {
         setBusy(true);
@@ -147,28 +149,38 @@ export default function PaymentProofReviewModal({
                     )}
 
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className={`rounded-lg bg-[#111213] border px-3 py-2.5 ${amountMismatch ? 'border-amber-500/50' : 'border-gray-800'}`}>
-                            <p className="text-[10px] uppercase text-gray-500">Expected UPI</p>
+                        <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
+                            <p className="text-[10px] uppercase text-gray-500">Due (UPI)</p>
                             <p className="font-semibold text-[#0ECCEE] text-base">₹{expected.toLocaleString('en-IN')}</p>
                         </div>
-                        <div className={`rounded-lg bg-[#111213] border px-3 py-2.5 ${amountMismatch ? 'border-amber-500/50' : 'border-gray-800'}`}>
-                            <p className="text-[10px] uppercase text-gray-500">Recorded</p>
-                            <p className="font-semibold text-base">₹{amount.toLocaleString('en-IN')}</p>
+                        <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
+                            <p className="text-[10px] uppercase text-gray-500">List price</p>
+                            <p className="font-semibold text-base">
+                                ₹{(listAmount || expected).toLocaleString('en-IN')}
+                            </p>
                         </div>
+                        {participant.tierName ? (
+                            <div className="col-span-2 rounded-lg bg-[#111213] border border-gray-800 px-3 py-2 text-xs text-gray-300">
+                                Tier: <span className="font-semibold text-white">{participant.tierName}</span>
+                                {Number(participant.tierFee) > 0
+                                    ? ` · ₹${Number(participant.tierFee).toLocaleString('en-IN')}/person`
+                                    : ''}
+                            </div>
+                        ) : null}
                         {participant.couponCode ? (
                             <div className="col-span-2 rounded-lg bg-green-500/10 border border-green-500/30 px-3 py-2 text-xs text-green-300">
                                 Coupon `{participant.couponCode}`
                                 {Number(participant.couponDiscount) > 0
                                     ? ` · −₹${Number(participant.couponDiscount).toLocaleString('en-IN')}`
                                     : ''}
-                                {Number(participant.amountBeforeDiscount) > 0
-                                    ? ` (was ₹${Number(participant.amountBeforeDiscount).toLocaleString('en-IN')})`
+                                {listAmount > 0
+                                    ? ` (was ₹${listAmount.toLocaleString('en-IN')})`
                                     : ''}
                             </div>
                         ) : null}
-                        {amountMismatch ? (
-                            <div className="col-span-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200">
-                                Amount mismatch — expected ₹{expected.toLocaleString('en-IN')}, recorded ₹{amount.toLocaleString('en-IN')}
+                        {!hasScreenshot && amount > 0 ? (
+                            <div className="col-span-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-xs text-red-200">
+                                No screenshot — Approve is blocked. Reject or ask them to re-register with proof.
                             </div>
                         ) : null}
                         <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
@@ -227,12 +239,12 @@ export default function PaymentProofReviewModal({
                         <div className="sticky bottom-0 -mx-4 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-linear-to-t from-[#161718] via-[#161718] to-transparent space-y-2">
                             <button
                                 type="button"
-                                disabled={busy}
+                                disabled={busy || !canApprove}
                                 onClick={handleApprove}
                                 className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 min-h-[52px] rounded-xl bg-emerald-500 text-black text-base font-bold disabled:opacity-60 active:scale-[0.98]"
                             >
                                 {busy ? <Loader className="animate-spin" size={18} /> : <CheckCircle size={18} />}
-                                Approve payment
+                                {canApprove ? 'Approve payment' : 'Approve blocked — no screenshot'}
                             </button>
                             <button
                                 type="button"

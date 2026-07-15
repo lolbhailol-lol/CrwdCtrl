@@ -20,6 +20,7 @@ const { extractPaymentFields } = require('../utils/paymentVerification');
 const { signPaymentProof } = require('../utils/paymentProof');
 const { validateAndPriceCoupon } = require('../utils/couponPricing');
 const { findByIdOrSlug } = require('../utils/slug');
+const { resolveSportsPerPersonFee } = require('../utils/sportsPricing');
 const {
   extractEntityId,
   findReusablePendingOrder,
@@ -211,7 +212,13 @@ exports.validateCoupon = async (req, res) => {
         lean: true,
       });
       if (!event) return res.status(404).json({ message: 'Run not found' });
-      const baseTicketTotal = (Number(event.registrationFee) || 0) * Math.max(1, Number(people) || 1);
+      let ticketPricePerPerson;
+      try {
+        ticketPricePerPerson = resolveSportsPerPersonFee(event, req.body.tierId).fee;
+      } catch (e) {
+        return res.status(e.status || 400).json({ message: e.message || 'Invalid tier' });
+      }
+      const baseTicketTotal = ticketPricePerPerson * Math.max(1, Number(people) || 1);
       // UPI/SS (organizer_qr) has no platform fee — discount against run fee only
       const amountBeforeDiscount = event.registration?.mode === 'organizer_qr'
         ? baseTicketTotal
@@ -545,6 +552,7 @@ exports.createSportsOrder = async (req, res) => {
       customerEmail,
       customerPhone,
       couponCode,
+      tierId,
     } = req.body;
 
     if (!eventId) {
@@ -576,7 +584,15 @@ exports.createSportsOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Registration is currently closed for this run' });
     }
 
-    const ticketPricePerPerson = Number(event.registrationFee) || 0;
+    let ticketPricePerPerson;
+    let resolvedTier = null;
+    try {
+      const priced = resolveSportsPerPersonFee(event, tierId);
+      ticketPricePerPerson = priced.fee;
+      resolvedTier = priced.tier;
+    } catch (e) {
+      return res.status(e.status || 400).json({ success: false, message: e.message || 'Invalid tier' });
+    }
     if (ticketPricePerPerson <= 0) {
       return res.status(400).json({ success: false, message: 'This run does not require payment' });
     }
@@ -592,12 +608,12 @@ exports.createSportsOrder = async (req, res) => {
 
     const {
       expireStalePendingRegistrations,
-      sumSeatsHeld,
+      sumConfirmedSeats,
     } = require('../utils/runClubRegistrationGuards');
     await expireStalePendingRegistrations(event._id);
     const capacity = Math.max(0, Number(event.maxParticipants) || 0);
     if (capacity > 0) {
-      const seatsHeld = await sumSeatsHeld(event._id);
+      const seatsHeld = await sumConfirmedSeats(event._id);
       if (seatsHeld >= capacity) {
         return res.status(400).json({
           success: false,
@@ -678,6 +694,8 @@ exports.createSportsOrder = async (req, res) => {
         amountBeforeDiscount: String(coupon.amountBeforeDiscount),
         amountAfterDiscount: String(coupon.amountAfterDiscount),
         totalAmount: String(totalAmount),
+        tierId: resolvedTier?.id || '',
+        tierName: resolvedTier?.name || '',
       },
     });
 
@@ -701,6 +719,8 @@ exports.createSportsOrder = async (req, res) => {
         eventId: resolvedEventId,
         people: String(peopleCount),
         totalAmount: String(totalAmount),
+        tierId: resolvedTier?.id || '',
+        tierName: resolvedTier?.name || '',
       },
       customerEmail: email,
     });
@@ -718,6 +738,8 @@ exports.createSportsOrder = async (req, res) => {
       amountBeforeDiscount: coupon.amountBeforeDiscount,
       amountAfterDiscount: coupon.amountAfterDiscount,
       totalAmount,
+      tierId: resolvedTier?.id || '',
+      tierName: resolvedTier?.name || '',
     });
   } catch (err) {
     respondCashfreeError(res, err, 'Failed to create run payment order');

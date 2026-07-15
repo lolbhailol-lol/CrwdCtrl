@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const SportsEvent = require('../model/sports_model');
 const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
+const {
+    sanitizeSportsTiers,
+    maxTierFee,
+    mirrorRegistrationFeeFromTiers,
+} = require('../utils/sportsPricing');
 
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
@@ -77,6 +82,24 @@ function sanitizeSportsPayload(body = {}) {
     if (body.eventDate !== undefined) payload.eventDate = body.eventDate ? new Date(body.eventDate) : null;
     if (body.reportingTime !== undefined) payload.reportingTime = String(body.reportingTime || '').trim();
     if (body.registrationFee !== undefined) payload.registrationFee = Math.max(0, Number(body.registrationFee) || 0);
+    if (body.pricingMode !== undefined) {
+        payload.pricingMode = body.pricingMode === 'tiers' ? 'tiers' : 'single';
+    }
+    if (body.tiers !== undefined) {
+        payload.tiers = sanitizeSportsTiers(body.tiers);
+    }
+    if (payload.pricingMode === 'tiers' || (body.pricingMode === 'tiers' && payload.tiers)) {
+        const mode = payload.pricingMode || (body.pricingMode === 'tiers' ? 'tiers' : 'single');
+        if (mode === 'tiers') {
+            const tiers = payload.tiers !== undefined ? payload.tiers : sanitizeSportsTiers(body.tiers);
+            if (payload.tiers !== undefined || body.tiers !== undefined) {
+                payload.tiers = tiers;
+            }
+            if (payload.tiers && payload.tiers.length) {
+                payload.registrationFee = mirrorRegistrationFeeFromTiers('tiers', payload.tiers, payload.registrationFee);
+            }
+        }
+    }
     if (body.dressCode !== undefined) payload.dressCode = String(body.dressCode || '').trim();
     if (body.participationType !== undefined && PARTICIPATION_TYPES.has(body.participationType)) {
         payload.participationType = body.participationType;
@@ -246,17 +269,28 @@ function defaultSectionFlags(payload) {
 }
 
 function validateOrganizerQrPayment(payload, existing = null) {
-    const fee = Number(
-        payload.registrationFee !== undefined
-            ? payload.registrationFee
-            : existing?.registrationFee,
-    ) || 0;
+    const pricingMode = payload.pricingMode
+        || existing?.pricingMode
+        || 'single';
+    const tiers = payload.tiers !== undefined
+        ? payload.tiers
+        : (existing?.tiers || []);
+    const fee = pricingMode === 'tiers'
+        ? maxTierFee(tiers)
+        : (Number(
+            payload.registrationFee !== undefined
+                ? payload.registrationFee
+                : existing?.registrationFee,
+        ) || 0);
     const mode = payload.registration?.mode
         || existing?.registration?.mode
         || 'internal_form';
     const paymentQR = payload.registration?.paymentQR !== undefined
         ? payload.registration.paymentQR
         : existing?.registration?.paymentQR;
+    if (pricingMode === 'tiers' && (!Array.isArray(tiers) || tiers.length < 1)) {
+        return 'Add at least one registration tier when using Custom tiers';
+    }
     if (mode === 'organizer_qr' && fee > 0 && !String(paymentQR || '').trim()) {
         return 'Payment QR image is required for Form + QR mode when fee is greater than 0';
     }
