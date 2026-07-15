@@ -580,7 +580,7 @@ exports.createEvent = async (req, res) => {
             showInRunClubs: false,
             showOnSportsPage: true,
             featuredSection: 'upcoming',
-            images: body.coverImage ? [body.coverImage] : [],
+            images: [],
             registration: body.registration || {
                 status: 'open',
                 mode: 'internal_form',
@@ -630,9 +630,7 @@ exports.updateEvent = async (req, res) => {
 
         body.sportType = 'run_club';
         body.runClubId = req.organizer.runClubId;
-        if (body.coverImage !== undefined) {
-            body.images = body.coverImage ? [body.coverImage] : [];
-        }
+        // Cover/card image stays on coverImage — do not overwrite gallery images[]
         body.showOnSportsPage = true;
         if (body.showInUpcoming === undefined) body.showInUpcoming = true;
 

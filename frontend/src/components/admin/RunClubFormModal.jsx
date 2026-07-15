@@ -3,8 +3,8 @@ import { X } from 'lucide-react';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import CommunityHeroBannerField from './CommunityHeroBannerField';
-import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
-import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
+import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES, excludeCoverUrlsFromGallery } from '../../utils/coverImages';
+import { normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
 import { adminFetchJSON } from '../../utils/adminApi';
 
@@ -37,7 +37,7 @@ function pickClubFormFields(source = {}) {
         runCategories: Array.isArray(source.runCategories) ? source.runCategories : [],
         coverImage: legacyCover || primaryCoverUrl(coverImages),
         coverImages,
-        galleryImages: normalizeImageList(source.galleryImages),
+        galleryImages: excludeCoverUrlsFromGallery(source.galleryImages, coverImages, legacyCover),
         registrationLink: source.registrationLink || '',
         registration: { ...EMPTY.registration, ...(source.registration || {}) },
         contactPhone: source.contactPhone || '',
@@ -101,12 +101,14 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
             const path = club ? `/admin/run-clubs/${club._id}` : '/admin/run-clubs';
             const fields = pickClubFormFields(form);
             const coverImages = normalizeCoverImages(fields.coverImages);
+            const coverImage = primaryCoverUrl(coverImages, fields.coverImage);
             const data = await adminFetchJSON(path, {
                 method: club ? 'PUT' : 'POST',
                 body: JSON.stringify({
                     ...fields,
                     coverImages,
-                    coverImage: primaryCoverUrl(coverImages, fields.coverImage),
+                    coverImage,
+                    galleryImages: excludeCoverUrlsFromGallery(fields.galleryImages, coverImages, coverImage),
                     ...(club ? {} : { showOnSportsPage: true, showInRunClubs: true }),
                 }),
             });

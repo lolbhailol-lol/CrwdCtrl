@@ -19,7 +19,7 @@ import {
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 import { formatTrekCardDate } from '../../utils/trekDateDisplay';
-import { communityPath, trekPath } from '../../utils/slugRoutes';
+import { communityPath, trekPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import ContentImage from '../../components/ContentImage';
 
 const GALLERY_PREVIEW_COUNT = 4;
@@ -65,7 +65,7 @@ const normalizeCommunity = (raw) => {
     const galleryImages = normalizeImageList(raw.galleryImages);
     return {
         id: raw.id || raw._id,
-        title: raw.title || raw.name || 'Community Name',
+        title: raw.title || raw.name || '',
         subtitle: raw.subtitle || raw.basedIn || '',
         coverImage,
         coverImages: raw.coverImages || null,
@@ -189,7 +189,8 @@ export default function CommunityDetailPage() {
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
 
-    const [community, setCommunity] = useState(() => normalizeCommunity(location.state?.community || null));
+    const [community, setCommunity] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [treks, setTreks] = useState([]);
     const [loadingTreks, setLoadingTreks] = useState(true);
     const [activeCategory, setActiveCategory] = useState(null);
@@ -207,12 +208,36 @@ export default function CommunityDetailPage() {
     }, [community]);
 
     useEffect(() => {
-        if (!id) return;
+        if (!id) {
+            setCommunity(null);
+            setLoading(false);
+            return undefined;
+        }
+
+        const seeded = normalizeCommunity(location.state?.community || null);
+        const ok = entityMatchesRouteParam(seeded, id, ['name', 'title']);
+        // Never paint another entity or demo shells — wait for this route's API payload
+        setCommunity(null);
+        setTreks([]);
+        setLoading(true);
+
         const controller = new AbortController();
         fetchTrekCommunity(id, controller.signal)
-            .then(data => { if (data.community) setCommunity(normalizeCommunity(data.community)); })
-            .catch(() => {});
+            .then((data) => {
+                if (data.community) setCommunity(normalizeCommunity(data.community));
+                else if (ok) setCommunity(seeded);
+                else setCommunity(null);
+            })
+            .catch(() => {
+                if (ok) setCommunity(seeded);
+                else setCommunity(null);
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
         return () => controller.abort();
+        // Only re-run when the route id changes; nav state is read once for seeding
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     useEffect(() => {
@@ -224,7 +249,7 @@ export default function CommunityDetailPage() {
     }, [community, id, navigate, location.state]);
 
     useEffect(() => {
-        if (!communityId) return;
+        if (!communityId || loading) return;
         const controller = new AbortController();
         setLoadingTreks(true);
         fetchTreksByCommunity(communityId, controller.signal)
@@ -246,7 +271,7 @@ export default function CommunityDetailPage() {
             .catch(() => setTreks([]))
             .finally(() => setLoadingTreks(false));
         return () => controller.abort();
-    }, [communityId]);
+    }, [communityId, loading]);
 
     useEffect(() => {
         if (!categoryOptions.length) {
@@ -258,19 +283,38 @@ export default function CommunityDetailPage() {
         }
     }, [categoryOptions, activeCategory]);
 
-    const name    = community?.title    || 'Community Name';
-    const basedIn = community?.subtitle || 'Based In';
-    const image   = community?.image    || null;
+    const galleryImages = useMemo(() => buildGalleryImages(community), [community]);
+    const showPageLoader = loading || (community && id && !entityMatchesRouteParam(community, id, ['name', 'title']));
 
-    const description = community?.aboutUs?.trim()
-        || 'Trek Community is a platform designed for travel enthusiasts to connect, share experiences, and inspire each other.';
+    if (showPageLoader) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
+                <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
+            </div>
+        );
+    }
+
+    if (!community) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
+                <p className="text-gray-500 text-sm text-center">Community not found</p>
+                <button type="button" onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">
+                    ← Go back
+                </button>
+            </div>
+        );
+    }
+
+    const name    = community.title || community.name || '';
+    const basedIn = community.subtitle || '';
+    const image   = community.image || null;
+
+    const description = community.aboutUs?.trim() || '';
     const shortDesc = description.slice(0, 130);
 
     const filteredTreks = activeCategory
         ? treks.filter(trek => trek.trekCategory === activeCategory)
         : treks;
-
-    const galleryImages = useMemo(() => buildGalleryImages(community), [community]);
 
     const openGallery = (index = 0) => {
         setGalleryIndex(index);

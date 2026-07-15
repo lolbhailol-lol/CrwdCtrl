@@ -25,7 +25,7 @@ import {
     fetchRunClub,
     fetchSportsByRunClub,
 } from '../../services/api/public.api';
-import { runClubPath, sportRunPath } from '../../utils/slugRoutes';
+import { runClubPath, sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
@@ -80,8 +80,8 @@ const normalizeRunClub = (raw) => {
     const galleryImages = normalizeImageList(raw.galleryImages);
     return {
         id: raw.id || raw._id,
-        title: raw.title || raw.name || 'Run Club Name',
-        subtitle: raw.subtitle || raw.basedIn || 'Based In',
+        title: raw.title || raw.name || '',
+        subtitle: raw.subtitle || raw.basedIn || '',
         coverImage,
         coverImages: raw.coverImages || null,
         image: normalizeImageUrl(raw.image) || coverImage || galleryImages[0] || null,
@@ -198,7 +198,8 @@ export default function RunClubDetailPage() {
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
 
-    const [club, setClub] = useState(() => normalizeRunClub(location.state?.club || null));
+    const [club, setClub] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [runs, setRuns] = useState([]);
     const [loadingRuns, setLoadingRuns] = useState(true);
     const [runsError, setRunsError] = useState('');
@@ -230,14 +231,34 @@ export default function RunClubDetailPage() {
     }, [firstHeroSrc]);
 
     useEffect(() => {
-        if (!id) return;
+        if (!id) {
+            setClub(null);
+            setLoading(false);
+            return undefined;
+        }
+
+        const seeded = normalizeRunClub(location.state?.club || null);
+        const ok = entityMatchesRouteParam(seeded, id, ['name', 'title']);
+        setClub(null);
+        setRuns([]);
+        setLoading(true);
+
         const controller = new AbortController();
         fetchRunClub(id, controller.signal)
             .then((data) => {
                 if (data.club) setClub(normalizeRunClub(data.club));
+                else if (ok) setClub(seeded);
+                else setClub(null);
             })
-            .catch(() => {});
+            .catch(() => {
+                if (ok) setClub(seeded);
+                else setClub(null);
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
         return () => controller.abort();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     useEffect(() => {
@@ -249,7 +270,7 @@ export default function RunClubDetailPage() {
     }, [club, id, navigate, location.state]);
 
     useEffect(() => {
-        if (!clubId) return;
+        if (!clubId || loading) return;
         const controller = new AbortController();
         setLoadingRuns(true);
         setRunsError('');
@@ -282,7 +303,7 @@ export default function RunClubDetailPage() {
                 if (!controller.signal.aborted) setLoadingRuns(false);
             });
         return () => controller.abort();
-    }, [clubId]);
+    }, [clubId, loading]);
 
     useEffect(() => {
         if (!categoryOptions.length) {
@@ -294,12 +315,11 @@ export default function RunClubDetailPage() {
         }
     }, [categoryOptions, activeCategory]);
 
-    const name = club?.title || 'Run Club Name';
-    const basedIn = club?.subtitle || 'Based In';
+    const showPageLoader = loading || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
 
-    const description =
-        club?.aboutUs?.trim() ||
-        'Run Club is a platform designed for fitness enthusiasts to connect, share experiences, and inspire each other.';
+    const name = club?.title || '';
+    const basedIn = club?.subtitle || '';
+    const description = club?.aboutUs?.trim() || '';
     const paragraphs = useMemo(() => buildReadableParagraphs(description), [description]);
     const previewParagraphs = paragraphs.slice(0, 2);
     const hasMoreText = paragraphs.length > 2;
@@ -307,6 +327,25 @@ export default function RunClubDetailPage() {
     const filteredRuns = !activeCategory || activeCategory === 'all'
         ? runs
         : runs.filter((run) => run.runCategory === activeCategory);
+
+    if (showPageLoader) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
+                <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
+            </div>
+        );
+    }
+
+    if (!club) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
+                <p className="text-gray-500 text-sm text-center">Run club not found</p>
+                <button type="button" onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">
+                    ← Go back
+                </button>
+            </div>
+        );
+    }
 
     const openGallery = (index = 0) => {
         setGalleryIndex(index);

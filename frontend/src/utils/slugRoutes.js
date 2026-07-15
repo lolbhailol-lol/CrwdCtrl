@@ -37,6 +37,22 @@ function pickId(entity = {}) {
     return entity.id || entity._id || '';
 }
 
+/**
+ * True when entity id or name-slug matches the route :idOrSlug param.
+ * Prevents flashing the previous (or demo) entity while a new one loads.
+ */
+export function entityMatchesRouteParam(entity, routeParam, nameKeys = ['name', 'title']) {
+    if (!entity || !routeParam) return false;
+    const param = String(routeParam);
+    const eid = String(pickId(entity) || '');
+    if (eid && eid === param) return true;
+    for (const key of nameKeys) {
+        const slug = toSlug(entity[key] || '');
+        if (slug && slug === param) return true;
+    }
+    return false;
+}
+
 export function festPath(fest = {}) {
     const id = pickId(fest);
     const slug = toSlug(fest.festName || fest.title || '');

@@ -28,4 +28,28 @@ function primaryCoverUrl(coverImages = {}, fallback = '') {
     return normalizeUrl(fallback);
 }
 
-module.exports = { COVER_KEYS, sanitizeCoverImages, primaryCoverUrl, normalizeUrl };
+function collectCoverUrls(coverImages = {}, legacyCover = '') {
+    const covers = sanitizeCoverImages(coverImages);
+    const urls = new Set();
+    Object.values(covers).forEach((url) => {
+        if (url) urls.add(url);
+    });
+    const legacy = normalizeUrl(legacyCover);
+    if (legacy) urls.add(legacy);
+    return urls;
+}
+
+function excludeCoverUrlsFromGallery(images, coverImages = {}, legacyCover = '') {
+    const covers = collectCoverUrls(coverImages, legacyCover);
+    if (!Array.isArray(images)) return [];
+    return images.map(normalizeUrl).filter((url) => url && !covers.has(url));
+}
+
+module.exports = {
+    COVER_KEYS,
+    sanitizeCoverImages,
+    primaryCoverUrl,
+    normalizeUrl,
+    collectCoverUrls,
+    excludeCoverUrlsFromGallery,
+};

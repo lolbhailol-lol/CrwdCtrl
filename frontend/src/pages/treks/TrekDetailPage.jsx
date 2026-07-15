@@ -246,14 +246,9 @@ export default function TrekDetailPage() {
         };
     };
 
-    const [trek,      setTrek]      = useState(() => {
-        const seeded = seedFromNav(location.state?.trek);
-        return trekMatchesRouteParam(seeded, id) ? seeded : null;
-    });
+    const [trek,      setTrek]      = useState(null);
     const [genderRegistration, setGenderRegistration] = useState(null);
-    const [community, setCommunity] = useState(() => (
-        trekMatchesRouteParam(location.state?.trek, id) ? (location.state?.community || null) : null
-    ));
+    const [community, setCommunity] = useState(null);
     const [loading,   setLoading]   = useState(true);
     const [liked,     setLiked]     = useState(false);
     const [imgPg,     setImgPg]     = useState(0);
@@ -286,21 +281,16 @@ export default function TrekDetailPage() {
         const navTrek = location.state?.trek;
         const seedOk = trekMatchesRouteParam(navTrek, id);
 
-        // Drop previous trek immediately — avoid flashing old trek while fetching
+        // Drop previous trek immediately — avoid flashing old trek / partial seed while fetching
         setLoading(true);
+        setTrek(null);
+        setCommunity(null);
         setImgPg(0);
         setOverviewExpanded(false);
         setActiveTab('Details');
         setTermsOpen(false);
         setCarryOpen(false);
         setGenderRegistration(null);
-        if (seedOk) {
-            setTrek(seedFromNav(navTrek));
-            setCommunity(location.state?.community || null);
-        } else {
-            setTrek(null);
-            setCommunity(null);
-        }
 
         const fetchTrek = async () => {
             const trekId = id || navTrek?.id || navTrek?._id;
@@ -316,16 +306,21 @@ export default function TrekDetailPage() {
                     setGenderRegistration(d.genderRegistration || null);
                     const populated = d.trek.communityId;
                     if (populated && typeof populated === 'object' && populated.name) {
-                        setCommunity((prev) => prev || populated);
+                        setCommunity(populated);
                     }
                 } else if (seedOk) {
                     setTrek(seedFromNav(navTrek));
+                    setCommunity(location.state?.community || null);
                 } else {
                     setTrek(null);
                 }
             } catch {
-                if (seedOk) setTrek(seedFromNav(navTrek));
-                else setTrek(null);
+                if (seedOk) {
+                    setTrek(seedFromNav(navTrek));
+                    setCommunity(location.state?.community || null);
+                } else {
+                    setTrek(null);
+                }
             }
             setLoading(false);
         };
@@ -583,7 +578,7 @@ export default function TrekDetailPage() {
                 {/* Trek name + community */}
                 <ScrollReveal className="px-4 pt-5 pb-3">
                     <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {trek.trekName || trek.title || trek.name || 'Trek Name'}
+                        {trek.trekName || trek.title || trek.name || ''}
                     </h1>
                     {communityName ? (
                         <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>

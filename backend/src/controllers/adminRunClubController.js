@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const RunClub = require('../model/run_club_model');
 const SportsEvent = require('../model/sports_model');
 
-const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
+const { sanitizeCoverImages, primaryCoverUrl, excludeCoverUrlsFromGallery } = require('../utils/sanitizeCoverImages');
 
 const dbOk = () => mongoose.connection.readyState === 1;
 
@@ -12,11 +12,6 @@ function normalizeImageUrl(value) {
     if (typeof value === 'object' && value.url) return String(value.url).trim();
     if (typeof value === 'object' && value.secure_url) return String(value.secure_url).trim();
     return '';
-}
-
-function normalizeImageList(images) {
-    if (!Array.isArray(images)) return [];
-    return images.map(normalizeImageUrl).filter(Boolean);
 }
 
 function sanitizeRunClubBody(body = {}) {
@@ -36,7 +31,13 @@ function sanitizeRunClubBody(body = {}) {
     } else if (body.coverImage !== undefined) {
         payload.coverImage = normalizeImageUrl(body.coverImage);
     }
-    if (body.galleryImages !== undefined) payload.galleryImages = normalizeImageList(body.galleryImages);
+    if (body.galleryImages !== undefined) {
+        const covers = payload.coverImages || sanitizeCoverImages(body.coverImages);
+        const legacyCover = payload.coverImage !== undefined
+            ? payload.coverImage
+            : normalizeImageUrl(body.coverImage);
+        payload.galleryImages = excludeCoverUrlsFromGallery(body.galleryImages, covers, legacyCover);
+    }
     if (body.registrationLink !== undefined) payload.registrationLink = String(body.registrationLink || '').trim();
     if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
         payload.registration = {

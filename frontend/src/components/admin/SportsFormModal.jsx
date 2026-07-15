@@ -3,8 +3,8 @@ import { X } from 'lucide-react';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import TrekDetailBoxesEditor from './TrekDetailBoxesEditor';
-import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
-import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
+import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES, excludeCoverUrlsFromGallery } from '../../utils/coverImages';
+import { normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
 import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
 import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, RUN_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
@@ -91,9 +91,9 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
     useEffect(() => {
         if (event) {
             const coverImages = normalizeCoverImages(event.coverImages);
-            const legacyCover = normalizeImageUrl(event.coverImage) || normalizeImageList(event.images)[0] || '';
+            const legacyCover = normalizeImageUrl(event.coverImage) || '';
             if (!coverImages.portrait && legacyCover) coverImages.portrait = legacyCover;
-            const galleryOnly = normalizeImageList(event.images).filter((url) => url !== legacyCover);
+            const galleryOnly = excludeCoverUrlsFromGallery(event.images, coverImages, legacyCover);
             setForm({
                 ...EMPTY,
                 ...event,
@@ -216,7 +216,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 routeMap: form.routeMap?.trim() || '',
                 coverImages,
                 coverImage: primaryCoverUrl(coverImages, form.coverImage),
-                images: normalizeImageList(form.images),
+                images: excludeCoverUrlsFromGallery(form.images, coverImages, form.coverImage),
                 sponsors: form.sponsors ? form.sponsors.split(',').map((s) => s.trim()).filter(Boolean) : [],
                 registrationLink: form.registrationLink?.trim() || '',
                 registration: {

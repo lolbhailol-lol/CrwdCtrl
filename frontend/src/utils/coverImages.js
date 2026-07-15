@@ -1,5 +1,5 @@
 import { getImageUrl } from './imageImports';
-import { normalizeImageUrl } from './uploadUrls';
+import { normalizeImageList, normalizeImageUrl } from './uploadUrls';
 
 /** Admin slots + preset mapping for public pages */
 export const COVER_IMAGE_SLOTS = [
@@ -48,6 +48,31 @@ export function primaryCoverUrl(coverImages = {}, fallback = '') {
         if (coverImages[key]) return coverImages[key];
     }
     return normalizeImageUrl(fallback);
+}
+
+/** All non-empty cover slot + legacy coverImage URLs for an entity. */
+export function collectCoverUrls(entityOrCovers = {}, legacyCover = '') {
+    const covers = normalizeCoverImages(
+        entityOrCovers?.coverImages !== undefined ? entityOrCovers.coverImages : entityOrCovers,
+    );
+    const urls = new Set();
+    Object.values(covers).forEach((url) => {
+        if (url) urls.add(url);
+    });
+    const legacy = normalizeImageUrl(
+        legacyCover
+        || entityOrCovers?.coverImage
+        || entityOrCovers?.image
+        || '',
+    );
+    if (legacy) urls.add(legacy);
+    return urls;
+}
+
+/** Gallery / images[] with any cover or card URLs removed. */
+export function excludeCoverUrlsFromGallery(images, entityOrCovers = {}, legacyCover = '') {
+    const covers = collectCoverUrls(entityOrCovers, legacyCover);
+    return normalizeImageList(images).filter((url) => !covers.has(url));
 }
 
 /** Raw URL for a layout — falls back to coverImage / image */

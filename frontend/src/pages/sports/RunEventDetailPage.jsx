@@ -9,7 +9,7 @@ import LazyMap from '../../components/LazyMap';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { shareContent } from '../../utils/externalLink';
-import { sportRunPath } from '../../utils/slugRoutes';
+import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { normalizeRunDetailBoxes } from '../../utils/trekDetailBoxes';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 
@@ -21,6 +21,11 @@ const SKILL_LABELS = {
     intermediate: 'Moderate',
     advanced: 'Advanced',
 };
+
+function seedEventFromNav(navEvent) {
+    if (!navEvent) return null;
+    return navEvent;
+}
 
 const ClockIcon = ({ size = 20 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -53,8 +58,8 @@ export default function RunEventDetailPage() {
     const { id } = useParams();
     const { isDark } = useDarkMode();
 
-    const [event, setEvent] = useState(location.state?.event || null);
-    const [loading, setLoading] = useState(() => !(location.state?.event));
+    const [event, setEvent] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [liked, setLiked] = useState(false);
     const [imgPg, setImgPg] = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -70,21 +75,41 @@ export default function RunEventDetailPage() {
     useEffect(() => {
         const eventId = id || location.state?.event?._id || location.state?.event?.id;
         if (!eventId) {
+            setEvent(null);
             setLoading(false);
-            return;
+            return undefined;
         }
-        // Keep showing seeded event while refreshing — no full-page spinner flash
-        if (!location.state?.event) setLoading(true);
+
+        const seeded = seedEventFromNav(location.state?.event);
+        const ok = entityMatchesRouteParam(seeded, id, ['title', 'name']);
+        setEvent(null);
+        setLoading(true);
+
+        setImgPg(0);
+        setOverviewExpanded(false);
+        setActiveRunTab('Details');
+        setOpenInfo(null);
+        setTermsOpen(false);
+        setTierSheetOpen(false);
+
         const controller = new AbortController();
         fetch(`${API}/sports/${eventId}`, { signal: controller.signal })
             .then((r) => r.json())
             .then((d) => {
                 if (d.event) setEvent(d.event);
+                else if (ok) setEvent(seeded);
+                else setEvent(null);
             })
-            .catch(() => {})
-            .finally(() => setLoading(false));
+            .catch(() => {
+                if (ok) setEvent(seeded);
+                else setEvent(null);
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
         return () => controller.abort();
-    }, [id, location.state?.event]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
     useEffect(() => {
         if (!event || !id) return;
@@ -94,7 +119,9 @@ export default function RunEventDetailPage() {
         }
     }, [event, id, navigate, location.state]);
 
-    if (loading && !event) {
+    const showPageLoader = loading || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
+
+    if (showPageLoader) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
                 <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
@@ -114,11 +141,17 @@ export default function RunEventDetailPage() {
     }
 
     const club = event.runClub || null;
-    const coverImg = event.coverImage || null;
-    const rawImages = event.images?.filter(Boolean) || [];
-    const allImages = coverImg ? [coverImg, ...rawImages.filter((u) => u !== coverImg)] : rawImages;
-    const images = allImages.length ? allImages : [null];
-    const communityName = club?.name || event.organizer || 'Community Name';
+    const coverImg = event.coverImage || event.coverImages?.hero || event.coverImages?.portrait || null;
+    // Gallery uploads only — strip any card/cover URLs that leaked into images[]
+    const coverSlots = event.coverImages || {};
+    const coverSet = new Set(
+        [coverImg, coverSlots.portrait, coverSlots.wide, coverSlots.hero, coverSlots.square, coverSlots.landscape, coverSlots.video]
+            .filter(Boolean),
+    );
+    const galleryImages = (event.images || []).filter((u) => u && !coverSet.has(u));
+    // Top slider = gallery uploads only (cover/card stays out). Fall back to cover if no gallery yet.
+    const images = galleryImages.length ? galleryImages : (coverImg ? [coverImg] : [null]);
+    const communityName = club?.name || event.organizer || '';
     const mapQuery = event.venue || event.city || club?.basedIn || '';
     const mapUrl = String(event.routeMap || '').trim();
     const desc =
@@ -161,7 +194,7 @@ export default function RunEventDetailPage() {
                         image: coverImg || images?.[0],
                         location: mapQuery || undefined,
                         price: minSportsFee(event),
-                        organizerName: communityName !== 'Community Name' ? communityName : undefined,
+                        organizerName: communityName || undefined,
                         availabilityUrl: `${canonicalPath}/book`,
                     }),
                 ]}

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const SportsEvent = require('../model/sports_model');
-const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
+const { sanitizeCoverImages, primaryCoverUrl, excludeCoverUrlsFromGallery } = require('../utils/sanitizeCoverImages');
 const {
     sanitizeSportsTiers,
     maxTierFee,
@@ -115,6 +115,21 @@ function sanitizeSportsPayload(body = {}) {
     } else if (body.coverImage !== undefined) {
         payload.coverImage = normalizeImageUrl(body.coverImage);
     }
+    if (body.images !== undefined) {
+        const covers = payload.coverImages !== undefined
+            ? payload.coverImages
+            : (body.coverImages !== undefined ? sanitizeCoverImages(body.coverImages) : null);
+        const legacyCover = payload.coverImage !== undefined
+            ? payload.coverImage
+            : normalizeImageUrl(body.coverImage);
+        // Prefer stripping against covers from this payload; if covers weren't sent, still
+        // strip against body.coverImages / coverImage when present.
+        payload.images = excludeCoverUrlsFromGallery(
+            body.images,
+            covers || sanitizeCoverImages(body.coverImages),
+            legacyCover,
+        );
+    }
     if (body.inclusions !== undefined) {
         payload.inclusions = Array.isArray(body.inclusions)
             ? body.inclusions.map((s) => String(s).trim()).filter(Boolean)
@@ -152,9 +167,6 @@ function sanitizeSportsPayload(body = {}) {
     }
     if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
     if (body.contactInstagram !== undefined) payload.contactInstagram = String(body.contactInstagram || '').trim();
-    if (body.images !== undefined) {
-        payload.images = normalizeImageList(body.images);
-    }
     if (body.sponsors !== undefined) {
         payload.sponsors = Array.isArray(body.sponsors)
             ? body.sponsors.map((s) => String(s).trim()).filter(Boolean)
