@@ -355,13 +355,18 @@ exports.appSession = async (req, res) => {
             });
         }
 
-        const organizers = await RunClubOrganizerAccount.find({ email }).sort({ updatedAt: -1 });
+        const organizers = await RunClubOrganizerAccount.find({
+            $or: [
+                { email },
+                { email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            ],
+        }).sort({ updatedAt: -1 });
         const organizer = organizers.find((org) => RunClubOrganizerAccount.canLogin(org));
         if (!organizer) {
             return res.status(403).json({
                 success: false,
                 code: 'no_organizer_account',
-                message: 'No approved club manager account for this email. Use your organizer username and password.',
+                message: 'No approved club manager account for this email. Create one or sign in with your organizer username and password.',
             });
         }
 

@@ -37,7 +37,11 @@ export default function RunClubOrganizerLoginPage() {
                     navigate(resolvePostLoginPath(session.events, location.state?.from), { replace: true });
                     return;
                 }
-            } catch {
+            } catch (err) {
+                if (!cancelled && err?.code === 'no_organizer_account') {
+                    navigate('/run-club-organizer/signup', { replace: true });
+                    return;
+                }
                 /* fall through to manual login */
             }
             if (!cancelled) setBooting(false);

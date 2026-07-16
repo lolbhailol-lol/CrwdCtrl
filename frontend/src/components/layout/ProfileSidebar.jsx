@@ -118,10 +118,19 @@ export default function ProfileSidebar({
 
     const handleMenuItemClick = async (label) => {
         if (label === 'Club manager') {
-            const booted = await tryRunClubOrganizerAppSession(token);
-            const path = booted?.token ? '/run-club-organizer' : '/run-club-organizer/login';
-            prepareRouteNavigation(path);
-            navigate(path);
+            try {
+                const booted = await tryRunClubOrganizerAppSession(token);
+                const path = booted?.token ? '/run-club-organizer' : '/run-club-organizer/login';
+                prepareRouteNavigation(path);
+                navigate(path);
+            } catch (err) {
+                // Profile-email invite without organizer account → signup, not a failed login loop
+                const path = err?.code === 'no_organizer_account'
+                    ? '/run-club-organizer/signup'
+                    : '/run-club-organizer/login';
+                prepareRouteNavigation(path);
+                navigate(path);
+            }
             onClose();
             return;
         }

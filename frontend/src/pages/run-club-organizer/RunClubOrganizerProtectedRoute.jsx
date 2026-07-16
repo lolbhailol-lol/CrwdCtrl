@@ -22,8 +22,14 @@ export default function RunClubOrganizerProtectedRoute({ children }) {
             }
             if (token) clearRunClubOrganizerSession();
 
-            const booted = await tryRunClubOrganizerAppSession();
-            if (!cancelled) setStatus(booted ? 'authed' : 'guest');
+            const booted = await tryRunClubOrganizerAppSession().catch((err) => {
+                if (err?.code === 'no_organizer_account') return { needsSignup: true };
+                return null;
+            });
+            if (!cancelled) {
+                if (booted?.needsSignup) setStatus('signup');
+                else setStatus(booted ? 'authed' : 'guest');
+            }
         })();
 
         return () => { cancelled = true; };
@@ -39,6 +45,10 @@ export default function RunClubOrganizerProtectedRoute({ children }) {
 
     if (status === 'guest') {
         return <Navigate to="/run-club-organizer/login" replace state={{ from: location.pathname }} />;
+    }
+
+    if (status === 'signup') {
+        return <Navigate to="/run-club-organizer/signup" replace state={{ from: location.pathname }} />;
     }
 
     return children;

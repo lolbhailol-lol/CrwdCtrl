@@ -133,21 +133,34 @@ class ApiClient {
 
                 // Handle API errors
                 if (error instanceof ApiError) {
-                    // Don't retry on client errors (4xx) except for specific cases
-                    if (error.status >= 400 && error.status < 500 && 
+                    // Don't retry most client errors (4xx)
+                    if (error.status >= 400 && error.status < 500 &&
                         error.status !== 408 && error.status !== 429) {
                         throw error;
                     }
-                    
-                    // Retry on server errors (5xx) and specific client errors
-                    if (attempt < maxRetries && 
-                        (error.status >= 500 || error.status === 408 || error.status === 429)) {
+
+                    // 429: retry at most once after a longer wait — hammering the limiter
+                    // made site-wide outages worse (see production logs).
+                    if (error.status === 429) {
+                        if (attempt === 0 && maxRetries > 0) {
+                            const retryAfterSec = Number(error.data?.retryAfter) || 8;
+                            const delay = Math.min(Math.max(retryAfterSec, 5) * 1000, 20000);
+                            console.log(`⏳ Rate limited — waiting ${delay}ms before one retry`);
+                            await new Promise((resolve) => setTimeout(resolve, delay));
+                            continue;
+                        }
+                        throw error;
+                    }
+
+                    // Retry on server errors (5xx) and timeouts
+                    if (attempt < maxRetries &&
+                        (error.status >= 500 || error.status === 408)) {
                         const delay = Math.min(Math.pow(2, attempt) * 1000, 10000);
                         console.log(`🔄 Retrying request (attempt ${attempt + 2}/${maxRetries + 1}) after ${delay}ms due to error:`, error.status);
                         await new Promise(resolve => setTimeout(resolve, delay));
                         continue;
                     }
-                    
+
                     throw error;
                 }
 

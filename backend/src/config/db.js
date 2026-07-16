@@ -6,10 +6,43 @@ dotenv.config();
 
 const MONGODB_URL = process.env.MONGODB_URI;
 
-let isReconnecting = false;
+/** Shared options — keep in sync; do not call mongoose.connect() again on disconnect. */
+const MONGODB_OPTIONS = {
+  serverSelectionTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 30000,
+  heartbeatFrequencyMS: 10000,
+  maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE) || 10,
+  minPoolSize: 1,
+  /**
+   * 0 = do not close idle sockets (driver default).
+   * 120s idle close was causing periodic "MongoDB disconnected" on quiet traffic.
+   */
+  maxIdleTimeMS: Number(process.env.MONGODB_MAX_IDLE_MS) || 0,
+  retryWrites: true,
+};
 
 function isDbReady() {
   return mongoose.connection.readyState === 1;
+}
+
+function attachConnectionListeners() {
+  const conn = mongoose.connection;
+  if (conn._crwdctrlListenersAttached) return;
+  conn._crwdctrlListenersAttached = true;
+
+  conn.on('disconnected', () => {
+    // Mongoose / MongoDB driver auto-reconnects — no manual connect() (avoids double reconnect races)
+    logger.warn('MongoDB disconnected — auto-reconnect in progress');
+  });
+
+  conn.on('error', (err) => {
+    logger.error('MongoDB connection error', { error: err.message });
+  });
+
+  conn.on('reconnected', () => {
+    logger.info('MongoDB reconnected');
+  });
 }
 
 async function syncProductionIndexes() {
@@ -42,52 +75,13 @@ const connectDB = async () => {
 
   try {
     logger.info('Connecting to MongoDB...');
+    attachConnectionListeners();
 
-    await mongoose.connect(MONGODB_URL, {
-      serverSelectionTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-      heartbeatFrequencyMS: 10000,
-      maxPoolSize: 10,
-      minPoolSize: 2,
-      maxIdleTimeMS: 120000,
-      connectTimeoutMS: 30000,
-    });
+    await mongoose.connect(MONGODB_URL, MONGODB_OPTIONS);
 
     logger.info('MongoDB connection successful');
 
     await syncProductionIndexes();
-
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB disconnected');
-      if (!isReconnecting) {
-        isReconnecting = true;
-        logger.info('Auto-reconnecting to MongoDB in 3s...');
-        setTimeout(async () => {
-          try {
-            await mongoose.connect(MONGODB_URL, {
-              serverSelectionTimeoutMS: 30000,
-              socketTimeoutMS: 45000,
-              heartbeatFrequencyMS: 10000,
-              maxPoolSize: 10,
-              minPoolSize: 2,
-            });
-            logger.info('MongoDB reconnected');
-          } catch (err) {
-            logger.error('MongoDB reconnect failed', { error: err.message });
-          } finally {
-            isReconnecting = false;
-          }
-        }, 3000);
-      }
-    });
-
-    mongoose.connection.on('error', (err) => {
-      logger.error('MongoDB connection error', { error: err.message });
-    });
-
-    mongoose.connection.on('reconnected', () => {
-      logger.info('MongoDB reconnected');
-    });
   } catch (err) {
     logger.error('MongoDB connection error', { error: err.message });
     throw err;

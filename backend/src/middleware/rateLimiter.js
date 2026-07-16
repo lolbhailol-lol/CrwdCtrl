@@ -2,19 +2,27 @@ const rateLimit = require('express-rate-limit');
 
 const isDev = process.env.NODE_ENV !== 'production';
 
-/** General API rate limit */
+/**
+ * General API rate limit.
+ * SPA home loads fire many parallel GETs; 300/15m was too low and caused site-wide 429s.
+ * Health/ready are skipped so platform probes never burn the budget.
+ */
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 1000 : 300,
+  max: isDev ? 2000 : Number(process.env.API_RATE_LIMIT_MAX) || 1500,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
+  skip: (req) => {
+    const path = String(req.path || '');
+    return path === '/health' || path === '/ready' || path === '/';
+  },
 });
 
 /** Stricter limit for auth endpoints */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 100 : 20,
+  max: isDev ? 100 : 40,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many login attempts, please try again later.' },
@@ -23,7 +31,7 @@ const authLimiter = rateLimit({
 /** Admin login — stricter than user auth */
 const adminAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 50 : 10,
+  max: isDev ? 50 : 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many admin login attempts, please try again later.' },

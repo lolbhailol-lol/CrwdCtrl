@@ -144,7 +144,16 @@ export async function tryRunClubOrganizerAppSession(authToken = null) {
         credentials: 'omit',
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.token) return null;
+    if (!res.ok || !data?.token) {
+        // Attach code so callers can send invite-only users to signup instead of looping
+        if (data?.code) {
+            const err = new Error(data.message || 'Club manager session unavailable');
+            err.code = data.code;
+            err.status = res.status;
+            throw err;
+        }
+        return null;
+    }
     applyRunClubOrganizerAuthPayload(data);
     return getRunClubOrganizerSession();
 }
