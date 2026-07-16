@@ -24,6 +24,7 @@ const {
 const {
     expireStalePendingRegistrations,
     PENDING_TTL_HOURS,
+    MANUAL_EXPIRE_TTL_HOURS,
     peopleFromRegistration,
     sumSeatsHeld,
 } = require('../utils/runClubRegistrationGuards');
@@ -718,11 +719,13 @@ exports.setRegistrationStatus = async (req, res) => {
 
 exports.expirePendingPayments = async (req, res) => {
     try {
-        const expired = await expireStalePendingRegistrations(req.eventId);
+        // Manual dashboard action: always use an explicit TTL (auto-expiry may be disabled).
+        const ttlHours = PENDING_TTL_HOURS > 0 ? PENDING_TTL_HOURS : MANUAL_EXPIRE_TTL_HOURS;
+        const expired = await expireStalePendingRegistrations(req.eventId, { forceTtlHours: ttlHours });
         res.json({
             success: true,
             expired,
-            ttlHours: PENDING_TTL_HOURS,
+            ttlHours,
             message: expired
                 ? `Expired ${expired} stale pending payment(s)`
                 : 'No stale pending payments to expire',
@@ -771,8 +774,13 @@ exports.reviewPayment = async (req, res) => {
 
         if (action === 'approve') {
             const due = Number(registration.amountPaid) || 0;
-            const proofUrl = String(registration.paymentScreenshotUrl || '').trim();
-            if (due > 0 && !proofUrl) {
+            // PII encryption clears paymentScreenshotUrl and stores paymentScreenshotCipher.
+            // Organizer list views decrypt for display, but this path reads the raw DB doc.
+            const hasProof = Boolean(
+                String(registration.paymentScreenshotUrl || '').trim()
+                || String(registration.paymentScreenshotCipher || '').trim(),
+            );
+            if (due > 0 && !hasProof) {
                 return res.status(400).json({
                     success: false,
                     message: 'Cannot approve — no payment screenshot attached. Reject or ask the runner to re-register with proof.',
@@ -913,6 +921,9 @@ exports.getDashboard = async (req, res) => {
                 pendingPaymentReview,
                 pendingAmountAtRisk,
                 pendingTtlHours: PENDING_TTL_HOURS,
+                /** TTL used by the dashboard "Expire stale" button */
+                manualExpireTtlHours: PENDING_TTL_HOURS > 0 ? PENDING_TTL_HOURS : MANUAL_EXPIRE_TTL_HOURS,
+                autoExpireEnabled: PENDING_TTL_HOURS > 0,
                 revenue: organizerRevenue,
                 organizerRevenue,
                 platformFees: 0,

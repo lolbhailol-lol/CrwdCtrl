@@ -385,7 +385,8 @@ export default function RunClubOrganizerDashboardPage() {
     const fee = Number(eventDetail?.registrationFee || 0);
     const mode = eventDetail?.registration?.mode || 'internal_form';
     const regStatus = eventDetail?.registration?.status || event.registrationStatus || 'open';
-    const ttlHours = stats.pendingTtlHours || 48;
+    const ttlHours = stats.manualExpireTtlHours || stats.pendingTtlHours || 72;
+    const autoExpireEnabled = Boolean(stats.autoExpireEnabled);
 
     const toggleRegistration = async () => {
         const next = regStatus === 'open' ? 'closed' : 'open';
@@ -558,7 +559,11 @@ export default function RunClubOrganizerDashboardPage() {
                         disabled={actionBusy}
                         onClick={expireStale}
                         className="px-4 py-3.5 min-h-[52px] inline-flex items-center justify-center rounded-xl border border-amber-500/30 text-amber-200/90 text-sm font-medium hover:bg-amber-500/10 disabled:opacity-50"
-                        title={`Cancels pending QR payments older than ${ttlHours}h`}
+                        title={
+                            autoExpireEnabled
+                                ? `Cancels pending QR payments older than ${ttlHours}h`
+                                : `Manual only — cancels pending QR payments older than ${ttlHours}h (auto-expiry is off)`
+                        }
                     >
                         Expire stale ({ttlHours}h+)
                     </button>

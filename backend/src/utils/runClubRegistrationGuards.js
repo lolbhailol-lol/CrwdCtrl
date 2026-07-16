@@ -1,12 +1,23 @@
 const CategoryRegistration = require('../model/category_registration_model');
 
-const PENDING_TTL_HOURS = Math.max(1, Number(process.env.RUN_QR_PENDING_TTL_HOURS) || 12);
+/**
+ * Hours before pending organizer-QR holds auto-cancel.
+ * Set RUN_QR_PENDING_TTL_HOURS=0 (default) to disable automatic expiry.
+ * Organizers can still clear stale holds manually from the dashboard.
+ */
+const rawPendingTtl = Number(process.env.RUN_QR_PENDING_TTL_HOURS);
+const PENDING_TTL_HOURS = Number.isFinite(rawPendingTtl) ? Math.max(0, rawPendingTtl) : 0;
+/** Used only when organizer clicks "Expire stale" and auto-TTL is disabled. */
+const MANUAL_EXPIRE_TTL_HOURS = Math.max(
+    1,
+    Number(process.env.RUN_QR_MANUAL_EXPIRE_TTL_HOURS) || 72,
+);
 const PENDING_EXPIRE_BATCH = Math.max(50, Number(process.env.RUN_QR_PENDING_EXPIRE_BATCH) || 200);
 const PENDING_EXPIRE_MAX_ROUNDS = Math.max(1, Number(process.env.RUN_QR_PENDING_EXPIRE_ROUNDS) || 10);
 const MAX_PENDING_QR_PER_USER_WINDOW = Math.max(1, Number(process.env.RUN_QR_PENDING_PER_USER_LIMIT) || 3);
 
-function pendingCutoffDate() {
-    return new Date(Date.now() - PENDING_TTL_HOURS * 60 * 60 * 1000);
+function pendingCutoffDate(ttlHours = PENDING_TTL_HOURS) {
+    return new Date(Date.now() - ttlHours * 60 * 60 * 1000);
 }
 
 function isProductionEnv() {
@@ -16,8 +27,19 @@ function isProductionEnv() {
 /**
  * Cancel stale organizer_qr pending registrations so they stop holding seats.
  * Loops in batches until drained (capped rounds) so griefing floods clear.
+ * @param {string|null} eventId
+ * @param {{ forceTtlHours?: number|null }} [options]
+ *   forceTtlHours — use this TTL even when auto-expiry is disabled (manual expire).
  */
-async function expireStalePendingRegistrations(eventId = null) {
+async function expireStalePendingRegistrations(eventId = null, options = {}) {
+    const forceTtl = options?.forceTtlHours;
+    const ttlHours = Number.isFinite(Number(forceTtl)) && Number(forceTtl) > 0
+        ? Number(forceTtl)
+        : PENDING_TTL_HOURS;
+
+    // 0 = never auto-expire (unless caller forces a TTL, e.g. dashboard button)
+    if (!ttlHours || ttlHours <= 0) return 0;
+
     let total = 0;
     for (let round = 0; round < PENDING_EXPIRE_MAX_ROUNDS; round += 1) {
         const filter = {
@@ -25,7 +47,7 @@ async function expireStalePendingRegistrations(eventId = null) {
             status: 'pending',
             paymentStatus: 'pending',
             payment_gateway: 'organizer_qr',
-            createdAt: { $lt: pendingCutoffDate() },
+            createdAt: { $lt: pendingCutoffDate(ttlHours) },
         };
         if (eventId) filter.eventId = eventId;
 
@@ -37,7 +59,7 @@ async function expireStalePendingRegistrations(eventId = null) {
         if (!stale.length) break;
 
         const ids = stale.map((r) => r._id);
-        const note = `Auto-expired after ${PENDING_TTL_HOURS}h without organizer approval`;
+        const note = `Auto-expired after ${ttlHours}h without organizer approval`;
         const reviewedAt = new Date();
 
         await CategoryRegistration.updateMany(
@@ -80,18 +102,18 @@ async function expireStalePendingRegistrations(eventId = null) {
                                 eventId: reg.eventId,
                                 eventTitle,
                                 title: 'Payment hold expired',
-                                message: `Your payment hold for ${eventTitle} expired after ${PENDING_TTL_HOURS} hours without club approval. You can register again from My Bookings or the run page.`,
+                                message: `Your payment hold for ${eventTitle} expired after ${ttlHours} hours without club approval. You can register again from My Bookings or the run page.`,
                                 type: 'registration',
                                 link: '/booking',
                                 emailSubject: `Payment hold expired — ${eventTitle}`,
                                 metadata: {
                                     registrationId: String(reg._id),
                                     action: 'auto_expire',
-                                    ttlHours: PENDING_TTL_HOURS,
+                                    ttlHours,
                                 },
                                 paymentContext: {
                                     status: 'failed',
-                                    message: `Hold released after ${PENDING_TTL_HOURS}h without organizer approval. Register again anytime.`,
+                                    message: `Hold released after ${ttlHours}h without organizer approval. Register again anytime.`,
                                 },
                             });
                         } catch (err) {
@@ -265,6 +287,7 @@ async function findDuplicateTransactionId({ eventId, transactionId, excludeId = 
 
 module.exports = {
     PENDING_TTL_HOURS,
+    MANUAL_EXPIRE_TTL_HOURS,
     pendingCutoffDate,
     expireStalePendingRegistrations,
     isAllowedPaymentScreenshotUrl,

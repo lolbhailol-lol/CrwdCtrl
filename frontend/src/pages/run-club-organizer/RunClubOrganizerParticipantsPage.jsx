@@ -291,17 +291,27 @@ export default function RunClubOrganizerParticipantsPage() {
     };
 
     const handleApprovePayment = async (bookingId) => {
-        await reviewRunClubOrganizerPayment(eventId, bookingId, 'approve');
-        toast('Payment approved — runner notified');
-        advanceReviewQueue(bookingId);
-        await load();
+        try {
+            await reviewRunClubOrganizerPayment(eventId, bookingId, 'approve');
+            toast('Payment approved — runner notified');
+            advanceReviewQueue(bookingId);
+            await load();
+        } catch (e) {
+            toast(e.message || 'Approve failed');
+            throw e;
+        }
     };
 
     const handleRejectPayment = async (bookingId, note = '') => {
-        await reviewRunClubOrganizerPayment(eventId, bookingId, 'reject', note);
-        toast('Payment rejected — runner notified');
-        advanceReviewQueue(bookingId);
-        await load();
+        try {
+            await reviewRunClubOrganizerPayment(eventId, bookingId, 'reject', note);
+            toast('Payment rejected — runner notified');
+            advanceReviewQueue(bookingId);
+            await load();
+        } catch (e) {
+            toast(e.message || 'Reject failed');
+            throw e;
+        }
     };
 
     const handleNotify = async (bookingId, title, message) => {
