@@ -22,14 +22,4 @@ export function clearOAuthRedirectMarkers() {
     }
 }
 
-/** Sync restore from localStorage — safe for initial paint when not on OAuth return. */
-export function restoreSessionFromStorage() {
-    try {
-        const savedUser = localStorage.getItem('crwdctrl_user');
-        const savedToken = localStorage.getItem('crwdctrl_token');
-        if (!savedUser || !savedToken || savedToken.startsWith('firebase_')) return null;
-        return { user: JSON.parse(savedUser), token: savedToken };
-    } catch {
-        return null;
-    }
-}
+export { restoreSessionFromStorage, persistAuthSession, clearAuthSession } from './authStorage';

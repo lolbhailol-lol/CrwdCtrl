@@ -1,16 +1,43 @@
+import { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import {
     clearRunClubOrganizerSession,
     getRunClubOrganizerToken,
     isRunClubOrganizerTokenExpired,
 } from '../../utils/runClubOrganizerSession';
+import { tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
 
 export default function RunClubOrganizerProtectedRoute({ children }) {
     const location = useLocation();
-    const token = getRunClubOrganizerToken();
+    const [status, setStatus] = useState('checking');
 
-    if (!token || isRunClubOrganizerTokenExpired(token)) {
-        if (token) clearRunClubOrganizerSession();
+    useEffect(() => {
+        let cancelled = false;
+
+        (async () => {
+            const token = getRunClubOrganizerToken();
+            if (token && !isRunClubOrganizerTokenExpired(token)) {
+                if (!cancelled) setStatus('authed');
+                return;
+            }
+            if (token) clearRunClubOrganizerSession();
+
+            const booted = await tryRunClubOrganizerAppSession();
+            if (!cancelled) setStatus(booted ? 'authed' : 'guest');
+        })();
+
+        return () => { cancelled = true; };
+    }, []);
+
+    if (status === 'checking') {
+        return (
+            <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center text-sm text-gray-500">
+                Opening club manager…
+            </div>
+        );
+    }
+
+    if (status === 'guest') {
         return <Navigate to="/run-club-organizer/login" replace state={{ from: location.pathname }} />;
     }
 

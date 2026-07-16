@@ -10,7 +10,7 @@ const { resolveFirebaseIdentity } = require('../utils/firebaseIdentity');
 // Generate JWT Token
 const generateToken = (userId) => {
     return jwt.sign({ userId }, getJwtSecret(), {
-        expiresIn: '7d',
+        expiresIn: process.env.USER_JWT_EXPIRES_IN || '30d',
     });
 };
 
@@ -897,6 +897,58 @@ const validateToken = async (req, res) => {
     }
 };
 
+/** Renew JWT for returning users (accepts recently expired tokens). */
+const refreshSession = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'Access token is required' });
+        }
+
+        const rawToken = authHeader.substring(7);
+        let decoded;
+        try {
+            decoded = jwt.verify(rawToken, getJwtSecret(), { ignoreExpiration: true });
+        } catch {
+            return res.status(401).json({ success: false, message: 'Invalid token' });
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const maxStaleSec = 90 * 24 * 60 * 60;
+        if (decoded.exp && now - decoded.exp > maxStaleSec) {
+            return res.status(401).json({ success: false, message: 'Session expired — please log in again' });
+        }
+
+        const user = await User.findById(decoded.userId).select('-password');
+        if (!user || user.isDeleted) {
+            return res.status(401).json({ success: false, message: 'User no longer exists' });
+        }
+
+        const newToken = generateToken(user._id);
+        res.status(200).json({
+            success: true,
+            message: 'Session refreshed',
+            data: {
+                token: newToken,
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    phoneNumber: user.phoneNumber,
+                    role: user.role,
+                    profilePic: user.profilePic,
+                    college: user.college,
+                    provider: user.socialAuth?.provider || user.signupMethod || 'email',
+                    socialAuth: user.socialAuth,
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Session refresh error:', error);
+        res.status(500).json({ success: false, message: 'Failed to refresh session' });
+    }
+};
+
 // Soft-delete (deactivate + anonymize) the authenticated user's account.
 // Keeps registrations/bookings intact for records; frees email/phone for reuse.
 const deleteAccount = async (req, res) => {
@@ -963,5 +1015,6 @@ module.exports = {
     updateUserProfile,
     checkEmailExists,
     validateToken,
+    refreshSession,
     deleteAccount,
 };

@@ -2,6 +2,9 @@ import { getApiBaseUrl } from '../../config/apiBase';
 import {
     getRunClubOrganizerToken,
     clearRunClubOrganizerSession,
+    setRunClubOrganizerSession,
+    getRunClubOrganizerSession,
+    isRunClubOrganizerTokenExpired,
 } from '../../utils/runClubOrganizerSession';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 
@@ -111,6 +114,39 @@ async function runClubOrganizerFetch(path, options = {}) {
     };
 
     return attempt();
+}
+
+export function applyRunClubOrganizerAuthPayload(data) {
+    if (!data?.token) return false;
+    setRunClubOrganizerSession({
+        token: data.token,
+        organizer: data.organizer,
+        runClub: data.runClub || null,
+        events: data.events || [],
+    });
+    return true;
+}
+
+/** Use main CrwdCtrl login to open club manager without a second password. */
+export async function tryRunClubOrganizerAppSession(authToken = null) {
+    const existing = getRunClubOrganizerToken();
+    if (existing && !isRunClubOrganizerTokenExpired(existing)) {
+        return getRunClubOrganizerSession();
+    }
+
+    const token = resolveAuthToken(authToken);
+    if (!token) return null;
+
+    const res = await fetch(`${API}/run-club-organizer/auth/app-session`, {
+        method: 'POST',
+        headers: getBearerAuthHeaders(token),
+        mode: 'cors',
+        credentials: 'omit',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.token) return null;
+    applyRunClubOrganizerAuthPayload(data);
+    return getRunClubOrganizerSession();
 }
 
 export async function runClubOrganizerLogin(username, password) {

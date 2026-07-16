@@ -35,7 +35,7 @@ const {
 } = require('../utils/runClubPiiCrypto');
 const RunClubManagerProfileInvite = require('../model/run_club_manager_profile_invite_model');
 
-const TOKEN_TTL = '7d';
+const TOKEN_TTL = process.env.RUN_CLUB_ORGANIZER_JWT_TTL || '30d';
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
 const FIELD_TYPES = new Set(['text', 'email', 'tel', 'number', 'textarea', 'select', 'file', 'date']);
 
@@ -201,6 +201,63 @@ function formatOrganizerEvent(event) {
     };
 }
 
+async function buildOrganizerAuthResponse(organizer) {
+    organizer.lastLoginAt = new Date();
+    if (!organizer.status) {
+        organizer.status = 'approved';
+    }
+    await organizer.save();
+
+    const token = jwt.sign(
+        { organizerId: organizer._id, role: 'run_club_organizer', username: organizer.username },
+        getJwtSecret(),
+        { expiresIn: TOKEN_TTL },
+    );
+
+    const [events, runClub] = await Promise.all([
+        getOrganizerEvents(organizer),
+        getOrganizerRunClub(organizer),
+    ]);
+
+    const eventIds = events.map((e) => e._id).filter(Boolean);
+    let pendingByEvent = {};
+    if (eventIds.length > 0) {
+        const pendingCounts = await CategoryRegistration.aggregate([
+            {
+                $match: {
+                    category: 'sports',
+                    eventId: { $in: eventIds },
+                    status: 'pending',
+                    paymentStatus: 'pending',
+                },
+            },
+            { $group: { _id: '$eventId', count: { $sum: 1 } } },
+        ]);
+        pendingByEvent = Object.fromEntries(
+            pendingCounts.map((row) => [String(row._id), row.count]),
+        );
+    }
+
+    return {
+        success: true,
+        token,
+        organizer: {
+            id: organizer._id,
+            name: organizer.name,
+            username: organizer.username,
+            phone: organizer.phone,
+            email: organizer.email,
+            runClubId: organizer.runClubId,
+            status: RunClubOrganizerAccount.effectiveStatus(organizer),
+        },
+        runClub,
+        events: events.map((e) => ({
+            ...e,
+            pendingPaymentReview: pendingByEvent[String(e._id)] || 0,
+        })),
+    };
+}
+
 /** Published clubs for signup dropdown (id + name + city only). */
 exports.listSignupClubs = async (req, res) => {
     try {
@@ -260,6 +317,45 @@ exports.profileEligible = async (req, res) => {
     } catch (error) {
         console.error('[runClubOrganizer.profileEligible]', error);
         res.status(500).json({ success: false, eligible: false, message: 'Failed to check access' });
+    }
+};
+
+/**
+ * Signed-in CrwdCtrl user → organizer portal session when emails match an approved account.
+ * Avoids a second login for club managers already logged into the main app.
+ */
+exports.appSession = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Sign in to CrwdCtrl first' });
+        }
+
+        const User = require('../model/usermodel');
+        const user = await User.findById(userId).select('email').lean();
+        const email = String(user?.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(403).json({
+                success: false,
+                message: 'Add an email to your CrwdCtrl account to use Club manager',
+            });
+        }
+
+        const organizers = await RunClubOrganizerAccount.find({ email }).sort({ updatedAt: -1 });
+        const organizer = organizers.find((org) => RunClubOrganizerAccount.canLogin(org));
+        if (!organizer) {
+            return res.status(403).json({
+                success: false,
+                code: 'no_organizer_account',
+                message: 'No approved club manager account for this email. Use your organizer username and password.',
+            });
+        }
+
+        const payload = await buildOrganizerAuthResponse(organizer);
+        res.json(payload);
+    } catch (error) {
+        console.error('[runClubOrganizer.appSession]', error);
+        res.status(500).json({ success: false, message: 'Failed to open club manager session' });
     }
 };
 
@@ -404,55 +500,9 @@ exports.login = async (req, res) => {
         if (!organizer.status) {
             organizer.status = 'approved';
         }
-        await organizer.save();
 
-        const token = jwt.sign(
-            { organizerId: organizer._id, role: 'run_club_organizer', username: organizer.username },
-            getJwtSecret(),
-            { expiresIn: TOKEN_TTL },
-        );
-
-        const [events, runClub] = await Promise.all([
-            getOrganizerEvents(organizer),
-            getOrganizerRunClub(organizer),
-        ]);
-
-        const eventIds = events.map((e) => e._id).filter(Boolean);
-        let pendingByEvent = {};
-        if (eventIds.length > 0) {
-            const pendingCounts = await CategoryRegistration.aggregate([
-                {
-                    $match: {
-                        category: 'sports',
-                        eventId: { $in: eventIds },
-                        status: 'pending',
-                        paymentStatus: 'pending',
-                    },
-                },
-                { $group: { _id: '$eventId', count: { $sum: 1 } } },
-            ]);
-            pendingByEvent = Object.fromEntries(
-                pendingCounts.map((row) => [String(row._id), row.count]),
-            );
-        }
-
-        res.json({
-            success: true,
-            token,
-            organizer: {
-                id: organizer._id,
-                name: organizer.name,
-                username: organizer.username,
-                phone: organizer.phone,
-                runClubId: organizer.runClubId,
-                status: RunClubOrganizerAccount.effectiveStatus(organizer),
-            },
-            runClub,
-            events: events.map((e) => ({
-                ...e,
-                pendingPaymentReview: pendingByEvent[String(e._id)] || 0,
-            })),
-        });
+        const payload = await buildOrganizerAuthResponse(organizer);
+        res.json(payload);
     } catch (error) {
         console.error('[runClubOrganizer.login]', error);
         res.status(500).json({ success: false, message: 'Login failed' });

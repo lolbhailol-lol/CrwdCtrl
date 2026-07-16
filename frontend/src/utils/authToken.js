@@ -1,3 +1,8 @@
+import { storage } from './storage';
+import { AUTH_CONFIG } from '../config/env';
+
+const USER_KEY = 'crwdctrl_user';
+
 /** Resolve a usable backend JWT for API calls (skips expired / firebase fallback tokens). */
 
 function isJwtLike(value) {
@@ -26,13 +31,13 @@ export function resolveAuthToken(contextToken = null) {
   if (isJwtLike(contextToken)) candidates.push(contextToken);
 
   try {
-    const stored = localStorage.getItem('crwdctrl_token');
+    const stored = storage.getItem(AUTH_CONFIG.TOKEN_KEY);
     if (isJwtLike(stored)) candidates.push(stored);
 
-    const legacy = localStorage.getItem('token');
+    const legacy = storage.getItem('token');
     if (isJwtLike(legacy)) candidates.push(legacy);
 
-    const userRaw = localStorage.getItem('crwdctrl_user');
+    const userRaw = storage.getItem(USER_KEY);
     if (userRaw) {
       const user = JSON.parse(userRaw);
       if (isJwtLike(user?.token)) candidates.push(user.token);
@@ -69,9 +74,9 @@ export function getBearerAuthHeaders(contextToken = null) {
 
 export function clearStoredAuthSession() {
   try {
-    localStorage.removeItem('crwdctrl_token');
-    localStorage.removeItem('crwdctrl_user');
-    localStorage.removeItem('token');
+    storage.removeItem(AUTH_CONFIG.TOKEN_KEY);
+    storage.removeItem(USER_KEY);
+    storage.removeItem('token');
   } catch {
     /* ignore */
   }

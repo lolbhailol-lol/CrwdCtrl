@@ -3,6 +3,7 @@
  */
 import { resolveUrl } from './client.js';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken.js';
+import { clearAuthSession } from '../../utils/authStorage.js';
 
 /** @deprecated Implementation lives in utils/api.js — migrate callers gradually */
 export { authAPI, handleApiError, ApiError } from '../../utils/api.js';
@@ -23,7 +24,7 @@ export function getUserAuthHeaders(token) {
  */
 export async function userApiCall(url, options = {}) {
   try {
-    const token = localStorage.getItem('crwdctrl_token');
+    const token = resolveAuthToken();
     const headers = {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -38,9 +39,10 @@ export async function userApiCall(url, options = {}) {
     });
 
     if (response.status === 401) {
-      localStorage.removeItem('crwdctrl_token');
-      localStorage.removeItem('crwdctrl_user');
-      window.location.href = '/login';
+      clearAuthSession();
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
       return response;
     }
 
@@ -64,6 +66,26 @@ export async function validateUserToken(token) {
     console.error('Token validation error:', error);
     return false;
   }
+}
+
+/** Renew JWT using a still-trusted (possibly expired) session token. */
+export async function refreshUserSession(token) {
+  const resolved = resolveAuthToken(token);
+  if (!resolved) return null;
+  const response = await fetch(resolveUrl('/users/session/refresh'), {
+    method: 'POST',
+    headers: getBearerAuthHeaders(resolved),
+    credentials: 'include',
+    mode: 'cors',
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.message || 'Session refresh failed');
+  }
+  return {
+    token: data.data?.token,
+    user: data.data?.user,
+  };
 }
 
 /**

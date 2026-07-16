@@ -11,6 +11,7 @@ router.post('/auth/login', authLimiter, ctrl.login);
 router.post('/auth/signup', authLimiter, ctrl.signup);
 router.get('/auth/clubs', ctrl.listSignupClubs);
 router.get('/auth/profile-eligible', authenticateToken, ctrl.profileEligible);
+router.post('/auth/app-session', authenticateToken, ctrl.appSession);
 router.get('/me', authenticateRunClubOrganizer, ctrl.getMe);
 
 router.get('/events', authenticateRunClubOrganizer, ctrl.listEvents);

@@ -4,11 +4,13 @@ import { authAPI, getUserAuthHeaders, userApiCall, validateUserToken } from '../
 import { processSocialAuthUser } from '../utils/socialAuth';
 import { withFirebaseIdToken } from '../utils/firebaseIdToken';
 import { hasPendingOAuthRedirect, restoreSessionFromStorage, clearOAuthRedirectMarkers } from '../utils/authBootstrap';
+import { persistAuthSession, clearAuthSession } from '../utils/authStorage';
 import { hasAuthCallbackParams } from '../utils/bootSplash';
 import { isNativeAuthInProgress } from '../utils/nativeAuth';
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { markFreshLogin } from '../utils/notificationPrompt';
-import { resolveAuthToken } from '../utils/authToken';
+import { resolveAuthToken, hasUsableAuthToken, isTokenExpired } from '../utils/authToken';
+import { refreshUserSession } from '../services/api/auth.api';
 
 const AuthContext = createContext();
 
@@ -30,6 +32,41 @@ export const AuthProvider = ({ children }) => {
     const [isEmailVerified, setIsEmailVerified] = useState(false);
     const [authInitialized, setAuthInitialized] = useState(false);
 
+    const clearLocalSession = () => {
+        setUser(null);
+        setToken(null);
+        setFirebaseUser(null);
+        setIsEmailVerified(false);
+        clearAuthSession();
+        try {
+            window.dispatchEvent(new Event('crwdctrl:user-logout'));
+        } catch {
+            /* ignore */
+        }
+    };
+
+    const applyRefreshedSession = (userData, userToken) => {
+        if (!userData || !userToken) return false;
+        setUser(userData);
+        setToken(userToken);
+        persistAuthSession(userData, userToken);
+        return true;
+    };
+
+    const tryRefreshStoredSession = async (restored) => {
+        if (!restored?.token || !isTokenExpired(restored.token)) return restored;
+        try {
+            const refreshed = await refreshUserSession(restored.token);
+            if (refreshed?.token && refreshed?.user) {
+                applyRefreshedSession(refreshed.user, refreshed.token);
+                return { user: refreshed.user, token: refreshed.token };
+            }
+        } catch (err) {
+            console.warn('Session refresh failed:', err?.message || err);
+        }
+        return restored;
+    };
+
     // ✅ FIREBASE AUTH STATE LISTENER (HANDLES REDIRECT COMPLETION ON MOBILE)
     useEffect(() => {
         console.log('🔥 Setting up Firebase auth state listener (redirect-first)...');
@@ -49,7 +86,7 @@ export const AuthProvider = ({ children }) => {
             // IMPORTANT: Do NOT check authInitialized here - this listener fires during initialization!
             // This listener runs immediately with cached user, so we must handle it regardless of initialization state
             // ✅ Re-sync when there's no session OR the stored backend JWT is expired/unusable
-            const hasUsableSession = !!user && !!resolveAuthToken(token);
+            const hasUsableSession = !!user && hasUsableAuthToken(token);
             if (firebaseUser && !hasUsableSession && !isAuthProcessing) {
                 if (isNativeAuthInProgress()) {
                     console.log('⏭️ Skipping auth listener sync — native login handler active');
@@ -97,10 +134,7 @@ export const AuthProvider = ({ children }) => {
                             
                             setUser(userData);
                             setToken(userData.token);
-                            
-                            // Store in localStorage
-                            localStorage.setItem('crwdctrl_user', JSON.stringify(userData));
-                            localStorage.setItem('crwdctrl_token', userData.token);
+                            persistAuthSession(userData, userData.token);
                             
                             console.log('✅ Session restored from Firebase user');
                             
@@ -108,20 +142,20 @@ export const AuthProvider = ({ children }) => {
                             console.error('❌ Backend sync failed:', backendError.message);
                             console.log('⚠️ User is Firebase-authenticated but backend sync failed');
                             
-                            // ✅ FIX: Do NOT create fallback token - invalid tokens cause jwt malformed errors
                             console.log('🔐 Clearing tokens to force proper backend authentication');
                             setUser(null);
                             setToken(null);
-                            localStorage.removeItem('crwdctrl_user');
-                            localStorage.removeItem('crwdctrl_token');
+                            clearAuthSession();
                         }
                     } else {
-                        // For email users, require backend authentication
-                        console.log('ℹ️ Email user needs proper backend authentication');
-                        setUser(null);
-                        setToken(null);
-                        localStorage.removeItem('crwdctrl_user');
-                        localStorage.removeItem('crwdctrl_token');
+                        const restored = await tryRefreshStoredSession(restoreSessionFromStorage());
+                        if (restored?.user && restored?.token) {
+                            setUser(restored.user);
+                            setToken(restored.token);
+                            console.log('✅ Session restored from storage for email user');
+                        } else {
+                            console.log('ℹ️ Email user — no stored backend session');
+                        }
                     }
                 } catch (error) {
                     console.error('❌ Error restoring session from Firebase user:', error);
@@ -173,11 +207,11 @@ export const AuthProvider = ({ children }) => {
                 if (isNativeApp()) {
                     clearOAuthRedirectMarkers();
                     if (!user && !token) {
-                        const restored = restoreSessionFromStorage();
+                        const restored = await tryRefreshStoredSession(restoreSessionFromStorage());
                         if (restored) {
                             setUser(restored.user);
                             setToken(restored.token);
-                            console.log('✅ Session restored from localStorage:', restored.user.email);
+                            console.log('✅ Session restored from storage:', restored.user.email);
                         }
                     }
                     setIsRedirectProcessing(false);
@@ -238,10 +272,7 @@ export const AuthProvider = ({ children }) => {
                         setToken(userData.token);
                         setFirebaseUser(result.user);
                         setIsEmailVerified(result.user.emailVerified || false);
-                        
-                        // Store in localStorage
-                        localStorage.setItem('crwdctrl_user', JSON.stringify(userData));
-                        localStorage.setItem('crwdctrl_token', userData.token);
+                        persistAuthSession(userData, userData.token);
                         markFreshLogin();
                         
                         console.log('✅ Redirect session created successfully');
@@ -255,8 +286,7 @@ export const AuthProvider = ({ children }) => {
                         setToken(null);
                         setFirebaseUser(null);
                         setIsEmailVerified(false);
-                        localStorage.removeItem('crwdctrl_user');
-                        localStorage.removeItem('crwdctrl_token');
+                        clearAuthSession();
                     }
                     
                     // Clean up URL - remove redirect markers
@@ -315,9 +345,7 @@ export const AuthProvider = ({ children }) => {
                                 setToken(userData.token);
                                 setFirebaseUser(firebaseUser);
                                 setIsEmailVerified(firebaseUser.emailVerified || false);
-                                
-                                localStorage.setItem('crwdctrl_user', JSON.stringify(userData));
-                                localStorage.setItem('crwdctrl_token', userData.token);
+                                persistAuthSession(userData, userData.token);
                                 markFreshLogin();
                                 
                                 console.log('✅ Mobile fallback session created successfully');
@@ -332,14 +360,16 @@ export const AuthProvider = ({ children }) => {
                     
                     // Step 2: Confirm localStorage session (may already be restored on mount)
                     if (!user && !token) {
-                        const restored = restoreSessionFromStorage();
+                        const restored = await tryRefreshStoredSession(restoreSessionFromStorage());
                         if (restored) {
                             setUser(restored.user);
                             setToken(restored.token);
-                            console.log('✅ Session restored from localStorage:', restored.user.email);
+                            console.log('✅ Session restored from storage:', restored.user.email);
                         } else {
                             console.log('📭 No existing session found - user will need to login');
                         }
+                    } else if (token && isTokenExpired(token)) {
+                        await tryRefreshStoredSession({ user, token });
                     } else if (token?.startsWith('firebase_')) {
                         console.warn('⚠️ Invalid Firebase fallback token — clearing session');
                         clearLocalSession();
@@ -375,27 +405,6 @@ export const AuthProvider = ({ children }) => {
         return () => window.clearTimeout(timer);
     }, [isRedirectProcessing, isAuthProcessing]);
 
-    // ✅ HELPER FUNCTION TO CLEAR LOCAL SESSION
-    const clearLocalSession = () => {
-        setUser(null);
-        setToken(null);
-        setFirebaseUser(null);
-        setIsEmailVerified(false);
-        
-        try {
-            localStorage.removeItem('crwdctrl_user');
-            localStorage.removeItem('crwdctrl_token');
-        } catch (error) {
-            console.error('❌ Error clearing localStorage:', error);
-        }
-
-        try {
-            window.dispatchEvent(new Event('crwdctrl:user-logout'));
-        } catch {
-            /* ignore */
-        }
-    };
-
     // ✅ POPUP-FIRST LOGIN FUNCTION
     const login = (userData, firebaseUserData = null) => {
         const { token: userToken, ...userInfo } = userData;
@@ -419,16 +428,9 @@ export const AuthProvider = ({ children }) => {
             setIsEmailVerified(firebaseUserData.emailVerified || false);
         }
 
-        // Store in localStorage immediately
-        try {
-            localStorage.setItem('crwdctrl_user', JSON.stringify(userInfo));
-            localStorage.setItem('crwdctrl_token', userToken);
+        persistAuthSession(userInfo, userToken);
             markFreshLogin();
-            console.log('✅ [AUTH] Login completed, session stored in localStorage');
-            console.log('✅ [AUTH] isAuthenticated should now be true');
-        } catch (error) {
-            console.error('❌ Error storing user data:', error);
-        }
+            console.log('✅ [AUTH] Login completed, session stored');
         
         // Clear loading states
         setIsLoading(false);
@@ -456,18 +458,14 @@ export const AuthProvider = ({ children }) => {
     const updateUser = (userData) => {
         const updatedUser = { ...user, ...userData };
         setUser(updatedUser);
-        try {
-            localStorage.setItem('crwdctrl_user', JSON.stringify(updatedUser));
-        } catch (error) {
-            console.error('❌ Error updating user:', error);
-        }
+        persistAuthSession(updatedUser, token);
     };
 
     const getAuthHeaders = () => getUserAuthHeaders(token);
     const apiCall = userApiCall;
     const validateToken = () => validateUserToken(token);
 
-    const isAuthenticated = !!user && !!token;
+    const isAuthenticated = !!user && hasUsableAuthToken(token);
     
     // Debug logging for state changes
     useEffect(() => {

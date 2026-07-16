@@ -8,8 +8,7 @@ import ProfileAvatarUpload from '../ProfileAvatarUpload';
 import ProfileSidebarLoadingSkeleton from '../ProfileSidebarLoadingSkeleton';
 import { SKELETON_LOADING_MS } from '../../constants/skeletonLoading';
 import { usePageTransition } from './PageTransition';
-import { getRunClubOrganizerToken } from '../../utils/runClubOrganizerSession';
-import { fetchClubManagerProfileEligible } from '../../services/api/runClubOrganizer.api';
+import { tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
 
 export default function ProfileSidebar({
     isOpen,
@@ -101,11 +100,10 @@ export default function ProfileSidebar({
         Notifications: '/notifications',
     };
 
-    const handleMenuItemClick = (label) => {
+    const handleMenuItemClick = async (label) => {
         if (label === 'Club manager') {
-            const path = getRunClubOrganizerToken()
-                ? '/run-club-organizer'
-                : '/run-club-organizer/login';
+            const booted = await tryRunClubOrganizerAppSession(token);
+            const path = booted?.token ? '/run-club-organizer' : '/run-club-organizer/login';
             prepareRouteNavigation(path);
             navigate(path);
             onClose();
