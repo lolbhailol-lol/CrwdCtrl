@@ -8,7 +8,11 @@ import ProfileAvatarUpload from '../ProfileAvatarUpload';
 import ProfileSidebarLoadingSkeleton from '../ProfileSidebarLoadingSkeleton';
 import { SKELETON_LOADING_MS } from '../../constants/skeletonLoading';
 import { usePageTransition } from './PageTransition';
-import { tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
+import {
+    fetchClubManagerProfileEligible,
+    tryRunClubOrganizerAppSession,
+} from '../../services/api/runClubOrganizer.api';
+import { resolveAuthToken, hasUsableAuthToken } from '../../utils/authToken';
 
 export default function ProfileSidebar({
     isOpen,
@@ -45,20 +49,32 @@ export default function ProfileSidebar({
         if (!isOpen) return undefined;
         let cancelled = false;
 
-        if (!isAuthenticated || authPending) {
-            if (!isAuthenticated) {
-                setClubManagerEligible(false);
-                setClubManagerLoading(false);
-            }
+        if (!isAuthenticated) {
+            setClubManagerEligible(false);
+            setClubManagerLoading(false);
+            return undefined;
+        }
+
+        // Wait for auth bootstrap (common on iPhone Safari/Chrome) so we don't
+        // mark ineligible before the JWT is ready.
+        if (authPending) {
+            setClubManagerLoading(true);
+            return undefined;
+        }
+
+        const authToken = resolveAuthToken(token);
+        if (!hasUsableAuthToken(authToken)) {
+            setClubManagerLoading(true);
             return undefined;
         }
 
         setClubManagerLoading(true);
         (async () => {
             try {
-                const data = await fetchClubManagerProfileEligible(token);
-                if (!cancelled) setClubManagerEligible(Boolean(data.eligible));
-            } catch {
+                const data = await fetchClubManagerProfileEligible(authToken);
+                if (!cancelled) setClubManagerEligible(Boolean(data?.eligible));
+            } catch (err) {
+                console.warn('[ProfileSidebar] Club manager eligibility check failed', err?.message || err);
                 if (!cancelled) setClubManagerEligible(false);
             } finally {
                 if (!cancelled) setClubManagerLoading(false);

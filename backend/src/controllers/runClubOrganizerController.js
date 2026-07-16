@@ -303,15 +303,29 @@ exports.profileEligible = async (req, res) => {
             return res.json({ success: true, eligible: false });
         }
 
-        const invite = await RunClubManagerProfileInvite.findOne({
+        // Exact match first (normalized invites), then case-insensitive for legacy rows
+        let invite = await RunClubManagerProfileInvite.findOne({
             email,
             isActive: true,
         }).select('_id').lean();
+
+        if (!invite) {
+            invite = await RunClubManagerProfileInvite.findOne({
+                email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+                isActive: true,
+            }).select('_id').lean();
+        }
+
         if (invite) {
             return res.json({ success: true, eligible: true });
         }
 
-        const organizers = await RunClubOrganizerAccount.find({ email }).lean();
+        const organizers = await RunClubOrganizerAccount.find({
+            $or: [
+                { email },
+                { email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            ],
+        }).lean();
         const approved = organizers.some((org) => RunClubOrganizerAccount.canLogin(org));
         res.json({ success: true, eligible: approved });
     } catch (error) {
