@@ -72,7 +72,7 @@ export default function RegistrationDetails() {
   const isSportsRegistration = searchParams.get('type') === 'sports';
   const navigate = useNavigate();
   const { isDark } = useDarkMode();
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated, token, isLoading: authLoading } = useAuth();
   const [registration, setRegistration] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -80,13 +80,15 @@ export default function RegistrationDetails() {
   const pendingHint = location.state?.pendingApproval || null;
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!isAuthenticated) {
       navigate('/login', { state: { from: location.pathname + location.search } });
       return;
     }
 
     fetchRegistrationDetails();
-  }, [registrationId, isAuthenticated, token, isTrekBooking, isEventRegistration, isSportsRegistration, navigate]);
+  }, [registrationId, isAuthenticated, authLoading, token, isTrekBooking, isEventRegistration, isSportsRegistration, navigate, location.pathname, location.search]);
 
   const fetchRegistrationDetails = async () => {
     try {
@@ -104,6 +106,10 @@ export default function RegistrationDetails() {
       const data = await userFetchJSONStrict(path, { token, cacheBust: true });
       setRegistration(data);
     } catch (err) {
+      if (err.code === 'AUTH_401') {
+        navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
+        return;
+      }
       setError(err.message || 'Something went wrong');
       setErrorCode(err.code || '');
     } finally {

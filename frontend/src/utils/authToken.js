@@ -11,9 +11,28 @@ function isJwtLike(value) {
   return value.split('.').length === 3;
 }
 
-export function isTokenExpired(token) {
+function decodeJwtPayload(token) {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const segment = token.split('.')[1];
+    if (!segment) return null;
+    const normalized = segment.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(normalized));
+  } catch {
+    return null;
+  }
+}
+
+/** CrwdCtrl user session JWT — must carry userId (not organizer/admin/scanner tokens). */
+export function isBackendUserJwt(token) {
+  if (!isJwtLike(token)) return false;
+  const payload = decodeJwtPayload(token);
+  return !!payload?.userId;
+}
+
+export function isTokenExpired(token) {
+  if (!isBackendUserJwt(token)) return true;
+  try {
+    const payload = decodeJwtPayload(token);
     if (!payload?.exp) return false;
     return payload.exp < Math.floor(Date.now() / 1000);
   } catch {
@@ -21,34 +40,39 @@ export function isTokenExpired(token) {
   }
 }
 
-/**
- * Best available JWT — context first, then localStorage, then token embedded in user JSON.
- * Prefers non-expired tokens; falls back to the best available JWT so the server can decide.
- */
-export function resolveAuthToken(contextToken = null) {
+function collectUserJwtCandidates(contextToken = null) {
   const candidates = [];
 
-  if (isJwtLike(contextToken)) candidates.push(contextToken);
+  if (isBackendUserJwt(contextToken)) candidates.push(contextToken);
 
   try {
     const stored = storage.getItem(AUTH_CONFIG.TOKEN_KEY);
-    if (isJwtLike(stored)) candidates.push(stored);
+    if (isBackendUserJwt(stored)) candidates.push(stored);
 
     const legacy = storage.getItem('token');
-    if (isJwtLike(legacy)) candidates.push(legacy);
+    if (isBackendUserJwt(legacy)) candidates.push(legacy);
 
     const userRaw = storage.getItem(USER_KEY);
     if (userRaw) {
       const user = JSON.parse(userRaw);
-      if (isJwtLike(user?.token)) candidates.push(user.token);
+      if (isBackendUserJwt(user?.token)) candidates.push(user.token);
     }
   } catch {
     /* ignore storage errors */
   }
 
+  return candidates;
+}
+
+/**
+ * Best available user JWT — context first, then storage.
+ * Prefers non-expired tokens; falls back to expired user JWT for silent refresh.
+ */
+export function resolveAuthToken(contextToken = null) {
   const seen = new Set();
   let expiredFallback = null;
-  for (const token of candidates) {
+
+  for (const token of collectUserJwtCandidates(contextToken)) {
     if (seen.has(token)) continue;
     seen.add(token);
     if (!isTokenExpired(token)) return token;
@@ -80,4 +104,17 @@ export function clearStoredAuthSession() {
   } catch {
     /* ignore */
   }
+}
+
+export function isAuthFailureMessage(message = '') {
+  const text = String(message).toLowerCase();
+  return (
+    text.includes('invalid token')
+    || text.includes('token has expired')
+    || text.includes('session expired')
+    || text.includes('access token is required')
+    || text.includes('authentication failed')
+    || text.includes('please log in')
+    || text.includes('user no longer exists')
+  );
 }

@@ -45,6 +45,10 @@ export default function PaymentInvoicePage() {
         const data = await authenticatedFetchJSON(url, { token: authToken });
         setInvoice(data.data);
       } catch (err) {
+        if (err.code === 'AUTH_401') {
+          navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
+          return;
+        }
         setError(err.message);
       } finally {
         setLoading(false);

@@ -9,7 +9,7 @@ import { hasAuthCallbackParams } from '../utils/bootSplash';
 import { isNativeAuthInProgress } from '../utils/nativeAuth';
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { markFreshLogin } from '../utils/notificationPrompt';
-import { resolveAuthToken, hasUsableAuthToken, isTokenExpired } from '../utils/authToken';
+import { hasUsableAuthToken, isTokenExpired, isBackendUserJwt } from '../utils/authToken';
 import { refreshUserSession } from '../services/api/auth.api';
 
 const AuthContext = createContext();
@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
 
     const [user, setUser] = useState(() => savedSession?.user ?? null);
     const [token, setToken] = useState(() => savedSession?.token ?? null);
-    const [isLoading, setIsLoading] = useState(isOAuthReturn);
+    const [isLoading, setIsLoading] = useState(true);
     const [isAuthProcessing, setIsAuthProcessing] = useState(false);
     const [isRedirectProcessing, setIsRedirectProcessing] = useState(isOAuthReturn);
     const [firebaseUser, setFirebaseUser] = useState(null);
@@ -63,7 +63,11 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const tryRefreshStoredSession = async (restored) => {
-        if (!restored?.token || !isTokenExpired(restored.token)) return restored;
+        if (!restored?.token || !isBackendUserJwt(restored.token)) {
+            clearLocalSession();
+            return null;
+        }
+        if (!isTokenExpired(restored.token)) return restored;
         try {
             const refreshed = await refreshUserSession(restored.token);
             if (refreshed?.token && refreshed?.user) {
@@ -73,7 +77,8 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             console.warn('Session refresh failed:', err?.message || err);
         }
-        return restored;
+        clearLocalSession();
+        return null;
     };
 
     // ✅ FIREBASE AUTH STATE LISTENER (HANDLES REDIRECT COMPLETION ON MOBILE)

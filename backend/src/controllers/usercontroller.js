@@ -910,7 +910,11 @@ const refreshSession = async (req, res) => {
         try {
             decoded = jwt.verify(rawToken, getJwtSecret(), { ignoreExpiration: true });
         } catch {
-            return res.status(401).json({ success: false, message: 'Invalid token' });
+            return res.status(401).json({ success: false, message: 'Session expired — please log in again' });
+        }
+
+        if (!decoded.userId) {
+            return res.status(401).json({ success: false, message: 'Session expired — please log in again' });
         }
 
         const now = Math.floor(Date.now() / 1000);

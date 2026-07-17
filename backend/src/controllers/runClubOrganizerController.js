@@ -883,7 +883,9 @@ exports.reviewPayment = async (req, res) => {
         registration.paymentReviewedBy = String(reviewer);
         await registration.save();
 
-        const link = `/registration-details/${registration._id}?type=sports`;
+        const link = action === 'approve'
+            ? `/qr-ticket/${registration._id}?type=sports`
+            : `/registration-details/${registration._id}?type=sports`;
         const leanReg = decryptRegistrationPii(
             registration.toObject ? registration.toObject() : registration,
             runClubId,

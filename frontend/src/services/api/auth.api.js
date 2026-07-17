@@ -2,7 +2,7 @@
  * Authenticated user API — token helpers, strict fetch, legacy auth client shim.
  */
 import { resolveUrl } from './client.js';
-import { resolveAuthToken, getBearerAuthHeaders, isTokenExpired } from '../../utils/authToken.js';
+import { resolveAuthToken, getBearerAuthHeaders, isTokenExpired, isBackendUserJwt, isAuthFailureMessage, clearStoredAuthSession } from '../../utils/authToken.js';
 import { clearAuthSession, persistAuthSession } from '../../utils/authStorage.js';
 
 /** @deprecated Implementation lives in utils/api.js — migrate callers gradually */
@@ -79,15 +79,20 @@ function broadcastSessionRefresh(user, token) {
 
 async function tryRefreshAuthToken(token) {
   const source = resolveAuthToken(token);
-  if (!source) return null;
+  if (!source || !isBackendUserJwt(source)) {
+    clearStoredAuthSession();
+    return null;
+  }
   try {
     const refreshed = await refreshUserSession(source);
     if (refreshed?.token && refreshed?.user) {
       broadcastSessionRefresh(refreshed.user, refreshed.token);
       return refreshed.token;
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    if (isAuthFailureMessage(err?.message)) {
+      clearStoredAuthSession();
+    }
   }
   return null;
 }
@@ -161,6 +166,7 @@ export async function userFetchJSONStrict(path, options = {}) {
   }
 
   if (response.status === 401) {
+    clearStoredAuthSession();
     const err = new Error('Authentication failed. Please log in again.');
     err.code = 'AUTH_401';
     throw err;
@@ -208,8 +214,19 @@ export async function authenticatedFetchJSON(url, options = {}) {
     }
   }
 
+  if (response.status === 401) {
+    clearStoredAuthSession();
+    const err = new Error('Authentication failed. Please log in again.');
+    err.code = 'AUTH_401';
+    throw err;
+  }
   if (!response.ok) {
-    throw new Error(data.message || data.error || `Request failed (${response.status})`);
+    const err = new Error(data.message || data.error || `Request failed (${response.status})`);
+    if (isAuthFailureMessage(err.message)) {
+      err.code = 'AUTH_401';
+      clearStoredAuthSession();
+    }
+    throw err;
   }
   return data;
 }

@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import { AUTH_CONFIG } from '../config/env';
+import { isBackendUserJwt } from './authToken';
 
 const USER_KEY = 'crwdctrl_user';
 
@@ -9,6 +10,7 @@ export function restoreSessionFromStorage() {
         const savedUser = storage.getItem(USER_KEY);
         const savedToken = storage.getItem(AUTH_CONFIG.TOKEN_KEY);
         if (!savedUser || !savedToken || savedToken.startsWith('firebase_')) return null;
+        if (!isBackendUserJwt(savedToken)) return null;
         return { user: JSON.parse(savedUser), token: savedToken };
     } catch {
         return null;
