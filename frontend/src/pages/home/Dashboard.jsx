@@ -41,6 +41,7 @@ import { HOME_FAQ } from '../../constants/faqs';
 import { mapEventShow } from '../../constants/eventsPage';
 import { getCoverImageUrl } from '../../utils/coverImages';
 import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
+import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
 import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
 
 const HOME_JSON_LD = [
@@ -167,6 +168,7 @@ const clearCache = () => {
         localStorage.removeItem(CACHE_KEYS.FESTS_LIST);
         localStorage.removeItem(CACHE_KEYS.FESTS_TIMESTAMP);
         localStorage.removeItem(CACHE_KEYS.HOME_AUX);
+        invalidateCatalogCache();
         console.log('Cleared fests cache');
     } catch (error) {
         console.error('Error clearing cache:', error);
@@ -314,31 +316,6 @@ const Dashboard = () => {
     });
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Refetch treks and communities without cache
-    const refreshTreksAndComms = useCallback(() => {
-        const cb = Date.now();
-        fetchJSON(`/trek-communities?_cb=${cb}`).then(res => {
-            const list = Array.isArray(res?.data?.communities) ? res.data.communities : [];
-            setHomeCommunities(list);
-        }).catch(() => {});
-        fetchJSON(`/treks?_cb=${cb}`).then(res => {
-            const list = Array.isArray(res?.data?.treks) ? res.data.treks : [];
-            setHomeTreks(list);
-        }).catch(() => {});
-        fetchJSON(`/sports?_cb=${cb}`).then(res => {
-            const list = Array.isArray(res?.data?.events) ? res.data.events : [];
-            setHomeSports(list);
-        }).catch(() => {});
-        fetchJSON(`/run-clubs?_cb=${cb}`).then(res => {
-            const list = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
-            setHomeRunClubs(list);
-        }).catch(() => {});
-        fetchJSON(`/events?_cb=${cb}`).then(res => {
-            const list = Array.isArray(res?.data?.shows) ? res.data.shows : [];
-            setHomeEventShows(list);
-        }).catch(() => {});
-    }, []);
-
     // Function to force refresh data (clear cache and fetch fresh)  retries for cold starts
     const forceRefreshData = useCallback(() => {
         console.log('Force refreshing dashboard data...');
@@ -347,7 +324,6 @@ const Dashboard = () => {
         setFestError(null);
         setHomeFeedError(null);
         setHomeAuxLoaded(false);
-        refreshTreksAndComms();
 
         // Keep showing current cards while refreshing  avoid loading flash (log evidence: hypothesis B)
         setFests((current) => {
@@ -356,24 +332,32 @@ const Dashboard = () => {
         });
 
         const fetchFreshData = async (attempt = 0) => {
+            // User/admin-initiated refresh — keep it resilient across Railway cold starts.
             const maxAttempts = 8;
             try {
-                const cacheBuster = Date.now();
-                const response = await fetchJSON(`/fests/all?_cb=${cacheBuster}&force_refresh=1`, {
-                    timeout: 15000
-                });
-                
+                const response = await fetchCatalogJSON('/home', { force: true, retries: 1, timeout: 15000 });
                 const data = response.data;
-                const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-                
+                const festsList = Array.isArray(data?.fests) ? data.fests : [];
+
                 setFests(festsList);
                 setFestError(null);
                 setHomeFeedError(null);
-                
+
                 if (festsList.length > 0) {
                     setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
                 }
-                
+
+                if (data && typeof data === 'object') {
+                    setHomeCommunities(Array.isArray(data.communities) ? data.communities : []);
+                    setHomeTreks(Array.isArray(data.treks) ? data.treks : []);
+                    setHomeSports(Array.isArray(data.sports) ? data.sports : []);
+                    setHomeRunClubs(Array.isArray(data.runClubs) ? data.runClubs : []);
+                    setHomeEventShows(Array.isArray(data.eventShows) ? data.eventShows : []);
+                    if (data.sectionLabels && typeof data.sectionLabels === 'object') {
+                        setSectionLabels((prev) => ({ ...prev, ...data.sectionLabels }));
+                    }
+                }
+
                 setIsFestsLoading(false);
                 setHomeAuxLoaded(true);
                 console.log('Dashboard data refreshed successfully');
@@ -381,7 +365,6 @@ const Dashboard = () => {
                 console.error(` Refresh attempt ${attempt + 1}/${maxAttempts} failed:`, error.message);
                 if (attempt < maxAttempts - 1) {
                     const delay = Math.min(2000 + attempt * 1500, 8000);
-                    console.log(` Retrying in ${delay}ms...`);
                     setTimeout(() => fetchFreshData(attempt + 1), delay);
                 } else {
                     const msg = 'Unable to load events. Please check your connection and try again.';
@@ -392,9 +375,9 @@ const Dashboard = () => {
                 }
             }
         };
-        
+
         fetchFreshData();
-    }, [refreshTreksAndComms]);
+    }, []);
     // Check for admin changes by listening to custom event AND localStorage
     useEffect(() => {
         // Handler for custom event (same-tab admin updates)
@@ -566,7 +549,7 @@ const Dashboard = () => {
 
         const tryAggregate = async () => {
             try {
-                const res = await fetchJSON(`/home?_cb=${Date.now()}`, {
+                const res = await fetchCatalogJSON('/home', {
                     timeout: baseTimeout,
                     retries: 2,
                 });
@@ -613,12 +596,12 @@ const Dashboard = () => {
 
         // Fallback: original fests fetch with aggressive cold-start retries.
         const fetchFests = async () => {
-            const maxRetries = 10; // Enough retries to cover a full Railway cold start (~60s)
+            const maxRetries = 4;
             for (let attempt = 0; attempt < maxRetries; attempt++) {
                 if (cancelled) return;
                 try {
                     console.log(`Fetching fests (attempt ${attempt + 1}/${maxRetries})`);
-                    const response = await fetchJSON(`/fests/all?_cb=${Date.now()}&priority_check=1`, { timeout: baseTimeout });
+                    const response = await fetchCatalogJSON('/fests/all?priority_check=1', { timeout: baseTimeout, retries: 1 });
                     if (cancelled) return;
                     const data = response.data;
                     const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
@@ -656,19 +639,19 @@ const Dashboard = () => {
         // Fallback: original per-source secondary fetches.
         const runAuxFetches = () => {
             const auxFetches = [
-                fetchJSON(`/trek-communities?_cb=${Date.now()}`).then(res => {
+                fetchCatalogJSON('/trek-communities').then(res => {
                     if (!cancelled) setHomeCommunities(Array.isArray(res?.data?.communities) ? res.data.communities : []);
                 }).catch(() => {}),
-                fetchJSON(`/treks?_cb=${Date.now()}`).then(res => {
+                fetchCatalogJSON('/treks').then(res => {
                     if (!cancelled) setHomeTreks(Array.isArray(res?.data?.treks) ? res.data.treks : []);
                 }).catch(() => {}),
-                fetchJSON(`/sports?_cb=${Date.now()}`).then(res => {
+                fetchCatalogJSON('/sports').then(res => {
                     if (!cancelled) setHomeSports(Array.isArray(res?.data?.events) ? res.data.events : []);
                 }).catch(() => {}),
-                fetchJSON(`/run-clubs?_cb=${Date.now()}`).then(res => {
+                fetchCatalogJSON('/run-clubs').then(res => {
                     if (!cancelled) setHomeRunClubs(Array.isArray(res?.data?.clubs) ? res.data.clubs : []);
                 }).catch(() => {}),
-                fetchJSON(`/events?_cb=${Date.now()}`).then(res => {
+                fetchCatalogJSON('/events').then(res => {
                     if (!cancelled) setHomeEventShows(Array.isArray(res?.data?.shows) ? res.data.shows : []);
                 }).catch(() => {}),
             ];
@@ -684,7 +667,7 @@ const Dashboard = () => {
             fetchFests();
             runAuxFetches();
             // Aggregate carried section labels; fetch them separately on the fallback path.
-            fetchJSON(`/home/section-labels?_cb=${Date.now()}`).then(res => {
+            fetchCatalogJSON('/home/section-labels').then(res => {
                 const l = res?.data?.labels;
                 if (!cancelled && l && typeof l === 'object') setSectionLabels(prev => ({ ...prev, ...l }));
             }).catch(() => {});
@@ -714,35 +697,33 @@ const Dashboard = () => {
 
         // Cache warming - prefetch fresh data when cache is about to expire
         const warmCache = () => {
+            if (document.visibilityState !== 'visible') return;
             const timestamp = localStorage.getItem(CACHE_KEYS.FESTS_TIMESTAMP);
             if (timestamp) {
                 const age = Date.now() - parseInt(timestamp);
-                // Prefetch when cache is 80% expired (4 minutes old)
                 if (age > CACHE_DURATION * 0.8 && age < CACHE_DURATION) {
-                    console.log('Warming cache with fresh data');
-                    // Silently fetch fresh data in background
-                    fetchJSON('/fests/all', { timeout: 5000 })
+                    fetchCatalogJSON('/fests/all', { timeout: 5000, retries: 0 })
                         .then(response => {
                             const data = response.data;
                             const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
                             if (festsList.length > 0) {
                                 setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
-                                console.log('Cache warmed successfully');
                             }
                         })
-                        .catch(err => {
-                            console.log('Cache warming failed:', err.message);
-                        });
+                        .catch(() => {});
                 }
             }
         };
 
-        // Check for cache warming every 30 seconds
-        const warmingInterval = setInterval(warmCache, 30000);
-
+        // Periodic check keeps a continuously-open dashboard fresh, but warmCache
+        // only actually fetches when the cache is 80-100% expired AND the tab is
+        // visible — far lighter than the old unconditional 30s fetch loop.
+        const warmingInterval = setInterval(warmCache, 60000);
+        document.addEventListener('visibilitychange', warmCache);
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
+            document.removeEventListener('visibilitychange', warmCache);
             clearInterval(warmingInterval);
         };
     }, []);

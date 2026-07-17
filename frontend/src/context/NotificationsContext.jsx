@@ -11,7 +11,7 @@ import { inferPopupTone } from '../utils/appPopup';
 
 const NotificationsContext = createContext();
 const POPUP_TTL_MS = 1000;
-const VISIBLE_POLL_MS = 15000;
+const VISIBLE_POLL_MS = 60000;
 
 export const useNotifications = () => {
     const context = useContext(NotificationsContext);

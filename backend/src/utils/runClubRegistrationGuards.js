@@ -236,19 +236,21 @@ async function assertSportsCapacityAvailable(eventId, people, {
     return { ok: true };
 }
 
-async function countRecentPendingQrByUser(userId) {
+async function countRecentPendingQrByUser(userId, excludeId = null) {
     if (!userId) return 0;
-    return CategoryRegistration.countDocuments({
+    const filter = {
         category: 'sports',
         user: userId,
         payment_gateway: 'organizer_qr',
         status: 'pending',
         paymentStatus: 'pending',
-    });
+    };
+    if (excludeId) filter._id = { $ne: excludeId };
+    return CategoryRegistration.countDocuments(filter);
 }
 
-async function assertUserPendingQrRateLimit(userId) {
-    const count = await countRecentPendingQrByUser(userId);
+async function assertUserPendingQrRateLimit(userId, excludeId = null) {
+    const count = await countRecentPendingQrByUser(userId, excludeId);
     if (count >= MAX_PENDING_QR_PER_USER_WINDOW) {
         return {
             ok: false,

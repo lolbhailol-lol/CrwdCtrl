@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { normalizeFavoriteEntry } from '../utils/favoriteNormalize';
 
 const FavoritesContext = createContext();
@@ -51,8 +51,7 @@ export const FavoritesProvider = ({ children }) => {
         }
     }, [favorites]);
 
-    // Add or remove a favorite
-    const toggleFavorite = (eventId, eventData = null) => {
+    const toggleFavorite = useCallback((eventId, eventData = null) => {
         setFavorites(prev => {
             const newFavorites = { ...prev };
 
@@ -64,41 +63,32 @@ export const FavoritesProvider = ({ children }) => {
 
             return newFavorites;
         });
-    };
+    }, []);
 
-    // Check if an event is favorited
-    const isFavorite = (eventId) => {
-        return Boolean(favorites[eventId]);
-    };
+    const isFavorite = useCallback((eventId) => Boolean(favorites[eventId]), [favorites]);
 
-    // Get all favorite events (stored shape is normalized on write/migration)
-    const getFavoriteEvents = () => {
+    const getFavoriteEvents = useCallback(() => {
         return Object.entries(favorites).map(([id, data]) => ({
             ...data,
             id: data.id || id,
         }));
-    };
+    }, [favorites]);
 
-    // Get favorite count
-    const getFavoriteCount = () => {
-        return Object.keys(favorites).length;
-    };
+    const getFavoriteCount = useCallback(() => Object.keys(favorites).length, [favorites]);
 
-    // Remove a favorite by ID
-    const removeFavorite = (eventId) => {
+    const removeFavorite = useCallback((eventId) => {
         setFavorites(prev => {
             const newFavorites = { ...prev };
             delete newFavorites[eventId];
             return newFavorites;
         });
-    };
+    }, []);
 
-    // Clear all favorites
-    const clearAllFavorites = () => {
+    const clearAllFavorites = useCallback(() => {
         setFavorites({});
-    };
+    }, []);
 
-    const value = {
+    const value = useMemo(() => ({
         favorites,
         toggleFavorite,
         isFavorite,
@@ -106,7 +96,7 @@ export const FavoritesProvider = ({ children }) => {
         getFavoriteCount,
         removeFavorite,
         clearAllFavorites
-    };
+    }), [favorites, toggleFavorite, isFavorite, getFavoriteEvents, getFavoriteCount, removeFavorite, clearAllFavorites]);
 
     return (
         <FavoritesContext.Provider value={value}>

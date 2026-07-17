@@ -375,7 +375,19 @@ export default function RunEventBookingPage() {
             }),
         });
         const regData = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(regData.message || 'Registration failed after payment');
+        if (!res.ok) {
+            // Race / stale client: server may already have the registration
+            if (res.status === 409 && regData.registration) {
+                const existingId = regData.registration?._id || regData.registration?.id;
+                if (existingId) {
+                    sessionStorage.removeItem(runDraftKey(evId));
+                    refreshNotifications();
+                    setBookingId(String(existingId));
+                    return { ...regData, alreadyRegistered: true };
+                }
+            }
+            throw new Error(regData.message || 'Registration failed after payment');
+        }
 
         sessionStorage.removeItem(runDraftKey(evId));
         refreshNotifications();

@@ -129,7 +129,9 @@ exports.registerForEvent = async (req, res) => {
             }
         }
 
-        // One active (pending|confirmed) registration per user per event
+        // One active (pending|confirmed) registration per user per event.
+        // Confirmed → idempotent 200. Pending QR before review → allow resubmit (update).
+        let pendingRegistrationToUpdate = null;
         const activeExisting = await CategoryRegistration.findOne({
             category,
             eventId: resolvedEventId,
@@ -137,13 +139,31 @@ exports.registerForEvent = async (req, res) => {
             status: { $in: ['pending', 'confirmed'] },
         }).lean();
         if (activeExisting) {
-            return res.status(409).json({
-                message: activeExisting.status === 'pending'
-                    ? 'You already have a registration awaiting payment approval for this event'
-                    : 'You are already registered for this event',
-                registration: activeExisting,
-            });
+            const clubIdForPii = category === 'sports' ? event.runClubId : null;
+            if (activeExisting.status === 'confirmed') {
+                return res.status(200).json({
+                    success: true,
+                    alreadyRegistered: true,
+                    message: 'You are already registered for this event',
+                    registration: decryptRegistrationPii(activeExisting, clubIdForPii),
+                });
+            }
+
+            const canResubmitPendingQr = isOrganizerQr && !activeExisting.paymentReviewedAt;
+            if (canResubmitPendingQr) {
+                pendingRegistrationToUpdate = activeExisting;
+            } else {
+                return res.status(200).json({
+                    success: true,
+                    alreadyRegistered: true,
+                    resumable: true,
+                    message: 'You already have a registration awaiting payment approval for this event',
+                    registration: decryptRegistrationPii(activeExisting, clubIdForPii),
+                });
+            }
         }
+
+        const excludeRegId = pendingRegistrationToUpdate?._id || null;
 
         // Capacity: confirmed seats hard-block; pending QR has its own pool cap
         const capacity = Math.max(0, Number(event.maxParticipants) || 0);
@@ -152,6 +172,7 @@ exports.registerForEvent = async (req, res) => {
             const pre = await assertSportsCapacityAvailable(resolvedEventId, people, {
                 capacity,
                 forPendingQr: false,
+                excludeId: excludeRegId,
             });
             if (!pre.ok) {
                 return res.status(400).json({ message: pre.message });
@@ -214,12 +235,13 @@ exports.registerForEvent = async (req, res) => {
                     });
                 }
 
-                const rate = await assertUserPendingQrRateLimit(userId);
+                const rate = await assertUserPendingQrRateLimit(userId, excludeRegId);
                 if (!rate.ok) return res.status(429).json({ message: rate.message });
 
                 const dup = await findDuplicateTransactionId({
                     eventId: resolvedEventId,
                     transactionId,
+                    excludeId: excludeRegId,
                 });
                 if (dup) {
                     return res.status(409).json({
@@ -230,6 +252,7 @@ exports.registerForEvent = async (req, res) => {
                 const pendingCap = await assertSportsCapacityAvailable(resolvedEventId, people, {
                     capacity,
                     forPendingQr: true,
+                    excludeId: excludeRegId,
                 });
                 if (!pendingCap.ok) {
                     return res.status(400).json({ message: pendingCap.message });
@@ -374,9 +397,18 @@ exports.registerForEvent = async (req, res) => {
             }
         }
 
-        const registration = new CategoryRegistration(regPayload);
-
-        await registration.save();
+        const isResubmit = Boolean(pendingRegistrationToUpdate);
+        let registration;
+        if (pendingRegistrationToUpdate) {
+            registration = await CategoryRegistration.findByIdAndUpdate(
+                pendingRegistrationToUpdate._id,
+                { $set: regPayload },
+                { new: true, runValidators: true },
+            );
+        } else {
+            registration = new CategoryRegistration(regPayload);
+            await registration.save();
+        }
 
         // Capacity race guard for confirmed seats only (pending soft-held separately)
         if (capacity > 0 && regStatus === 'confirmed') {
@@ -445,15 +477,38 @@ exports.registerForEvent = async (req, res) => {
                 .catch((err) => console.error('[registerForEvent.notify]', err.message));
         }
 
-        res.status(201).json({
+        res.status(isResubmit ? 200 : 201).json({
+            success: true,
+            alreadyRegistered: isResubmit,
             message: regStatus === 'pending'
-                ? 'Registration submitted — waiting for organizer payment approval'
-                : 'Registration successful',
+                ? (isResubmit
+                    ? 'Payment details updated — still waiting for organizer approval'
+                    : 'Registration submitted — waiting for organizer payment approval')
+                : (isResubmit ? 'You are already registered for this event' : 'Registration successful'),
             registration: safeReg,
         });
     } catch (error) {
         console.error('categoryRegistration registerForEvent error:', error);
         if (error.code === 11000) {
+            try {
+                const dup = await CategoryRegistration.findOne({
+                    category,
+                    eventId: resolvedEventId,
+                    user: userId,
+                    status: { $in: ['pending', 'confirmed'] },
+                }).lean();
+                if (dup) {
+                    const clubIdForPii = category === 'sports' ? event?.runClubId : null;
+                    return res.status(200).json({
+                        success: true,
+                        alreadyRegistered: true,
+                        message: dup.status === 'pending'
+                            ? 'You already have a registration awaiting payment approval for this event'
+                            : 'You are already registered for this event',
+                        registration: decryptRegistrationPii(dup, clubIdForPii),
+                    });
+                }
+            } catch (_) { /* fall through */ }
             return res.status(409).json({ message: 'You are already registered for this event' });
         }
         res.status(500).json({ message: 'Registration failed' });

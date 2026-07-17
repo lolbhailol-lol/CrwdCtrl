@@ -34,7 +34,7 @@ import { festPath, runClubPath, sportRunPath } from '../../utils/slugRoutes';
 import ContentImage from '../../components/ContentImage';
 import { preloadImages } from '../../utils/preloadImages';
 
-import { publicFetchJSONRetry } from '../../services/api/client';
+import { fetchCatalogJSON } from '../../services/api/catalogCache';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
@@ -136,9 +136,9 @@ export default function SportsCategoryPage() {
         setLoadError('');
         try {
             const [eventsRes, festsRes, clubsRes] = await Promise.all([
-                publicFetchJSONRetry('/sports', { cacheBust: true }),
-                publicFetchJSONRetry('/fests/all', { cacheBust: true }),
-                publicFetchJSONRetry('/run-clubs', { cacheBust: true }),
+                fetchCatalogJSON('/sports', { retries: 1 }),
+                fetchCatalogJSON('/fests/all', { retries: 1 }),
+                fetchCatalogJSON('/run-clubs', { retries: 1 }),
             ]);
 
             const eventsData = eventsRes?.data;

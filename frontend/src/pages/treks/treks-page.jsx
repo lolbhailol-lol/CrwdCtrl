@@ -28,7 +28,7 @@ import {
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import { publicFetchJSONRetry } from '../../services/api/client';
+import { fetchCatalogJSON } from '../../services/api/catalogCache';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
@@ -119,7 +119,7 @@ function mapTrekCards(trekData, commList) {
 }
 
 const fetchJSON = async (endpoint) => {
-    const { data } = await publicFetchJSONRetry(endpoint, { cacheBust: true });
+    const { data } = await fetchCatalogJSON(endpoint, { retries: 1 });
     return data;
 };
 

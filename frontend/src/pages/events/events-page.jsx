@@ -38,7 +38,7 @@ import { eventShowPath } from '../../utils/slugRoutes';
 const EVENTS_DESCRIPTION =
     'Discover events, shows and meetups near you — concerts, stand-up comedy, workshops and more. Find and book tickets to events around you on CrwdCtrl.';
 
-import { API_BASE_URL as API } from '../../services/api/client';
+import { fetchCatalogJSON } from '../../services/api/catalogCache';
 
 const EVENTS_CACHE_KEY = 'crwdctrl_events_page_v1';
 const readEventsCache = () => {
@@ -210,54 +210,57 @@ export default function EventsPage() {
     const loadData = useCallback(async () => {
         const hasCache = Boolean(readEventsCache());
         try {
-            const [eventsRes, festsRes, treksRes, commRes, sportsRes, clubsRes] = await Promise.all([
-                fetch(`${API}/events?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/fests/all?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/treks?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/trek-communities?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/sports?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/run-clubs?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
+            // Phase 1: primary events feed — show page as soon as this returns.
+            // Isolated so an events failure still lets Phase 2 carousels load.
+            let nextShows = [];
+            try {
+                const eventsRes = await fetchCatalogJSON('/events', { retries: 1 });
+                const data = eventsRes?.data;
+                nextShows = Array.isArray(data?.shows) ? data.shows : [];
+                setRawShows(nextShows);
+                setShows(nextShows.map(mapEventShow));
+            } catch {
+                if (!hasCache) {
+                    setRawShows([]);
+                    setShows([]);
+                }
+            } finally {
+                setLoading(false);
+            }
+
+            // Phase 2: carousel catalogs (shared in-memory cache, deduped across hub pages)
+            const [festsRes, treksRes, commRes, sportsRes, clubsRes] = await Promise.all([
+                fetchCatalogJSON('/fests/all', { retries: 1 }).catch(() => null),
+                fetchCatalogJSON('/treks', { retries: 1 }).catch(() => null),
+                fetchCatalogJSON('/trek-communities', { retries: 1 }).catch(() => null),
+                fetchCatalogJSON('/sports', { retries: 1 }).catch(() => null),
+                fetchCatalogJSON('/run-clubs', { retries: 1 }).catch(() => null),
             ]);
 
-            let nextShows = [];
             let nextFests = [];
             let nextTreks = [];
             let nextCommunities = [];
             let nextSports = [];
             let nextClubs = [];
 
-            if (eventsRes.ok) {
-                const data = await eventsRes.json();
-                nextShows = Array.isArray(data?.shows) ? data.shows : [];
-                setRawShows(nextShows);
-                setShows(nextShows.map(mapEventShow));
-            } else if (!hasCache) {
-                setRawShows([]);
-                setShows([]);
-            }
-            if (festsRes.ok) {
-                const data = await festsRes.json();
-                nextFests = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+            if (festsRes?.data) {
+                nextFests = Array.isArray(festsRes.data?.fests) ? festsRes.data.fests : Array.isArray(festsRes.data) ? festsRes.data : [];
                 setCarouselFests(nextFests);
             }
-            if (treksRes.ok) {
-                const data = await treksRes.json();
-                nextTreks = Array.isArray(data?.treks) ? data.treks : [];
+            if (treksRes?.data) {
+                nextTreks = Array.isArray(treksRes.data?.treks) ? treksRes.data.treks : [];
                 setCarouselTreks(nextTreks);
             }
-            if (commRes.ok) {
-                const data = await commRes.json();
-                nextCommunities = Array.isArray(data?.communities) ? data.communities : [];
+            if (commRes?.data) {
+                nextCommunities = Array.isArray(commRes.data?.communities) ? commRes.data.communities : [];
                 setCarouselCommunities(nextCommunities);
             }
-            if (sportsRes.ok) {
-                const data = await sportsRes.json();
-                nextSports = Array.isArray(data?.events) ? data.events : [];
+            if (sportsRes?.data) {
+                nextSports = Array.isArray(sportsRes.data?.events) ? sportsRes.data.events : [];
                 setCarouselSports(nextSports);
             }
-            if (clubsRes.ok) {
-                const data = await clubsRes.json();
-                nextClubs = Array.isArray(data?.clubs) ? data.clubs : [];
+            if (clubsRes?.data) {
+                nextClubs = Array.isArray(clubsRes.data?.clubs) ? clubsRes.data.clubs : [];
                 setCarouselRunClubs(nextClubs);
             }
 
@@ -270,8 +273,8 @@ export default function EventsPage() {
                 clubs: nextClubs,
             });
         } catch {
-            if (!hasCache) setShows([]);
-        } finally {
+            // Phase 1 already handled its own errors and cleared the loading gate;
+            // don't wipe successfully-loaded events if a later step fails.
             setLoading(false);
         }
     }, []);

@@ -6,10 +6,10 @@ import { buildPageCarouselItems } from '../utils/homeCarouselItems';
 import { mapHomeCarouselDisplayItems } from '../utils/mapHomeCarouselDisplayItems';
 import { getCardSizeProps } from '../utils/homeCardSize';
 import { TRENDING_CARD_GAP } from '../hooks/useHomeCarousel';
-import { publicFetchJSONRetry } from '../services/api/client';
+import { fetchCatalogJSON } from '../services/api/catalogCache';
 
 async function fetchPageSections(targetPage) {
-    const { data } = await publicFetchJSONRetry(`/page-sections?page=${encodeURIComponent(targetPage)}`, { cacheBust: true });
+    const { data } = await fetchCatalogJSON(`/page-sections?page=${encodeURIComponent(targetPage)}`, { retries: 1 });
     return Array.isArray(data?.sections) ? data.sections : [];
 }
 

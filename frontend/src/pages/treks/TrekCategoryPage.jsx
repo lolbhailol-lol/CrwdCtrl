@@ -16,7 +16,7 @@ import {
     trekMatchesFilters,
 } from '../../constants/trekFilters';
 
-import { API_BASE_URL as API } from '../../services/api/client';
+import { fetchCatalogJSON } from '../../services/api/catalogCache';
 
 const TREK_CATEGORIES = TREK_BROWSE_CATEGORIES;
 
@@ -152,13 +152,12 @@ export default function TrekCategoryPage() {
 
     useEffect(() => {
         Promise.all([
-            fetch(`${API}/treks?_cb=${Date.now()}`,             { credentials: 'omit', mode: 'cors', headers: { Accept: 'application/json' } }),
-            fetch(`${API}/trek-communities?_cb=${Date.now()}`,  { credentials: 'omit', mode: 'cors', headers: { Accept: 'application/json' } }),
+            fetchCatalogJSON('/treks', { retries: 1 }),
+            fetchCatalogJSON('/trek-communities', { retries: 1 }),
         ])
-            .then(([r1, r2]) => Promise.all([r1.json(), r2.json()]))
             .then(([t, c]) => {
-                setTreks(Array.isArray(t?.treks) ? t.treks : []);
-                setCommunities(Array.isArray(c?.communities) ? c.communities : []);
+                setTreks(Array.isArray(t?.data?.treks) ? t.data.treks : []);
+                setCommunities(Array.isArray(c?.data?.communities) ? c.data.communities : []);
             })
             .catch(() => {})
             .finally(() => setLoading(false));
