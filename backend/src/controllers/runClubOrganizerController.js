@@ -23,7 +23,6 @@ const {
 } = require('../utils/runClubOrganizerAccess');
 const {
     expireStalePendingRegistrations,
-    PENDING_TTL_HOURS,
     MANUAL_EXPIRE_TTL_HOURS,
     peopleFromRegistration,
     sumSeatsHeld,
@@ -788,20 +787,20 @@ exports.setRegistrationStatus = async (req, res) => {
 
 exports.expirePendingPayments = async (req, res) => {
     try {
-        // Manual dashboard action: always use an explicit TTL (auto-expiry may be disabled).
-        const ttlHours = PENDING_TTL_HOURS > 0 ? PENDING_TTL_HOURS : MANUAL_EXPIRE_TTL_HOURS;
+        // Manual dashboard action only — auto-expiry is permanently disabled.
+        const ttlHours = MANUAL_EXPIRE_TTL_HOURS;
         const expired = await expireStalePendingRegistrations(req.eventId, { forceTtlHours: ttlHours });
         res.json({
             success: true,
             expired,
             ttlHours,
             message: expired
-                ? `Expired ${expired} stale pending payment(s)`
-                : 'No stale pending payments to expire',
+                ? `Cleared ${expired} old pending payment(s) (older than ${ttlHours}h)`
+                : `No pending payments older than ${ttlHours}h`,
         });
     } catch (error) {
         console.error('[runClubOrganizer.expirePendingPayments]', error);
-        res.status(500).json({ success: false, message: 'Failed to expire pending payments' });
+        res.status(500).json({ success: false, message: 'Failed to clear old pending payments' });
     }
 };
 
@@ -991,10 +990,10 @@ exports.getDashboard = async (req, res) => {
                 pendingCheckIn: Math.max(0, totalRegistrations - checkedIn),
                 pendingPaymentReview,
                 pendingAmountAtRisk,
-                pendingTtlHours: PENDING_TTL_HOURS,
-                /** TTL used by the dashboard "Expire stale" button */
-                manualExpireTtlHours: PENDING_TTL_HOURS > 0 ? PENDING_TTL_HOURS : MANUAL_EXPIRE_TTL_HOURS,
-                autoExpireEnabled: PENDING_TTL_HOURS > 0,
+                pendingTtlHours: 0,
+                /** TTL used by the dashboard "Expire stale" button (manual only) */
+                manualExpireTtlHours: MANUAL_EXPIRE_TTL_HOURS,
+                autoExpireEnabled: false,
                 revenue: organizerRevenue,
                 organizerRevenue,
                 platformFees: 0,

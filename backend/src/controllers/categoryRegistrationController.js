@@ -20,7 +20,6 @@ const {
     assertUserPendingQrRateLimit,
     findDuplicateTransactionId,
     normalizeTransactionId,
-    PENDING_TTL_HOURS,
 } = require('../utils/runClubRegistrationGuards');
 const {
     encryptRegistrationPii,
@@ -451,9 +450,7 @@ exports.registerForEvent = async (req, res) => {
                             metadata: { registrationId: String(registration._id), stage: 'pending_review' },
                             paymentContext: {
                                 status: 'pending',
-                                message: PENDING_TTL_HOURS > 0
-                                    ? `Your spot is held while the organizer checks your payment. Holds for ${PENDING_TTL_HOURS} hours if not reviewed.`
-                                    : 'Your spot is held while the organizer checks your payment. You’ll get another update once it’s approved.',
+                                message: 'Your spot is held while the organizer checks your payment. You’ll get another update once it’s approved — no time limit.',
                             },
                         });
                     }

@@ -1,13 +1,11 @@
 const CategoryRegistration = require('../model/category_registration_model');
 
 /**
- * Hours before pending organizer-QR holds auto-cancel.
- * Set RUN_QR_PENDING_TTL_HOURS=0 (default) to disable automatic expiry.
- * Organizers can still clear stale holds manually from the dashboard.
+ * Pending organizer-QR payments never auto-expire.
+ * Organizers approve/reject anytime; optional manual "Expire stale" uses forceTtlHours only.
  */
-const rawPendingTtl = Number(process.env.RUN_QR_PENDING_TTL_HOURS);
-const PENDING_TTL_HOURS = Number.isFinite(rawPendingTtl) ? Math.max(0, rawPendingTtl) : 0;
-/** Used only when organizer clicks "Expire stale" and auto-TTL is disabled. */
+const PENDING_TTL_HOURS = 0;
+/** Used only when organizer clicks "Expire stale" on the dashboard. */
 const MANUAL_EXPIRE_TTL_HOURS = Math.max(
     1,
     Number(process.env.RUN_QR_MANUAL_EXPIRE_TTL_HOURS) || 72,
@@ -16,7 +14,7 @@ const PENDING_EXPIRE_BATCH = Math.max(50, Number(process.env.RUN_QR_PENDING_EXPI
 const PENDING_EXPIRE_MAX_ROUNDS = Math.max(1, Number(process.env.RUN_QR_PENDING_EXPIRE_ROUNDS) || 10);
 const MAX_PENDING_QR_PER_USER_WINDOW = Math.max(1, Number(process.env.RUN_QR_PENDING_PER_USER_LIMIT) || 3);
 
-function pendingCutoffDate(ttlHours = PENDING_TTL_HOURS) {
+function pendingCutoffDate(ttlHours = MANUAL_EXPIRE_TTL_HOURS) {
     return new Date(Date.now() - ttlHours * 60 * 60 * 1000);
 }
 
@@ -25,19 +23,19 @@ function isProductionEnv() {
 }
 
 /**
- * Cancel stale organizer_qr pending registrations so they stop holding seats.
- * Loops in batches until drained (capped rounds) so griefing floods clear.
+ * Cancel stale organizer_qr pending registrations (manual only).
+ * Auto-expiry is permanently disabled — pending holds stay until organizer reviews.
  * @param {string|null} eventId
  * @param {{ forceTtlHours?: number|null }} [options]
- *   forceTtlHours — use this TTL even when auto-expiry is disabled (manual expire).
+ *   forceTtlHours — required to expire anything (dashboard "Expire stale" button).
  */
 async function expireStalePendingRegistrations(eventId = null, options = {}) {
     const forceTtl = options?.forceTtlHours;
     const ttlHours = Number.isFinite(Number(forceTtl)) && Number(forceTtl) > 0
         ? Number(forceTtl)
-        : PENDING_TTL_HOURS;
+        : 0;
 
-    // 0 = never auto-expire (unless caller forces a TTL, e.g. dashboard button)
+    // Auto-expiry disabled: only run when an organizer explicitly forces a TTL
     if (!ttlHours || ttlHours <= 0) return 0;
 
     let total = 0;
@@ -59,7 +57,7 @@ async function expireStalePendingRegistrations(eventId = null, options = {}) {
         if (!stale.length) break;
 
         const ids = stale.map((r) => r._id);
-        const note = `Auto-expired after ${ttlHours}h without organizer approval`;
+        const note = `Cancelled by organizer after ${ttlHours}h without approval`;
         const reviewedAt = new Date();
 
         await CategoryRegistration.updateMany(
@@ -70,7 +68,7 @@ async function expireStalePendingRegistrations(eventId = null, options = {}) {
                     paymentStatus: 'failed',
                     paymentReviewNote: note,
                     paymentReviewedAt: reviewedAt,
-                    paymentReviewedBy: 'system',
+                    paymentReviewedBy: 'organizer_manual_expire',
                 },
             },
         );
@@ -101,19 +99,19 @@ async function expireStalePendingRegistrations(eventId = null, options = {}) {
                                 registration: lean,
                                 eventId: reg.eventId,
                                 eventTitle,
-                                title: 'Payment hold expired',
-                                message: `Your payment hold for ${eventTitle} expired after ${ttlHours} hours without club approval. You can register again from My Bookings or the run page.`,
+                                title: 'Payment hold released',
+                                message: `Your payment hold for ${eventTitle} was released by the club. You can register again from My Bookings or the run page.`,
                                 type: 'registration',
                                 link: '/booking',
-                                emailSubject: `Payment hold expired — ${eventTitle}`,
+                                emailSubject: `Payment hold released — ${eventTitle}`,
                                 metadata: {
                                     registrationId: String(reg._id),
-                                    action: 'auto_expire',
+                                    action: 'manual_expire',
                                     ttlHours,
                                 },
                                 paymentContext: {
                                     status: 'failed',
-                                    message: `Hold released after ${ttlHours}h without organizer approval. Register again anytime.`,
+                                    message: 'Hold released by the organizer. Register again anytime.',
                                 },
                             });
                         } catch (err) {
@@ -228,9 +226,6 @@ async function assertSportsCapacityAvailable(eventId, people, {
                 message: 'Too many payments are awaiting club review. Try again later or contact the organizer.',
             };
         }
-    } else {
-        // Cashfree / free confirm: pending holds do not hard-block confirmed seats anymore
-        // (confirmed check above is enough). Soft warn only if pending+confirmed wildly high? skip.
     }
 
     return { ok: true };
@@ -254,7 +249,7 @@ async function assertUserPendingQrRateLimit(userId, excludeId = null) {
     if (count >= MAX_PENDING_QR_PER_USER_WINDOW) {
         return {
             ok: false,
-            message: `You already have ${count} payment(s) awaiting club review. Wait for approval or expiry before submitting another.`,
+            message: `You already have ${count} payment(s) awaiting club review. Wait for the club to approve before submitting another.`,
         };
     }
     return { ok: true };
