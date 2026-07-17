@@ -53,6 +53,15 @@ export const AuthProvider = ({ children }) => {
         return true;
     };
 
+    useEffect(() => {
+        const onSessionRefreshed = (event) => {
+            const { user: refreshedUser, token: refreshedToken } = event.detail || {};
+            applyRefreshedSession(refreshedUser, refreshedToken);
+        };
+        window.addEventListener('crwdctrl:session-refreshed', onSessionRefreshed);
+        return () => window.removeEventListener('crwdctrl:session-refreshed', onSessionRefreshed);
+    }, []);
+
     const tryRefreshStoredSession = async (restored) => {
         if (!restored?.token || !isTokenExpired(restored.token)) return restored;
         try {

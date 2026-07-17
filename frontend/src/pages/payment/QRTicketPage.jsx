@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Ticket, CalendarDays, MapPin, Users, CalendarPlus } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import LocalQRCode from '../../components/LocalQRCode';
@@ -7,7 +7,8 @@ import { buildGoogleCalendarUrl } from '../../utils/calendar';
 import { openExternalUrl } from '../../utils/externalLink';
 
 import { API_BASE_URL } from '../../services/api/client';
-const getToken = () => localStorage.getItem('crwdctrl_token');
+import { authenticatedFetchJSON } from '../../services/api/auth.api';
+import { useAuth } from '../../context/AuthContext';
 
 const formatTicketDate = (date) => {
   if (!date) return null;
@@ -22,6 +23,9 @@ const formatTicketDate = (date) => {
 
 export default function QRTicketPage() {
   const { isDark } = useDarkMode();
+  const { token: authToken, isAuthenticated, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { registrationId } = useParams();
   const [searchParams] = useSearchParams();
   const ticketType = searchParams.get('type');
@@ -33,9 +37,18 @@ export default function QRTicketPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
+      return;
+    }
+
     const fetchTicket = async () => {
       try {
-        const token = getToken();
+        setLoading(true);
+        setError(null);
+
         const url = isTrekTicket
           ? `${API_BASE_URL}/qr/trek-bookings/${registrationId}/qr`
           : isSportsTicket
@@ -44,12 +57,7 @@ export default function QRTicketPage() {
               ? `${API_BASE_URL}/qr/event-registrations/${registrationId}/qr`
               : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
 
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-          credentials: 'include',
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Failed to load ticket');
+        const data = await authenticatedFetchJSON(url, { token: authToken });
         setTicket(data.data);
       } catch (err) {
         setError(err.message);
@@ -59,7 +67,7 @@ export default function QRTicketPage() {
     };
 
     fetchTicket();
-  }, [registrationId, isTrekTicket, isSportsTicket, isEventTicket]);
+  }, [registrationId, isTrekTicket, isSportsTicket, isEventTicket, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search]);
 
   const cardClass = isDark
     ? 'bg-[#111213] border-gray-800'

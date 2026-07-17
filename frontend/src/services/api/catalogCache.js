@@ -5,10 +5,25 @@ const TTL_MS = 2 * 60 * 1000;
 const cache = new Map();
 const inFlight = new Map();
 
+/**
+ * Cache key must include meaningful query params (e.g. page=home vs page=events).
+ * Strip only client cache-busters (_cb) so force-refresh paths still share the logical key.
+ */
 function cacheKey(path) {
-  return String(path)
-    .split('?')[0]
-    .replace(/\/$/, '');
+  const raw = String(path || '');
+  const qIndex = raw.indexOf('?');
+  const pathname = (qIndex === -1 ? raw : raw.slice(0, qIndex)).replace(/\/$/, '') || '/';
+  if (qIndex === -1) return pathname;
+
+  const params = new URLSearchParams(raw.slice(qIndex + 1));
+  params.delete('_cb');
+  const entries = [...params.entries()].sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) return pathname;
+
+  const query = entries
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+  return `${pathname}?${query}`;
 }
 
 /**

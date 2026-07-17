@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Receipt, Download } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 
 import { API_BASE_URL } from '../../services/api/client';
-const getToken = () => localStorage.getItem('crwdctrl_token');
+import { authenticatedFetchJSON } from '../../services/api/auth.api';
+import { useAuth } from '../../context/AuthContext';
 
 const formatAmount = (amount) =>
   `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -15,26 +16,33 @@ export default function PaymentInvoicePage() {
   const isTrek = searchParams.get('type') === 'trek';
   const isEvent = searchParams.get('type') === 'event';
   const { isDark } = useDarkMode();
+  const { token: authToken, isAuthenticated, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
+      return;
+    }
+
     const fetchInvoice = async () => {
       try {
-        const token = getToken();
+        setLoading(true);
+        setError(null);
+
         const url = isTrek
           ? `${API_BASE_URL}/registrations/trek-booking/${id}/invoice`
           : isEvent
             ? `${API_BASE_URL}/registrations/event-registration/${id}/invoice`
             : `${API_BASE_URL}/registrations/invoice/${id}`;
 
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-          credentials: 'include',
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load payment receipt');
+        const data = await authenticatedFetchJSON(url, { token: authToken });
         setInvoice(data.data);
       } catch (err) {
         setError(err.message);
@@ -44,7 +52,7 @@ export default function PaymentInvoicePage() {
     };
 
     fetchInvoice();
-  }, [id, isTrek, isEvent]);
+  }, [id, isTrek, isEvent, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search]);
 
   const handlePrint = () => window.print();
 

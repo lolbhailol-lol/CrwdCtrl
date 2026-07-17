@@ -2,8 +2,8 @@
  * Authenticated user API — token helpers, strict fetch, legacy auth client shim.
  */
 import { resolveUrl } from './client.js';
-import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken.js';
-import { clearAuthSession } from '../../utils/authStorage.js';
+import { resolveAuthToken, getBearerAuthHeaders, isTokenExpired } from '../../utils/authToken.js';
+import { clearAuthSession, persistAuthSession } from '../../utils/authStorage.js';
 
 /** @deprecated Implementation lives in utils/api.js — migrate callers gradually */
 export { authAPI, handleApiError, ApiError } from '../../utils/api.js';
@@ -68,6 +68,30 @@ export async function validateUserToken(token) {
   }
 }
 
+function broadcastSessionRefresh(user, token) {
+  persistAuthSession(user, token);
+  try {
+    window.dispatchEvent(new CustomEvent('crwdctrl:session-refreshed', { detail: { user, token } }));
+  } catch {
+    /* ignore */
+  }
+}
+
+async function tryRefreshAuthToken(token) {
+  const source = resolveAuthToken(token);
+  if (!source) return null;
+  try {
+    const refreshed = await refreshUserSession(source);
+    if (refreshed?.token && refreshed?.user) {
+      broadcastSessionRefresh(refreshed.user, refreshed.token);
+      return refreshed.token;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 /** Renew JWT using a still-trusted (possibly expired) session token. */
 export async function refreshUserSession(token) {
   const resolved = resolveAuthToken(token);
@@ -102,6 +126,9 @@ export async function userFetchJSONStrict(path, options = {}) {
     await new Promise((r) => setTimeout(r, 280));
     token = resolveAuthToken(options.token);
   }
+  if (!token || isTokenExpired(token)) {
+    token = await tryRefreshAuthToken(token || options.token);
+  }
   if (!token) {
     const err = new Error('Authentication failed. Please log in again.');
     err.code = 'NO_AUTH_TOKEN';
@@ -112,18 +139,28 @@ export async function userFetchJSONStrict(path, options = {}) {
     ? path
     : `${path}${path.includes('?') ? '&' : '?'}t=${Date.now()}`;
 
-  const response = await fetch(resolveUrl(bustPath), {
+  const doFetch = (bearerToken) => fetch(resolveUrl(bustPath), {
     method: options.method ?? 'GET',
     credentials: options.credentials ?? 'include',
     mode: 'cors',
     headers: {
-      ...getBearerAuthHeaders(token),
+      ...getBearerAuthHeaders(bearerToken),
       ...(options.headers || {}),
     },
     signal: options.signal,
   });
 
-        if (response.status === 401) {
+  let response = await doFetch(token);
+
+  if (response.status === 401) {
+    const refreshed = await tryRefreshAuthToken(token);
+    if (refreshed) {
+      token = refreshed;
+      response = await doFetch(token);
+    }
+  }
+
+  if (response.status === 401) {
     const err = new Error('Authentication failed. Please log in again.');
     err.code = 'AUTH_401';
     throw err;
@@ -135,6 +172,46 @@ export async function userFetchJSONStrict(path, options = {}) {
     throw err;
   }
   return response.json();
+}
+
+/** Authenticated fetch for absolute API URLs (e.g. QR ticket, invoice). Refreshes stale JWTs. */
+export async function authenticatedFetchJSON(url, options = {}) {
+  let token = resolveAuthToken(options.token);
+  if (!token || isTokenExpired(token)) {
+    token = await tryRefreshAuthToken(token || options.token);
+  }
+  if (!token) {
+    throw new Error('Please log in to continue.');
+  }
+
+  const doFetch = (bearerToken) => fetch(url, {
+    method: options.method ?? 'GET',
+    credentials: options.credentials ?? 'include',
+    mode: options.mode ?? 'cors',
+    headers: {
+      ...getBearerAuthHeaders(bearerToken),
+      ...(options.headers || {}),
+    },
+    signal: options.signal,
+    body: options.body,
+  });
+
+  let response = await doFetch(token);
+  let data = await response.json().catch(() => ({}));
+
+  if (response.status === 401) {
+    const refreshed = await tryRefreshAuthToken(token);
+    if (refreshed) {
+      token = refreshed;
+      response = await doFetch(token);
+      data = await response.json().catch(() => ({}));
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `Request failed (${response.status})`);
+  }
+  return data;
 }
 
 export async function fetchMyRegistrations(options = {}) {
