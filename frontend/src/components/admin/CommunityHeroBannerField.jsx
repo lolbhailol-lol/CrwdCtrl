@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Heart, ImagePlus, Move, Share2, Upload, X } from 'lucide-react';
 import CoverImageCropModal from '../CoverImageCropModal';
 import ContentImage from '../ContentImage';
-import { adminFetch } from '../../utils/adminApi';
+import { adminFetch } from '../../services/api/admin.api.js';
 import { parseUploadedUrls } from '../../utils/uploadUrls';
 import { COMMUNITY_PAGE_HERO } from '../../utils/communityPageHero';
 

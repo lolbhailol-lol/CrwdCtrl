@@ -6,7 +6,7 @@ import CommunityHeroBannerField from './CommunityHeroBannerField';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES, excludeCoverUrlsFromGallery } from '../../utils/coverImages';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 const EMPTY = {
     name: '',

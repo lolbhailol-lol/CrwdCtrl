@@ -7,7 +7,7 @@ import {
   LineChart, UserPlus, MousePointerClick, Clock, Globe, FileBarChart,
   Radio, Settings, ExternalLink, CalendarRange,
 } from 'lucide-react';
-import { adminFetchJSON as adminFetch } from '../../utils/adminApi';
+import { adminFetchJSON as adminFetch } from '../../services/api/admin.api.js';
 
 function formatINR(amount) {
   return `₹${(amount ?? 0).toLocaleString('en-IN')}`;

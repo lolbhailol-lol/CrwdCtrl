@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Mountain, Calendar, Clock, MapPin, Edit2, Trash2, Plus, Eye, EyeOff, Users2, ExternalLink, Phone, Images, GripVertical } from 'lucide-react';
 import TrekFormModal from '../../components/admin/TrekFormModal';
 import TrekCommunityFormModal from '../../components/admin/TrekCommunityFormModal';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 import { resolveCoverImage } from '../../utils/coverImages';
 

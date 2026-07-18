@@ -4,7 +4,7 @@ import {
     Fingerprint, GraduationCap, Globe, Loader2, LogIn, Mail, Phone, Search,
     ShieldCheck, User, Users, VenetianMask,
 } from 'lucide-react';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
 
 const ROLE_FILTERS = [

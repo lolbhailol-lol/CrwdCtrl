@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import FeaturedEntityPicker, { buildFeaturedEntityOptions } from './FeaturedEntityPicker';
 
 export default function HomeFeaturedSlotsEditor({

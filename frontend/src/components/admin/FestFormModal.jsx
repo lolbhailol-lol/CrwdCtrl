@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, Loader } from 'lucide-react';
-import { adminFetch, adminFetchJSON, getAdminToken } from '../../utils/adminApi';
+import { adminFetch, adminFetchJSON, getAdminToken } from '../../services/api/admin.api.js';
 
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {

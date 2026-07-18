@@ -60,7 +60,9 @@ export default function PaymentProofReviewModal({
     const amount = Number(participant.amountPaid || participant.grossCollected || 0);
     const listAmount = Number(participant.listAmount || participant.amountBeforeDiscount || 0);
     const expected = Number(expectedFee ?? participant.expectedAmount ?? amount);
-    const hasScreenshot = Boolean(String(participant.paymentScreenshotUrl || '').trim());
+    const hasScreenshot = Boolean(
+        String(participant.paymentScreenshotUrl || participant.paymentScreenshotCipher || '').trim(),
+    );
     const canApprove = hasScreenshot || amount <= 0;
     const people = Number(participant.people) || 1;
     const runDate = participant.trekDate || '';
@@ -68,9 +70,12 @@ export default function PaymentProofReviewModal({
     const hasQueue = queueTotal > 1;
 
     const handleApprove = async () => {
+        if (!canApprove) return;
         setBusy(true);
         try {
             await onApprove(participant.bookingId);
+        } catch {
+            /* parent toasts — never leave unhandledrejection */
         } finally {
             setBusy(false);
         }
@@ -81,6 +86,8 @@ export default function PaymentProofReviewModal({
         setBusy(true);
         try {
             await onReject(participant.bookingId, note.trim());
+        } catch {
+            /* parent toasts */
         } finally {
             setBusy(false);
         }

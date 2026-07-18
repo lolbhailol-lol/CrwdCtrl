@@ -1,4 +1,4 @@
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from './admin.api.js';
 
 const BASE = '/admin/notifications';
 

@@ -12,7 +12,7 @@ import {
     isOnHomeHero,
 } from '../../utils/pageSections';
 import { EVENTS_PAGE_CHECK_OPTS } from '../../constants/eventsPage';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 
 // ── Section options ────────────────────────────────────────────────────────────
 const HOME_CHECK_OPTS = [

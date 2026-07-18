@@ -3,7 +3,7 @@ import { QrCode, Loader, Mountain, PartyPopper, Copy, Check, Trophy, Search } fr
 import FestScannerSetup from '../../components/admin/FestScannerSetup';
 import TrekScannerSetup from '../../components/admin/TrekScannerSetup';
 import SportScannerSetup from '../../components/admin/SportScannerSetup';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 export default function ScannerAccessPage() {
   const [tab, setTab] = useState('fests');

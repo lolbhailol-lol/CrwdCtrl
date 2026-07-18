@@ -3,7 +3,7 @@ import {
     AlertCircle, Calendar, Flag, Footprints, Loader2,
     Mail, Mountain, Phone, Search, User,
 } from 'lucide-react';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
 
 const TABS = [

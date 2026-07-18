@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminStats from '../../components/admin/AdminStatsCard';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 const QUICK_LINKS = [
   { label: 'Manage Fests', path: '/admin/fests', description: 'Create, edit, and manage fests' },

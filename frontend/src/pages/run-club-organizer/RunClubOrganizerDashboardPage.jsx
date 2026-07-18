@@ -380,12 +380,14 @@ export default function RunClubOrganizerDashboardPage() {
     if (error) return <div className="text-red-400 text-sm">{error}</div>;
     if (!data) return null;
 
-    const { event, stats } = data;
-    const status = eventDetail?.status || event.status;
+    const { event, stats: rawStats } = data;
+    const stats = rawStats && typeof rawStats === 'object' ? rawStats : {};
+    const status = eventDetail?.status || event?.status;
     const fee = Number(eventDetail?.registrationFee || 0);
     const mode = eventDetail?.registration?.mode || 'internal_form';
-    const regStatus = eventDetail?.registration?.status || event.registrationStatus || 'open';
-    const ttlHours = stats.manualExpireTtlHours || 72;
+    const regStatus = eventDetail?.registration?.status || event?.registrationStatus || 'open';
+    // Guard optional stats fields (API may omit pending TTL on some events)
+    const ttlHours = Number(stats?.manualExpireTtlHours ?? stats?.pendingTtlHours ?? 72) || 72;
 
     const toggleRegistration = async () => {
         const next = regStatus === 'open' ? 'closed' : 'open';

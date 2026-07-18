@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader, Search } from 'lucide-react';
 import EventShowFormModal from '../../components/admin/EventShowFormModal';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { EVENT_TYPE_LABELS } from '../../constants/eventsPage';
 import { useDialog } from '../../context/DialogContext';
 

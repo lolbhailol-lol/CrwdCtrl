@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Tag, Plus, Users, Percent, Info } from 'lucide-react';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 const ENTITY_OPTIONS = [
   { id: 'sports', label: 'Runs (Cashfree + UPI / screenshot)' },

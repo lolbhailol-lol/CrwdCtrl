@@ -12,7 +12,7 @@ import {
     getBudgetTier,
     DIFFICULTY_LEVEL_FILTER_OPTIONS,
 } from '../../constants/trekFilters';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeTrekBatches, EMPTY_BATCH } from '../../utils/trekDateDisplay';
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import { normalizeItineraryForForm, serializeItineraryForSave, EMPTY_MAIN_POINT, EMPTY_SUB_POINT, parsePastedSchedulePoints } from '../../utils/trekItinerary';

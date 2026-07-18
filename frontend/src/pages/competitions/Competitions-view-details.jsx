@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, Instagram, Check, Moon, Sun, Mail, User, ArrowLeft, Trophy, Ticket, Zap } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import Sidebar from '../../components/Sidebar';
-import Navbar from '../../components/Navbar';
-import ProfileSidebar from '../../components/ProfileSidebar';
+import Sidebar from '../../components/layout/Sidebar';
+import Navbar from '../../components/layout/Navbar';
+import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
 import { useRegisteredEvents } from '../../context/RegisteredEventsContext';

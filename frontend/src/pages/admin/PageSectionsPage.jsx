@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
     AlertCircle, ArrowRight, Layers, LayoutGrid, Loader2, Plus, Sparkles,
 } from 'lucide-react';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { getCardSizeShortLabel } from '../../utils/homeCardSize';
 import { getTargetPageLabel } from '../../utils/pageSections';
 import CardSizePicker from '../../components/admin/CardSizePicker';

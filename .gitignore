@@ -51,3 +51,13 @@ temp/
 
 # Local MCP / IDE config
 mcp.json
+
+# Local-only media / renders / videos — never push
+local/
+media/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.wav

@@ -5,7 +5,7 @@ import CommunityHeroBannerField from './CommunityHeroBannerField';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 const CATEGORY_OPTIONS = ['Camping', 'Trail Walks', 'Hiking', 'Backpacking', 'Adventure'];
 

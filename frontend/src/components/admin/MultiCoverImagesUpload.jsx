@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Upload } from 'lucide-react';
 import CoverImageCropModal from '../CoverImageCropModal';
 import ContentImage from '../ContentImage';
-import { adminFetch } from '../../utils/adminApi';
+import { adminFetch } from '../../services/api/admin.api.js';
 import { parseUploadedUrls } from '../../utils/uploadUrls';
 import { COVER_IMAGE_SLOTS, normalizeCoverImages } from '../../utils/coverImages';
 

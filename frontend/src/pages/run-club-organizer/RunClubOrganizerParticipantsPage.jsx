@@ -297,8 +297,8 @@ export default function RunClubOrganizerParticipantsPage() {
             advanceReviewQueue(bookingId);
             await load();
         } catch (e) {
+            // Toast only — do not rethrow (was flooding Sentry as unhandledrejection)
             toast(e.message || 'Approve failed');
-            throw e;
         }
     };
 
@@ -310,7 +310,6 @@ export default function RunClubOrganizerParticipantsPage() {
             await load();
         } catch (e) {
             toast(e.message || 'Reject failed');
-            throw e;
         }
     };
 

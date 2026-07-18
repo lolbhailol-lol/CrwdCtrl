@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Footprints, Plus, Loader, Pencil, Trash2, Search, Check, X } from 'lucide-react';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 
 const emptyForm = {

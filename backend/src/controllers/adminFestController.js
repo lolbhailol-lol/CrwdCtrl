@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { logger } = require('../utils/logger');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Competition = require('../model/competition_model');
 const { parseTicketPrice } = require('../utils/platformFee');
@@ -16,7 +17,7 @@ const festsCache = {
 const clearFestsCache = () => {
     festsCache.data = null;
     festsCache.timestamp = 0;
-    console.log('🗑️ Admin: Fests cache cleared');
+    logger.debug('🗑️ Admin: Fests cache cleared');
 };
 
 const getCompetitionBaseFee = (registrationFee, feeAmount) => {
@@ -60,13 +61,13 @@ exports.triggerEventAnnouncement = async (req, res) => {
    CREATE FEST (ADMIN)
 ========================= */
 exports.createFest = async (req, res) => {
-  console.log('🎪 Admin createFest endpoint hit');
-  console.log('📦 Request body:', req.body);
-  console.log('🔍 DEBUG - Key fields in request:');
-  console.log('  - artistsHeading:', req.body.artistsHeading, '(type:', typeof req.body.artistsHeading, ')');
-  console.log('  - competitionsHeading:', req.body.competitionsHeading, '(type:', typeof req.body.competitionsHeading, ')');
-  console.log('  - contacts:', req.body.contacts, '(type:', typeof req.body.contacts, ', length:', req.body.contacts?.length, ')');
-  console.log('🔑 Admin user:', req.admin);
+  logger.debug('🎪 Admin createFest endpoint hit');
+  logger.debug('📦 Request body:', req.body);
+  logger.debug('🔍 DEBUG - Key fields in request:');
+  logger.debug('  - artistsHeading:', req.body.artistsHeading, '(type:', typeof req.body.artistsHeading, ')');
+  logger.debug('  - competitionsHeading:', req.body.competitionsHeading, '(type:', typeof req.body.competitionsHeading, ')');
+  logger.debug('  - contacts:', req.body.contacts, '(type:', typeof req.body.contacts, ', length:', req.body.contacts?.length, ')');
+  logger.debug('🔑 Admin user:', req.admin);
   
   try {
     const {
@@ -92,7 +93,7 @@ exports.createFest = async (req, res) => {
 
     // 1. Validation
     if (!festName || !collegeName || !festType || !venue || !description) {
-      console.error('❌ Required fields missing');
+      logger.error('❌ Required fields missing');
       return res.status(400).json({ message: 'Required fields missing' });
     }
 
@@ -136,7 +137,7 @@ exports.createFest = async (req, res) => {
 
     // 4. Save to Database
     await fest.save();
-    console.log('✅ Fest saved successfully:', fest._id);
+    logger.debug('✅ Fest saved successfully:', fest._id);
 
     // 5. Cache Management
     clearFestsCache();
@@ -144,7 +145,7 @@ exports.createFest = async (req, res) => {
       const { clearAllCaches } = require('./festOrganizerController');
       clearAllCaches();
     } catch (cacheError) {
-      console.warn('⚠️ Cache clear failed:', cacheError.message);
+      logger.warn('⚠️ Cache clear failed:', cacheError.message);
     }
 
     // 6. Return Success Response Immediately
@@ -154,7 +155,7 @@ exports.createFest = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('💥 Admin create fest error:', error);
+    logger.error('💥 Admin create fest error:', error);
     res.status(500).json({
       message: 'Failed to create fest',
       error: error.message
@@ -199,7 +200,7 @@ exports.getAllFests = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching fests:', error);
+    logger.error('Error fetching fests:', error);
     res.status(500).json({ message: 'Failed to fetch fests' });
   }
 };
@@ -208,27 +209,27 @@ exports.getAllFests = async (req, res) => {
    UPDATE FEST
 ========================= */
 exports.updateFest = async (req, res) => {
-  console.log('🔄 Admin updateFest endpoint hit');
-  console.log('📦 Request body:', req.body);
-  console.log('🔍 DEBUG - Key fields in request:');
-  console.log('  - artistsHeading:', req.body.artistsHeading, '(type:', typeof req.body.artistsHeading, ')');
-  console.log('  - competitionsHeading:', req.body.competitionsHeading, '(type:', typeof req.body.competitionsHeading, ')');
-  console.log('  - contacts:', req.body.contacts, '(type:', typeof req.body.contacts, ', length:', req.body.contacts?.length, ')');
-  console.log('🆔 Fest ID:', req.params.id);
-  console.log('🔑 Admin user:', req.admin);
+  logger.debug('🔄 Admin updateFest endpoint hit');
+  logger.debug('📦 Request body:', req.body);
+  logger.debug('🔍 DEBUG - Key fields in request:');
+  logger.debug('  - artistsHeading:', req.body.artistsHeading, '(type:', typeof req.body.artistsHeading, ')');
+  logger.debug('  - competitionsHeading:', req.body.competitionsHeading, '(type:', typeof req.body.competitionsHeading, ')');
+  logger.debug('  - contacts:', req.body.contacts, '(type:', typeof req.body.contacts, ', length:', req.body.contacts?.length, ')');
+  logger.debug('🆔 Fest ID:', req.params.id);
+  logger.debug('🔑 Admin user:', req.admin);
   
   try {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.error('❌ Invalid fest ID:', id);
+      logger.error('❌ Invalid fest ID:', id);
       return res.status(400).json({ message: 'Invalid fest ID' });
     }
 
     // 1. Get the current fest (cover image fallback logic)
     const existingFest = await FestOrganizer.findById(id);
     if (!existingFest) {
-      console.error('❌ Fest not found:', id);
+      logger.error('❌ Fest not found:', id);
       return res.status(404).json({ message: 'Fest not found' });
     }
 
@@ -259,7 +260,7 @@ exports.updateFest = async (req, res) => {
       { new: true }
     );
 
-    console.log('✅ Fest updated successfully:', fest._id);
+    logger.debug('✅ Fest updated successfully:', fest._id);
 
     // 5. CACHE MANAGEMENT
     clearFestsCache();
@@ -267,10 +268,10 @@ exports.updateFest = async (req, res) => {
       const festController = require('./festOrganizerController');
       if (typeof festController.clearAllCaches === 'function') {
         festController.clearAllCaches();
-        console.log('✅ Cleared public fest cache');
+        logger.debug('✅ Cleared public fest cache');
       }
     } catch (cacheError) {
-      console.warn('⚠️ Cache clearing warning:', cacheError.message);
+      logger.warn('⚠️ Cache clearing warning:', cacheError.message);
     }
 
     // 6. Return response immediately to Admin
@@ -282,7 +283,7 @@ exports.updateFest = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('💥 Admin update fest error:', error);
+    logger.error('💥 Admin update fest error:', error);
     res.status(500).json({ 
       message: 'Failed to update fest',
       error: error.message 
@@ -307,9 +308,9 @@ exports.deleteFest = async (req, res) => {
     try {
       const { clearAllCaches } = require('./festOrganizerController');
       clearAllCaches();
-      console.log('✅ Cleared both admin and public caches after fest deletion');
+      logger.debug('✅ Cleared both admin and public caches after fest deletion');
     } catch (cacheError) {
-      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+      logger.warn('⚠️ Could not clear public cache:', cacheError.message);
     }
 
     res.json({ message: 'Fest deleted successfully' });
@@ -326,7 +327,7 @@ exports.createCompetition = async (req, res) => {
   try {
     const { festId } = req.params;
 
-    console.log('Backend - Create competition request:', {
+    logger.debug('Backend - Create competition request:', {
       festId,
       bodyKeys: Object.keys(req.body),
       competitionType: req.body.competitionType,
@@ -337,7 +338,7 @@ exports.createCompetition = async (req, res) => {
     });
 
     if (!mongoose.Types.ObjectId.isValid(festId)) {
-      console.error('❌ Invalid fest ID format:', festId);
+      logger.error('❌ Invalid fest ID format:', festId);
       return res.status(400).json({ message: 'Invalid fest ID' });
     }
 
@@ -367,7 +368,7 @@ exports.createCompetition = async (req, res) => {
 
     // ✅ Enhanced validation with detailed error messages
     if (!name || !description || !prizePool || !registrationFee) {
-      console.error('❌ Missing required fields:', { name, description, prizePool, registrationFee });
+      logger.error('❌ Missing required fields:', { name, description, prizePool, registrationFee });
       return res.status(400).json({
         message: 'Please fill Competition Name, Description, Prize Pool and Registration Fee'
       });
@@ -375,7 +376,7 @@ exports.createCompetition = async (req, res) => {
 
     // ✅ NEW: Validate dateTime is not empty (required by model)
     if (!dateTime || dateTime.trim() === '') {
-      console.error('❌ Missing required field: dateTime');
+      logger.error('❌ Missing required field: dateTime');
       return res.status(400).json({
         message: 'Please fill the Date and Time field'
       });
@@ -383,7 +384,7 @@ exports.createCompetition = async (req, res) => {
 
     // ✅ NEW: Validate competitionType
     if (!competitionType) {
-      console.error('❌ Missing required field: competitionType');
+      logger.error('❌ Missing required field: competitionType');
       return res.status(400).json({
         message: 'Please select a Competition Type'
       });
@@ -391,7 +392,7 @@ exports.createCompetition = async (req, res) => {
 
     // ✅ NEW: Validate competitionType
     if (!competitionType) {
-      console.error('❌ Missing required field: competitionType');
+      logger.error('❌ Missing required field: competitionType');
       return res.status(400).json({
         message: 'Please select a Competition Type'
       });
@@ -436,7 +437,7 @@ exports.createCompetition = async (req, res) => {
       legacyRegistration: legacyRegistration || { status: 'NOT_STARTED' }
     });
 
-    console.log('Backend - Creating competition with:', {
+    logger.debug('Backend - Creating competition with:', {
       name: competition.name,
       competitionType: competition.competitionType,
       dateTime: competition.dateTime,
@@ -445,7 +446,7 @@ exports.createCompetition = async (req, res) => {
     });
 
     const savedCompetition = await competition.save();
-    console.log('✅ Competition created successfully:', savedCompetition._id);
+    logger.debug('✅ Competition created successfully:', savedCompetition._id);
 
     const updatedFest = await FestOrganizer.findByIdAndUpdate(
       festId,
@@ -458,9 +459,9 @@ exports.createCompetition = async (req, res) => {
     try {
       const { clearAllCaches } = require('./festOrganizerController');
       clearAllCaches();
-      console.log('✅ Cleared all caches after competition creation');
+      logger.debug('✅ Cleared all caches after competition creation');
     } catch (cacheError) {
-      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+      logger.warn('⚠️ Could not clear public cache:', cacheError.message);
     }
 
     res.status(201).json({
@@ -469,11 +470,11 @@ exports.createCompetition = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Create competition error:', error);
+    logger.error('❌ Create competition error:', error);
     
     // ✅ Better error handling for validation errors
     if (error.name === 'ValidationError') {
-      console.error('Backend - Mongoose validation error details:', error.errors);
+      logger.error('Backend - Mongoose validation error details:', error.errors);
       const missingFields = Object.keys(error.errors).join(', ');
       return res.status(400).json({ 
         message: 'Validation failed', 
@@ -497,19 +498,19 @@ exports.createCompetition = async (req, res) => {
    UPDATE FEST PRIORITY
 ========================= */
 exports.updateFestPriority = async (req, res) => {
-  console.log('🎯 updateFestPriority called');
-  console.log('📍 Params:', req.params);
-  console.log('📦 Body:', req.body);
+  logger.debug('🎯 updateFestPriority called');
+  logger.debug('📍 Params:', req.params);
+  logger.debug('📦 Body:', req.body);
   
   try {
     const { id } = req.params;
     const { priority } = req.body;
 
-    console.log(`🔍 Processing priority update for fest ID: ${id}, priority: ${priority}`);
+    logger.debug(`🔍 Processing priority update for fest ID: ${id}, priority: ${priority}`);
 
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.log('❌ Invalid ObjectId format');
+      logger.debug('❌ Invalid ObjectId format');
       return res.status(400).json({
         message: 'Invalid fest ID format'
       });
@@ -517,40 +518,40 @@ exports.updateFestPriority = async (req, res) => {
 
     // Validate priority
     if (priority === undefined || priority === null) {
-      console.log('❌ Priority is missing');
+      logger.debug('❌ Priority is missing');
       return res.status(400).json({
         message: 'Priority is required'
       });
     }
 
     const priorityNum = parseInt(priority);
-    console.log(`🔢 Parsed priority: ${priorityNum}`);
+    logger.debug(`🔢 Parsed priority: ${priorityNum}`);
     
     if (isNaN(priorityNum) || priorityNum < 1 || priorityNum > 999) {
-      console.log('❌ Priority out of range');
+      logger.debug('❌ Priority out of range');
       return res.status(400).json({
         message: 'Priority must be a number between 1 and 999'
       });
     }
 
     // Find the fest
-    console.log('🔍 Looking up fest in database...');
+    logger.debug('🔍 Looking up fest in database...');
     const fest = await FestOrganizer.findById(id);
     if (!fest) {
-      console.log('❌ Fest not found');
+      logger.debug('❌ Fest not found');
       return res.status(404).json({ message: 'Fest not found' });
     }
-    console.log(`✅ Found fest: ${fest.festName}`);
+    logger.debug(`✅ Found fest: ${fest.festName}`);
 
     // Update priority
-    console.log(`📝 Updating priority from ${fest.priority} to ${priorityNum}`);
+    logger.debug(`📝 Updating priority from ${fest.priority} to ${priorityNum}`);
     fest.priority = priorityNum;
     
     try {
       await fest.save();
-      console.log('✅ Fest saved successfully');
+      logger.debug('✅ Fest saved successfully');
     } catch (saveError) {
-      console.error('❌ Error saving fest:', saveError);
+      logger.error('❌ Error saving fest:', saveError);
       return res.status(500).json({ message: 'Failed to save fest: ' + saveError.message });
     }
 
@@ -561,12 +562,12 @@ exports.updateFestPriority = async (req, res) => {
     try {
       const { clearAllCaches } = require('./festOrganizerController');
       clearAllCaches();
-      console.log('✅ Cleared both admin and public caches after priority update');
+      logger.debug('✅ Cleared both admin and public caches after priority update');
     } catch (cacheError) {
-      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+      logger.warn('⚠️ Could not clear public cache:', cacheError.message);
     }
 
-    console.log('✅ Priority update complete, sending response');
+    logger.debug('✅ Priority update complete, sending response');
     res.status(200).json({
       message: 'Fest priority updated successfully',
       fest: {
@@ -577,8 +578,8 @@ exports.updateFestPriority = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error updating fest priority:', error.message);
-    console.error('❌ Full error:', error);
+    logger.error('❌ Error updating fest priority:', error.message);
+    logger.error('❌ Full error:', error);
     res.status(500).json({ message: 'Failed to update fest priority: ' + error.message });
   }
 };
@@ -630,9 +631,9 @@ exports.reorderFests = async (req, res) => {
     try {
       const { clearAllCaches } = require('./festOrganizerController');
       clearAllCaches();
-      console.log('✅ Cleared both admin and public caches after bulk reorder');
+      logger.debug('✅ Cleared both admin and public caches after bulk reorder');
     } catch (cacheError) {
-      console.warn('⚠️ Could not clear public cache:', cacheError.message);
+      logger.warn('⚠️ Could not clear public cache:', cacheError.message);
     }
 
     res.status(200).json({
@@ -641,7 +642,7 @@ exports.reorderFests = async (req, res) => {
       total: festUpdates.length
     });
   } catch (error) {
-    console.error('Error reordering fests:', error);
+    logger.error('Error reordering fests:', error);
     res.status(500).json({ message: 'Failed to reorder fests' });
   }
 };

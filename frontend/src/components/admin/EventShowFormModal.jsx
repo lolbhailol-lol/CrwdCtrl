@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import EventRegistrationFeePicker from './EventRegistrationFeePicker';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
 import CoverImageUploadField from './CoverImageUploadField';

@@ -525,6 +525,7 @@ router.post(
   '/upload/image',
   adminAuth,
   uploadCtrl.uploadSingle,
+  uploadCtrl.multerErrorHandler,
   uploadCtrl.uploadImage
 );
 
@@ -532,6 +533,7 @@ router.post(
   '/upload/images',
   adminAuth,
   uploadCtrl.uploadMultiple,
+  uploadCtrl.multerErrorHandler,
   uploadCtrl.uploadMultipleImages
 );
 

@@ -8,8 +8,8 @@ import CulturalFestImage from '../../assets/mobile-icons/cultural-events-icon-02
 import TechFestImage from '../../assets/mobile-icons/tech-icon.svg';
 import SportsFestImage from '../../assets/mobile-icons/sports-icon.svg';
 import SportsIconNew from '../../assets/mobile-icons/sports-icon-new.svg';
-import Sidebar from '../../components/Sidebar';
-import Navbar from '../../components/Navbar';
+import Sidebar from '../../components/layout/Sidebar';
+import Navbar from '../../components/layout/Navbar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
 import { useFavorites } from '../../context/FavoritesContext';

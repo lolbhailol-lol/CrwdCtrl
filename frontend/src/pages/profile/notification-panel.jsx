@@ -3,9 +3,9 @@ import { Bell, Clock, Calendar, ArrowLeft } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useNotifications } from '../../context/NotificationsContext';
-import Sidebar from '../../components/Sidebar';
-import Navbar from '../../components/Navbar';
-import ProfileSidebar from '../../components/ProfileSidebar';
+import Sidebar from '../../components/layout/Sidebar';
+import Navbar from '../../components/layout/Navbar';
+import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 

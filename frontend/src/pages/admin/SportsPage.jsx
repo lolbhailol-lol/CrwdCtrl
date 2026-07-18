@@ -17,7 +17,7 @@ import {
 import SportsFormModal from '../../components/admin/SportsFormModal';
 import RunClubFormModal from '../../components/admin/RunClubFormModal';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 
 const STATUS_BADGE = {

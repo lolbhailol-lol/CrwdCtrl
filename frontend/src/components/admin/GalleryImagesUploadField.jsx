@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Upload } from 'lucide-react';
-import { adminFetch } from '../../utils/adminApi';
+import { adminFetch } from '../../services/api/admin.api.js';
 import { normalizeImageList, normalizeImageUrl, parseUploadedUrls } from '../../utils/uploadUrls';
 
 const GALLERY_PREVIEW_COUNT = 4;

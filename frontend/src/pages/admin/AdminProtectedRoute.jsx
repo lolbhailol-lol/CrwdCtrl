@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useEffect, useState } from 'react';
-import { getAdminToken, clearAdminSession, adminFetch } from '../../utils/adminApi';
+import { getAdminToken, clearAdminSession, adminFetch } from '../../services/api/admin.api.js';
 
 function parseAdminToken(token) {
   try {

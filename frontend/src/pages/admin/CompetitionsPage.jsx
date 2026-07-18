@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader, RefreshCw, Search } from 'lucide-react';
 import CompetitionModal from '../../components/admin/Competition_Modal';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 export default function CompetitionsPage() {
   const [fests, setFests] = useState([]);

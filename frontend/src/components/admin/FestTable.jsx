@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ExternalLink, Loader, Search } from 'lucide-react';
 import FestFormModal from './FestFormModal';
 import CompetitionModal from './Competition_Modal';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 
 const STATUS_LABELS = {

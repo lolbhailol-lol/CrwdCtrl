@@ -1,13 +1,10 @@
 const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
 const { findByIdOrSlug } = require('./slug');
+const { normalizeUsername } = require('./normalizeUsername');
 
 const EVENT_SELECT =
     'title city venue eventDate status maxParticipants registration.status registration.mode registrationFee runClubId sportType distance runCategory coverImage reportingTime';
-
-function normalizeUsername(value) {
-    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-}
 
 async function getOrganizerEvents(organizer) {
     if (!organizer?.runClubId) return [];

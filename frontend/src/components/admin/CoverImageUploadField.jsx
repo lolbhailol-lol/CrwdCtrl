@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Upload, ImagePlus } from 'lucide-react';
 import CoverImageCropModal from '../CoverImageCropModal';
 import ContentImage from '../ContentImage';
-import { adminFetch } from '../../utils/adminApi';
+import { adminFetch } from '../../services/api/admin.api.js';
 import { parseUploadedUrls } from '../../utils/uploadUrls';
 
 import { CROP_ASPECT_OPTIONS } from '../../utils/coverCropAspects';

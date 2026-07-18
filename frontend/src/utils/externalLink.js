@@ -8,7 +8,10 @@ import { isNativeApp } from './capacitorPlatform';
  */
 export async function openExternalUrl(url) {
   if (!url) return;
-  if (isNativeApp()) {
+  const canUseNativeBrowser = isNativeApp()
+    && typeof window !== 'undefined'
+    && Boolean(window.Capacitor?.isNativePlatform?.() || window.webkit?.messageHandlers?.bridge);
+  if (canUseNativeBrowser) {
     try {
       const { Browser } = await import('@capacitor/browser');
       await Browser.open({ url });
@@ -31,7 +34,14 @@ export async function openExternalUrl(url) {
  * Returns: true (shared), 'copied' (link copied as fallback), or false (nothing happened).
  */
 export async function shareContent({ title, text, url } = {}) {
-  if (isNativeApp()) {
+  // Only touch Capacitor Share when the native bridge is actually present.
+  // Checking isNativeApp() alone is not enough in some WebViews where
+  // window.webkit exists but messageHandlers is undefined.
+  const canUseNativeShare = isNativeApp()
+    && typeof window !== 'undefined'
+    && Boolean(window.Capacitor?.isNativePlatform?.() || window.webkit?.messageHandlers?.bridge);
+
+  if (canUseNativeShare) {
     try {
       const { Share } = await import('@capacitor/share');
       await Share.share({
@@ -42,7 +52,7 @@ export async function shareContent({ title, text, url } = {}) {
       });
       return true;
     } catch (err) {
-      // User cancelled or plugin missing — try clipboard as a soft fallback.
+      // User cancelled, bridge gone, or plugin missing — soft fallback.
       console.warn('[externalLink] Share.share failed, falling back:', err);
     }
   } else if (typeof navigator !== 'undefined' && navigator.share) {

@@ -11,7 +11,7 @@ import {
   EyeOff,
   Share2,
 } from 'lucide-react';
-import { adminFetch } from '../../utils/adminApi';
+import { adminFetch } from '../../services/api/admin.api.js';
 
 const VARIANT = {
   fest: {

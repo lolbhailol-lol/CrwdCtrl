@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
 import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 
 // Individual Form Field Component
