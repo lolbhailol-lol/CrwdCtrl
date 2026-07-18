@@ -13,6 +13,7 @@ router.get('/', async (req, res) => {
             .sort({ runClubPriority: 1, createdAt: -1 })
             .limit(100)
             .lean();
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
         res.json({ clubs });
     } catch (err) {
         console.error('publicRunClub getAll error:', err.message);

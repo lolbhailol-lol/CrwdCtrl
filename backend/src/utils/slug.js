@@ -57,13 +57,25 @@ async function findByIdOrSlug(Model, idOrSlug, {
         // Model may not have a slug path — ignore
     }
 
-    const q = applyQueryOpts(Model.find(baseFilter));
-    const rows = lean ? await q.lean() : await q;
-    return rows.find((row) => {
+    // Lightweight scan: only load fields needed to match name→slug, then re-fetch full doc
+    const scanSelect = select || 'title name festName trekName displayName slug';
+    let scanQ = Model.find(baseFilter).select(scanSelect).limit(500);
+    if (sort) scanQ = scanQ.sort(sort);
+    const rows = lean ? await scanQ.lean() : await scanQ;
+    const matched = rows.find((row) => {
         const named = toSlug(pickName(row));
         const stored = row.slug ? toSlug(row.slug) : '';
         return named === slug || stored === slug;
-    }) || null;
+    });
+    if (!matched) return null;
+
+    // Return full document (scan used a narrow projection)
+    if (select) {
+        const q = applyQueryOpts(Model.findOne({ ...baseFilter, _id: matched._id }));
+        return lean ? await q.lean() : await q;
+    }
+    const fullQ = Model.findOne({ ...baseFilter, _id: matched._id });
+    return lean ? await fullQ.lean() : await fullQ;
 }
 
 module.exports = {

@@ -1,9 +1,11 @@
 const mongoose = require('mongoose');
 const coverImagesSchema = require('./coverImagesSchema');
+const { toSlug } = require('../utils/slug');
 
 const runClubSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
+        slug: { type: String, trim: true, lowercase: true, index: true },
         basedIn: { type: String, trim: true, default: '' },
         organizer: { type: String, trim: true, default: '' },
         aboutUs: { type: String, trim: true, default: '' },
@@ -39,6 +41,14 @@ const runClubSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+runClubSchema.pre('save', function ensureSlug(next) {
+    if (this.isModified('name') || !this.slug) {
+        const nextSlug = toSlug(this.name);
+        if (nextSlug) this.slug = nextSlug;
+    }
+    next();
+});
 
 runClubSchema.index({ status: 1 });
 runClubSchema.index({ runClubPriority: 1 });

@@ -19,7 +19,7 @@ import {
     verifyPaymentWithRetry,
 } from '../../utils/paymentNavigation';
 import { calculatePlatformFee } from '../../utils/platformFee';
-import { API_BASE_URL } from '../../services/api/client';
+import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { sportRunPath } from '../../utils/slugRoutes';
 import { mergeRunFormFields } from '../../utils/formFieldDedupe';
@@ -208,21 +208,23 @@ export default function RunEventBookingPage() {
         const evId = id || location.state?.event?._id || location.state?.event?.id;
         if (!evId) { setLoadingEvent(false); return; }
 
-        let cancelled = false;
+        const controller = new AbortController();
         (async () => {
             try {
-                const r = await fetch(`${API}/sports/${evId}`);
-                const d = await r.json();
-                if (!cancelled && d.event) setEvent(d.event);
-                else if (!cancelled && location.state?.event) setEvent(location.state.event);
+                const res = await publicFetchJSONRetry(`/sports/${encodeURIComponent(evId)}`, {
+                    signal: controller.signal,
+                    retries: 3,
+                });
+                if (res?.data?.event) setEvent(res.data.event);
+                else if (location.state?.event) setEvent(location.state.event);
             } catch {
-                if (!cancelled && location.state?.event) setEvent(location.state.event);
+                if (!controller.signal.aborted && location.state?.event) setEvent(location.state.event);
             } finally {
-                if (!cancelled) setLoadingEvent(false);
+                if (!controller.signal.aborted) setLoadingEvent(false);
             }
         })();
 
-        return () => { cancelled = true; };
+        return () => controller.abort();
     }, [id, location.state?.event]);
 
     useEffect(() => {

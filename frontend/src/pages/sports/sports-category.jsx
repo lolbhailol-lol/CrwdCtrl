@@ -68,6 +68,43 @@ const writeSportsCache = (payload) => {
 
 const BROWSE_CATEGORIES = SPORTS_BROWSE_CATEGORIES;
 
+/** Auto-retries so a cold-start blip never leaves a user stuck on a dead screen. */
+function SportsAutoRetryError({ isDark, message, onRetry }) {
+    const [countdown, setCountdown] = useState(4);
+    const [isRetrying, setIsRetrying] = useState(false);
+
+    useEffect(() => {
+        if (isRetrying) return undefined;
+        if (countdown <= 0) {
+            setIsRetrying(true);
+            onRetry();
+            return undefined;
+        }
+        const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+        return () => clearTimeout(timer);
+    }, [countdown, isRetrying, onRetry]);
+
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center gap-4">
+            <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {isRetrying ? 'Loading events…' : 'Couldn’t load events'}
+            </h2>
+            <p className={`text-sm max-w-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {isRetrying
+                    ? 'Reconnecting to the server…'
+                    : `${message || 'Check your connection and try again.'} Retrying in ${countdown}s…`}
+            </p>
+            <button
+                type="button"
+                onClick={() => { setIsRetrying(true); onRetry(); }}
+                className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+            >
+                {isRetrying ? 'Retrying…' : 'Retry now'}
+            </button>
+        </div>
+    );
+}
+
 function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
     const imgSrc = getCoverImageUrl(club, 'cardPortrait');
     const shareUrl = typeof window !== 'undefined'
@@ -131,34 +168,64 @@ export default function SportsCategoryPage() {
     usePageContentLoading(loading);
 
     const loadData = useCallback(async () => {
-        const hasCache = Boolean(readSportsCache());
+        const cachedPage = readSportsCache();
+        const hasCache = Boolean(cachedPage);
         if (!hasCache) setLoading(true);
         setLoadError('');
         try {
-            const [eventsRes, festsRes, clubsRes] = await Promise.all([
-                fetchCatalogJSON('/sports', { retries: 1 }),
-                fetchCatalogJSON('/fests/all', { retries: 1 }),
-                fetchCatalogJSON('/run-clubs', { retries: 1 }),
+            // Critical feeds load independently — one slow/failing endpoint must not blank the page.
+            // /fests/all is search/SEO only; soft-fail it.
+            const [eventsSettled, clubsSettled, festsSettled] = await Promise.allSettled([
+                fetchCatalogJSON('/sports', { retries: 2 }),
+                fetchCatalogJSON('/run-clubs', { retries: 2 }),
+                fetchCatalogJSON('/fests/all', { retries: 1 }).catch(() => null),
             ]);
 
-            const eventsData = eventsRes?.data;
-            const nextEvents = Array.isArray(eventsData?.events) ? eventsData.events : [];
-            setSportsEvents(nextEvents);
+            const eventsRes = eventsSettled.status === 'fulfilled' ? eventsSettled.value : null;
+            const clubsRes = clubsSettled.status === 'fulfilled' ? clubsSettled.value : null;
+            const festsRes = festsSettled.status === 'fulfilled' ? festsSettled.value : null;
 
-            const festsData = festsRes?.data;
-            const all = Array.isArray(festsData?.fests)
-                ? festsData.fests
-                : Array.isArray(festsData)
-                    ? festsData
-                    : [];
-            const nextFests = all.filter((f) => f.festType === 'sports' && f.status !== 'lastyearhit');
-            setSportsFests(nextFests);
+            let nextEvents = Array.isArray(cachedPage?.events) ? cachedPage.events : [];
+            let nextClubs = Array.isArray(cachedPage?.clubs) ? cachedPage.clubs : [];
+            let nextFests = Array.isArray(cachedPage?.fests) ? cachedPage.fests : [];
 
-            const clubsData = clubsRes?.data;
-            const nextClubs = Array.isArray(clubsData?.clubs) ? clubsData.clubs : [];
-            setRunClubEntities(nextClubs);
+            if (eventsRes?.data) {
+                nextEvents = Array.isArray(eventsRes.data?.events) ? eventsRes.data.events : [];
+                setSportsEvents(nextEvents);
+            }
+            if (clubsRes?.data) {
+                nextClubs = Array.isArray(clubsRes.data?.clubs) ? clubsRes.data.clubs : [];
+                setRunClubEntities(nextClubs);
+            }
+            if (festsRes?.data) {
+                const all = Array.isArray(festsRes.data?.fests)
+                    ? festsRes.data.fests
+                    : Array.isArray(festsRes.data)
+                        ? festsRes.data
+                        : [];
+                nextFests = all.filter((f) => f.festType === 'sports' && f.status !== 'lastyearhit');
+                setSportsFests(nextFests);
+            }
 
-            writeSportsCache({ events: nextEvents, fests: nextFests, clubs: nextClubs });
+            const gotCritical = Boolean(eventsRes?.data || clubsRes?.data);
+            if (gotCritical) {
+                writeSportsCache({ events: nextEvents, fests: nextFests, clubs: nextClubs });
+                setLoadError('');
+            } else if (
+                eventsSettled.status === 'rejected'
+                && clubsSettled.status === 'rejected'
+                && !hasCache
+            ) {
+                const err = eventsSettled.reason || clubsSettled.reason;
+                setSportsEvents([]);
+                setSportsFests([]);
+                setRunClubEntities([]);
+                setLoadError(
+                    err?.isNetworkError || err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED'
+                        ? 'Could not load sports events. Check your connection and try again.'
+                        : (err?.message || 'Could not load sports events. Try again.'),
+                );
+            }
         } catch (err) {
             if (!hasCache) {
                 setSportsEvents([]);
@@ -248,21 +315,11 @@ export default function SportsCategoryPage() {
     );
 
     const LoadFailed = () => (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center gap-4">
-            <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Couldn’t load events
-            </h2>
-            <p className={`text-sm max-w-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                {loadError || 'Check your connection and try again.'}
-            </p>
-            <button
-                type="button"
-                onClick={() => loadData()}
-                className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
-            >
-                Retry
-            </button>
-        </div>
+        <SportsAutoRetryError
+            isDark={isDark}
+            message={loadError || 'Check your connection and try again.'}
+            onRetry={loadData}
+        />
     );
 
     const handleActivityClick = (item) => {

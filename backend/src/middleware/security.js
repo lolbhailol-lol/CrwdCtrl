@@ -10,10 +10,12 @@ function securityHeaders(req, res, next) {
     } else if (
       (req.path.startsWith('/api/treks')
         || req.path.startsWith('/api/trek-communities')
-        || req.path.startsWith('/api/sports'))
+        || req.path.startsWith('/api/sports')
+        || req.path.startsWith('/api/run-clubs'))
       && !req.path.includes('/admin/')
     ) {
-      res.set('Cache-Control', 'no-store');
+      // Short public cache — cuts repeat mobile/Instagram hits during cold starts
+      res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     }
   }
 

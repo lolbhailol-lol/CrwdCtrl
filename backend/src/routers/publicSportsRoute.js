@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const SportsEvent = require('../model/sports_model');
-const { findByIdOrSlug } = require('../utils/slug');
+const { findByIdOrSlug, toSlug } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
     sumConfirmedSeats,
@@ -23,6 +23,7 @@ router.get('/', async (req, res) => {
             .limit(100)
             .lean();
 
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
         res.status(200).json({ events });
     } catch (error) {
         console.error('publicSports getAll error:', error);
@@ -47,6 +48,15 @@ router.get('/:idOrSlug', async (req, res) => {
         if (event.runClubId && typeof event.runClubId === 'object') {
             event.runClub = event.runClubId;
             event.runClubId = event.runClub._id;
+        }
+
+        // Backfill slug for legacy rows so shared /sports/run/:slug links stay stable
+        if (!event.slug && event.title) {
+            const slug = toSlug(event.title);
+            if (slug) {
+                event.slug = slug;
+                SportsEvent.updateOne({ _id: event._id }, { $set: { slug } }).catch(() => {});
+            }
         }
 
         // Seats: expire stale pending QR holds, then compute remaining

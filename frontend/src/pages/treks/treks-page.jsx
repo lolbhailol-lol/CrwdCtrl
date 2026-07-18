@@ -313,12 +313,23 @@ function TreksPage() {
     const loadData = useCallback(async () => {
         const hasCache = Boolean(readTreksCache());
         try {
-            const [trekData, commData] = await Promise.all([
+            const [trekSettled, commSettled] = await Promise.allSettled([
                 fetchJSON('/treks'),
                 fetchJSON('/trek-communities'),
             ]);
-            applyTrekPayload(trekData, commData);
-            writeTreksCache({ trekData, commData });
+            const trekData = trekSettled.status === 'fulfilled' ? trekSettled.value : (hasCache ? readTreksCache()?.trekData : null);
+            const commData = commSettled.status === 'fulfilled' ? commSettled.value : (hasCache ? readTreksCache()?.commData : null);
+            if (trekData || commData) {
+                applyTrekPayload(trekData || { treks: [] }, commData || { communities: [] });
+                if (trekSettled.status === 'fulfilled' || commSettled.status === 'fulfilled') {
+                    writeTreksCache({
+                        trekData: trekData || { treks: [] },
+                        commData: commData || { communities: [] },
+                    });
+                }
+            } else if (!hasCache) {
+                setTreks([]);
+            }
         } catch {
             if (!hasCache) setTreks([]);
         } finally {

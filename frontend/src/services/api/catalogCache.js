@@ -31,7 +31,8 @@ function cacheKey(path) {
  * Returns axios-like `{ data, headers }` matching publicFetchJSONRetry.
  */
 export async function fetchCatalogJSON(path, options = {}) {
-  const { force = false, retries = 1, timeout } = options;
+  // Default retries/timeout tuned for mobile + cold Railway starts
+  const { force = false, retries = 2, timeout } = options;
   const key = cacheKey(path);
 
   if (!force) {

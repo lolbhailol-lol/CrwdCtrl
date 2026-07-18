@@ -1,9 +1,12 @@
 const mongoose = require('mongoose');
 const coverImagesSchema = require('./coverImagesSchema');
+const { toSlug } = require('../utils/slug');
 
 const sportsEventSchema = new mongoose.Schema(
     {
         title: { type: String, required: true, trim: true },
+        /** Stable URL slug derived from title — used by /sports/run/:slug deep links */
+        slug: { type: String, trim: true, lowercase: true, index: true },
         sportType: {
             type: String,
             enum: ['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other'],
@@ -167,6 +170,10 @@ sportsEventSchema.pre('save', function stripLegacyScannerPassword(next) {
         this.scannerAccess.password = undefined;
         this.markModified('scannerAccess');
         this.$unset('scannerAccess.password');
+    }
+    if (this.isModified('title') || !this.slug) {
+        const nextSlug = toSlug(this.title);
+        if (nextSlug) this.slug = nextSlug;
     }
     next();
 });

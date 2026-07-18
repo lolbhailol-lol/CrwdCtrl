@@ -1,13 +1,19 @@
-import { getApiBaseUrl } from '../../config/apiBase.js';
+import { getApiBaseUrl, PRODUCTION_API_BASE_URL } from '../../config/apiBase.js';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken.js';
 
+/** Resolved at call time so production web can use same-origin `/api`. */
+export function getResolvedApiBaseUrl() {
+  return getApiBaseUrl();
+}
+
+/** @deprecated Prefer resolveUrl() / getResolvedApiBaseUrl() — kept for existing imports. */
 export const API_BASE_URL = getApiBaseUrl();
 
-export function resolveUrl(path) {
-  if (!path) return API_BASE_URL;
+export function resolveUrl(path, base = getApiBaseUrl()) {
+  if (!path) return base;
   if (path.startsWith('http')) return path;
   const normalized = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE_URL}${normalized}`;
+  return `${base}${normalized}`;
 }
 
 /**
@@ -66,7 +72,13 @@ function isNetworkFetchError(err) {
   return err?.name === 'AbortError'
     || err?.name === 'TypeError'
     || err?.message?.includes('Failed to fetch')
-    || err?.message?.includes('Network');
+    || err?.message?.includes('Network')
+    || err?.message?.includes('timeout')
+    || err?.code === 'ERR_NOT_JSON';
+}
+
+function shouldRetryStatus(status) {
+  return status === 408 || status === 425 || status === 429 || (status >= 500 && status <= 599);
 }
 
 function withCacheBust(path, cacheBust) {
@@ -77,7 +89,21 @@ function withCacheBust(path, cacheBust) {
 
 function getPublicFetchTimeout(options = {}) {
   if (options.timeout) return options.timeout;
-  return isIOSBrowser() ? 20000 : 10000;
+  const fromEnv = parseInt(import.meta.env.VITE_API_TIMEOUT, 10);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) {
+    return Math.max(fromEnv, isIOSBrowser() ? 20000 : 15000);
+  }
+  return isIOSBrowser() ? 20000 : 15000;
+}
+
+/** Prefer same-origin, then Railway — covers Vercel proxy blips and bad mobile DNS. */
+function getApiBaseCandidates() {
+  const primary = getApiBaseUrl();
+  const bases = [primary];
+  if (primary !== PRODUCTION_API_BASE_URL && !/localhost|127\.0\.0\.1/.test(primary)) {
+    bases.push(PRODUCTION_API_BASE_URL);
+  }
+  return bases;
 }
 
 /**
@@ -85,12 +111,20 @@ function getPublicFetchTimeout(options = {}) {
  * Returns axios-like `{ data, headers }` for drop-in replacement in page helpers.
  */
 export async function publicFetchJSONRetry(path, options = {}) {
-  const url = resolveUrl(withCacheBust(path, options.cacheBust));
   const timeout = getPublicFetchTimeout(options);
   const maxRetries = options.retries ?? 3;
-  const useRetry = !options.signal;
+  const bases = getApiBaseCandidates();
 
-  const attemptFetch = async (retryCount = 0) => {
+  const attemptFetch = async (retryCount = 0, baseIndex = 0) => {
+    if (options.signal?.aborted) {
+      const error = new Error('Request aborted');
+      error.code = 'ECONNABORTED';
+      error.isNetworkError = true;
+      throw error;
+    }
+
+    const base = bases[Math.min(baseIndex, bases.length - 1)];
+    const url = resolveUrl(withCacheBust(path, options.cacheBust), base);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -115,6 +149,24 @@ export async function publicFetchJSONRetry(path, options = {}) {
       if (!response.ok) {
         const err = new Error(`HTTP ${response.status}`);
         err.status = response.status;
+        if (shouldRetryStatus(response.status) && retryCount < maxRetries && !options.signal?.aborted) {
+          // After a couple of server failures, flip to Railway fallback base
+          const nextBase = retryCount >= 1 && baseIndex < bases.length - 1 ? baseIndex + 1 : baseIndex;
+          await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+          return attemptFetch(retryCount + 1, nextBase);
+        }
+        throw err;
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        // Same-origin /api hit the SPA HTML shell (proxy missing) — try Railway next
+        const err = new Error('Non-JSON response');
+        err.code = 'ERR_NOT_JSON';
+        err.isNetworkError = true;
+        if (baseIndex < bases.length - 1) {
+          return attemptFetch(retryCount, baseIndex + 1);
+        }
         throw err;
       }
 
@@ -126,13 +178,29 @@ export async function publicFetchJSONRetry(path, options = {}) {
     } catch (err) {
       clearTimeout(timeoutId);
 
-      if (isNetworkFetchError(err) && useRetry && retryCount < maxRetries) {
+      if (options.signal?.aborted) {
+        const error = new Error('Request aborted');
+        error.code = 'ECONNABORTED';
+        error.isNetworkError = true;
+        throw error;
+      }
+
+      if (err?.status && !isNetworkFetchError(err) && !shouldRetryStatus(err.status)) {
+        throw err;
+      }
+
+      const canRetry = (isNetworkFetchError(err) || shouldRetryStatus(err?.status)) && retryCount < maxRetries;
+      if (canRetry) {
+        const nextBase = (isNetworkFetchError(err) || err?.code === 'ERR_NOT_JSON')
+          && baseIndex < bases.length - 1
+          ? baseIndex + 1
+          : baseIndex;
         await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
-        return attemptFetch(retryCount + 1);
+        return attemptFetch(retryCount + 1, nextBase);
       }
 
       if (err.name === 'AbortError') {
-        const error = new Error(options.signal?.aborted ? 'Request aborted' : 'Request timeout');
+        const error = new Error('Request timeout');
         error.code = 'ECONNABORTED';
         error.isNetworkError = true;
         throw error;
@@ -156,7 +224,7 @@ export async function publicFetchJSONRetry(path, options = {}) {
  * iOS/Safari-friendly public fetch returning raw Response.
  */
 export async function publicFetch(path, options = {}) {
-  const timeout = isIOSBrowser() ? 20000 : 10000;
+  const timeout = getPublicFetchTimeout(options);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);

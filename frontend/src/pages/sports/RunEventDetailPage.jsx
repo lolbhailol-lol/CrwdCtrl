@@ -13,7 +13,22 @@ import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { normalizeRunDetailBoxes } from '../../utils/trekDetailBoxes';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 
-import { API_BASE_URL as API } from '../../services/api/client';
+import { publicFetchJSONRetry } from '../../services/api/client';
+
+const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v1_';
+const readRunDetailCache = (key) => {
+    try {
+        const raw = sessionStorage.getItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+};
+const writeRunDetailCache = (key, event) => {
+    try {
+        if (key && event) sessionStorage.setItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`, JSON.stringify(event));
+    } catch { /* storage full */ }
+};
 
 const SKILL_LABELS = {
     all: 'All Levels',
@@ -60,6 +75,7 @@ export default function RunEventDetailPage() {
 
     const [event, setEvent] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [liked, setLiked] = useState(false);
     const [imgPg, setImgPg] = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -76,14 +92,21 @@ export default function RunEventDetailPage() {
         const eventId = id || location.state?.event?._id || location.state?.event?.id;
         if (!eventId) {
             setEvent(null);
+            setLoadError('');
             setLoading(false);
             return undefined;
         }
 
         const seeded = seedEventFromNav(location.state?.event);
-        const ok = entityMatchesRouteParam(seeded, id, ['title', 'name']);
-        setEvent(null);
-        setLoading(true);
+        const cachedEvent = readRunDetailCache(eventId);
+        const ok = entityMatchesRouteParam(seeded, id, ['title', 'name'])
+            || entityMatchesRouteParam(cachedEvent, id, ['title', 'name']);
+        const fallback = ok ? (seeded || cachedEvent) : (cachedEvent || null);
+
+        // Paint cached/seeded content immediately so Instagram opens never flash "not found"
+        setEvent(fallback);
+        setLoadError('');
+        setLoading(!fallback);
 
         setImgPg(0);
         setOverviewExpanded(false);
@@ -93,16 +116,43 @@ export default function RunEventDetailPage() {
         setTierSheetOpen(false);
 
         const controller = new AbortController();
-        fetch(`${API}/sports/${eventId}`, { signal: controller.signal })
-            .then((r) => r.json())
-            .then((d) => {
-                if (d.event) setEvent(d.event);
-                else if (ok) setEvent(seeded);
-                else setEvent(null);
+        publicFetchJSONRetry(`/sports/${encodeURIComponent(eventId)}`, {
+            signal: controller.signal,
+            retries: 3,
+        })
+            .then((res) => {
+                const d = res?.data;
+                if (d?.event) {
+                    setEvent(d.event);
+                    writeRunDetailCache(eventId, d.event);
+                    if (d.event._id) writeRunDetailCache(String(d.event._id), d.event);
+                    if (d.event.slug) writeRunDetailCache(String(d.event.slug), d.event);
+                    setLoadError('');
+                } else if (fallback) {
+                    setEvent(fallback);
+                    setLoadError('');
+                } else {
+                    setEvent(null);
+                    setLoadError('not_found');
+                }
             })
-            .catch(() => {
-                if (ok) setEvent(seeded);
-                else setEvent(null);
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                if (fallback) {
+                    setEvent(fallback);
+                    setLoadError('');
+                    return;
+                }
+                setEvent(null);
+                if (err?.status === 404) {
+                    setLoadError('not_found');
+                } else {
+                    setLoadError(
+                        err?.isNetworkError || err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED'
+                            ? 'network'
+                            : 'failed',
+                    );
+                }
             })
             .finally(() => {
                 if (!controller.signal.aborted) setLoading(false);
@@ -130,11 +180,32 @@ export default function RunEventDetailPage() {
     }
 
     if (!event) {
+        const isNetwork = loadError === 'network' || loadError === 'failed';
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
-                <p className="text-gray-500 text-sm text-center">Run not found</p>
-                <button onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">
-                    ← Go back
+                <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isNetwork ? "Couldn't load this run" : 'Run not found'}
+                </p>
+                <p className="text-gray-500 text-sm text-center max-w-xs">
+                    {isNetwork
+                        ? 'Check your connection and try again. Shared links work best in Chrome or Safari.'
+                        : 'This run may have ended or the link is outdated.'}
+                </p>
+                {isNetwork ? (
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                <button
+                    type="button"
+                    onClick={() => (isNetwork ? navigate('/sports') : navigate(-1))}
+                    className="text-[#0ECCEE] text-sm font-semibold"
+                >
+                    {isNetwork ? 'Browse sports' : '← Go back'}
                 </button>
             </div>
         );
