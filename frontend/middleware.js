@@ -32,56 +32,77 @@ const API_BASE =
 const BOT_UA =
   /(facebookexternalhit|facebot|twitterbot|whatsapp|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|google-inspectiontool|storebot-google|bingbot|duckduckbot|applebot|gptbot|oai-searchbot|chatgpt-user|perplexitybot|claudebot|claude-web|anthropic-ai|bytespider|amazonbot|yandexbot|embedly|quora link preview|vkshare|w3c_validator|iframely|skypeuripreview|nuzzel|bitlybot|developers\.google\.com\/\+\/web\/snippet)/i;
 
+/** Prefer trek/fest cover slots over falling back to the CrwdCtrl logo in OG previews. */
+function pickShareImage(entity) {
+  if (!entity || typeof entity !== 'object') return undefined;
+  const covers = entity.coverImages && typeof entity.coverImages === 'object' ? entity.coverImages : {};
+  const candidates = [
+    entity.coverImage,
+    covers.hero,
+    covers.portrait,
+    covers.wide,
+    covers.landscape,
+    covers.square,
+    covers.video,
+    entity.poster,
+    entity.banner,
+    entity.image,
+    Array.isArray(entity.heroImages) ? entity.heroImages[0] : null,
+    Array.isArray(entity.images) ? entity.images[0] : null,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return undefined;
+}
+
 const ROUTES = [
   {
     test: /^\/view-details\/([^/]+)\/?$/,
     api: (id) => `/fests/${id}/public`,
     pick: (j) => j?.data || j,
-    build: (f, path) => buildEvent(f.festName, f.description, f.coverImage, f.venue, f.ticketPrice ?? f.feeAmount, f.collegeName, path, 'Fests', '/fests'),
+    build: (f, path) => buildEvent(f.festName, f.description, pickShareImage(f), f.venue, f.ticketPrice ?? f.feeAmount, f.collegeName, path, 'Fests', '/fests'),
   },
   {
     test: /^\/competitions-view-details\/([^/]+)\/?$/,
     api: (id) => `/fests/competitions/${id}/public`,
     pick: (j) => j?.data || j?.competition || j,
-    build: (c, path) => buildEvent(c.name, c.description, c.coverImage, c.venue, c.registrationFee ?? c.feeAmount, c.fest?.festName, path, 'Fests', '/fests'),
+    build: (c, path) => buildEvent(c.name, c.description, pickShareImage(c), c.venue, c.registrationFee ?? c.feeAmount, c.fest?.festName, path, 'Fests', '/fests'),
   },
   {
     test: /^\/trek\/([^/]+)\/?$/,
     api: (id) => `/treks/${id}`,
     pick: (j) => j?.trek || j?.data || j,
-    build: (t, path) => buildEvent(t.trekName || t.title, t.description, t.coverImage || t.images?.[0], t.city || t.destination || t.startingPoint, t.registrationFee, t.communityName, path, 'Treks', '/treks'),
+    build: (t, path) => buildEvent(t.trekName || t.title, t.description, pickShareImage(t), t.city || t.destination || t.startingPoint, t.registrationFee, t.communityName, path, 'Treks', '/treks'),
   },
   {
     test: /^\/treks\/community\/([^/]+)\/?$/,
     api: (id) => `/trek-communities/${id}`,
     pick: (j) => j?.community || j?.data || j,
-    build: (c, path) => buildPage(`${c.name} — Trek Community`, c.aboutUs, c.coverImage, path, 'Treks', '/treks', c.name),
+    build: (c, path) => buildPage(`${c.name} — Trek Community`, c.aboutUs, pickShareImage(c), path, 'Treks', '/treks', c.name),
   },
   {
     test: /^\/sports\/run\/([^/]+)\/?$/,
     api: (id) => `/sports/${id}`,
     pick: (j) => j?.event || j?.data || j,
-    build: (e, path) => buildEvent(e.title, e.description, e.coverImage || e.images?.[0], e.venue || e.city, e.registrationFee, e.runClub?.name || e.organizer, path, 'Sports', '/sports'),
+    build: (e, path) => buildEvent(e.title, e.description, pickShareImage(e), e.venue || e.city, e.registrationFee, e.runClub?.name || e.organizer, path, 'Sports', '/sports'),
   },
   {
     test: /^\/sports\/run-club\/([^/]+)\/?$/,
     api: (id) => `/run-clubs/${id}`,
     pick: (j) => j?.club || j?.data || j,
-    build: (c, path) => buildPage(`${c.name} — Running Club`, c.aboutUs, c.coverImage, path, 'Sports', '/sports', c.name),
+    build: (c, path) => buildPage(`${c.name} — Running Club`, c.aboutUs, pickShareImage(c), path, 'Sports', '/sports', c.name),
   },
 ];
-
-function httpImage(url) {
-  return typeof url === 'string' && /^https?:\/\//i.test(url) ? url : undefined;
-}
 
 function buildEvent(name, description, image, location, price, organizer, path, parentName, parentPath) {
   const safeName = name || 'CrwdCtrl';
   const desc = description || `${safeName} on CrwdCtrl.`;
+  const shareImage = image || undefined;
   return {
     title: safeName,
     description: desc,
-    image: httpImage(image),
+    image: shareImage,
     fallback: { h1: safeName, intro: desc },
     jsonLd: [
       breadcrumbSchema([
@@ -93,7 +114,7 @@ function buildEvent(name, description, image, location, price, organizer, path, 
         name: safeName,
         description: desc,
         url: path,
-        image: httpImage(image),
+        image: shareImage,
         location: location && !/^tba|^tbd/i.test(String(location)) ? location : undefined,
         price: price != null ? price : undefined,
         organizerName: organizer && organizer !== 'Unknown College' ? organizer : undefined,
@@ -105,10 +126,11 @@ function buildEvent(name, description, image, location, price, organizer, path, 
 
 function buildPage(title, description, image, path, parentName, parentPath, crumbName) {
   const desc = description || `${title} on CrwdCtrl.`;
+  const shareImage = image || undefined;
   return {
     title,
     description: desc,
-    image: httpImage(image),
+    image: shareImage,
     fallback: { h1: title, intro: desc },
     jsonLd: [
       webPageSchema({ name: title, description: desc, url: path }),

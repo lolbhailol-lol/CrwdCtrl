@@ -216,10 +216,15 @@ export default function CommunityDetailPage() {
 
         const seeded = normalizeCommunity(location.state?.community || null);
         const ok = entityMatchesRouteParam(seeded, id, ['name', 'title']);
-        // Never paint another entity or demo shells — wait for this route's API payload
-        setCommunity(null);
         setTreks([]);
-        setLoading(true);
+
+        if (ok) {
+            setCommunity(seeded);
+            setLoading(false);
+        } else {
+            setCommunity(null);
+            setLoading(true);
+        }
 
         const controller = new AbortController();
         fetchTrekCommunity(id, controller.signal)

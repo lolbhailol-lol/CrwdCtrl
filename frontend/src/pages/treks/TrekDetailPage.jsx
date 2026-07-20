@@ -281,16 +281,24 @@ export default function TrekDetailPage() {
         const navTrek = location.state?.trek;
         const seedOk = trekMatchesRouteParam(navTrek, id);
 
-        // Drop previous trek immediately — avoid flashing old trek / partial seed while fetching
-        setLoading(true);
-        setTrek(null);
-        setCommunity(null);
+        // Paint seeded trek immediately when opening from the hub (no spinner lag).
+        // Shared links have no seed — brief spinner only, never the brand logo splash.
         setImgPg(0);
         setOverviewExpanded(false);
         setActiveTab('Details');
         setTermsOpen(false);
         setCarryOpen(false);
         setGenderRegistration(null);
+
+        if (seedOk) {
+            setTrek(seedFromNav(navTrek));
+            setCommunity(location.state?.community || null);
+            setLoading(false);
+        } else {
+            setLoading(true);
+            setTrek(null);
+            setCommunity(null);
+        }
 
         const fetchTrek = async () => {
             const trekId = id || navTrek?.id || navTrek?._id;
@@ -371,11 +379,15 @@ export default function TrekDetailPage() {
         </div>
     );
 
-    const coverImg  = trek.coverImage || trek.coverImages?.portrait || null;
     const images    = (() => {
         const slides = resolveTrekHeroSlides(trek);
         return slides.length ? slides : [null];
     })();
+    const coverImg  = images[0]
+        || trek.coverImage
+        || trek.coverImages?.hero
+        || trek.coverImages?.portrait
+        || null;
     const galleryImages = resolveTrekGalleryImages(trek);
     const communityName =
         community?.name ||

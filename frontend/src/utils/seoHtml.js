@@ -183,6 +183,12 @@ export function applySeoToHtml(baseHtml, seo) {
   html = replaceMeta(html, 'property', 'og:description', description);
   html = replaceMeta(html, 'property', 'og:url', canonical);
   html = replaceMeta(html, 'property', 'og:image', image);
+  html = replaceMeta(
+    html,
+    'property',
+    'og:image:alt',
+    seo.image ? (seo.title || title) : 'CrwdCtrl logo',
+  );
 
   html = replaceMeta(html, 'name', 'twitter:card', 'summary_large_image');
   html = replaceMeta(html, 'name', 'twitter:title', title);

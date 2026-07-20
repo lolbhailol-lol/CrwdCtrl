@@ -11,7 +11,7 @@ import Footer from './components/layout/Footer'
 import Navbar from './components/layout/Navbar'
 import Sidebar from './components/layout/Sidebar'
 import ProfileSidebar from './components/layout/ProfileSidebar'
-import { removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
+import { removeHtmlBootSplash, BOOT_SPLASH_MS, shouldShowBootSplash } from './utils/bootSplash'
 import { isCategoryHubRoute } from './utils/categoryHubRoutes'
 import { MobileSearchProvider, useMobileSearchOptional } from './context/MobileSearchContext'
 import MobileSearchHost from './components/MobileSearchHost'
@@ -287,8 +287,14 @@ function App() {
     setShowLogin(true);
   }, []);
 
-  // HTML boot splash covers first paint — never defer mounting Router/Auth behind it
+  // HTML boot splash covers first paint — never defer mounting Router/Auth behind it.
+  // Shared trek/fest/club links skip the logo entirely so content paints immediately.
   useEffect(() => {
+    if (!shouldShowBootSplash()) {
+      removeHtmlBootSplash();
+      clearChunkReloadFlag();
+      return undefined;
+    }
     const delay = Math.max(0, BOOT_SPLASH_MS - performance.now());
     const timer = window.setTimeout(() => {
       removeHtmlBootSplash();

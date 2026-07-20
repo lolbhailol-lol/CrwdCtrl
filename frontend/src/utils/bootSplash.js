@@ -25,6 +25,23 @@ function hasPaymentReturnContext() {
   }
 }
 
+/**
+ * Shared fest/trek/club/event links — skip branded logo splash so the content
+ * page paints immediately (WhatsApp / Instagram / copied links).
+ */
+export function isSharedContentDeepLink(pathname = '') {
+  const path = String(pathname || (typeof window !== 'undefined' ? window.location.pathname : '') || '');
+  return (
+    /^\/trek(\/|$)/.test(path)
+    || /^\/treks\/community(\/|$)/.test(path)
+    || /^\/view-details(\/|$)/.test(path)
+    || /^\/competitions-view-details(\/|$)/.test(path)
+    || /^\/sports\/run(\/|$)/.test(path)
+    || /^\/sports\/run-club(\/|$)/.test(path)
+    || /^\/events\/[^/]+/.test(path)
+  );
+}
+
 /** Skip splash during OAuth / email verification returns */
 export function hasAuthCallbackParams() {
   try {
@@ -50,12 +67,14 @@ export function hasAuthCallbackParams() {
 }
 
 /**
- * Show branded splash on first open (navigate) and refresh — not on back/forward.
+ * Show branded splash on first open (navigate) and refresh — not on back/forward
+ * or shared content deep links (trek / fest / club detail pages).
  */
 export function shouldShowBootSplash() {
   try {
     if (hasAuthCallbackParams()) return false;
     if (hasPaymentReturnContext()) return false;
+    if (isSharedContentDeepLink()) return false;
 
     const [nav] = performance.getEntriesByType?.('navigation') ?? [];
     if (nav?.type === 'reload' || nav?.type === 'navigate') return true;
@@ -72,7 +91,13 @@ export function shouldShowBootSplash() {
 
 export function removeHtmlBootSplash() {
   const el = document.getElementById('boot-splash');
-  if (!el || el.dataset.removing === '1') return;
+  if (!el) return;
+  // Deep links / skip class — drop instantly (no fade lag)
+  if (document.documentElement.classList.contains('skip-boot-splash') || isSharedContentDeepLink()) {
+    el.remove();
+    return;
+  }
+  if (el.dataset.removing === '1') return;
   el.dataset.removing = '1';
   el.classList.add('boot-splash-out');
   const remove = () => el.remove();

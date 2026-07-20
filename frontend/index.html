@@ -16,6 +16,23 @@
     })();
   </script>
 
+  <!-- Shared trek/fest/club links: hide logo splash before paint (no lag on open) -->
+  <script>
+    (function () {
+      try {
+        var p = location.pathname || '';
+        var deep = /^\/trek(\/|$)/.test(p)
+          || /^\/treks\/community(\/|$)/.test(p)
+          || /^\/view-details(\/|$)/.test(p)
+          || /^\/competitions-view-details(\/|$)/.test(p)
+          || /^\/sports\/run(\/|$)/.test(p)
+          || /^\/sports\/run-club(\/|$)/.test(p)
+          || /^\/events\/[^/]+/.test(p);
+        if (deep) document.documentElement.classList.add('skip-boot-splash');
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Google Analytics 4 (gtag.js) — activates only when VITE_GOOGLE_ANALYTICS_ID is set.
        SPA page_view events are sent on route change from RouteTracker (send_page_view=false). -->
   <script>
@@ -186,6 +203,10 @@
     }
     html.dark #boot-splash {
       background: #161718;
+    }
+    /* Shared content deep links — never flash the brand logo */
+    html.skip-boot-splash #boot-splash {
+      display: none !important;
     }
     .boot-splash-inner {
       display: flex;
@@ -396,6 +417,7 @@
       var RECOVER_KEY = 'crwdctrl_boot_recover';
       var fallback = document.getElementById('boot-fallback');
       var reloadBtn = document.getElementById('boot-fallback-reload');
+      var skipSplash = document.documentElement.classList.contains('skip-boot-splash');
 
       function showFallback() {
         if (!fallback || fallback.hidden === false) return;
@@ -418,12 +440,21 @@
 
       function dismissBootSplash() {
         var el = document.getElementById('boot-splash');
-        if (!el || el.dataset.removing === '1') return;
+        if (!el) return;
+        if (skipSplash) {
+          el.remove();
+          return;
+        }
+        if (el.dataset.removing === '1') return;
         el.dataset.removing = '1';
         el.classList.add('boot-splash-out');
         var remove = function () { el.remove(); };
         el.addEventListener('transitionend', remove, { once: true });
         setTimeout(remove, FADE_MS + 80);
+      }
+
+      if (skipSplash) {
+        dismissBootSplash();
       }
 
       function reloadFresh() {
