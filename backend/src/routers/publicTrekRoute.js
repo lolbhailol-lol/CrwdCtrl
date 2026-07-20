@@ -68,6 +68,61 @@ function extractEmail(formData = {}) {
     return '';
 }
 
+/** Fire-and-forget trek confirmation email + in-app/push after booking is saved. */
+function dispatchTrekBookingConfirmation({
+    userId,
+    userEmail,
+    userName,
+    trekName,
+    bookingId,
+    bookingDetails = {},
+    amountPaid = 0,
+    groupLink = '',
+    communityName = '',
+    sendEmailOnly = false,
+}) {
+    const link = `/registration-details/${bookingId}?type=trek`;
+    void (async () => {
+        try {
+            const emailResult = await sendTrekRegistrationEmails({
+                userEmail,
+                userName,
+                trekName,
+                bookingId,
+                bookingDetails: {
+                    date: bookingDetails.date || '',
+                    time: bookingDetails.time || '',
+                },
+                amountPaid,
+                groupLink,
+                communityName,
+            });
+            if (!emailResult?.success) {
+                console.error('[Trek Register] Confirmation email failed:', emailResult?.error || emailResult);
+            }
+
+            if (sendEmailOnly || !userId) return;
+
+            await createNotification({
+                userId,
+                title: 'Trek Booking Confirmed!',
+                message: `You've successfully registered for ${trekName}.`,
+                type: 'registration',
+                link,
+                metadata: { registrationId: bookingId },
+            });
+            sendPushNotification(userId, {
+                title: 'Trek Booking Confirmed!',
+                body: `You've registered for ${trekName}.`,
+                link,
+                type: 'registration',
+            }).catch(() => {});
+        } catch (err) {
+            console.error('[Trek Register] Confirmation dispatch error:', err.message);
+        }
+    })();
+}
+
 // GET /api/treks — list published treks, supports ?difficulty=easy&city=pune&communityId=...&category=...
 router.get('/', async (req, res) => {
     try {
@@ -132,12 +187,17 @@ router.get('/:idOrSlug', async (req, res) => {
 });
 
 // POST /api/treks/:id/register — save booking (login required; payment re-verified server-side for paid treks)
+// :id accepts Mongo ObjectId OR trek name slug (same as GET /treks/:idOrSlug)
 router.post('/:id/register', authenticateToken, async (req, res) => {
     try {
-        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-            return res.status(400).json({ message: 'Invalid trek ID' });
-        }
-        const trek = await Trek.findOne({ _id: req.params.id, status: 'published' })
+        const trekMatch = await findByIdOrSlug(Trek, req.params.id, {
+            baseFilter: { status: 'published' },
+            pickName: (row) => row.trekName || row.title || '',
+            lean: true,
+        });
+        if (!trekMatch) return res.status(404).json({ message: 'Trek not found' });
+
+        const trek = await Trek.findOne({ _id: trekMatch._id, status: 'published' })
             .populate('communityId', 'name groupLink')
             .lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
@@ -204,6 +264,19 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
                 userId: req.user.userId,
             }).lean();
             if (existingBooking) {
+                // Retry path: booking already saved — still ensure user gets confirmation mail
+                dispatchTrekBookingConfirmation({
+                    userId: req.user.userId,
+                    userEmail: existingBooking.userEmail || userEmail,
+                    userName: existingBooking.userName || userName,
+                    trekName: trek.trekName || 'your trek',
+                    bookingId: existingBooking._id,
+                    bookingDetails: existingBooking.bookingDetails || bookingDetails,
+                    amountPaid: existingBooking.bookingDetails?.amountPaid ?? 0,
+                    groupLink,
+                    communityName,
+                    sendEmailOnly: true,
+                });
                 return res.json({
                     success: true,
                     alreadyBooked: true,
@@ -288,41 +361,16 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             bookingId: booking._id,
         });
 
-        const trekName = trek.trekName || 'your trek';
-        const link = `/registration-details/${booking._id}?type=trek`;
-        setImmediate(async () => {
-            try {
-                await sendTrekRegistrationEmails({
-                    userEmail,
-                    userName,
-                    trekName,
-                    bookingId: booking._id,
-                    bookingDetails: {
-                        date: bookingDetails.date || '',
-                        time: bookingDetails.time || '',
-                    },
-                    amountPaid,
-                    groupLink,
-                    communityName,
-                }).catch((err) => console.error('[Trek Register] Email error:', err.message));
-
-                await createNotification({
-                    userId,
-                    title: 'Trek Booking Confirmed!',
-                    message: `You've successfully registered for ${trekName}.`,
-                    type: 'registration',
-                    link,
-                    metadata: { registrationId: booking._id },
-                });
-                sendPushNotification(userId, {
-                    title: 'Trek Booking Confirmed!',
-                    body: `You've registered for ${trekName}.`,
-                    link,
-                    type: 'registration',
-                }).catch(() => {});
-            } catch (notifErr) {
-                console.error('[Trek Register] Notification error:', notifErr.message);
-            }
+        dispatchTrekBookingConfirmation({
+            userId,
+            userEmail,
+            userName,
+            trekName: trek.trekName || 'your trek',
+            bookingId: booking._id,
+            bookingDetails,
+            amountPaid,
+            groupLink,
+            communityName,
         });
     } catch (err) {
         if (err.code === 11000) {

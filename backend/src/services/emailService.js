@@ -75,6 +75,8 @@ const getDefaultFrom = () => {
 
 const getSiteUrl = () => (process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '');
 
+const EMAIL_ADDRESS_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const REGISTRATION_TYPE_META = {
     trek: { icon: '🥾', noun: 'Trek', thankHeadline: 'Thanks for booking!', confirmHeadline: 'Your trek is confirmed' },
     fest: { icon: '🎪', noun: 'Fest', thankHeadline: 'Thanks for registering!', confirmHeadline: 'Registration confirmed' },
@@ -247,7 +249,7 @@ const sendEmail = async (mailOptions) => {
             try {
                 return await sendWithResend(mailOptions);
             } catch (error) {
-                console.warn('🔄 Resend failed or domain mismatch, falling back to SMTP...');
+                console.warn('🔄 Resend failed or domain mismatch, falling back to SMTP...', error.message);
             }
         } else {
             console.warn('⚠️ Resend not configured, using SMTP fallback...');
@@ -761,7 +763,7 @@ const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, 
     }
 };
 
-/** Trek booking — thank you + confirmation after register */
+/** Trek booking — confirmation first (critical), then thank-you. Never skip confirm if thank-you fails. */
 const sendTrekRegistrationEmails = async ({
     userEmail,
     userName,
@@ -772,18 +774,24 @@ const sendTrekRegistrationEmails = async ({
     groupLink = '',
     communityName = '',
 }) => {
-    if (!userEmail) return { success: false, error: 'User email missing' };
+    const email = String(userEmail || '').trim().toLowerCase();
+    if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
+        console.error('❌ Trek confirmation skipped: invalid user email', userEmail);
+        return { success: false, error: 'User email missing or invalid' };
+    }
 
+    const paid = Number(amountPaid) || 0;
     const submissionDate = formatSubmissionDateIST();
     const ticketLink = `/registration-details/${bookingId}?type=trek`;
     const details = [
         bookingDetails.date ? { label: 'Date', value: bookingDetails.date } : null,
         bookingDetails.time ? { label: 'Time', value: bookingDetails.time } : null,
         { label: 'Tickets', value: '1 person' },
+        paid > 0 ? { label: 'Amount paid', value: `₹${paid}` } : null,
     ].filter(Boolean);
     const payment = {
-        status: amountPaid > 0 ? 'paid' : 'free',
-        method: amountPaid > 0 ? 'cashfree' : '',
+        status: paid > 0 ? 'paid' : 'free',
+        method: paid > 0 ? 'cashfree' : '',
         type: 'trek',
         ticketLink,
         details,
@@ -791,22 +799,47 @@ const sendTrekRegistrationEmails = async ({
         communityName,
     };
 
-    await sendRegistrationThankYouEmail(userEmail, userName, trekName, {
-        type: 'trek',
-        ticketLink,
-        details,
-        groupLink,
-        communityName,
-    });
-    return sendRegistrationConfirmationEmail(
-        userEmail,
-        userName,
+    console.log(`📧 Trek confirmation → ${email} · booking ${bookingId} · ${trekName}`);
+
+    // Confirmation is the user-facing proof of booking — send it first
+    const confirmation = await sendRegistrationConfirmationEmail(
+        email,
+        userName || 'there',
         trekName,
         null,
         String(bookingId),
         submissionDate,
         payment,
     );
+
+    // Thank-you is secondary; failure must not affect confirmation result
+    let thankYou = { success: false, skipped: true };
+    try {
+        thankYou = await sendRegistrationThankYouEmail(email, userName || 'there', trekName, {
+            type: 'trek',
+            ticketLink,
+            details,
+            groupLink,
+            communityName,
+        });
+    } catch (err) {
+        console.error('[Trek Email] Thank-you failed (confirmation already attempted):', err.message);
+        thankYou = { success: false, error: err.message };
+    }
+
+    const success = !!(confirmation && confirmation.success !== false && !confirmation.error);
+    if (!success) {
+        console.error('❌ Trek confirmation email failed:', confirmation?.error || confirmation);
+    } else {
+        console.log('✅ Trek confirmation email queued/sent for', email);
+    }
+
+    return {
+        success,
+        confirmation,
+        thankYou,
+        error: success ? undefined : (confirmation?.error || 'Confirmation email failed'),
+    };
 };
 
 // Generate HTML content for thank you email

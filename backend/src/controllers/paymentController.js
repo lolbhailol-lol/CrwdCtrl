@@ -458,11 +458,13 @@ exports.createTrekOrder = async (req, res) => {
       });
     }
 
+    const canonicalTrekId = String(trek._id);
+
     const order = await createCashfreeOrder({
       orderAmount: totalAmount,
       currency,
       customerDetails: {
-        customerId: `trek_guest_${trekId}`,
+        customerId: `trek_${canonicalTrekId}`,
         customerName: customerName || 'Trek Guest',
         customerEmail: email,
         customerPhone,
@@ -470,7 +472,7 @@ exports.createTrekOrder = async (req, res) => {
       orderNote: resolvedTrekName,
       orderTags: {
         entityType: 'trek',
-        trekId: String(trekId),
+        trekId: canonicalTrekId,
         trekName: resolvedTrekName,
         people: String(peopleCount),
         ticketPrice: String(ticketPricePerPerson),
@@ -501,7 +503,7 @@ exports.createTrekOrder = async (req, res) => {
       currency,
       status: 'PENDING',
       orderTags: {
-        trekId: String(trekId),
+        trekId: canonicalTrekId,
         people: String(peopleCount),
         totalAmount: String(totalAmount),
       },

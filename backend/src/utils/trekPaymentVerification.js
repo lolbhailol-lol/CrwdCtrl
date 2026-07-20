@@ -1,12 +1,22 @@
 const TrekBooking = require('../model/trek_booking_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { verifyCashfreePayment, fetchOrder } = require('../services/cashfreeService');
-const { buildTrekPriceBreakdown } = require('./platformFee');
-const { resolveTrekPlatformFeePercent } = require('./trekRegistrationFee');
+const { toSlug } = require('./slug');
+
+function trekIdsMatch(tagTrekId, trek) {
+  if (!tagTrekId) return true;
+  const tag = String(tagTrekId).trim();
+  const id = String(trek._id);
+  if (tag === id) return true;
+  const nameSlug = toSlug(trek.trekName || trek.title || '');
+  const storedSlug = toSlug(trek.slug || '');
+  const tagSlug = toSlug(tag);
+  return (nameSlug && tagSlug === nameSlug) || (storedSlug && tagSlug === storedSlug);
+}
 
 /**
  * Server-side payment verification for trek bookings.
- * Security: never trust client amountPaid — re-verify with Cashfree and validate order tags.
+ * Security: never trust client amountPaid — re-verify with Cashfree and validate order.
  */
 async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentId }) {
   if (!paymentOrderId) {
@@ -29,12 +39,19 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
   }
 
   const expectedPeople = Math.max(1, Number(people) || 1);
-  const ticketPricePerPerson = Number(trek.registrationFee) || 0;
-  const platformFeePercent = resolveTrekPlatformFeePercent(trek.platformFeePercent, 3);
-    const { totalAmount: expectedTotal } = buildTrekPriceBreakdown(
-      ticketPricePerPerson * expectedPeople,
-      platformFeePercent,
-    );
+  const paymentOrder = await PaymentOrder.findOne({ orderId: paymentOrderId }).lean();
+
+  if (paymentOrder) {
+    if (paymentOrder.entityType && paymentOrder.entityType !== 'trek') {
+      return { ok: false, status: 400, message: 'Payment order does not match this trek' };
+    }
+    if (paymentOrder.entityId && String(paymentOrder.entityId) !== String(trek._id)) {
+      return { ok: false, status: 400, message: 'Payment order does not match this trek' };
+    }
+    if (paymentOrder.people != null && Number(paymentOrder.people) !== expectedPeople) {
+      return { ok: false, status: 400, message: 'Payment people count does not match booking' };
+    }
+  }
 
   let orderTags = {};
   try {
@@ -42,29 +59,38 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
     orderTags = cashfreeOrder.order_tags || {};
   } catch (err) {
     console.error('[trekPaymentVerification] fetchOrder error:', err.message);
-    return { ok: false, status: 400, message: 'Unable to validate payment order details' };
+    // PaymentOrder already validated above — allow when DB row exists
+    if (!paymentOrder) {
+      return { ok: false, status: 400, message: 'Unable to validate payment order details' };
+    }
   }
 
-  if (orderTags.trekId && String(orderTags.trekId) !== String(trek._id)) {
+  if (orderTags.trekId && !trekIdsMatch(orderTags.trekId, trek)) {
     return { ok: false, status: 400, message: 'Payment order does not match this trek' };
   }
   if (orderTags.people && Number(orderTags.people) !== expectedPeople) {
     return { ok: false, status: 400, message: 'Payment people count does not match booking' };
   }
-  if (orderTags.totalAmount && Number(orderTags.totalAmount) !== expectedTotal) {
-    return { ok: false, status: 400, message: 'Payment amount does not match expected total' };
+
+  // Prefer stored paid amount (includes coupons) over recomputed gross price
+  const amountPaid = paymentOrder?.totalAmount != null
+    ? Number(paymentOrder.totalAmount)
+    : (orderTags.totalAmount != null ? Number(orderTags.totalAmount) : null);
+
+  if (amountPaid == null || Number.isNaN(amountPaid) || amountPaid < 0) {
+    return { ok: false, status: 400, message: 'Unable to resolve paid amount for this order' };
   }
 
   await PaymentOrder.findOneAndUpdate(
     { orderId: paymentOrderId },
     { status: 'PAID', paymentId: paymentResult.paymentId },
-    { new: true }
+    { new: true },
   );
 
   return {
     ok: true,
     paymentId: paymentResult.paymentId,
-    amountPaid: expectedTotal,
+    amountPaid,
   };
 }
 

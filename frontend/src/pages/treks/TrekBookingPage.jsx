@@ -548,7 +548,8 @@ export default function TrekBookingPage() {
         formData = buildFormData(),
         booking = {},
     }) => {
-        const trekId = id || trek?._id || trek?.id;
+        // Prefer Mongo id so register works even if route param is a name slug
+        const trekId = trek?._id || trek?.id || id;
         if (!trekId) throw new Error('Trek not found');
 
         const token = resolveAuthToken(authToken);
@@ -582,7 +583,7 @@ export default function TrekBookingPage() {
             }
             throw new Error(regData.message || 'Registration failed after payment');
         }
-        sessionStorage.removeItem(trekDraftKey(trekId));
+        sessionStorage.removeItem(trekDraftKey(String(id || trekId)));
         refreshNotifications();
         const savedBookingId = regData.bookingId || regData._id || '';
         if (savedBookingId) setBookingId(String(savedBookingId));
@@ -601,7 +602,7 @@ export default function TrekBookingPage() {
             const res = await fetch(`${API}/payment/coupon-validate`, {
                 method: 'POST',
                 headers: getBearerAuthHeaders(authToken),
-                body: JSON.stringify({ trekId: id || trek?._id || trek?.id, people: 1, couponCode: code }),
+                body: JSON.stringify({ trekId: trek?._id || trek?.id || id, people: 1, couponCode: code }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.message || 'Invalid coupon');
@@ -777,7 +778,7 @@ export default function TrekBookingPage() {
                     method: 'POST',
                     headers: getBearerAuthHeaders(authToken),
                     body: JSON.stringify({
-                        trekId: id || trek._id || trek.id,
+                        trekId: trek?._id || trek?.id || id,
                         trekName,
                         people: 1,
                         formData,
@@ -850,21 +851,16 @@ export default function TrekBookingPage() {
                     checkoutResult?.paymentDetails?.cf_payment_id ||
                     '';
 
-                const vRes = await fetch(`${API}/payment/trek-verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        payment_order_id: order.orderId,
-                        payment_id: checkoutPaymentId,
-                    }),
+                const { ok, data: v } = await verifyPaymentWithRetry(API, order.orderId, {
+                    kind: 'trek',
+                    token: resolveAuthToken(authToken),
                 });
-                const v = await vRes.json();
-                if (v.verified) {
+                if (ok && v?.verified) {
                     const verified = buildVerifiedPaymentFields(v, order.orderId);
-                    setPaymentId(verified.payment_id);
+                    setPaymentId(verified.payment_id || checkoutPaymentId);
                     await submitTrekRegistration({
                         paymentOrderId: verified.payment_order_id || order.orderId,
-                        paymentId: verified.payment_id,
+                        paymentId: verified.payment_id || checkoutPaymentId,
                         amountPaid: order.totalAmount ?? total,
                     });
                     setPayDone(true);
@@ -873,7 +869,7 @@ export default function TrekBookingPage() {
                     setStep(2);
                     setPayDone(false);
                     setPaying(false);
-                    setError(v.message || 'Payment verification failed. Contact support.');
+                    setError(v?.message || 'Payment verification failed. Contact support.');
                 }
             } catch (e) {
                 setStep(2);
