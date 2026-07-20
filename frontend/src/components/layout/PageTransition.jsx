@@ -18,9 +18,14 @@ function resetScrollToTop() {
     });
 }
 
-/** Profile route uses its own in-page sidebar — skip duplicate route-based skeleton */
+/** Profile / admin / organizer shells manage their own chrome — skip route skeleton */
 function shouldSkipPageTransition(pathname) {
-    return pathname === '/profile';
+    return (
+        pathname === '/profile'
+        || pathname.startsWith('/admin')
+        || pathname.startsWith('/trek-organizer')
+        || pathname.startsWith('/run-club-organizer')
+    );
 }
 
 /**
@@ -175,14 +180,28 @@ export function PageTransitionProvider({ children }) {
     );
 }
 
-/** Wrap route content — hidden while transition skeleton is showing */
+/** Wrap route content — visually hidden while transition skeleton is showing.
+ *  Use `inert` (not aria-hidden) so a focused control inside never violates a11y
+ *  when the shell is temporarily non-interactive.
+ */
 export function PageTransitionContent({ children }) {
     const { contentVisible } = usePageTransition();
+    const ref = useRef(null);
+
+    useLayoutEffect(() => {
+        if (contentVisible) return;
+        const root = ref.current;
+        const active = document.activeElement;
+        if (root && active instanceof HTMLElement && root.contains(active)) {
+            active.blur();
+        }
+    }, [contentVisible]);
 
     return (
         <div
+            ref={ref}
             className="page-transition-content"
-            aria-hidden={!contentVisible}
+            inert={!contentVisible ? true : undefined}
             style={contentVisible ? undefined : { visibility: 'hidden', pointerEvents: 'none' }}
         >
             {children}

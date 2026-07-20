@@ -46,7 +46,7 @@ function getOptionalUserId(req) {
 }
 
 function extractEmail(formData = {}) {
-    return (
+    const direct = (
         formData.email ||
         formData.e_mail_id ||
         formData.e_mail ||
@@ -57,6 +57,15 @@ function extractEmail(formData = {}) {
         .toString()
         .trim()
         .toLowerCase();
+    if (EMAIL_REGEX.test(direct)) return direct;
+
+    // Custom admin field names (e.g. participant_email) — scan values
+    for (const value of Object.values(formData || {})) {
+        if (typeof value !== 'string') continue;
+        const v = value.trim().toLowerCase();
+        if (EMAIL_REGEX.test(v)) return v;
+    }
+    return '';
 }
 
 // GET /api/treks — list published treks, supports ?difficulty=easy&city=pune&communityId=...&category=...
@@ -163,10 +172,19 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             formData['Full Name'] ||
             formData['Name'] ||
             '';
-        const userEmail = extractEmail(formData);
+        let userEmail = extractEmail(formData);
+
+        // Phone-only accounts / custom forms without email — fall back to logged-in user
+        if (!EMAIL_REGEX.test(userEmail) && req.user?.userId) {
+            try {
+                const User = require('../model/usermodel');
+                const account = await User.findById(req.user.userId).select('email').lean();
+                if (account?.email) userEmail = String(account.email).trim().toLowerCase();
+            } catch (_) { /* ignore */ }
+        }
 
         if (!EMAIL_REGEX.test(userEmail)) {
-            return res.status(400).json({ message: 'A valid email is required to complete registration' });
+            return res.status(400).json({ message: 'A valid email is required to complete registration. Please fill the E-mail field on the form.' });
         }
 
         let amountPaid = 0;

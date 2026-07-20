@@ -6,21 +6,17 @@ import { auth } from '../firebase';
 import { isNativeApp } from '../utils/capacitorPlatform';
 
 /**
- * Google One Tap sign-in.
+ * Google One Tap sign-in (optional UX).
  *
- * Renders nothing — it shows Google's native One Tap prompt to logged-out web
- * users. On success it signs into Firebase with the returned credential, and
- * AuthContext's auth-state listener completes the backend session + login the
- * same way the regular Google button does.
- *
- * Dormant unless VITE_GOOGLE_CLIENT_ID is set (must be the Firebase project's
- * Web OAuth client ID, with this site listed under "Authorized JavaScript
- * origins" in Google Cloud). Skipped inside the Capacitor native shell, which
- * uses native Google Sign-In instead.
+ * Regular Google button on /login uses Firebase popup/redirect and does NOT
+ * need FedCM. This component only shows the floating One Tap chip for logged-out
+ * browsing — and must not spam the console when the user disabled third-party
+ * sign-in in Chrome (FedCM).
  */
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
+const SKIP_KEY = 'crwdctrl_gsi_one_tap_skip';
 
 let gisPromise = null;
 let gisInitializedForClient = null;
@@ -50,10 +46,25 @@ function loadGis() {
   return gisPromise;
 }
 
+function markOneTapSkipped() {
+  try {
+    sessionStorage.setItem(SKIP_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+function isOneTapSkipped() {
+  try {
+    return sessionStorage.getItem(SKIP_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function ensureGisInitialized(google, callback) {
   if (!google?.accounts?.id || !CLIENT_ID) return false;
-  // Calling initialize() repeatedly logs "only the last initialized instance
-  // will be used" and can break FedCM / One Tap. Init once per client id.
+  // Only initialize once — repeat calls log "only the last initialized instance…"
   if (gisInitializedForClient === CLIENT_ID) {
     return true;
   }
@@ -63,20 +74,19 @@ function ensureGisInitialized(google, callback) {
       context: 'signin',
       auto_select: false,
       cancel_on_tap_outside: true,
-      // Prefer FedCM when available; GIS falls back when the user disabled it.
-      use_fedcm_for_prompt: true,
+      // false = legacy One Tap (works when user disabled FedCM / third-party sign-in).
+      // true forces FedCM and prints the console warning you're seeing.
+      use_fedcm_for_prompt: false,
       callback,
     });
     gisInitializedForClient = CLIENT_ID;
     return true;
-  } catch (err) {
-    console.warn('Google One Tap init failed:', err?.message || err);
+  } catch {
+    markOneTapSkipped();
     return false;
   }
 }
 
-// One Tap is redundant (and would compete with the Google button) on dedicated
-// auth / admin / organizer screens — never run it there.
 function shouldSuppressOneTap(pathname = '') {
   return (
     pathname === '/login'
@@ -95,11 +105,15 @@ export default function GoogleOneTap() {
 
   useEffect(() => {
     if (!CLIENT_ID || isNativeApp()) return undefined;
+    if (isOneTapSkipped()) return undefined;
     if (shouldSuppressOneTap(pathname)) {
-      window.google?.accounts?.id?.cancel?.();
+      try {
+        window.google?.accounts?.id?.cancel?.();
+      } catch {
+        /* ignore */
+      }
       return undefined;
     }
-    // Wait until auth has settled and the user is definitely logged out.
     if (isAuthenticated || isLoading || isRedirectProcessing || isAuthProcessing) return undefined;
     if (promptedRef.current) return undefined;
     if (auth.currentUser) return undefined;
@@ -115,8 +129,8 @@ export default function GoogleOneTap() {
           try {
             const credential = GoogleAuthProvider.credential(response.credential);
             await signInWithCredential(auth, credential);
-          } catch (err) {
-            console.warn('One Tap sign-in failed:', err?.message || err);
+          } catch {
+            /* password / Google button login still available */
           }
         });
         if (!ok || cancelled) return;
@@ -124,22 +138,29 @@ export default function GoogleOneTap() {
         promptedRef.current = true;
         try {
           google.accounts.id.prompt((notification) => {
-            // User dismissed / FedCM disabled — stay quiet; password login still works.
-            if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+            const skipped = notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.();
+            if (skipped) {
+              // FedCM disabled, dismissed, or suppressed — stop retrying this session
+              markOneTapSkipped();
               promptedRef.current = false;
             }
           });
-        } catch (err) {
+        } catch {
+          markOneTapSkipped();
           promptedRef.current = false;
-          console.warn('Google One Tap prompt failed:', err?.message || err);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        markOneTapSkipped();
+      });
 
     return () => {
       cancelled = true;
-      promptedRef.current = false;
-      window.google?.accounts?.id?.cancel?.();
+      try {
+        window.google?.accounts?.id?.cancel?.();
+      } catch {
+        /* ignore */
+      }
     };
   }, [isAuthenticated, isLoading, isRedirectProcessing, isAuthProcessing, pathname]);
 

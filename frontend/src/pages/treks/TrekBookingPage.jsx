@@ -21,6 +21,7 @@ import {
 import { buildTrekPriceBreakdown } from '../../utils/platformFee';
 import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
 import { isTrekFormFieldEmpty } from '../../constants/trekFormFields';
+import { mergeRunFormFields } from '../../utils/formFieldDedupe';
 import { API_BASE_URL } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../utils/trekGenderRegistration';
@@ -28,13 +29,6 @@ import GenderQuickPick from '../../components/GenderQuickPick';
 import { trekPath, toSlug } from '../../utils/slugRoutes';
 
 const API = API_BASE_URL;
-
-const DEFAULT_TREK_FORM_FIELDS = [
-    { id: 'default_full_name', label: 'Full Name', fieldName: 'full_name', type: 'text', required: true, placeholder: 'Enter your full name' },
-    { id: 'default_contact', label: 'Contact No.', fieldName: 'contact_no', type: 'tel', required: true, placeholder: '10-digit mobile number' },
-    { id: 'default_email', label: 'E-mail', fieldName: 'email', type: 'email', required: true, placeholder: 'your@email.com' },
-    { id: 'default_id_proof', label: 'ID Proof', fieldName: 'id_proof', type: 'file', required: false, placeholder: 'Upload Aadhaar / PAN / Passport' },
-];
 
 /** True when nav/cache trek belongs to the current /trek/:id route (id or name slug). */
 function trekMatchesRouteParam(trek, routeParam) {
@@ -248,8 +242,10 @@ export default function TrekBookingPage() {
     const regSchema = useMemo(() => {
         // While loading, skip DEFAULT demo fields — avoid flashing generic registration form
         if (loadingTrek) return [];
+        // Always merge name/phone/email defaults so payment + tickets never fail with
+        // "Email is required" when admins only added custom fields.
         const custom = (reg.formSchema || []).filter((f) => f?.label?.trim() && f?.fieldName?.trim());
-        return custom.length > 0 ? custom : DEFAULT_TREK_FORM_FIELDS;
+        return mergeRunFormFields(custom);
     }, [reg.formSchema, loadingTrek]);
 
     const sheetsInstructions = reg.formInstructions || '';
@@ -725,16 +721,29 @@ export default function TrekBookingPage() {
             const missing = regSchema.filter((f) => f.required && isTrekFormFieldEmpty(f, extraFields[f.fieldName]));
             if (missing.length > 0) { setError(`Please fill: ${missing.map(f => f.label).join(', ')}`); return; }
 
-            const customerEmail =
-                extraFields.email || extraFields.e_mail_id || extraFields.e_mail || '';
-            if (!customerEmail.trim()) {
-                setError('Email is required to complete your booking.');
+            const customerEmail = String(
+                extraFields.email
+                || extraFields.e_mail_id
+                || extraFields.e_mail
+                || user?.email
+                || '',
+            ).trim();
+            if (!customerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+                setError('Please enter a valid email — needed for your ticket and confirmation.');
                 return;
+            }
+            // Keep email on formData so backend extractEmail always finds it
+            const formData = {
+                ...buildFormData(),
+                email: customerEmail,
+            };
+            if (!extraFields.email) {
+                setExtraFields((f) => ({ ...f, email: customerEmail }));
             }
 
             if (total <= 0) {
                 try {
-                    await submitTrekRegistration({ amountPaid: 0 });
+                    await submitTrekRegistration({ amountPaid: 0, formData });
                     setStep(3);
                     setPayDone(true);
                     setPaying(false);
@@ -747,7 +756,7 @@ export default function TrekBookingPage() {
                 return;
             }
 
-            saveDraft({ step: 2 });
+            saveDraft({ step: 2, extraFields: { ...extraFields, email: customerEmail } });
 
             setPaying(true);
             try {
@@ -762,7 +771,7 @@ export default function TrekBookingPage() {
                         trekId: id || trek._id || trek.id,
                         trekName,
                         people: 1,
-                        formData: buildFormData(),
+                        formData,
                         customerName: extraFields.full_name || extraFields.name || extraFields.fullname || '',
                         customerEmail,
                         customerPhone:

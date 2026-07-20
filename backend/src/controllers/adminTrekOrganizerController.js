@@ -17,11 +17,13 @@ exports.listOrganizers = async (req, res) => {
 
 exports.createOrganizer = async (req, res) => {
     try {
+        await TrekOrganizerAccount.ensureSparseEmailIndex();
+
         const name = String(req.body.name || '').trim();
         const username = normalizeUsername(req.body.username);
         const password = String(req.body.password || '');
         const phone = String(req.body.phone || '').trim();
-        const email = String(req.body.email || '').trim().toLowerCase();
+        const email = TrekOrganizerAccount.normalizeOptionalEmail(req.body.email);
         const communityId = req.body.communityId;
 
         if (!name || !username || !password) {
@@ -47,15 +49,24 @@ exports.createOrganizer = async (req, res) => {
             return res.status(409).json({ success: false, message: 'Username already taken' });
         }
 
-        const organizer = await TrekOrganizerAccount.create({
+        if (email) {
+            const emailTaken = await TrekOrganizerAccount.findOne({ email });
+            if (emailTaken) {
+                return res.status(409).json({ success: false, message: 'Email already used by another organizer' });
+            }
+        }
+
+        const payload = {
             name,
             username,
-            email,
             passwordHash: await TrekOrganizerAccount.hashPassword(password),
             phone,
             communityId,
             createdBy: req.user?.userId || null,
-        });
+        };
+        if (email) payload.email = email;
+
+        const organizer = await TrekOrganizerAccount.create(payload);
 
         res.status(201).json({
             success: true,
@@ -64,7 +75,7 @@ exports.createOrganizer = async (req, res) => {
                 id: organizer._id,
                 name: organizer.name,
                 username: organizer.username,
-                email: organizer.email,
+                email: organizer.email || '',
                 phone: organizer.phone,
                 communityId: organizer.communityId,
                 isActive: organizer.isActive,
@@ -72,6 +83,19 @@ exports.createOrganizer = async (req, res) => {
         });
     } catch (error) {
         console.error('[adminTrekOrganizer.create]', error);
+        if (error?.code === 11000) {
+            const field = Object.keys(error.keyPattern || {})[0] || 'field';
+            if (field === 'email') {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Email already used (leave email blank or use a unique email)',
+                });
+            }
+            if (field === 'username') {
+                return res.status(409).json({ success: false, message: 'Username already taken' });
+            }
+            return res.status(409).json({ success: false, message: `Duplicate ${field}` });
+        }
         res.status(500).json({ success: false, message: 'Failed to create organizer' });
     }
 };
@@ -88,7 +112,20 @@ exports.updateOrganizer = async (req, res) => {
 
         if (req.body.name !== undefined) organizer.name = String(req.body.name).trim();
         if (req.body.phone !== undefined) organizer.phone = String(req.body.phone).trim();
-        if (req.body.email !== undefined) organizer.email = String(req.body.email).trim().toLowerCase();
+        if (req.body.email !== undefined) {
+            const nextEmail = TrekOrganizerAccount.normalizeOptionalEmail(req.body.email);
+            if (nextEmail) {
+                const emailTaken = await TrekOrganizerAccount.findOne({ email: nextEmail, _id: { $ne: id } });
+                if (emailTaken) {
+                    return res.status(409).json({ success: false, message: 'Email already used by another organizer' });
+                }
+                organizer.email = nextEmail;
+            } else {
+                // Remove blank email so sparse unique index never sees ""
+                organizer.email = undefined;
+                organizer.$unset('email');
+            }
+        }
         if (req.body.isActive !== undefined) organizer.isActive = !!req.body.isActive;
 
         if (req.body.username !== undefined) {

@@ -100,10 +100,13 @@ export default function TrekOrganizersPage() {
                 name: form.name.trim(),
                 username: form.username.trim().toLowerCase(),
                 phone: form.phone.trim(),
-                email: form.email.trim(),
                 communityId: form.communityId,
                 isActive: form.isActive,
             };
+            const email = form.email.trim().toLowerCase();
+            if (email) payload.email = email;
+            // Explicitly clear email on edit when blank
+            if (editing) payload.email = email || '';
             if (form.password.trim()) payload.password = form.password;
 
             if (editing) {
@@ -277,6 +280,16 @@ export default function TrekOrganizersPage() {
                                 placeholder={editing ? 'Leave blank to keep current' : 'Min 8 characters'}
                                 className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm"
                                 required={!editing}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-400 mb-1">Email (optional)</label>
+                            <input
+                                type="email"
+                                value={form.email}
+                                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                placeholder="Leave blank if not needed"
+                                className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm"
                             />
                         </div>
                         <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Organizer phone (optional)" className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm" />

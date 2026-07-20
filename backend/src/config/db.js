@@ -55,12 +55,17 @@ async function syncProductionIndexes() {
     'EventShow',
     'CategoryRegistration',
     'TrekBooking',
+    'TrekOrganizerAccount',
   ];
 
   for (const name of modelNames) {
     try {
       const model = mongoose.model(name);
-      await model.syncIndexes();
+      if (name === 'TrekOrganizerAccount' && typeof model.ensureSparseEmailIndex === 'function') {
+        await model.ensureSparseEmailIndex();
+      } else {
+        await model.syncIndexes();
+      }
       logger.debug(`Indexes synced for ${name}`);
     } catch (err) {
       logger.warn(`Index sync skipped for ${name}`, { error: err.message });
