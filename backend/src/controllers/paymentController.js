@@ -4,6 +4,7 @@ const Event = require('../model/event_model');
 const Competition = require('../model/competition_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
+const TrekBooking = require('../model/trek_booking_model');
 const EventShow = require('../model/event_show_model');
 const PlatformEvent = require('../model/platform_event_model');
 const SportsEvent = require('../model/sports_model');
@@ -11,6 +12,14 @@ const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { validateTrekGenderRegistration } = require('../utils/trekGenderRegistration');
+
+async function sumTrekConfirmedSeats(trekId) {
+  const rows = await TrekBooking.aggregate([
+    { $match: { trekId, status: 'confirmed' } },
+    { $group: { _id: null, seats: { $sum: { $ifNull: ['$bookingDetails.people', 1] } } } },
+  ]);
+  return Number(rows[0]?.seats) || 0;
+}
 const {
   createCashfreeOrder,
   verifyCashfreePayment,
@@ -401,7 +410,45 @@ exports.createTrekOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Trek not found or not published' });
     }
 
+    if (trek.registration?.mode === 'organizer_qr') {
+      return res.status(400).json({
+        success: false,
+        message: 'This trek uses UPI + screenshot payment, not online checkout.',
+      });
+    }
+    if (trek.registration?.status === 'closed') {
+      return res.status(400).json({ success: false, message: 'Registration is currently closed for this trek' });
+    }
+    if (trek.registration?.status === 'not_open_yet') {
+      return res.status(400).json({ success: false, message: 'Registration is not open yet for this trek' });
+    }
+
+    if (req.user?.userId) {
+      const existingBooking = await TrekBooking.findOne({
+        trekId: trek._id,
+        userId: req.user.userId,
+        status: { $in: ['confirmed', 'pending'] },
+      }).select('_id status').lean();
+      if (existingBooking) {
+        return res.status(409).json({
+          success: false,
+          message: existingBooking.status === 'pending'
+            ? 'You already have a registration waiting for organizer approval'
+            : 'You already have a registration for this trek',
+          bookingId: existingBooking._id,
+        });
+      }
+    }
+
     const peopleCount = Math.max(1, Number(people) || 1);
+    const maxPeople = Math.max(1, Number(trek.registration?.maxPeoplePerBooking) || 10);
+    if (peopleCount > maxPeople) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum ${maxPeople} people allowed per booking`,
+      });
+    }
+
     const genderCheck = await validateTrekGenderRegistration({
       trek,
       userId: req.user?.userId,
@@ -415,17 +462,23 @@ exports.createTrekOrder = async (req, res) => {
       });
     }
 
+    const capacity = Math.max(0, Number(trek.maxParticipants) || 0);
+    if (capacity > 0) {
+      const seatsHeld = await sumTrekConfirmedSeats(trek._id);
+      if (seatsHeld >= capacity) {
+        return res.status(400).json({ success: false, message: 'This trek is full' });
+      }
+      if (seatsHeld + peopleCount > capacity) {
+        return res.status(400).json({
+          success: false,
+          message: `Only ${capacity - seatsHeld} seat(s) left`,
+        });
+      }
+    }
+
     const ticketPricePerPerson = Number(trek.registrationFee) || 0;
     if (ticketPricePerPerson <= 0) {
       return res.status(400).json({ success: false, message: 'This trek does not require payment' });
-    }
-
-    const maxPeople = 1;
-    if (peopleCount > maxPeople) {
-      return res.status(400).json({
-        success: false,
-        message: `Maximum ${maxPeople} people allowed per booking`,
-      });
     }
 
     // Security: ignore client-supplied baseAmount/amount — server is source of truth

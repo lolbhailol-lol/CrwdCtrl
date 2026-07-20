@@ -1,11 +1,19 @@
 import { getApiBaseUrl } from '../../config/apiBase';
-import { getTrekOrganizerToken, clearTrekOrganizerSession } from '../../utils/trekOrganizerSession';
+import {
+    getTrekOrganizerToken,
+    clearTrekOrganizerSession,
+    setTrekOrganizerSession,
+    getTrekOrganizerSession,
+} from '../../utils/trekOrganizerSession';
+import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 
 const API = getApiBaseUrl();
 
 function handleOrganizerUnauthorized() {
     clearTrekOrganizerSession();
-    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/trek-organizer/login')) {
+    if (typeof window !== 'undefined'
+        && !window.location.pathname.startsWith('/trek-organizer/login')
+        && !window.location.pathname.startsWith('/trek-organizer/signup')) {
         window.location.assign('/trek-organizer/login');
     }
 }
@@ -26,9 +34,21 @@ async function trekOrganizerFetch(path, options = {}) {
         throw new Error(data.message || 'Session expired');
     }
     if (!res.ok) {
-        throw new Error(data.message || 'Request failed');
+        const err = new Error(data.message || 'Request failed');
+        err.code = data.code;
+        err.status = res.status;
+        throw err;
     }
     return data;
+}
+
+function applyTrekOrganizerAuthPayload(data) {
+    setTrekOrganizerSession({
+        token: data.token,
+        organizer: data.organizer,
+        community: data.community || null,
+        treks: data.treks || [],
+    });
 }
 
 export async function trekOrganizerLogin(username, password) {
@@ -36,6 +56,59 @@ export async function trekOrganizerLogin(username, password) {
         method: 'POST',
         body: JSON.stringify({ username, password }),
     });
+}
+
+export async function trekOrganizerSignup(payload) {
+    return trekOrganizerFetch('/trek-organizer/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function fetchTrekOrganizerSignupCommunities() {
+    return trekOrganizerFetch('/trek-organizer/auth/communities');
+}
+
+/** Consumer user JWT — whether Profile should show Trek community */
+export async function fetchTrekCommunityProfileEligible(authToken = null) {
+    const token = resolveAuthToken(authToken);
+    if (!token) return { success: true, eligible: false };
+    const res = await fetch(`${API}/trek-organizer/auth/profile-eligible`, {
+        headers: getBearerAuthHeaders(token),
+        mode: 'cors',
+        credentials: 'omit',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to check Trek community access');
+    return data;
+}
+
+/** Use main CrwdCtrl login to open trek portal without a second password. */
+export async function tryTrekOrganizerAppSession(authToken = null) {
+    const existing = getTrekOrganizerToken();
+    if (existing) return getTrekOrganizerSession();
+
+    const token = resolveAuthToken(authToken);
+    if (!token) return null;
+
+    const res = await fetch(`${API}/trek-organizer/auth/app-session`, {
+        method: 'POST',
+        headers: getBearerAuthHeaders(token),
+        mode: 'cors',
+        credentials: 'omit',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.token) {
+        if (data?.code) {
+            const err = new Error(data.message || 'Trek community session unavailable');
+            err.code = data.code;
+            err.status = res.status;
+            throw err;
+        }
+        return null;
+    }
+    applyTrekOrganizerAuthPayload(data);
+    return getTrekOrganizerSession();
 }
 
 export async function fetchTrekOrganizerMe() {
@@ -94,6 +167,13 @@ export async function resendTrekOrganizerConfirmation(trekId, bookingId) {
     return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/participants/${bookingId}/resend-confirmation`, {
         method: 'POST',
         body: JSON.stringify({}),
+    });
+}
+
+export async function reviewTrekOrganizerPayment(trekId, bookingId, action, note = '') {
+    return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/participants/${bookingId}/review-payment`, {
+        method: 'POST',
+        body: JSON.stringify({ action, note }),
     });
 }
 

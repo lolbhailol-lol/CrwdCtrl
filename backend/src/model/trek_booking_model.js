@@ -16,6 +16,18 @@ const trekBookingSchema = new mongoose.Schema(
         formData:  { type: mongoose.Schema.Types.Mixed, default: {} },
         // Top-level for idempotency queries (security: one order → one booking)
         payment_order_id: { type: String },
+        /** cashfree | organizer_qr | null (free) */
+        payment_gateway: { type: String, default: null },
+        paymentScreenshotUrl: { type: String, default: '' },
+        transactionId: { type: String, default: '' },
+        paymentStatus: {
+            type: String,
+            enum: ['pending', 'paid', 'free', 'failed', null],
+            default: null,
+        },
+        paymentReviewNote: { type: String, default: '' },
+        paymentReviewedAt: { type: Date, default: null },
+        paymentReviewedBy: { type: String, default: '' },
         bookingDetails: {
             date:       { type: String },
             time:       { type: String },
@@ -24,7 +36,11 @@ const trekBookingSchema = new mongoose.Schema(
             paymentId:  { type: String },
             payment_order_id: { type: String },
         },
-        status: { type: String, enum: ['confirmed', 'cancelled'], default: 'confirmed' },
+        status: {
+            type: String,
+            enum: ['pending', 'confirmed', 'cancelled'],
+            default: 'confirmed',
+        },
         qrCodeData: { type: String, unique: true, sparse: true },
         checkedIn: { type: Boolean, default: false },
         checkedInAt: { type: Date, default: null },
@@ -34,11 +50,14 @@ const trekBookingSchema = new mongoose.Schema(
 
 trekBookingSchema.index({ userId: 1 });
 trekBookingSchema.index({ trekId: 1 });
+trekBookingSchema.index({ trekId: 1, status: 1 });
 trekBookingSchema.index({ payment_order_id: 1 }, { unique: true, sparse: true });
 
 trekBookingSchema.pre('validate', function enforcePaidBookingPaymentOrder(next) {
     const amountPaid = Number(this.bookingDetails?.amountPaid) || 0;
-    if (amountPaid > 0 && !this.payment_order_id) {
+    const isOrganizerQr = this.payment_gateway === 'organizer_qr';
+    // Cashfree paid bookings need an order id; UPI/QR pending bookings use screenshot instead
+    if (amountPaid > 0 && !isOrganizerQr && !this.payment_order_id) {
         this.invalidate('payment_order_id', 'payment_order_id is required for paid bookings');
     }
     next();

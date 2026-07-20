@@ -1,6 +1,7 @@
 import { Route } from 'react-router-dom';
 import {
     TrekOrganizerLoginPage,
+    TrekOrganizerSignupPage,
     TrekOrganizerLayout,
     TrekOrganizerProtectedRoute,
     TrekOrganizerHomePage,
@@ -13,6 +14,7 @@ import {
 export const trekOrganizerRoutes = (
     <>
         <Route path="/trek-organizer/login" element={<TrekOrganizerLoginPage />} />
+        <Route path="/trek-organizer/signup" element={<TrekOrganizerSignupPage />} />
         <Route
             path="/trek-organizer"
             element={

@@ -11,10 +11,12 @@ import {
     resendTrekOrganizerConfirmation,
     deleteTrekOrganizerParticipant,
     sendTrekOrganizerParticipantMessage,
+    reviewTrekOrganizerPayment,
 } from '../../services/api/trekOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import ParticipantCard from './ParticipantCard';
 import TrekOrganizerMessageModal from './TrekOrganizerMessageModal';
+import PaymentProofReviewModal from '../run-club-organizer/PaymentProofReviewModal';
 
 function FilterChip({ active, onClick, children }) {
     return (
@@ -56,15 +58,32 @@ export default function TrekOrganizerParticipantsPage() {
     const [expandAll, setExpandAll] = useState(true);
     const [selectedIds, setSelectedIds] = useState(() => new Set());
     const [messageModal, setMessageModal] = useState({ open: false, bookingIds: [], label: '' });
+    const [reviewTarget, setReviewTarget] = useState(null);
 
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
-    const [paymentFilter, setPaymentFilter] = useState('');
+    const [paymentFilter, setPaymentFilter] = useState(() => {
+        const q = new URLSearchParams(window.location.search).get('paymentStatus');
+        return ['paid', 'free', 'pending_review', 'rejected'].includes(q) ? q : '';
+    });
     const [checkInFilter, setCheckInFilter] = useState('');
-    const [genderFilter, setGenderFilter] = useState('');
+    const [genderFilter, setGenderFilter] = useState(() => {
+        const q = new URLSearchParams(window.location.search).get('gender');
+        return ['Female', 'Male', 'Others'].includes(q) ? q : '';
+    });
     const [page, setPage] = useState(1);
+    const [registrationMode, setRegistrationMode] = useState('internal_form');
 
     const hasFilters = search || paymentFilter || checkInFilter || genderFilter;
+    const isOrganizerQr = registrationMode === 'organizer_qr';
+    const pendingCount = isOrganizerQr ? (stats?.pendingReview ?? 0) : 0;
+    const pendingQueue = useMemo(
+        () => rows.filter((r) => r.paymentStatus === 'Pending review' || r.status === 'pending'),
+        [rows],
+    );
+    const reviewIndex = reviewTarget
+        ? pendingQueue.findIndex((r) => r.bookingId === reviewTarget.bookingId)
+        : -1;
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -86,19 +105,26 @@ export default function TrekOrganizerParticipantsPage() {
 
             const [listData, dashData] = await Promise.all([
                 fetchTrekOrganizerParticipants(trekId, params),
-                page === 1 && !hasFilters ? fetchTrekOrganizerDashboard(trekId).catch(() => null) : Promise.resolve(null),
+                fetchTrekOrganizerDashboard(trekId).catch(() => null),
             ]);
 
             setRows(listData.participants || []);
             setTrekName(listData.trekName || '');
             setPagination(listData.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 });
             if (dashData?.stats) setStats(dashData.stats);
+            if (dashData?.trek?.registrationMode) {
+                const mode = dashData.trek.registrationMode || 'internal_form';
+                setRegistrationMode(mode);
+                if (mode !== 'organizer_qr' && paymentFilter === 'pending_review') {
+                    setPaymentFilter('');
+                }
+            }
         } catch (e) {
             toast(e.message || 'Failed to load participants');
         } finally {
             setLoading(false);
         }
-    }, [trekId, page, search, paymentFilter, checkInFilter, genderFilter, hasFilters, toast]);
+    }, [trekId, page, search, paymentFilter, checkInFilter, genderFilter, toast]);
 
     useEffect(() => {
         load();
@@ -204,6 +230,32 @@ export default function TrekOrganizerParticipantsPage() {
         }
     };
 
+    const handleApprovePayment = async () => {
+        if (!reviewTarget) return;
+        try {
+            await reviewTrekOrganizerPayment(trekId, reviewTarget.bookingId, 'approve');
+            toast('Payment approved');
+            setReviewTarget(null);
+            await load();
+        } catch (e) {
+            toast(e.message || 'Approve failed');
+            throw e;
+        }
+    };
+
+    const handleRejectPayment = async (note) => {
+        if (!reviewTarget) return;
+        try {
+            await reviewTrekOrganizerPayment(trekId, reviewTarget.bookingId, 'reject', note);
+            toast('Registration rejected');
+            setReviewTarget(null);
+            await load();
+        } catch (e) {
+            toast(e.message || 'Reject failed');
+            throw e;
+        }
+    };
+
     const clearFilters = () => {
         setSearchInput('');
         setSearch('');
@@ -219,7 +271,9 @@ export default function TrekOrganizerParticipantsPage() {
         <div className="space-y-5 max-w-4xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold">Participants</h1>
+                    <h1 className="text-2xl font-bold">
+                        {paymentFilter === 'pending_review' ? 'Payment review' : 'Participants'}
+                    </h1>
                     <p className="text-sm text-gray-500 mt-0.5">{trekName || 'Trek registrations'}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -254,6 +308,24 @@ export default function TrekOrganizerParticipantsPage() {
                     </button>
                 </div>
             </div>
+
+            {pendingCount > 0 && paymentFilter !== 'pending_review' ? (
+                <button
+                    type="button"
+                    onClick={() => {
+                        setPaymentFilter('pending_review');
+                        setPage(1);
+                    }}
+                    className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-left hover:border-amber-400/50"
+                >
+                    <p className="text-sm font-semibold text-amber-300">
+                        Review {pendingCount} payment{pendingCount === 1 ? '' : 's'}
+                    </p>
+                    <p className="text-xs text-amber-200/70 mt-0.5">
+                        Screenshot submissions waiting for approve / reject
+                    </p>
+                </button>
+            ) : null}
 
             {stats ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -295,8 +367,14 @@ export default function TrekOrganizerParticipantsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                     <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter} onClick={() => { setPaymentFilter(''); setCheckInFilter(''); setGenderFilter(''); setPage(1); }}>All</FilterChip>
                     <span className="w-px h-4 bg-gray-700 hidden sm:block" />
+                    {isOrganizerQr ? (
+                        <FilterChip active={paymentFilter === 'pending_review'} onClick={() => { setPaymentFilter(paymentFilter === 'pending_review' ? '' : 'pending_review'); setPage(1); }}>Needs review</FilterChip>
+                    ) : null}
                     <FilterChip active={paymentFilter === 'paid'} onClick={() => { setPaymentFilter(paymentFilter === 'paid' ? '' : 'paid'); setPage(1); }}>Paid</FilterChip>
                     <FilterChip active={paymentFilter === 'free'} onClick={() => { setPaymentFilter(paymentFilter === 'free' ? '' : 'free'); setPage(1); }}>Free</FilterChip>
+                    {isOrganizerQr ? (
+                        <FilterChip active={paymentFilter === 'rejected'} onClick={() => { setPaymentFilter(paymentFilter === 'rejected' ? '' : 'rejected'); setPage(1); }}>Rejected</FilterChip>
+                    ) : null}
                     <span className="w-px h-4 bg-gray-700 hidden sm:block" />
                     <FilterChip active={checkInFilter === 'checked_in'} onClick={() => { setCheckInFilter(checkInFilter === 'checked_in' ? '' : 'checked_in'); setPage(1); }}>Checked in</FilterChip>
                     <FilterChip active={checkInFilter === 'pending'} onClick={() => { setCheckInFilter(checkInFilter === 'pending' ? '' : 'pending'); setPage(1); }}>Not yet</FilterChip>
@@ -350,13 +428,18 @@ export default function TrekOrganizerParticipantsPage() {
                             key={row.bookingId}
                             participant={row}
                             index={startIndex + i + 1}
-                            forceOpen={expandAll}
+                            forceOpen={expandAll || paymentFilter === 'pending_review'}
                             selected={selectedIds.has(row.bookingId)}
                             onToggleSelect={toggleSelect}
-                            onResend={handleResend}
-                            onSendEmail={(p) => openMessageModal([p.bookingId], p.participantName)}
-                            onDelete={handleDelete}
+                            onResend={row.status === 'confirmed' ? handleResend : undefined}
+                            onSendEmail={row.status === 'confirmed' ? (p) => openMessageModal([p.bookingId], p.participantName) : undefined}
+                            onDelete={row.status === 'confirmed' ? handleDelete : undefined}
                             onCopied={(msg) => toast(msg)}
+                            onReviewPayment={
+                                row.paymentStatus === 'Pending review' || row.status === 'pending'
+                                    ? () => setReviewTarget(row)
+                                    : undefined
+                            }
                         />
                     ))}
                 </div>
@@ -375,6 +458,28 @@ export default function TrekOrganizerParticipantsPage() {
                     </div>
                 </div>
             ) : null}
+
+            <PaymentProofReviewModal
+                open={!!reviewTarget}
+                participant={reviewTarget}
+                expectedFee={reviewTarget?.expectedAmount ?? reviewTarget?.amountPaid}
+                eventTitle={trekName}
+                queueIndex={Math.max(0, reviewIndex)}
+                queueTotal={pendingQueue.length}
+                onClose={() => setReviewTarget(null)}
+                onApprove={handleApprovePayment}
+                onReject={handleRejectPayment}
+                onPrev={
+                    reviewIndex > 0
+                        ? () => setReviewTarget(pendingQueue[reviewIndex - 1])
+                        : undefined
+                }
+                onNext={
+                    reviewIndex >= 0 && reviewIndex < pendingQueue.length - 1
+                        ? () => setReviewTarget(pendingQueue[reviewIndex + 1])
+                        : undefined
+                }
+            />
 
             <TrekOrganizerMessageModal
                 open={messageModal.open}

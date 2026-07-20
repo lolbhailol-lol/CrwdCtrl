@@ -132,16 +132,17 @@ export default function TrekOrganizerDashboardPage() {
     const total = stats.totalRegistrations ?? 0;
     const male = stats.maleCount ?? 0;
     const female = stats.femaleCount ?? 0;
-    const others = Math.max(0, total - male - female);
+    const genderSeats = male + female + (stats.othersCount ?? 0);
+    const others = stats.othersCount ?? 0;
     const checkedIn = stats.checkedIn ?? 0;
     const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
+    const isOrganizerQr = (trek?.registrationMode || 'internal_form') === 'organizer_qr';
+    const womenPct = genderSeats > 0 ? Math.round((female / genderSeats) * 100) : 0;
+    const menPct = genderSeats > 0 ? Math.round((male / genderSeats) * 100) : 0;
     const regStatus = trek.registrationStatus || 'open';
     const isOpen = regStatus === 'open';
-
-    const womenPct = total > 0 ? Math.round((female / total) * 100) : 0;
-    const menPct = total > 0 ? Math.round((male / total) * 100) : 0;
 
     const copyLink = async () => {
         try {
@@ -269,13 +270,13 @@ export default function TrekOrganizerDashboardPage() {
                     label="Women"
                     value={female}
                     tone="women"
-                    to={`/trek-organizer/treks/${trekId}/participants`}
+                    to={`/trek-organizer/treks/${trekId}/participants?gender=Female`}
                 />
                 <StatTile
                     label="Men"
                     value={male}
                     tone="men"
-                    to={`/trek-organizer/treks/${trekId}/participants`}
+                    to={`/trek-organizer/treks/${trekId}/participants?gender=Male`}
                 />
                 <StatTile
                     label="Checked in"
@@ -283,6 +284,14 @@ export default function TrekOrganizerDashboardPage() {
                     tone="ok"
                     to={`/trek-organizer/treks/${trekId}/scan`}
                 />
+                {isOrganizerQr ? (
+                    <StatTile
+                        label="Needs payment review"
+                        value={stats.pendingReview ?? 0}
+                        tone="warn"
+                        to={`/trek-organizer/treks/${trekId}/participants?paymentStatus=pending_review`}
+                    />
+                ) : null}
                 <StatTile
                     label="Pending check-in"
                     value={pending}

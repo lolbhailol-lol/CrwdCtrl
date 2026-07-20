@@ -65,6 +65,19 @@ const generateTrekQR = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Trek booking not found' });
     }
 
+    if (booking.status === 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Ticket available after the trek organizer approves your payment.',
+      });
+    }
+    if (booking.status !== 'confirmed') {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking is not active. Ticket unavailable.',
+      });
+    }
+
     if (!booking.qrCodeData) {
       booking.qrCodeData = crypto.randomBytes(16).toString('hex');
       await booking.save();

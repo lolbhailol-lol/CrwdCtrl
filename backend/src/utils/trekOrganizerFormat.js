@@ -94,6 +94,11 @@ function formatParticipantRow(booking, trek = null) {
     const form = booking.formData || {};
     const grossCollected = Number(booking.bookingDetails?.amountPaid) || 0;
     const people = Number(booking.bookingDetails?.people) || 1;
+    const isQrPending = booking.status === 'pending'
+        || booking.paymentStatus === 'pending'
+        || (booking.payment_gateway === 'organizer_qr' && booking.status === 'pending');
+    const isRejected = booking.status === 'cancelled'
+        && (booking.paymentStatus === 'failed' || booking.paymentReviewNote);
 
     const row = {
         bookingId: String(booking._id),
@@ -110,7 +115,13 @@ function formatParticipantRow(booking, trek = null) {
         emergencyContact:
             pickFormField(form, ['emergency_contact', 'emergency', 'emergency_phone', 'guardian_contact']) ||
             '—',
-        paymentStatus: grossCollected > 0 ? 'Paid' : 'Free',
+        paymentStatus: isRejected
+            ? 'Rejected'
+            : isQrPending
+                ? 'Pending review'
+                : (grossCollected > 0 || booking.paymentStatus === 'paid')
+                    ? 'Paid'
+                    : 'Free',
         amountPaid: grossCollected,
         people,
         bookingDate: booking.createdAt,
@@ -123,6 +134,15 @@ function formatParticipantRow(booking, trek = null) {
         participantGender: booking.participantGender || pickFormField(form, ['gender', 'sex', 'Gender']) || booking.userId?.gender || '—',
         qrCodeData: booking.qrCodeData || '',
         trekName: trek?.trekName || booking.trekId?.trekName || '',
+        paymentScreenshotUrl: booking.paymentScreenshotUrl || '',
+        transactionId: booking.transactionId || '',
+        paymentReviewNote: booking.paymentReviewNote || '',
+        paymentReviewedAt: booking.paymentReviewedAt || null,
+        paymentGateway: booking.payment_gateway || '',
+        expectedAmount: grossCollected,
+        listAmount: Number(trek?.registrationFee) > 0
+            ? Number(trek.registrationFee) * people
+            : grossCollected,
     };
 
     return attachOrganizerPayment(row, booking, trek);

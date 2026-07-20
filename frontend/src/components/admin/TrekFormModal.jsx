@@ -502,6 +502,12 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         }))
                         .filter((f) => f.label && f.fieldName),
                 },
+                // Only External Link mode uses registrationLink for Book Now.
+                // Clearing prevents a leftover community WhatsApp from hijacking booking.
+                registrationLink:
+                    (form.registration?.mode || 'internal_form') === 'external_link'
+                        ? String(form.registrationLink || '').trim()
+                        : '',
             };
             delete payload.featuredSection;
             delete payload.homeSection;
@@ -761,7 +767,8 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 placeholder="https://chat.whatsapp.com/..."
                             />
                             <p className="text-[11px] text-gray-600 mt-1.5">
-                                Sent only in registration emails and My Bookings → View Details for registered participants.
+                                Shown only after someone registers (email + My Bookings). Does not control Book Now.
+                                If empty, the linked trek community’s WhatsApp is used — set this trek’s own link to avoid another community’s group.
                             </p>
                         </div>
                         <div className="rounded-lg border border-gray-700/60 p-3">
@@ -878,14 +885,64 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                     <label className="block text-xs font-medium text-gray-400 mb-1">Registration Type</label>
                                     <select
                                         value={form.registration?.mode || 'internal_form'}
-                                        onChange={e => set('registration', { ...form.registration, mode: e.target.value })}
+                                        onChange={(e) => {
+                                            const mode = e.target.value;
+                                            setForm((f) => ({
+                                                ...f,
+                                                registration: { ...f.registration, mode },
+                                                registrationLink: mode === 'external_link' ? (f.registrationLink || '') : '',
+                                            }));
+                                        }}
                                         className={inp}
                                     >
-                                        <option value="internal_form">Internal Form (in-app booking + payment)</option>
-                                        <option value="external_link">External Link</option>
+                                        <option value="internal_form">Internal Form (in-app booking + Cashfree) — default</option>
+                                        <option value="external_link">External Link (skips your form — opens URL)</option>
+                                        <option value="organizer_qr">Optional: Form + UPI QR (manual payment review)</option>
                                     </select>
+                                    <p className="text-[10px] text-gray-500 mt-1.5">
+                                        Use Internal Form for custom fields + Cashfree. Do not put a WhatsApp group here — that belongs under Contacts → WhatsApp group link (sent only after someone registers).
+                                    </p>
                                 </div>
                             </div>
+
+                            {(form.registration?.mode || 'internal_form') === 'organizer_qr' ? (
+                                <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
+                                    <p className="text-xs font-semibold text-amber-200">Optional UPI / QR (manual review)</p>
+                                    <p className="text-[10px] text-gray-500">
+                                        Only if you skip Cashfree: participants pay via your QR, upload a screenshot, then you approve in the organizer panel.
+                                    </p>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 mb-1">Payment QR image URL</label>
+                                        <input
+                                            type="url"
+                                            value={form.registration?.paymentQR || ''}
+                                            onChange={(e) => set('registration', { ...form.registration, paymentQR: e.target.value })}
+                                            className={inp}
+                                            placeholder="https://res.cloudinary.com/…/qr.jpg"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 mb-1">UPI ID (optional)</label>
+                                        <input
+                                            type="text"
+                                            value={form.registration?.paymentUpiId || ''}
+                                            onChange={(e) => set('registration', { ...form.registration, paymentUpiId: e.target.value })}
+                                            className={inp}
+                                            placeholder="name@upi"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 mb-1">Payment note (optional)</label>
+                                        <input
+                                            type="text"
+                                            value={form.registration?.paymentQRMessage || ''}
+                                            onChange={(e) => set('registration', { ...form.registration, paymentQRMessage: e.target.value })}
+                                            className={inp}
+                                            placeholder="Add trek name in UPI remark"
+                                        />
+                                    </div>
+                                </div>
+                            ) : null}
 
                             <div className="rounded-xl border border-gray-700/80 p-4 space-y-3">
                                 <div>
@@ -957,12 +1014,20 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                             </div>
 
                             {(form.registration?.mode || 'internal_form') === 'external_link' ? (
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 mb-1">External Link</label>
+                                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+                                    <p className="text-xs font-semibold text-amber-200">
+                                        External Link skips your custom form
+                                    </p>
+                                    <p className="text-[10px] text-gray-500">
+                                        Book Now will open this URL instead of CrwdCtrl booking. For in-app forms, switch Registration Type back to Internal Form.
+                                    </p>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">External registration URL</label>
                                     <input type="url" value={form.registrationLink || ''}
                                         onChange={e => set('registrationLink', e.target.value)}
-                                        className={inp} placeholder="WhatsApp / website / form link — https://..." />
-                                    <p className="text-[10px] text-gray-600 mt-1">The “Book Now” button opens this link in a new tab (WhatsApp, website, Google Form, anything).</p>
+                                        className={inp} placeholder="https://forms.gle/... or your own site" />
+                                    <p className="text-[10px] text-gray-600 mt-1">
+                                        Not for post-booking WhatsApp groups — use Contacts → WhatsApp group link for that.
+                                    </p>
                                 </div>
                             ) : (
                             <>

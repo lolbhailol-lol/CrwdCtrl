@@ -1,11 +1,16 @@
 const express = require('express');
 const ctrl = require('../controllers/trekOrganizerController');
 const { authenticateTrekOrganizer, requireTrekAccess } = require('../middleware/trekOrganizerAuth');
+const { authenticateToken } = require('../middleware/authmiddleware');
 const { authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
 router.post('/auth/login', authLimiter, ctrl.login);
+router.post('/auth/signup', authLimiter, ctrl.signup);
+router.get('/auth/communities', ctrl.listSignupCommunities);
+router.get('/auth/profile-eligible', authenticateToken, ctrl.profileEligible);
+router.post('/auth/app-session', authenticateToken, ctrl.appSession);
 router.get('/me', authenticateTrekOrganizer, ctrl.getMe);
 
 router.get('/treks/:trekId/dashboard', authenticateTrekOrganizer, requireTrekAccess, ctrl.getDashboard);
@@ -22,6 +27,7 @@ router.get('/treks/:trekId/checkin/stats', authenticateTrekOrganizer, requireTre
 router.post('/treks/:trekId/checkin', authenticateTrekOrganizer, requireTrekAccess, ctrl.checkin);
 
 router.post('/treks/:trekId/participants/:bookingId/resend-confirmation', authenticateTrekOrganizer, requireTrekAccess, ctrl.resendConfirmation);
+router.post('/treks/:trekId/participants/:bookingId/review-payment', authenticateTrekOrganizer, requireTrekAccess, ctrl.reviewPayment);
 router.post('/treks/:trekId/notifications/reminder', authenticateTrekOrganizer, requireTrekAccess, ctrl.sendReminder);
 router.post('/treks/:trekId/notifications/broadcast', authenticateTrekOrganizer, requireTrekAccess, ctrl.broadcastAnnouncement);
 

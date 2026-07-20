@@ -118,8 +118,13 @@ const trekSchema = new mongoose.Schema(
         registration: {
             /** Whether registration is currently accepting bookings */
             status:            { type: String, enum: ['open', 'closed', 'not_open_yet'], default: 'open' },
-            /** How users register: in-app multi-step form, or an external link */
-            mode:              { type: String, enum: ['internal_form', 'external_link'], default: 'internal_form' },
+            /**
+             * How users register:
+             * - internal_form: in-app form + Cashfree
+             * - external_link: Book Now opens registrationLink
+             * - organizer_qr: in-app form + organizer UPI QR + screenshot (organizer approves)
+             */
+            mode:              { type: String, enum: ['internal_form', 'external_link', 'organizer_qr'], default: 'internal_form' },
             googleSheetsUrl:   { type: String, default: '' },
             organizerEmail:    { type: String, default: '' },
             formInstructions:  { type: String, default: '' },
@@ -127,6 +132,10 @@ const trekSchema = new mongoose.Schema(
             timeSlots:         { type: [String], default: [] },   // ["6:00 AM", "8:30 AM", …]
             locationOptions:   { type: [String], default: [] },   // ["Rishikesh", "Manali", …] or leave empty for single location
             maxPeoplePerBooking: { type: Number, default: 10 },
+            /** Organizer UPI / payment QR image URL (organizer_qr mode) */
+            paymentQR: { type: String, default: '' },
+            paymentQRMessage: { type: String, default: '' },
+            paymentUpiId: { type: String, default: '' },
             /** Gender-based seat caps + phased registration (women first, etc.) */
             genderQuotas: {
                 enabled: { type: Boolean, default: false },

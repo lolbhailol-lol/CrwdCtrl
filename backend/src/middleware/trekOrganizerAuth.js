@@ -18,7 +18,7 @@ async function authenticateTrekOrganizer(req, res, next) {
         }
 
         const organizer = await TrekOrganizerAccount.findById(decoded.organizerId).lean();
-        if (!organizer || !organizer.isActive) {
+        if (!organizer || !TrekOrganizerAccount.canLogin(organizer)) {
             return res.status(401).json({ success: false, message: 'Organizer account inactive or not found' });
         }
 

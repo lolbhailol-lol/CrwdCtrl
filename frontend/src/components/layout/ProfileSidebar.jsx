@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon, Footprints } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon, Footprints, Mountain } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -12,6 +12,10 @@ import {
     fetchClubManagerProfileEligible,
     tryRunClubOrganizerAppSession,
 } from '../../services/api/runClubOrganizer.api';
+import {
+    fetchTrekCommunityProfileEligible,
+    tryTrekOrganizerAppSession,
+} from '../../services/api/trekOrganizer.api';
 import { resolveAuthToken, hasUsableAuthToken } from '../../utils/authToken';
 
 export default function ProfileSidebar({
@@ -29,7 +33,8 @@ export default function ProfileSidebar({
     const { prepareRouteNavigation, startOverlayTransition } = usePageTransition();
     const [sidebarRevealReady, setSidebarRevealReady] = useState(false);
     const [clubManagerEligible, setClubManagerEligible] = useState(false);
-    const [clubManagerLoading, setClubManagerLoading] = useState(false);
+    const [trekCommunityEligible, setTrekCommunityEligible] = useState(false);
+    const [organizerAccessLoading, setOrganizerAccessLoading] = useState(false);
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
 
@@ -44,40 +49,50 @@ export default function ProfileSidebar({
         return () => window.clearTimeout(revealTimer);
     }, [isOpen]);
 
-    // Only admin-approved emails / approved organizers see Club manager in Profile
+    // Only admin-approved emails / approved organizers see Club manager / Trek community in Profile
     useEffect(() => {
         if (!isOpen) return undefined;
         let cancelled = false;
 
         if (!isAuthenticated) {
             setClubManagerEligible(false);
-            setClubManagerLoading(false);
+            setTrekCommunityEligible(false);
+            setOrganizerAccessLoading(false);
             return undefined;
         }
 
         // Wait for auth bootstrap (common on iPhone Safari/Chrome) so we don't
         // mark ineligible before the JWT is ready.
         if (authPending) {
-            setClubManagerLoading(true);
+            setOrganizerAccessLoading(true);
             return undefined;
         }
 
         const authToken = resolveAuthToken(token);
         if (!hasUsableAuthToken(authToken)) {
-            setClubManagerLoading(true);
+            setOrganizerAccessLoading(true);
             return undefined;
         }
 
-        setClubManagerLoading(true);
+        setOrganizerAccessLoading(true);
         (async () => {
             try {
-                const data = await fetchClubManagerProfileEligible(authToken);
-                if (!cancelled) setClubManagerEligible(Boolean(data?.eligible));
-            } catch (err) {
-                console.warn('[ProfileSidebar] Club manager eligibility check failed', err?.message || err);
-                if (!cancelled) setClubManagerEligible(false);
+                const [clubData, trekData] = await Promise.all([
+                    fetchClubManagerProfileEligible(authToken).catch((err) => {
+                        console.warn('[ProfileSidebar] Club manager eligibility check failed', err?.message || err);
+                        return { eligible: false };
+                    }),
+                    fetchTrekCommunityProfileEligible(authToken).catch((err) => {
+                        console.warn('[ProfileSidebar] Trek community eligibility check failed', err?.message || err);
+                        return { eligible: false };
+                    }),
+                ]);
+                if (!cancelled) {
+                    setClubManagerEligible(Boolean(clubData?.eligible));
+                    setTrekCommunityEligible(Boolean(trekData?.eligible));
+                }
             } finally {
-                if (!cancelled) setClubManagerLoading(false);
+                if (!cancelled) setOrganizerAccessLoading(false);
             }
         })();
 
@@ -87,7 +102,7 @@ export default function ProfileSidebar({
     const isProfileLoading = isOpen && (
         !sidebarRevealReady
         || authPending
-        || (isAuthenticated && clubManagerLoading)
+        || (isAuthenticated && organizerAccessLoading)
     );
 
     useEffect(() => {
@@ -135,6 +150,23 @@ export default function ProfileSidebar({
             return;
         }
 
+        if (label === 'Trek community') {
+            try {
+                const booted = await tryTrekOrganizerAppSession(token);
+                const path = booted?.token ? '/trek-organizer' : '/trek-organizer/login';
+                prepareRouteNavigation(path);
+                navigate(path);
+            } catch (err) {
+                const path = err?.code === 'no_organizer_account'
+                    ? '/trek-organizer/signup'
+                    : '/trek-organizer/login';
+                prepareRouteNavigation(path);
+                navigate(path);
+            }
+            onClose();
+            return;
+        }
+
         const path = MENU_ROUTES[label];
         if (!path) return;
 
@@ -156,6 +188,9 @@ export default function ProfileSidebar({
         ...(clubManagerEligible
             ? [{ icon: Footprints, label: 'Club manager', hint: 'Runs, guests, check-in & notify' }]
             : []),
+        ...(trekCommunityEligible
+            ? [{ icon: Mountain, label: 'Trek community', hint: 'Treks, participants, check-in & notify' }]
+            : []),
         { icon: Calendar, label: 'Bookings' },
     ];
 
@@ -168,6 +203,9 @@ export default function ProfileSidebar({
         { icon: User, label: 'Edit profile', requiresAuth: true },
         ...(clubManagerEligible
             ? [{ icon: Footprints, label: 'Club manager', requiresAuth: true, hint: 'Runs, guests, check-in & notify' }]
+            : []),
+        ...(trekCommunityEligible
+            ? [{ icon: Mountain, label: 'Trek community', requiresAuth: true, hint: 'Treks, participants, check-in & notify' }]
             : []),
         { icon: Heart, label: 'Favourites', requiresAuth: false },
         { icon: Calendar, label: 'Bookings', requiresAuth: false },
