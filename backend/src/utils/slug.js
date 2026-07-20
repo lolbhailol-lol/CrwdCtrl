@@ -14,6 +14,27 @@ function isObjectId(value) {
 }
 
 /**
+ * Allocate a unique slug for a model (base, base-2, base-3, …).
+ */
+async function ensureUniqueSlug(Model, baseValue, { excludeId = null, filter = {} } = {}) {
+    const base = toSlug(baseValue);
+    if (!base) return '';
+
+    let candidate = base;
+    for (let n = 2; n < 200; n += 1) {
+        const query = { ...filter, slug: candidate };
+        if (excludeId) query._id = { $ne: excludeId };
+        // eslint-disable-next-line no-await-in-loop
+        const taken = await Model.exists(query);
+        if (!taken) return candidate;
+        candidate = `${base}-${n}`;
+    }
+
+    const suffix = String(excludeId || Date.now()).replace(/[^a-f\d]/gi, '').slice(-6);
+    return suffix ? `${base}-${suffix}` : `${base}-${Date.now()}`;
+}
+
+/**
  * Resolve a document by Mongo id OR by name-like slug.
  * Uses in-memory matching fallback for legacy data without slug field.
  */
@@ -48,7 +69,7 @@ async function findByIdOrSlug(Model, idOrSlug, {
     const slug = toSlug(raw);
     if (!slug) return null;
 
-    // Prefer persisted slug field when present
+    // Prefer persisted unique slug field when present
     try {
         const bySlugField = applyQueryOpts(Model.findOne({ ...baseFilter, slug }));
         const hit = lean ? await bySlugField.lean() : await bySlugField;
@@ -57,11 +78,14 @@ async function findByIdOrSlug(Model, idOrSlug, {
         // Model may not have a slug path — ignore
     }
 
-    // Lightweight scan: only load fields needed to match name→slug, then re-fetch full doc
-    const scanSelect = select || 'title name festName trekName displayName slug';
-    let scanQ = Model.find(baseFilter).select(scanSelect).limit(500);
-    if (sort) scanQ = scanQ.sort(sort);
-    const rows = lean ? await scanQ.lean() : await scanQ;
+    // Lightweight scan for legacy docs without slug.
+    // Prefer newest when multiple names share a slug (cross-community collision).
+    const scanSelect = select || 'title name festName trekName displayName slug createdAt';
+    const rowsQuery = Model.find(baseFilter)
+        .select(scanSelect)
+        .sort(sort || { createdAt: -1 })
+        .limit(500);
+    const rows = lean ? await rowsQuery.lean() : await rowsQuery;
     const matched = rows.find((row) => {
         const named = toSlug(pickName(row));
         const stored = row.slug ? toSlug(row.slug) : '';
@@ -81,5 +105,6 @@ async function findByIdOrSlug(Model, idOrSlug, {
 module.exports = {
     toSlug,
     isObjectId,
+    ensureUniqueSlug,
     findByIdOrSlug,
 };

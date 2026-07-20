@@ -10,17 +10,8 @@ import {
     exportTrekOrganizerParticipants,
 } from '../../services/api/trekOrganizer.api';
 import { trekPath } from '../../utils/slugRoutes';
+import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
 import TrekOrganizerRegistrationPanel from './TrekOrganizerRegistrationPanel';
-
-function formatTrekDate(d) {
-    if (!d) return '';
-    return new Date(d).toLocaleDateString('en-IN', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-    });
-}
 
 function StatTile({ label, value, tone = 'default', onClick, to }) {
     const navigate = useNavigate();
@@ -139,6 +130,7 @@ export default function TrekOrganizerDashboardPage() {
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
     const isOrganizerQr = (trek?.registrationMode || 'internal_form') === 'organizer_qr';
+    // Seat fills (not booking counts) — bar shares match Women/Men tiles
     const womenPct = genderSeats > 0 ? Math.round((female / genderSeats) * 100) : 0;
     const menPct = genderSeats > 0 ? Math.round((male / genderSeats) * 100) : 0;
     const regStatus = trek.registrationStatus || 'open';
@@ -181,10 +173,10 @@ export default function TrekOrganizerDashboardPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${(trek.trekName || 'trek').replace(/[^a-z0-9-_]+/gi, '_')}_participants.csv`;
+            a.download = `${(trek.trekName || 'trek').replace(/[^a-z0-9-_]+/gi, '_')}_participants.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
-            setActionNotice('CSV downloaded');
+            setActionNotice('Excel sheet downloaded');
         } catch (e) {
             setActionNotice(e.message || 'Export failed');
         } finally {
@@ -199,7 +191,7 @@ export default function TrekOrganizerDashboardPage() {
                 <div className="min-w-0">
                     <h1 className="text-2xl font-bold tracking-tight leading-tight">{trek.trekName}</h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        {[trek.city, formatTrekDate(trek.trekDate)].filter(Boolean).join(' · ')}
+                        {[trek.city, formatOrganizerTrekDate(trek)].filter(Boolean).join(' · ')}
                     </p>
                     <div className="flex flex-wrap gap-1.5 mt-2.5">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ${
@@ -334,14 +326,14 @@ export default function TrekOrganizerDashboardPage() {
                         </div>
                         <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-gray-500">
                             <span className="inline-flex items-center gap-1.5">
-                                <span className="size-2 rounded-full bg-pink-400" /> Women {female}
+                                <span className="size-2 rounded-full bg-pink-400" /> Women {female} seats
                             </span>
                             <span className="inline-flex items-center gap-1.5">
-                                <span className="size-2 rounded-full bg-sky-400" /> Men {male}
+                                <span className="size-2 rounded-full bg-sky-400" /> Men {male} seats
                             </span>
                             {others > 0 ? (
                                 <span className="inline-flex items-center gap-1.5">
-                                    <span className="size-2 rounded-full bg-gray-500" /> Others {others}
+                                    <span className="size-2 rounded-full bg-gray-500" /> Others {others} seats
                                 </span>
                             ) : null}
                         </div>
@@ -428,8 +420,8 @@ export default function TrekOrganizerDashboardPage() {
                         ) : (
                             <Download className="text-[#0ECCEE] mb-2" size={20} />
                         )}
-                        <p className="text-sm font-semibold">Export CSV</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5">Download guest list</p>
+                        <p className="text-sm font-semibold">Export Excel</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">Download .xlsx guest list</p>
                     </button>
                 </div>
             </div>

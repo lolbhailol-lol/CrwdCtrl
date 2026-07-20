@@ -80,10 +80,13 @@ exports.update = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(req.params.id))
             return res.status(400).json({ message: 'Invalid ID' });
         const body = normalizeCommunityPayload(req.body);
-        const community = await TrekCommunity.findByIdAndUpdate(
-            req.params.id, { $set: body }, { new: true, runValidators: false }
-        );
+        // Use save() so unique slug pre-save runs
+        const community = await TrekCommunity.findById(req.params.id);
         if (!community) return res.status(404).json({ message: 'Not found' });
+        Object.keys(body).forEach((key) => {
+            community[key] = body[key];
+        });
+        await community.save();
         res.json({ message: 'Updated', community });
     } catch (err) {
         console.error('[TrekCommunity] update error:', err.message);

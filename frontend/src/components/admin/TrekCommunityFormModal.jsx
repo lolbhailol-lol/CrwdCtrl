@@ -6,6 +6,7 @@ import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { notifyAdminDataUpdated } from '../../utils/notifyAdminDataUpdated';
 
 const CATEGORY_OPTIONS = ['Camping', 'Trail Walks', 'Hiking', 'Backpacking', 'Adventure'];
 
@@ -135,8 +136,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                 method: community ? 'PUT' : 'POST',
                 body: JSON.stringify(payload),
             });
-            localStorage.setItem('admin_data_updated', Date.now().toString());
-            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+            notifyAdminDataUpdated();
             onSaved(data.community);
         } catch (err) {
             setError(err.message);

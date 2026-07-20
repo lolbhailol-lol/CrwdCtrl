@@ -3,11 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mountain, ChevronRight, Loader, MapPin, Phone, Instagram } from 'lucide-react';
 import { fetchTrekOrganizerMe } from '../../services/api/trekOrganizer.api';
 import { getTrekOrganizerSession, setTrekOrganizerSession } from '../../utils/trekOrganizerSession';
-
-function formatTrekDate(d) {
-    if (!d) return 'Date TBA';
-    return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
+import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
 
 function statusTone(status) {
     const s = String(status || '').toLowerCase();
@@ -141,7 +137,7 @@ export default function TrekOrganizerHomePage() {
                                     <div className="min-w-0">
                                         <p className="font-semibold truncate">{trek.trekName}</p>
                                         <p className="text-xs text-gray-500 mt-0.5">
-                                            {trek.city || '—'} · {formatTrekDate(trek.trekDate)}
+                                            {[trek.city || '—', formatOrganizerTrekDate(trek) || 'Date TBA'].join(' · ')}
                                         </p>
                                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusTone(trek.status)}`}>

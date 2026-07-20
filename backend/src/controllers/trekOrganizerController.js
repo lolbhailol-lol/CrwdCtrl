@@ -18,7 +18,7 @@ const {
     formatParticipantDetail,
     formatParticipantSheetRow,
     buildSheetColumns,
-    participantsToCsv,
+    participantsToXlsx,
 } = require('../utils/trekOrganizerFormat');
 const {
     sanitizeGenderQuotas,
@@ -397,7 +397,7 @@ exports.getDashboard = async (req, res) => {
     try {
         const trekId = req.trekId;
         const trek = await Trek.findById(trekId).select(
-            'trekName city trekDate status maxParticipants trekBatches registrationFee platformFeePercent registration'
+            'trekName city trekDate dateLabel status maxParticipants trekBatches registrationFee platformFeePercent registration'
         ).lean();
         if (!trek) return res.status(404).json({ success: false, message: 'Trek not found' });
 
@@ -441,6 +441,8 @@ exports.getDashboard = async (req, res) => {
                 trekName: trek.trekName,
                 city: trek.city,
                 trekDate: trek.trekDate,
+                dateLabel: trek.dateLabel || '',
+                trekBatches: Array.isArray(trek.trekBatches) ? trek.trekBatches : [],
                 status: trek.status,
                 capacity,
                 registrationFee: Number(trek.registrationFee) || 0,
@@ -635,20 +637,33 @@ exports.lookupParticipant = async (req, res) => {
 
 exports.exportParticipants = async (req, res) => {
     try {
-        const bookings = await TrekBooking.find({ trekId: req.trekId, status: 'confirmed' })
+        const bookings = await TrekBooking.find({
+            trekId: req.trekId,
+            status: { $in: ['confirmed', 'pending'] },
+        })
             .populate('userId', 'name email phoneNumber')
             .sort({ createdAt: -1 })
             .lean();
 
-        const trek = await Trek.findById(req.trekId).select('trekName registration.formSchema registrationFee platformFeePercent').lean();
+        const trek = await Trek.findById(req.trekId)
+            .select('trekName registration.formSchema registration.mode registrationFee platformFeePercent')
+            .lean();
         const rows = bookings.map((b) => formatParticipantDetail(b, trek));
-        const csv = participantsToCsv(rows, { formSchema: trek?.registration?.formSchema || [] });
+        const isOrganizerQr = (trek?.registration?.mode || 'internal_form') === 'organizer_qr';
+        const buffer = await participantsToXlsx(rows, {
+            formSchema: trek?.registration?.formSchema || [],
+            includePaymentProof: isOrganizerQr,
+        });
         const safeName = (trek?.trekName || 'trek').replace(/[^a-z0-9-_]+/gi, '_');
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.csv"`);
-        res.send(csv);
+        res.setHeader(
+            'Content-Type',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        );
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.xlsx"`);
+        res.send(buffer);
     } catch (error) {
+        console.error('[trekOrganizer.exportParticipants]', error);
         res.status(500).json({ success: false, message: 'Export failed' });
     }
 };

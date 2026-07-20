@@ -185,10 +185,10 @@ export default function TrekOrganizerParticipantsPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${(trekName || 'trek').replace(/[^a-z0-9-_]+/gi, '_')}_participants.csv`;
+            a.download = `${(trekName || 'trek').replace(/[^a-z0-9-_]+/gi, '_')}_participants.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
-            toast('CSV downloaded');
+            toast('Excel sheet downloaded');
         } catch (e) {
             toast(e.message || 'Export failed');
         } finally {

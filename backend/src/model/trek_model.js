@@ -3,6 +3,7 @@ const coverImagesSchema = require('./coverImagesSchema');
 const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
 const { normalizeAvailableDates, parseTrekDateForIndex } = require('../utils/trekDateNormalize');
 const { sanitizeTrekBatches } = require('../utils/sanitizeTrekBatches');
+const { ensureUniqueSlug } = require('../utils/slug');
 
 const trekContactSchema = new mongoose.Schema(
     {
@@ -17,6 +18,8 @@ const trekSchema = new mongoose.Schema(
     {
         communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'TrekCommunity', default: null },
         trekName: { type: String, required: true, trim: true },
+        /** Unique URL slug — avoids /trek/{name} opening another community's trek */
+        slug: { type: String, trim: true, lowercase: true },
         description: { type: String },
         difficultyLevel: {
             type: String,
@@ -183,12 +186,13 @@ const trekSchema = new mongoose.Schema(
 );
 
 trekSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
+trekSchema.index({ slug: 1 }, { unique: true, sparse: true });
 trekSchema.index({ difficultyLevel: 1 });
 trekSchema.index({ status: 1 });
 trekSchema.index({ trekDate: 1 });
 trekSchema.index({ city: 1 });
 
-trekSchema.pre('save', function normalizeTrekDocument(next) {
+trekSchema.pre('save', async function normalizeTrekDocument() {
     if (this.trekBatches?.length) {
         this.trekBatches = sanitizeTrekBatches(this.trekBatches);
         const firstDated = this.trekBatches.find((b) => b.date);
@@ -213,7 +217,12 @@ trekSchema.pre('save', function normalizeTrekDocument(next) {
         this.$unset('scannerAccess.password');
     }
 
-    next();
+    if (this.isModified('trekName') || !this.slug) {
+        const nextSlug = await ensureUniqueSlug(this.constructor, this.trekName, {
+            excludeId: this._id,
+        });
+        if (nextSlug) this.slug = nextSlug;
+    }
 });
 
 module.exports = mongoose.models.Trek || mongoose.model('Trek', trekSchema);

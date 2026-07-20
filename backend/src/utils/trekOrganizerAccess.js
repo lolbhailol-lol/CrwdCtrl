@@ -2,7 +2,7 @@ const Trek = require('../model/trek_model');
 const TrekCommunity = require('../model/trek_community_model');
 const { normalizeUsername } = require('./normalizeUsername');
 
-const TREK_SELECT = 'trekName city trekDate status maxParticipants trekBatches registration.status communityId';
+const TREK_SELECT = 'trekName city trekDate dateLabel status maxParticipants trekBatches registration.status communityId';
 
 async function getOrganizerTreks(organizer) {
     if (organizer?.communityId) {

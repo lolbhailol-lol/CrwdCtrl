@@ -275,7 +275,7 @@ function escapeCsv(value) {
     return str;
 }
 
-function participantsToCsv(rows, options = {}) {
+function buildParticipantExportTable(rows, options = {}) {
     const formSchema = Array.isArray(options.formSchema) ? options.formSchema : [];
     const includePaymentProof = Boolean(options.includePaymentProof);
     const dynamicCols = formSchema
@@ -346,7 +346,49 @@ function participantsToCsv(rows, options = {}) {
         ];
     });
 
+    return { header, body };
+}
+
+function participantsToCsv(rows, options = {}) {
+    const { header, body } = buildParticipantExportTable(rows, options);
     return `\uFEFF${[header, ...body].map((row) => row.map(escapeCsv).join(',')).join('\n')}`;
+}
+
+async function participantsToXlsx(rows, options = {}) {
+    const ExcelJS = require('exceljs');
+    const { header, body } = buildParticipantExportTable(rows, options);
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'CrwdCtrl';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Participants', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+    });
+
+    sheet.addRow(header);
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { vertical: 'middle', wrapText: true };
+    headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE8F8FC' },
+    };
+
+    body.forEach((row) => sheet.addRow(row));
+
+    header.forEach((_, colIdx) => {
+        const column = sheet.getColumn(colIdx + 1);
+        let max = String(header[colIdx] || '').length;
+        body.forEach((row) => {
+            const len = String(row[colIdx] ?? '').length;
+            if (len > max) max = len;
+        });
+        column.width = Math.min(42, Math.max(12, max + 2));
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
 }
 
 module.exports = {
@@ -355,7 +397,9 @@ module.exports = {
     formatParticipantSheetRow,
     buildSheetColumns,
     resolveFormColumns,
+    buildParticipantExportTable,
     participantsToCsv,
+    participantsToXlsx,
     pickFormField,
     buildRegistrationFields,
     formatFormValue,

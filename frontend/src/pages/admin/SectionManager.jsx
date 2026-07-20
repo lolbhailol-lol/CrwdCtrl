@@ -13,6 +13,7 @@ import {
 } from '../../utils/pageSections';
 import { EVENTS_PAGE_CHECK_OPTS } from '../../constants/eventsPage';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
+import { notifyAdminDataUpdated } from '../../utils/notifyAdminDataUpdated';
 
 // ── Section options ────────────────────────────────────────────────────────────
 const HOME_CHECK_OPTS = [
@@ -644,9 +645,7 @@ export default function SectionManager() {
             flash(key);
             // Clear server-side cache so the public site reflects the change instantly
             try { await adminFetch('/admin/clear-cache', { method: 'POST' }); } catch (_) { /* non-fatal */ }
-            localStorage.setItem('admin_data_updated', Date.now().toString());
-            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
-            window.dispatchEvent(new Event('admin_data_updated'));
+            notifyAdminDataUpdated();
         } catch (e) {
             setSaving(s => ({ ...s, [key]: 'error' }));
             setErrors(prev => ({ ...prev, save: e.message }));
@@ -834,8 +833,7 @@ export default function SectionManager() {
                 body: JSON.stringify({ updates }),
             });
             applyLocal?.();
-            localStorage.setItem('admin_data_updated', Date.now().toString());
-            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+            notifyAdminDataUpdated();
         } catch (e) {
             setErrors((prev) => ({ ...prev, save: e.message }));
         } finally {

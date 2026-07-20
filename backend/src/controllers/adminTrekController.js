@@ -160,8 +160,14 @@ exports.updateTrek = async (req, res) => {
         if (body.featuredSection === '') body.featuredSection = null;
         if (body.homeSection === '') body.homeSection = null;
         if (body.trekCategory === '') body.trekCategory = null;
-        const trek = await Trek.findByIdAndUpdate(id, { $set: body }, { new: true, runValidators: false });
+
+        // Use save() so unique slug pre-save runs (findByIdAndUpdate skips hooks)
+        const trek = await Trek.findById(id);
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
+        Object.keys(body).forEach((key) => {
+            trek[key] = body[key];
+        });
+        await trek.save();
         res.json({ message: 'Trek updated successfully', trek });
     } catch (error) {
         console.error('adminTrek updateTrek error:', error);

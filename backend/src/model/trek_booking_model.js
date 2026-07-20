@@ -52,6 +52,15 @@ trekBookingSchema.index({ userId: 1 });
 trekBookingSchema.index({ trekId: 1 });
 trekBookingSchema.index({ trekId: 1, status: 1 });
 trekBookingSchema.index({ payment_order_id: 1 }, { unique: true, sparse: true });
+// One active registration per user per trek (blocks concurrent double-create races)
+trekBookingSchema.index(
+    { trekId: 1, userId: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } },
+        name: 'trek_user_active_booking_unique',
+    },
+);
 
 trekBookingSchema.pre('validate', function enforcePaidBookingPaymentOrder(next) {
     const amountPaid = Number(this.bookingDetails?.amountPaid) || 0;

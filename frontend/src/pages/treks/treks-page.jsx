@@ -28,7 +28,7 @@ import {
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import { fetchCatalogJSON } from '../../services/api/catalogCache';
+import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
@@ -62,6 +62,13 @@ const writeTreksCache = (payload) => {
         /* storage full / unavailable */
     }
 };
+const clearTreksCache = () => {
+    try {
+        sessionStorage.removeItem(TREKS_CACHE_KEY);
+    } catch {
+        /* ignore */
+    }
+};
 
 function mapTrekCommunities(commData) {
     return (Array.isArray(commData?.communities) ? commData.communities : [])
@@ -71,6 +78,7 @@ function mapTrekCommunities(commData) {
 function mapCommunityCards(commList) {
     return commList.map((c) => ({
         id: c._id,
+        slug: c.slug || '',
         title: c.name,
         subtitle: c.basedIn || '',
         coverImage: c.coverImage || null,
@@ -91,15 +99,23 @@ function mapCommunityCards(commList) {
 function mapTrekCards(trekData, commList) {
     const list = Array.isArray(trekData?.treks) ? trekData.treks : [];
     return list.map((t) => {
-        const communityName = commList.find((c) => String(c._id) === String(t.communityId))?.name || '';
+        const rawCommunityId = t.communityId;
+        const communityId = rawCommunityId && typeof rawCommunityId === 'object'
+            ? (rawCommunityId._id || rawCommunityId.id)
+            : rawCommunityId;
+        const communityName = commList.find((c) => String(c._id) === String(communityId))?.name
+            || (rawCommunityId && typeof rawCommunityId === 'object' ? (rawCommunityId.name || '') : '')
+            || '';
         return {
             id: t._id,
+            slug: t.slug || '',
             title: t.trekName,
+            trekName: t.trekName,
             subtitle: t.city || t.startingPoint || '',
             coverImage: t.coverImage || null,
             coverImages: t.coverImages || null,
             image: t.coverImage || t.images?.[0] || null,
-            communityId: t.communityId || null,
+            communityId: communityId || null,
             communityName,
             difficulty: t.difficultyLevel,
             duration: t.trekDuration,
@@ -118,8 +134,8 @@ function mapTrekCards(trekData, commList) {
     });
 }
 
-const fetchJSON = async (endpoint) => {
-    const { data } = await fetchCatalogJSON(endpoint, { retries: 1 });
+const fetchJSON = async (endpoint, { force = false } = {}) => {
+    const { data } = await fetchCatalogJSON(endpoint, { retries: 1, force });
     return data;
 };
 
@@ -310,12 +326,16 @@ function TreksPage() {
         setTreks(mapTrekCards(trekData, commList));
     }, []);
 
-    const loadData = useCallback(async () => {
-        const hasCache = Boolean(readTreksCache());
+    const loadData = useCallback(async ({ force = false } = {}) => {
+        if (force) {
+            invalidateCatalogCache();
+            clearTreksCache();
+        }
+        const hasCache = !force && Boolean(readTreksCache());
         try {
             const [trekSettled, commSettled] = await Promise.allSettled([
-                fetchJSON('/treks'),
-                fetchJSON('/trek-communities'),
+                fetchJSON('/treks', { force }),
+                fetchJSON('/trek-communities', { force }),
             ]);
             const trekData = trekSettled.status === 'fulfilled' ? trekSettled.value : (hasCache ? readTreksCache()?.trekData : null);
             const commData = commSettled.status === 'fulfilled' ? commSettled.value : (hasCache ? readTreksCache()?.commData : null);
@@ -341,16 +361,25 @@ function TreksPage() {
         loadData();
     }, [loadData]);
 
-    // Refresh when admin makes changes in another tab
+    // Refresh when admin reorders priority cards (same tab or another tab)
     useEffect(() => {
-        const handleAdminChange = (e) => {
-            if (e.key === 'admin_data_updated' && e.newValue) {
-                loadData();
+        const refreshFromAdmin = () => {
+            loadData({ force: true });
+            try {
                 localStorage.removeItem('admin_data_updated');
+            } catch {
+                /* ignore */
             }
         };
-        window.addEventListener('storage', handleAdminChange);
-        return () => window.removeEventListener('storage', handleAdminChange);
+        const handleStorage = (e) => {
+            if (e.key === 'admin_data_updated' && e.newValue) refreshFromAdmin();
+        };
+        window.addEventListener('storage', handleStorage);
+        window.addEventListener('admin_data_updated', refreshFromAdmin);
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+            window.removeEventListener('admin_data_updated', refreshFromAdmin);
+        };
     }, [loadData]);
 
     const trekQuickPicks = useMemo(

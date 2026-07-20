@@ -5,12 +5,13 @@ const TrekCommunityManagerProfileInvite = require('../model/trek_community_manag
 const { normalizeUsername } = require('../utils/trekOrganizerAccess');
 
 function serializeOrganizer(org) {
+    // effectiveStatus is a pure static (reads org.status / org.isActive) — works on lean docs.
+    // .select('-passwordHash') already omits the hash; strip again for document instances.
     const plain = typeof org.toObject === 'function' ? org.toObject() : { ...org };
-    const status = TrekOrganizerAccount.effectiveStatus(plain);
+    const { passwordHash: _omit, ...safe } = plain;
     return {
-        ...plain,
-        status,
-        passwordHash: undefined,
+        ...safe,
+        status: TrekOrganizerAccount.effectiveStatus(safe),
     };
 }
 
@@ -98,6 +99,8 @@ exports.createOrganizer = async (req, res) => {
             }
         }
 
+        // Admin provisioning: create as approved so the account can sign in immediately.
+        // Self-serve signup (profile invite) stays pending until an admin approves.
         const now = new Date();
         const payload = {
             name,

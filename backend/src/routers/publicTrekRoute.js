@@ -285,17 +285,18 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             userId: req.user.userId,
             status: { $in: ['pending', 'confirmed'] },
         }).lean();
-        if (activeExisting) {
-            if (activeExisting.status === 'pending' && isOrganizerQr) {
-                // Allow resubmit of payment proof on pending QR booking
-            } else {
-                return res.status(409).json({
-                    message: activeExisting.status === 'pending'
-                        ? 'You already have a registration waiting for organizer approval'
-                        : 'You already have a registration for this trek',
-                    bookingId: activeExisting._id,
-                });
-            }
+        const isQrPendingResubmit = Boolean(
+            activeExisting
+            && activeExisting.status === 'pending'
+            && isOrganizerQr,
+        );
+        if (activeExisting && !isQrPendingResubmit) {
+            return res.status(409).json({
+                message: activeExisting.status === 'pending'
+                    ? 'You already have a registration waiting for organizer approval'
+                    : 'You already have a registration for this trek',
+                bookingId: activeExisting._id,
+            });
         }
 
         // Idempotent: same user + trek + payment → return the existing booking as
@@ -378,57 +379,75 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
 
         const userId = req.user.userId;
 
+        const bookingFields = {
+            userName,
+            userEmail,
+            participantGender: genderCheck.participantGender || null,
+            formData,
+            payment_gateway: paymentGateway,
+            paymentScreenshotUrl,
+            transactionId,
+            paymentStatus,
+            paymentReviewNote: '',
+            paymentReviewedAt: null,
+            paymentReviewedBy: '',
+            bookingDetails: {
+                date: bookingDetails.date || '',
+                time: bookingDetails.time || '',
+                people,
+                amountPaid,
+                paymentId: verifiedPaymentId,
+                payment_order_id: paymentOrderId || '',
+            },
+            status: bookingStatus,
+        };
+
         let booking;
-        if (activeExisting?.status === 'pending' && isOrganizerQr) {
-            booking = await TrekBooking.findByIdAndUpdate(
-                activeExisting._id,
+        if (isQrPendingResubmit) {
+            // Atomic update: only overwrite while still pending (blocks race with approve/reject)
+            booking = await TrekBooking.findOneAndUpdate(
                 {
-                    userName,
-                    userEmail,
-                    participantGender: genderCheck.participantGender || null,
-                    formData,
-                    payment_gateway: paymentGateway,
-                    paymentScreenshotUrl,
-                    transactionId,
-                    paymentStatus,
-                    paymentReviewNote: '',
-                    paymentReviewedAt: null,
-                    paymentReviewedBy: '',
-                    bookingDetails: {
-                        date: bookingDetails.date || '',
-                        time: bookingDetails.time || '',
-                        people,
-                        amountPaid,
-                        paymentId: verifiedPaymentId,
-                        payment_order_id: paymentOrderId || '',
-                    },
-                    status: bookingStatus,
+                    _id: activeExisting._id,
+                    trekId: trek._id,
+                    userId,
+                    status: 'pending',
                 },
+                { $set: bookingFields },
                 { new: true },
             );
+            if (!booking) {
+                return res.status(409).json({
+                    message: 'This registration was already reviewed. Refresh and try again.',
+                    bookingId: activeExisting._id,
+                });
+            }
         } else {
-            booking = await TrekBooking.create({
-                trekId: trek._id,
-                userId,
-                userName,
-                userEmail,
-                participantGender: genderCheck.participantGender || null,
-                formData,
-                payment_order_id: paymentOrderId || undefined,
-                payment_gateway: paymentGateway,
-                paymentScreenshotUrl,
-                transactionId,
-                paymentStatus,
-                bookingDetails: {
-                    date: bookingDetails.date || '',
-                    time: bookingDetails.time || '',
-                    people,
-                    amountPaid,
-                    paymentId: verifiedPaymentId,
-                    payment_order_id: paymentOrderId || '',
-                },
-                status: bookingStatus,
-            });
+            try {
+                booking = await TrekBooking.create({
+                    trekId: trek._id,
+                    userId,
+                    payment_order_id: paymentOrderId || undefined,
+                    ...bookingFields,
+                });
+            } catch (createErr) {
+                // Concurrent double-submit: unique (trekId,userId) for active statuses
+                if (createErr?.code === 11000) {
+                    const raced = await TrekBooking.findOne({
+                        trekId: trek._id,
+                        userId,
+                        status: { $in: ['pending', 'confirmed'] },
+                    }).lean();
+                    if (raced) {
+                        return res.status(409).json({
+                            message: raced.status === 'pending'
+                                ? 'You already have a registration waiting for organizer approval'
+                                : 'You already have a registration for this trek',
+                            bookingId: raced._id,
+                        });
+                    }
+                }
+                throw createErr;
+            }
         }
         if (paymentOrderId) {
             consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
@@ -502,6 +521,10 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         });
     } catch (err) {
         if (err.code === 11000) {
+            const keys = Object.keys(err.keyPattern || {});
+            if (keys.includes('trekId') || keys.includes('userId')) {
+                return res.status(409).json({ message: 'You already have a registration for this trek' });
+            }
             return res.status(409).json({ message: 'This payment has already been used for a booking' });
         }
         console.error('[Trek Register] error:', err);

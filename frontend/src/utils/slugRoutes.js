@@ -46,6 +46,7 @@ export function entityMatchesRouteParam(entity, routeParam, nameKeys = ['name', 
     const param = String(routeParam);
     const eid = String(pickId(entity) || '');
     if (eid && eid === param) return true;
+    if (entity.slug && toSlug(entity.slug) === toSlug(param)) return true;
     for (const key of nameKeys) {
         const slug = toSlug(entity[key] || '');
         if (slug && slug === param) return true;
@@ -67,14 +68,21 @@ export function festRegisterPath(fest = {}) {
 
 export function trekPath(trek = {}) {
     const id = pickId(trek);
+    const persisted = toSlug(trek.slug || '');
+    if (persisted) return `/trek/${persisted}`;
+    // Prefer Mongo id over name slug — shared trek names were opening the wrong community
+    if (id) return `/trek/${id}`;
     const slug = toSlug(trek.trekName || trek.title || '');
-    return `/trek/${slug || id}`;
+    return `/trek/${slug || ''}`;
 }
 
 export function communityPath(community = {}) {
     const id = pickId(community);
+    const persisted = toSlug(community.slug || '');
+    if (persisted) return `/treks/community/${persisted}`;
+    if (id) return `/treks/community/${id}`;
     const slug = toSlug(community.name || community.title || '');
-    return `/treks/community/${slug || id}`;
+    return `/treks/community/${slug || ''}`;
 }
 
 export function runClubPath(club = {}) {

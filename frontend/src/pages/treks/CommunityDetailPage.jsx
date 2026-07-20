@@ -257,7 +257,9 @@ export default function CommunityDetailPage() {
                 const list = Array.isArray(data?.treks) ? data.treks : [];
                 setTreks(list.map(t => ({
                     id: t._id,
+                    slug: t.slug || '',
                     title: t.trekName,
+                    trekName: t.trekName,
                     dateLabel: t.dateLabel || '',
                     trekBatches: t.trekBatches || [],
                     trekDate: t.trekDate || null,

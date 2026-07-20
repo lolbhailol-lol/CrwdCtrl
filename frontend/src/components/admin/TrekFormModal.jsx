@@ -13,6 +13,7 @@ import {
     DIFFICULTY_LEVEL_FILTER_OPTIONS,
 } from '../../constants/trekFilters';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
+import { notifyAdminDataUpdated } from '../../utils/notifyAdminDataUpdated';
 import { normalizeTrekBatches, EMPTY_BATCH } from '../../utils/trekDateDisplay';
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import { normalizeItineraryForForm, serializeItineraryForSave, EMPTY_MAIN_POINT, EMPTY_SUB_POINT, parsePastedSchedulePoints } from '../../utils/trekItinerary';
@@ -520,8 +521,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                 method: trek ? 'PUT' : 'POST',
                 body: JSON.stringify(payload),
             });
-            localStorage.setItem('admin_data_updated', Date.now().toString());
-            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+            notifyAdminDataUpdated();
             onSaved(data.trek);
         } catch (err) {
             setError(err.message);

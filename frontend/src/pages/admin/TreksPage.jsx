@@ -5,6 +5,7 @@ import TrekCommunityFormModal from '../../components/admin/TrekCommunityFormModa
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 import { resolveCoverImage } from '../../utils/coverImages';
+import { notifyAdminDataUpdated } from '../../utils/notifyAdminDataUpdated';
 
 function communityBannerUrl(c) {
     return resolveCoverImage(c, 'hero') || c.coverImage || '';
@@ -314,6 +315,7 @@ export default function TreksPage() {
                 method: 'POST',
                 body: JSON.stringify({ updates }),
             });
+            notifyAdminDataUpdated();
         } catch (err) {
             setTreks(prev);
             setError(err.message || 'Failed to save trek order');

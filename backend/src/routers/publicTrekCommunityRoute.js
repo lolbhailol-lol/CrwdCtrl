@@ -11,9 +11,14 @@ function stripCommunityGroupLink(community) {
 
 router.get('/', async (req, res) => {
     try {
+        const requested = Number.parseInt(String(req.query.limit || ''), 10);
+        const limit = Math.min(
+            Number.isFinite(requested) && requested > 0 ? requested : 100,
+            200,
+        );
         const communities = await TrekCommunity.find({ status: 'published' })
             .sort({ trekPagePriority: 1, createdAt: -1 })
-            .limit(50)
+            .limit(limit)
             .lean();
         res.json({ communities: communities.map(stripCommunityGroupLink) });
     } catch (err) {

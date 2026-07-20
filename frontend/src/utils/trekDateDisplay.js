@@ -59,4 +59,17 @@ export function formatTrekDisplayDate(trek) {
     return '';
 }
 
+/**
+ * Organizer panel date line — departure batch first, then card subtitle, then trekDate.
+ * Returns '' when unknown so callers can `filter(Boolean)` (dashboard) or fall back to "Date TBA".
+ */
+export function formatOrganizerTrekDate(trek) {
+    if (!trek) return '';
+    const batches = normalizeTrekBatches(trek.trekBatches, null);
+    if (batches[0]?.date) return formatBatchDate(batches[0].date);
+    const label = String(trek.dateLabel || '').trim();
+    if (label) return label;
+    return formatTrekDisplayDate(trek) || '';
+}
+
 export { EMPTY_BATCH };
