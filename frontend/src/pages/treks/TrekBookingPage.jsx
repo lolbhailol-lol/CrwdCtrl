@@ -23,6 +23,12 @@ import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
 import { isTrekFormFieldEmpty } from '../../constants/trekFormFields';
 import { mergeRunFormFields } from '../../utils/formFieldDedupe';
 import { API_BASE_URL } from '../../services/api/client';
+import {
+    resolveAuthToken,
+    getBearerAuthHeaders,
+    hasUsableAuthToken,
+    isAuthFailureMessage,
+} from '../../utils/authToken';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../utils/trekGenderRegistration';
 import GenderQuickPick from '../../components/GenderQuickPick';
@@ -132,8 +138,8 @@ export default function TrekBookingPage() {
     const [showRegister, setShowRegister] = useState(false);
 
     const isAuthed = useCallback(() => {
-        return isAuthenticated || !!authToken || !!localStorage.getItem('crwdctrl_token');
-    }, [isAuthenticated, authToken]);
+        return hasUsableAuthToken(authToken);
+    }, [authToken]);
 
     const handleCloseLogin = () => setShowLogin(false);
     const handleCloseRegister = () => setShowRegister(false);
@@ -152,9 +158,10 @@ export default function TrekBookingPage() {
     }, [authLoading, isAuthProcessing, isRedirectProcessing, isAuthed]);
 
     useEffect(() => {
-        if (isAuthenticated && showLogin) setShowLogin(false);
-        if (isAuthenticated && showRegister) setShowRegister(false);
-    }, [isAuthenticated, showLogin, showRegister]);
+        // Only dismiss auth modals when we have a usable backend JWT (not Firebase-only).
+        if (hasUsableAuthToken(authToken) && showLogin) setShowLogin(false);
+        if (hasUsableAuthToken(authToken) && showRegister) setShowRegister(false);
+    }, [authToken, showLogin, showRegister]);
 
     const [trek, setTrek] = useState(() => {
         const navTrek = location.state?.trek;
@@ -186,6 +193,13 @@ export default function TrekBookingPage() {
     const [bookingGender, setBookingGender] = useState(initialUi.bookingGender || '');
     const [existingBookingId, setExistingBookingId] = useState('');
     const retryCheckoutRef = useRef(null);
+
+    const requireAuthOrLogin = useCallback((message = 'Please log in to book this trek.') => {
+        if (hasUsableAuthToken(authToken)) return true;
+        setShowLogin(true);
+        setError(message);
+        return false;
+    }, [authToken]);
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
     const fee       = Number(trek?.registrationFee) || 0;
@@ -276,9 +290,8 @@ export default function TrekBookingPage() {
         let cancelled = false;
         (async () => {
             try {
-                const token = localStorage.getItem('crwdctrl_token');
                 const r = await fetch(`${API}/treks/${trekId}`, {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    headers: getBearerAuthHeaders(authToken),
                 });
                 const d = await r.json();
                 if (cancelled) return;
@@ -538,17 +551,14 @@ export default function TrekBookingPage() {
         const trekId = id || trek?._id || trek?.id;
         if (!trekId) throw new Error('Trek not found');
 
-        const token = localStorage.getItem('crwdctrl_token');
-        if (!token) {
+        const token = resolveAuthToken(authToken);
+        if (!token || !hasUsableAuthToken(authToken)) {
             setShowLogin(true);
             throw new Error('Please log in to complete your booking.');
         }
         const regRes = await fetch(`${API}/treks/${trekId}/register`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+            headers: getBearerAuthHeaders(authToken),
             body: JSON.stringify({
                 formData,
                 bookingDetails: {
@@ -563,6 +573,10 @@ export default function TrekBookingPage() {
         });
         const regData = await regRes.json().catch(() => ({}));
         if (!regRes.ok) {
+            if (regRes.status === 401 || isAuthFailureMessage(regData.message)) {
+                setShowLogin(true);
+                throw new Error('Please log in again to complete your booking.');
+            }
             if (regRes.status === 409 && /already have a registration/i.test(regData.message || '')) {
                 setExistingBookingId(regData.bookingId ? String(regData.bookingId) : 'existing');
             }
@@ -584,13 +598,9 @@ export default function TrekBookingPage() {
         }
         setCouponLoading(true);
         try {
-            const token = localStorage.getItem('crwdctrl_token');
             const res = await fetch(`${API}/payment/coupon-validate`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
+                headers: getBearerAuthHeaders(authToken),
                 body: JSON.stringify({ trekId: id || trek?._id || trek?.id, people: 1, couponCode: code }),
             });
             const data = await res.json().catch(() => ({}));
@@ -694,9 +704,7 @@ export default function TrekBookingPage() {
 
     const next = async () => {
         setError('');
-        if (!isAuthed()) {
-            setShowLogin(true);
-            setError('Please log in to book this trek.');
+        if (!requireAuthOrLogin('Please log in to book this trek.')) {
             return;
         }
         if (step === 1) {
@@ -741,6 +749,11 @@ export default function TrekBookingPage() {
                 setExtraFields((f) => ({ ...f, email: customerEmail }));
             }
 
+            if (!requireAuthOrLogin('Your session expired. Please log in again to pay.')) {
+                setPaying(false);
+                return;
+            }
+
             if (total <= 0) {
                 try {
                     await submitTrekRegistration({ amountPaid: 0, formData });
@@ -760,13 +773,9 @@ export default function TrekBookingPage() {
 
             setPaying(true);
             try {
-                const token = localStorage.getItem('crwdctrl_token');
                 const res = await fetch(`${API}/payment/trek-order`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    },
+                    headers: getBearerAuthHeaders(authToken),
                     body: JSON.stringify({
                         trekId: id || trek._id || trek.id,
                         trekName,
@@ -783,8 +792,14 @@ export default function TrekBookingPage() {
                         couponCode: couponCode.trim() || undefined,
                     }),
                 });
-                const order = await res.json();
+                const order = await res.json().catch(() => ({}));
                 if (!res.ok) {
+                    if (res.status === 401 || isAuthFailureMessage(order.message)) {
+                        setShowLogin(true);
+                        setError('Your session expired. Please log in again to continue payment.');
+                        setPaying(false);
+                        return;
+                    }
                     if (res.status === 409 && /already have a registration/i.test(order.message || '')) {
                         setExistingBookingId('existing');
                     }
@@ -871,7 +886,7 @@ export default function TrekBookingPage() {
 
     const back = () => step === 1 ? navigate(-1) : setStep(s => s - 1);
 
-    const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
+    const hasStoredSession = hasUsableAuthToken(authToken);
     const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
 
     if ((loadingTrek || waitingOnAuth) && !showSuccess && !showProcessing) {
