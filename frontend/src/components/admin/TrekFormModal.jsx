@@ -57,7 +57,7 @@ const EMPTY = {
     trekDate: '', dateLabel: '', trekBatches: [], detailBoxes: [], city: '', trekCategory: '', status: 'published',
     registration: {
         status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '',
-        availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [],
+        availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 0, formSchema: [],
         genderQuotas: { enabled: false, femaleSeats: 0, maleSeats: 0, othersSeats: 0 },
         genderPhase: 'all',
     },
@@ -861,7 +861,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 platformFeePercent={form.platformFeePercent ?? 3}
                                 onRegistrationFeeChange={(registrationFee) => set('registrationFee', registrationFee)}
                                 onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}
-                                maxPeoplePerBooking={form.registration?.maxPeoplePerBooking ?? 10}
+                                maxPeoplePerBooking={form.registration?.maxPeoplePerBooking ?? 0}
                                 inputClassName={inp}
                             />
 
@@ -1064,15 +1064,16 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 inp={inp}
                             />
 
-                            {/* Max People per Booking */}
+                            {/* Max People per Booking — 0 = no limit */}
                             <div>
                                 <label className="block text-xs font-medium text-gray-400 mb-1">Max People per Booking</label>
                                 <input
-                                    type="number" min="1" max="50"
-                                    value={form.registration?.maxPeoplePerBooking ?? 10}
-                                    onChange={e => set('registration', { ...form.registration, maxPeoplePerBooking: parseInt(e.target.value) || 10 })}
+                                    type="number" min="0" max="200"
+                                    value={form.registration?.maxPeoplePerBooking ?? 0}
+                                    onChange={e => set('registration', { ...form.registration, maxPeoplePerBooking: Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                     className={`${inp} w-28`}
                                 />
+                                <p className="text-[10px] text-gray-600 mt-1">0 = no limit (users can book any party size; trek capacity still applies).</p>
                             </div>
 
                             <hr className="border-gray-700" />

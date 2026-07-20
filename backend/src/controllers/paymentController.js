@@ -441,11 +441,12 @@ exports.createTrekOrder = async (req, res) => {
     }
 
     const peopleCount = Math.max(1, Number(people) || 1);
-    const maxPeople = Math.max(1, Number(trek.registration?.maxPeoplePerBooking) || 10);
-    if (peopleCount > maxPeople) {
+    const configuredMax = Number(trek.registration?.maxPeoplePerBooking);
+    // Enforce only intentional caps (legacy schema default was 10 = unlimited)
+    if (Number.isFinite(configuredMax) && configuredMax > 0 && configuredMax !== 10 && peopleCount > configuredMax) {
       return res.status(400).json({
         success: false,
-        message: `Maximum ${maxPeople} people allowed per booking`,
+        message: `Maximum ${configuredMax} people allowed per booking`,
       });
     }
 

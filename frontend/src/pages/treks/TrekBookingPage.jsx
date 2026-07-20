@@ -225,7 +225,12 @@ export default function TrekBookingPage() {
     });
     const platformPct = resolveTrekPlatformFeePercent(trek?.platformFeePercent, 3);
     const reg       = trek?.registration || {};
-    const maxPeople = Math.max(1, Number(reg.maxPeoplePerBooking) || 10);
+    // Soft UI ceiling only — trek maxParticipants is the real capacity limit on the server.
+    // 0 in admin = unlimited; legacy "10" default is also treated as unlimited.
+    const configuredMax = Number(reg.maxPeoplePerBooking);
+    const maxPeople = Number.isFinite(configuredMax) && configuredMax > 0 && configuredMax !== 10
+        ? Math.min(200, configuredMax)
+        : 200;
     const dates = useMemo(
         () => (reg.availableDates?.length ? reg.availableDates : generateDates(trek?.trekDate)),
         [reg.availableDates, trek?.trekDate],
@@ -1344,7 +1349,10 @@ export default function TrekBookingPage() {
                                             </button>
                                         </div>
                                         <p className={`text-[10px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                            One registration per login · max {maxPeople}
+                                            One registration per login
+                                            {Number.isFinite(configuredMax) && configuredMax > 0 && configuredMax !== 10
+                                                ? ` · max ${maxPeople}`
+                                                : ''}
                                         </p>
                                     </div>
                                     <div className="text-right">
@@ -1494,18 +1502,28 @@ export default function TrekBookingPage() {
 
                     {/* Payment breakdown (step 2, paid trek) */}
                     {step === 2 && fee > 0 && !isOrganizerQr && (
-                        <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
-                            <div className="mb-3">
+                        <div className={`mt-4 rounded-xl p-4 border overflow-hidden ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
+                            <div className="mb-3 min-w-0">
                                 <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
-                                <div className="flex gap-2">
-                                    <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
-                                    <button type="button" onClick={applyCoupon} disabled={couponLoading} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">
-                                        {couponLoading ? 'Applying...' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply')}
+                                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 w-full items-center">
+                                    <input
+                                        value={couponCode}
+                                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                        placeholder="Enter coupon"
+                                        className={`w-full min-w-0 h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#0ECCEE] ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900'}`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={applyCoupon}
+                                        disabled={couponLoading || !couponCode.trim()}
+                                        className="h-10 shrink-0 px-4 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm whitespace-nowrap disabled:opacity-50"
+                                    >
+                                        {couponLoading ? '…' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply')}
                                     </button>
                                 </div>
                                 {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
                                 {couponInfo?.couponApplied ? (
-                                    <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 animate-pulse ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                                    <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
                                         Coupon `{couponInfo.couponCode}` applied · You save ₹{couponInfo.discountAmount}
                                     </div>
                                 ) : null}

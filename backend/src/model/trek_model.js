@@ -134,7 +134,7 @@ const trekSchema = new mongoose.Schema(
             availableDates:    { type: [String], default: [] },   // ISO YYYY-MM-DD or display strings
             timeSlots:         { type: [String], default: [] },   // ["6:00 AM", "8:30 AM", …]
             locationOptions:   { type: [String], default: [] },   // ["Rishikesh", "Manali", …] or leave empty for single location
-            maxPeoplePerBooking: { type: Number, default: 10 },
+            maxPeoplePerBooking: { type: Number, default: 0 },
             /** Organizer UPI / payment QR image URL (organizer_qr mode) */
             paymentQR: { type: String, default: '' },
             paymentQRMessage: { type: String, default: '' },

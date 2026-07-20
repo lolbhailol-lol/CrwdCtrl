@@ -214,8 +214,14 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         }
 
         const { formData = {}, bookingDetails = {} } = req.body;
-        const maxPeople = Math.max(1, Number(trek.registration?.maxPeoplePerBooking) || 10);
-        const people = Math.min(maxPeople, Math.max(1, Number(bookingDetails.people) || 1));
+        const configuredMax = Number(trek.registration?.maxPeoplePerBooking);
+        const people = Math.max(1, Number(bookingDetails.people) || 1);
+        // Enforce only intentional caps (legacy schema default was 10 = unlimited)
+        if (Number.isFinite(configuredMax) && configuredMax > 0 && configuredMax !== 10 && people > configuredMax) {
+            return res.status(400).json({
+                message: `Maximum ${configuredMax} people allowed per booking`,
+            });
+        }
         const registrationFee = Number(trek.registrationFee) || 0;
 
         const genderCheck = await validateTrekGenderRegistration({
