@@ -278,11 +278,22 @@ export default function RunClubOrganizersPage() {
                     </p>
                 </div>
                 {section === 'accounts' ? (
-                    <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold">
+                    <button
+                        type="button"
+                        onClick={openCreate}
+                        disabled={runClubs.length === 0}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
+                    >
                         <Plus size={16} /> Add organizer
                     </button>
                 ) : null}
             </div>
+
+            {section === 'accounts' && runClubs.length === 0 && !loading ? (
+                <div className="rounded-xl border border-amber-800/60 bg-amber-900/15 px-4 py-3 text-sm text-amber-200">
+                    Publish a run club under Admin → Sports / Run Clubs first, then you can add a club organizer.
+                </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
                 {[

@@ -23,6 +23,8 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
 let gisPromise = null;
+let gisInitializedForClient = null;
+
 function loadGis() {
   if (gisPromise) return gisPromise;
   gisPromise = new Promise((resolve, reject) => {
@@ -48,9 +50,43 @@ function loadGis() {
   return gisPromise;
 }
 
-// One Tap is redundant (and would compete with the Google button) on the
-// dedicated auth screens, so it never runs there.
-const SUPPRESSED_PATHS = ['/login', '/register', '/verify-email'];
+function ensureGisInitialized(google, callback) {
+  if (!google?.accounts?.id || !CLIENT_ID) return false;
+  // Calling initialize() repeatedly logs "only the last initialized instance
+  // will be used" and can break FedCM / One Tap. Init once per client id.
+  if (gisInitializedForClient === CLIENT_ID) {
+    return true;
+  }
+  try {
+    google.accounts.id.initialize({
+      client_id: CLIENT_ID,
+      context: 'signin',
+      auto_select: false,
+      cancel_on_tap_outside: true,
+      // Prefer FedCM when available; GIS falls back when the user disabled it.
+      use_fedcm_for_prompt: true,
+      callback,
+    });
+    gisInitializedForClient = CLIENT_ID;
+    return true;
+  } catch (err) {
+    console.warn('Google One Tap init failed:', err?.message || err);
+    return false;
+  }
+}
+
+// One Tap is redundant (and would compete with the Google button) on dedicated
+// auth / admin / organizer screens — never run it there.
+function shouldSuppressOneTap(pathname = '') {
+  return (
+    pathname === '/login'
+    || pathname === '/register'
+    || pathname === '/verify-email'
+    || pathname.startsWith('/admin')
+    || pathname.startsWith('/trek-organizer')
+    || pathname.startsWith('/run-club-organizer')
+  );
+}
 
 export default function GoogleOneTap() {
   const { isAuthenticated, isLoading, isRedirectProcessing, isAuthProcessing } = useAuth();
@@ -59,7 +95,10 @@ export default function GoogleOneTap() {
 
   useEffect(() => {
     if (!CLIENT_ID || isNativeApp()) return undefined;
-    if (SUPPRESSED_PATHS.includes(pathname)) return undefined;
+    if (shouldSuppressOneTap(pathname)) {
+      window.google?.accounts?.id?.cancel?.();
+      return undefined;
+    }
     // Wait until auth has settled and the user is definitely logged out.
     if (isAuthenticated || isLoading || isRedirectProcessing || isAuthProcessing) return undefined;
     if (promptedRef.current) return undefined;
@@ -70,37 +109,36 @@ export default function GoogleOneTap() {
     loadGis()
       .then((google) => {
         if (cancelled || !google?.accounts?.id) return;
-        promptedRef.current = true;
 
-        google.accounts.id.initialize({
-          client_id: CLIENT_ID,
-          context: 'signin',
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          callback: async (response) => {
-            if (!response?.credential) return;
-            try {
-              const credential = GoogleAuthProvider.credential(response.credential);
-              await signInWithCredential(auth, credential);
-              // AuthContext's onAuthStateChange listener syncs the backend
-              // session and fires the login flow — nothing else needed here.
-            } catch (err) {
-              console.warn('One Tap sign-in failed:', err?.message || err);
-            }
-          },
+        const ok = ensureGisInitialized(google, async (response) => {
+          if (!response?.credential) return;
+          try {
+            const credential = GoogleAuthProvider.credential(response.credential);
+            await signInWithCredential(auth, credential);
+          } catch (err) {
+            console.warn('One Tap sign-in failed:', err?.message || err);
+          }
         });
+        if (!ok || cancelled) return;
 
-        google.accounts.id.prompt();
+        promptedRef.current = true;
+        try {
+          google.accounts.id.prompt((notification) => {
+            // User dismissed / FedCM disabled — stay quiet; password login still works.
+            if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+              promptedRef.current = false;
+            }
+          });
+        } catch (err) {
+          promptedRef.current = false;
+          console.warn('Google One Tap prompt failed:', err?.message || err);
+        }
       })
       .catch(() => {});
 
     return () => {
       cancelled = true;
-      // Reset so the prompt can be shown again on a later run (e.g. the user
-      // navigates while still logged out). Without this, One Tap would only ever
-      // appear once per session because this component stays mounted app-wide.
       promptedRef.current = false;
-      // Dismiss any prompt that is still on screen for this run.
       window.google?.accounts?.id?.cancel?.();
     };
   }, [isAuthenticated, isLoading, isRedirectProcessing, isAuthProcessing, pathname]);

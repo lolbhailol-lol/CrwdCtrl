@@ -164,10 +164,21 @@ export default function TrekOrganizersPage() {
                     <h1 className="text-2xl font-bold">Community Organizers</h1>
                     <p className="text-sm text-gray-500">Super admin assigns username + password per trek community. Organizers cannot pick their own username.</p>
                 </div>
-                <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold">
+                <button
+                    type="button"
+                    onClick={openCreate}
+                    disabled={communities.length === 0}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
+                >
                     <Plus size={16} /> Add organizer
                 </button>
             </div>
+
+            {communities.length === 0 && !loading ? (
+                <div className="rounded-xl border border-amber-800/60 bg-amber-900/15 px-4 py-3 text-sm text-amber-200">
+                    Create a trek community under Admin → Treks / Communities first, then you can add a community organizer.
+                </div>
+            ) : null}
 
             <div className="relative max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />

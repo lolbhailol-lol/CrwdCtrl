@@ -1,4 +1,4 @@
-import { getApiBaseUrl, PRODUCTION_API_BASE_URL } from '../../config/apiBase.js';
+import { getApiBaseUrl, getApiBaseCandidates } from '../../config/apiBase.js';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken.js';
 
 /** Resolved at call time so production web can use same-origin `/api`. */
@@ -96,14 +96,9 @@ function getPublicFetchTimeout(options = {}) {
   return isIOSBrowser() ? 20000 : 15000;
 }
 
-/** Prefer same-origin, then Railway — covers Vercel proxy blips and bad mobile DNS. */
-function getApiBaseCandidates() {
-  const primary = getApiBaseUrl();
-  const bases = [primary];
-  if (primary !== PRODUCTION_API_BASE_URL && !/localhost|127\.0\.0\.1/.test(primary)) {
-    bases.push(PRODUCTION_API_BASE_URL);
-  }
-  return bases;
+/** Prefer Railway, then same-origin — covers Vercel proxy blips and bad mobile DNS. */
+function getFetchBases() {
+  return getApiBaseCandidates();
 }
 
 /**
@@ -113,7 +108,7 @@ function getApiBaseCandidates() {
 export async function publicFetchJSONRetry(path, options = {}) {
   const timeout = getPublicFetchTimeout(options);
   const maxRetries = options.retries ?? 3;
-  const bases = getApiBaseCandidates();
+  const bases = getFetchBases();
 
   const attemptFetch = async (retryCount = 0, baseIndex = 0) => {
     if (options.signal?.aborted) {
