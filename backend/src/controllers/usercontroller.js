@@ -71,7 +71,17 @@ const notifyLoginSuccess = async (user) => {
 // Register function
 const register = async (req, res) => {
     try {
-        const { name, email, phoneNumber, password, role, college, firebaseUid, isVerified, idToken } = req.body;
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        const email = typeof body.email === 'string' ? body.email.trim() : '';
+        const phoneNumber = typeof body.phoneNumber === 'string' ? body.phoneNumber.trim() : '';
+        const password = typeof body.password === 'string' ? body.password : '';
+        const college = typeof body.college === 'string' ? body.college.trim() : '';
+        const firebaseUid = typeof body.firebaseUid === 'string' ? body.firebaseUid.trim() : '';
+        const idToken = typeof body.idToken === 'string' ? body.idToken : '';
+        const isVerified = Boolean(body.isVerified);
+        // Never trust client role — public signup is always student
+        const role = 'student';
 
         let verifiedFirebaseUid = null;
         let verifiedFromFirebase = false;
@@ -168,7 +178,7 @@ const register = async (req, res) => {
         const userData = {
             name,
             password,
-            role: role || 'student',
+            role,
             // Security: isVerified only from Firebase token when linked, not client body
             isVerified: verifiedFirebaseUid ? verifiedFromFirebase : Boolean(isVerified),
             signupMethod: verifiedFirebaseUid ? 'firebase' : 'password',
@@ -184,13 +194,13 @@ const register = async (req, res) => {
         }
 
         // Add email only if provided and not empty
-        if (email && email.trim()) {
-            userData.email = email.trim();
+        if (email) {
+            userData.email = email;
         }
 
         // Add phone number only if provided and not empty
-        if (phoneNumber && phoneNumber.trim()) {
-            userData.phoneNumber = phoneNumber.trim();
+        if (phoneNumber) {
+            userData.phoneNumber = phoneNumber;
         }
 
         const user = new User(userData);
@@ -246,11 +256,16 @@ const register = async (req, res) => {
 // Login function
 const login = async (req, res) => {
     try {
-        const { email, phoneNumber, password, firebaseUid, idToken } = req.body;
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const email = typeof body.email === 'string' ? body.email.trim() : '';
+        const phoneNumber = typeof body.phoneNumber === 'string' ? body.phoneNumber.trim() : '';
+        const password = typeof body.password === 'string' ? body.password : '';
+        const firebaseUid = typeof body.firebaseUid === 'string' ? body.firebaseUid.trim() : '';
+        const idToken = typeof body.idToken === 'string' ? body.idToken : '';
 
-        if (firebaseUid?.trim()) {
+        if (firebaseUid) {
             try {
-                await resolveFirebaseIdentity({ idToken, clientUid: firebaseUid.trim() });
+                await resolveFirebaseIdentity({ idToken, clientUid: firebaseUid });
             } catch (identityErr) {
                 return res.status(identityErr.status || 401).json({
                     success: false,
@@ -269,14 +284,14 @@ const login = async (req, res) => {
 
         // Create query to find user by email, phone number, or Firebase UID
         const userQueryOptions = [];
-        if (email && email.trim()) {
-            userQueryOptions.push({ email: email.trim() });
+        if (email) {
+            userQueryOptions.push({ email });
         }
-        if (phoneNumber && phoneNumber.trim()) {
-            userQueryOptions.push({ phoneNumber: phoneNumber.trim() });
+        if (phoneNumber) {
+            userQueryOptions.push({ phoneNumber });
         }
-        if (firebaseUid && firebaseUid.trim()) {
-            userQueryOptions.push({ firebaseUid: firebaseUid.trim() });
+        if (firebaseUid) {
+            userQueryOptions.push({ firebaseUid });
         }
 
         if (userQueryOptions.length === 0) {
@@ -316,7 +331,7 @@ const login = async (req, res) => {
         // Generate JWT token
         const token = generateToken(user._id);
 
-        recordLogin(user._id, req, firebaseUid?.trim() ? 'firebase' : 'password');
+        recordLogin(user._id, req, firebaseUid ? 'firebase' : 'password');
 
         // Remove password from response
         const userResponse = user.toObject();

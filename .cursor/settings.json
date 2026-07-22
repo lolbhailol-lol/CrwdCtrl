@@ -23,6 +23,9 @@
     },
     "mongodb": {
       "enabled": true
+    },
+    "resend": {
+      "enabled": true
     }
   }
 }

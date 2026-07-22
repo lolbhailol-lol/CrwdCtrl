@@ -33,7 +33,7 @@ const EMPTY = {
     images: [],
     sponsors: '',
     registrationLink: '',
-    registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [], paymentQR: '', paymentQRMessage: '', paymentUpiId: '' },
+    registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [], paymentQR: '', paymentQRMessage: '', paymentUpiId: '', qrAutoConfirm: false },
     description: '',
     status: 'published',
     runClubId: null,
@@ -232,6 +232,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                     paymentQR: form.registration?.paymentQR || '',
                     paymentQRMessage: form.registration?.paymentQRMessage || '',
                     paymentUpiId: form.registration?.paymentUpiId || '',
+                    qrAutoConfirm: Boolean(form.registration?.qrAutoConfirm),
                     formSchema: Array.isArray(form.registration?.formSchema) ? form.registration.formSchema : [],
                 },
                 description: form.description?.trim() || '',
@@ -562,9 +563,31 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                                     {(form.pricingMode === 'tiers'
                                         ? Math.max(0, ...(form.tiers || []).map((t) => Number(t.fee) || 0))
                                         : Number(form.registrationFee)) > 0
-                                        ? ' Paid tiers stay pending until the run club organizer approves the screenshot.'
+                                        ? (form.registration?.qrAutoConfirm
+                                            ? ' Paid tiers auto-confirm when the screenshot is submitted.'
+                                            : ' Paid tiers stay pending until the run club organizer approves the screenshot.')
                                         : ' All fees are ₹0 — registration confirms instantly (no screenshot required).'}
                                 </p>
+                                {(form.pricingMode === 'tiers'
+                                    ? Math.max(0, ...(form.tiers || []).map((t) => Number(t.fee) || 0))
+                                    : Number(form.registrationFee)) > 0 ? (
+                                    <Field
+                                        label="After screenshot submit"
+                                        hint="Cashfree and free registrations always auto-confirm. This only applies to paid UPI QR."
+                                    >
+                                        <select
+                                            value={form.registration?.qrAutoConfirm ? 'auto' : 'approval'}
+                                            onChange={(e) => set('registration', {
+                                                ...form.registration,
+                                                qrAutoConfirm: e.target.value === 'auto',
+                                            })}
+                                            className={inp}
+                                        >
+                                            <option value="approval">Organizer approval (default)</option>
+                                            <option value="auto">Auto-confirm</option>
+                                        </select>
+                                    </Field>
+                                ) : null}
                                 <Field label="Organizer payment QR" hint="Upload UPI / payment QR image">
                                     <div className="flex flex-wrap gap-3 items-center">
                                         {form.registration?.paymentQR ? (

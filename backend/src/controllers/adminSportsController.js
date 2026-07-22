@@ -189,6 +189,7 @@ function sanitizeSportsPayload(body = {}) {
             paymentQR: String(r.paymentQR || '').trim(),
             paymentQRMessage: String(r.paymentQRMessage || '').trim(),
             paymentUpiId: String(r.paymentUpiId || '').trim(),
+            qrAutoConfirm: Boolean(r.qrAutoConfirm),
             formSchema: Array.isArray(r.formSchema)
                 ? r.formSchema
                     .filter((f) => f && (f.label || f.fieldName))

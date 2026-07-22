@@ -21,15 +21,23 @@ import {
 import { calculatePlatformFee } from '../../utils/platformFee';
 import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
-import { sportRunPath } from '../../utils/slugRoutes';
+import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { mergeRunFormFields } from '../../utils/formFieldDedupe';
 import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
+import {
+    classifyDetailLoadError,
+    isTransientDetailError,
+    createDetailCache,
+    DETAIL_FETCH_OPTS,
+} from '../../utils/detailPageLoad';
 import {
     findSportsTier,
     isTiersPricing,
     resolveSportsPerPersonFee,
     formatInr,
 } from '../../utils/sportsTiers';
+
+const runDetailCache = createDetailCache('crwdctrl_run_detail_v1_');
 
 const API = API_BASE_URL;
 
@@ -120,6 +128,7 @@ export default function RunEventBookingPage() {
 
     const [event, setEvent] = useState(location.state?.event || null);
     const [loadingEvent, setLoadingEvent] = useState(!location.state?.event);
+    const [loadError, setLoadError] = useState('');
     const [step, setStep] = useState(initialUi.step);
     const [selDate, setSelDate] = useState(initialUi.selDate);
     const [selTime, setSelTime] = useState(initialUi.selTime);
@@ -206,19 +215,55 @@ export default function RunEventBookingPage() {
 
     useEffect(() => {
         const evId = id || location.state?.event?._id || location.state?.event?.id;
-        if (!evId) { setLoadingEvent(false); return; }
+        if (!evId) {
+            setLoadingEvent(false);
+            return undefined;
+        }
+
+        const navEvent = location.state?.event;
+        const seedOk = entityMatchesRouteParam(navEvent, id, ['title', 'name']);
+        const cached = runDetailCache.read(evId);
+        const cacheOk = entityMatchesRouteParam(cached, id, ['title', 'name']);
+        const fallback = seedOk ? navEvent : (cacheOk ? cached : null);
+
+        setLoadError('');
+        if (fallback) {
+            setEvent(fallback);
+            setLoadingEvent(false);
+        } else {
+            setLoadingEvent(true);
+        }
 
         const controller = new AbortController();
         (async () => {
             try {
                 const res = await publicFetchJSONRetry(`/sports/${encodeURIComponent(evId)}`, {
                     signal: controller.signal,
-                    retries: 3,
+                    ...DETAIL_FETCH_OPTS,
                 });
-                if (res?.data?.event) setEvent(res.data.event);
-                else if (location.state?.event) setEvent(location.state.event);
-            } catch {
-                if (!controller.signal.aborted && location.state?.event) setEvent(location.state.event);
+                if (controller.signal.aborted) return;
+                if (res?.data?.event) {
+                    setEvent(res.data.event);
+                    runDetailCache.write(evId, res.data.event);
+                    if (res.data.event._id) runDetailCache.write(String(res.data.event._id), res.data.event);
+                    if (res.data.event.slug) runDetailCache.write(String(res.data.event.slug), res.data.event);
+                    setLoadError('');
+                } else if (fallback) {
+                    setEvent(fallback);
+                    setLoadError('');
+                } else {
+                    setEvent(null);
+                    setLoadError('not_found');
+                }
+            } catch (err) {
+                if (controller.signal.aborted) return;
+                if (fallback) {
+                    setEvent(fallback);
+                    setLoadError('');
+                } else {
+                    setEvent(null);
+                    setLoadError(classifyDetailLoadError(err));
+                }
             } finally {
                 if (!controller.signal.aborted) setLoadingEvent(false);
             }
@@ -681,11 +726,29 @@ export default function RunEventBookingPage() {
     }
 
     if (!event && !showSuccess && !showProcessing) {
+        const isNetwork = isTransientDetailError(loadError);
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
-                <span className="text-4xl">🏃</span>
-                <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Run not found. Open booking from the run page.</p>
-                <button type="button" onClick={() => navigate('/sports')} className="text-[#0ECCEE] text-sm font-semibold">Browse runs</button>
+                <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isNetwork ? "Couldn't load this run" : 'Run not found'}
+                </p>
+                <p className={`text-sm text-center max-w-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {isNetwork
+                        ? 'Slow network or server waking up — tap Retry.'
+                        : 'Open booking from the run page, or the link may be outdated.'}
+                </p>
+                {isNetwork ? (
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                <button type="button" onClick={() => navigate('/sports')} className="text-[#0ECCEE] text-sm font-semibold">
+                    Browse runs
+                </button>
             </div>
         );
     }
@@ -723,7 +786,7 @@ export default function RunEventBookingPage() {
     }
 
     if (showSuccess) {
-        const isPendingQr = fee > 0 && isOrganizerQr && payableAmount > 0;
+        const isPendingQr = fee > 0 && isOrganizerQr && payableAmount > 0 && !event?.registration?.qrAutoConfirm;
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
@@ -1146,7 +1209,9 @@ export default function RunEventBookingPage() {
                                         )}
                                         <div className="min-w-0 flex-1 space-y-2">
                                             <p className={`text-xs leading-snug ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                Scan QR or pay on UPI, then add proof below.
+                                                {event?.registration?.qrAutoConfirm
+                                                    ? 'Scan QR or pay on UPI, then add proof below. Your booking confirms when you submit.'
+                                                    : 'Scan QR or pay on UPI, then add proof below. The club will approve your payment.'}
                                             </p>
                                             {paymentUpiId ? (
                                                 <button

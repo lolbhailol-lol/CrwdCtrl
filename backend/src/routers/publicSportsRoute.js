@@ -11,15 +11,51 @@ const {
 // GET /api/sports — list published sports events
 router.get('/', async (req, res) => {
     try {
-        const filter = { status: 'published', showOnSportsPage: { $ne: false } };
-        if (req.query.sportType) filter.sportType = req.query.sportType;
-        if (req.query.city) filter.city = { $regex: req.query.city, $options: 'i' };
-        if (req.query.runClubId && mongoose.Types.ObjectId.isValid(req.query.runClubId)) {
-            filter.runClubId = req.query.runClubId;
+        const timeframe = String(req.query.timeframe || '').toLowerCase();
+        const hasClub = Boolean(req.query.runClubId);
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const and = [];
+
+        if (hasClub && timeframe === 'past') {
+            and.push({
+                $or: [
+                    { status: 'completed' },
+                    { status: 'published', eventDate: { $lt: startOfToday } },
+                ],
+            });
+        } else if (hasClub && timeframe === 'upcoming') {
+            and.push({ status: 'published' });
+            and.push({
+                $or: [
+                    { eventDate: null },
+                    { eventDate: { $exists: false } },
+                    { eventDate: { $gte: startOfToday } },
+                ],
+            });
+            and.push({ showOnSportsPage: { $ne: false } });
+        } else {
+            and.push({ status: 'published' });
+            and.push({ showOnSportsPage: { $ne: false } });
         }
 
+        if (req.query.sportType) and.push({ sportType: req.query.sportType });
+        if (req.query.city) and.push({ city: { $regex: req.query.city, $options: 'i' } });
+        if (req.query.runClubId) {
+            if (!mongoose.Types.ObjectId.isValid(req.query.runClubId)) {
+                return res.status(400).json({ message: 'Invalid run club ID' });
+            }
+            and.push({ runClubId: req.query.runClubId });
+        }
+
+        const filter = and.length === 1 ? and[0] : { $and: and };
+        const sort = timeframe === 'past'
+            ? { eventDate: -1, createdAt: -1 }
+            : { priority: 1, eventDate: 1, createdAt: -1 };
+
         const events = await SportsEvent.find(filter)
-            .sort({ priority: 1, eventDate: 1, createdAt: -1 })
+            .sort(sort)
             .limit(100)
             .lean();
 
@@ -31,17 +67,20 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/sports/:id — single published sports event
+// GET /api/sports/:id — single published or completed sports event
 router.get('/:idOrSlug', async (req, res) => {
     try {
         const eventMatch = await findByIdOrSlug(SportsEvent, req.params.idOrSlug, {
-            baseFilter: { status: 'published' },
+            baseFilter: { status: { $in: ['published', 'completed'] } },
             pickName: (row) => row.title,
             lean: true,
         });
         if (!eventMatch) return res.status(404).json({ message: 'Sports event not found' });
 
-        const event = await SportsEvent.findOne({ _id: eventMatch._id, status: 'published' })
+        const event = await SportsEvent.findOne({
+            _id: eventMatch._id,
+            status: { $in: ['published', 'completed'] },
+        })
             .populate('runClubId', 'name basedIn contactPhone contactInstagram')
             .lean();
         if (!event) return res.status(404).json({ message: 'Sports event not found' });

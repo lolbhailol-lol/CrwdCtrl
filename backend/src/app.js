@@ -13,6 +13,7 @@ const { isDbReady } = require('./config/db');
 const { getFirebaseAdminStatus } = require('./config/firebaseAdmin');
 const apiRoutes = require('./routes');
 const { handleCashfreeWebhook } = require('./controllers/paymentWebhookController');
+const { handleResendWebhook } = require('./controllers/resendWebhookController');
 
 require('./models');
 
@@ -33,6 +34,13 @@ app.post(
   '/api/payment/webhook',
   express.raw({ type: 'application/json' }),
   handleCashfreeWebhook
+);
+
+// Security: Resend webhook must receive raw body for Svix signature verification
+app.post(
+  '/api/resend/webhook',
+  express.raw({ type: 'application/json' }),
+  handleResendWebhook
 );
 
 app.use(express.json({ limit: '10mb' }));

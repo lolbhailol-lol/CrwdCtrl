@@ -139,6 +139,11 @@ const sportsEventSchema = new mongoose.Schema(
             paymentQRMessage: { type: String, default: '' },
             /** Structured UPI ID for copy-to-clipboard on booking */
             paymentUpiId: { type: String, default: '' },
+            /**
+             * organizer_qr + paid only: when true, screenshot submit auto-confirms.
+             * When false (default), stays pending until organizer approves.
+             */
+            qrAutoConfirm: { type: Boolean, default: false },
             formSchema: [{
                 id:          String,
                 label:       String,

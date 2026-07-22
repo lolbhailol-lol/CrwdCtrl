@@ -14,6 +14,7 @@ import { normalizeRunDetailBoxes } from '../../utils/trekDetailBoxes';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
+import { DETAIL_FETCH_OPTS } from '../../utils/detailPageLoad';
 
 const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v1_';
 const readRunDetailCache = (key) => {
@@ -101,7 +102,7 @@ export default function RunEventDetailPage() {
         const cachedEvent = readRunDetailCache(eventId);
         const ok = entityMatchesRouteParam(seeded, id, ['title', 'name'])
             || entityMatchesRouteParam(cachedEvent, id, ['title', 'name']);
-        const fallback = ok ? (seeded || cachedEvent) : (cachedEvent || null);
+        const fallback = ok ? (seeded || cachedEvent) : null;
 
         // Paint cached/seeded content immediately so Instagram opens never flash "not found"
         setEvent(fallback);
@@ -118,9 +119,10 @@ export default function RunEventDetailPage() {
         const controller = new AbortController();
         publicFetchJSONRetry(`/sports/${encodeURIComponent(eventId)}`, {
             signal: controller.signal,
-            retries: 3,
+            ...DETAIL_FETCH_OPTS,
         })
             .then((res) => {
+                if (controller.signal.aborted) return;
                 const d = res?.data;
                 if (d?.event) {
                     setEvent(d.event);

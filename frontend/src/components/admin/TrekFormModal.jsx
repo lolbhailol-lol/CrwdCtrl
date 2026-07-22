@@ -58,6 +58,7 @@ const EMPTY = {
     registration: {
         status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '',
         availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 0, formSchema: [],
+        paymentQR: '', paymentQRMessage: '', paymentUpiId: '', qrAutoConfirm: false,
         genderQuotas: { enabled: false, femaleSeats: 0, maleSeats: 0, othersSeats: 0 },
         genderPhase: 'all',
     },
@@ -907,10 +908,29 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
 
                             {(form.registration?.mode || 'internal_form') === 'organizer_qr' ? (
                                 <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
-                                    <p className="text-xs font-semibold text-amber-200">Optional UPI / QR (manual review)</p>
+                                    <p className="text-xs font-semibold text-amber-200">Optional UPI / QR</p>
                                     <p className="text-[10px] text-gray-500">
-                                        Only if you skip Cashfree: participants pay via your QR, upload a screenshot, then you approve in the organizer panel.
+                                        Participants pay via your QR and upload a screenshot. Choose whether registration confirms immediately or waits for organizer approval.
                                     </p>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 mb-1">After screenshot submit</label>
+                                        <select
+                                            value={form.registration?.qrAutoConfirm ? 'auto' : 'approval'}
+                                            onChange={(e) => set('registration', {
+                                                ...form.registration,
+                                                qrAutoConfirm: e.target.value === 'auto',
+                                            })}
+                                            className={inp}
+                                        >
+                                            <option value="approval">Organizer approval (default)</option>
+                                            <option value="auto">Auto-confirm</option>
+                                        </select>
+                                        <p className="text-[10px] text-gray-500 mt-1.5">
+                                            {form.registration?.qrAutoConfirm
+                                                ? 'Paid QR registrations confirm as soon as the screenshot is submitted.'
+                                                : 'Paid QR registrations stay pending until the trek organizer approves in their portal.'}
+                                        </p>
+                                    </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-400 mb-1">Payment QR image URL</label>
                                         <input

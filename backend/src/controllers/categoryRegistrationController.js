@@ -248,17 +248,24 @@ exports.registerForEvent = async (req, res) => {
                     });
                 }
 
-                const pendingCap = await assertSportsCapacityAvailable(resolvedEventId, people, {
+                const qrAutoConfirm = event.registration?.qrAutoConfirm === true;
+
+                const capCheck = await assertSportsCapacityAvailable(resolvedEventId, people, {
                     capacity,
-                    forPendingQr: true,
+                    forPendingQr: !qrAutoConfirm,
                     excludeId: excludeRegId,
                 });
-                if (!pendingCap.ok) {
-                    return res.status(400).json({ message: pendingCap.message });
+                if (!capCheck.ok) {
+                    return res.status(400).json({ message: capCheck.message });
                 }
 
-                paymentStatus = 'pending';
-                regStatus = 'pending';
+                if (qrAutoConfirm) {
+                    paymentStatus = 'paid';
+                    regStatus = 'confirmed';
+                } else {
+                    paymentStatus = 'pending';
+                    regStatus = 'pending';
+                }
                 paymentGateway = 'organizer_qr';
             } else {
                 amountPaid = 0;

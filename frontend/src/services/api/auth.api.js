@@ -20,23 +20,39 @@ export function getUserAuthHeaders(token) {
 }
 
 /**
- * Authenticated fetch returning raw Response. Redirects to /login on 401.
+ * Authenticated fetch returning raw Response.
+ * Tries a silent JWT refresh on 401 before forcing login.
  */
 export async function userApiCall(url, options = {}) {
   try {
-    const token = resolveAuthToken();
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...(options.headers || {}),
-    };
+    let token = resolveAuthToken();
+    if (token && isTokenExpired(token)) {
+      token = await tryRefreshAuthToken(token);
+    }
 
-    const response = await fetch(resolveUrl(url), {
+    const doFetch = (bearerToken) => fetch(resolveUrl(url), {
       ...options,
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(bearerToken && { Authorization: `Bearer ${bearerToken}` }),
+        ...(options.headers || {}),
+      },
       credentials: options.credentials ?? 'include',
       mode: options.mode ?? 'cors',
     });
+
+    let response = await doFetch(token);
+
+    if (response.status === 401) {
+      const hadToken = !!resolveAuthToken(token);
+      const refreshed = await tryRefreshAuthToken(token);
+      if (refreshed) {
+        response = await doFetch(refreshed);
+      } else if (hadToken && resolveAuthToken()) {
+        // Refresh failed on network — keep session, do not force login
+        return response;
+      }
+    }
 
     if (response.status === 401) {
       clearAuthSession();

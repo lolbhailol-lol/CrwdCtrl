@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
@@ -26,6 +26,13 @@ import {
     fetchSportsByRunClub,
 } from '../../services/api/public.api';
 import { runClubPath, sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import {
+    classifyDetailLoadError,
+    isTransientDetailError,
+    createDetailCache,
+} from '../../utils/detailPageLoad';
+
+const runClubDetailCache = createDetailCache('crwdctrl_run_club_v1_');
 
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
@@ -200,11 +207,14 @@ export default function RunClubDetailPage() {
 
     const [club, setClub] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [runs, setRuns] = useState([]);
+    const [pastRuns, setPastRuns] = useState([]);
     const [loadingRuns, setLoadingRuns] = useState(true);
     const [runsError, setRunsError] = useState('');
     const [activeCategory, setActiveCategory] = useState(null);
     const [expanded, setExpanded] = useState(false);
+    const [showPast, setShowPast] = useState(false);
     const [imgPg, setImgPg] = useState(0);
     const [liked, setLiked] = useState(false);
     const [galleryOpen, setGalleryOpen] = useState(false);
@@ -233,26 +243,56 @@ export default function RunClubDetailPage() {
     useEffect(() => {
         if (!id) {
             setClub(null);
+            setLoadError('');
             setLoading(false);
             return undefined;
         }
 
         const seeded = normalizeRunClub(location.state?.club || null);
         const ok = entityMatchesRouteParam(seeded, id, ['name', 'title']);
-        setClub(null);
+        const cached = runClubDetailCache.read(id);
+        const cacheOk = entityMatchesRouteParam(cached, id, ['name', 'title']);
+        const fallback = ok ? seeded : (cacheOk ? normalizeRunClub(cached) : null);
         setRuns([]);
-        setLoading(true);
+        setPastRuns([]);
+        setLoadError('');
+
+        if (fallback) {
+            setClub(fallback);
+            setLoading(false);
+        } else {
+            setClub(null);
+            setLoading(true);
+        }
 
         const controller = new AbortController();
         fetchRunClub(id, controller.signal)
             .then((data) => {
-                if (data.club) setClub(normalizeRunClub(data.club));
-                else if (ok) setClub(seeded);
-                else setClub(null);
+                if (controller.signal.aborted) return;
+                if (data.club) {
+                    const normalized = normalizeRunClub(data.club);
+                    setClub(normalized);
+                    runClubDetailCache.write(id, data.club);
+                    if (data.club._id) runClubDetailCache.write(String(data.club._id), data.club);
+                    if (data.club.slug) runClubDetailCache.write(String(data.club.slug), data.club);
+                    setLoadError('');
+                } else if (fallback) {
+                    setClub(fallback);
+                    setLoadError('');
+                } else {
+                    setClub(null);
+                    setLoadError('not_found');
+                }
             })
-            .catch(() => {
-                if (ok) setClub(seeded);
-                else setClub(null);
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                if (fallback) {
+                    setClub(fallback);
+                    setLoadError('');
+                } else {
+                    setClub(null);
+                    setLoadError(classifyDetailLoadError(err));
+                }
             })
             .finally(() => {
                 if (!controller.signal.aborted) setLoading(false);
@@ -269,30 +309,33 @@ export default function RunClubDetailPage() {
         }
     }, [club, id, navigate, location.state]);
 
+    const mapRunCard = (e) => ({
+        id: e._id,
+        title: e.title,
+        date: e.eventDate
+            ? new Date(e.eventDate).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+              })
+            : null,
+        image: e.coverImage || e.images?.[0] || null,
+        runCategory: normalizeRunCategory(e.runCategory),
+        registrationLink: e.registrationLink || '',
+        status: e.status || null,
+    });
+
     useEffect(() => {
         if (!clubId || loading) return;
         const controller = new AbortController();
         setLoadingRuns(true);
+        setShowPast(false);
         setRunsError('');
-        fetchSportsByRunClub(clubId, controller.signal)
+        fetchSportsByRunClub(clubId, controller.signal, { timeframe: 'upcoming' })
             .then((data) => {
+                if (controller.signal.aborted) return;
                 const list = Array.isArray(data?.events) ? data.events : [];
-                setRuns(
-                    list.map((e) => ({
-                        id: e._id,
-                        title: e.title,
-                        date: e.eventDate
-                            ? new Date(e.eventDate).toLocaleDateString('en-IN', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric',
-                              })
-                            : null,
-                        image: e.coverImage || e.images?.[0] || null,
-                        runCategory: normalizeRunCategory(e.runCategory),
-                        registrationLink: e.registrationLink || '',
-                    })),
-                );
+                setRuns(list.map(mapRunCard));
             })
             .catch((err) => {
                 if (controller.signal.aborted) return;
@@ -301,6 +344,16 @@ export default function RunClubDetailPage() {
             })
             .finally(() => {
                 if (!controller.signal.aborted) setLoadingRuns(false);
+            });
+        fetchSportsByRunClub(clubId, controller.signal, { timeframe: 'past' })
+            .then((data) => {
+                if (controller.signal.aborted) return;
+                const list = Array.isArray(data?.events) ? data.events : [];
+                setPastRuns(list.map(mapRunCard));
+            })
+            .catch(() => {
+                if (controller.signal.aborted) return;
+                setPastRuns([]);
             });
         return () => controller.abort();
     }, [clubId, loading]);
@@ -337,11 +390,32 @@ export default function RunClubDetailPage() {
     }
 
     if (!club) {
+        const isNetwork = isTransientDetailError(loadError);
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
-                <p className="text-gray-500 text-sm text-center">Run club not found</p>
-                <button type="button" onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">
-                    ← Go back
+                <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isNetwork ? "Couldn't load this run club" : 'Run club not found'}
+                </p>
+                <p className="text-gray-500 text-sm text-center max-w-xs">
+                    {isNetwork
+                        ? 'Slow network or server waking up — tap Retry.'
+                        : 'This club may have been removed or the link is outdated.'}
+                </p>
+                {isNetwork ? (
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                <button
+                    type="button"
+                    onClick={() => (isNetwork ? navigate('/sports') : navigate(-1))}
+                    className="text-[#0ECCEE] text-sm font-semibold"
+                >
+                    {isNetwork ? 'Browse sports' : '← Go back'}
                 </button>
             </div>
         );
@@ -653,6 +727,43 @@ export default function RunClubDetailPage() {
                         )}
                     </div>
                 </ScrollReveal>
+
+                {pastRuns.length > 0 && (
+                    <div className="mb-5">
+                        <button
+                            type="button"
+                            onClick={() => setShowPast((v) => !v)}
+                            className={`flex items-center gap-1.5 text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                        >
+                            Check out past events
+                            <ChevronDown
+                                size={16}
+                                className={`transition-transform ${showPast ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                        {showPast && (
+                            <ul className="mt-2 space-y-1.5">
+                                {pastRuns.map((run) => (
+                                    <li key={run.id}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRunClick(run)}
+                                            className={`w-full text-left flex items-baseline justify-between gap-3 py-1.5 text-sm
+                                                ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                                        >
+                                            <span className="truncate">{run.title}</span>
+                                            {run.date ? (
+                                                <span className={`shrink-0 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    {run.date}
+                                                </span>
+                                            ) : null}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
 
                 <ScrollReveal className="mb-5" delay={0.08}>
                     <h2

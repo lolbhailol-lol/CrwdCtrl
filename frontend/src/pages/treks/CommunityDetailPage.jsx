@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight, ChevronDown, Users } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
@@ -33,6 +33,13 @@ import {
     fetchTrekCommunity,
     fetchTreksByCommunity,
 } from '../../services/api/public.api';
+import {
+    classifyDetailLoadError,
+    isTransientDetailError,
+    createDetailCache,
+} from '../../utils/detailPageLoad';
+
+const communityDetailCache = createDetailCache('crwdctrl_trek_community_v1_');
 
 const CAT_META = {
     hiking:      { label: 'Hiking',      emoji: '🥾', bg: '#FFF7ED', darkBg: '#2D1B0E' },
@@ -191,10 +198,13 @@ export default function CommunityDetailPage() {
 
     const [community, setCommunity] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [treks, setTreks] = useState([]);
+    const [pastTreks, setPastTreks] = useState([]);
     const [loadingTreks, setLoadingTreks] = useState(true);
     const [activeCategory, setActiveCategory] = useState(null);
     const [expanded, setExpanded] = useState(false);
+    const [showPast, setShowPast] = useState(false);
     const [liked, setLiked] = useState(false);
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [galleryIndex, setGalleryIndex] = useState(0);
@@ -210,16 +220,22 @@ export default function CommunityDetailPage() {
     useEffect(() => {
         if (!id) {
             setCommunity(null);
+            setLoadError('');
             setLoading(false);
             return undefined;
         }
 
         const seeded = normalizeCommunity(location.state?.community || null);
         const ok = entityMatchesRouteParam(seeded, id, ['name', 'title']);
+        const cached = communityDetailCache.read(id);
+        const cacheOk = entityMatchesRouteParam(cached, id, ['name', 'title']);
+        const fallback = ok ? seeded : (cacheOk ? normalizeCommunity(cached) : null);
         setTreks([]);
+        setPastTreks([]);
+        setLoadError('');
 
-        if (ok) {
-            setCommunity(seeded);
+        if (fallback) {
+            setCommunity(fallback);
             setLoading(false);
         } else {
             setCommunity(null);
@@ -229,13 +245,31 @@ export default function CommunityDetailPage() {
         const controller = new AbortController();
         fetchTrekCommunity(id, controller.signal)
             .then((data) => {
-                if (data.community) setCommunity(normalizeCommunity(data.community));
-                else if (ok) setCommunity(seeded);
-                else setCommunity(null);
+                if (controller.signal.aborted) return;
+                if (data.community) {
+                    const normalized = normalizeCommunity(data.community);
+                    setCommunity(normalized);
+                    communityDetailCache.write(id, data.community);
+                    if (data.community._id) communityDetailCache.write(String(data.community._id), data.community);
+                    if (data.community.slug) communityDetailCache.write(String(data.community.slug), data.community);
+                    setLoadError('');
+                } else if (fallback) {
+                    setCommunity(fallback);
+                    setLoadError('');
+                } else {
+                    setCommunity(null);
+                    setLoadError('not_found');
+                }
             })
-            .catch(() => {
-                if (ok) setCommunity(seeded);
-                else setCommunity(null);
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                if (fallback) {
+                    setCommunity(fallback);
+                    setLoadError('');
+                } else {
+                    setCommunity(null);
+                    setLoadError(classifyDetailLoadError(err));
+                }
             })
             .finally(() => {
                 if (!controller.signal.aborted) setLoading(false);
@@ -253,30 +287,50 @@ export default function CommunityDetailPage() {
         }
     }, [community, id, navigate, location.state]);
 
+    const mapTrekCard = (t) => ({
+        id: t._id,
+        slug: t.slug || '',
+        title: t.trekName,
+        trekName: t.trekName,
+        dateLabel: t.dateLabel || '',
+        trekBatches: t.trekBatches || [],
+        trekDate: t.trekDate || null,
+        date: formatTrekCardDate(t),
+        coverImage: t.coverImage || null,
+        coverImages: t.coverImages || null,
+        image: t.coverImage || t.images?.[0] || null,
+        trekCategory: normalizeCategory(t.trekCategory) || null,
+        status: t.status || null,
+    });
+
     useEffect(() => {
         if (!communityId || loading) return;
         const controller = new AbortController();
         setLoadingTreks(true);
-        fetchTreksByCommunity(communityId, controller.signal)
+        setShowPast(false);
+        fetchTreksByCommunity(communityId, controller.signal, { timeframe: 'upcoming' })
             .then(data => {
+                if (controller.signal.aborted) return;
                 const list = Array.isArray(data?.treks) ? data.treks : [];
-                setTreks(list.map(t => ({
-                    id: t._id,
-                    slug: t.slug || '',
-                    title: t.trekName,
-                    trekName: t.trekName,
-                    dateLabel: t.dateLabel || '',
-                    trekBatches: t.trekBatches || [],
-                    trekDate: t.trekDate || null,
-                    date: formatTrekCardDate(t),
-                    coverImage: t.coverImage || null,
-                    coverImages: t.coverImages || null,
-                    image: t.coverImage || t.images?.[0] || null,
-                    trekCategory: normalizeCategory(t.trekCategory) || null,
-                })));
+                setTreks(list.map(mapTrekCard));
             })
-            .catch(() => setTreks([]))
-            .finally(() => setLoadingTreks(false));
+            .catch(() => {
+                if (controller.signal.aborted) return;
+                setTreks([]);
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoadingTreks(false);
+            });
+        fetchTreksByCommunity(communityId, controller.signal, { timeframe: 'past' })
+            .then(data => {
+                if (controller.signal.aborted) return;
+                const list = Array.isArray(data?.treks) ? data.treks : [];
+                setPastTreks(list.map(mapTrekCard));
+            })
+            .catch(() => {
+                if (controller.signal.aborted) return;
+                setPastTreks([]);
+            });
         return () => controller.abort();
     }, [communityId, loading]);
 
@@ -302,11 +356,28 @@ export default function CommunityDetailPage() {
     }
 
     if (!community) {
+        const isNetwork = isTransientDetailError(loadError);
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
-                <p className="text-gray-500 text-sm text-center">Community not found</p>
-                <button type="button" onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">
-                    ← Go back
+                <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isNetwork ? "Couldn't load this community" : 'Community not found'}
+                </p>
+                <p className="text-gray-500 text-sm text-center max-w-xs">
+                    {isNetwork
+                        ? 'Slow network or server waking up — tap Retry.'
+                        : 'This community may have been removed or the link is outdated.'}
+                </p>
+                {isNetwork ? (
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                <button type="button" onClick={() => (isNetwork ? navigate('/treks') : navigate(-1))} className="text-[#0ECCEE] text-sm font-semibold">
+                    {isNetwork ? 'Browse treks' : '← Go back'}
                 </button>
             </div>
         );
@@ -518,7 +589,7 @@ export default function CommunityDetailPage() {
                             <CompactPortraitCardsRowSkeleton count={3} className="px-0" />
                         ) : filteredTreks.length === 0 ? (
                             <div className={`card-surface mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                No treks in this category yet.
+                                No upcoming treks in this category yet.
                             </div>
                         ) : (
                             <div className="flex gap-4 pb-2">
@@ -549,6 +620,55 @@ export default function CommunityDetailPage() {
                         )}
                     </div>
                 </ScrollReveal>
+
+                {pastTreks.length > 0 && (
+                    <div className="mb-5">
+                        <button
+                            type="button"
+                            onClick={() => setShowPast((v) => !v)}
+                            className={`flex items-center gap-1.5 text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                        >
+                            Check out past events
+                            <ChevronDown
+                                size={16}
+                                className={`transition-transform ${showPast ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                        {showPast && (
+                            <ul className="mt-2 space-y-1.5">
+                                {pastTreks.map((trek) => (
+                                    <li key={trek.id}>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(trekPath(trek), {
+                                                state: {
+                                                    trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] },
+                                                    community: community ? {
+                                                        _id: community.id,
+                                                        id: community.id,
+                                                        name: community.title,
+                                                        title: community.title,
+                                                        contactPhone: community.contactPhone,
+                                                        contactInstagram: community.contactInstagram,
+                                                    } : null,
+                                                },
+                                            })}
+                                            className={`w-full text-left flex items-baseline justify-between gap-3 py-1.5 text-sm
+                                                ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                                        >
+                                            <span className="truncate">{trek.title}</span>
+                                            {trek.date ? (
+                                                <span className={`shrink-0 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    {trek.date}
+                                                </span>
+                                            ) : null}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
 
                 {/* ── Contact Details ── */}
                 <ScrollReveal className="mb-5" delay={0.08}>

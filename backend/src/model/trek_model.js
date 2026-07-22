@@ -139,6 +139,11 @@ const trekSchema = new mongoose.Schema(
             paymentQR: { type: String, default: '' },
             paymentQRMessage: { type: String, default: '' },
             paymentUpiId: { type: String, default: '' },
+            /**
+             * organizer_qr + paid only: when true, screenshot submit auto-confirms.
+             * When false (default), stays pending until organizer approves.
+             */
+            qrAutoConfirm: { type: Boolean, default: false },
             /** Gender-based seat caps + phased registration (women first, etc.) */
             genderQuotas: {
                 enabled: { type: Boolean, default: false },

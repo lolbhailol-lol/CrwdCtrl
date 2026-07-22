@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { onAuthStateChange, handleRedirectResult, signOut, auth, firebaseReady } from '../firebase';
 import { authAPI, getUserAuthHeaders, userApiCall, validateUserToken } from '../services/api/auth.api';
 import { processSocialAuthUser } from '../utils/socialAuth';
@@ -9,7 +9,7 @@ import { hasAuthCallbackParams } from '../utils/bootSplash';
 import { isNativeAuthInProgress } from '../utils/nativeAuth';
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { markFreshLogin } from '../utils/notificationPrompt';
-import { hasUsableAuthToken, isTokenExpired, isBackendUserJwt } from '../utils/authToken';
+import { hasUsableAuthToken, isTokenExpired, isBackendUserJwt, isAuthFailureMessage } from '../utils/authToken';
 import { refreshUserSession } from '../services/api/auth.api';
 
 const AuthContext = createContext();
@@ -76,10 +76,20 @@ export const AuthProvider = ({ children }) => {
             }
         } catch (err) {
             console.warn('Session refresh failed:', err?.message || err);
+            // Network / server blips must not force logout — keep the JWT for retry.
+            if (!isAuthFailureMessage(err?.message)) return restored;
         }
         clearLocalSession();
         return null;
     };
+
+    const userRef = useRef(user);
+    const tokenRef = useRef(token);
+    const isAuthProcessingRef = useRef(isAuthProcessing);
+    const logoutInProgressRef = useRef(false);
+    useEffect(() => { userRef.current = user; }, [user]);
+    useEffect(() => { tokenRef.current = token; }, [token]);
+    useEffect(() => { isAuthProcessingRef.current = isAuthProcessing; }, [isAuthProcessing]);
 
     // ✅ FIREBASE AUTH STATE LISTENER (HANDLES REDIRECT COMPLETION ON MOBILE)
     useEffect(() => {
@@ -87,9 +97,20 @@ export const AuthProvider = ({ children }) => {
         
         const unsubscribe = onAuthStateChange(async (firebaseUser) => {
             console.log('🔐 Firebase auth state changed:', firebaseUser ? `${firebaseUser.email} (${firebaseUser.uid})` : 'No user');
+
+            // Explicit logout — never resurrect session from Firebase null / storage race
+            if (logoutInProgressRef.current) {
+                setFirebaseUser(null);
+                setIsEmailVerified(false);
+                return;
+            }
             
             setFirebaseUser(firebaseUser);
             setIsEmailVerified(firebaseUser?.emailVerified || false);
+
+            const currentUser = userRef.current;
+            const currentToken = tokenRef.current;
+            const processing = isAuthProcessingRef.current;
             
             // ✅ MOBILE FIX: Check if this is from a pending redirect
             const redirectType = sessionStorage.getItem('auth_redirect_type');
@@ -100,8 +121,8 @@ export const AuthProvider = ({ children }) => {
             // IMPORTANT: Do NOT check authInitialized here - this listener fires during initialization!
             // This listener runs immediately with cached user, so we must handle it regardless of initialization state
             // ✅ Re-sync when there's no session OR the stored backend JWT is expired/unusable
-            const hasUsableSession = !!user && hasUsableAuthToken(token);
-            if (firebaseUser && !hasUsableSession && !isAuthProcessing) {
+            const hasUsableSession = !!currentUser && hasUsableAuthToken(currentToken);
+            if (firebaseUser && !hasUsableSession && !processing) {
                 if (isNativeAuthInProgress()) {
                     console.log('⏭️ Skipping auth listener sync — native login handler active');
                     return;
@@ -154,12 +175,19 @@ export const AuthProvider = ({ children }) => {
                             
                         } catch (backendError) {
                             console.error('❌ Backend sync failed:', backendError.message);
-                            console.log('⚠️ User is Firebase-authenticated but backend sync failed');
-                            
-                            console.log('🔐 Clearing tokens to force proper backend authentication');
-                            setUser(null);
-                            setToken(null);
-                            clearAuthSession();
+                            // Keep any existing backend JWT — don't wipe a still-valid web session
+                            // just because social re-sync failed once (network/cold start).
+                            const kept = await tryRefreshStoredSession(restoreSessionFromStorage());
+                            if (kept?.user && kept?.token) {
+                                setUser(kept.user);
+                                setToken(kept.token);
+                                console.log('⚠️ Kept stored backend session after social sync failure');
+                            } else {
+                                console.log('🔐 No usable backend session — user must sign in again');
+                                setUser(null);
+                                setToken(null);
+                                clearAuthSession();
+                            }
                         }
                     } else {
                         const restored = await tryRefreshStoredSession(restoreSessionFromStorage());
@@ -176,22 +204,23 @@ export const AuthProvider = ({ children }) => {
                 } finally {
                     setIsAuthProcessing(false);
                 }
-            } else if (!firebaseUser && (user || token)) {
-                // Firebase user is null but we have a local session.
-                // Only social (Google/Facebook) sessions depend on Firebase — clear those.
-                // Email/password sessions authenticate against the backend directly and have
-                // no Firebase user, so they must NOT be cleared here (otherwise re-login after
-                // logout immediately wipes the session).
-                // The provider can live at the top level (frontend social-login path) or nested
-                // under socialAuth.provider (backend returns user.toObject()), so check both.
-                const sessionProvider = user?.provider || user?.socialAuth?.provider;
-                const isSocialSession =
-                    sessionProvider === 'google' || sessionProvider === 'facebook';
-                if (isSocialSession) {
-                    console.log('🧹 Firebase user is null for a social session, clearing local session');
+            } else if (!firebaseUser && (currentUser || currentToken)) {
+                // API auth is the backend JWT. Keep sessions when Firebase is briefly
+                // null — but never resurrect a session after explicit logout cleared storage.
+                const session = restoreSessionFromStorage();
+                if (!session?.token) {
+                    console.log('🧹 No stored session (logout or wiped) — clearing in-memory auth');
                     clearLocalSession();
+                    return;
+                }
+                const kept = await tryRefreshStoredSession(session);
+                if (kept?.user && kept?.token) {
+                    setUser(kept.user);
+                    setToken(kept.token);
+                    console.log('ℹ️ Kept backend session despite no Firebase user');
                 } else {
-                    console.log('ℹ️ Email/password backend session — keeping despite no Firebase user');
+                    console.log('🧹 Stored session unusable after Firebase signed out');
+                    clearLocalSession();
                 }
             }
         });
@@ -200,7 +229,9 @@ export const AuthProvider = ({ children }) => {
             console.log('🔥 Cleaning up Firebase auth state listener');
             unsubscribe();
         };
-    }, [user, token, isAuthProcessing]);
+    // Stable listener — read latest user/token via refs (avoids re-subscribe races)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ✅ INITIALIZATION - WAIT FOR FIREBASE & CHECK REDIRECT RESULT ON MOBILE
     // CRITICAL: This handles the OAuth redirect flow on real mobile devices
@@ -454,18 +485,20 @@ export const AuthProvider = ({ children }) => {
     // ✅ LOGOUT FUNCTION
     const logout = async () => {
         console.log('🚪 Logout called');
-        
+        logoutInProgressRef.current = true;
+
+        // Clear storage FIRST so the Firebase null listener cannot resurrect the JWT
+        clearLocalSession();
+
         try {
-            // Sign out from Firebase
             await signOut(auth);
             console.log('✅ Firebase sign out successful');
         } catch (error) {
             console.error('❌ Firebase sign out error:', error);
+        } finally {
+            logoutInProgressRef.current = false;
         }
-        
-        // Clear all local state
-        clearLocalSession();
-        
+
         console.log('✅ Logout completed');
     };
 

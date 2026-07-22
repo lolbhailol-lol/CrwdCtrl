@@ -125,24 +125,55 @@ function dispatchTrekBookingConfirmation({
     })();
 }
 
-// GET /api/treks — list published treks, supports ?difficulty=easy&city=pune&communityId=...&category=...
+// GET /api/treks — list published treks, supports ?difficulty=&city=&communityId=&category=&timeframe=upcoming|past
 router.get('/', async (req, res) => {
     try {
-        const filter = { status: 'published' };
-        if (req.query.difficulty) filter.difficultyLevel = req.query.difficulty;
-        if (req.query.city) filter.city = { $regex: req.query.city, $options: 'i' };
+        const timeframe = String(req.query.timeframe || '').toLowerCase();
+        const hasCommunity = Boolean(req.query.communityId);
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const and = [];
+
+        if (hasCommunity && timeframe === 'past') {
+            and.push({
+                $or: [
+                    { status: 'completed' },
+                    { status: 'published', trekDate: { $lt: startOfToday } },
+                ],
+            });
+        } else if (hasCommunity && timeframe === 'upcoming') {
+            and.push({ status: 'published' });
+            and.push({
+                $or: [
+                    { trekDate: null },
+                    { trekDate: { $exists: false } },
+                    { trekDate: { $gte: startOfToday } },
+                ],
+            });
+        } else {
+            and.push({ status: 'published' });
+        }
+
+        if (req.query.difficulty) and.push({ difficultyLevel: req.query.difficulty });
+        if (req.query.city) and.push({ city: { $regex: req.query.city, $options: 'i' } });
         if (req.query.communityId) {
             if (!mongoose.Types.ObjectId.isValid(req.query.communityId)) {
                 return res.status(400).json({ message: 'Invalid community ID' });
             }
-            filter.communityId = req.query.communityId;
+            and.push({ communityId: req.query.communityId });
         }
         if (req.query.category || req.query.trekCategory) {
-            filter.trekCategory = req.query.category || req.query.trekCategory;
+            and.push({ trekCategory: req.query.category || req.query.trekCategory });
         }
 
+        const filter = and.length === 1 ? and[0] : { $and: and };
+        const sort = timeframe === 'past'
+            ? { trekDate: -1, createdAt: -1 }
+            : { communityPriority: 1, trekDate: 1, createdAt: -1 };
+
         const treks = await Trek.find(filter)
-            .sort({ communityPriority: 1, trekDate: 1, createdAt: -1 })
+            .sort(sort)
             .limit(50)
             .lean();
 
@@ -157,12 +188,12 @@ router.get('/', async (req, res) => {
 router.get('/:idOrSlug', async (req, res) => {
     try {
         const trekMatch = await findByIdOrSlug(Trek, req.params.idOrSlug, {
-            baseFilter: { status: 'published' },
+            baseFilter: { status: { $in: ['published', 'completed'] } },
             pickName: (row) => row.trekName,
             lean: true,
         });
         if (!trekMatch) return res.status(404).json({ message: 'Trek not found' });
-        const trek = await Trek.findOne({ _id: trekMatch._id, status: 'published' })
+        const trek = await Trek.findOne({ _id: trekMatch._id, status: { $in: ['published', 'completed'] } })
             .populate('communityId', 'name basedIn contactPhone contactInstagram')
             .lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
@@ -338,7 +369,7 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         }
 
         if (isOrganizerQr) {
-            // UPI / QR path — organizer reviews screenshot (no Cashfree)
+            // UPI / QR path — organizer reviews screenshot (no Cashfree), unless qrAutoConfirm
             amountPaid = registrationFee > 0 ? registrationFee * people : 0;
             paymentGateway = amountPaid > 0 ? 'organizer_qr' : null;
             if (amountPaid > 0) {
@@ -356,8 +387,13 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
                 if (transactionId.length < 4) {
                     return res.status(400).json({ message: 'Please enter your UPI / transaction ID (at least 4 characters).' });
                 }
-                bookingStatus = 'pending';
-                paymentStatus = 'pending';
+                if (trek.registration?.qrAutoConfirm === true) {
+                    bookingStatus = 'confirmed';
+                    paymentStatus = 'paid';
+                } else {
+                    bookingStatus = 'pending';
+                    paymentStatus = 'pending';
+                }
             } else {
                 bookingStatus = 'confirmed';
                 paymentStatus = 'free';
@@ -455,6 +491,23 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
                 throw createErr;
             }
         }
+
+        // Capacity race guard — many users can hit register at once; cancel if we oversold
+        if (capacity > 0 && bookingStatus === 'confirmed' && booking) {
+            const postAgg = await TrekBooking.aggregate([
+                { $match: { trekId: trek._id, status: 'confirmed' } },
+                { $group: { _id: null, seats: { $sum: { $ifNull: ['$bookingDetails.people', 1] } } } },
+            ]);
+            const seatsAfter = Number(postAgg[0]?.seats) || 0;
+            if (seatsAfter > capacity) {
+                booking.status = 'cancelled';
+                booking.paymentStatus = registrationFee > 0 ? 'failed' : 'free';
+                booking.paymentReviewNote = 'Auto-cancelled: trek became full';
+                await booking.save();
+                return res.status(400).json({ message: 'This trek is full' });
+            }
+        }
+
         if (paymentOrderId) {
             consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
         }

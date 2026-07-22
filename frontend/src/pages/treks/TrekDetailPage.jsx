@@ -15,11 +15,17 @@ import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../utils/trekI
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { fetchTrekCommunity } from '../../services/api/public.api';
+import { publicFetchJSONRetry } from '../../services/api/client';
 import { trekPath, toSlug } from '../../utils/slugRoutes';
 import { resolveTrekHeroSlides, resolveTrekGalleryImages } from '../../utils/trekImages';
+import {
+    classifyDetailLoadError,
+    isTransientDetailError,
+    createDetailCache,
+    DETAIL_FETCH_OPTS,
+} from '../../utils/detailPageLoad';
 
-import { API_BASE_URL as API } from '../../services/api/client';
-
+const trekDetailCache = createDetailCache('crwdctrl_trek_detail_v1_');
 const GALLERY_PREVIEW_COUNT = 4;
 
 function TrekGalleryLightbox({ images, index, name, onClose, onIndexChange }) {
@@ -250,6 +256,7 @@ export default function TrekDetailPage() {
     const [genderRegistration, setGenderRegistration] = useState(null);
     const [community, setCommunity] = useState(null);
     const [loading,   setLoading]   = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [liked,     setLiked]     = useState(false);
     const [imgPg,     setImgPg]     = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -279,60 +286,73 @@ export default function TrekDetailPage() {
 
     useEffect(() => {
         const navTrek = location.state?.trek;
-        const seedOk = trekMatchesRouteParam(navTrek, id);
+        const trekId = id || navTrek?.id || navTrek?._id;
+        if (!trekId) {
+            setTrek(null);
+            setCommunity(null);
+            setLoadError('');
+            setLoading(false);
+            return undefined;
+        }
 
-        // Paint seeded trek immediately when opening from the hub (no spinner lag).
-        // Shared links have no seed — brief spinner only, never the brand logo splash.
+        const seeded = trekMatchesRouteParam(navTrek, id) ? seedFromNav(navTrek) : null;
+        const cached = trekDetailCache.read(trekId);
+        const cacheOk = trekMatchesRouteParam(cached, id);
+        const fallback = seeded || (cacheOk ? cached : null);
+
         setImgPg(0);
         setOverviewExpanded(false);
         setActiveTab('Details');
         setTermsOpen(false);
         setCarryOpen(false);
         setGenderRegistration(null);
+        setLoadError('');
+        setTrek(fallback);
+        setCommunity(fallback ? (location.state?.community || null) : null);
+        setLoading(!fallback);
 
-        if (seedOk) {
-            setTrek(seedFromNav(navTrek));
-            setCommunity(location.state?.community || null);
-            setLoading(false);
-        } else {
-            setLoading(true);
-            setTrek(null);
-            setCommunity(null);
-        }
-
-        const fetchTrek = async () => {
-            const trekId = id || navTrek?.id || navTrek?._id;
-            if (!trekId) {
-                setLoading(false);
-                return;
-            }
-            try {
-                const r = await fetch(`${API}/treks/${trekId}`);
-                const d = await r.json();
-                if (d.trek) {
+        const controller = new AbortController();
+        publicFetchJSONRetry(`/treks/${encodeURIComponent(trekId)}`, {
+            signal: controller.signal,
+            ...DETAIL_FETCH_OPTS,
+        })
+            .then((res) => {
+                if (controller.signal.aborted) return;
+                const d = res?.data;
+                if (d?.trek) {
                     setTrek(d.trek);
                     setGenderRegistration(d.genderRegistration || null);
+                    trekDetailCache.write(trekId, d.trek);
+                    if (d.trek._id) trekDetailCache.write(String(d.trek._id), d.trek);
+                    if (d.trek.slug) trekDetailCache.write(String(d.trek.slug), d.trek);
                     const populated = d.trek.communityId;
                     if (populated && typeof populated === 'object' && populated.name) {
                         setCommunity(populated);
                     }
-                } else if (seedOk) {
-                    setTrek(seedFromNav(navTrek));
-                    setCommunity(location.state?.community || null);
+                    setLoadError('');
+                } else if (fallback) {
+                    setTrek(fallback);
+                    setLoadError('');
                 } else {
                     setTrek(null);
+                    setLoadError('not_found');
                 }
-            } catch {
-                if (seedOk) {
-                    setTrek(seedFromNav(navTrek));
-                    setCommunity(location.state?.community || null);
-                } else {
-                    setTrek(null);
+            })
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                if (fallback) {
+                    setTrek(fallback);
+                    setLoadError('');
+                    return;
                 }
-            }
-            setLoading(false);
-        };
-        fetchTrek();
+                setTrek(null);
+                setLoadError(classifyDetailLoadError(err));
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
+
+        return () => controller.abort();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
@@ -352,6 +372,7 @@ export default function TrekDetailPage() {
         const controller = new AbortController();
         fetchTrekCommunity(communityId, controller.signal)
             .then((data) => {
+                if (controller.signal.aborted) return;
                 if (data?.community) setCommunity((prev) => prev || data.community);
             })
             .catch(() => {});
@@ -371,13 +392,37 @@ export default function TrekDetailPage() {
             <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
         </div>
     );
-    if (!trek) return (
-        <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
-            <span className="text-4xl">⛰️</span>
-            <p className="text-gray-500 text-sm text-center">Trek not found</p>
-            <button onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">← Go back</button>
-        </div>
-    );
+    if (!trek) {
+        const isNetwork = isTransientDetailError(loadError);
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
+                <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isNetwork ? "Couldn't load this trek" : 'Trek not found'}
+                </p>
+                <p className="text-gray-500 text-sm text-center max-w-xs">
+                    {isNetwork
+                        ? 'Slow network or server waking up — tap Retry.'
+                        : 'This trek may have ended or the link is outdated.'}
+                </p>
+                {isNetwork ? (
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                <button
+                    type="button"
+                    onClick={() => (isNetwork ? navigate('/treks') : navigate(-1))}
+                    className="text-[#0ECCEE] text-sm font-semibold"
+                >
+                    {isNetwork ? 'Browse treks' : '← Go back'}
+                </button>
+            </div>
+        );
+    }
 
     const images    = (() => {
         const slides = resolveTrekHeroSlides(trek);

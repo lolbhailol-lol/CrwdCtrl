@@ -55,6 +55,18 @@ function isCapacitorOrigin(origin) {
   );
 }
 
+/** Vercel preview deploys for this project (hash URLs change every push). */
+function isCrwdCtrlVercelPreview(origin) {
+  const o = normalizeOrigin(origin);
+  if (!o.startsWith('https://')) return false;
+  // https://crwd-ctrl-<hash>-crwdctrls-projects.vercel.app
+  if (/^https:\/\/crwd-ctrl-[a-z0-9]+-crwdctrls-projects\.vercel\.app$/i.test(o)) return true;
+  // https://crwdctrl-<branch>-<team>.vercel.app / https://crwd-ctrl-*.vercel.app
+  if (/^https:\/\/crwdctrl(-[a-z0-9]+)+\.vercel\.app$/i.test(o)) return true;
+  if (/^https:\/\/crwd-ctrl(-[a-z0-9]+)+\.vercel\.app$/i.test(o)) return true;
+  return false;
+}
+
 function corsOptionsDelegate(origin, callback) {
   // Same-origin / curl / server-to-server — no Origin header
   if (!origin) return callback(null, true);
@@ -65,6 +77,9 @@ function corsOptionsDelegate(origin, callback) {
 
   // Always allow Capacitor mobile app origins (production Android/iOS)
   if (isCapacitorOrigin(normalized)) return callback(null, true);
+
+  // Allow this project's Vercel preview URLs without editing env every deploy
+  if (isCrwdCtrlVercelPreview(normalized)) return callback(null, true);
 
   if (isDev && (normalized.includes('localhost') || normalized.includes('127.0.0.1'))) {
     return callback(null, true);

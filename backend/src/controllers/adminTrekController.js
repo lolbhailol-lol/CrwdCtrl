@@ -73,6 +73,9 @@ function normalizeTrekPayload(body) {
         if (reg.genderPhase !== undefined) {
             reg.genderPhase = sanitizeGenderPhase(reg.genderPhase);
         }
+        if (reg.qrAutoConfirm !== undefined) {
+            reg.qrAutoConfirm = Boolean(reg.qrAutoConfirm);
+        }
         payload.registration = reg;
     }
     return payload;

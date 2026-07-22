@@ -22,7 +22,7 @@ import { buildTrekPriceBreakdown } from '../../utils/platformFee';
 import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
 import { isTrekFormFieldEmpty } from '../../constants/trekFormFields';
 import { mergeRunFormFields } from '../../utils/formFieldDedupe';
-import { API_BASE_URL } from '../../services/api/client';
+import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import {
     resolveAuthToken,
     getBearerAuthHeaders,
@@ -33,8 +33,15 @@ import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../utils/trekGenderRegistration';
 import GenderQuickPick from '../../components/GenderQuickPick';
 import { trekPath, toSlug } from '../../utils/slugRoutes';
+import {
+    classifyDetailLoadError,
+    isTransientDetailError,
+    createDetailCache,
+    DETAIL_FETCH_OPTS,
+} from '../../utils/detailPageLoad';
 
 const API = API_BASE_URL;
+const trekDetailCache = createDetailCache('crwdctrl_trek_detail_v1_');
 
 /** True when nav/cache trek belongs to the current /trek/:id route (id or name slug). */
 function trekMatchesRouteParam(trek, routeParam) {
@@ -174,6 +181,7 @@ export default function TrekBookingPage() {
     ));
     // Always fetch before painting registration UI so default/demo fields never flash for another trek
     const [loadingTrek, setLoadingTrek] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [step,        setStep]       = useState(initialUi.step);
     const [selDate,     setSelDate]    = useState(initialUi.selDate);
     const [selTime,     setSelTime]    = useState(initialUi.selTime);
@@ -285,57 +293,67 @@ export default function TrekBookingPage() {
         const trekId = id || location.state?.trek?._id || location.state?.trek?.id;
         const navTrek = location.state?.trek;
         const seedOk = trekMatchesRouteParam(navTrek, id);
+        const cached = trekId ? trekDetailCache.read(trekId) : null;
+        const cacheOk = trekMatchesRouteParam(cached, id);
+        const fallback = seedOk ? navTrek : (cacheOk ? cached : null);
 
-        // Clear previous trek immediately so old/demo registration does not stay on screen
-        setLoadingTrek(true);
+        setLoadingTrek(!fallback);
         setExistingBookingId('');
         setExistingBookingStatus('');
         setError('');
         setPostPaymentError('');
-        if (seedOk) {
-            setTrek(navTrek);
-            setGenderRegistration(location.state?.genderRegistration || null);
-        } else {
-            setTrek(null);
-            setGenderRegistration(null);
-        }
+        setLoadError('');
+        setTrek(fallback);
+        setGenderRegistration(seedOk ? (location.state?.genderRegistration || null) : null);
 
         if (!trekId) {
             setLoadingTrek(false);
             return undefined;
         }
 
-        let cancelled = false;
+        const controller = new AbortController();
         (async () => {
             try {
-                const r = await fetch(`${API}/treks/${trekId}`, {
+                const res = await publicFetchJSONRetry(`/treks/${encodeURIComponent(trekId)}`, {
+                    signal: controller.signal,
+                    ...DETAIL_FETCH_OPTS,
                     headers: getBearerAuthHeaders(authToken),
                 });
-                const d = await r.json();
-                if (cancelled) return;
-                if (d.trek) {
+                if (controller.signal.aborted) return;
+                const d = res?.data;
+                if (d?.trek) {
                     setTrek(d.trek);
                     setGenderRegistration(d.genderRegistration || null);
+                    trekDetailCache.write(trekId, d.trek);
+                    if (d.trek._id) trekDetailCache.write(String(d.trek._id), d.trek);
+                    if (d.trek.slug) trekDetailCache.write(String(d.trek.slug), d.trek);
                     if (d.userBooking?.bookingId) {
                         setExistingBookingId(String(d.userBooking.bookingId));
                         setExistingBookingStatus(String(d.userBooking.status || 'confirmed'));
                     }
-                } else if (seedOk) {
-                    setTrek(navTrek);
+                    setLoadError('');
+                } else if (fallback) {
+                    setTrek(fallback);
+                    setLoadError('');
                 } else {
                     setTrek(null);
+                    setLoadError('not_found');
                 }
-            } catch {
-                if (!cancelled) {
-                    if (seedOk) setTrek(navTrek);
-                    else setTrek(null);
+            } catch (err) {
+                if (controller.signal.aborted) return;
+                if (fallback) {
+                    setTrek(fallback);
+                    setLoadError('');
+                } else {
+                    setTrek(null);
+                    setLoadError(classifyDetailLoadError(err));
                 }
             } finally {
-                if (!cancelled) setLoadingTrek(false);
+                if (!controller.signal.aborted) setLoadingTrek(false);
             }
         })();
 
-        return () => { cancelled = true; };
+        return () => controller.abort();
     }, [id, isAuthenticated, authToken]);
 
     useEffect(() => {
@@ -986,11 +1004,29 @@ export default function TrekBookingPage() {
     }
 
     if (!trek && !showSuccess && !showProcessing) {
+        const isNetwork = isTransientDetailError(loadError);
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
-                <span className="text-4xl">⛰️</span>
-                <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Trek not found. Open booking from the trek page.</p>
-                <button type="button" onClick={() => navigate('/treks')} className="text-[#0ECCEE] text-sm font-semibold">Browse treks</button>
+                <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isNetwork ? "Couldn't load this trek" : 'Trek not found'}
+                </p>
+                <p className={`text-sm text-center max-w-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {isNetwork
+                        ? 'Slow network or server waking up — tap Retry.'
+                        : 'Open booking from the trek page, or the link may be outdated.'}
+                </p>
+                {isNetwork ? (
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                <button type="button" onClick={() => navigate('/treks')} className="text-[#0ECCEE] text-sm font-semibold">
+                    Browse treks
+                </button>
             </div>
         );
     }
@@ -1427,7 +1463,9 @@ export default function TrekBookingPage() {
                                         )}
                                         <div className="min-w-0 flex-1 space-y-2">
                                             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                Scan QR or pay on UPI, then upload proof. The organizer will approve your booking.
+                                                {trek?.registration?.qrAutoConfirm
+                                                    ? 'Scan QR or pay on UPI, then upload proof. Your booking confirms as soon as you submit.'
+                                                    : 'Scan QR or pay on UPI, then upload proof. The organizer will approve your booking.'}
                                             </p>
                                             {paymentUpiId ? (
                                                 <button
