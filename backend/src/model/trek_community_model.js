@@ -15,7 +15,7 @@ const trekCommunitySchema = new mongoose.Schema(
     {
         name:              { type: String, required: true, trim: true },
         /** Unique URL slug — avoids /treks/community/{name} opening the wrong community */
-        slug:              { type: String, trim: true, lowercase: true, index: true },
+        slug:              { type: String, trim: true, lowercase: true },
         basedIn:           { type: String, trim: true, default: '' },
         aboutUs:           { type: String, trim: true, default: '' },
         trekCategories:    { type: [String], default: [] },
