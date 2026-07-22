@@ -43,6 +43,23 @@ function seedEventFromNav(navEvent) {
     return navEvent;
 }
 
+/** Club cards pass a thin stub (_id/title/image). Don't paint fee CTA until pricing is known. */
+function hasPricingSnapshot(ev) {
+    if (!ev) return false;
+    if (ev.pricingMode === 'tiers') return Array.isArray(ev.tiers);
+    return typeof ev.registrationFee === 'number';
+}
+
+function pickRunFallback(seeded, cachedEvent, routeParam) {
+    const seedOk = entityMatchesRouteParam(seeded, routeParam, ['title', 'name']);
+    const cacheOk = entityMatchesRouteParam(cachedEvent, routeParam, ['title', 'name']);
+    if (seedOk && hasPricingSnapshot(seeded)) return seeded;
+    if (cacheOk && hasPricingSnapshot(cachedEvent)) return cachedEvent;
+    // Prefer richer cache over a thin title/image stub
+    if (cacheOk && cachedEvent && !hasPricingSnapshot(seeded)) return cachedEvent;
+    return null;
+}
+
 const ClockIcon = ({ size = 20 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
         <path d="M12 12 C9 9 6 7 6 4h12c0 3-3 5-6 8z" fill="#F59E0B" opacity="0.9" />
@@ -99,12 +116,14 @@ export default function RunEventDetailPage() {
         }
 
         const seeded = seedEventFromNav(location.state?.event);
-        const cachedEvent = readRunDetailCache(eventId);
-        const ok = entityMatchesRouteParam(seeded, id, ['title', 'name'])
-            || entityMatchesRouteParam(cachedEvent, id, ['title', 'name']);
-        const fallback = ok ? (seeded || cachedEvent) : null;
+        const cachedByParam = readRunDetailCache(eventId);
+        const cachedById = seeded?._id || seeded?.id
+            ? readRunDetailCache(String(seeded._id || seeded.id))
+            : null;
+        const cachedEvent = cachedByParam || cachedById;
+        const fallback = pickRunFallback(seeded, cachedEvent, id);
 
-        // Paint cached/seeded content immediately so Instagram opens never flash "not found"
+        // Only paint hydrated seed/cache — thin club stubs flash "Free" before API returns
         setEvent(fallback);
         setLoadError('');
         setLoading(!fallback);
@@ -376,6 +395,13 @@ export default function RunEventDetailPage() {
                             {isTiersPricing(event) ? 'From' : 'Registration Fee'}
                         </p>
                         {(() => {
+                            if (!hasPricingSnapshot(event)) {
+                                return (
+                                    <p className={`mt-0.5 text-2xl font-bold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        …
+                                    </p>
+                                );
+                            }
                             const fromFee = minSportsFee(event);
                             if (fromFee > 0) {
                                 return (
@@ -425,7 +451,7 @@ export default function RunEventDetailPage() {
                                     ? 'Book Now'
                                     : tiers.length
                                         ? 'Register now'
-                                        : Number(event.registrationFee) <= 0
+                                        : hasPricingSnapshot(event) && Number(event.registrationFee) <= 0
                                             ? 'Register free'
                                             : event.registration?.mode === 'organizer_qr'
                                                 ? 'Pay via UPI'

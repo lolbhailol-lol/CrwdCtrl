@@ -93,6 +93,8 @@ export function runClubPath(club = {}) {
 
 export function sportRunPath(run = {}) {
     const id = pickId(run);
+    const persisted = toSlug(run.slug || '');
+    if (persisted) return `/sports/run/${persisted}`;
     const slug = toSlug(run.title || run.name || '');
     return `/sports/run/${slug || id}`;
 }

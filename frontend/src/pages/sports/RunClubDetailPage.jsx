@@ -311,6 +311,7 @@ export default function RunClubDetailPage() {
 
     const mapRunCard = (e) => ({
         id: e._id,
+        slug: e.slug || '',
         title: e.title,
         date: e.eventDate
             ? new Date(e.eventDate).toLocaleDateString('en-IN', {
@@ -323,6 +324,8 @@ export default function RunClubDetailPage() {
         runCategory: normalizeRunCategory(e.runCategory),
         registrationLink: e.registrationLink || '',
         status: e.status || null,
+        // Keep list payload for detail seed (avoids Free/demo fee flash)
+        detail: e,
     });
 
     useEffect(() => {
@@ -431,15 +434,28 @@ export default function RunClubDetailPage() {
     };
 
     const handleRunClick = (run) => {
-        navigate(sportRunPath(run), {
+        const eventSeed = run.detail && typeof run.detail === 'object'
+            ? run.detail
+            : {
+                _id: run.id,
+                slug: run.slug || '',
+                title: run.title,
+                images: run.image ? [run.image] : [],
+                coverImage: run.image || '',
+            };
+        navigate(sportRunPath(eventSeed), {
             state: {
                 event: {
-                    _id: run.id,
-                    title: run.title,
-                    images: run.image ? [run.image] : [],
+                    ...eventSeed,
                     runClub: club
-                        ? { _id: club.id, name: club.title, basedIn: club.subtitle, contactPhone: club.contactPhone, contactInstagram: club.contactInstagram }
-                        : null,
+                        ? {
+                            _id: club.id,
+                            name: club.title,
+                            basedIn: club.subtitle,
+                            contactPhone: club.contactPhone,
+                            contactInstagram: club.contactInstagram,
+                        }
+                        : eventSeed.runClub || null,
                 },
                 runClub: club,
             },
