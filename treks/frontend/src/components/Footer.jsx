@@ -9,7 +9,7 @@ export default function Footer() {
           <p className="font-display text-2xl font-bold">{APP_NAME}</p>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-stone/70">{APP_TAGLINE}</p>
           <p className="mt-6 text-xs uppercase tracking-[0.16em] text-trail">
-            A CrwdCtrl discovery surface
+            Live trek information · open to everyone
           </p>
         </div>
 
@@ -34,8 +34,8 @@ export default function Footer() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone/50">Note</p>
           <p className="mt-4 text-sm leading-relaxed text-stone/70">
-            This is a trek discovery & information platform — not a booking site. Always verify
-            local conditions before you leave.
+            Not a booking site. No login. Check crowd, weather, trail & parking before you leave
+            home — then verify locally on the day.
           </p>
         </div>
       </div>

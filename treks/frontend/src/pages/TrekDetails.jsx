@@ -17,20 +17,23 @@ export default function TrekDetails() {
   if (!trek) return <NotFound />
 
   const nearby = getTreksBySlugs(trek.nearbyTreks)
-  const related = getTreksBySlugs(trek.relatedTreks)
   const { status } = trek
 
   return (
     <div>
-      <section className="relative min-h-[52vh] overflow-hidden sm:min-h-[60vh]">
+      <section className="relative min-h-[48vh] overflow-hidden sm:min-h-[56vh]">
         <img
           src={trek.heroImage}
           alt={trek.name}
           className="absolute inset-0 h-full w-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-forest-950 via-forest-950/50 to-forest-950/20" />
-        <div className="container-wide section-pad relative flex min-h-[52vh] flex-col justify-end pb-10 pt-28 sm:min-h-[60vh] sm:pb-14">
-          <div className="flex flex-wrap gap-2">
+        <div className="absolute inset-0 bg-gradient-to-t from-forest-950 via-forest-950/55 to-forest-950/25" />
+        <div className="container-wide section-pad relative flex min-h-[48vh] flex-col justify-end pb-10 pt-28 sm:min-h-[56vh] sm:pb-14">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              Live status
+            </span>
             <Badge tone="soft">{trek.category}</Badge>
             <Badge tone={difficultyTone(trek.difficulty)}>{trek.difficulty}</Badge>
           </div>
@@ -49,6 +52,67 @@ export default function TrekDetails() {
       </section>
 
       <div className="container-wide section-pad py-10 sm:py-14">
+        {/* Live dashboard — first on page for the core product feel */}
+        <section className="mb-12">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-trail-dark dark:text-trail">
+                Field dashboard
+              </p>
+              <h2 className="mt-1 font-display text-3xl font-bold text-forest-800 dark:text-stone">
+                Today&apos;s Trek Status
+              </h2>
+              <p className="mt-1 text-sm text-ink/50 dark:text-stone/50">
+                Last updated {formatLastUpdated(status.lastUpdated)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <StatusCard
+              label="Crowd Status"
+              value={status.crowdLevel}
+              tone={crowdTone(status.crowdLevel)}
+              icon={<span aria-hidden>🟢</span>}
+            />
+            <StatusCard
+              label="Weather"
+              value={status.weather}
+              tone="info"
+              compact
+              icon={<span aria-hidden>🌧</span>}
+            />
+            <StatusCard
+              label="Trail Condition"
+              value={status.trailCondition}
+              tone={trailTone(status.trailCondition)}
+              icon={<span aria-hidden>🥾</span>}
+            />
+            <StatusCard
+              label="Parking Status"
+              value={status.parkingStatus}
+              tone="warning"
+              compact
+              icon={<span aria-hidden>🅿</span>}
+            />
+            <StatusCard
+              label="Forest Advisory"
+              value={status.forestAdvisory}
+              tone="trail"
+              compact
+              className="sm:col-span-2 xl:col-span-1"
+            />
+            <StatusCard
+              label="Alerts"
+              value={status.alert}
+              tone={status.alert?.toLowerCase().includes('no active') ? 'success' : 'danger'}
+              compact
+              icon={<span aria-hidden>🚨</span>}
+              className="sm:col-span-2 xl:col-span-3"
+            />
+          </div>
+        </section>
+
         <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
           <div className="space-y-10">
             <section>
@@ -70,58 +134,11 @@ export default function TrekDetails() {
             </section>
 
             <section>
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
-                    Today&apos;s Trek Status
-                  </h2>
-                  <p className="mt-1 text-sm text-ink/50 dark:text-stone/50">
-                    Last updated {formatLastUpdated(status.lastUpdated)}
-                  </p>
-                </div>
-                <Badge tone="trail">Live pulse · mock</Badge>
-              </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <StatusCard
-                  label="Crowd Level"
-                  value={status.crowdLevel}
-                  tone={crowdTone(status.crowdLevel)}
-                />
-                <StatusCard
-                  label="Trail Condition"
-                  value={status.trailCondition}
-                  tone={trailTone(status.trailCondition)}
-                />
-                <StatusCard
-                  label="Weather Summary"
-                  value={status.weatherSummary}
-                  tone="info"
-                  compact
-                />
-                <StatusCard
-                  label="Parking Status"
-                  value={status.parkingStatus}
-                  tone="warning"
-                  compact
-                />
-                <StatusCard
-                  label="Forest Advisory"
-                  value={status.forestAdvisory}
-                  tone="trail"
-                  compact
-                  className="sm:col-span-2"
-                />
-
-              </div>
-            </section>
-
-            <section>
               <h2 className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
                 Community Updates
               </h2>
               <p className="mt-1 text-sm text-ink/50 dark:text-stone/50">
-                Ground notes from the trail · mock timestamps
+                Live-looking field feed · mock timestamps
               </p>
               <div className="mt-4 space-y-3">
                 {trek.communityUpdates.map((update) => (
@@ -132,7 +149,7 @@ export default function TrekDetails() {
 
             <section>
               <h2 className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
-                Safety Tips
+                Safety Information
               </h2>
               <ul className="mt-4 space-y-3">
                 {trek.safetyTips.map((tip) => (
@@ -151,7 +168,7 @@ export default function TrekDetails() {
           <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
             <div className="card-surface p-5">
               <h3 className="font-display text-lg font-semibold text-forest-800 dark:text-stone">
-                Quick facts
+                Trek Information
               </h3>
               <dl className="mt-4 space-y-3 text-sm">
                 {[
@@ -161,6 +178,11 @@ export default function TrekDetails() {
                   ['Elevation', trek.elevation],
                   ['Best season', trek.bestSeason],
                   ['Starting point', trek.startingPoint],
+                  ['Entry fee', trek.entryFee],
+                  ['Forest permission', trek.forestPermission],
+                  ['Food', trek.foodAvailability],
+                  ['Water', trek.waterAvailability],
+                  ['Network', trek.networkCoverage],
                 ].map(([label, value]) => (
                   <div
                     key={label}
@@ -183,13 +205,9 @@ export default function TrekDetails() {
               </Button>
             </div>
 
-            <InformationCard title="Parking">{trek.parking}</InformationCard>
-            <InformationCard title="Forest Permission">{trek.forestPermission}</InformationCard>
-            <InformationCard title="Entry Fee">{trek.entryFee}</InformationCard>
-            <InformationCard title="Water Availability">{trek.waterAvailability}</InformationCard>
             <InformationCard title="Food Availability">{trek.foodAvailability}</InformationCard>
-            <InformationCard title="Network Availability">{trek.networkAvailability}</InformationCard>
-            <InformationCard title="Washroom Availability">{trek.washroomAvailability}</InformationCard>
+            <InformationCard title="Water Availability">{trek.waterAvailability}</InformationCard>
+            <InformationCard title="Network Coverage">{trek.networkCoverage}</InformationCard>
           </aside>
         </div>
 
@@ -205,19 +223,6 @@ export default function TrekDetails() {
             </div>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {nearby.map((item) => (
-                <TrekCard key={item.id} trek={item} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {related.length ? (
-          <section className="mt-14">
-            <h2 className="mb-6 font-display text-2xl font-bold text-forest-800 dark:text-stone">
-              Related Treks
-            </h2>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {related.map((item) => (
                 <TrekCard key={item.id} trek={item} />
               ))}
             </div>

@@ -41,10 +41,11 @@ export default function Explore() {
     <div className="container-wide section-pad py-10 sm:py-14">
       <div className="max-w-2xl">
         <h1 className="font-display text-4xl font-bold tracking-tight text-forest-800 dark:text-stone sm:text-5xl">
-          Explore Treks
+          Explore Destinations
         </h1>
         <p className="mt-3 text-ink/60 dark:text-stone/60">
-          Browse Maharashtra waterfall, fort, jungle, and mountain trails.
+          Maharashtra&apos;s most famous forts, waterfalls, jungle routes, peaks, and valleys —
+          with live-style status on every page.
         </p>
       </div>
 

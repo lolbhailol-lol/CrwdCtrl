@@ -1,10 +1,10 @@
 # CrwdCtrl Treks
 
-Standalone trek discovery & information platform for Maharashtra trails.
+Live information platform for Maharashtra trekkers — not booking, not marketplace.
 
-> Before leaving home, every trekker should open **CrwdCtrl Treks**.
+> **Know Before You Trek.** Real-time trek conditions across Maharashtra.
 
-Separate from the main CrwdCtrl `frontend/` and `backend/`. Structured the same way for an independent deploy at `treks.crwdctrl.in`.
+Open website: no login, signup, payments, or profiles. MVP uses mock JSON for iconic destinations only. Separate from main CrwdCtrl; structured for `treks.crwdctrl.in`.
 
 ```
 treks/
