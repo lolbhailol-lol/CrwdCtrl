@@ -17,8 +17,12 @@ const submitEventShowRegistration = async (req, res) => {
     const EventShow = require('../../model/event_show_model');
     const EventShowRegistration = require('../../model/event_show_registration_model');
     const { buildEventPriceBreakdown } = require('../../utils/platformFee');
+    const { findByIdOrSlug } = require('../../utils/slug');
 
-    const eventShow = await EventShow.findById(eventShowId);
+    const eventShow = await findByIdOrSlug(EventShow, eventShowId, {
+      pickName: (row) => row.title || row.displayName || '',
+      lean: false,
+    });
     if (!eventShow) return res.status(404).json({ error: 'Event not found' });
 
     const reg = eventShow.registration || {};

@@ -55,13 +55,17 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
   const resolvedEventShowId = eventShowId || notes.eventShowId;
 
   if (resolvedEventShowId) {
-    const eventShow = await EventShow.findById(resolvedEventShowId).select('title ticketPrice platformFeePercent');
+    const eventShow = await findByIdOrSlug(EventShow, resolvedEventShowId, {
+      pickName: (row) => row.title || row.displayName || '',
+      select: 'title ticketPrice platformFeePercent',
+      lean: true,
+    });
     if (!eventShow) return null;
     return {
       entityType: 'event_show',
       ticketPrice: eventShow.ticketPrice,
       platformFeePercent: Number(eventShow.platformFeePercent) || 2.5,
-      notes: { eventShowId: eventShow._id.toString() },
+      notes: { eventShowId: String(eventShow._id) },
     };
   }
 

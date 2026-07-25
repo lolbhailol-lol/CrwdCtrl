@@ -46,6 +46,10 @@ backend/uploads/payment-screenshots/*
 tmp/
 temp/
 
+# Local generated reports / Generation Explores exports — never push
+reports/
+~$*
+
 # Claude Code local session data
 .claude/
 
