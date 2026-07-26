@@ -1,6 +1,12 @@
 export function formatRelativeTime(isoString) {
+  if (!isoString) return ''
   const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return ''
+
   const diffMs = Date.now() - date.getTime()
+  // Clock skew / future timestamps
+  if (diffMs < 0) return 'Just now'
+
   const minutes = Math.floor(diffMs / 60000)
 
   if (minutes < 1) return 'Just now'
@@ -20,7 +26,10 @@ export function formatRelativeTime(isoString) {
 }
 
 export function formatLastUpdated(isoString) {
-  return new Date(isoString).toLocaleString('en-IN', {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('en-IN', {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

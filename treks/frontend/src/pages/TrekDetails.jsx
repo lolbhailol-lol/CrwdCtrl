@@ -1,223 +1,299 @@
-import { Link, useParams } from 'react-router-dom'
-import Badge, { crowdTone, difficultyTone, trailTone } from '../components/Badge'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import Badge, {
+  crowdTone,
+  difficultyTone,
+  entryTone,
+  trailTone,
+} from '../components/Badge'
 import Button from '../components/Button'
 import Gallery from '../components/Gallery'
-import InformationCard from '../components/InformationCard'
+import GoingTodayPanel from '../components/GoingTodayPanel'
 import StatusCard from '../components/StatusCard'
 import CommunityUpdateCard from '../components/CommunityUpdateCard'
 import TrekCard from '../components/TrekCard'
-import { getTrekBySlug, getTreksBySlugs } from '../services/trekService'
-import { formatLastUpdated } from '../utils/formatters'
+import LoadingScreen from '../components/LoadingScreen'
+import { useTrekData } from '../context/TrekDataContext'
+import { fetchTrekBySlug } from '../services/trekService'
+import { formatRelativeTime } from '../utils/formatters'
 import NotFound from './NotFound'
+
+const INFO_ROWS = [
+  ['Difficulty', 'difficulty'],
+  ['Distance', 'distance'],
+  ['Duration', 'duration'],
+  ['Elevation', 'elevation'],
+  ['Best season', 'bestSeason'],
+  ['Starting point', 'startingPoint'],
+  ['Entry fee', 'entryFee'],
+  ['Forest permission', 'forestPermission'],
+  ['Food', 'foodAvailability'],
+  ['Water', 'waterAvailability'],
+  ['Network', 'networkCoverage'],
+]
 
 export default function TrekDetails() {
   const { slug } = useParams()
-  const trek = getTrekBySlug(slug)
+  const navigate = useNavigate()
+  const { ready, getTrekBySlug, getTreksBySlugs, tick, nowTick, source } = useTrekData()
+  const [trek, setTrek] = useState(null)
+  const [loadingTrek, setLoadingTrek] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  if (!trek) return <NotFound />
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [slug])
 
-  const nearby = getTreksBySlugs(trek.nearbyTreks)
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      setLoadingTrek(true)
+      setNotFound(false)
+      const fromApi = await fetchTrekBySlug(slug)
+      if (!alive) return
+      if (fromApi) {
+        setTrek(fromApi)
+      } else if (ready) {
+        const local = getTrekBySlug(slug)
+        setTrek(local)
+        setNotFound(!local)
+      }
+      setLoadingTrek(false)
+    }
+    load()
+    return () => {
+      alive = false
+    }
+  }, [slug, ready, tick, getTrekBySlug])
+
+  function goBack() {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/')
+  }
+
+  if (!ready || loadingTrek) {
+    return <LoadingScreen label="Loading trek…" />
+  }
+
+  if (notFound || !trek) return <NotFound />
+
+  void nowTick
+
+  const nearby = getTreksBySlugs(trek.nearbyTreks || [])
   const { status } = trek
+  const people = status?.peopleCount ?? status?.todayPeople ?? 0
+  const groups = status?.checkInGroups
+
+  const markInPanel = <GoingTodayPanel slug={trek.slug} onSuccess={setTrek} />
+
+  const detailsCard = (
+    <div className="card-surface p-5">
+      <h3 className="text-lg font-semibold text-ink">Trek details</h3>
+      <dl className="mt-4 space-y-3 text-sm">
+        {INFO_ROWS.map(([label, key]) => {
+          const value = trek[key]
+          if (!value) return null
+          return (
+            <div
+              key={label}
+              className="flex flex-col gap-0.5 border-b border-white/8 pb-3 last:border-0 last:pb-0"
+            >
+              <dt className="text-xs uppercase tracking-[0.12em] text-muted">{label}</dt>
+              <dd className="text-ink/90">{value}</dd>
+            </div>
+          )
+        })}
+      </dl>
+      {trek.mapsUrl ? (
+        <Button href={trek.mapsUrl} target="_blank" rel="noreferrer" className="mt-5 w-full">
+          Open in Google Maps
+        </Button>
+      ) : null}
+    </div>
+  )
 
   return (
     <div>
-      <section className="relative min-h-[48vh] overflow-hidden sm:min-h-[56vh]">
+      <div className="sticky top-14 z-40 border-b border-white/10 bg-canvas/90 backdrop-blur-md md:top-16">
+        <div className="container-wide section-pad flex items-center gap-3 py-2.5">
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex items-center gap-1 rounded-lg border border-white/12 bg-panel px-2.5 py-1.5 text-sm font-medium text-ink hover:border-brand/40 hover:text-brand"
+          >
+            <span className="material-symbols-outlined text-[18px] leading-none">arrow_back</span>
+            Back
+          </button>
+          <span className="min-w-0 truncate text-sm text-muted">{trek.name}</span>
+        </div>
+      </div>
+
+      <section className="relative min-h-[36vh] overflow-hidden sm:min-h-[48vh]">
         <img
           src={trek.heroImage}
           alt={trek.name}
           className="absolute inset-0 h-full w-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-forest-950 via-forest-950/55 to-forest-950/25" />
-        <div className="container-wide section-pad relative flex min-h-[48vh] flex-col justify-end pb-10 pt-28 sm:min-h-[56vh] sm:pb-14">
+        <div className="absolute inset-0 bg-linear-to-t from-canvas via-canvas/55 to-canvas/25" />
+        <div className="container-wide section-pad relative flex min-h-[36vh] flex-col justify-end pb-8 pt-10 sm:min-h-[48vh] sm:pb-12">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-              Live status
-            </span>
             <Badge tone="soft">{trek.category}</Badge>
             <Badge tone={difficultyTone(trek.difficulty)}>{trek.difficulty}</Badge>
           </div>
-          <h1 className="mt-4 font-display text-4xl font-extrabold tracking-tight text-white sm:text-6xl">
+          <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink sm:text-5xl">
             {trek.name}
           </h1>
-          <p className="mt-2 text-lg text-white/80">{trek.location}</p>
-          <div className="mt-5 flex flex-wrap gap-4 text-sm text-white/75">
-            <span>{trek.distance}</span>
-            <span className="opacity-40">·</span>
-            <span>{trek.duration}</span>
-            <span className="opacity-40">·</span>
-            <span>{trek.elevation}</span>
-          </div>
+          <p className="mt-1.5 text-base text-muted sm:text-lg">{trek.location}</p>
+          <p className="mt-3 text-sm text-muted">
+            {trek.distance}
+            <span className="mx-2 opacity-40">·</span>
+            {trek.duration}
+            <span className="mx-2 opacity-40">·</span>
+            {trek.elevation}
+          </p>
         </div>
       </section>
 
-      <div className="container-wide section-pad py-10 sm:py-14">
-        {/* Live dashboard — first on page for the core product feel */}
-        <section className="mb-12">
+      <div className="container-wide section-pad space-y-10 py-8 sm:space-y-14 sm:py-12">
+        <section>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-trail-dark dark:text-trail">
-                Field dashboard
+              <h2 className="text-2xl font-bold text-ink sm:text-3xl">Live status</h2>
+              <p className="mt-1 text-sm text-muted">
+                {people} going
+                {typeof groups === 'number' && groups > 0 ? ` · ${groups} groups` : ''}
+                {status?.lastUpdated ? (
+                  <> · Updated {formatRelativeTime(status.lastUpdated)}</>
+                ) : null}
               </p>
-              <h2 className="mt-1 font-display text-3xl font-bold text-forest-800 dark:text-stone">
-                Today&apos;s Trek Status
-              </h2>
-              <p className="mt-1 text-sm text-ink/50 dark:text-stone/50">
-                Last updated {formatLastUpdated(status.lastUpdated)}
+              <p className="mt-1 text-xs text-muted/80">
+                From community mark-ins, not GPS
+                {source !== 'api' ? ' · Demo times' : ''}
               </p>
             </div>
+            <Link
+              to={`/scout/${trek.slug}`}
+              className="text-[11px] text-muted/60 hover:text-muted"
+            >
+              Scout
+            </Link>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <StatusCard
-              label="Crowd Status"
-              value={status.crowdLevel}
-              tone={crowdTone(status.crowdLevel)}
-              icon={<span aria-hidden>🟢</span>}
+              label="People going"
+              value={`${people}`}
+              hint={status?.crowdLevel ? `Crowd: ${status.crowdLevel}` : undefined}
+              tone={crowdTone(status?.crowdLevel)}
             />
             <StatusCard
-              label="Weather"
-              value={status.weather}
-              tone="info"
-              compact
-              icon={<span aria-hidden>🌧</span>}
+              label="Crowd"
+              value={status?.crowdLevel || '—'}
+              tone={crowdTone(status?.crowdLevel)}
             />
             <StatusCard
-              label="Trail Condition"
-              value={status.trailCondition}
-              tone={trailTone(status.trailCondition)}
-              icon={<span aria-hidden>🥾</span>}
+              label="Trail"
+              value={status?.trailCondition || '—'}
+              tone={trailTone(status?.trailCondition)}
             />
             <StatusCard
-              label="Parking Status"
-              value={status.parkingStatus}
+              label="Entry"
+              value={status?.entryStatus || '—'}
+              tone={entryTone(status?.entryStatus)}
+            />
+            <StatusCard label="Weather" value={status?.weather || '—'} tone="info" compact />
+            <StatusCard
+              label="Parking"
+              value={status?.parkingStatus || '—'}
               tone="warning"
               compact
-              icon={<span aria-hidden>🅿</span>}
             />
-            <StatusCard
-              label="Forest Advisory"
-              value={status.forestAdvisory}
-              tone="trail"
-              compact
-              className="sm:col-span-2 xl:col-span-1"
-            />
-            <StatusCard
-              label="Alerts"
-              value={status.alert}
-              tone={status.alert?.toLowerCase().includes('no active') ? 'success' : 'danger'}
-              compact
-              icon={<span aria-hidden>🚨</span>}
-              className="sm:col-span-2 xl:col-span-3"
-            />
+            {status?.forestAdvisory ? (
+              <StatusCard
+                label="Forest advisory"
+                value={status.forestAdvisory}
+                tone="trail"
+                compact
+                className="sm:col-span-2 xl:col-span-3"
+              />
+            ) : null}
+            {status?.alert ? (
+              <StatusCard
+                label="Alert"
+                value={status.alert}
+                tone={
+                  String(status.alert).toLowerCase().includes('no active') ? 'success' : 'danger'
+                }
+                compact
+                className="sm:col-span-2 xl:col-span-3"
+              />
+            ) : null}
           </div>
+
+          {/* Mobile: mark-in above the fold */}
+          <div className="mt-5 lg:hidden">{markInPanel}</div>
         </section>
 
-        <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
+        <div className="grid gap-10 lg:grid-cols-[1.35fr_1fr]">
           <div className="space-y-10">
             <section>
-              <h2 className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
-                Gallery
-              </h2>
+              <h2 className="text-xl font-bold text-ink sm:text-2xl">About this trek</h2>
+              <p className="mt-3 text-base leading-relaxed text-muted">{trek.overview}</p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-bold text-ink sm:text-2xl">Photos</h2>
               <div className="mt-4">
                 <Gallery images={trek.gallery} alt={trek.name} />
               </div>
             </section>
 
-            <section>
-              <h2 className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
-                Overview
-              </h2>
-              <p className="mt-3 text-base leading-relaxed text-ink/75 dark:text-stone/75">
-                {trek.overview}
-              </p>
-            </section>
+            {(trek.communityUpdates || []).length ? (
+              <section>
+                <h2 className="text-xl font-bold text-ink sm:text-2xl">Recent updates</h2>
+                <p className="mt-1 text-sm text-muted">What people on the trail are reporting</p>
+                <div className="mt-4 space-y-3">
+                  {trek.communityUpdates.map((update) => (
+                    <CommunityUpdateCard key={update.id} update={update} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
-            <section>
-              <h2 className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
-                Community Updates
-              </h2>
-              <p className="mt-1 text-sm text-ink/50 dark:text-stone/50">
-                Live-looking field feed · mock timestamps
-              </p>
-              <div className="mt-4 space-y-3">
-                {trek.communityUpdates.map((update) => (
-                  <CommunityUpdateCard key={update.id} update={update} />
-                ))}
-              </div>
-            </section>
+            {(trek.safetyTips || []).length ? (
+              <section>
+                <h2 className="text-xl font-bold text-ink sm:text-2xl">Safety tips</h2>
+                <ul className="mt-4 space-y-2.5">
+                  {trek.safetyTips.map((tip) => (
+                    <li
+                      key={tip}
+                      className="flex gap-3 rounded-xl border border-white/10 bg-panel px-4 py-3 text-sm text-muted"
+                    >
+                      <span className="material-symbols-outlined shrink-0 text-[18px] text-brand">
+                        check_circle
+                      </span>
+                      <span>{tip}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
-            <section>
-              <h2 className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
-                Safety Information
-              </h2>
-              <ul className="mt-4 space-y-3">
-                {trek.safetyTips.map((tip) => (
-                  <li
-                    key={tip}
-                    className="card-surface flex gap-3 p-4 text-sm text-ink/75 dark:text-stone/75"
-                  >
-                    <span className="mt-0.5 text-trail">▸</span>
-                    <span>{tip}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            {/* Mobile details after content */}
+            <div className="lg:hidden">{detailsCard}</div>
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            <div className="card-surface p-5">
-              <h3 className="font-display text-lg font-semibold text-forest-800 dark:text-stone">
-                Trek Information
-              </h3>
-              <dl className="mt-4 space-y-3 text-sm">
-                {[
-                  ['Difficulty', trek.difficulty],
-                  ['Distance', trek.distance],
-                  ['Duration', trek.duration],
-                  ['Elevation', trek.elevation],
-                  ['Best season', trek.bestSeason],
-                  ['Starting point', trek.startingPoint],
-                  ['Entry fee', trek.entryFee],
-                  ['Forest permission', trek.forestPermission],
-                  ['Food', trek.foodAvailability],
-                  ['Water', trek.waterAvailability],
-                  ['Network', trek.networkCoverage],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="flex flex-col gap-0.5 border-b border-forest-800/8 pb-3 last:border-0 dark:border-white/8"
-                  >
-                    <dt className="text-xs uppercase tracking-[0.12em] text-ink/45 dark:text-stone/45">
-                      {label}
-                    </dt>
-                    <dd className="text-ink/80 dark:text-stone/80">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <Button
-                href={trek.mapsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-5 w-full"
-              >
-                Open in Google Maps
-              </Button>
-            </div>
-
-            <InformationCard title="Food Availability">{trek.foodAvailability}</InformationCard>
-            <InformationCard title="Water Availability">{trek.waterAvailability}</InformationCard>
-            <InformationCard title="Network Coverage">{trek.networkCoverage}</InformationCard>
+          <aside className="hidden space-y-4 lg:sticky lg:top-36 lg:block lg:self-start">
+            {markInPanel}
+            {detailsCard}
           </aside>
         </div>
 
         {nearby.length ? (
-          <section className="mt-16">
-            <div className="mb-6 flex items-end justify-between gap-4">
-              <h2 className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
-                Nearby Treks
-              </h2>
-              <Link to="/explore" className="text-sm font-semibold text-forest-700 dark:text-trail">
+          <section>
+            <div className="mb-5 flex items-end justify-between gap-4">
+              <h2 className="text-xl font-bold text-ink sm:text-2xl">Nearby treks</h2>
+              <Link to="/explore" className="text-sm font-semibold text-brand hover:underline">
                 Explore more →
               </Link>
             </div>

@@ -1,21 +1,16 @@
 export const APP_NAME = 'CrwdCtrl Treks'
+export const APP_BRAND = 'CrwdCtrl'
 export const APP_TAGLINE = 'Know Before You Trek.'
-export const APP_SUBTITLE = 'Real-time trek conditions across Maharashtra.'
+export const APP_SUBTITLE =
+  "Real-time conditions and crowd data for Maharashtra's jungle & waterfall trails."
+export const APP_EYEBROW = 'Sahyadri Live Intelligence'
 
-export const CATEGORIES = [
-  'Fort Trek',
-  'Waterfall Trek',
-  'Jungle & Nature Trek',
-  'Mountain/Peak Trek',
-  'Valley & Nature Trek',
-]
+/** Lite catalog — Waterfall + Jungle only */
+export const CATEGORIES = ['Waterfall Trek', 'Jungle Trek']
 
 export const CATEGORY_META = {
-  'Fort Trek': { emoji: '🏰', short: 'Forts' },
-  'Waterfall Trek': { emoji: '🌊', short: 'Waterfalls' },
-  'Jungle & Nature Trek': { emoji: '🌿', short: 'Jungle' },
-  'Mountain/Peak Trek': { emoji: '⛰️', short: 'Peaks' },
-  'Valley & Nature Trek': { emoji: '🌄', short: 'Valleys' },
+  'Waterfall Trek': { emoji: '🌊', short: 'Waterfalls', stitch: 'Waterfall' },
+  'Jungle Trek': { emoji: '🌿', short: 'Jungle', stitch: 'Jungle' },
 }
 
 export const DIFFICULTIES = ['Easy', 'Moderate', 'Difficult', 'Challenging']
@@ -24,8 +19,11 @@ export const CROWD_LEVELS = ['Low', 'Moderate', 'High', 'Very High']
 
 export const TRAIL_CONDITIONS = ['Open', 'Slippery', 'Closed']
 
+export const ENTRY_STATUSES = ['Open', 'Restricted', 'Closed']
+
 export const NAV_LINKS = [
+  { label: 'Home', to: '/' },
   { label: 'Explore', to: '/explore' },
+  { label: 'Alerts', to: '/alerts' },
   { label: 'About', to: '/about' },
-  { label: 'Contact', to: '/contact' },
 ]

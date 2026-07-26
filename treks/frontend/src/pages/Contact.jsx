@@ -4,64 +4,47 @@ import Button from '../components/Button'
 export default function Contact() {
   const [submitted, setSubmitted] = useState(false)
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    setSubmitted(true)
-  }
-
   return (
     <div className="container-narrow section-pad py-12 sm:py-16">
-      <h1 className="font-display text-4xl font-bold tracking-tight text-forest-800 dark:text-stone sm:text-5xl">
-        Contact
-      </h1>
-      <p className="mt-3 max-w-xl text-ink/60 dark:text-stone/60">
-        Share trail feedback, corrections, or partnership ideas. This form is frontend-only for
-        the MVP — nothing is sent to a server yet.
+      <h1 className="text-4xl font-extrabold tracking-tight text-ink sm:text-5xl">Contact</h1>
+      <p className="mt-3 max-w-xl text-muted">
+        Trail feedback or partnership ideas. Frontend-only for the MVP — nothing is sent to a server
+        yet.
       </p>
 
       <div className="card-surface mt-10 p-6 sm:p-8">
         {submitted ? (
           <div className="py-8 text-center">
-            <p className="font-display text-2xl font-bold text-forest-800 dark:text-stone">
-              Thanks — message noted locally
-            </p>
-            <p className="mt-2 text-sm text-ink/60 dark:text-stone/60">
-              Backend delivery will be connected in a later phase.
-            </p>
+            <p className="text-2xl font-bold text-ink">Thanks — noted locally</p>
+            <p className="mt-2 text-sm text-muted">Backend delivery comes later.</p>
             <Button className="mt-6" onClick={() => setSubmitted(false)}>
               Send another
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              setSubmitted(true)
+            }}
+            className="space-y-5"
+          >
+            {['Name', 'Email'].map((label) => (
+              <div key={label}>
+                <label className="text-sm font-medium text-muted" htmlFor={label.toLowerCase()}>
+                  {label}
+                </label>
+                <input
+                  id={label.toLowerCase()}
+                  name={label.toLowerCase()}
+                  type={label === 'Email' ? 'email' : 'text'}
+                  required
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-canvas px-4 py-3 text-sm text-ink outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/20"
+                />
+              </div>
+            ))}
             <div>
-              <label htmlFor="name" className="text-sm font-medium text-ink/80 dark:text-stone/80">
-                Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                required
-                className="mt-1.5 w-full rounded-xl border border-forest-800/10 bg-white px-4 py-3 text-sm outline-none focus:border-forest-600/40 focus:ring-2 focus:ring-forest-500/20 dark:border-white/10 dark:bg-forest-950 dark:text-stone"
-              />
-            </div>
-            <div>
-              <label htmlFor="email" className="text-sm font-medium text-ink/80 dark:text-stone/80">
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="mt-1.5 w-full rounded-xl border border-forest-800/10 bg-white px-4 py-3 text-sm outline-none focus:border-forest-600/40 focus:ring-2 focus:ring-forest-500/20 dark:border-white/10 dark:bg-forest-950 dark:text-stone"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="message"
-                className="text-sm font-medium text-ink/80 dark:text-stone/80"
-              >
+              <label className="text-sm font-medium text-muted" htmlFor="message">
                 Message
               </label>
               <textarea
@@ -69,17 +52,13 @@ export default function Contact() {
                 name="message"
                 required
                 rows={5}
-                className="mt-1.5 w-full rounded-xl border border-forest-800/10 bg-white px-4 py-3 text-sm outline-none focus:border-forest-600/40 focus:ring-2 focus:ring-forest-500/20 dark:border-white/10 dark:bg-forest-950 dark:text-stone"
+                className="mt-1.5 w-full rounded-xl border border-white/10 bg-canvas px-4 py-3 text-sm text-ink outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/20"
               />
             </div>
             <Button type="submit">Send message</Button>
           </form>
         )}
       </div>
-
-      <p className="mt-8 text-sm text-ink/50 dark:text-stone/50">
-        Future contact: hello@treks.crwdctrl.in
-      </p>
     </div>
   )
 }

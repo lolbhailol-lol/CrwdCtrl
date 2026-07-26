@@ -1,17 +1,18 @@
 const tones = {
-  default: 'bg-forest-100 text-forest-800 dark:bg-forest-800 dark:text-forest-100',
-  trail: 'bg-trail/20 text-trail-dark dark:bg-trail/15 dark:text-trail',
-  soft: 'bg-stone text-ink dark:bg-white/10 dark:text-stone',
-  success: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
-  warning: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200',
-  danger: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200',
-  info: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
+  default: 'bg-white/8 text-muted border border-white/10',
+  soft: 'bg-white/5 text-muted border border-white/10',
+  brand: 'bg-white/10 text-ink border border-white/15',
+  success: 'bg-white/8 text-ink border border-white/10',
+  warning: 'bg-white/8 text-warn border border-white/10',
+  danger: 'bg-white/8 text-danger border border-white/10',
+  info: 'bg-white/8 text-muted border border-white/10',
+  trail: 'bg-white/8 text-muted border border-white/10',
 }
 
 export default function Badge({ children, tone = 'default', className = '' }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${tones[tone] ?? tones.default} ${className}`}
+      className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide ${tones[tone] ?? tones.default} ${className}`}
     >
       {children}
     </span>
@@ -29,7 +30,7 @@ export function difficultyTone(difficulty) {
     case 'Challenging':
       return 'danger'
     default:
-      return 'default'
+      return 'soft'
   }
 }
 
@@ -38,13 +39,12 @@ export function crowdTone(level) {
     case 'Low':
       return 'success'
     case 'Moderate':
-      return 'info'
-    case 'High':
       return 'warning'
+    case 'High':
     case 'Very High':
       return 'danger'
     default:
-      return 'default'
+      return 'soft'
   }
 }
 
@@ -57,6 +57,19 @@ export function trailTone(condition) {
     case 'Closed':
       return 'danger'
     default:
-      return 'default'
+      return 'soft'
+  }
+}
+
+export function entryTone(status) {
+  switch (status) {
+    case 'Open':
+      return 'success'
+    case 'Restricted':
+      return 'warning'
+    case 'Closed':
+      return 'danger'
+    default:
+      return 'soft'
   }
 }

@@ -1,26 +1,30 @@
 # CrwdCtrl Treks — Frontend
 
-React + Vite trek discovery UI. Uses mock JSON via `src/services/trekService.js`.
-
-## Setup
-
-```bash
-cd treks/frontend
-npm install
-npm run dev
+```
+frontend/
+├── public/
+├── src/
+│   ├── components/
+│   ├── context/
+│   ├── data/
+│   ├── hooks/
+│   ├── layouts/
+│   ├── pages/
+│   ├── services/
+│   ├── styles/
+│   ├── utils/
+│   ├── App.jsx
+│   └── main.jsx
+├── index.html
+├── package.json
+└── vercel.json
 ```
 
-## Scripts
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build
+npm run preview
+```
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Local dev server |
-| `npm run build` | Production build → `dist/` |
-| `npm run preview` | Preview production build |
-| `npm run lint` | Run oxlint |
-
-## Vercel
-
-Root Directory: `treks/frontend`  
-Build: `npm run build`  
-Output: `dist`
+Mock data: `src/data/` · API swap later: `src/services/trekService.js`

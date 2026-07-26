@@ -1,117 +1,99 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { NAV_LINKS, APP_NAME } from '../utils/constants'
-import { useTheme } from '../hooks/useTheme'
-import Button from './Button'
+import { APP_EYEBROW, APP_NAME, NAV_LINKS } from '../utils/constants'
+import { useTrekData } from '../context/TrekDataContext'
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
-  const { theme, toggleTheme } = useTheme()
+  const { ready, tick, getAlerts } = useTrekData()
+  const alertCount = useMemo(
+    () => (ready ? getAlerts().length : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ready, tick],
+  )
 
-  const linkClass = ({ isActive }) =>
-    `text-sm font-medium transition ${
+  const pillClass = ({ isActive }) =>
+    `px-5 py-1.5 rounded-full text-sm font-semibold transition-all ${
       isActive
-        ? 'text-forest-800 dark:text-trail'
-        : 'text-ink/70 hover:text-forest-800 dark:text-stone/70 dark:hover:text-stone'
+        ? 'bg-brand text-brand-ink shadow-md'
+        : 'text-muted hover:text-brand hover:bg-white/5'
     }`
 
   return (
-    <header className="sticky top-0 z-50 border-b border-forest-800/8 bg-mist/80 backdrop-blur-xl dark:border-white/8 dark:bg-forest-950/80">
-      <div className="container-wide section-pad flex h-16 items-center justify-between">
-        <Link to="/" className="group flex items-center gap-2.5" onClick={() => setOpen(false)}>
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-forest-800 text-trail shadow-sm dark:bg-trail dark:text-forest-950">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M3 18L8 8L12 13L16 6L21 18H3Z" fill="currentColor" />
-            </svg>
-          </span>
-          <span className="font-display text-lg font-bold tracking-tight text-forest-800 dark:text-stone">
-            {APP_NAME}
-          </span>
-        </Link>
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-surface/80 backdrop-blur-xl">
+      <div className="container-wide section-pad flex items-center justify-between py-3.5">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="md:hidden rounded-full p-2 text-brand hover:bg-brand/10"
+            aria-label="Toggle menu"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <span className="material-symbols-outlined text-2xl">menu</span>
+          </button>
 
-        <nav className="hidden items-center gap-8 md:flex">
+          <Link to="/" className="group flex items-center gap-2.5" onClick={() => setOpen(false)}>
+            <span
+              className="material-symbols-outlined text-3xl text-brand transition-transform group-hover:scale-105"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              radar
+            </span>
+            <div className="flex flex-col">
+              <span className="text-lg font-semibold leading-none tracking-tight text-ink sm:text-xl">
+                {APP_NAME}
+              </span>
+              <span className="hidden text-[10px] font-medium uppercase tracking-wider text-brand sm:inline-block">
+                {APP_EYEBROW}
+              </span>
+            </div>
+          </Link>
+        </div>
+
+        <nav className="hidden items-center gap-1 rounded-full border border-white/10 bg-canvas/60 p-1 md:flex">
           {NAV_LINKS.map((link) => (
-            <NavLink key={link.to} to={link.to} className={linkClass}>
+            <NavLink key={link.to} to={link.to} end={link.to === '/'} className={pillClass}>
               {link.label}
+              {link.label === 'Alerts' && alertCount > 0 ? (
+                <span className="ml-1.5 rounded-full bg-warn px-1.5 text-[10px] font-bold text-warn-ink">
+                  {alertCount}
+                </span>
+              ) : null}
             </NavLink>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="rounded-full border border-forest-800/10 p-2.5 text-forest-800 transition hover:bg-forest-800/5 dark:border-white/10 dark:text-stone dark:hover:bg-white/5"
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
-                <path
-                  d="M12 2V4M12 20V22M4 12H2M22 12H20M5 5L6.5 6.5M17.5 17.5L19 19M19 5L17.5 6.5M6.5 17.5L5 19"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          </button>
-          <Button to="/explore" size="sm">
-            Explore Treks
-          </Button>
-        </div>
-
-        <button
-          type="button"
-          className="rounded-lg p-2 text-forest-800 md:hidden dark:text-stone"
-          aria-label="Toggle menu"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
+        <Link
+          to="/alerts"
+          className="relative rounded-full p-2 text-muted transition hover:bg-white/5 hover:text-brand"
+          aria-label="View alerts"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            {open ? (
-              <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            ) : (
-              <path d="M4 7H20M4 12H20M4 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            )}
-          </svg>
-        </button>
+          <span className="material-symbols-outlined text-2xl">notifications</span>
+          {alertCount > 0 ? (
+            <span className="absolute right-1 top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-warn" />
+          ) : null}
+        </Link>
       </div>
 
       {open ? (
-        <div className="border-t border-forest-800/8 px-4 py-4 md:hidden dark:border-white/8">
-          <nav className="flex flex-col gap-3">
+        <div className="border-t border-white/10 px-4 py-4 md:hidden">
+          <nav className="flex flex-col gap-2">
             {NAV_LINKS.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
-                className={linkClass}
+                end={link.to === '/'}
                 onClick={() => setOpen(false)}
+                className={({ isActive }) =>
+                  `rounded-xl px-4 py-3 text-sm font-semibold ${
+                    isActive ? 'bg-brand/15 text-brand' : 'text-muted'
+                  }`
+                }
               >
                 {link.label}
               </NavLink>
             ))}
-            <div className="mt-2 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className="rounded-full border border-forest-800/10 px-3 py-2 text-sm dark:border-white/10"
-              >
-                {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-              </button>
-              <Button to="/explore" size="sm" onClick={() => setOpen(false)}>
-                Explore Treks
-              </Button>
-            </div>
           </nav>
         </div>
       ) : null}

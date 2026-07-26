@@ -6,7 +6,7 @@ export default function Gallery({ images = [], alt = 'Trek gallery' }) {
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-2xl">
+      <div className="overflow-hidden rounded-2xl border border-white/10">
         <img
           src={images[active]}
           alt={`${alt} ${active + 1}`}
@@ -20,9 +20,7 @@ export default function Gallery({ images = [], alt = 'Trek gallery' }) {
             type="button"
             onClick={() => setActive(index)}
             className={`overflow-hidden rounded-xl border-2 transition ${
-              active === index
-                ? 'border-trail'
-                : 'border-transparent opacity-80 hover:opacity-100'
+              active === index ? 'border-brand' : 'border-transparent opacity-80 hover:opacity-100'
             }`}
             aria-label={`View image ${index + 1}`}
           >

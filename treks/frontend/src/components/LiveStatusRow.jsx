@@ -24,7 +24,7 @@ export default function LiveStatusRow({ item }) {
         <p className="mt-1 line-clamp-1 text-sm text-ink/60 dark:text-stone/60">{item.weather}</p>
         {item.alert ? (
           <p className="mt-1 line-clamp-1 text-xs font-medium text-amber-700 dark:text-amber-300">
-            🚨 {item.alert}
+            {item.alert}
           </p>
         ) : null}
       </div>
@@ -32,6 +32,19 @@ export default function LiveStatusRow({ item }) {
       <div className="flex flex-wrap gap-2 sm:justify-end">
         <Badge tone={crowdTone(item.crowdLevel)}>{item.crowdLevel}</Badge>
         <Badge tone={trailTone(item.trailCondition)}>{item.trailCondition}</Badge>
+        {item.entryStatus ? (
+          <Badge
+            tone={
+              item.entryStatus === 'Open'
+                ? 'success'
+                : item.entryStatus === 'Closed'
+                  ? 'danger'
+                  : 'warning'
+            }
+          >
+            Entry {item.entryStatus}
+          </Badge>
+        ) : null}
       </div>
     </Link>
   )

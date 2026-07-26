@@ -1,30 +1,162 @@
-import treks from '../data/treks'
+import { apiGet, apiPatch, apiPost, getApiBase } from './api'
+import localTreks from '../data/treks'
+import localAlerts from '../data/alerts'
 
 /**
- * Trek data access layer.
- * Mock JSON today — swap internals for API calls later without rewriting pages.
+ * Live data layer.
+ * Prefers Treks backend API; falls back to local mock if API is down.
  */
 
+let cache = {
+  treks: null,
+  alerts: null,
+  source: 'idle',
+  error: null,
+}
+
+const crowdRank = { 'Very High': 4, High: 3, Moderate: 2, Low: 1 }
+
+export function getDataSource() {
+  return cache.source
+}
+
+export function getLastError() {
+  return cache.error
+}
+
+function withZeroPeople(list, forDate) {
+  return list.map((t) => ({
+    ...t,
+    forDate,
+    status: {
+      ...t.status,
+      forDate,
+      peopleCount: 0,
+      todayPeople: 0,
+      checkInGroups: 0,
+    },
+  }))
+}
+
+export async function loadLiveData({ force = false, date } = {}) {
+  if (!force && cache.treks && cache.alerts && !date) {
+    return { treks: cache.treks, alerts: cache.alerts, source: cache.source, forDate: cache.forDate }
+  }
+
+  const qs = date ? `?date=${encodeURIComponent(date)}` : ''
+
+  try {
+    const [treksRes, alertsRes] = await Promise.all([
+      apiGet(`/api/treks${qs}`),
+      apiGet('/api/alerts'),
+    ])
+
+    const forDate = treksRes.forDate || date || null
+    cache = {
+      treks: treksRes.data || [],
+      alerts: alertsRes.data || [],
+      source: 'api',
+      error: null,
+      forDate,
+    }
+  } catch (err) {
+    console.warn('[trekService] API unavailable, using local mock:', err.message)
+    const forDate = date || null
+    const base = [...localTreks]
+    cache = {
+      treks: forDate ? withZeroPeople(base, forDate) : base,
+      alerts: [...localAlerts],
+      source: 'mock-fallback',
+      error: err.message,
+      forDate,
+    }
+  }
+
+  return {
+    treks: cache.treks,
+    alerts: cache.alerts,
+    source: cache.source,
+    forDate: cache.forDate,
+  }
+}
+
+/** Fetch board rows for a plan date without wiping global cache alerts. */
+export async function fetchTreksForDate(date) {
+  try {
+    const json = await apiGet(`/api/treks?date=${encodeURIComponent(date)}`)
+    const list = json.data || []
+    cache = {
+      ...cache,
+      treks: list,
+      source: 'api',
+      error: null,
+      forDate: json.forDate || date,
+    }
+    return { treks: list, forDate: json.forDate || date, source: 'api' }
+  } catch (err) {
+    const list = withZeroPeople([...localTreks], date)
+    return { treks: list, forDate: date, source: 'mock-fallback', error: err.message }
+  }
+}
+
+function requireTreks() {
+  return cache.treks || [...localTreks]
+}
+
 export function getAllTreks() {
-  return [...treks]
+  return [...requireTreks()]
 }
 
 export function getTrekBySlug(slug) {
-  return treks.find((trek) => trek.slug === slug) ?? null
+  return requireTreks().find((trek) => trek.slug === slug) ?? null
+}
+
+export async function fetchTrekBySlug(slug, date) {
+  try {
+    const qs = date ? `?date=${encodeURIComponent(date)}` : ''
+    const json = await apiGet(`/api/treks/${encodeURIComponent(slug)}${qs}`)
+    return json.data ?? null
+  } catch {
+    return getTrekBySlug(slug)
+  }
+}
+
+export async function submitCheckIn(slug, payload) {
+  const json = await apiPost(`/api/treks/${encodeURIComponent(slug)}/check-ins`, payload)
+  return json.data
+}
+
+export async function fetchTodayCheckIns(slug) {
+  const json = await apiGet(`/api/treks/${encodeURIComponent(slug)}/check-ins/today`)
+  return json.data
+}
+
+export async function fetchCheckInsForDate(slug, date) {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : ''
+  const json = await apiGet(`/api/treks/${encodeURIComponent(slug)}/check-ins${qs}`)
+  return json.data
+}
+
+export async function patchTrekStatus(slug, fields, token) {
+  const json = await apiPatch(`/api/treks/${encodeURIComponent(slug)}/status`, fields, { token })
+  return json.data
 }
 
 export function getFeaturedTreks(limit = 6) {
-  return treks.filter((trek) => trek.featured).slice(0, limit)
+  return requireTreks()
+    .filter((trek) => trek.featured)
+    .slice(0, limit)
 }
 
 export function getTreksByCategory(category, limit) {
-  const list = treks.filter((trek) => trek.category === category)
+  const list = requireTreks().filter((trek) => trek.category === category)
   return typeof limit === 'number' ? list.slice(0, limit) : list
 }
 
 export function searchTreks(query) {
   const q = query.trim().toLowerCase()
-  if (!q) return getAllTreks()
+  const treks = requireTreks()
+  if (!q) return [...treks]
 
   return treks.filter((trek) => {
     const haystack = [trek.name, trek.location, trek.category, trek.difficulty, trek.overview]
@@ -39,29 +171,25 @@ export function getTreksBySlugs(slugs = []) {
 }
 
 export function getCategories() {
-  return [...new Set(treks.map((t) => t.category))]
+  return [...new Set(requireTreks().map((t) => t.category))]
 }
 
-/** Highest crowd / most activity — for "Trending" */
 export function getTrendingTreks(limit = 6) {
-  const rank = { 'Very High': 4, High: 3, Moderate: 2, Low: 1 }
-  return [...treks]
-    .sort((a, b) => (rank[b.status.crowdLevel] ?? 0) - (rank[a.status.crowdLevel] ?? 0))
+  return [...requireTreks()]
+    .sort((a, b) => (crowdRank[b.status.crowdLevel] ?? 0) - (crowdRank[a.status.crowdLevel] ?? 0))
     .slice(0, limit)
 }
 
-/** Sorted by status.lastUpdated descending */
 export function getRecentlyUpdatedTreks(limit = 6) {
-  return [...treks]
+  return [...requireTreks()]
     .sort((a, b) => new Date(b.status.lastUpdated) - new Date(a.status.lastUpdated))
     .slice(0, limit)
 }
 
-/** Flattened community feed across all treks */
 export function getLatestCommunityUpdates(limit = 8) {
-  return treks
+  return requireTreks()
     .flatMap((trek) =>
-      trek.communityUpdates.map((update) => ({
+      (trek.communityUpdates || []).map((update) => ({
         ...update,
         trekName: trek.name,
         trekSlug: trek.slug,
@@ -71,18 +199,10 @@ export function getLatestCommunityUpdates(limit = 8) {
     .slice(0, limit)
 }
 
-/** Compact live board for homepage dashboard */
-export function getTodaysStatusBoard(limit = 8) {
-  return getRecentlyUpdatedTreks(limit).map((trek) => ({
-    id: trek.id,
-    slug: trek.slug,
-    name: trek.name,
-    category: trek.category,
-    crowdLevel: trek.status.crowdLevel,
-    trailCondition: trek.status.trailCondition,
-    weather: trek.status.weather,
-    parkingStatus: trek.status.parkingStatus,
-    alert: trek.status.alert,
-    lastUpdated: trek.status.lastUpdated,
-  }))
+export function getAlerts() {
+  return [...(cache.alerts || localAlerts)]
+}
+
+export function getApiInfo() {
+  return { baseUrl: getApiBase(), source: cache.source, error: cache.error }
 }

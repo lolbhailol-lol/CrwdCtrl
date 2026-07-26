@@ -3,23 +3,27 @@ import { useSearchParams } from 'react-router-dom'
 import Search from '../components/Search'
 import TrekCard from '../components/TrekCard'
 import Badge from '../components/Badge'
+import LoadingScreen from '../components/LoadingScreen'
 import { CATEGORIES, DIFFICULTIES } from '../utils/constants'
-import { getAllTreks, searchTreks } from '../services/trekService'
+import { useTrekData } from '../context/TrekDataContext'
+
+const ACTIVE_CATEGORIES = CATEGORIES
 
 export default function Explore() {
   const [params, setParams] = useSearchParams()
-  const initialQuery = params.get('q') ?? ''
-  const initialCategory = params.get('category') ?? 'All'
-  const [query, setQuery] = useState(initialQuery)
-  const [category, setCategory] = useState(initialCategory)
+  const [query, setQuery] = useState(params.get('q') ?? '')
+  const [category, setCategory] = useState(params.get('category') ?? 'All')
   const [difficulty, setDifficulty] = useState('All')
+  const { ready, loading, tick, searchTreks, getAllTreks } = useTrekData()
 
   const results = useMemo(() => {
+    if (!ready) return []
     let list = query.trim() ? searchTreks(query) : getAllTreks()
     if (category !== 'All') list = list.filter((t) => t.category === category)
     if (difficulty !== 'All') list = list.filter((t) => t.difficulty === difficulty)
     return list
-  }, [query, category, difficulty])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, tick, query, category, difficulty])
 
   const updateQuery = (value) => {
     setQuery(value)
@@ -37,15 +41,18 @@ export default function Explore() {
     setParams(next, { replace: true })
   }
 
+  if (!ready) {
+    return <LoadingScreen label={loading ? 'Loading destinations…' : 'Loading…'} />
+  }
+
   return (
     <div className="container-wide section-pad py-10 sm:py-14">
       <div className="max-w-2xl">
-        <h1 className="font-display text-4xl font-bold tracking-tight text-forest-800 dark:text-stone sm:text-5xl">
+        <h1 className="text-4xl font-extrabold tracking-tight text-ink sm:text-5xl">
           Explore Destinations
         </h1>
-        <p className="mt-3 text-ink/60 dark:text-stone/60">
-          Maharashtra&apos;s most famous forts, waterfalls, jungle routes, peaks, and valleys —
-          with live-style status on every page.
+        <p className="mt-3 text-muted">
+          Curated iconic Maharashtra destinations — check today&apos;s situation before you leave.
         </p>
       </div>
 
@@ -54,9 +61,9 @@ export default function Explore() {
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        {['All', ...CATEGORIES].map((item) => (
+        {['All', ...ACTIVE_CATEGORIES].map((item) => (
           <button key={item} type="button" onClick={() => updateCategory(item)}>
-            <Badge tone={category === item ? 'trail' : 'soft'}>{item}</Badge>
+            <Badge tone={category === item ? 'brand' : 'soft'}>{item === 'All' ? 'All' : item}</Badge>
           </button>
         ))}
       </div>
@@ -71,7 +78,7 @@ export default function Explore() {
         ))}
       </div>
 
-      <p className="mt-8 text-sm text-ink/50 dark:text-stone/50">
+      <p className="mt-8 text-sm text-muted">
         {results.length} trek{results.length === 1 ? '' : 's'} found
       </p>
 
@@ -83,12 +90,8 @@ export default function Explore() {
         </div>
       ) : (
         <div className="card-surface mt-6 p-10 text-center">
-          <p className="font-display text-xl font-semibold text-forest-800 dark:text-stone">
-            No treks match your filters
-          </p>
-          <p className="mt-2 text-sm text-ink/60 dark:text-stone/60">
-            Try a different search or clear category filters.
-          </p>
+          <p className="text-xl font-semibold text-ink">No treks match your filters</p>
+          <p className="mt-2 text-sm text-muted">Try a different search or clear category filters.</p>
         </div>
       )}
     </div>

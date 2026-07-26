@@ -1,7 +1,7 @@
 export default function Search({
   value,
   onChange,
-  placeholder = 'Search treks, forts, waterfalls…',
+  placeholder = 'Search trails…',
   className = '',
   onSubmit,
 }) {
@@ -15,20 +15,20 @@ export default function Search({
       <label htmlFor="trek-search" className="sr-only">
         Search treks
       </label>
-      <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-forest-600/60 dark:text-forest-300/70">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-          <path d="M20 20L16.5 16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </span>
       <input
         id="trek-search"
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-full border border-forest-800/10 bg-white/90 py-3.5 pl-12 pr-4 text-sm text-ink shadow-sm outline-none transition placeholder:text-ink/40 focus:border-forest-600/40 focus:ring-2 focus:ring-forest-500/20 dark:border-white/10 dark:bg-forest-900/90 dark:text-stone dark:placeholder:text-stone/40 dark:focus:border-trail/40 dark:focus:ring-trail/20"
+        className="h-11 w-full rounded-lg border border-white/10 bg-panel py-2 pl-3.5 pr-20 text-sm text-ink placeholder:text-muted/70 outline-none focus:border-white/25 sm:h-12 sm:pl-4 sm:pr-24"
       />
+      <button
+        type="submit"
+        className="absolute right-1 top-1 bottom-1 rounded-md bg-brand px-3 text-sm font-semibold text-brand-ink hover:bg-brand-hover sm:right-1.5 sm:top-1.5 sm:bottom-1.5 sm:px-4"
+      >
+        Search
+      </button>
     </form>
   )
 }
