@@ -1,0 +1,12 @@
+# Nixpacks configuration for Railway (Treks API)
+# https://nixpacks.com/docs/configuration/file
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+aptPkgs = ["libatomic1"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[start]
+cmd = "npm start"
