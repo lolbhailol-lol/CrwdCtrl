@@ -21,6 +21,14 @@ export const TRAIL_CONDITIONS = ['Open', 'Slippery', 'Closed']
 
 export const ENTRY_STATUSES = ['Open', 'Restricted', 'Closed']
 
+/** Posted updates are stored by severity — one place decides how they read. */
+export const UPDATE_STATUS_META = {
+  alert: { tone: 'danger', label: 'Closure' },
+  warning: { tone: 'warning', label: 'Caution' },
+  ok: { tone: 'success', label: 'All clear' },
+  info: { tone: 'info', label: 'Update' },
+}
+
 export const NAV_LINKS = [
   { label: 'Home', to: '/' },
   { label: 'Explore', to: '/explore' },

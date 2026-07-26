@@ -6,6 +6,12 @@ import { errorHandler, notFound } from './middleware/errorHandler.js'
 
 const app = express()
 
+// Railway/Vercel terminate TLS upstream: without this every visitor shares one
+// rate-limit bucket, so real users get blocked while abuse goes uncounted.
+app.set('trust proxy', 1)
+
+const isProd = env.nodeEnv === 'production'
+
 const allowedOrigins =
   env.corsOrigin === '*'
     ? true
@@ -18,15 +24,16 @@ app.use(
       if (!origin) return callback(null, true)
       if (allowedOrigins === true) return callback(null, true)
       if (allowedOrigins.includes(origin)) return callback(null, true)
-      // Local Vite (any port) — needed when UI hits the Railway API from localhost
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      // Local Vite on any port, development only
+      if (!isProd && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true)
       }
       return callback(new Error(`CORS blocked for origin: ${origin}`))
     },
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Device-Id'],
   }),
 )
-app.use(express.json())
+app.use(express.json({ limit: '16kb' }))
 
 app.get('/', (req, res) => {
   res.json({

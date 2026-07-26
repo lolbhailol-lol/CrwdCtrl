@@ -4,17 +4,21 @@ import { isDbReady } from '../config/db.js'
 
 const router = Router()
 
+/**
+ * Deployment probe. Reports degraded (503) when Mongo is configured but down,
+ * so a broken database is never reported as a healthy service.
+ */
 router.get('/', (req, res) => {
-  res.json({
-    success: true,
+  const mongoConfigured = Boolean(env.mongoUri)
+  const mongoReady = isDbReady()
+  const degraded = mongoConfigured && !mongoReady
+
+  res.status(degraded ? 503 : 200).json({
+    success: !degraded,
     service: 'crwdctrl-treks-backend',
-    status: 'ok',
+    status: degraded ? 'degraded' : 'ok',
+    live: mongoReady,
     time: new Date().toISOString(),
-    keys: {
-      openRouter: Boolean(env.openRouterApiKey),
-      mongo: isDbReady(),
-      scout: Boolean(env.scoutToken),
-    },
   })
 })
 

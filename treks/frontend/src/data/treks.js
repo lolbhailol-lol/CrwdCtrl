@@ -1,6 +1,6 @@
 /**
  * CrwdCtrl Treks lite catalog — Waterfall + Jungle only.
- * Status + community updates are realistic mock "live" data for demo validation.
+ * Static facts only — live status and community updates come from the API.
  */
 
 const img = {
@@ -17,11 +17,6 @@ const img = {
   jungle3: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1600&q=80',
   valley: 'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1600&q=80',
   mist: 'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1600&q=80',
-}
-
-const ago = {
-  m: (n) => new Date(Date.now() - n * 60 * 1000).toISOString(),
-  h: (n) => new Date(Date.now() - n * 60 * 60 * 1000).toISOString(),
 }
 
 function trek(base) {
@@ -74,22 +69,7 @@ export const treks = [
       'Weekend start before 7 AM recommended.',
     ],
     nearbyTreks: ["andharban","bhivpuri-waterfall","aadrai"],
-    status: {
-      crowdLevel: 'High',
-      weather: 'Overcast drizzle, 23°C · waterfall at strong flow',
-      trailCondition: 'Slippery',
-      parkingStatus: 'Nearly full · overflow on approach road',
-      forestAdvisory: 'Entry open with ID check at base.',
-      alert: 'Stream crossing deeper than usual',
-      lastUpdated: ago.m(11),
-      entryStatus: 'Restricted',
-    },
-    communityUpdates: [
-      { id: 'd1', message: 'Heavy rain since 9:30 AM — stream crossing deeper than usual.', timestamp: ago.m(5), status: 'warning', source: 'Forest desk' },
-      { id: 'd2', message: 'Parking almost full near Bhira base.', timestamp: ago.m(18), status: 'warning', source: 'Field report' },
-      { id: 'd3', message: 'Waterfall at full flow. Avoid swimming in the pool.', timestamp: ago.m(45), status: 'alert', source: 'Local volunteer' },
-      { id: 'd4', message: 'Forest officials allowing entry with ID.', timestamp: ago.h(2.0), status: 'ok', source: 'Base checkpoint' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -131,21 +111,7 @@ export const treks = [
       'Return before dark in mist.',
     ],
     nearbyTreks: ["naneghat","devkund"],
-    status: {
-      crowdLevel: 'Very High',
-      weather: 'Breezy showers, 22°C · falls looking excellent',
-      trailCondition: 'Open',
-      parkingStatus: 'Full · park 500m before main base',
-      forestAdvisory: 'Trail open. Follow volunteer guidance at base.',
-      alert: 'Parking full since 7:15 AM',
-      lastUpdated: ago.m(7),
-      entryStatus: 'Open',
-    },
-    communityUpdates: [
-      { id: 'k1', message: 'Waterfall at full flow — great lower viewpoint.', timestamp: ago.m(4), status: 'warning', source: 'Trekker report' },
-      { id: 'k2', message: 'Parking almost full. Arrive before 7 AM.', timestamp: ago.m(30), status: 'warning', source: 'Forest desk' },
-      { id: 'k3', message: 'Trail slippery near midpoint rock patch.', timestamp: ago.h(1.0), status: 'warning', source: 'Field report' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -187,20 +153,7 @@ export const treks = [
       'Keep group together in misty stretches.',
     ],
     nearbyTreks: ["devkund","andharban","aadrai"],
-    status: {
-      crowdLevel: 'High',
-      weather: 'Steady light rain, 22°C',
-      trailCondition: 'Slippery',
-      parkingStatus: 'Limited village parking · nearly full',
-      forestAdvisory: 'Entry open. Stay on stream path.',
-      alert: 'Trail slippery after checkpoint',
-      lastUpdated: ago.m(25),
-      entryStatus: 'Open',
-    },
-    communityUpdates: [
-      { id: 'nm1', message: 'Trail slippery after checkpoint — poles help.', timestamp: ago.m(12), status: 'warning', source: 'Local volunteer' },
-      { id: 'nm2', message: 'Waterfall flowing strong today.', timestamp: ago.h(1.0), status: 'ok', source: 'Base checkpoint' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -242,20 +195,7 @@ export const treks = [
       'Do not cross barriers for photos.',
     ],
     nearbyTreks: ["thoseghar-waterfalls","randha-falls"],
-    status: {
-      crowdLevel: 'Very High',
-      weather: 'Misty rain, 20°C · falls fully active',
-      trailCondition: 'Slippery',
-      parkingStatus: 'Paid lot nearly full',
-      forestAdvisory: 'Viewpoint open. Barriers mandatory.',
-      alert: 'Very high tourist crowd till afternoon',
-      lastUpdated: ago.m(9),
-      entryStatus: 'Restricted',
-    },
-    communityUpdates: [
-      { id: 'lm1', message: 'Waterfall at full flow — viewpoints packed.', timestamp: ago.m(6), status: 'warning', source: 'Trekker report' },
-      { id: 'lm2', message: 'Parking almost full at main entry.', timestamp: ago.m(40), status: 'warning', source: 'Forest desk' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -297,20 +237,7 @@ export const treks = [
       'Weekends are extremely crowded.',
     ],
     nearbyTreks: ["randha-falls","lingmala-waterfall"],
-    status: {
-      crowdLevel: 'Very High',
-      weather: 'Heavy mist, 19°C · multiple falls roaring',
-      trailCondition: 'Open',
-      parkingStatus: 'Main parking full · roadside overflow',
-      forestAdvisory: 'Site open. Follow ticketed entry rules.',
-      alert: 'Tourist bus congestion at entry',
-      lastUpdated: ago.m(19),
-      entryStatus: 'Restricted',
-    },
-    communityUpdates: [
-      { id: 'th1', message: 'All major viewpoints open; mist reducing visibility in spells.', timestamp: ago.m(14), status: 'ok', source: 'Field report' },
-      { id: 'th2', message: 'Parking full — overflow on approach road.', timestamp: ago.m(50), status: 'warning', source: 'Local volunteer' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -352,20 +279,7 @@ export const treks = [
       'Secure valuables — busy picnic environment.',
     ],
     nearbyTreks: ["devkund","kalu-waterfall","nanemachi-waterfall"],
-    status: {
-      crowdLevel: 'Very High',
-      weather: 'Humid rain spells, 25°C',
-      trailCondition: 'Slippery',
-      parkingStatus: 'Chaotic · park early or use designated lots',
-      forestAdvisory: 'Access open. Follow local marshals if present.',
-      alert: 'Extremely crowded picnic zones',
-      lastUpdated: ago.m(6),
-      entryStatus: 'Open',
-    },
-    communityUpdates: [
-      { id: 'bh1', message: 'Parking almost full by 8 AM.', timestamp: ago.m(5), status: 'warning', source: 'Base checkpoint' },
-      { id: 'bh2', message: 'Waterfall at full flow near the lower cascades.', timestamp: ago.m(28), status: 'warning', source: 'Trekker report' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -407,20 +321,7 @@ export const treks = [
       'Do not climb barriers.',
     ],
     nearbyTreks: ["thoseghar-waterfalls","devkund","kalu-waterfall"],
-    status: {
-      crowdLevel: 'High',
-      weather: 'Overcast, 21°C · falls at high volume',
-      trailCondition: 'Open',
-      parkingStatus: 'Filling · arrive before 9 AM',
-      forestAdvisory: 'Viewpoint open.',
-      alert: 'High water volume — stay behind railings',
-      lastUpdated: ago.m(42),
-      entryStatus: 'Open',
-    },
-    communityUpdates: [
-      { id: 'rf1', message: 'Falls roaring — spray reaching the viewpoint.', timestamp: ago.m(30), status: 'info', source: 'Forest desk' },
-      { id: 'rf2', message: 'Bridge open; access normal today.', timestamp: ago.h(2.0), status: 'ok', source: 'Field report' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -462,21 +363,7 @@ export const treks = [
       'Stay with the group in low visibility.',
     ],
     nearbyTreks: ["aadrai","devkund","plus-valley"],
-    status: {
-      crowdLevel: 'Moderate',
-      weather: 'Foggy canopy, 20°C · intermittent showers',
-      trailCondition: 'Slippery',
-      parkingStatus: 'Space at Pimpri start',
-      forestAdvisory: 'Permission checks active. Carry confirmed entry details.',
-      alert: 'Leeches reported after second stream crossing',
-      lastUpdated: ago.m(48),
-      entryStatus: 'Restricted',
-    },
-    communityUpdates: [
-      { id: 'a1', message: 'Trail muddy near midpoint. Poles recommended.', timestamp: ago.m(35), status: 'info', source: 'Local volunteer' },
-      { id: 'a2', message: 'Leeches spotted after the second stream crossing.', timestamp: ago.h(1.5), status: 'warning', source: 'Base checkpoint' },
-      { id: 'a3', message: 'Exit-side pickup running on time today.', timestamp: ago.h(4.0), status: 'info', source: 'Trekker report' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -518,20 +405,7 @@ export const treks = [
       'Watch water-level rise at crossings.',
     ],
     nearbyTreks: ["andharban","devkund","madhe-ghat"],
-    status: {
-      crowdLevel: 'Low',
-      weather: 'Heavy cloud, 19°C · persistent damp undergrowth',
-      trailCondition: 'Slippery',
-      parkingStatus: 'Open — few vehicles at base',
-      forestAdvisory: 'Entry only with valid forest permission.',
-      alert: 'Stream crossings higher after overnight rain',
-      lastUpdated: ago.h(2.0),
-      entryStatus: 'Restricted',
-    },
-    communityUpdates: [
-      { id: 'ad1', message: 'Forest department allowing entry with prior permission only.', timestamp: ago.h(1.0), status: 'ok', source: 'Forest desk' },
-      { id: 'ad2', message: 'Stream crossings higher after overnight rain.', timestamp: ago.h(3.0), status: 'info', source: 'Field report' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -573,19 +447,7 @@ export const treks = [
       'Start early; daylight matters in dense cover.',
     ],
     nearbyTreks: ["aadrai","andharban","plus-valley"],
-    status: {
-      crowdLevel: 'Low',
-      weather: 'Cool drizzle, 20°C · dense canopy drip',
-      trailCondition: 'Slippery',
-      parkingStatus: 'Open',
-      forestAdvisory: 'Open on common route. Confirm before remote variants.',
-      alert: 'Muddy mid-section after morning rain',
-      lastUpdated: ago.h(3.5),
-      entryStatus: 'Open',
-    },
-    communityUpdates: [
-      { id: 'mg1', message: 'Trail soft and muddy near the mid bamboo stretch.', timestamp: ago.h(2.0), status: 'info', source: 'Local volunteer' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -627,20 +489,7 @@ export const treks = [
       'Do not leave marked approaches.',
     ],
     nearbyTreks: ["andharban","aadrai","devkund"],
-    status: {
-      crowdLevel: 'Moderate',
-      weather: 'Broken clouds, 21°C · valley wind picking up',
-      trailCondition: 'Open',
-      parkingStatus: 'Limited base parking · half full',
-      forestAdvisory: 'Entry with valid permission where applicable.',
-      alert: 'No active restriction',
-      lastUpdated: ago.h(1.2),
-      entryStatus: 'Restricted',
-    },
-    communityUpdates: [
-      { id: 'pv1', message: 'Valley views open between cloud spells.', timestamp: ago.m(50), status: 'ok', source: 'Base checkpoint' },
-      { id: 'pv2', message: 'Stream crossings manageable this morning.', timestamp: ago.h(2.0), status: 'ok', source: 'Trekker report' },
-    ],
+    status: {},
   }),
 
   trek({
@@ -682,19 +531,7 @@ export const treks = [
       'Monsoon rock is slippery near steps.',
     ],
     nearbyTreks: ["kalu-waterfall","andharban","aadrai"],
-    status: {
-      crowdLevel: 'Moderate',
-      weather: 'Clear, 24°C · excellent pass visibility',
-      trailCondition: 'Open',
-      parkingStatus: 'Available at common base',
-      forestAdvisory: 'Open.',
-      alert: 'No active restriction',
-      lastUpdated: ago.h(2.8),
-      entryStatus: 'Open',
-    },
-    communityUpdates: [
-      { id: 'ng1', message: 'Cave area clear; light breeze on the pass.', timestamp: ago.h(2.0), status: 'ok', source: 'Forest desk' },
-    ],
+    status: {},
   }),
 
 ]

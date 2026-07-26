@@ -26,7 +26,9 @@ export default function TrekCard({ trek }) {
 
       <div className="flex flex-wrap items-center gap-2 p-4">
         <Badge tone={difficultyTone(trek.difficulty)}>{trek.difficulty}</Badge>
-        <Badge tone={crowdTone(trek.status.crowdLevel)}>{trek.status.crowdLevel}</Badge>
+        {trek.status?.crowdLevel ? (
+          <Badge tone={crowdTone(trek.status.crowdLevel)}>{trek.status.crowdLevel}</Badge>
+        ) : null}
         <span className="text-xs text-muted">{trek.distance}</span>
         <span className="text-white/20">·</span>
         <span className="text-xs text-muted">{trek.duration}</span>

@@ -19,7 +19,6 @@ export default function QuickMarkIn({
   treks = [],
   initialSlug = '',
   selectedDate,
-  onDateChange,
   planDays: planDaysProp,
   onSuccess,
 }) {
@@ -34,6 +33,7 @@ export default function QuickMarkIn({
   const [done, setDone] = useState(false)
   const [confirmed, setConfirmed] = useState(null)
   const wasOpen = useRef(false)
+  const panelRef = useRef(null)
 
   // Only reset the form when the sheet opens — not when board data refreshes after confirm
   useEffect(() => {
@@ -59,6 +59,43 @@ export default function QuickMarkIn({
     }
   }, [open])
 
+  // Escape closes; Tab stays inside the sheet
+  useEffect(() => {
+    if (!open) return
+    const panel = panelRef.current
+    const focusables = () =>
+      Array.from(
+        panel?.querySelectorAll(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+        ) || [],
+      )
+
+    focusables()[0]?.focus()
+
+    function onKeyDown(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose?.()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const items = focusables()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open, onClose, done])
+
   useEffect(() => {
     if (source === 'solo') setGroupSize(1)
     else if (groupSize === 1 || groupSize === '') setGroupSize(2)
@@ -71,9 +108,10 @@ export default function QuickMarkIn({
   const confirmedName = confirmed?.name || selected?.name
   const confirmedSlug = confirmed?.slug || selected?.slug
 
+  // Picking a day in here changes what you are marking in for, not the board
+  // behind the sheet — the board follows only after a successful submit.
   function changeDate(next) {
     setDate(next)
-    onDateChange?.(next)
   }
 
   async function handleSubmit(e) {
@@ -91,7 +129,7 @@ export default function QuickMarkIn({
         setSubmitting(false)
         return
       }
-      await submitCheckIn(slug, {
+      const result = await submitCheckIn(slug, {
         date,
         displayName:
           source === 'community' ? communityName.trim() : source === 'friend' ? 'Group' : 'Solo',
@@ -100,7 +138,7 @@ export default function QuickMarkIn({
         communityName: source === 'community' ? communityName.trim() : '',
       })
       const trekName = treks.find((t) => t.slug === slug)?.name || 'Trail'
-      setConfirmed({ slug, name: trekName, date })
+      setConfirmed({ slug, name: trekName, date, created: result?.created !== false })
       setDone(true)
       // Refresh board in background — success screen stays until user dismisses
       onSuccess?.(date)
@@ -119,20 +157,28 @@ export default function QuickMarkIn({
   const noTrails = !treks.length
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center">
+    <div className="fixed inset-0 z-80 flex items-end justify-center sm:items-center">
       <button
         type="button"
         aria-label="Close"
         className="absolute inset-0 bg-canvas/70"
         onClick={onClose}
       />
-      <div className="relative z-10 flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-white/10 bg-panel sm:rounded-xl">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mark-in-title"
+        className="relative z-10 flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-white/10 bg-panel sm:rounded-xl"
+      >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/8 px-4 py-3 sm:px-6 sm:py-4">
-          <h2 className="text-lg font-semibold text-ink">Mark me in · {dayLabel}</h2>
+          <h2 id="mark-in-title" className="text-lg font-semibold text-ink">
+            Mark me in · {dayLabel}
+          </h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-2.5 py-1 text-xs font-medium text-muted hover:bg-white/5 hover:text-ink"
+            className="min-h-11 rounded-md px-3 text-xs font-medium text-muted hover:bg-white/5 hover:text-ink"
           >
             Close
           </button>
@@ -142,10 +188,17 @@ export default function QuickMarkIn({
         {done ? (
           <div className="space-y-3 py-1">
             <div className="rounded-xl border border-brand/25 bg-brand/10 px-4 py-3">
-              <p className="text-sm font-semibold text-brand">You&apos;re on the board</p>
+              <p className="text-sm font-semibold text-brand">
+                {confirmed?.created === false ? 'Mark-in updated' : "You're on the board"}
+              </p>
               <p className="mt-1 text-sm text-ink">
                 {confirmedName || 'Trail'} · {dayLabel}
               </p>
+              {confirmed?.created === false ? (
+                <p className="mt-1 text-xs text-muted">
+                  You had already marked in for this day, so we replaced your earlier entry.
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">

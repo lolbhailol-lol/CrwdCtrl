@@ -1,3 +1,5 @@
+import { getDeviceId } from '../utils/deviceId'
+
 function normalizeApiBase(raw) {
   return String(raw || 'http://localhost:5055')
     .replace(/^\uFEFF/, '')
@@ -46,6 +48,7 @@ export async function apiPost(path, data) {
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      'X-Device-Id': getDeviceId(),
     },
     body: JSON.stringify(data ?? {}),
   })

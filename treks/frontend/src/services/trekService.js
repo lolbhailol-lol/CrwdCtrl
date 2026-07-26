@@ -12,7 +12,11 @@ let cache = {
   alerts: null,
   source: 'idle',
   error: null,
+  forDate: null,
 }
+
+/** Board rows per plan date, kept out of `cache` so Explore/Alerts always read today. */
+const boardByDate = new Map()
 
 const crowdRank = { 'Very High': 4, High: 3, Moderate: 2, Low: 1 }
 
@@ -24,55 +28,73 @@ export function getLastError() {
   return cache.error
 }
 
-function withZeroPeople(list, forDate) {
+/** Offline rows: static facts with nothing claimed about the trail. */
+function emptyStatus(forDate) {
+  return {
+    crowdLevel: null,
+    weather: null,
+    trailCondition: null,
+    parkingStatus: null,
+    forestAdvisory: null,
+    entryStatus: null,
+    alert: null,
+    forDate: forDate || null,
+    peopleCount: 0,
+    todayPeople: 0,
+    checkInGroups: 0,
+    statusUpdatedAt: null,
+    checkInUpdatedAt: null,
+    lastUpdated: null,
+    conditionsFresh: false,
+  }
+}
+
+function withoutLiveData(list, forDate) {
   return list.map((t) => ({
     ...t,
-    forDate,
-    status: {
-      ...t.status,
-      forDate,
-      peopleCount: 0,
-      todayPeople: 0,
-      checkInGroups: 0,
-    },
+    forDate: forDate || null,
+    status: emptyStatus(forDate),
+    goingSummary: { solo: 0, friend: 0, community: 0, communityNames: [] },
+    communityUpdates: [],
+    reportedContacts: [],
   }))
 }
 
-export async function loadLiveData({ force = false, date } = {}) {
-  if (!force && cache.treks && cache.alerts && !date) {
+/**
+ * Loads today's catalog — the default read behind Explore, Alerts and the nav
+ * badge. Board rows for other dates go through `fetchTreksForDate`.
+ */
+export async function loadLiveData({ force = false } = {}) {
+  if (!force && cache.treks && cache.alerts) {
     return { treks: cache.treks, alerts: cache.alerts, source: cache.source, forDate: cache.forDate }
   }
 
-  const qs = date ? `?date=${encodeURIComponent(date)}` : ''
-
   try {
-    const [treksRes, alertsRes] = await Promise.all([
-      apiGet(`/api/treks${qs}`),
-      apiGet('/api/alerts'),
-    ])
+    const [treksRes, alertsRes] = await Promise.all([apiGet('/api/treks'), apiGet('/api/alerts')])
 
     if (!treksRes || !Array.isArray(treksRes.data)) {
       throw new Error('Invalid treks API response')
     }
 
-    const forDate = treksRes.forDate || date || null
+    const forDate = treksRes.forDate || null
+    // API up but its database is down: rows are real, live reports are missing
+    const source = treksRes.live === false ? 'api-no-db' : 'api'
     cache = {
       treks: treksRes.data,
       alerts: Array.isArray(alertsRes?.data) ? alertsRes.data : [],
-      source: 'api',
-      error: null,
+      source,
+      error: treksRes.live === false ? 'Live reports unavailable' : null,
       forDate,
     }
+    boardByDate.set(forDate, { treks: treksRes.data, forDate, source })
   } catch (err) {
-    console.warn('[trekService] API unavailable, using local mock:', err.message)
-    const forDate = date || null
-    const base = [...localTreks]
+    console.warn('[trekService] API unavailable, using local catalog:', err.message)
     cache = {
-      treks: forDate ? withZeroPeople(base, forDate) : base,
+      treks: withoutLiveData([...localTreks], null),
       alerts: [...localAlerts],
       source: 'mock-fallback',
       error: err.message,
-      forDate,
+      forDate: null,
     }
   }
 
@@ -84,31 +106,42 @@ export async function loadLiveData({ force = false, date } = {}) {
   }
 }
 
-/** Fetch board rows for a plan date without wiping global cache alerts. */
+/**
+ * Board rows for a plan date. Cached per date so a future-day board never
+ * becomes the answer for Explore, Alerts or the nav badge.
+ */
 export async function fetchTreksForDate(date) {
   try {
     const json = await apiGet(`/api/treks?date=${encodeURIComponent(date)}`)
     if (!json || !Array.isArray(json.data)) {
       throw new Error('Invalid treks API response')
     }
-    const list = json.data
     const forDate = json.forDate || date
-    cache = {
-      ...cache,
-      treks: list,
-      source: 'api',
-      error: null,
-      forDate,
-    }
-    return { treks: list, forDate, source: 'api' }
+    const source = json.live === false ? 'api-no-db' : 'api'
+    const error = json.live === false ? 'Live reports unavailable' : null
+    const result = { treks: json.data, forDate, source, error }
+    boardByDate.set(forDate, result)
+    cache = { ...cache, source, error }
+    return result
   } catch (err) {
-    const list = withZeroPeople([...localTreks], date)
-    return { treks: list, forDate: date, source: 'mock-fallback', error: err.message }
+    // The board falls back to the catalog, so the pill and banner must both say Demo.
+    cache = { ...cache, source: 'mock-fallback', error: err.message }
+    return {
+      treks: withoutLiveData([...localTreks], date),
+      forDate: date,
+      source: 'mock-fallback',
+      error: err.message,
+    }
   }
 }
 
+/** Last known rows for a date — lets the board switch days without a blank flash. */
+export function getCachedBoard(date) {
+  return boardByDate.get(date)?.treks || null
+}
+
 function requireTreks() {
-  return cache.treks || [...localTreks]
+  return cache.treks || withoutLiveData([...localTreks], cache.forDate)
 }
 
 export function getAllTreks() {
@@ -123,31 +156,29 @@ export async function fetchTrekBySlug(slug, date) {
   try {
     const qs = date ? `?date=${encodeURIComponent(date)}` : ''
     const json = await apiGet(`/api/treks/${encodeURIComponent(slug)}${qs}`)
-    return json.data ?? null
-  } catch {
-    return getTrekBySlug(slug)
+    if (!json?.data) throw new Error('Invalid trek API response')
+    cache = { ...cache, source: 'api', error: null }
+    return json.data
+  } catch (err) {
+    cache = { ...cache, source: 'mock-fallback', error: err.message }
+    const local = localTreks.find((t) => t.slug === slug)
+    return local ? withoutLiveData([local], date)[0] : null
   }
 }
 
 export async function submitCheckIn(slug, payload) {
   const json = await apiPost(`/api/treks/${encodeURIComponent(slug)}/check-ins`, payload)
-  return json.data
+  return { ...json.data, created: json.created !== false }
+}
+
+export async function submitEmergencyContact(slug, payload) {
+  const json = await apiPost(`/api/treks/${encodeURIComponent(slug)}/contacts`, payload)
+  return json.data.contact
 }
 
 export async function submitCommunityUpdate(slug, payload) {
   const json = await apiPost(`/api/treks/${encodeURIComponent(slug)}/updates`, payload)
   return json.data
-}
-
-export function formatGoingSummary(summary) {
-  if (!summary) return ''
-  const parts = []
-  if (summary.solo) parts.push(`${summary.solo} solo`)
-  if (summary.friend) parts.push(`${summary.friend} group${summary.friend === 1 ? '' : 's'}`)
-  if (summary.community) parts.push(`${summary.community} community`)
-  const names = (summary.communityNames || []).slice(0, 3)
-  if (names.length) parts.push(names.join(', '))
-  return parts.join(' · ')
 }
 
 export async function fetchTodayCheckIns(slug) {
@@ -200,12 +231,13 @@ export function getCategories() {
 
 export function getTrendingTreks(limit = 6) {
   return [...requireTreks()]
-    .sort((a, b) => (crowdRank[b.status.crowdLevel] ?? 0) - (crowdRank[a.status.crowdLevel] ?? 0))
+    .sort((a, b) => (crowdRank[b.status?.crowdLevel] ?? 0) - (crowdRank[a.status?.crowdLevel] ?? 0))
     .slice(0, limit)
 }
 
 export function getRecentlyUpdatedTreks(limit = 6) {
   return [...requireTreks()]
+    .filter((t) => t.status?.lastUpdated)
     .sort((a, b) => new Date(b.status.lastUpdated) - new Date(a.status.lastUpdated))
     .slice(0, limit)
 }
@@ -217,6 +249,7 @@ export function getLatestCommunityUpdates(limit = 8) {
         ...update,
         trekName: trek.name,
         trekSlug: trek.slug,
+        trekCategory: trek.category,
       })),
     )
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
@@ -225,6 +258,110 @@ export function getLatestCommunityUpdates(limit = 8) {
 
 export function getAlerts() {
   return [...(cache.alerts || localAlerts)]
+}
+
+/** Reported alert text, minus the "no active alert" placeholders scouts type. */
+function meaningfulAlert(text) {
+  const value = String(text || '').trim()
+  if (!value) return ''
+  return value.toLowerCase().includes('no active') ? '' : value
+}
+
+/**
+ * The one warning read for a trail. Board rows, the Alerts page and both nav
+ * badges call this, so they can never disagree about what is wrong.
+ * Returns null when nothing is reported.
+ */
+export function getTrailSignal(status) {
+  const s = status || {}
+  const entryBlocked = s.entryStatus && s.entryStatus !== 'Open'
+  const trailBlocked = s.trailCondition && s.trailCondition !== 'Open'
+  const note = meaningfulAlert(s.alert)
+  if (!entryBlocked && !trailBlocked && !note) return null
+
+  const headline = entryBlocked
+    ? `Entry ${s.entryStatus}`
+    : trailBlocked
+      ? `Trail ${s.trailCondition}`
+      : 'Advisory'
+
+  return {
+    headline,
+    note,
+    label: entryBlocked || trailBlocked ? headline : note,
+    severity: entryBlocked || s.trailCondition === 'Closed' ? 'critical' : 'warning',
+    reportedAt: s.statusUpdatedAt || null,
+  }
+}
+
+/** How long a trekker's closure or caution report keeps counting as an alert. */
+const REPORTED_ISSUE_HOURS = 24
+
+/** A trekker posting "Closure" is an alert for that trail, not just a note. */
+function reportedIssue(trek) {
+  const cutoff = Date.now() - REPORTED_ISSUE_HOURS * 60 * 60 * 1000
+  const posts = (trek?.communityUpdates || []).filter(
+    (u) =>
+      (u.status === 'alert' || u.status === 'warning') &&
+      new Date(u.timestamp).getTime() >= cutoff,
+  )
+  if (!posts.length) return null
+
+  const worst = posts.find((u) => u.status === 'alert') || posts[0]
+  const headline = worst.status === 'alert' ? 'Closure reported' : 'Caution reported'
+  return {
+    headline,
+    note: worst.message,
+    label: headline,
+    severity: worst.status === 'alert' ? 'critical' : 'warning',
+    reportedAt: worst.timestamp,
+  }
+}
+
+const worstFirst = (a, b) => {
+  if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1
+  return new Date(b.reportedAt || 0) - new Date(a.reportedAt || 0)
+}
+
+/**
+ * The single warning read for a trail, from scout status *or* what trekkers
+ * posted. Board rows, Alerts and the nav badges all go through this.
+ */
+export function getTrekAlert(trek) {
+  const candidates = [getTrailSignal(trek?.status), reportedIssue(trek)].filter(Boolean)
+  if (!candidates.length) return null
+  return candidates.sort(worstFirst)[0]
+}
+
+/** Trails that are closed, restricted or carrying a warning right now. */
+export function getTrailIssues() {
+  return requireTreks()
+    .map((trek) => {
+      const signal = getTrekAlert(trek)
+      if (!signal) return null
+      return {
+        slug: trek.slug,
+        name: trek.name,
+        location: trek.location,
+        category: trek.category,
+        headline: signal.headline,
+        severity: signal.severity,
+        note: signal.note,
+        lastUpdated: signal.reportedAt,
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1
+      return new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0)
+    })
+}
+
+/** Trekker-posted updates tagged as a closure or caution. */
+export function getReportedAlerts(limit = 20) {
+  return getLatestCommunityUpdates(80)
+    .filter((update) => update.status === 'alert' || update.status === 'warning')
+    .slice(0, limit)
 }
 
 export function getApiInfo() {

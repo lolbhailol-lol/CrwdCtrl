@@ -1,27 +1,14 @@
 import { Link } from 'react-router-dom'
 import Badge from './Badge'
 import { useTrekData } from '../context/TrekDataContext'
+import { UPDATE_STATUS_META } from '../utils/constants'
 import { formatRelativeTime } from '../utils/formatters'
 
-const statusTone = {
-  ok: 'success',
-  info: 'info',
-  warning: 'warning',
-  alert: 'danger',
-}
-
-const statusLabel = {
-  ok: 'Clear',
-  info: 'Update',
-  warning: 'Caution',
-  alert: 'Alert',
-}
-
-export default function CommunityUpdateCard({ update, showTrek = false }) {
+export default function CommunityUpdateCard({ update, showTrek = false, highlight = false }) {
   const { nowTick } = useTrekData()
   void nowTick
-  const tone = statusTone[update.status] ?? 'soft'
-  const label = statusLabel[update.status] ?? 'Update'
+  const { tone, label } = UPDATE_STATUS_META[update.status] ?? UPDATE_STATUS_META.info
+  const ring = highlight ? ' ring-1 ring-brand/40' : ''
 
   const body = (
     <>
@@ -50,12 +37,12 @@ export default function CommunityUpdateCard({ update, showTrek = false }) {
     return (
       <Link
         to={`/trek/${update.trekSlug}`}
-        className="card-surface flex gap-4 p-4 transition hover:border-brand/40"
+        className={`card-surface flex gap-4 p-4 transition hover:border-brand/40${ring}`}
       >
         {body}
       </Link>
     )
   }
 
-  return <article className="card-surface flex gap-4 p-4">{body}</article>
+  return <article className={`card-surface flex gap-4 p-4${ring}`}>{body}</article>
 }

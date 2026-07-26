@@ -1,69 +1,67 @@
-import { useState } from 'react'
-import Button from './Button'
-import { submitCommunityUpdate } from '../services/trekService'
+import { useEffect, useRef, useState } from 'react'
+import ShareUpdateForm from './ShareUpdateForm'
 
-const TAGS = [
-  { value: 'crowd', label: 'Crowd' },
-  { value: 'trail', label: 'Trail' },
-  { value: 'weather', label: 'Weather' },
-  { value: 'closure', label: 'Closure' },
-  { value: 'info', label: 'Info' },
-]
-
+/**
+ * Trek page: a full-width call to action that opens the update form in place.
+ * Collapses shortly after posting so the posted update is what stays on screen.
+ */
 export default function ShareUpdate({ slug, onSuccess }) {
   const [open, setOpen] = useState(false)
-  const [message, setMessage] = useState('')
-  const [tag, setTag] = useState('info')
-  const [displayName, setDisplayName] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+  const closeTimer = useRef(null)
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    const note = message.trim()
-    if (!note) {
-      setError('Write a short update.')
-      return
-    }
-    setSubmitting(true)
-    try {
-      const data = await submitCommunityUpdate(slug, {
-        message: note,
-        tag,
-        displayName: displayName.trim() || 'Trekker',
-      })
-      setDone(true)
-      onSuccess?.(data.trek)
-      setMessage('')
-      setTag('info')
-    } catch (err) {
-      setError(err.message || 'Could not post update.')
-    } finally {
-      setSubmitting(false)
-    }
+  useEffect(() => () => window.clearTimeout(closeTimer.current), [])
+
+  function handlePosted(trek, update) {
+    setDone(true)
+    onSuccess?.(trek, update)
+    closeTimer.current = window.setTimeout(() => {
+      setOpen(false)
+      setDone(false)
+    }, 1400)
   }
 
   if (!open) {
     return (
-      <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setOpen(true)}>
-        Share a trail update
-      </Button>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-3 rounded-xl border border-brand/30 bg-brand/10 px-4 py-4 text-left transition hover:border-brand/50 hover:bg-brand/15"
+      >
+        <span
+          aria-hidden="true"
+          className="material-symbols-outlined shrink-0 text-[26px] text-brand"
+        >
+          campaign
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-semibold text-brand">Share a trail update</span>
+          <span className="mt-0.5 block text-xs text-muted">
+            Crowd, trail, weather or a closure — 10 seconds, no login
+          </span>
+        </span>
+        <span aria-hidden="true" className="material-symbols-outlined text-[20px] text-brand">
+          arrow_forward
+        </span>
+      </button>
     )
   }
 
   return (
-    <div className="card-surface p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-ink">Share update</h3>
+    <div className="rounded-xl border border-brand/25 bg-panel p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-base font-semibold text-ink">Share a trail update</h3>
+          <p className="mt-0.5 text-xs text-muted">
+            Only post what you saw yourself — others plan around it.
+          </p>
+        </div>
         <button
           type="button"
-          className="text-xs text-muted hover:text-ink"
+          className="min-h-11 shrink-0 px-2 text-xs font-medium text-muted hover:text-ink"
           onClick={() => {
             setOpen(false)
             setDone(false)
-            setError('')
           }}
         >
           Close
@@ -71,46 +69,13 @@ export default function ShareUpdate({ slug, onSuccess }) {
       </div>
 
       {done ? (
-        <p className="mt-3 text-sm text-brand">Posted — thanks for helping others.</p>
+        <p className="mt-4 text-sm font-medium text-brand">
+          Posted — it&apos;s at the top of the list below.
+        </p>
       ) : (
-        <form onSubmit={handleSubmit} className="mt-3 space-y-3">
-          <div className="flex flex-wrap gap-1.5">
-            {TAGS.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setTag(t.value)}
-                className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
-                  tag === t.value
-                    ? 'bg-brand/15 text-brand ring-1 ring-brand/35'
-                    : 'bg-white/5 text-muted hover:text-ink'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            maxLength={280}
-            required
-            rows={3}
-            placeholder="e.g. Stream crossing deeper than usual — poles help."
-            className="w-full rounded-lg border border-white/10 bg-panel-2 px-3 py-2 text-sm text-ink outline-none focus:border-brand/40"
-          />
-          <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            maxLength={60}
-            placeholder="Name (optional)"
-            className="w-full rounded-lg border border-white/10 bg-panel-2 px-3 py-2 text-sm text-ink outline-none focus:border-brand/40"
-          />
-          {error ? <p className="text-sm text-danger">{error}</p> : null}
-          <Button type="submit" className="w-full" size="sm" disabled={submitting}>
-            {submitting ? 'Posting…' : 'Post update'}
-          </Button>
-        </form>
+        <div className="mt-4">
+          <ShareUpdateForm slug={slug} onPosted={handlePosted} />
+        </div>
       )}
     </div>
   )

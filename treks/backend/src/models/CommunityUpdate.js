@@ -18,4 +18,7 @@ const communityUpdateSchema = new mongoose.Schema(
   },
 )
 
+// Newest-per-trail is the only read pattern we have
+communityUpdateSchema.index({ trekSlug: 1, createdAt: -1 })
+
 export default mongoose.model('CommunityUpdate', communityUpdateSchema)

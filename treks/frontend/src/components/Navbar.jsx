@@ -5,9 +5,9 @@ import { useTrekData } from '../context/TrekDataContext'
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
-  const { ready, tick, getAlerts } = useTrekData()
+  const { ready, tick, getTrailIssues } = useTrekData()
   const alertCount = useMemo(
-    () => (ready ? getAlerts().length : 0),
+    () => (ready ? getTrailIssues().length : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ready, tick],
   )
@@ -25,16 +25,19 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="md:hidden rounded-full p-2 text-brand hover:bg-brand/10"
+            className="md:hidden flex h-11 w-11 items-center justify-center rounded-full text-brand hover:bg-brand/10"
             aria-label="Toggle menu"
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
           >
-            <span className="material-symbols-outlined text-2xl">menu</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-2xl">
+              menu
+            </span>
           </button>
 
           <Link to="/" className="group flex items-center gap-2.5" onClick={() => setOpen(false)}>
             <span
+              aria-hidden="true"
               className="material-symbols-outlined text-3xl text-brand transition-transform group-hover:scale-105"
               style={{ fontVariationSettings: "'FILL' 1" }}
             >
@@ -66,10 +69,12 @@ export default function Navbar() {
 
         <Link
           to="/alerts"
-          className="relative rounded-full p-2 text-muted transition hover:bg-white/5 hover:text-brand"
-          aria-label="View alerts"
+          className="relative flex h-11 w-11 items-center justify-center rounded-full text-muted transition hover:bg-white/5 hover:text-brand"
+          aria-label={alertCount > 0 ? `View alerts, ${alertCount} active` : 'View alerts'}
         >
-          <span className="material-symbols-outlined text-2xl">notifications</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-2xl">
+            notifications
+          </span>
           {alertCount > 0 ? (
             <span className="absolute right-1 top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-warn" />
           ) : null}

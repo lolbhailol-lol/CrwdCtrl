@@ -51,6 +51,8 @@ export const env = {
   mongoUri: (process.env.TREKS_MONGODB_URI || '').trim(),
   mongoDbName: (process.env.TREKS_MONGODB_DB || 'crwdctrl_treks').trim(),
   scoutToken: (process.env.SCOUT_TOKEN || '').trim(),
+  /** Salt for hashing anonymous device ids — set in prod so hashes are not portable */
+  deviceSalt: (process.env.DEVICE_HASH_SALT || 'treks-device-dedupe').trim(),
 
   openRouterApiKey: process.env.OPENROUTER_API_KEY || outerAi.OPENROUTER_API_KEY || '',
   openRouterModel:
@@ -69,6 +71,9 @@ export function logEnvStatus() {
   console.log(`  outer:  ${crwdctrlBackendEnv} (OpenRouter only)`)
   console.log(`  TREKS_MONGODB_URI  ${has(env.mongoUri) ? '✓' : '✗'}`)
   console.log(`  SCOUT_TOKEN         ${has(env.scoutToken) ? '✓' : '✗'}`)
+  console.log(
+    `  DEVICE_HASH_SALT    ${process.env.DEVICE_HASH_SALT ? '✓' : '✗ (using default — set in production)'}`,
+  )
   console.log(`  OPENROUTER_API_KEY  ${has(env.openRouterApiKey) ? '✓' : '✗'}`)
   console.log(`  OPENROUTER_MODEL    ${env.openRouterModel || '—'}`)
   console.log('  (Main CrwdCtrl Mongo/JWT/Resend/Cloudinary are not loaded here)')

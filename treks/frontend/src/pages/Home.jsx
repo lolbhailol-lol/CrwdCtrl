@@ -3,19 +3,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Search from '../components/Search'
 import WaterfallLiveBoard from '../components/WaterfallLiveBoard'
 import QuickMarkIn from '../components/QuickMarkIn'
+import ShareUpdateSheet from '../components/ShareUpdateSheet'
 import CommunityUpdateCard from '../components/CommunityUpdateCard'
 import LoadingScreen from '../components/LoadingScreen'
 import Button from '../components/Button'
 import { APP_NAME, APP_TAGLINE } from '../utils/constants'
 import { useTrekData } from '../context/TrekDataContext'
-import { fetchTreksForDate } from '../services/trekService'
-import { buildPlanDays, todayIst } from '../utils/planDates'
+import { fetchTreksForDate, getCachedBoard } from '../services/trekService'
+import { buildPlanDays } from '../utils/planDates'
 
 export default function Home() {
   const [query, setQuery] = useState('')
   const [markOpen, setMarkOpen] = useState(false)
   const [markSlug, setMarkSlug] = useState('')
-  const [selectedDate, setSelectedDate] = useState(() => todayIst())
+  const [shareOpen, setShareOpen] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [boardTreks, setBoardTreks] = useState([])
   const [dayKey, setDayKey] = useState(0)
@@ -24,20 +25,40 @@ export default function Home() {
   const planDays = useMemo(() => buildPlanDays(), [])
   const navigate = useNavigate()
   const lastBoardDate = useRef(null)
-  const { ready, loading, source, tick, nowTick, refresh, getLatestCommunityUpdates } =
-    useTrekData()
+  const {
+    ready,
+    loading,
+    source,
+    tick,
+    nowTick,
+    refresh,
+    reportSource,
+    planDate: selectedDate,
+    setPlanDate: setSelectedDate,
+    getLatestCommunityUpdates,
+  } = useTrekData()
+
+  const selectedDateRef = useRef(selectedDate)
+  selectedDateRef.current = selectedDate
 
   useEffect(() => {
     if (!ready) return
     let alive = true
-    const dateChanged = lastBoardDate.current !== selectedDate
-    lastBoardDate.current = selectedDate
+    const requestedDate = selectedDate
+    const dateChanged = lastBoardDate.current !== requestedDate
+    lastBoardDate.current = requestedDate
 
     async function loadDay() {
-      // Blank/“Updating…” only when switching days — silent polls keep the list visible
-      if (dateChanged) setBoardLoading(true)
-      const result = await fetchTreksForDate(selectedDate)
-      if (!alive) return
+      // Show the last known rows for this day instead of a blank flash
+      const cached = getCachedBoard(requestedDate)
+      if (dateChanged) {
+        if (cached) setBoardTreks(cached)
+        else setBoardLoading(true)
+      }
+      const result = await fetchTreksForDate(requestedDate)
+      // Day may have changed while the request was in flight
+      if (!alive || selectedDateRef.current !== requestedDate) return
+      reportSource(result.source, result.error || null)
       setBoardTreks(result.treks || [])
       setDayKey((n) => n + 1)
       setBoardLoading(false)
@@ -47,30 +68,6 @@ export default function Home() {
       alive = false
     }
   }, [ready, selectedDate, tick])
-
-  const selectedDateRef = useRef(selectedDate)
-  selectedDateRef.current = selectedDate
-
-  // Soft poll while tab visible — pick up other users' mark-ins / scout edits
-  useEffect(() => {
-    if (!ready) return
-    const POLL_MS = 50_000
-
-    const poll = () => {
-      if (document.visibilityState !== 'visible') return
-      refresh({ force: true, date: selectedDateRef.current, silent: true })
-    }
-
-    const id = window.setInterval(poll, POLL_MS)
-    const onVis = () => {
-      if (document.visibilityState === 'visible') poll()
-    }
-    document.addEventListener('visibilitychange', onVis)
-    return () => {
-      window.clearInterval(id)
-      document.removeEventListener('visibilitychange', onVis)
-    }
-  }, [ready, refresh])
 
   const community = useMemo(() => {
     if (!ready) return []
@@ -129,9 +126,14 @@ export default function Home() {
             <h2 className="text-lg font-semibold text-ink">Recent updates</h2>
             <p className="text-sm text-muted">Notes from the trail</p>
           </div>
-          <Button to="/explore" variant="outline" size="sm">
-            Explore trails
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" onClick={() => setShareOpen(true)}>
+              Share an update
+            </Button>
+            <Button to="/explore" variant="outline" size="sm">
+              Explore trails
+            </Button>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {community.length ? (
@@ -156,15 +158,23 @@ export default function Home() {
         treks={boardTreks}
         initialSlug={markSlug}
         selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
         planDays={planDays}
         onSuccess={async (date) => {
-          if (date) setSelectedDate(date)
-          await refresh({ force: true, date: date || selectedDate })
-          const result = await fetchTreksForDate(date || selectedDate)
+          const target = date || selectedDate
+          if (date && date !== selectedDate) setSelectedDate(date)
+          await refresh({ force: true })
+          const result = await fetchTreksForDate(target)
+          if (selectedDateRef.current !== target) return
           setBoardTreks(result.treks || [])
           setDayKey((n) => n + 1)
         }}
+      />
+
+      <ShareUpdateSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        treks={boardTreks}
+        onPosted={() => refresh({ force: true, silent: true })}
       />
     </div>
   )

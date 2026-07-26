@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import Badge, { crowdTone } from './Badge'
 import DayStrip from './DayStrip'
 import { useTrekData } from '../context/TrekDataContext'
+import { getTrekAlert } from '../services/trekService'
 import { formatRelativeTime } from '../utils/formatters'
 import { labelForDate } from '../utils/planDates'
 
@@ -12,17 +13,13 @@ const CATEGORY_FILTERS = [
 ]
 
 const MARK_IN_PILL =
-  'shrink-0 rounded-lg border border-brand/30 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/20'
+  'inline-flex min-h-11 shrink-0 items-center rounded-lg border border-brand/30 bg-brand/10 px-3.5 text-xs font-semibold text-brand transition hover:bg-brand/20'
 
 const BUSY_LEVELS = new Set(['High', 'Very High'])
 
-/** Only surface conditions that change a plan; entry wins over trail. */
-function warningFor(status) {
-  const entry = status?.entryStatus
-  if (entry && entry !== 'Open') return entry
-  const trail = status?.trailCondition
-  if (trail && trail !== 'Open') return trail
-  return null
+/** Same read the Alerts page and nav badge use, so the counts always agree. */
+function warningFor(trek) {
+  return getTrekAlert(trek)?.label || null
 }
 
 /**
@@ -48,6 +45,9 @@ export default function WaterfallLiveBoard({
   const filtered =
     categoryFilter === 'all' ? treks : treks.filter((t) => t.category === categoryFilter)
 
+  // Carry the day forward so the trek page answers for the same date as the row
+  const trekLink = (slug) => `/trek/${slug}?date=${encodeURIComponent(selectedDate)}`
+
   const totalGoing = filtered.reduce(
     (sum, t) => sum + (Number(t.status?.peopleCount ?? t.status?.todayPeople) || 0),
     0,
@@ -62,7 +62,7 @@ export default function WaterfallLiveBoard({
 
   const tally = filtered.reduce(
     (acc, t) => {
-      if (warningFor(t.status)) acc.blocked += 1
+      if (warningFor(t)) acc.blocked += 1
       else if (BUSY_LEVELS.has(t.status?.crowdLevel)) acc.busy += 1
       else if (t.status?.crowdLevel === 'Low') acc.quiet += 1
       return acc
@@ -101,7 +101,9 @@ export default function WaterfallLiveBoard({
                   </span>
                 ))
               ) : (
-                <span>{filtered.length} trails</span>
+                <span>
+                  {filtered.length} trails · no reports yet
+                </span>
               )}
             </p>
           </div>
@@ -134,13 +136,14 @@ export default function WaterfallLiveBoard({
         {/* Day + type */}
         <div className="space-y-2.5 border-b border-white/10 px-3 py-3 sm:space-y-3 sm:px-6 sm:py-4">
           <DayStrip days={planDays} selectedDate={selectedDate} onChange={onDateChange} />
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/5 p-1">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/5 p-1" role="group" aria-label="Trail type">
             {CATEGORY_FILTERS.map((f) => (
               <button
                 key={f.id}
                 type="button"
                 onClick={() => onCategoryChange?.(f.id)}
-                className={`rounded-lg py-2 text-center text-xs font-semibold transition sm:text-sm ${
+                aria-pressed={categoryFilter === f.id}
+                className={`min-h-11 rounded-lg py-2 text-center text-xs font-semibold transition sm:text-sm ${
                   categoryFilter === f.id
                     ? 'bg-panel text-brand shadow-sm ring-1 ring-brand/30'
                     : 'text-muted hover:text-ink'
@@ -197,12 +200,12 @@ export default function WaterfallLiveBoard({
                   <tbody className="divide-y divide-white/8">
                     {filtered.map((trek) => {
                       const people = trek.status?.peopleCount ?? trek.status?.todayPeople ?? 0
-                      const warn = warningFor(trek.status)
+                      const warn = warningFor(trek)
                       return (
                         <tr key={trek.id} className="hover:bg-white/3">
                           <td className="px-6 py-3.5">
                             <Link
-                              to={`/trek/${trek.slug}`}
+                              to={trekLink(trek.slug)}
                               className="font-medium text-ink hover:text-brand"
                             >
                               {trek.name}
@@ -218,9 +221,13 @@ export default function WaterfallLiveBoard({
                             </p>
                           </td>
                           <td className="px-4 py-3.5">
-                            <Badge tone={crowdTone(trek.status.crowdLevel)}>
-                              {trek.status.crowdLevel}
-                            </Badge>
+                            {trek.status?.crowdLevel ? (
+                              <Badge tone={crowdTone(trek.status.crowdLevel)}>
+                                {trek.status.crowdLevel}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted/70">No reports</span>
+                            )}
                           </td>
                           <td className="px-4 py-3.5 text-sm font-medium text-ink">{people}</td>
                           <td className="px-6 py-3.5 text-right">
@@ -244,15 +251,21 @@ export default function WaterfallLiveBoard({
                 {filtered.map((trek) => {
                   const people = trek.status?.peopleCount ?? trek.status?.todayPeople ?? 0
                   const crowd = trek.status?.crowdLevel
-                  const warn = warningFor(trek.status)
+                  const warn = warningFor(trek)
 
                   return (
                     <li key={trek.id} className="flex items-center gap-3 px-4 py-3">
-                      <Link to={`/trek/${trek.slug}`} className="min-w-0 flex-1 active:opacity-80">
+                      <Link to={trekLink(trek.slug)} className="min-w-0 flex-1 active:opacity-80">
                         <p className="truncate text-[15px] font-medium text-ink">{trek.name}</p>
                         <p className="mt-0.5 truncate text-xs text-muted">
-                          {people} going
-                          {crowd ? ` · ${crowd} crowd` : ''}
+                          {people || crowd ? (
+                            <>
+                              {people} going
+                              {crowd ? ` · ${crowd} crowd` : ''}
+                            </>
+                          ) : (
+                            <span className="text-muted/70">No reports yet</span>
+                          )}
                           {warn ? <span className="text-danger"> · {warn}</span> : null}
                         </p>
                       </Link>

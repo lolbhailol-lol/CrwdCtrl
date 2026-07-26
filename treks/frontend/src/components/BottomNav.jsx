@@ -10,9 +10,9 @@ const items = [
 ]
 
 export default function BottomNav() {
-  const { ready, tick, getAlerts } = useTrekData()
+  const { ready, tick, getTrailIssues } = useTrekData()
   const alertCount = useMemo(
-    () => (ready ? getAlerts().length : 0),
+    () => (ready ? getTrailIssues().length : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ready, tick],
   )
@@ -25,7 +25,7 @@ export default function BottomNav() {
           to={item.to}
           end={item.end}
           className={({ isActive }) =>
-            `relative flex flex-col items-center justify-center px-4 py-1 transition-colors ${
+            `relative flex min-h-11 min-w-11 flex-col items-center justify-center px-4 py-1 transition-colors ${
               isActive ? 'text-brand' : 'text-muted hover:text-ink'
             }`
           }
@@ -37,13 +37,18 @@ export default function BottomNav() {
               ) : null}
               <div className="relative">
                 <span
+                  aria-hidden="true"
                   className="material-symbols-outlined text-2xl"
                   style={isActive ? { fontVariationSettings: "'FILL' 1" } : undefined}
                 >
                   {item.icon}
                 </span>
                 {item.badge && alertCount > 0 ? (
-                  <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-warn" />
+                  <span
+                    className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-warn"
+                    aria-label={`${alertCount} trails with warnings`}
+                    role="status"
+                  />
                 ) : null}
               </div>
               <span className="mt-0.5 text-[10px] font-bold tracking-wider">{item.label}</span>

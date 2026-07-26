@@ -15,15 +15,17 @@ export default function StatusCard({
   compact = false,
   className = '',
 }) {
+  const known = value != null && value !== ''
+
   return (
     <div className={`rounded-xl border border-white/10 bg-panel p-4 ${className}`}>
       <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
       <p
         className={`mt-1.5 font-semibold ${compact ? 'text-sm leading-snug sm:text-base' : 'text-base'} ${
-          valueColor[tone] ?? valueColor.default
+          known ? (valueColor[tone] ?? valueColor.default) : 'font-normal text-muted/70'
         }`}
       >
-        {value}
+        {known ? value : 'No reports yet'}
       </p>
       {hint ? <p className="mt-1.5 text-sm leading-relaxed text-muted">{hint}</p> : null}
     </div>

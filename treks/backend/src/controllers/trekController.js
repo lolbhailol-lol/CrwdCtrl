@@ -1,9 +1,26 @@
+import crypto from 'node:crypto'
 import * as trekService from '../services/trekService.js'
-import { CROWD_LEVEL_VALUES } from '../models/TrekStatus.js'
+import { CROWD_LEVEL_VALUES, ENTRY_STATUS_VALUES, TRAIL_CONDITION_VALUES } from '../models/TrekStatus.js'
+import { env } from '../config/env.js'
+import { isDbReady } from '../config/db.js'
 import { resolvePlanDate, todayIst } from '../utils/date.js'
 
 function badDate(res, resolved) {
   return res.status(400).json({ success: false, message: resolved.error })
+}
+
+function badRequest(res, message) {
+  return res.status(400).json({ success: false, message })
+}
+
+/**
+ * Hash of the browser's anonymous device id. The raw id is never stored, and a
+ * missing header simply means no dedupe rather than a rejected mark-in.
+ */
+function deviceHashFrom(req) {
+  const raw = String(req.get('X-Device-Id') || '').trim()
+  if (!raw || raw.length > 100) return ''
+  return crypto.createHash('sha256').update(`${env.deviceSalt}:${raw}`).digest('hex')
 }
 
 export async function getTreks(req, res, next) {
@@ -17,7 +34,10 @@ export async function getTreks(req, res, next) {
     if (q) data = trekService.searchTreks(q)
     if (category) data = data.filter((t) => t.category === category)
     if (featured === 'true') data = data.filter((t) => t.featured)
-    if (limit) data = data.slice(0, Number(limit))
+
+    // A junk limit must not empty the board (Number('abc') → NaN → slice(0, NaN))
+    const max = Number.parseInt(limit, 10)
+    if (Number.isInteger(max) && max > 0) data = data.slice(0, max)
 
     data = await trekService.enrichTreks(data, resolved.date)
 
@@ -26,6 +46,8 @@ export async function getTreks(req, res, next) {
       count: data.length,
       forDate: resolved.date,
       source: 'live-api',
+      /** false = reading the catalog without live reports behind it */
+      live: isDbReady(),
       data,
     })
   } catch (err) {
@@ -42,12 +64,16 @@ export async function getTrek(req, res, next) {
     if (!trek) {
       return res.status(404).json({ success: false, message: 'Trek not found' })
     }
-    const data = await trekService.enrichTrek(trek, resolved.date)
+    const [data, reportedContacts] = await Promise.all([
+      trekService.enrichTrek(trek, resolved.date),
+      trekService.listEmergencyContacts(req.params.slug),
+    ])
     return res.json({
       success: true,
       forDate: resolved.date,
       source: 'live-api',
-      data,
+      live: isDbReady(),
+      data: { ...data, reportedContacts },
     })
   } catch (err) {
     return next(err)
@@ -117,48 +143,42 @@ export async function postCheckIn(req, res, next) {
     const size = Number(groupSize)
     const name = String(displayName || '').trim()
     const src = String(source || '').trim()
+    const community = String(communityName || '').trim()
 
     if (!Number.isInteger(size) || size < 1 || size > 50) {
-      return res.status(400).json({
-        success: false,
-        message: 'groupSize must be an integer from 1 to 50.',
-      })
+      return badRequest(res, 'groupSize must be an integer from 1 to 50.')
     }
     if (!name || name.length > 60) {
-      return res.status(400).json({
-        success: false,
-        message: 'displayName is required (max 60 chars).',
-      })
+      return badRequest(res, 'displayName is required (max 60 chars).')
     }
     if (!['solo', 'friend', 'community'].includes(src)) {
-      return res.status(400).json({
-        success: false,
-        message: 'source must be solo, friend, or community.',
-      })
+      return badRequest(res, 'source must be solo, friend, or community.')
     }
-    if (src === 'community' && !String(communityName || '').trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'communityName is required when source is community.',
-      })
+    if (src === 'community' && !community) {
+      return badRequest(res, 'communityName is required when source is community.')
+    }
+    if (community.length > 80) {
+      return badRequest(res, 'communityName is too long (max 80 chars).')
     }
 
-    const { checkIn, update } = await trekService.createCheckIn(req.params.slug, {
+    const { checkIn, update, created } = await trekService.createCheckIn(req.params.slug, {
       date: resolved.date,
       groupSize: size,
       displayName: name,
       source: src,
-      communityName: String(communityName || '').trim(),
+      communityName: community,
       note: String(note || '').trim().slice(0, 200),
       message: message ? String(message).trim().slice(0, 280) : '',
       statusTag: ['ok', 'info', 'warning', 'alert'].includes(statusTag) ? statusTag : 'info',
+      deviceHash: deviceHashFrom(req),
     })
 
     const enriched = await trekService.enrichTrek(trek, resolved.date)
 
-    return res.status(201).json({
+    return res.status(created ? 201 : 200).json({
       success: true,
       forDate: resolved.date,
+      created,
       data: {
         checkIn: {
           id: String(checkIn._id),
@@ -177,6 +197,7 @@ export async function postCheckIn(req, res, next) {
               statusTag: update.statusTag,
             }
           : null,
+        created,
         trek: enriched,
       },
     })
@@ -200,16 +221,10 @@ export async function postCommunityUpdate(req, res, next) {
     const name = String(displayName || 'Trekker').trim().slice(0, 60) || 'Trekker'
 
     if (!note || note.length > 280) {
-      return res.status(400).json({
-        success: false,
-        message: 'message is required (max 280 chars).',
-      })
+      return badRequest(res, 'message is required (max 280 chars).')
     }
     if (!UPDATE_TAGS.includes(updateTag)) {
-      return res.status(400).json({
-        success: false,
-        message: `tag must be one of: ${UPDATE_TAGS.join(', ')}`,
-      })
+      return badRequest(res, `tag must be one of: ${UPDATE_TAGS.join(', ')}`)
     }
 
     const update = await trekService.createCommunityUpdate(req.params.slug, {
@@ -238,6 +253,84 @@ export async function postCommunityUpdate(req, res, next) {
   }
 }
 
+const CONTACT_FIELDS = new Set(['label', 'phone', 'addedBy'])
+
+/**
+ * Keeps the digits (and a single leading +) so two people typing the same
+ * number in different styles collide on the unique index instead of both
+ * landing in the list.
+ */
+function normalizePhone(raw) {
+  const value = String(raw || '').trim()
+  const plus = value.startsWith('+')
+  const digits = value.replace(/\D/g, '')
+  if (digits.length < 6 || digits.length > 15) return ''
+  return plus ? `+${digits}` : digits
+}
+
+export async function postEmergencyContact(req, res, next) {
+  try {
+    const trek = trekService.getTrekBySlug(req.params.slug)
+    if (!trek) {
+      return res.status(404).json({ success: false, message: 'Trek not found' })
+    }
+
+    const body = req.body || {}
+    const unknown = Object.keys(body).filter((key) => !CONTACT_FIELDS.has(key))
+    if (unknown.length) {
+      return badRequest(res, `Unexpected field: ${unknown[0]}`)
+    }
+
+    const label = String(body.label || '').trim()
+    const phone = normalizePhone(body.phone)
+    const addedBy = String(body.addedBy || '').trim().slice(0, 60)
+
+    if (!label || label.length > 60) {
+      return badRequest(res, 'Say who this number belongs to (max 60 chars).')
+    }
+    if (!phone) {
+      return badRequest(res, 'Enter a phone number with 6 to 15 digits.')
+    }
+
+    const existing = await trekService.countEmergencyContacts(req.params.slug)
+    if (existing >= trekService.CONTACTS_PER_TREK) {
+      return res.status(409).json({
+        success: false,
+        message: 'This trail already has the maximum number of contacts.',
+      })
+    }
+
+    const contact = await trekService.createEmergencyContact(req.params.slug, {
+      label,
+      phone,
+      addedBy,
+      deviceHash: deviceHashFrom(req),
+    })
+
+    return res.status(201).json({ success: true, data: { contact } })
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'That number is already listed for this trail.',
+      })
+    }
+    return next(err)
+  }
+}
+
+const SCOUT_FIELDS = new Set([
+  'crowdLevel',
+  'weather',
+  'trailCondition',
+  'parkingStatus',
+  'forestAdvisory',
+  'entryStatus',
+  'alert',
+])
+
+const SCOUT_MAX_LENGTH = 240
+
 export async function patchTrekStatus(req, res, next) {
   try {
     const trek = trekService.getTrekBySlug(req.params.slug)
@@ -246,14 +339,36 @@ export async function patchTrekStatus(req, res, next) {
     }
 
     const body = req.body || {}
-    if (body.crowdLevel && !CROWD_LEVEL_VALUES.includes(body.crowdLevel)) {
-      return res.status(400).json({
-        success: false,
-        message: `crowdLevel must be one of: ${CROWD_LEVEL_VALUES.join(', ')}`,
-      })
+
+    const unknown = Object.keys(body).filter((key) => !SCOUT_FIELDS.has(key))
+    if (unknown.length) {
+      return badRequest(res, `Unexpected field: ${unknown[0]}`)
     }
 
-    await trekService.upsertTrekStatus(req.params.slug, body)
+    const enums = {
+      crowdLevel: CROWD_LEVEL_VALUES,
+      trailCondition: TRAIL_CONDITION_VALUES,
+      entryStatus: ENTRY_STATUS_VALUES,
+    }
+    for (const [field, values] of Object.entries(enums)) {
+      const value = body[field]
+      if (value && !values.includes(value)) {
+        return badRequest(res, `${field} must be one of: ${values.join(', ')}`)
+      }
+    }
+
+    const fields = {}
+    for (const key of SCOUT_FIELDS) {
+      const value = body[key]
+      if (value === undefined || value === null) continue
+      if (typeof value !== 'string') return badRequest(res, `${key} must be text.`)
+      const trimmed = value.trim().slice(0, SCOUT_MAX_LENGTH)
+      // Blank is "no answer" for the pick-one fields, not a value to store
+      if (!trimmed && enums[key]) continue
+      fields[key] = trimmed
+    }
+
+    await trekService.upsertTrekStatus(req.params.slug, fields)
     const enriched = await trekService.enrichTrek(trek)
 
     return res.json({ success: true, data: enriched })

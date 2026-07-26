@@ -13,6 +13,9 @@ const checkInSchema = new mongoose.Schema(
     },
     communityName: { type: String, trim: true, maxlength: 80, default: '' },
     note: { type: String, trim: true, maxlength: 200, default: '' },
+    /** SHA-256 of the browser's anonymous device id + server salt */
+    deviceHash: { type: String, default: '', index: false },
+    updatedAt: { type: Date, default: null },
   },
   {
     collection: 'check_ins',
@@ -21,5 +24,12 @@ const checkInSchema = new mongoose.Schema(
 )
 
 checkInSchema.index({ trekSlug: 1, date: 1 })
+
+// One mark-in per device per trail per day. Partial so older rows and
+// storage-blocked browsers (empty hash) are still accepted.
+checkInSchema.index(
+  { trekSlug: 1, date: 1, deviceHash: 1 },
+  { unique: true, partialFilterExpression: { deviceHash: { $gt: '' } } },
+)
 
 export default mongoose.model('CheckIn', checkInSchema)
