@@ -6,6 +6,7 @@ import {
   getCheckIns,
   getTodayCheckIns,
   postCheckIn,
+  postCommunityUpdate,
   patchTrekStatus,
 } from '../controllers/trekController.js'
 import { requireDb } from '../config/db.js'
@@ -24,10 +25,22 @@ const checkInLimiter = rateLimit({
   },
 })
 
+const updateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many updates from this IP. Try again in a few minutes.',
+  },
+})
+
 router.get('/', getTreks)
 router.get('/:slug/check-ins/today', getTodayCheckIns)
 router.get('/:slug/check-ins', getCheckIns)
 router.post('/:slug/check-ins', requireDb, checkInLimiter, postCheckIn)
+router.post('/:slug/updates', requireDb, updateLimiter, postCommunityUpdate)
 router.patch('/:slug/status', requireDb, requireScout, patchTrekStatus)
 router.get('/:slug', getTrek)
 

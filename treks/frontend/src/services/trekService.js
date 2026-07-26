@@ -134,6 +134,22 @@ export async function submitCheckIn(slug, payload) {
   return json.data
 }
 
+export async function submitCommunityUpdate(slug, payload) {
+  const json = await apiPost(`/api/treks/${encodeURIComponent(slug)}/updates`, payload)
+  return json.data
+}
+
+export function formatGoingSummary(summary) {
+  if (!summary) return ''
+  const parts = []
+  if (summary.solo) parts.push(`${summary.solo} solo`)
+  if (summary.friend) parts.push(`${summary.friend} group${summary.friend === 1 ? '' : 's'}`)
+  if (summary.community) parts.push(`${summary.community} community`)
+  const names = (summary.communityNames || []).slice(0, 3)
+  if (names.length) parts.push(names.join(', '))
+  return parts.join(' · ')
+}
+
 export async function fetchTodayCheckIns(slug) {
   const json = await apiGet(`/api/treks/${encodeURIComponent(slug)}/check-ins/today`)
   return json.data

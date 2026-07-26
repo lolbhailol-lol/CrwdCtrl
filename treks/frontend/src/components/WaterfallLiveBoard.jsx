@@ -1,48 +1,33 @@
 import { Link } from 'react-router-dom'
-import Badge, { crowdTone, trailTone } from './Badge'
-import Button from './Button'
+import Badge, { crowdTone } from './Badge'
 import DayStrip from './DayStrip'
 import { useTrekData } from '../context/TrekDataContext'
 import { formatRelativeTime } from '../utils/formatters'
 import { labelForDate } from '../utils/planDates'
 
-function crowdIconClass(level) {
-  switch (level) {
-    case 'Low':
-      return 'text-brand'
-    case 'Moderate':
-      return 'text-warn'
-    case 'High':
-    case 'Very High':
-      return 'text-danger'
-    default:
-      return 'text-muted'
-  }
-}
-
-function trailIconClass(condition) {
-  switch (condition) {
-    case 'Open':
-      return 'text-brand'
-    case 'Slippery':
-    case 'Caution':
-      return 'text-warn'
-    case 'Closed':
-      return 'text-danger'
-    default:
-      return 'text-muted'
-  }
-}
-
 const CATEGORY_FILTERS = [
   { id: 'all', label: 'All' },
-  { id: 'Waterfall Trek', label: 'Waterfalls' },
-  { id: 'Jungle Trek', label: 'Jungles' },
+  { id: 'Waterfall Trek', label: 'Falls' },
+  { id: 'Jungle Trek', label: 'Jungle' },
 ]
 
+const MARK_IN_PILL =
+  'shrink-0 rounded-lg border border-brand/30 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/20'
+
+const BUSY_LEVELS = new Set(['High', 'Very High'])
+
+/** Only surface conditions that change a plan; entry wins over trail. */
+function warningFor(status) {
+  const entry = status?.entryStatus
+  if (entry && entry !== 'Open') return entry
+  const trail = status?.trailCondition
+  if (trail && trail !== 'Open') return trail
+  return null
+}
+
 /**
- * Mobile: compact controls + one-line rows + sticky Mark me in.
- * Desktop: richer table.
+ * Mobile: calm list — tap the name for details, Mark in per row.
+ * Desktop: same data as a table.
  */
 export default function WaterfallLiveBoard({
   treks = [],
@@ -58,7 +43,7 @@ export default function WaterfallLiveBoard({
   const { source, nowTick } = useTrekData()
   const dayLabel = labelForDate(selectedDate, planDays)
   const isToday = planDays.find((d) => d.date === selectedDate)?.isToday
-  const title = isToday ? "Today's board" : `Board · ${dayLabel}`
+  const title = isToday ? 'Today' : dayLabel
 
   const filtered =
     categoryFilter === 'all' ? treks : treks.filter((t) => t.category === categoryFilter)
@@ -75,59 +60,90 @@ export default function WaterfallLiveBoard({
     return best
   }, null)
 
-  // Touch nowTick so relative labels re-render
-  void nowTick
+  const tally = filtered.reduce(
+    (acc, t) => {
+      if (warningFor(t.status)) acc.blocked += 1
+      else if (BUSY_LEVELS.has(t.status?.crowdLevel)) acc.busy += 1
+      else if (t.status?.crowdLevel === 'Low') acc.quiet += 1
+      return acc
+    },
+    { quiet: 0, busy: 0, blocked: 0 },
+  )
 
-  const trustLine = [
-    `Planned for ${dayLabel}`,
-    'community mark-ins',
-    source !== 'api' ? 'Demo times' : freshest ? `Updated ${formatRelativeTime(freshest)}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  const signals = [
+    tally.quiet ? { key: 'quiet', label: `${tally.quiet} quiet`, dot: 'bg-brand' } : null,
+    tally.busy ? { key: 'busy', label: `${tally.busy} busy`, dot: 'bg-[#ffcd98]' } : null,
+    tally.blocked
+      ? { key: 'blocked', label: `${tally.blocked} restricted`, dot: 'bg-danger' }
+      : null,
+  ].filter(Boolean)
+
+  void nowTick
 
   return (
     <section id="live-waterfalls" className="container-wide section-pad scroll-mt-20">
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-panel">
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-6 sm:py-5">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6 sm:py-5">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-ink sm:text-2xl">{title}</h2>
-            <p className="mt-0.5 text-xs text-muted sm:text-sm">
-              <span key={`going-${dayKey}-${selectedDate}`} className="text-ink">
-                {totalGoing} people
-              </span>{' '}
-              · {dayLabel}
+            <h2 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+              {isToday ? "Today's board" : `Board · ${dayLabel}`}
+            </h2>
+            <p
+              key={`signals-${dayKey}-${selectedDate}`}
+              className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted"
+            >
+              {signals.length ? (
+                signals.map((s) => (
+                  <span key={s.key} className="inline-flex items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                    {s.label}
+                  </span>
+                ))
+              ) : (
+                <span>{filtered.length} trails</span>
+              )}
             </p>
-            <p className="mt-1 text-[11px] leading-snug text-muted/90 sm:text-xs">{trustLine}</p>
           </div>
-          <div className="hidden shrink-0 items-center gap-3 md:flex">
-            <Link to="/explore" className="text-xs font-medium text-brand hover:underline">
+          <div className="flex shrink-0 items-center gap-3">
+            {source === 'api' ? (
+              <span
+                title={freshest ? `Updated ${formatRelativeTime(freshest)}` : undefined}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-2.5 py-1 text-[11px] font-medium text-brand"
+              >
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+                </span>
+                Live
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full border border-warn/30 bg-warn/10 px-2.5 py-1 text-[11px] font-medium text-[#ffcd98]">
+                Demo
+              </span>
+            )}
+            <Link
+              to="/explore"
+              className="hidden text-xs font-medium text-brand hover:underline md:block"
+            >
               Explore
             </Link>
-            <Button type="button" size="sm" onClick={() => onMarkIn?.('')}>
-              Mark me in
-            </Button>
           </div>
-          <Link
-            to="/explore"
-            className="shrink-0 text-xs font-medium text-brand hover:underline md:hidden"
-          >
-            Explore
-          </Link>
         </div>
 
-        <div className="space-y-3 border-b border-white/10 px-3 py-3 sm:space-y-4 sm:px-6 sm:py-4">
+        {/* Day + type */}
+        <div className="space-y-2.5 border-b border-white/10 px-3 py-3 sm:space-y-3 sm:px-6 sm:py-4">
           <DayStrip days={planDays} selectedDate={selectedDate} onChange={onDateChange} />
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/5 p-1">
             {CATEGORY_FILTERS.map((f) => (
               <button
                 key={f.id}
                 type="button"
                 onClick={() => onCategoryChange?.(f.id)}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition sm:px-3.5 sm:py-2 sm:text-sm ${
+                className={`rounded-lg py-2 text-center text-xs font-semibold transition sm:text-sm ${
                   categoryFilter === f.id
-                    ? 'bg-brand/15 text-brand ring-1 ring-brand/35'
-                    : 'bg-white/5 text-muted hover:bg-white/8 hover:text-ink'
+                    ? 'bg-panel text-brand shadow-sm ring-1 ring-brand/30'
+                    : 'text-muted hover:text-ink'
                 }`}
               >
                 {f.label}
@@ -136,14 +152,14 @@ export default function WaterfallLiveBoard({
           </div>
         </div>
 
-        <div className="pb-[5.5rem] md:pb-0">
+        <div>
           {boardLoading ? (
             <p className="border-b border-white/8 px-4 py-2 text-center text-xs text-muted">
               Updating…
             </p>
           ) : null}
           {!filtered.length && !boardLoading ? (
-            <div className="px-4 py-8 text-center">
+            <div className="px-4 py-10 text-center">
               <p className="text-sm text-muted">No trails here.</p>
               {categoryFilter !== 'all' ? (
                 <button
@@ -151,7 +167,7 @@ export default function WaterfallLiveBoard({
                   onClick={() => onCategoryChange?.('all')}
                   className="mt-3 text-sm font-semibold text-brand hover:underline"
                 >
-                  Show all trails
+                  Show all
                 </button>
               ) : null}
             </div>
@@ -159,6 +175,7 @@ export default function WaterfallLiveBoard({
             <p className="px-4 py-8 text-center text-sm text-muted">Loading trails…</p>
           ) : (
             <>
+              {/* Desktop table */}
               <div className="hidden md:block">
                 <table className="w-full border-collapse text-left">
                   <thead>
@@ -168,9 +185,6 @@ export default function WaterfallLiveBoard({
                       </th>
                       <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide">
                         Crowd
-                      </th>
-                      <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide">
-                        Condition
                       </th>
                       <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide">
                         Going
@@ -183,6 +197,7 @@ export default function WaterfallLiveBoard({
                   <tbody className="divide-y divide-white/8">
                     {filtered.map((trek) => {
                       const people = trek.status?.peopleCount ?? trek.status?.todayPeople ?? 0
+                      const warn = warningFor(trek.status)
                       return (
                         <tr key={trek.id} className="hover:bg-white/3">
                           <td className="px-6 py-3.5">
@@ -194,8 +209,12 @@ export default function WaterfallLiveBoard({
                             </Link>
                             <p className="mt-0.5 text-xs text-muted">
                               {trek.location}
-                              <span className="text-white/30"> · </span>
-                              {trek.category === 'Waterfall Trek' ? 'Waterfall' : 'Jungle'}
+                              {warn ? (
+                                <>
+                                  <span className="text-white/30"> · </span>
+                                  <span className="font-semibold text-danger">{warn}</span>
+                                </>
+                              ) : null}
                             </p>
                           </td>
                           <td className="px-4 py-3.5">
@@ -203,17 +222,12 @@ export default function WaterfallLiveBoard({
                               {trek.status.crowdLevel}
                             </Badge>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <Badge tone={trailTone(trek.status.trailCondition)}>
-                              {trek.status.trailCondition}
-                            </Badge>
-                          </td>
                           <td className="px-4 py-3.5 text-sm font-medium text-ink">{people}</td>
                           <td className="px-6 py-3.5 text-right">
                             <button
                               type="button"
                               onClick={() => onMarkIn?.(trek.slug)}
-                              className="inline-flex min-h-10 items-center rounded-full bg-brand/15 px-3.5 text-sm font-semibold text-brand hover:bg-brand/25"
+                              className={MARK_IN_PILL}
                             >
                               Mark in
                             </button>
@@ -225,33 +239,27 @@ export default function WaterfallLiveBoard({
                 </table>
               </div>
 
+              {/* Mobile: tap name → details; Mark in per trek */}
               <ul className="divide-y divide-white/8 md:hidden">
                 {filtered.map((trek) => {
                   const people = trek.status?.peopleCount ?? trek.status?.todayPeople ?? 0
                   const crowd = trek.status?.crowdLevel
-                  const trail = trek.status?.trailCondition
-                  const updated = trek.status?.lastUpdated
+                  const warn = warningFor(trek.status)
+
                   return (
-                    <li key={trek.id} className="flex items-center gap-2 px-3 py-2.5">
-                      <Link to={`/trek/${trek.slug}`} className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-ink">
-                          {trek.name}
-                        </span>
-                        <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-muted">
-                          <span>{people} going</span>
-                          {updated ? <span>· Updated {formatRelativeTime(updated)}</span> : null}
-                          {crowd ? (
-                            <span className={crowdIconClass(crowd)}>· {crowd}</span>
-                          ) : null}
-                          {trail ? (
-                            <span className={trailIconClass(trail)}>· {trail}</span>
-                          ) : null}
-                        </span>
+                    <li key={trek.id} className="flex items-center gap-3 px-4 py-3">
+                      <Link to={`/trek/${trek.slug}`} className="min-w-0 flex-1 active:opacity-80">
+                        <p className="truncate text-[15px] font-medium text-ink">{trek.name}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted">
+                          {people} going
+                          {crowd ? ` · ${crowd} crowd` : ''}
+                          {warn ? <span className="text-danger"> · {warn}</span> : null}
+                        </p>
                       </Link>
                       <button
                         type="button"
                         onClick={() => onMarkIn?.(trek.slug)}
-                        className="inline-flex min-h-10 shrink-0 items-center rounded-full bg-brand/15 px-3 text-sm font-semibold text-brand"
+                        className={MARK_IN_PILL}
                       >
                         Mark in
                       </button>
@@ -261,31 +269,13 @@ export default function WaterfallLiveBoard({
               </ul>
 
               {totalGoing === 0 ? (
-                <div className="border-t border-white/8 px-3 py-3 text-center">
-                  <p className="text-xs text-muted sm:text-sm">No one marked in yet</p>
-                  <button
-                    type="button"
-                    onClick={() => onMarkIn?.('')}
-                    className="mt-1.5 text-sm font-semibold text-brand hover:underline"
-                  >
-                    Be the first · Mark me in
-                  </button>
-                </div>
+                <p className="border-t border-white/8 px-4 py-3 text-center text-xs text-muted">
+                  No one marked in yet for {title}
+                </p>
               ) : null}
             </>
           )}
         </div>
-      </div>
-
-      {/* Sticky Mark me in — above bottom nav */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-3 md:hidden">
-        <Button
-          type="button"
-          className="pointer-events-auto w-full shadow-lg"
-          onClick={() => onMarkIn?.('')}
-        >
-          Mark me in
-        </Button>
       </div>
     </section>
   )

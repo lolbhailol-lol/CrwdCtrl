@@ -66,6 +66,13 @@ async function loadLiveMaps(slugs, forDate = todayIst()) {
           peopleCount: { $sum: '$groupSize' },
           checkInGroups: { $sum: 1 },
           latestCheckInAt: { $max: '$createdAt' },
+          entries: {
+            $push: {
+              source: '$source',
+              communityName: '$communityName',
+              groupSize: '$groupSize',
+            },
+          },
         },
       },
     ]),
@@ -83,6 +90,7 @@ async function loadLiveMaps(slugs, forDate = todayIst()) {
         peopleCount: row.peopleCount || 0,
         checkInGroups: row.checkInGroups || 0,
         latestCheckInAt: row.latestCheckInAt || null,
+        goingSummary: buildGoingSummary(row.entries || []),
       },
     ]),
   )
@@ -94,6 +102,27 @@ async function loadLiveMaps(slugs, forDate = todayIst()) {
   }
 
   return { forDate, statusBySlug, checkInBySlug, updatesBySlug }
+}
+
+function buildGoingSummary(entries = []) {
+  const summary = {
+    solo: 0,
+    friend: 0,
+    community: 0,
+    communityNames: [],
+  }
+  const names = new Set()
+  for (const row of entries) {
+    if (row.source === 'solo') summary.solo += 1
+    else if (row.source === 'friend') summary.friend += 1
+    else if (row.source === 'community') {
+      summary.community += 1
+      const n = String(row.communityName || '').trim()
+      if (n) names.add(n)
+    }
+  }
+  summary.communityNames = [...names].slice(0, 6)
+  return summary
 }
 
 function mergeCommunityUpdates(catalogUpdates = [], liveDocs = []) {
@@ -180,6 +209,12 @@ export function enrichTrekSync(trek, maps) {
     ...trek,
     forDate,
     status: mergeStatus(trek.status, override, checkInStats, forDate),
+    goingSummary: checkInStats?.goingSummary || {
+      solo: 0,
+      friend: 0,
+      community: 0,
+      communityNames: [],
+    },
     communityUpdates: mergeCommunityUpdates(trek.communityUpdates, liveUpdates),
   }
 }
@@ -201,17 +236,25 @@ export async function enrichTreks(list, forDate = todayIst()) {
 
 export async function getCheckInsForDate(slug, forDate = todayIst()) {
   if (!isDbReady()) {
-    return { date: forDate, totalPeople: 0, groups: 0, items: [] }
+    return {
+      date: forDate,
+      totalPeople: 0,
+      groups: 0,
+      goingSummary: { solo: 0, friend: 0, community: 0, communityNames: [] },
+      items: [],
+    }
   }
   const items = await CheckIn.find({ trekSlug: slug, date: forDate })
     .sort({ createdAt: -1 })
     .lean()
 
   const totalPeople = items.reduce((sum, row) => sum + (row.groupSize || 0), 0)
+  const goingSummary = buildGoingSummary(items)
   return {
     date: forDate,
     totalPeople,
     groups: items.length,
+    goingSummary,
     items: items.map((row) => ({
       id: String(row._id),
       groupSize: row.groupSize,
@@ -253,6 +296,27 @@ export async function createCheckIn(slug, payload) {
   }
 
   return { checkIn: doc, update }
+}
+
+const UPDATE_TAG_TO_STATUS = {
+  crowd: 'warning',
+  trail: 'warning',
+  weather: 'info',
+  closure: 'alert',
+  info: 'info',
+}
+
+export async function createCommunityUpdate(slug, payload) {
+  const tag = payload.tag || 'info'
+  const statusTag = UPDATE_TAG_TO_STATUS[tag] || 'info'
+  const doc = await CommunityUpdate.create({
+    trekSlug: slug,
+    message: payload.message,
+    statusTag,
+    displayName: payload.displayName || 'Trekker',
+    communityName: '',
+  })
+  return doc
 }
 
 export async function upsertTrekStatus(slug, fields) {

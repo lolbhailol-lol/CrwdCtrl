@@ -51,6 +51,16 @@ export const treks = [
     overview:
       'Monsoon favourite near Bhira dam — cascading falls inside dense forest with a wide plunge pool. Extremely popular; start early and respect flash-flood risk.',
     startingPoint: 'Bhira village parking / Tata Power colony road',
+    howToReach: [
+      'Train/road to Mangaon or Kolad, then local taxi to Bhira village.',
+      'Park near Tata Power / Bhira base — do not block the approach road.',
+      'Follow the marked forest path toward the dam stream; start before 7 AM on weekends.',
+    ],
+    emergencyContacts: [
+      'Base checkpoint / local volunteers at Bhira parking (seasonal)',
+      'Nearest help: Mangaon / Kolad town clinics',
+      'In distress: dial 112 (national emergency)',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Devkund+Waterfall+Bhira',
     bestSeason: 'July – September',
     entryFee: 'Approx ₹50–100 (seasonal local collection)',
@@ -98,6 +108,16 @@ export const treks = [
     overview:
       'Open Sahyadri views with a roaring monsoon cascade finish. Half-day favourite when Malshej greenery peaks.',
     startingPoint: 'Base village near Malshej approach',
+    howToReach: [
+      'Approach via Malshej / Junnar road; last stretch is village approach.',
+      'Park at the common base lot — overflow fills early on weekends.',
+      'Follow ridge trail markers toward the cascade viewpoint.',
+    ],
+    emergencyContacts: [
+      'Base volunteers on peak weekends',
+      'Junnar / Malshej local clinics for minor injuries',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Kalu+Waterfall+Trek',
     bestSeason: 'June – September',
     entryFee: 'Nominal local charges may apply',
@@ -144,6 +164,16 @@ export const treks = [
     overview:
       'Scenic monsoon waterfall trek with stream-side walking and dense green walls. Growing fast in popularity — expect weekend crowds in peak season.',
     startingPoint: 'Local Nanemachi base village',
+    howToReach: [
+      'Reach via Pune district village roads to Nanemachi base.',
+      'Limited parking near village — arrive early.',
+      'Follow the stream-side path; poles help on wet rock.',
+    ],
+    emergencyContacts: [
+      'Ask village base for local guide contacts',
+      'Nearest town medical help — confirm before you leave',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Nanemachi+Waterfall',
     bestSeason: 'July – September',
     entryFee: 'Local charges may apply',
@@ -189,6 +219,16 @@ export const treks = [
     overview:
       'Accessible Mahabaleshwar waterfall viewpoint and short trail — highly visited by families and day tourists. Less “trek”, more essential monsoon nature stop.',
     startingPoint: 'Lingmala viewpoint / trail entry, Mahabaleshwar',
+    howToReach: [
+      'Mahabaleshwar main roads to Lingmala viewpoint / trail entry.',
+      'Paid parking near entry — fills by late morning in monsoon.',
+      'Short descent / viewpoint walk; stay behind barriers.',
+    ],
+    emergencyContacts: [
+      'Site staff / ticket counter at entry',
+      'Mahabaleshwar town hospitals',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Lingmala+Waterfall+Mahabaleshwar',
     bestSeason: 'June – September',
     entryFee: 'Entry / parking charges common',
@@ -234,6 +274,16 @@ export const treks = [
     overview:
       'Series of monsoon waterfalls near Satara with developed viewpoints. One of Maharashtra’s most famous waterfall destinations — expect tourist buses in peak season.',
     startingPoint: 'Thoseghar Waterfall entry, Satara',
+    howToReach: [
+      'Satara → Thoseghar Waterfall entry road.',
+      'Park at designated lot; roadside overflow on busy days.',
+      'Follow managed viewpoint paths — do not cross railings.',
+    ],
+    emergencyContacts: [
+      'Entry / ticket staff on site',
+      'Satara town medical facilities',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Thoseghar+Waterfalls',
     bestSeason: 'July – September',
     entryFee: 'Entry fee applicable',
@@ -279,6 +329,16 @@ export const treks = [
     overview:
       'Very popular Karjat monsoon outing — short approach, multiple cascades, heavy local crowd. More picnic-trek than wilderness; still useful for live crowd & parking status.',
     startingPoint: 'Bhivpuri Road / waterfall base access',
+    howToReach: [
+      'Karjat / Bhivpuri Road access; very busy on monsoon weekends.',
+      'Use designated lots early — approach road congests after 8 AM.',
+      'Short cascade approaches; expect picnic crowds.',
+    ],
+    emergencyContacts: [
+      'Local parking / base volunteers (seasonal)',
+      'Karjat clinics for first aid',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Bhivpuri+Waterfall',
     bestSeason: 'July – September',
     entryFee: 'Local charges common',
@@ -324,6 +384,16 @@ export const treks = [
     overview:
       'Powerful waterfall near Bhandardara dam — short access, huge monsoon volume, highly visited. Pair with Ratangad for a full Bhandardara day.',
     startingPoint: 'Randha Falls viewpoint parking',
+    howToReach: [
+      'Drive to Randha Falls viewpoint parking.',
+      'Short walk to viewpoint; stay on marked paths.',
+      'Avoid edge rock when wet.',
+    ],
+    emergencyContacts: [
+      'Viewpoint / parking attendants when present',
+      'Nearest town clinic — ask at base',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Randha+Falls+Bhandardara',
     bestSeason: 'July – September',
     entryFee: 'Parking / local charges may apply',
@@ -369,6 +439,16 @@ export const treks = [
     overview:
       '“Dark forest” one-way jungle descent through thick Sahyadri canopy. Mist corridors, leeches in peak monsoon, and a true wilderness feel. Permission + exit transport planning required.',
     startingPoint: 'Pimpri village (Tamhini side)',
+    howToReach: [
+      'One-way jungle: start Pimpri (Tamhini side); arrange exit pickup in advance.',
+      'Forest permission often required — confirm before travel.',
+      'Carry all water and packed lunch; network dies inside canopy.',
+    ],
+    emergencyContacts: [
+      'Organiser / guide contact (required for most groups)',
+      'Forest desk at permission checkpoint (when active)',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Andharban+Trek+Pimpri',
     bestSeason: 'July – October',
     entryFee: 'Often bundled with forest / guide charges',
@@ -415,6 +495,16 @@ export const treks = [
     overview:
       'Dense jungle traverse with multiple stream crossings and low visibility. For experienced monsoon trekkers comfortable with long humid days and navigation.',
     startingPoint: 'Tamhini region base (confirm with organiser)',
+    howToReach: [
+      'Tamhini region base — confirm exact start with organiser.',
+      'Valid forest permission usually mandatory.',
+      'Long humid day; not ideal as a first monsoon trek.',
+    ],
+    emergencyContacts: [
+      'Local guide / organiser (strongly recommended)',
+      'Forest department checkpoint when open',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Aadrai+Jungle+Trek',
     bestSeason: 'July – September',
     entryFee: 'Permission / guide fees apply',
@@ -460,6 +550,16 @@ export const treks = [
     overview:
       'Lush ghat / forest trail popular in monsoon for dense greenery and fewer tourist-fort crowds. Conditions change quickly with rain — check status before leaving.',
     startingPoint: 'Local Madhe Ghat base (route-dependent)',
+    howToReach: [
+      'Route-dependent bases in Pune / Satara belt — go with someone who knows the trail.',
+      'Monsoon growth can hide paths; start early.',
+      'Pack food and 2–2.5L water.',
+    ],
+    emergencyContacts: [
+      'Local trek organisers familiar with the route',
+      'Nearest village / town clinic',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Madhe+Ghat+Trek',
     bestSeason: 'July – October',
     entryFee: 'Varies by access point',
@@ -504,6 +604,16 @@ export const treks = [
     overview:
       'Striking valley landscapes in the Tamhini belt — open vistas mixed with monsoon streams. Popular nature trek when people want views without a fort climb.',
     startingPoint: 'Tamhini / Plus Valley access base',
+    howToReach: [
+      'Tamhini / Plus Valley access base.',
+      'Permission may apply — verify before travel.',
+      'Open valley weather changes fast; watch stream crossings.',
+    ],
+    emergencyContacts: [
+      'Base checkpoint / permission desk when active',
+      'Nearest Tamhini-area help — ask at base',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Plus+Valley+Tamhini',
     bestSeason: 'July – October',
     entryFee: 'Local / permission charges may apply',
@@ -549,6 +659,16 @@ export const treks = [
     overview:
       'Ancient trade pass with rock-cut caves and dramatic ghat views. Classic history + nature day trek; busy on pleasant winter weekends.',
     startingPoint: 'Naneghat base / Ghatghar side (route-dependent)',
+    howToReach: [
+      'Common approaches: Naneghat base or Ghatghar side (confirm route).',
+      'Pass and cave sections — carry a torch.',
+      'Edge sections need care in wind / monsoon.',
+    ],
+    emergencyContacts: [
+      'Local base stalls / frequent trek groups on weekends',
+      'Junnar town medical help',
+      'Emergency: 112',
+    ],
     mapsUrl: 'https://maps.google.com/?q=Naneghat',
     bestSeason: 'October – February; monsoon for views',
     entryFee: 'None standard',

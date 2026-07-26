@@ -185,6 +185,59 @@ export async function postCheckIn(req, res, next) {
   }
 }
 
+const UPDATE_TAGS = ['crowd', 'trail', 'weather', 'closure', 'info']
+
+export async function postCommunityUpdate(req, res, next) {
+  try {
+    const trek = trekService.getTrekBySlug(req.params.slug)
+    if (!trek) {
+      return res.status(404).json({ success: false, message: 'Trek not found' })
+    }
+
+    const { message, tag, displayName } = req.body || {}
+    const note = String(message || '').trim()
+    const updateTag = String(tag || 'info').trim()
+    const name = String(displayName || 'Trekker').trim().slice(0, 60) || 'Trekker'
+
+    if (!note || note.length > 280) {
+      return res.status(400).json({
+        success: false,
+        message: 'message is required (max 280 chars).',
+      })
+    }
+    if (!UPDATE_TAGS.includes(updateTag)) {
+      return res.status(400).json({
+        success: false,
+        message: `tag must be one of: ${UPDATE_TAGS.join(', ')}`,
+      })
+    }
+
+    const update = await trekService.createCommunityUpdate(req.params.slug, {
+      message: note,
+      tag: updateTag,
+      displayName: name,
+    })
+
+    const enriched = await trekService.enrichTrek(trek)
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        update: {
+          id: String(update._id),
+          message: update.message,
+          status: update.statusTag,
+          source: update.displayName || 'Trekker',
+          timestamp: update.createdAt,
+        },
+        trek: enriched,
+      },
+    })
+  } catch (err) {
+    return next(err)
+  }
+}
+
 export async function patchTrekStatus(req, res, next) {
   try {
     const trek = trekService.getTrekBySlug(req.params.slug)

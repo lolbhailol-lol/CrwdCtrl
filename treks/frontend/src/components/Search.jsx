@@ -25,9 +25,11 @@ export default function Search({
       />
       <button
         type="submit"
-        className="absolute right-1 top-1 bottom-1 rounded-md bg-brand px-3 text-sm font-semibold text-brand-ink hover:bg-brand-hover sm:right-1.5 sm:top-1.5 sm:bottom-1.5 sm:px-4"
+        aria-label="Search"
+        className="absolute right-1 top-1 bottom-1 inline-flex items-center justify-center rounded-md bg-brand px-2.5 text-brand-ink hover:bg-brand-hover sm:right-1.5 sm:top-1.5 sm:bottom-1.5 sm:px-4"
       >
-        Search
+        <span className="material-symbols-outlined text-[20px] sm:hidden">search</span>
+        <span className="hidden text-sm font-semibold sm:inline">Search</span>
       </button>
     </form>
   )

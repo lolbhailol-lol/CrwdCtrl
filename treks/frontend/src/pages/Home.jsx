@@ -93,24 +93,21 @@ export default function Home() {
   }
 
   return (
-    <div className="pb-[calc(8.5rem+env(safe-area-inset-bottom))] md:pb-10">
-      <section className="container-wide section-pad pt-6 pb-4 sm:pt-12 sm:pb-6">
+    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-10">
+      <section className="container-wide section-pad pt-4 pb-3 sm:pt-12 sm:pb-6">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-medium uppercase tracking-wide text-brand">{APP_NAME}</p>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-ink sm:mt-2 sm:text-4xl">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-brand sm:text-xs">
+            {APP_NAME}
+          </p>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-ink sm:mt-2 sm:text-4xl">
             {APP_TAGLINE}
           </h1>
           <p className="mx-auto mt-2 hidden max-w-md text-sm text-muted sm:block sm:text-base">
             Pick a day, see the trails, mark yourself in. Help others know the crowd.
           </p>
-          <div className="mx-auto mt-4 max-w-lg sm:mt-5">
+          <div className="mx-auto mt-3 max-w-lg sm:mt-5">
             <Search value={query} onChange={setQuery} onSubmit={handleSearch} />
           </div>
-          {source === 'api' ? (
-            <p className="mt-3 hidden text-[11px] text-muted sm:block">Live data</p>
-          ) : source && source !== 'idle' ? (
-            <p className="mt-3 text-[11px] text-[#ffcd98]">Demo data · times not live</p>
-          ) : null}
         </div>
       </section>
 
