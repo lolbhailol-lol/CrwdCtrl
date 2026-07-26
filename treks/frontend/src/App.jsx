@@ -1,6 +1,5 @@
 import { Analytics } from '@vercel/analytics/react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { Analytics } from '@vercel/analytics/react'
 import { TrekDataProvider } from './context/TrekDataContext'
 import MainLayout from './layouts/MainLayout'
 import Home from './pages/Home'
