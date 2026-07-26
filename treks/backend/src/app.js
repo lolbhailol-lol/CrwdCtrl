@@ -18,11 +18,8 @@ app.use(
       if (!origin) return callback(null, true)
       if (allowedOrigins === true) return callback(null, true)
       if (allowedOrigins.includes(origin)) return callback(null, true)
-      // Vite often hops 5173→5175 when ports are busy
-      if (
-        env.nodeEnv !== 'production' &&
-        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
-      ) {
+      // Local Vite (any port) — needed when UI hits the Railway API from localhost
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true)
       }
       return callback(new Error(`CORS blocked for origin: ${origin}`))
