@@ -51,10 +51,14 @@ export async function loadLiveData({ force = false, date } = {}) {
       apiGet('/api/alerts'),
     ])
 
+    if (!treksRes || !Array.isArray(treksRes.data)) {
+      throw new Error('Invalid treks API response')
+    }
+
     const forDate = treksRes.forDate || date || null
     cache = {
-      treks: treksRes.data || [],
-      alerts: alertsRes.data || [],
+      treks: treksRes.data,
+      alerts: Array.isArray(alertsRes?.data) ? alertsRes.data : [],
       source: 'api',
       error: null,
       forDate,
@@ -84,15 +88,19 @@ export async function loadLiveData({ force = false, date } = {}) {
 export async function fetchTreksForDate(date) {
   try {
     const json = await apiGet(`/api/treks?date=${encodeURIComponent(date)}`)
-    const list = json.data || []
+    if (!json || !Array.isArray(json.data)) {
+      throw new Error('Invalid treks API response')
+    }
+    const list = json.data
+    const forDate = json.forDate || date
     cache = {
       ...cache,
       treks: list,
       source: 'api',
       error: null,
-      forDate: json.forDate || date,
+      forDate,
     }
-    return { treks: list, forDate: json.forDate || date, source: 'api' }
+    return { treks: list, forDate, source: 'api' }
   } catch (err) {
     const list = withZeroPeople([...localTreks], date)
     return { treks: list, forDate: date, source: 'mock-fallback', error: err.message }

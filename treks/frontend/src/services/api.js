@@ -1,7 +1,11 @@
-const API_BASE = (import.meta.env.VITE_TREKS_API_URL || 'http://localhost:5055').replace(
-  /\/$/,
-  '',
-)
+function normalizeApiBase(raw) {
+  return String(raw || 'http://localhost:5055')
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .replace(/\/$/, '')
+}
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_TREKS_API_URL)
 
 export function getApiBase() {
   return API_BASE
@@ -20,6 +24,10 @@ async function parseJson(res, path) {
     err.status = res.status
     err.body = body
     throw err
+  }
+
+  if (body == null || typeof body !== 'object') {
+    throw new Error(`API returned empty response: ${path}`)
   }
 
   return body
