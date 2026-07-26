@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { TrekDataProvider } from './context/TrekDataContext'
 import MainLayout from './layouts/MainLayout'
@@ -28,6 +29,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <Analytics />
     </TrekDataProvider>
   )
 }

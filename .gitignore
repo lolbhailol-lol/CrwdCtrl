@@ -65,3 +65,4 @@ media/
 *.mkv
 *.webm
 *.wav
+.vercel
