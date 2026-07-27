@@ -174,6 +174,17 @@ export default function PaymentProofReviewModal({
                                     : ''}
                             </div>
                         ) : null}
+                        {participant.addOnSelected && participant.addOnLabel ? (
+                            <div className="col-span-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-xs text-emerald-200">
+                                Add-on: <span className="font-semibold text-white">{participant.addOnLabel}</span>
+                                {Number(participant.addOnFee) > 0
+                                    ? ` · ₹${Number(participant.addOnFee).toLocaleString('en-IN')}/person`
+                                    : ''}
+                                {people > 1 && Number(participant.addOnFee) > 0
+                                    ? ` · ₹${Number(participant.addOnTotal || (participant.addOnFee * people)).toLocaleString('en-IN')} total`
+                                    : ''}
+                            </div>
+                        ) : null}
                         {participant.couponCode ? (
                             <div className="col-span-2 rounded-lg bg-green-500/10 border border-green-500/30 px-3 py-2 text-xs text-green-300">
                                 Coupon `{participant.couponCode}`

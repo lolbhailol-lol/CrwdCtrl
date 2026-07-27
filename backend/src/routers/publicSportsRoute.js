@@ -1,13 +1,29 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const SportsEvent = require('../model/sports_model');
 const { findByIdOrSlug, ensureUniqueSlug } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
     sumConfirmedSeats,
 } = require('../utils/runClubRegistrationGuards');
+const { getJwtSecret } = require('../config/jwtSecret');
+const { registrationLimiter } = require('../middleware/rateLimiter');
+const uploadCtrl = require('../controllers/uploadController');
 
+function getOptionalUserId(req) {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) return null;
+        const token = authHeader.substring(7);
+        if (!token) return null;
+        const decoded = jwt.verify(token, getJwtSecret());
+        return decoded.userId || null;
+    } catch {
+        return null;
+    }
+}
 // GET /api/sports — list published sports events
 router.get('/', async (req, res) => {
     try {
@@ -124,5 +140,45 @@ router.get('/:idOrSlug', async (req, res) => {
         res.status(500).json({ message: 'Failed to fetch sports event' });
     }
 });
+
+// POST /api/sports/:id/payment-screenshot — guest QR proof upload (when requireLogin=false or logged in)
+router.post(
+    '/:id/payment-screenshot',
+    registrationLimiter,
+    uploadCtrl.uploadSingle,
+    uploadCtrl.multerErrorHandler,
+    async (req, res) => {
+        try {
+            const eventMatch = await findByIdOrSlug(SportsEvent, req.params.id, {
+                baseFilter: { status: 'published' },
+                pickName: (row) => row.title || '',
+                lean: true,
+            });
+            if (!eventMatch) return res.status(404).json({ message: 'Run not found' });
+
+            const event = await SportsEvent.findById(eventMatch._id).select('registration status').lean();
+            if (!event || event.status !== 'published') {
+                return res.status(404).json({ message: 'Run not found' });
+            }
+            if ((event.registration?.mode || 'internal_form') !== 'organizer_qr') {
+                return res.status(400).json({ message: 'Payment screenshots are only used for UPI / QR runs.' });
+            }
+            if (event.registration?.requireLogin !== false && !getOptionalUserId(req)) {
+                return res.status(401).json({
+                    message: 'Please log in to upload a payment screenshot for this run.',
+                    requireLogin: true,
+                });
+            }
+            if (!req.file) {
+                return res.status(400).json({ message: 'Image file is required' });
+            }
+
+            return uploadCtrl.uploadImage(req, res);
+        } catch (err) {
+            console.error('[Sports payment-screenshot] error:', err);
+            res.status(500).json({ message: 'Failed to upload payment screenshot' });
+        }
+    },
+);
 
 module.exports = router;

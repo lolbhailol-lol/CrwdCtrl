@@ -5,6 +5,7 @@ const {
     sanitizeSportsTiers,
     maxTierFee,
     mirrorRegistrationFeeFromTiers,
+    sanitizeOptionalAddOn,
 } = require('../utils/sportsPricing');
 
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
@@ -87,6 +88,9 @@ function sanitizeSportsPayload(body = {}) {
     }
     if (body.tiers !== undefined) {
         payload.tiers = sanitizeSportsTiers(body.tiers);
+    }
+    if (body.optionalAddOn !== undefined) {
+        payload.optionalAddOn = sanitizeOptionalAddOn(body.optionalAddOn);
     }
     if (payload.pricingMode === 'tiers' || (body.pricingMode === 'tiers' && payload.tiers)) {
         const mode = payload.pricingMode || (body.pricingMode === 'tiers' ? 'tiers' : 'single');
@@ -190,6 +194,7 @@ function sanitizeSportsPayload(body = {}) {
             paymentQRMessage: String(r.paymentQRMessage || '').trim(),
             paymentUpiId: String(r.paymentUpiId || '').trim(),
             qrAutoConfirm: Boolean(r.qrAutoConfirm),
+            requireLogin: r.requireLogin !== false,
             formSchema: Array.isArray(r.formSchema)
                 ? r.formSchema
                     .filter((f) => f && (f.label || f.fieldName))

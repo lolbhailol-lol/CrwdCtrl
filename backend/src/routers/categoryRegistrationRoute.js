@@ -1,14 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const adminAuth = require('../middleware/adminAuth');
-const { authenticateToken } = require('../middleware/authmiddleware');
+const { authenticateToken, optionalAuthenticateToken } = require('../middleware/authmiddleware');
 const ctrl = require('../controllers/categoryRegistrationController');
 
 // ===== USER ROUTES =====
 
 // POST /api/category-registrations/:category/:eventId/register
 // category = sports | trek | events
-router.post('/:category/:eventId/register', authenticateToken, ctrl.registerForEvent);
+// Sports may allow guest checkout when registration.requireLogin === false
+router.post('/:category/:eventId/register', optionalAuthenticateToken, ctrl.registerForEvent);
 
 // GET /api/category-registrations/my
 router.get('/my', authenticateToken, ctrl.getMyRegistrations);

@@ -86,6 +86,9 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                             {participant.tierName ? (
                                 <Badge tone="info">{participant.tierName}</Badge>
                             ) : null}
+                            {participant.addOnSelected && participant.addOnLabel ? (
+                                <Badge tone="success">+ {participant.addOnLabel}</Badge>
+                            ) : null}
                         </div>
 
                         {participant.tierName ? (
@@ -98,6 +101,21 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                                         : 'Free tier'}
                                     {(participant.people ?? 1) > 1
                                         ? ` · ${participant.people} people`
+                                        : ''}
+                                </p>
+                            </div>
+                        ) : null}
+
+                        {participant.addOnSelected && participant.addOnLabel ? (
+                            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm">
+                                <p className="text-[11px] uppercase tracking-wide text-emerald-400 font-semibold mb-1">Optional add-on</p>
+                                <p className="font-semibold text-white">{participant.addOnLabel}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                    {Number(participant.addOnFee) > 0
+                                        ? `₹${Number(participant.addOnFee).toLocaleString('en-IN')} per person`
+                                        : 'Included'}
+                                    {(participant.people ?? 1) > 1 && Number(participant.addOnFee) > 0
+                                        ? ` · ₹${Number(participant.addOnTotal || (participant.addOnFee * participant.people)).toLocaleString('en-IN')} total`
                                         : ''}
                                 </p>
                             </div>

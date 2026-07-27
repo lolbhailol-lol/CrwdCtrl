@@ -41,6 +41,15 @@ const sportsEventSchema = new mongoose.Schema(
             inclusions: { type: [String], default: [] },
             order: { type: Number, default: 0 },
         }],
+        /**
+         * Optional booking add-on shown as a checkbox on the run book page.
+         * Fee is charged per person when selected.
+         */
+        optionalAddOn: {
+            enabled: { type: Boolean, default: false },
+            label: { type: String, trim: true, default: '' },
+            fee: { type: Number, default: 0, min: 0 },
+        },
         dressCode: { type: String, trim: true },
         participationType: {
             type: String,
@@ -149,6 +158,11 @@ const sportsEventSchema = new mongoose.Schema(
              * When false (default), stays pending until organizer approves.
              */
             qrAutoConfirm: { type: Boolean, default: false },
+            /**
+             * When false, guests can book without an account (name/email/phone on the form).
+             * Default true = login required (existing behaviour).
+             */
+            requireLogin: { type: Boolean, default: true },
             formSchema: [{
                 id:          String,
                 label:       String,

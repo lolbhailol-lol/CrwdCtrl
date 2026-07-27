@@ -11,7 +11,7 @@ const {
 } = require('../utils/couponPricing');
 const { buildPriceBreakdown } = require('../utils/platformFee');
 const { findByIdOrSlug } = require('../utils/slug');
-const { resolveSportsPerPersonFee } = require('../utils/sportsPricing');
+const { resolveSportsTicketTotal } = require('../utils/sportsPricing');
 const {
     expireStalePendingRegistrations,
     isAllowedPaymentScreenshotUrl,
@@ -45,15 +45,21 @@ const SLUG_NAME_PICKERS = {
    USER: REGISTER FOR EVENT
 ========================= */
 exports.registerForEvent = async (req, res) => {
+    let category;
+    let eventId;
+    let resolvedEventId;
+    let userId = null;
+    let guestEmail = '';
+    let event = null;
     try {
-        const { category, eventId } = req.params;
+        ({ category, eventId } = req.params);
 
         if (!MODEL_MAP[category]) {
             return res.status(400).json({ message: 'Invalid category. Use: sports, trek, events' });
         }
 
         const Model = MODEL_MAP[category];
-        const event = await findByIdOrSlug(Model, eventId, {
+        event = await findByIdOrSlug(Model, eventId, {
             pickName: SLUG_NAME_PICKERS[category],
             lean: true,
         });
@@ -62,7 +68,7 @@ exports.registerForEvent = async (req, res) => {
         }
 
         // Always store the real ObjectId on registrations (URL may be a slug)
-        const resolvedEventId = event._id;
+        resolvedEventId = event._id;
 
         if (category === 'sports') {
             await expireStalePendingRegistrations(resolvedEventId);
@@ -72,20 +78,35 @@ exports.registerForEvent = async (req, res) => {
             return res.status(400).json({ message: 'Registration is currently closed for this event' });
         }
 
-        const userId = req.user?.userId || req.user?._id;
-        if (!userId) {
-            return res.status(401).json({ message: 'Authentication required' });
+        userId = req.user?.userId || req.user?._id || null;
+        // Guest checkout only for sports when registration.requireLogin === false
+        const requireLogin = category === 'sports'
+            ? event.registration?.requireLogin !== false
+            : true;
+        if (requireLogin && !userId) {
+            return res.status(401).json({
+                message: 'Please log in to book this run.',
+                requireLogin: true,
+            });
         }
 
         const responses = { ...(req.body.responses || req.body.formData || {}) };
         const bookingDetails = req.body.bookingDetails || {};
         let registrationFee = Number(event.registrationFee) || 0;
         let selectedTier = null;
+        let addOnSelected = false;
+        let addOnMeta = null;
         if (category === 'sports') {
             try {
-                const priced = resolveSportsPerPersonFee(event, bookingDetails.tierId || req.body.tierId);
-                registrationFee = priced.fee;
-                selectedTier = priced.tier;
+                const ticket = resolveSportsTicketTotal(event, {
+                    tierId: bookingDetails.tierId || req.body.tierId,
+                    people: bookingDetails.people,
+                    addOnSelected: bookingDetails.addOnSelected || req.body.addOnSelected,
+                });
+                registrationFee = ticket.ticketPricePerPerson;
+                selectedTier = ticket.tier;
+                addOnSelected = ticket.addOnSelected;
+                addOnMeta = ticket.addOn;
             } catch (tierErr) {
                 return res.status(tierErr.status || 400).json({ message: tierErr.message || 'Invalid tier' });
             }
@@ -96,6 +117,8 @@ exports.registerForEvent = async (req, res) => {
         const people = Math.min(maxPeople, Math.max(1, Number(bookingDetails.people) || 1));
         const bookingDate = String(bookingDetails.date || '').trim();
         const bookingTime = String(bookingDetails.time || '').trim();
+        const addOnFeePerPerson = addOnSelected && addOnMeta ? addOnMeta.fee : 0;
+        const chargePerPerson = registrationFee + addOnFeePerPerson;
 
         // Persist slot into responses so organizer sheets stay consistent
         responses.people = people;
@@ -105,6 +128,36 @@ exports.registerForEvent = async (req, res) => {
             responses.tierId = selectedTier.id;
             responses.tierName = selectedTier.name;
         }
+        if (category === 'sports') {
+            responses.addOnSelected = addOnSelected;
+            if (addOnSelected && addOnMeta) {
+                responses.addOnLabel = addOnMeta.label;
+                responses.addOnFee = addOnMeta.fee;
+            }
+        }
+
+        const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const extractGuestEmail = (data = {}) => String(
+            data.email || data.e_mail_id || data.e_mail || data.Email || data['E-mail'] || data['E-mail Id'] || '',
+        ).trim().toLowerCase();
+        const extractGuestName = (data = {}) => String(
+            data.full_name || data.name || data.Name || data['Full Name'] || '',
+        ).trim();
+
+        let guestName = '';
+        if (!userId) {
+            guestEmail = extractGuestEmail(responses);
+            guestName = extractGuestName(responses);
+            if (!EMAIL_REGEX.test(guestEmail)) {
+                return res.status(400).json({
+                    message: 'A valid email is required to complete registration. Please fill the email field on the form.',
+                });
+            }
+        }
+
+        const ownerFilter = userId
+            ? { user: userId }
+            : { user: null, guestEmail };
 
         // Idempotent payment retry: the SAME payment must not create a second
         // registration, but must succeed (not 409) so a resume/double-submit
@@ -115,7 +168,7 @@ exports.registerForEvent = async (req, res) => {
             const existing = await CategoryRegistration.findOne({
                 category,
                 eventId: resolvedEventId,
-                user: userId,
+                ...ownerFilter,
                 payment_order_id: retryOrderId,
             }).lean();
             if (existing) {
@@ -128,13 +181,13 @@ exports.registerForEvent = async (req, res) => {
             }
         }
 
-        // One active (pending|confirmed) registration per user per event.
+        // One active (pending|confirmed) registration per user/guest email per event.
         // Confirmed → idempotent 200. Pending QR before review → allow resubmit (update).
         let pendingRegistrationToUpdate = null;
         const activeExisting = await CategoryRegistration.findOne({
             category,
             eventId: resolvedEventId,
-            user: userId,
+            ...ownerFilter,
             status: { $in: ['pending', 'confirmed'] },
         }).lean();
         if (activeExisting) {
@@ -194,7 +247,7 @@ exports.registerForEvent = async (req, res) => {
         let couponReservedAt = null;
 
         if (isOrganizerQr) {
-            const baseAmount = registrationFee * people;
+            const baseAmount = chargePerPerson * people;
             appliedAmountBeforeDiscount = baseAmount;
 
             const rawCoupon = bookingDetails.couponCode || req.body.couponCode || '';
@@ -274,18 +327,20 @@ exports.registerForEvent = async (req, res) => {
                 paymentGateway = appliedCouponCode ? 'organizer_qr' : null;
             }
 
-            if (appliedCouponCode) {
+            if (appliedCouponCode && userId) {
                 const reserved = await reserveCouponUsage({ couponCode: appliedCouponCode, userId });
                 if (!reserved.ok) {
                     return res.status(400).json({ message: reserved.message || 'Coupon could not be applied' });
                 }
                 couponReservedAt = new Date();
+            } else if (appliedCouponCode && !userId) {
+                couponReservedAt = new Date();
             }
-        } else if (registrationFee > 0) {
+        } else if (chargePerPerson > 0) {
             // Cashfree / online — full coupon can skip payment_order entirely
             if (!paymentOrderId) {
                 const rawCoupon = bookingDetails.couponCode || req.body.couponCode || '';
-                const ticketBase = registrationFee * people;
+                const ticketBase = chargePerPerson * people;
                 const { totalAmount: gross } = buildPriceBreakdown(ticketBase);
                 try {
                     const couponResult = await validateAndPriceCoupon({
@@ -300,9 +355,11 @@ exports.registerForEvent = async (req, res) => {
                         appliedCouponCode = couponResult.couponCode || '';
                         appliedCouponDiscount = Number(couponResult.discountAmount) || 0;
                         appliedAmountBeforeDiscount = Number(couponResult.amountBeforeDiscount) || gross;
-                        const reserved = await reserveCouponUsage({ couponCode: appliedCouponCode, userId });
-                        if (!reserved.ok) {
-                            return res.status(400).json({ message: reserved.message || 'Coupon could not be applied' });
+                        if (userId) {
+                            const reserved = await reserveCouponUsage({ couponCode: appliedCouponCode, userId });
+                            if (!reserved.ok) {
+                                return res.status(400).json({ message: reserved.message || 'Coupon could not be applied' });
+                            }
                         }
                         couponReservedAt = new Date();
                         amountPaid = 0;
@@ -348,14 +405,16 @@ exports.registerForEvent = async (req, res) => {
                 couponReservedAt = new Date();
             }
         } else if (appliedCouponCode && !couponReservedAt) {
-            const reserved = await reserveCouponUsage({
-                couponCode: appliedCouponCode,
-                userId,
-            });
-            if (!reserved.ok) {
-                return res.status(400).json({
-                    message: reserved.message || 'Coupon could not be applied',
+            if (userId) {
+                const reserved = await reserveCouponUsage({
+                    couponCode: appliedCouponCode,
+                    userId,
                 });
+                if (!reserved.ok) {
+                    return res.status(400).json({
+                        message: reserved.message || 'Coupon could not be applied',
+                    });
+                }
             }
             couponReservedAt = new Date();
         }
@@ -364,7 +423,9 @@ exports.registerForEvent = async (req, res) => {
         let regPayload = {
             category,
             eventId: resolvedEventId,
-            user: userId,
+            user: userId || null,
+            guestEmail: userId ? '' : guestEmail,
+            guestName: userId ? '' : guestName,
             responses,
             paymentStatus,
             amountPaid,
@@ -383,6 +444,9 @@ exports.registerForEvent = async (req, res) => {
             tierId: selectedTier?.id || '',
             tierName: selectedTier?.name || '',
             tierFee: selectedTier ? registrationFee : (category === 'sports' ? registrationFee : 0),
+            addOnSelected: Boolean(addOnSelected),
+            addOnLabel: addOnSelected && addOnMeta ? addOnMeta.label : '',
+            addOnFee: addOnSelected && addOnMeta ? addOnMeta.fee : 0,
             status: regStatus,
             runClubId: runClubId || null,
         };
@@ -421,7 +485,7 @@ exports.registerForEvent = async (req, res) => {
             const confirmedHeld = await sumSeatsHeld(resolvedEventId, { statuses: ['confirmed'] });
             if (confirmedHeld > capacity) {
                 registration.status = 'cancelled';
-                registration.paymentStatus = registrationFee > 0 ? 'failed' : 'free';
+                registration.paymentStatus = chargePerPerson > 0 ? 'failed' : 'free';
                 registration.paymentReviewNote = 'Auto-cancelled: run became full';
                 await registration.save();
                 return res.status(400).json({ message: 'This run is full' });
@@ -495,10 +559,13 @@ exports.registerForEvent = async (req, res) => {
         console.error('categoryRegistration registerForEvent error:', error);
         if (error.code === 11000) {
             try {
+                const dupFilter = userId
+                    ? { user: userId }
+                    : { user: null, guestEmail: guestEmail || undefined };
                 const dup = await CategoryRegistration.findOne({
                     category,
                     eventId: resolvedEventId,
-                    user: userId,
+                    ...dupFilter,
                     status: { $in: ['pending', 'confirmed'] },
                 }).lean();
                 if (dup) {

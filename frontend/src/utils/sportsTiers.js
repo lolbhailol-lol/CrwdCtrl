@@ -71,3 +71,27 @@ export function minSportsFee(event) {
 export function formatInr(amount) {
     return `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 }
+
+/** Optional per-person booking add-on from admin (checkbox on book page). */
+export function resolveOptionalAddOn(event) {
+    const raw = event?.optionalAddOn;
+    if (!raw || raw.enabled !== true) return null;
+    const label = String(raw.label || '').trim();
+    const fee = Math.max(0, Number(raw.fee) || 0);
+    if (!label) return null;
+    return { label, fee };
+}
+
+export function sanitizeOptionalAddOn(raw) {
+    if (!raw || typeof raw !== 'object') {
+        return { enabled: false, label: '', fee: 0 };
+    }
+    const enabled = Boolean(raw.enabled);
+    const label = String(raw.label || '').trim();
+    const fee = Math.max(0, Number(raw.fee) || 0);
+    return {
+        enabled: enabled && Boolean(label),
+        label: enabled ? label : '',
+        fee: enabled ? fee : 0,
+    };
+}

@@ -16,7 +16,20 @@ const categoryRegistrationSchema = new mongoose.Schema(
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
-            required: true,
+            default: null,
+            required: false,
+        },
+        /** Guest checkout email (when user is null / requireLogin=false) */
+        guestEmail: {
+            type: String,
+            trim: true,
+            lowercase: true,
+            default: '',
+        },
+        guestName: {
+            type: String,
+            trim: true,
+            default: '',
         },
         // Dynamic form responses stored as key-value map
         responses: {
@@ -60,6 +73,10 @@ const categoryRegistrationSchema = new mongoose.Schema(
         tierId: { type: String, default: '', trim: true },
         tierName: { type: String, default: '', trim: true },
         tierFee: { type: Number, default: 0 },
+        /** Optional booking add-on (per person) chosen on the book page */
+        addOnSelected: { type: Boolean, default: false },
+        addOnLabel: { type: String, default: '', trim: true },
+        addOnFee: { type: Number, default: 0 },
         /**
          * Run-club organizer-only PII encryption (AES-GCM).
          * Sensitive form/payment fields live in *Cipher; plaintext responses
@@ -83,14 +100,30 @@ const categoryRegistrationSchema = new mongoose.Schema(
 // Non-unique index for fast lookups.
 categoryRegistrationSchema.index({ category: 1, eventId: 1, user: 1 });
 
-// At most one active (pending|confirmed) registration per user per event.
-// Cancelled/failed rows are excluded so re-register after reject still works.
+// At most one active (pending|confirmed) registration per logged-in user per event.
 categoryRegistrationSchema.index(
     { category: 1, eventId: 1, user: 1 },
     {
         unique: true,
         name: 'unique_active_category_registration',
-        partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } },
+        partialFilterExpression: {
+            status: { $in: ['pending', 'confirmed'] },
+            user: { $type: 'objectId' },
+        },
+    },
+);
+
+// Guest: one active registration per email per event
+categoryRegistrationSchema.index(
+    { category: 1, eventId: 1, guestEmail: 1 },
+    {
+        unique: true,
+        name: 'unique_active_guest_category_registration',
+        partialFilterExpression: {
+            status: { $in: ['pending', 'confirmed'] },
+            user: null,
+            guestEmail: { $type: 'string' },
+        },
     },
 );
 
@@ -118,11 +151,13 @@ const ensureCategoryRegistrationIndexes = async () => {
                 idx.key.category === 1 &&
                 idx.key.eventId === 1 &&
                 idx.key.user === 1;
-            const isPartialActive = idx.name === 'unique_active_category_registration'
-                || idx.partialFilterExpression;
-            if (isCatEventUser && !isPartialActive) {
+            const isLegacyFullUnique = isCatEventUser && !idx.partialFilterExpression;
+            const isStaleUserPartial = idx.name === 'unique_active_category_registration'
+                && idx.partialFilterExpression
+                && !idx.partialFilterExpression.user;
+            if (isLegacyFullUnique || isStaleUserPartial) {
                 await CategoryRegistration.collection.dropIndex(idx.name);
-                console.log('ℹ️ Dropped legacy full unique index on CategoryRegistration:', idx.name);
+                console.log('ℹ️ Dropped legacy CategoryRegistration index:', idx.name);
             }
         }
     } catch {
@@ -139,12 +174,33 @@ const ensureCategoryRegistrationIndexes = async () => {
             {
                 unique: true,
                 name: 'unique_active_category_registration',
-                partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } },
+                partialFilterExpression: {
+                    status: { $in: ['pending', 'confirmed'] },
+                    user: { $type: 'objectId' },
+                },
             },
         );
     } catch (err) {
         if (err?.code !== 85 && err?.code !== 86) {
             console.warn('⚠️ Could not ensure unique_active_category_registration:', err.message);
+        }
+    }
+    try {
+        await CategoryRegistration.collection.createIndex(
+            { category: 1, eventId: 1, guestEmail: 1 },
+            {
+                unique: true,
+                name: 'unique_active_guest_category_registration',
+                partialFilterExpression: {
+                    status: { $in: ['pending', 'confirmed'] },
+                    user: null,
+                    guestEmail: { $type: 'string' },
+                },
+            },
+        );
+    } catch (err) {
+        if (err?.code !== 85 && err?.code !== 86) {
+            console.warn('⚠️ Could not ensure unique_active_guest_category_registration:', err.message);
         }
     }
 };

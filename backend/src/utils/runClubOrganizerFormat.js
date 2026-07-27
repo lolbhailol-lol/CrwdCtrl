@@ -27,8 +27,8 @@ function normalizeRegistrationForFormat(reg) {
         _id: reg._id,
         formData,
         userId: user,
-        userName: user?.name || '',
-        userEmail: user?.email || pickFormField(formData, ['email', 'e_mail', 'Email']) || '',
+        userName: user?.name || reg.guestName || pickFormField(formData, ['full_name', 'name']) || '',
+        userEmail: user?.email || reg.guestEmail || pickFormField(formData, ['email', 'e_mail', 'Email']) || '',
         bookingDetails: {
             date: reg.bookingDate || pickFormField(formData, ['date', 'run_date', 'booking_date', 'event_date']) || '',
             time: reg.bookingTime || pickFormField(formData, ['time', 'time_slot', 'reporting_time']) || '',
@@ -54,6 +54,13 @@ function formatParticipantRow(reg, event = null) {
     const tierName = String(reg.tierName || form.tierName || '').trim();
     const tierId = String(reg.tierId || form.tierId || '').trim();
     const tierFee = Number(reg.tierFee) || Number(form.tierFee) || 0;
+    const addOnSelected = reg.addOnSelected === true
+        || form.addOnSelected === true
+        || form.addOnSelected === 'true'
+        || form.addOnSelected === 1;
+    const addOnLabel = String(reg.addOnLabel || form.addOnLabel || '').trim();
+    const addOnFee = Math.max(0, Number(reg.addOnFee) || Number(form.addOnFee) || 0);
+    const addOnTotal = addOnSelected ? addOnFee * people : 0;
 
     return {
         bookingId: String(reg._id),
@@ -103,8 +110,9 @@ function formatParticipantRow(reg, event = null) {
         listAmount: (() => {
             const before = Number(reg.amountBeforeDiscount) || 0;
             if (before > 0) return before;
-            const perPerson = tierFee || Number(event?.registrationFee) || 0;
-            return perPerson * people;
+            const entryPerPerson = tierFee || Number(event?.registrationFee) || 0;
+            const addOnPerPerson = addOnSelected ? addOnFee : 0;
+            return (entryPerPerson + addOnPerPerson) * people;
         })(),
         // What the runner was told to pay (after coupon)
         expectedAmount: Number(reg.amountPaid) || 0,
@@ -115,6 +123,15 @@ function formatParticipantRow(reg, event = null) {
             ? (tierFee > 0
                 ? `${tierName} · ₹${Number(tierFee).toLocaleString('en-IN')}/person`
                 : `${tierName} · Free`)
+            : '',
+        addOnSelected,
+        addOnLabel,
+        addOnFee,
+        addOnTotal,
+        addOnLabelFull: addOnSelected && addOnLabel
+            ? (addOnFee > 0
+                ? `${addOnLabel} · ₹${Number(addOnFee).toLocaleString('en-IN')}/person`
+                : addOnLabel)
             : '',
     };
 }
@@ -139,6 +156,7 @@ function buildSheetColumns(formSchema = []) {
         { key: 'trekTime', label: 'Time', group: 'booking', minWidth: 96 },
         { key: 'people', label: 'People', group: 'booking', minWidth: 72 },
         { key: 'tierLabel', label: 'Tier', group: 'booking', minWidth: 140 },
+        { key: 'addOnLabelFull', label: 'Add-on', group: 'booking', minWidth: 160 },
         { key: 'paymentStatus', label: 'Payment', group: 'status', minWidth: 88 },
         { key: 'organizerNet', label: 'Revenue (₹)', group: 'status', minWidth: 104 },
         { key: 'checkInStatus', label: 'Check-in', group: 'status', minWidth: 100 },

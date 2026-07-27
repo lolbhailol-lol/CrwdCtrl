@@ -29,7 +29,7 @@ const { extractPaymentFields } = require('../utils/paymentVerification');
 const { signPaymentProof } = require('../utils/paymentProof');
 const { validateAndPriceCoupon } = require('../utils/couponPricing');
 const { findByIdOrSlug } = require('../utils/slug');
-const { resolveSportsPerPersonFee } = require('../utils/sportsPricing');
+const { resolveSportsTicketTotal } = require('../utils/sportsPricing');
 const {
   extractEntityId,
   findReusablePendingOrder,
@@ -225,13 +225,17 @@ exports.validateCoupon = async (req, res) => {
         lean: true,
       });
       if (!event) return res.status(404).json({ message: 'Run not found' });
-      let ticketPricePerPerson;
+      let ticket;
       try {
-        ticketPricePerPerson = resolveSportsPerPersonFee(event, req.body.tierId).fee;
+        ticket = resolveSportsTicketTotal(event, {
+          tierId: req.body.tierId,
+          people,
+          addOnSelected: req.body.addOnSelected,
+        });
       } catch (e) {
         return res.status(e.status || 400).json({ message: e.message || 'Invalid tier' });
       }
-      const baseTicketTotal = ticketPricePerPerson * Math.max(1, Number(people) || 1);
+      const baseTicketTotal = ticket.baseTicketTotal;
       // UPI/SS (organizer_qr) has no platform fee — discount against run fee only
       const amountBeforeDiscount = event.registration?.mode === 'organizer_qr'
         ? baseTicketTotal
@@ -651,6 +655,7 @@ exports.createSportsOrder = async (req, res) => {
       customerPhone,
       couponCode,
       tierId,
+      addOnSelected = false,
     } = req.body;
 
     if (!eventId) {
@@ -672,6 +677,15 @@ exports.createSportsOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Run not found or not published' });
     }
 
+    const requireLogin = event.registration?.requireLogin !== false;
+    if (requireLogin && !req.user?.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Please log in to book this run.',
+        requireLogin: true,
+      });
+    }
+
     if (event.registration?.mode === 'organizer_qr') {
       return res.status(400).json({
         success: false,
@@ -682,20 +696,17 @@ exports.createSportsOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Registration is currently closed for this run' });
     }
 
-    let ticketPricePerPerson;
-    let resolvedTier = null;
+    let ticket;
     try {
-      const priced = resolveSportsPerPersonFee(event, tierId);
-      ticketPricePerPerson = priced.fee;
-      resolvedTier = priced.tier;
+      ticket = resolveSportsTicketTotal(event, { tierId, people, addOnSelected });
     } catch (e) {
       return res.status(e.status || 400).json({ success: false, message: e.message || 'Invalid tier' });
     }
-    if (ticketPricePerPerson <= 0) {
+    if (ticket.baseTicketTotal <= 0) {
       return res.status(400).json({ success: false, message: 'This run does not require payment' });
     }
 
-    const peopleCount = Math.max(1, Number(people) || 1);
+    const peopleCount = ticket.people;
     const maxPeople = event.registration?.maxPeoplePerBooking || event.maxParticipants || 10;
     if (peopleCount > maxPeople) {
       return res.status(400).json({
@@ -727,7 +738,9 @@ exports.createSportsOrder = async (req, res) => {
     }
 
     // Security: ignore client-supplied amount — server is source of truth
-    const baseTicketTotal = ticketPricePerPerson * peopleCount;
+    const baseTicketTotal = ticket.baseTicketTotal;
+    const resolvedTier = ticket.tier;
+    const ticketPricePerPerson = ticket.ticketPricePerPerson + ticket.addOnFeePerPerson;
     const { platformFee, totalAmount: grossTotalAmount } = buildPriceBreakdown(baseTicketTotal);
     const coupon = await validateAndPriceCoupon({
       couponCode,
@@ -794,6 +807,9 @@ exports.createSportsOrder = async (req, res) => {
         totalAmount: String(totalAmount),
         tierId: resolvedTier?.id || '',
         tierName: resolvedTier?.name || '',
+        addOnSelected: ticket.addOnSelected ? '1' : '0',
+        addOnLabel: ticket.addOnSelected ? (ticket.addOn?.label || '') : '',
+        addOnFee: String(ticket.addOnFeePerPerson || 0),
       },
     });
 

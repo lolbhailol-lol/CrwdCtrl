@@ -8,7 +8,7 @@ import { normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, RUN_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
-import { createEmptyTier, sanitizeSportsTiers } from '../../utils/sportsTiers';
+import { createEmptyTier, sanitizeSportsTiers, sanitizeOptionalAddOn } from '../../utils/sportsTiers';
 
 const EMPTY = {
     title: '',
@@ -22,6 +22,7 @@ const EMPTY = {
     registrationFee: 0,
     pricingMode: 'single',
     tiers: [],
+    optionalAddOn: { enabled: false, label: '', fee: 0 },
     dressCode: '',
     participationType: 'individual',
     maxParticipants: 0,
@@ -33,7 +34,7 @@ const EMPTY = {
     images: [],
     sponsors: '',
     registrationLink: '',
-    registration: { status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [], paymentQR: '', paymentQRMessage: '', paymentUpiId: '', qrAutoConfirm: false },
+    registration: { status: 'open', mode: 'internal_form', requireLogin: true, googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [], paymentQR: '', paymentQRMessage: '', paymentUpiId: '', qrAutoConfirm: false },
     description: '',
     status: 'published',
     runClubId: null,
@@ -115,6 +116,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 tiers: Array.isArray(event.tiers) && event.tiers.length
                     ? sanitizeSportsTiers(event.tiers)
                     : [],
+                optionalAddOn: sanitizeOptionalAddOn(event.optionalAddOn),
                 detailBoxes: normalizeRunDetailBoxes(event.detailBoxes, event),
                 infoSections: Array.isArray(event.infoSections) ? event.infoSections : [],
                 termsAndConditions: Array.isArray(event.termsAndConditions) ? event.termsAndConditions.join('\n') : '',
@@ -187,6 +189,10 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 return;
             }
         }
+        if (form.optionalAddOn?.enabled && !String(form.optionalAddOn?.label || '').trim()) {
+            setError('Add-on checkbox needs a label, or turn it off.');
+            return;
+        }
         setSaving(true);
         try {
             const coverImages = normalizeCoverImages(form.coverImages);
@@ -208,6 +214,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 registrationFee,
                 pricingMode,
                 tiers,
+                optionalAddOn: sanitizeOptionalAddOn(form.optionalAddOn),
                 dressCode: form.dressCode?.trim() || '',
                 participationType: form.participationType,
                 maxParticipants: Number(form.maxParticipants) || 0,
@@ -222,6 +229,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 registration: {
                     status: form.registration?.status || 'open',
                     mode: form.registration?.mode || 'internal_form',
+                    requireLogin: form.registration?.requireLogin !== false,
                     googleSheetsUrl: form.registration?.googleSheetsUrl || '',
                     organizerEmail: form.registration?.organizerEmail || '',
                     formInstructions: form.registration?.formInstructions || '',
@@ -510,6 +518,57 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                                 ))}
                             </div>
                         )}
+
+                        <div className="rounded-xl border border-gray-700 bg-[#1D1E20] p-3 space-y-3">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={Boolean(form.optionalAddOn?.enabled)}
+                                    onChange={(e) => set('optionalAddOn', {
+                                        ...(form.optionalAddOn || { label: '', fee: 0 }),
+                                        enabled: e.target.checked,
+                                    })}
+                                    className="mt-0.5 size-4 rounded border-gray-600 accent-[#0ECCEE]"
+                                />
+                                <span>
+                                    <span className="block text-sm font-medium text-gray-200">Optional add-on checkbox</span>
+                                    <span className="block text-[11px] text-gray-500 mt-0.5">
+                                        Book page shows a clear optional tick. Organizers see it on participant cards, payment review, and the sheet “Add-on” column. Price is per person.
+                                    </span>
+                                </span>
+                            </label>
+                            {form.optionalAddOn?.enabled ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <Field label="Checkbox label">
+                                        <input
+                                            type="text"
+                                            value={form.optionalAddOn?.label || ''}
+                                            onChange={(e) => set('optionalAddOn', {
+                                                ...(form.optionalAddOn || { enabled: true, fee: 0 }),
+                                                enabled: true,
+                                                label: e.target.value,
+                                            })}
+                                            className={inp}
+                                            placeholder="e.g. Add race t-shirt"
+                                        />
+                                    </Field>
+                                    <Field label="Add-on price (₹ per person)">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={form.optionalAddOn?.fee ?? 0}
+                                            onChange={(e) => set('optionalAddOn', {
+                                                ...(form.optionalAddOn || { enabled: true, label: '' }),
+                                                enabled: true,
+                                                fee: e.target.value,
+                                            })}
+                                            className={inp}
+                                        />
+                                    </Field>
+                                </div>
+                            ) : null}
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field label="Participation Type">
                                 <select value={form.participationType} onChange={(e) => set('participationType', e.target.value)} className={inp}>
@@ -550,6 +609,26 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                                 </select>
                             </Field>
                         </div>
+                        {(form.registration?.mode || 'internal_form') !== 'external_link' ? (
+                            <Field
+                                label="Booking login"
+                                hint={form.registration?.requireLogin === false
+                                    ? 'Guests book with name, email and phone. Ticket is sent by email; My Bookings still needs an account.'
+                                    : 'Participants must log in before they can book this run.'}
+                            >
+                                <select
+                                    value={form.registration?.requireLogin === false ? 'guest' : 'login'}
+                                    onChange={(e) => set('registration', {
+                                        ...form.registration,
+                                        requireLogin: e.target.value !== 'guest',
+                                    })}
+                                    className={inp}
+                                >
+                                    <option value="login">With login (account required) — default</option>
+                                    <option value="guest">Without login (guest checkout)</option>
+                                </select>
+                            </Field>
+                        ) : null}
                         {(form.registration?.mode || 'internal_form') === 'external_link' && (
                             <Field label="External Link" hint="WhatsApp / website / form link — opens in a new tab">
                                 <input type="url" value={form.registrationLink} onChange={(e) => set('registrationLink', e.target.value)} className={inp} placeholder="https://..." />

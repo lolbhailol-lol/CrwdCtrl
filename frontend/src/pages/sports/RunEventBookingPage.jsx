@@ -23,7 +23,7 @@ import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { mergeRunFormFields } from '../../utils/formFieldDedupe';
-import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
+import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken, isAuthFailureMessage } from '../../utils/authToken';
 import {
     classifyDetailLoadError,
     isTransientDetailError,
@@ -34,6 +34,7 @@ import {
     findSportsTier,
     isTiersPricing,
     resolveSportsPerPersonFee,
+    resolveOptionalAddOn,
     formatInr,
 } from '../../utils/sportsTiers';
 
@@ -55,7 +56,7 @@ function formatRunDate(baseDate) {
 const STEPS = ['Party size', 'Your Details', 'Confirm'];
 
 function getInitialUi(eventId, search, locationState) {
-    const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {}, tierId: '' };
+    const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {}, tierId: '', addOnSelected: false };
     if (!eventId) return defaults;
 
     let draft = {};
@@ -77,6 +78,7 @@ function getInitialUi(eventId, search, locationState) {
             selDate: draft.selDate || '', selTime: draft.selTime || '',
             people: draft.people || 1, extraFields: draft.extraFields || {},
             tierId: draft.tierId || tierId,
+            addOnSelected: Boolean(draft.addOnSelected),
         };
     }
 
@@ -85,6 +87,7 @@ function getInitialUi(eventId, search, locationState) {
         selDate: draft.selDate || '', selTime: draft.selTime || '',
         people: draft.people || 1, extraFields: draft.extraFields || {},
         tierId,
+        addOnSelected: Boolean(draft.addOnSelected),
     };
 }
 
@@ -117,11 +120,6 @@ export default function RunEventBookingPage() {
     const handleSwitchToLogin = () => { setShowRegister(false); setShowLogin(true); };
 
     useEffect(() => {
-        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
-        if (!isAuthed()) setShowLogin(true);
-    }, [authLoading, isAuthProcessing, isRedirectProcessing, isAuthed]);
-
-    useEffect(() => {
         if (isAuthenticated && showLogin) setShowLogin(false);
         if (isAuthenticated && showRegister) setShowRegister(false);
     }, [isAuthenticated, showLogin, showRegister]);
@@ -134,6 +132,7 @@ export default function RunEventBookingPage() {
     const [selTime, setSelTime] = useState(initialUi.selTime);
     const [people, setPeople] = useState(initialUi.people);
     const [selectedTierId, setSelectedTierId] = useState(initialUi.tierId || '');
+    const [addOnSelected, setAddOnSelected] = useState(Boolean(initialUi.addOnSelected));
     const [extraFields, setExtraFields] = useState(initialUi.extraFields);
     const [error, setError] = useState('');
     const [paying, setPaying] = useState(initialUi.paying);
@@ -154,17 +153,34 @@ export default function RunEventBookingPage() {
     const [showTierIncludes, setShowTierIncludes] = useState(false);
     const retryCheckoutRef = useRef(null);
 
+    const requireLogin = event?.registration?.requireLogin !== false;
+    const loggedIn = isAuthed();
+
+    useEffect(() => {
+        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
+        if (!event || loadingEvent) return;
+        if (loggedIn) {
+            setShowLogin(false);
+            return;
+        }
+        if (requireLogin) setShowLogin(true);
+    }, [authLoading, isAuthProcessing, isRedirectProcessing, loggedIn, requireLogin, event, loadingEvent]);
+
     const uploadPaymentScreenshot = useCallback(async (file) => {
         if (!file) return;
         setUploadingProof(true);
         setError('');
         try {
-            const uploadToken = resolveAuthToken(authToken);
+            const token = resolveAuthToken(authToken);
             const fd = new FormData();
             fd.append('image', file);
-            const res = await fetch(`${API}/users/upload/image`, {
+            const evId = event?._id || event?.id || id;
+            const uploadUrl = (!requireLogin || !token)
+                ? `${API}/sports/${evId}/payment-screenshot`
+                : `${API}/users/upload/image`;
+            const res = await fetch(uploadUrl, {
                 method: 'POST',
-                headers: uploadToken ? { Authorization: `Bearer ${uploadToken}` } : {},
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
                 body: fd,
             });
             const data = await res.json().catch(() => ({}));
@@ -175,7 +191,7 @@ export default function RunEventBookingPage() {
         } finally {
             setUploadingProof(false);
         }
-    }, [authToken]);
+    }, [authToken, event, id, requireLogin]);
 
     const eventName = event?.title || event?.name || 'Run';
     const clubName =
@@ -188,6 +204,9 @@ export default function RunEventBookingPage() {
         ? resolveSportsPerPersonFee(event, selectedTierId)
         : { fee: 0, tier: null, error: null };
     const fee = priced.fee;
+    const optionalAddOn = event ? resolveOptionalAddOn(event) : null;
+    const addOnFeePerPerson = optionalAddOn && addOnSelected ? optionalAddOn.fee : 0;
+    const chargePerPerson = fee + addOnFeePerPerson;
     const regMode = event?.registration?.mode || 'internal_form';
     const isOrganizerQr = regMode === 'organizer_qr';
     const paymentQR = event?.registration?.paymentQR || '';
@@ -195,11 +214,11 @@ export default function RunEventBookingPage() {
     const paymentUpiId = event?.registration?.paymentUpiId || '';
     const showSuccess = step === 3 && payDone && !paying;
     const showProcessing = step === 3 && paying;
-    const qrNeedsReview = fee > 0 && isOrganizerQr && !(couponInfo?.amountAfterDiscount === 0);
+    const qrNeedsReview = chargePerPerson > 0 && isOrganizerQr && !(couponInfo?.amountAfterDiscount === 0);
 
     useBookingSuccessPopup(showSuccess && !qrNeedsReview, {
         name: eventName,
-        paid: payDone && fee > 0 && !isOrganizerQr,
+        paid: payDone && chargePerPerson > 0 && !isOrganizerQr,
         bookingId,
         ticketType: 'sports',
     });
@@ -309,6 +328,7 @@ export default function RunEventBookingPage() {
             if (draft.selTime) setSelTime(draft.selTime);
             if (draft.people) setPeople(draft.people);
             if (draft.tierId) setSelectedTierId(draft.tierId);
+            if (typeof draft.addOnSelected === 'boolean') setAddOnSelected(draft.addOnSelected);
             if (draft.step) setStep(draft.step);
         } catch { /* ignore corrupt draft */ }
     }, [id, event?._id, event?.id, location.search]);
@@ -335,12 +355,12 @@ export default function RunEventBookingPage() {
         const evId = id || event?._id || event?.id;
         if (!evId) return;
         sessionStorage.setItem(runDraftKey(evId), JSON.stringify({
-            extraFields, selDate, selTime, people, step, tierId: selectedTierId, ...overrides,
+            extraFields, selDate, selTime, people, step, tierId: selectedTierId, addOnSelected, ...overrides,
         }));
-    }, [id, event, extraFields, selDate, selTime, people, step, selectedTierId]);
+    }, [id, event, extraFields, selDate, selTime, people, step, selectedTierId, addOnSelected]);
 
-    const baseFee = fee * people;
-    const platformFee = fee > 0 && !isOrganizerQr ? calculatePlatformFee(baseFee) : 0;
+    const baseFee = chargePerPerson * people;
+    const platformFee = chargePerPerson > 0 && !isOrganizerQr ? calculatePlatformFee(baseFee) : 0;
     const total = baseFee + platformFee;
     const payableAmount = couponInfo?.amountAfterDiscount != null
         ? Number(couponInfo.amountAfterDiscount)
@@ -396,14 +416,16 @@ export default function RunEventBookingPage() {
         const evId = event?._id || event?.id || id;
         if (!evId) throw new Error('Run not found');
 
-        const resolvedToken = resolveAuthToken(authToken);
-        if (!resolvedToken) {
+        if (requireLogin && !isAuthed()) {
             setShowLogin(true);
             throw new Error('Please log in to complete your booking.');
         }
+        const headers = isAuthed()
+            ? getBearerAuthHeaders(authToken)
+            : { 'Content-Type': 'application/json' };
         const res = await fetch(`${API}/category-registrations/sports/${evId}/register`, {
             method: 'POST',
-            headers: getBearerAuthHeaders(resolvedToken),
+            headers,
             body: JSON.stringify({
                 formData,
                 responses: formData,
@@ -418,11 +440,18 @@ export default function RunEventBookingPage() {
                     transactionId: booking.transactionId ?? transactionId,
                     couponCode: booking.couponCode ?? (couponCode.trim() || undefined),
                     tierId: booking.tierId ?? selectedTierId ?? undefined,
+                    addOnSelected: booking.addOnSelected ?? addOnSelected,
                 },
             }),
         });
         const regData = await res.json().catch(() => ({}));
         if (!res.ok) {
+            if (res.status === 401 || isAuthFailureMessage(regData.message)) {
+                if (requireLogin || regData.requireLogin) {
+                    setShowLogin(true);
+                    throw new Error('Please log in again to complete your booking.');
+                }
+            }
             // Race / stale client: server may already have the registration
             if (res.status === 409 && regData.registration) {
                 const existingId = regData.registration?._id || regData.registration?.id;
@@ -461,6 +490,7 @@ export default function RunEventBookingPage() {
                     people,
                     couponCode: code,
                     tierId: selectedTierId || undefined,
+                    addOnSelected: Boolean(addOnSelected && optionalAddOn),
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -501,6 +531,8 @@ export default function RunEventBookingPage() {
                 if (draft.selDate) setSelDate(draft.selDate);
                 if (draft.selTime) setSelTime(draft.selTime);
                 if (draft.people) setPeople(draft.people);
+                if (draft.tierId) setSelectedTierId(draft.tierId);
+                if (typeof draft.addOnSelected === 'boolean') setAddOnSelected(draft.addOnSelected);
 
                 const { ok, data: v } = await verifyPaymentWithRetry(API, pending.orderId, { kind: 'sports' });
 
@@ -529,6 +561,7 @@ export default function RunEventBookingPage() {
                         time: draft.selTime || selTime,
                         people: draft.people || people,
                         tierId: draft.tierId || selectedTierId,
+                        addOnSelected: typeof draft.addOnSelected === 'boolean' ? draft.addOnSelected : addOnSelected,
                     },
                 });
                 setStep(3);
@@ -544,7 +577,7 @@ export default function RunEventBookingPage() {
 
     const next = async () => {
         setError('');
-        if (!isAuthed()) {
+        if (requireLogin && !isAuthed()) {
             setShowLogin(true);
             setError('Please log in to book this run.');
             return;
@@ -615,7 +648,7 @@ export default function RunEventBookingPage() {
             try {
                 const res = await fetch(`${API}/payment/sports-order`, {
                     method: 'POST',
-                    headers: getBearerAuthHeaders(resolveAuthToken(authToken)),
+                    headers: getBearerAuthHeaders(authToken),
                     body: JSON.stringify({
                         eventId: event._id || event.id || id,
                         eventName,
@@ -625,27 +658,44 @@ export default function RunEventBookingPage() {
                         customerPhone: extraFields.contact_no || extraFields.phone || extraFields.contact || extraFields.mobile || '',
                         couponCode: couponCode.trim() || undefined,
                         tierId: selectedTierId || undefined,
+                        addOnSelected: Boolean(addOnSelected && optionalAddOn),
                     }),
                 });
                 const order = await res.json();
                 if (order?.skipPayment || Number(order?.totalAmount) === 0) {
                     await submitRunRegistration({
                         amountPaid: 0,
-                        booking: { couponCode: couponCode.trim() || undefined, tierId: selectedTierId },
+                        booking: {
+                            couponCode: couponCode.trim() || undefined,
+                            tierId: selectedTierId,
+                            addOnSelected: Boolean(addOnSelected && optionalAddOn),
+                        },
                     });
                     setStep(3);
                     setPayDone(true);
                     setPaying(false);
                     return;
                 }
-                if (!res.ok) { setError(order.message || 'Failed to create order.'); setPaying(false); return; }
+                if (!res.ok) {
+                    if (res.status === 401 || isAuthFailureMessage(order.message) || order.requireLogin) {
+                        if (requireLogin || order.requireLogin) {
+                            setShowLogin(true);
+                            setError('Please log in to book this run.');
+                            setPaying(false);
+                            return;
+                        }
+                    }
+                    setError(order.message || 'Failed to create order.');
+                    setPaying(false);
+                    return;
+                }
                 if (!order.paymentSessionId) {
                     setError('Payment session missing from server. Restart backend and try again.');
                     setPaying(false);
                     return;
                 }
 
-                saveDraft({ step: 2, extraFields, selDate, selTime, people, tierId: selectedTierId });
+                saveDraft({ step: 2, extraFields, selDate, selTime, people, tierId: selectedTierId, addOnSelected });
 
                 let checkoutResult;
                 try {
@@ -786,7 +836,7 @@ export default function RunEventBookingPage() {
     }
 
     if (showSuccess) {
-        const isPendingQr = fee > 0 && isOrganizerQr && payableAmount > 0 && !event?.registration?.qrAutoConfirm;
+        const isPendingQr = chargePerPerson > 0 && isOrganizerQr && payableAmount > 0 && !event?.registration?.qrAutoConfirm;
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
@@ -800,7 +850,7 @@ export default function RunEventBookingPage() {
                     <h1 className={`text-3xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {isPendingQr
                             ? 'Payment submitted'
-                            : fee > 0
+                            : chargePerPerson > 0
                                 ? '🎉 Payment Successful!'
                                 : '🎉 Booking Confirmed!'}
                     </h1>
@@ -827,7 +877,10 @@ export default function RunEventBookingPage() {
                             ...(selTime ? [{ label: 'Time', value: selTime }] : []),
                             { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
                             ...(selectedTier ? [{ label: 'Tier', value: selectedTier.name }] : []),
-                            { label: 'Entry Fee', value: fee > 0 ? formatInr(baseFee) : 'Free' },
+                            ...(optionalAddOn && addOnSelected
+                                ? [{ label: optionalAddOn.label, value: formatInr(optionalAddOn.fee * people) }]
+                                : []),
+                            { label: 'Entry Fee', value: fee > 0 ? formatInr(fee * people) : 'Free' },
                             ...(isPendingQr
                                 ? [{ label: 'Amount paid to club', value: `₹${payableAmount.toLocaleString('en-IN')}` }]
                                 : total > 0
@@ -928,7 +981,7 @@ export default function RunEventBookingPage() {
                     </div>
                 )}
 
-                {!isAuthed() && (
+                {!loggedIn && requireLogin && (
                     <div className={`rounded-xl p-4 mb-4 border text-center ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-200'}`}>
                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                             Log in to book this run and receive booking notifications.
@@ -940,7 +993,17 @@ export default function RunEventBookingPage() {
                     </div>
                 )}
 
-                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'} ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
+                {!loggedIn && !requireLogin && (
+                    <div className={`rounded-xl p-3 mb-4 border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-600'}`}>
+                        Guest checkout is on — no account needed. Optionally{' '}
+                        <button type="button" onClick={() => setShowLogin(true)} className="text-[#0ECCEE] font-semibold underline">
+                            log in
+                        </button>
+                        {' '}to save this booking under My Bookings.
+                    </div>
+                )}
+
+                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'} ${!loggedIn && requireLogin ? 'opacity-50 pointer-events-none' : ''}`}>
 
                     <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
                         <div className="flex items-center justify-between mb-3">
@@ -1027,7 +1090,69 @@ export default function RunEventBookingPage() {
                                     </div>
                                 ) : null}
 
-                                <div className={`flex items-center justify-between gap-3 pt-1 ${selectedTier ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
+                                {optionalAddOn ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCouponInfo(null);
+                                            setAddOnSelected((v) => !v);
+                                        }}
+                                        className={`w-full text-left rounded-2xl border px-3.5 py-3.5 transition-all active:scale-[0.99] ${
+                                            addOnSelected
+                                                ? isDark
+                                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                                    : 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-sm'
+                                                : isDark
+                                                    ? 'border-gray-700 bg-[#0E0F10] hover:border-gray-600'
+                                                    : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <span
+                                                className={`mt-0.5 size-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors ${
+                                                    addOnSelected
+                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                                        : isDark
+                                                            ? 'border-gray-600 bg-transparent'
+                                                            : 'border-gray-300 bg-white'
+                                                }`}
+                                                aria-hidden
+                                            >
+                                                {addOnSelected ? (
+                                                    <Check size={13} strokeWidth={3} />
+                                                ) : null}
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="flex items-start justify-between gap-2">
+                                                    <span>
+                                                        <span className={`block text-[10px] font-semibold uppercase tracking-wider ${
+                                                            addOnSelected ? 'text-[#0ECCEE]' : isDark ? 'text-gray-500' : 'text-gray-400'
+                                                        }`}>
+                                                            Optional add-on
+                                                        </span>
+                                                        <span className={`block text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {optionalAddOn.label}
+                                                        </span>
+                                                    </span>
+                                                    <span className={`shrink-0 text-sm font-bold tabular-nums ${
+                                                        addOnSelected ? 'text-[#0ECCEE]' : isDark ? 'text-white' : 'text-gray-900'
+                                                    }`}>
+                                                        +{formatInr(optionalAddOn.fee)}
+                                                    </span>
+                                                </span>
+                                                <span className={`block text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                    {addOnSelected
+                                                        ? people > 1
+                                                            ? `Added · ${formatInr(optionalAddOn.fee)} × ${people} = ${formatInr(optionalAddOn.fee * people)}`
+                                                            : 'Added to your total'
+                                                        : 'Tap to add · charged per person'}
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </button>
+                                ) : null}
+
+                                <div className={`flex items-center justify-between gap-3 pt-1 ${(selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
                                     <div>
                                         <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>People</p>
                                         <div className="flex items-center">
@@ -1052,14 +1177,14 @@ export default function RunEventBookingPage() {
                                     </div>
                                     <div className="text-right">
                                         <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Total</p>
-                                        {fee > 0 ? (
+                                        {chargePerPerson > 0 ? (
                                             <>
                                                 <p className={`text-xl font-bold tabular-nums leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                                     {formatInr(baseFee)}
                                                 </p>
-                                                {people > 1 ? (
+                                                {people > 1 || addOnFeePerPerson > 0 ? (
                                                     <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                        {formatInr(fee)} × {people}
+                                                        {formatInr(chargePerPerson)} × {people}
                                                     </p>
                                                 ) : null}
                                             </>
@@ -1098,7 +1223,7 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && fee > 0 && isOrganizerQr && (
+                    {step === 2 && chargePerPerson > 0 && isOrganizerQr && (
                         <div className={`mt-3 rounded-xl overflow-hidden border ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
                             {/* Header: amount + coupon */}
                             <div className={`px-4 py-3.5 flex items-start justify-between gap-3 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
@@ -1111,7 +1236,7 @@ export default function RunEventBookingPage() {
                                         {couponInfo?.couponApplied
                                             ? `was ₹${(couponInfo.amountBeforeDiscount ?? baseFee).toLocaleString('en-IN')}`
                                             : people > 1
-                                                ? `₹${fee.toLocaleString('en-IN')} × ${people}`
+                                                ? `₹${chargePerPerson.toLocaleString('en-IN')} × ${people}`
                                                 : '1 person'}
                                     </p>
                                 </div>
@@ -1336,7 +1461,7 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && fee > 0 && !isOrganizerQr && (
+                    {step === 2 && chargePerPerson > 0 && !isOrganizerQr && (
                         <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
                             <div className="mb-3">
                                 <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
@@ -1378,8 +1503,14 @@ export default function RunEventBookingPage() {
                             <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                 <div className="flex justify-between gap-4">
                                     <span>Ticket Price <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span></span>
-                                    <span>₹{baseFee.toLocaleString('en-IN')}</span>
+                                    <span>₹{(fee * people).toLocaleString('en-IN')}</span>
                                 </div>
+                                {addOnFeePerPerson > 0 ? (
+                                    <div className="flex justify-between gap-4">
+                                        <span className="truncate pr-2">{optionalAddOn?.label || 'Add-on'} <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span></span>
+                                        <span>₹{(addOnFeePerPerson * people).toLocaleString('en-IN')}</span>
+                                    </div>
+                                ) : null}
                                 <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                     <span>Platform Fee</span>
                                     <span>₹{platformFee}</span>
@@ -1399,7 +1530,7 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && fee <= 0 && (
+                    {step === 2 && chargePerPerson <= 0 && (
                         <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-emerald-900/15 border-emerald-700/40' : 'bg-emerald-50 border-emerald-200'}`}>
                             <p className={`text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>Free run</p>
                             <p className={`text-xs mt-1 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
@@ -1417,7 +1548,7 @@ export default function RunEventBookingPage() {
                             className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60">
                             {paying ? (
                                 <><Loader className="w-4 h-4 animate-spin" /> Processing...</>
-                            ) : step === 2 && fee > 0 && isOrganizerQr ? (
+                            ) : step === 2 && chargePerPerson > 0 && isOrganizerQr ? (
                                 payableAmount > 0
                                     ? `Pay ₹${payableAmount.toLocaleString('en-IN')} · Submit proof`
                                     : 'Confirm free booking'

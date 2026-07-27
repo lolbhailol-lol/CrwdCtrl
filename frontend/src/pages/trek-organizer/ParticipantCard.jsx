@@ -110,6 +110,9 @@ export default function ParticipantCard({
                             {participant.tierName ? (
                                 <Pill tone="paid">{participant.tierName}</Pill>
                             ) : null}
+                            {participant.addOnSelected && participant.addOnLabel ? (
+                                <Pill tone="paid">+ {participant.addOnLabel}</Pill>
+                            ) : null}
                             {participant.participantGender && participant.participantGender !== '—' ? (
                                 <Pill tone="neutral">{participant.participantGender}</Pill>
                             ) : null}
@@ -267,6 +270,19 @@ export default function ParticipantCard({
                                         ) : null}
                                     </div>
                                 ) : null}
+                            </div>
+                        ) : null}
+
+                        {participant.addOnSelected && participant.addOnLabel ? (
+                            <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                                <span className="font-semibold text-emerald-300">Add-on · </span>
+                                {participant.addOnLabel}
+                                {Number(participant.addOnFee) > 0
+                                    ? ` · ₹${Number(participant.addOnFee).toLocaleString('en-IN')}/person`
+                                    : ''}
+                                {(participant.people ?? 1) > 1 && Number(participant.addOnFee) > 0
+                                    ? ` · ₹${Number(participant.addOnTotal || (participant.addOnFee * participant.people)).toLocaleString('en-IN')} total`
+                                    : ''}
                             </div>
                         ) : null}
 
