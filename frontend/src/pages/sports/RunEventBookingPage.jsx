@@ -26,12 +26,12 @@ import { mergeRunFormFields } from '../../utils/formFieldDedupe';
 import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken, isAuthFailureMessage } from '../../utils/authToken';
 import {
     classifyDetailLoadError,
-    isTransientDetailError,
     createDetailCache,
     DETAIL_FETCH_OPTS,
 } from '../../utils/detailPageLoad';
 import {
     findSportsTier,
+    getSportsTiers,
     isTiersPricing,
     resolveSportsPerPersonFee,
     resolveOptionalAddOn,
@@ -295,11 +295,21 @@ export default function RunEventBookingPage() {
         if (!event) return;
         const canonical = `${sportRunPath(event)}/book`;
         const params = new URLSearchParams(window.location.search || '');
-        const tierParam = params.get('tier') || selectedTierId || '';
+        let tierParam = params.get('tier') || selectedTierId || '';
+
+        // Tiered runs: shared /book links often omit ?tier= — default to first tier
+        // instead of bouncing back to detail (looks like “link doesn’t open”).
         if (isTiersPricing(event) && !findSportsTier(event, tierParam)) {
-            navigate(sportRunPath(event), { replace: true, state: { event, runClub: location.state?.runClub } });
-            return;
+            const fallbackTier = getSportsTiers(event)[0];
+            if (fallbackTier?.id) {
+                tierParam = fallbackTier.id;
+                if (tierParam !== selectedTierId) setSelectedTierId(tierParam);
+            } else {
+                navigate(sportRunPath(event), { replace: true, state: { event, runClub: location.state?.runClub } });
+                return;
+            }
         }
+
         if (tierParam && tierParam !== selectedTierId) setSelectedTierId(tierParam);
         const nextSearch = tierParam ? `?tier=${encodeURIComponent(tierParam)}` : '';
         if (window.location.pathname !== canonical || (tierParam && !window.location.search.includes(tierParam))) {
@@ -776,18 +786,19 @@ export default function RunEventBookingPage() {
     }
 
     if (!event && !showSuccess && !showProcessing) {
-        const isNetwork = isTransientDetailError(loadError);
+        const isNotFound = loadError === 'not_found';
+        const isRetryable = !isNotFound;
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {isNetwork ? "Couldn't load this run" : 'Run not found'}
+                    {isRetryable ? "Couldn't load this run" : 'This run is no longer available'}
                 </p>
                 <p className={`text-sm text-center max-w-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {isNetwork
+                    {isRetryable
                         ? 'Slow network or server waking up — tap Retry.'
                         : 'Open booking from the run page, or the link may be outdated.'}
                 </p>
-                {isNetwork ? (
+                {isRetryable ? (
                     <button
                         type="button"
                         onClick={() => window.location.reload()}

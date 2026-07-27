@@ -17,7 +17,7 @@ const {
     validateTrekGenderRegistration,
 } = require('../utils/trekGenderRegistration');
 const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
-const { findByIdOrSlug } = require('../utils/slug');
+const { findByIdOrSlug, ensureUniqueSlug } = require('../utils/slug');
 const { isAllowedPaymentScreenshotUrl, normalizeTransactionId } = require('../utils/runClubRegistrationGuards');
 const { notifyTrekParticipant } = require('../utils/trekParticipantOutreach');
 const { signTrekBookingAccess } = require('../utils/bookingAccess');
@@ -204,6 +204,22 @@ router.get('/:idOrSlug', async (req, res) => {
             .populate('communityId', 'name basedIn contactPhone contactInstagram')
             .lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
+
+        // Backfill slug for legacy rows so shared /trek/:slug links stay stable
+        if (!trek.slug && trek.trekName) {
+            try {
+                const slug = await ensureUniqueSlug(Trek, trek.trekName, {
+                    excludeId: trek._id,
+                });
+                if (slug) {
+                    trek.slug = slug;
+                    await Trek.updateOne({ _id: trek._id }, { $set: { slug } });
+                }
+            } catch (err) {
+                console.warn('publicTrek slug backfill failed:', err?.message || err);
+            }
+        }
+
         const genderRegistration = await getGenderRegistrationSnapshot(trek);
 
         let userBooking = null;

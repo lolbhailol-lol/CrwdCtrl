@@ -3,7 +3,7 @@ const coverImagesSchema = require('./coverImagesSchema');
 const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
 const { normalizeAvailableDates, parseTrekDateForIndex } = require('../utils/trekDateNormalize');
 const { sanitizeTrekBatches } = require('../utils/sanitizeTrekBatches');
-const { ensureUniqueSlug } = require('../utils/slug');
+const { ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
 
 const trekContactSchema = new mongoose.Schema(
     {
@@ -18,8 +18,13 @@ const trekSchema = new mongoose.Schema(
     {
         communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'TrekCommunity', default: null },
         trekName: { type: String, required: true, trim: true },
-        /** Unique URL slug — avoids /trek/{name} opening another community's trek */
+        /**
+         * Stable URL slug for /trek/:slug deep links.
+         * Set once on create — never rewritten on title rename (shared links stay valid).
+         */
         slug: { type: String, trim: true, lowercase: true },
+        /** Former primary slugs after any intentional slug change — kept for shared-link resolution */
+        previousSlugs: { type: [{ type: String, trim: true, lowercase: true }], default: [] },
         description: { type: String },
         difficultyLevel: {
             type: String,
@@ -197,6 +202,7 @@ const trekSchema = new mongoose.Schema(
 
 trekSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
 trekSchema.index({ slug: 1 }, { unique: true, sparse: true });
+trekSchema.index({ previousSlugs: 1 });
 trekSchema.index({ difficultyLevel: 1 });
 trekSchema.index({ status: 1 });
 trekSchema.index({ trekDate: 1 });
@@ -227,11 +233,19 @@ trekSchema.pre('save', async function normalizeTrekDocument() {
         this.$unset('scannerAccess.password');
     }
 
-    if (this.isModified('trekName') || !this.slug) {
+    // Immutable once set — title renames must not break shared /trek/:slug links
+    if (!this.slug) {
+        const titleSlug = toSlug(this.trekName);
         const nextSlug = await ensureUniqueSlug(this.constructor, this.trekName, {
             excludeId: this._id,
         });
-        if (nextSlug) this.slug = nextSlug;
+        if (nextSlug) {
+            this.slug = nextSlug;
+            if (titleSlug && titleSlug !== nextSlug) {
+                this.previousSlugs = mergePreviousSlugs(this.previousSlugs, titleSlug);
+                this.markModified('previousSlugs');
+            }
+        }
     }
 });
 

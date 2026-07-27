@@ -32,10 +32,9 @@ import {
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../utils/trekGenderRegistration';
 import GenderQuickPick from '../../components/GenderQuickPick';
-import { trekPath, toSlug } from '../../utils/slugRoutes';
+import { trekPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import {
     classifyDetailLoadError,
-    isTransientDetailError,
     createDetailCache,
     DETAIL_FETCH_OPTS,
 } from '../../utils/detailPageLoad';
@@ -43,14 +42,9 @@ import {
 const API = API_BASE_URL;
 const trekDetailCache = createDetailCache('crwdctrl_trek_detail_v1_');
 
-/** True when nav/cache trek belongs to the current /trek/:id route (id or name slug). */
+/** True when nav/cache trek belongs to the current /trek/:id route (id, slug, or alias). */
 function trekMatchesRouteParam(trek, routeParam) {
-    if (!trek || !routeParam) return false;
-    const param = String(routeParam);
-    const tid = String(trek._id || trek.id || '');
-    if (tid && tid === param) return true;
-    const nameSlug = toSlug(trek.trekName || trek.title || '');
-    return Boolean(nameSlug && nameSlug === param);
+    return entityMatchesRouteParam(trek, routeParam, ['trekName', 'title']);
 }
 
 function trekDraftKey(trekId) {
@@ -1044,18 +1038,19 @@ export default function TrekBookingPage() {
     }
 
     if (!trek && !showSuccess && !showProcessing) {
-        const isNetwork = isTransientDetailError(loadError);
+        const isNotFound = loadError === 'not_found';
+        const isRetryable = !isNotFound;
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {isNetwork ? "Couldn't load this trek" : 'Trek not found'}
+                    {isRetryable ? "Couldn't load this trek" : 'This trek is no longer available'}
                 </p>
                 <p className={`text-sm text-center max-w-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {isNetwork
+                    {isRetryable
                         ? 'Slow network or server waking up — tap Retry.'
                         : 'Open booking from the trek page, or the link may be outdated.'}
                 </p>
-                {isNetwork ? (
+                {isRetryable ? (
                     <button
                         type="button"
                         onClick={() => window.location.reload()}

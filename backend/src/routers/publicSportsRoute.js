@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const SportsEvent = require('../model/sports_model');
-const { findByIdOrSlug, ensureUniqueSlug } = require('../utils/slug');
+const { findByIdOrSlug, ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
     sumConfirmedSeats,
@@ -108,15 +108,40 @@ router.get('/:idOrSlug', async (req, res) => {
         // Backfill slug for legacy rows so shared /sports/run/:slug links stay stable
         if (!event.slug && event.title) {
             try {
+                const titleSlug = toSlug(event.title);
                 const slug = await ensureUniqueSlug(SportsEvent, event.title, {
                     excludeId: event._id,
                 });
                 if (slug) {
                     event.slug = slug;
-                    await SportsEvent.updateOne({ _id: event._id }, { $set: { slug } });
+                    const $set = { slug };
+                    if (titleSlug && titleSlug !== slug) {
+                        const prev = mergePreviousSlugs(event.previousSlugs, titleSlug);
+                        $set.previousSlugs = prev;
+                        event.previousSlugs = prev;
+                    }
+                    await SportsEvent.updateOne({ _id: event._id }, { $set });
                 }
             } catch (err) {
                 console.warn('publicSports slug backfill failed:', err?.message || err);
+            }
+        } else if (event.slug && event.title) {
+            // Always keep current title slug as alias when it differs from primary
+            const titleSlug = toSlug(event.title);
+            const primary = toSlug(event.slug);
+            if (titleSlug && titleSlug !== primary) {
+                const prev = Array.isArray(event.previousSlugs) ? event.previousSlugs : [];
+                if (!prev.map((s) => toSlug(s)).includes(titleSlug)) {
+                    try {
+                        await SportsEvent.updateOne(
+                            { _id: event._id },
+                            { $addToSet: { previousSlugs: titleSlug } },
+                        );
+                        event.previousSlugs = mergePreviousSlugs(prev, titleSlug);
+                    } catch (err) {
+                        console.warn('publicSports title alias backfill failed:', err?.message || err);
+                    }
+                }
             }
         }
 

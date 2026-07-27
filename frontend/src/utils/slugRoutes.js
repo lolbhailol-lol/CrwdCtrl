@@ -73,10 +73,8 @@ export function trekPath(trek = {}) {
     const id = pickId(trek);
     const persisted = toSlug(trek.slug || '');
     if (persisted) return `/trek/${persisted}`;
-    // Prefer Mongo id over name slug — shared trek names were opening the wrong community
-    if (id) return `/trek/${id}`;
-    const slug = toSlug(trek.trekName || trek.title || '');
-    return `/trek/${slug || ''}`;
+    // Prefer Mongo id — never emit a derived title slug (collisions / renames break shares)
+    return id ? `/trek/${id}` : '';
 }
 
 export function communityPath(community = {}) {
@@ -98,8 +96,8 @@ export function sportRunPath(run = {}) {
     const id = pickId(run);
     const persisted = toSlug(run.slug || '');
     if (persisted) return `/sports/run/${persisted}`;
-    const slug = toSlug(run.title || run.name || '');
-    return `/sports/run/${slug || id}`;
+    // Prefer Mongo id — never emit a derived title slug (collisions / renames break shares)
+    return id ? `/sports/run/${id}` : '';
 }
 
 export function eventShowPath(show = {}) {

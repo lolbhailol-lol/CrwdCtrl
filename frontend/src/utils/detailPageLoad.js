@@ -14,8 +14,10 @@ export function classifyDetailLoadError(err) {
   ) {
     return 'network';
   }
-  // 5xx (and gateway timeouts) — worth retrying; 4xx client errors are not
   const status = Number(err.status);
+  // Rate limits and gateway errors — retry, do not show "not found"
+  if (status === 429) return 'server';
+  // 5xx (and gateway timeouts) — worth retrying; other 4xx client errors are not
   if (status >= 500 && status <= 599) return 'server';
   return 'failed';
 }

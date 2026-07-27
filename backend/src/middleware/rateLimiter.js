@@ -15,7 +15,13 @@ const apiLimiter = rateLimit({
   message: { success: false, message: 'Too many requests, please try again later.' },
   skip: (req) => {
     const path = String(req.path || '');
-    return path === '/health' || path === '/ready' || path === '/';
+    if (path === '/health' || path === '/ready' || path === '/') return true;
+    // Public detail GETs — viral shared run/trek links must not 429 as "not found"
+    if (req.method === 'GET') {
+      if (/^\/sports\/[^/]+$/.test(path)) return true;
+      if (/^\/treks\/[^/]+$/.test(path)) return true;
+    }
+    return false;
   },
 });
 

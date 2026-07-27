@@ -7,6 +7,7 @@ const {
     mirrorRegistrationFeeFromTiers,
     sanitizeOptionalAddOn,
 } = require('../utils/sportsPricing');
+const { ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
 
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
@@ -398,6 +399,32 @@ exports.updateSportsEvent = async (req, res) => {
         const payload = finalizeSportsPayload(sanitizeSportsPayload(req.body), existing);
         const qrErr = validateOrganizerQrPayment(payload, existing);
         if (qrErr) return res.status(400).json({ message: qrErr });
+
+        // findByIdAndUpdate skips pre('save') — ensure slug exists; never rewrite a set slug
+        if (!existing.slug) {
+            const titleForSlug = payload.title || existing.title || '';
+            const titleSlug = toSlug(titleForSlug);
+            const slug = await ensureUniqueSlug(SportsEvent, titleForSlug || String(id), {
+                excludeId: id,
+            });
+            if (slug) {
+                payload.slug = slug;
+                if (titleSlug && titleSlug !== slug) {
+                    payload.previousSlugs = mergePreviousSlugs(existing.previousSlugs, titleSlug);
+                }
+            }
+        } else {
+            delete payload.slug;
+            // Title rename: keep old title slug as alias so shared title-URLs still resolve
+            if (payload.title != null && toSlug(payload.title) !== toSlug(existing.title)) {
+                const oldTitleSlug = toSlug(existing.title);
+                const primary = toSlug(existing.slug);
+                if (oldTitleSlug && oldTitleSlug !== primary) {
+                    payload.previousSlugs = mergePreviousSlugs(existing.previousSlugs, oldTitleSlug);
+                }
+            }
+        }
+
         const event = await SportsEvent.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
         if (!event) return res.status(404).json({ message: 'Sports event not found' });
         res.json({ message: 'Sports event updated successfully', event });

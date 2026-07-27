@@ -16,11 +16,10 @@ import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { fetchTrekCommunity } from '../../services/api/public.api';
 import { publicFetchJSONRetry } from '../../services/api/client';
-import { trekPath, toSlug } from '../../utils/slugRoutes';
+import { trekPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { resolveTrekHeroSlides, resolveTrekGalleryImages } from '../../utils/trekImages';
 import {
     classifyDetailLoadError,
-    isTransientDetailError,
     createDetailCache,
     DETAIL_FETCH_OPTS,
 } from '../../utils/detailPageLoad';
@@ -76,12 +75,7 @@ function TrekGalleryLightbox({ images, index, name, onClose, onIndexChange }) {
 }
 
 function trekMatchesRouteParam(trek, routeParam) {
-    if (!trek || !routeParam) return false;
-    const param = String(routeParam);
-    const tid = String(trek._id || trek.id || '');
-    if (tid && tid === param) return true;
-    const nameSlug = toSlug(trek.trekName || trek.title || '');
-    return Boolean(nameSlug && nameSlug === param);
+    return entityMatchesRouteParam(trek, routeParam, ['trekName', 'title']);
 }
 
 // ── Colorful SVG Icons (no background — work on both light & dark) ─────────────
@@ -393,18 +387,19 @@ export default function TrekDetailPage() {
         </div>
     );
     if (!trek) {
-        const isNetwork = isTransientDetailError(loadError);
+        const isNotFound = loadError === 'not_found';
+        const isRetryable = !isNotFound;
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {isNetwork ? "Couldn't load this trek" : 'Trek not found'}
+                    {isRetryable ? "Couldn't load this trek" : 'This trek is no longer available'}
                 </p>
                 <p className="text-gray-500 text-sm text-center max-w-xs">
-                    {isNetwork
+                    {isRetryable
                         ? 'Slow network or server waking up — tap Retry.'
-                        : 'This trek may have ended or the link is outdated.'}
+                        : 'It may have ended, been unpublished, or the link is outdated.'}
                 </p>
-                {isNetwork ? (
+                {isRetryable ? (
                     <button
                         type="button"
                         onClick={() => window.location.reload()}
@@ -415,7 +410,7 @@ export default function TrekDetailPage() {
                 ) : null}
                 <button
                     type="button"
-                    onClick={() => (isNetwork ? navigate('/treks') : navigate(-1))}
+                    onClick={() => (isRetryable ? navigate('/treks') : navigate(-1))}
                     className="text-[#0ECCEE] text-sm font-semibold"
                 >
                     {isNetwork ? 'Browse treks' : '← Go back'}

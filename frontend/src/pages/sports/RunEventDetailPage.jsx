@@ -14,7 +14,7 @@ import { normalizeRunDetailBoxes } from '../../utils/trekDetailBoxes';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
-import { DETAIL_FETCH_OPTS } from '../../utils/detailPageLoad';
+import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
 
 const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v1_';
 const readRunDetailCache = (key) => {
@@ -148,6 +148,9 @@ export default function RunEventDetailPage() {
                     writeRunDetailCache(eventId, d.event);
                     if (d.event._id) writeRunDetailCache(String(d.event._id), d.event);
                     if (d.event.slug) writeRunDetailCache(String(d.event.slug), d.event);
+                    (d.event.previousSlugs || []).forEach((s) => {
+                        if (s) writeRunDetailCache(String(s), d.event);
+                    });
                     setLoadError('');
                 } else if (fallback) {
                     setEvent(fallback);
@@ -165,15 +168,7 @@ export default function RunEventDetailPage() {
                     return;
                 }
                 setEvent(null);
-                if (err?.status === 404) {
-                    setLoadError('not_found');
-                } else {
-                    setLoadError(
-                        err?.isNetworkError || err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED'
-                            ? 'network'
-                            : 'failed',
-                    );
-                }
+                setLoadError(classifyDetailLoadError(err));
             })
             .finally(() => {
                 if (!controller.signal.aborted) setLoading(false);
@@ -201,18 +196,19 @@ export default function RunEventDetailPage() {
     }
 
     if (!event) {
-        const isNetwork = loadError === 'network' || loadError === 'failed';
+        const isNotFound = loadError === 'not_found';
+        const isRetryable = !isNotFound;
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {isNetwork ? "Couldn't load this run" : 'Run not found'}
+                    {isRetryable ? "Couldn't load this run" : 'This run is no longer available'}
                 </p>
                 <p className="text-gray-500 text-sm text-center max-w-xs">
-                    {isNetwork
-                        ? 'Check your connection and try again. Shared links work best in Chrome or Safari.'
-                        : 'This run may have ended or the link is outdated.'}
+                    {isRetryable
+                        ? 'Slow network or server waking up — tap Retry.'
+                        : 'It may have ended, been unpublished, or the link is outdated.'}
                 </p>
-                {isNetwork ? (
+                {isRetryable ? (
                     <button
                         type="button"
                         onClick={() => window.location.reload()}
@@ -223,10 +219,10 @@ export default function RunEventDetailPage() {
                 ) : null}
                 <button
                     type="button"
-                    onClick={() => (isNetwork ? navigate('/sports') : navigate(-1))}
+                    onClick={() => (isRetryable ? navigate('/sports') : navigate(-1))}
                     className="text-[#0ECCEE] text-sm font-semibold"
                 >
-                    {isNetwork ? 'Browse sports' : '← Go back'}
+                    {isRetryable ? 'Browse sports' : '← Go back'}
                 </button>
             </div>
         );

@@ -30,7 +30,15 @@ export function favoriteDetailPath(id, type, data = {}) {
   if (t === 'trek') return trekPath({ _id: id, id, trekName: data.title || data.trekName });
   if (t === 'community') return communityPath({ _id: id, id, name: data.title || data.name });
   if (t === 'runclub' || t === 'run club') return runClubPath({ _id: id, id, name: data.title || data.name });
-  if (t === 'sport' || t === 'sports' || t === 'run') return sportRunPath({ _id: id, id, title: data.title || data.name });
+  if (t === 'sport' || t === 'sports' || t === 'run') {
+    return sportRunPath({
+      _id: id,
+      id,
+      title: data.title || data.name,
+      slug: data.slug,
+      previousSlugs: data.previousSlugs,
+    });
+  }
   if (t === 'competition') return competitionPath({ _id: id, id, name: data.title || data.name });
   return festPath({ _id: id, id, festName: data.title || data.festName, title: data.title });
 }

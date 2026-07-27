@@ -21,6 +21,7 @@ const {
     getOrganizerEvents,
     getOrganizerRunClub,
 } = require('../utils/runClubOrganizerAccess');
+const { toSlug, mergePreviousSlugs } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
     MANUAL_EXPIRE_TTL_HOURS,
@@ -703,6 +704,9 @@ exports.updateEvent = async (req, res) => {
         body.showOnSportsPage = true;
         if (body.showInUpcoming === undefined) body.showInUpcoming = true;
 
+        const oldTitleSlug = toSlug(existing.title);
+        const primarySlug = toSlug(existing.slug);
+
         Object.keys(body).forEach((key) => {
             if (key === 'registration' && body.registration) {
                 existing.registration = {
@@ -710,10 +714,19 @@ exports.updateEvent = async (req, res) => {
                     ...body.registration,
                 };
                 existing.markModified('registration');
+            } else if (key === 'slug') {
+                // Primary slug is immutable — ignore client attempts to rotate it
             } else {
                 existing[key] = body[key];
             }
         });
+
+        if (body.title !== undefined && oldTitleSlug && oldTitleSlug !== primarySlug
+            && oldTitleSlug !== toSlug(body.title)) {
+            existing.previousSlugs = mergePreviousSlugs(existing.previousSlugs, oldTitleSlug);
+            existing.markModified('previousSlugs');
+        }
+
         await existing.save();
 
         res.json({

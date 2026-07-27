@@ -13,6 +13,20 @@ function isObjectId(value) {
     return /^[a-f\d]{24}$/i.test(String(value || '').trim());
 }
 
+/** Dedupe + normalize alias list. */
+function mergePreviousSlugs(existing = [], ...candidates) {
+    const set = new Set(
+        (Array.isArray(existing) ? existing : [])
+            .map((s) => toSlug(s))
+            .filter(Boolean),
+    );
+    for (const c of candidates) {
+        const s = toSlug(c);
+        if (s) set.add(s);
+    }
+    return [...set];
+}
+
 /**
  * Allocate a unique slug for a model (base, base-2, base-3, …).
  */
@@ -120,6 +134,7 @@ async function findByIdOrSlug(Model, idOrSlug, {
 module.exports = {
     toSlug,
     isObjectId,
+    mergePreviousSlugs,
     ensureUniqueSlug,
     findByIdOrSlug,
 };

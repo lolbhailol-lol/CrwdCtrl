@@ -56,7 +56,22 @@ export function navigateToSearchResult(navigate, result) {
     return;
   }
   if (type === 'sport') {
-    navigate(sportRunPath({ _id: id, id, title: result.title }));
+    navigate(sportRunPath({
+      _id: id,
+      id,
+      title: result.title,
+      slug: result.slug,
+      previousSlugs: result.previousSlugs,
+    }), {
+      state: {
+        event: {
+          ...result,
+          _id: id,
+          title: result.title,
+          slug: result.slug,
+        },
+      },
+    });
     return;
   }
   if (id) {
