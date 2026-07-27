@@ -59,6 +59,7 @@ const EMPTY = {
         status: 'open', mode: 'internal_form', googleSheetsUrl: '', organizerEmail: '', formInstructions: '',
         availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 0, formSchema: [],
         paymentQR: '', paymentQRMessage: '', paymentUpiId: '', qrAutoConfirm: false,
+        requireLogin: true,
         genderQuotas: { enabled: false, femaleSeats: 0, maleSeats: 0, othersSeats: 0 },
         genderPhase: 'all',
     },
@@ -905,6 +906,28 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                     </p>
                                 </div>
                             </div>
+
+                            {(form.registration?.mode || 'internal_form') !== 'external_link' ? (
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">Booking login</label>
+                                    <select
+                                        value={form.registration?.requireLogin === false ? 'guest' : 'login'}
+                                        onChange={(e) => set('registration', {
+                                            ...form.registration,
+                                            requireLogin: e.target.value !== 'guest',
+                                        })}
+                                        className={inp}
+                                    >
+                                        <option value="login">With login (account required) — default</option>
+                                        <option value="guest">Without login (guest checkout)</option>
+                                    </select>
+                                    <p className="text-[10px] text-gray-500 mt-1.5">
+                                        {form.registration?.requireLogin === false
+                                            ? 'Guests book with name, email and phone. Ticket is sent by email; My Bookings still needs an account.'
+                                            : 'Participants must log in before they can book this trek.'}
+                                    </p>
+                                </div>
+                            ) : null}
 
                             {(form.registration?.mode || 'internal_form') === 'organizer_qr' ? (
                                 <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">

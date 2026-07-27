@@ -144,6 +144,11 @@ const trekSchema = new mongoose.Schema(
              * When false (default), stays pending until organizer approves.
              */
             qrAutoConfirm: { type: Boolean, default: false },
+            /**
+             * When true (default), booking requires a logged-in account.
+             * When false, guests can book with name/email/phone (no account).
+             */
+            requireLogin: { type: Boolean, default: true },
             /** Gender-based seat caps + phased registration (women first, etc.) */
             genderQuotas: {
                 enabled: { type: Boolean, default: false },

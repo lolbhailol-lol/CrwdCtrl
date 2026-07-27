@@ -145,8 +145,9 @@ export default function TrekBookingPage() {
     const [showRegister, setShowRegister] = useState(false);
 
     const isAuthed = useCallback(() => {
-        return hasUsableAuthToken(authToken);
-    }, [authToken]);
+        // Context token can lag one tick behind storage after modal login — check both.
+        return hasUsableAuthToken(authToken) || hasUsableAuthToken(null) || Boolean(isAuthenticated);
+    }, [authToken, isAuthenticated]);
 
     const handleCloseLogin = () => setShowLogin(false);
     const handleCloseRegister = () => setShowRegister(false);
@@ -160,15 +161,15 @@ export default function TrekBookingPage() {
     };
 
     useEffect(() => {
-        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
-        if (!isAuthed()) setShowLogin(true);
-    }, [authLoading, isAuthProcessing, isRedirectProcessing, isAuthed]);
+        // Dismiss auth modals as soon as a session exists (context or storage).
+        if (isAuthed()) {
+            setShowLogin(false);
+            setShowRegister(false);
+            setError((prev) => (isAuthFailureMessage(prev) ? '' : prev));
+        }
+    }, [authToken, isAuthenticated, isAuthed]);
 
-    useEffect(() => {
-        // Only dismiss auth modals when we have a usable backend JWT (not Firebase-only).
-        if (hasUsableAuthToken(authToken) && showLogin) setShowLogin(false);
-        if (hasUsableAuthToken(authToken) && showRegister) setShowRegister(false);
-    }, [authToken, showLogin, showRegister]);
+    // Force-login effect moved below once trek.requireLogin is known
 
     const [trek, setTrek] = useState(() => {
         const navTrek = location.state?.trek;
@@ -206,14 +207,18 @@ export default function TrekBookingPage() {
     const [uploadingProof, setUploadingProof] = useState(false);
     const [upiCopied, setUpiCopied] = useState(false);
     const [pendingReviewDone, setPendingReviewDone] = useState(false);
+    const [bookingAccessToken, setBookingAccessToken] = useState('');
     const retryCheckoutRef = useRef(null);
 
+    const requireLogin = trek?.registration?.requireLogin !== false;
+
     const requireAuthOrLogin = useCallback((message = 'Please log in to book this trek.') => {
-        if (hasUsableAuthToken(authToken)) return true;
+        if (!requireLogin) return true;
+        if (isAuthed()) return true;
         setShowLogin(true);
         setError(message);
         return false;
-    }, [authToken]);
+    }, [isAuthed, requireLogin]);
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
     const fee       = Number(trek?.registrationFee) || 0;
@@ -224,6 +229,21 @@ export default function TrekBookingPage() {
     const paymentQRMessage = trek?.registration?.paymentQRMessage || '';
     const showSuccess = step === 3 && payDone && !paying;
     const showProcessing = step === 3 && paying;
+    const loggedIn = isAuthed();
+
+    useEffect(() => {
+        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
+        if (!trek || loadingTrek) return;
+        if (loggedIn) {
+            setShowLogin(false);
+            return;
+        }
+        if (requireLogin) setShowLogin(true);
+    }, [authLoading, isAuthProcessing, isRedirectProcessing, loggedIn, requireLogin, trek, loadingTrek]);
+
+    const trekAccessQuery = bookingAccessToken
+        ? `?type=trek&access=${encodeURIComponent(bookingAccessToken)}`
+        : '?type=trek';
 
     useBookingSuccessPopup(showSuccess && !pendingReviewDone, {
         name: trekName,
@@ -297,9 +317,10 @@ export default function TrekBookingPage() {
         const cacheOk = trekMatchesRouteParam(cached, id);
         const fallback = seedOk ? navTrek : (cacheOk ? cached : null);
 
-        setLoadingTrek(!fallback);
-        setExistingBookingId('');
-        setExistingBookingStatus('');
+        // Always wait for API — seeded cards lack formSchema/fee and flash demo defaults + Free
+        setLoadingTrek(true);
+        // Keep existingBookingId until the authenticated refetch returns — clearing it
+        // on login made the page flash back to the login wall.
         setError('');
         setPostPaymentError('');
         setLoadError('');
@@ -330,6 +351,10 @@ export default function TrekBookingPage() {
                     if (d.userBooking?.bookingId) {
                         setExistingBookingId(String(d.userBooking.bookingId));
                         setExistingBookingStatus(String(d.userBooking.status || 'confirmed'));
+                    } else if (isAuthenticated || hasUsableAuthToken(authToken)) {
+                        // Logged in and no booking for this trek — clear stale guest/previous state
+                        setExistingBookingId('');
+                        setExistingBookingStatus('');
                     }
                     setLoadError('');
                 } else if (fallback) {
@@ -354,7 +379,7 @@ export default function TrekBookingPage() {
         })();
 
         return () => controller.abort();
-    }, [id, isAuthenticated, authToken]);
+    }, [id, isAuthenticated, authToken, location.state]);
 
     useEffect(() => {
         if (!trek) return;
@@ -592,14 +617,16 @@ export default function TrekBookingPage() {
         const trekId = trek?._id || trek?.id || id;
         if (!trekId) throw new Error('Trek not found');
 
-        const token = resolveAuthToken(authToken);
-        if (!token || !hasUsableAuthToken(authToken)) {
+        if (requireLogin && !isAuthed()) {
             setShowLogin(true);
             throw new Error('Please log in to complete your booking.');
         }
+        const headers = isAuthed()
+            ? getBearerAuthHeaders(authToken)
+            : { 'Content-Type': 'application/json' };
         const regRes = await fetch(`${API}/treks/${trekId}/register`, {
             method: 'POST',
-            headers: getBearerAuthHeaders(authToken),
+            headers,
             body: JSON.stringify({
                 formData,
                 bookingDetails: {
@@ -617,12 +644,15 @@ export default function TrekBookingPage() {
         const regData = await regRes.json().catch(() => ({}));
         if (!regRes.ok) {
             if (regRes.status === 401 || isAuthFailureMessage(regData.message)) {
-                setShowLogin(true);
-                throw new Error('Please log in again to complete your booking.');
+                if (requireLogin || regData.requireLogin) {
+                    setShowLogin(true);
+                    throw new Error('Please log in again to complete your booking.');
+                }
             }
-            if (regRes.status === 409 && /already have a registration/i.test(regData.message || '')) {
+            if (regRes.status === 409 && /already have a registration|already has a registration/i.test(regData.message || '')) {
                 setExistingBookingId(regData.bookingId ? String(regData.bookingId) : 'existing');
                 setExistingBookingStatus(/waiting for organizer/i.test(regData.message || '') ? 'pending' : 'confirmed');
+                if (regData.accessToken) setBookingAccessToken(String(regData.accessToken));
             }
             throw new Error(regData.message || 'Registration failed after payment');
         }
@@ -630,6 +660,7 @@ export default function TrekBookingPage() {
         refreshNotifications();
         const savedBookingId = regData.bookingId || regData._id || '';
         if (savedBookingId) setBookingId(String(savedBookingId));
+        if (regData.accessToken) setBookingAccessToken(String(regData.accessToken));
         return regData;
     };
 
@@ -641,7 +672,11 @@ export default function TrekBookingPage() {
             const fd = new FormData();
             fd.append('image', file);
             const token = resolveAuthToken(authToken);
-            const uploadRes = await fetch(`${API}/users/upload/image`, {
+            const trekId = trek?._id || trek?.id || id;
+            const uploadUrl = (!requireLogin || !token)
+                ? `${API}/treks/${trekId}/payment-screenshot`
+                : `${API}/users/upload/image`;
+            const uploadRes = await fetch(uploadUrl, {
                 method: 'POST',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
                 body: fd,
@@ -667,7 +702,9 @@ export default function TrekBookingPage() {
         try {
             const res = await fetch(`${API}/payment/coupon-validate`, {
                 method: 'POST',
-                headers: getBearerAuthHeaders(authToken),
+                headers: hasUsableAuthToken(authToken)
+                    ? getBearerAuthHeaders(authToken)
+                    : { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ trekId: trek?._id || trek?.id || id, people, couponCode: code }),
             });
             const data = await res.json().catch(() => ({}));
@@ -885,7 +922,9 @@ export default function TrekBookingPage() {
             try {
                 const res = await fetch(`${API}/payment/trek-order`, {
                     method: 'POST',
-                    headers: getBearerAuthHeaders(authToken),
+                    headers: hasUsableAuthToken(authToken)
+                        ? getBearerAuthHeaders(authToken)
+                        : { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         trekId: trek?._id || trek?.id || id,
                         trekName,
@@ -904,15 +943,16 @@ export default function TrekBookingPage() {
                 });
                 const order = await res.json().catch(() => ({}));
                 if (!res.ok) {
-                    if (res.status === 401 || isAuthFailureMessage(order.message)) {
+                    if (res.status === 401 || isAuthFailureMessage(order.message) || order.requireLogin) {
                         setShowLogin(true);
-                        setError('Your session expired. Please log in again to continue payment.');
+                        setError(order.message || 'Please log in to continue payment.');
                         setPaying(false);
                         return;
                     }
-                    if (res.status === 409 && /already have a registration/i.test(order.message || '')) {
+                    if (res.status === 409 && /already have a registration|already has a registration/i.test(order.message || '')) {
                         setExistingBookingId(order.bookingId ? String(order.bookingId) : 'existing');
                         setExistingBookingStatus(/waiting for organizer/i.test(order.message || '') ? 'pending' : 'confirmed');
+                        if (order.accessToken) setBookingAccessToken(String(order.accessToken));
                     }
                     setError(order.message || 'Failed to create order.');
                     setPaying(false);
@@ -992,7 +1032,7 @@ export default function TrekBookingPage() {
 
     const back = () => step === 1 ? navigate(-1) : setStep(s => s - 1);
 
-    const hasStoredSession = hasUsableAuthToken(authToken);
+    const hasStoredSession = loggedIn || hasUsableAuthToken(authToken) || hasUsableAuthToken(null);
     const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
 
     if ((loadingTrek || waitingOnAuth) && !showSuccess && !showProcessing) {
@@ -1056,7 +1096,7 @@ export default function TrekBookingPage() {
                         {ticketId && !isPending ? (
                             <button
                                 type="button"
-                                onClick={() => navigate(`/qr-ticket/${ticketId}?type=trek`)}
+                                onClick={() => navigate(`/qr-ticket/${ticketId}${trekAccessQuery}`)}
                                 className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
                             >
                                 View Ticket
@@ -1065,7 +1105,7 @@ export default function TrekBookingPage() {
                         {ticketId && isPending ? (
                             <button
                                 type="button"
-                                onClick={() => navigate(`/registration-details/${ticketId}?type=trek`)}
+                                onClick={() => navigate(`/registration-details/${ticketId}${trekAccessQuery}`)}
                                 className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
                             >
                                 View registration
@@ -1184,7 +1224,7 @@ export default function TrekBookingPage() {
                         {bookingId && !pendingReviewDone && (
                             <button
                                 type="button"
-                                onClick={() => navigate(`/qr-ticket/${bookingId}?type=trek`, { state: { refreshBookings: true } })}
+                                onClick={() => navigate(`/qr-ticket/${bookingId}${trekAccessQuery}`, { state: { refreshBookings: true } })}
                                 className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
                             >
                                 Download Ticket
@@ -1257,7 +1297,7 @@ export default function TrekBookingPage() {
                     </div>
                 )}
 
-                {!isAuthed() && (
+                {!loggedIn && requireLogin && (
                     <div className={`rounded-xl p-4 mb-4 border text-center ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-200'}`}>
                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                             Log in to book this trek and receive booking notifications.
@@ -1272,8 +1312,18 @@ export default function TrekBookingPage() {
                     </div>
                 )}
 
+                {!loggedIn && !requireLogin && (
+                    <div className={`rounded-xl p-3 mb-4 border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-600'}`}>
+                        Guest checkout is on — no account needed. Optionally{' '}
+                        <button type="button" onClick={() => setShowLogin(true)} className="text-[#0ECCEE] font-semibold underline">
+                            log in
+                        </button>
+                        {' '}to save this booking under My Bookings.
+                    </div>
+                )}
+
                 {/* Card */}
-                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'} ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'} ${!loggedIn && requireLogin ? 'opacity-50 pointer-events-none' : ''}`}>
 
                     {/* Step Progress */}
                     <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>

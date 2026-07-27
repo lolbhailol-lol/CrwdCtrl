@@ -230,6 +230,7 @@ export default function CommunityDetailPage() {
         const cached = communityDetailCache.read(id);
         const cacheOk = entityMatchesRouteParam(cached, id, ['name', 'title']);
         const fallback = ok ? seeded : (cacheOk ? normalizeCommunity(cached) : null);
+        setLoadingTreks(true);
         setTreks([]);
         setPastTreks([]);
         setLoadError('');
@@ -301,6 +302,11 @@ export default function CommunityDetailPage() {
         image: t.coverImage || t.images?.[0] || null,
         trekCategory: normalizeCategory(t.trekCategory) || null,
         status: t.status || null,
+        // Seed detail/booking so fee/mode don't flash as Free/demo
+        registrationFee: t.registrationFee,
+        registration: t.registration || null,
+        registrationLink: t.registrationLink || '',
+        detail: t,
     });
 
     useEffect(() => {
@@ -339,8 +345,8 @@ export default function CommunityDetailPage() {
             setActiveCategory(null);
             return;
         }
-        if (!activeCategory || !categoryOptions.some(option => option.value === activeCategory)) {
-            setActiveCategory(categoryOptions[0].value);
+        if (!activeCategory || (activeCategory !== 'all' && !categoryOptions.some(option => option.value === activeCategory))) {
+            setActiveCategory('all');
         }
     }, [categoryOptions, activeCategory]);
 
@@ -390,9 +396,9 @@ export default function CommunityDetailPage() {
     const description = community.aboutUs?.trim() || '';
     const shortDesc = description.slice(0, 130);
 
-    const filteredTreks = activeCategory
-        ? treks.filter(trek => trek.trekCategory === activeCategory)
-        : treks;
+    const filteredTreks = !activeCategory || activeCategory === 'all'
+        ? treks
+        : treks.filter(trek => trek.trekCategory === activeCategory);
 
     const openGallery = (index = 0) => {
         setGalleryIndex(index);
@@ -558,6 +564,17 @@ export default function CommunityDetailPage() {
                     {categoryOptions.length > 0 ? (
                         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
                             <div className="flex gap-2 pb-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveCategory('all')}
+                                    className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 active:scale-95
+                                        ${activeCategory === 'all'
+                                            ? 'bg-[#0ECCEE] text-black'
+                                            : isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-white text-gray-700 shadow-sm'
+                                        }`}
+                                >
+                                    All
+                                </button>
                                 {categoryOptions.map(option => {
                                     const meta = CAT_META[option.value] || { label: option.label };
                                     const isActive = activeCategory === option.value;
@@ -589,7 +606,7 @@ export default function CommunityDetailPage() {
                             <CompactPortraitCardsRowSkeleton count={3} className="px-0" />
                         ) : filteredTreks.length === 0 ? (
                             <div className={`card-surface mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                No upcoming treks in this category yet.
+                                No upcoming treks{activeCategory && activeCategory !== 'all' ? ' in this category' : ''} yet.
                             </div>
                         ) : (
                             <div className="flex gap-4 pb-2">
@@ -601,19 +618,39 @@ export default function CommunityDetailPage() {
                                         isFav={isFavorite(trek.id)}
                                         onFav={() => toggleFavorite(trek.id, trek)}
                                         eager={index < 3}
-                                        onClick={() => navigate(trekPath(trek), {
-                                            state: {
-                                                trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] },
-                                                community: community ? {
-                                                    _id: community.id,
-                                                    id: community.id,
-                                                    name: community.title,
-                                                    title: community.title,
-                                                    contactPhone: community.contactPhone,
-                                                    contactInstagram: community.contactInstagram,
-                                                } : null,
-                                            },
-                                        })}
+                                        onClick={() => {
+                                            const seed = trek.detail && typeof trek.detail === 'object'
+                                                ? trek.detail
+                                                : {
+                                                    _id: trek.id,
+                                                    slug: trek.slug || '',
+                                                    trekName: trek.title || trek.trekName,
+                                                    coverImage: trek.coverImage || trek.image || '',
+                                                    images: trek.image ? [trek.image] : [],
+                                                    registrationFee: trek.registrationFee,
+                                                    registration: trek.registration,
+                                                    registrationLink: trek.registrationLink,
+                                                };
+                                            navigate(trekPath(seed), {
+                                                state: {
+                                                    trek: {
+                                                        ...seed,
+                                                        trekName: seed.trekName || trek.title,
+                                                        images: seed.images?.length
+                                                            ? seed.images
+                                                            : (trek.image ? [trek.image] : []),
+                                                    },
+                                                    community: community ? {
+                                                        _id: community.id,
+                                                        id: community.id,
+                                                        name: community.title,
+                                                        title: community.title,
+                                                        contactPhone: community.contactPhone,
+                                                        contactInstagram: community.contactInstagram,
+                                                    } : null,
+                                                },
+                                            });
+                                        }}
                                     />
                                 ))}
                             </div>
@@ -640,19 +677,39 @@ export default function CommunityDetailPage() {
                                     <li key={trek.id}>
                                         <button
                                             type="button"
-                                            onClick={() => navigate(trekPath(trek), {
-                                                state: {
-                                                    trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] },
-                                                    community: community ? {
-                                                        _id: community.id,
-                                                        id: community.id,
-                                                        name: community.title,
-                                                        title: community.title,
-                                                        contactPhone: community.contactPhone,
-                                                        contactInstagram: community.contactInstagram,
-                                                    } : null,
-                                                },
-                                            })}
+                                            onClick={() => {
+                                                const seed = trek.detail && typeof trek.detail === 'object'
+                                                    ? trek.detail
+                                                    : {
+                                                        _id: trek.id,
+                                                        slug: trek.slug || '',
+                                                        trekName: trek.title || trek.trekName,
+                                                        coverImage: trek.coverImage || trek.image || '',
+                                                        images: trek.image ? [trek.image] : [],
+                                                        registrationFee: trek.registrationFee,
+                                                        registration: trek.registration,
+                                                        registrationLink: trek.registrationLink,
+                                                    };
+                                                navigate(trekPath(seed), {
+                                                    state: {
+                                                        trek: {
+                                                            ...seed,
+                                                            trekName: seed.trekName || trek.title,
+                                                            images: seed.images?.length
+                                                                ? seed.images
+                                                                : (trek.image ? [trek.image] : []),
+                                                        },
+                                                        community: community ? {
+                                                            _id: community.id,
+                                                            id: community.id,
+                                                            name: community.title,
+                                                            title: community.title,
+                                                            contactPhone: community.contactPhone,
+                                                            contactInstagram: community.contactInstagram,
+                                                        } : null,
+                                                    },
+                                                });
+                                            }}
                                             className={`w-full text-left flex items-baseline justify-between gap-3 py-1.5 text-sm
                                                 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
                                         >

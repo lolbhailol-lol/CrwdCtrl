@@ -773,6 +773,7 @@ const sendTrekRegistrationEmails = async ({
     amountPaid = 0,
     groupLink = '',
     communityName = '',
+    ticketLink: ticketLinkOverride = '',
 }) => {
     const email = String(userEmail || '').trim().toLowerCase();
     if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
@@ -782,7 +783,7 @@ const sendTrekRegistrationEmails = async ({
 
     const paid = Number(amountPaid) || 0;
     const submissionDate = formatSubmissionDateIST();
-    const ticketLink = `/registration-details/${bookingId}?type=trek`;
+    const ticketLink = ticketLinkOverride || `/registration-details/${bookingId}?type=trek`;
     const details = [
         bookingDetails.date ? { label: 'Date', value: bookingDetails.date } : null,
         bookingDetails.time ? { label: 'Time', value: bookingDetails.time } : null,

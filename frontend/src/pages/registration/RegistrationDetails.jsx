@@ -68,6 +68,7 @@ export default function RegistrationDetails() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const isTrekBooking = searchParams.get('type') === 'trek';
+  const bookingAccess = searchParams.get('access') || '';
   const isEventRegistration = searchParams.get('type') === 'event';
   const isSportsRegistration = searchParams.get('type') === 'sports';
   const navigate = useNavigate();
@@ -82,13 +83,14 @@ export default function RegistrationDetails() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!isAuthenticated) {
+    const canGuestTrek = isTrekBooking && Boolean(bookingAccess);
+    if (!isAuthenticated && !canGuestTrek) {
       navigate('/login', { state: { from: location.pathname + location.search } });
       return;
     }
 
     fetchRegistrationDetails();
-  }, [registrationId, isAuthenticated, authLoading, token, isTrekBooking, isEventRegistration, isSportsRegistration, navigate, location.pathname, location.search]);
+  }, [registrationId, isAuthenticated, authLoading, token, isTrekBooking, isEventRegistration, isSportsRegistration, navigate, location.pathname, location.search, bookingAccess]);
 
   const fetchRegistrationDetails = async () => {
     try {
@@ -103,10 +105,31 @@ export default function RegistrationDetails() {
             ? `/category-registrations/details/${registrationId}`
             : `/registrations/details/${registrationId}`;
 
-      const data = await userFetchJSONStrict(path, { token, cacheBust: true });
-      setRegistration(data);
+      if (isTrekBooking && bookingAccess && !isAuthenticated) {
+        const { API_BASE_URL } = await import('../../services/api/client');
+        const res = await fetch(`${API_BASE_URL}${path}?access=${encodeURIComponent(bookingAccess)}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-booking-access': bookingAccess,
+          },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const err = new Error(data.error || data.message || 'Failed to load booking');
+          err.code = res.status === 401 ? 'AUTH_401' : res.status === 404 ? 'NOT_FOUND' : '';
+          throw err;
+        }
+        setRegistration(data);
+      } else {
+        const data = await userFetchJSONStrict(path, {
+          token,
+          cacheBust: true,
+          headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
+        });
+        setRegistration(data);
+      }
     } catch (err) {
-      if (err.code === 'AUTH_401') {
+      if (err.code === 'AUTH_401' && !(isTrekBooking && bookingAccess)) {
         navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
         return;
       }
@@ -310,7 +333,7 @@ export default function RegistrationDetails() {
     `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const invoicePath = isTrekBooking
-    ? `/payment-invoice/${registrationId}?type=trek`
+    ? `/payment-invoice/${registrationId}?type=trek${bookingAccess ? `&access=${encodeURIComponent(bookingAccess)}` : ''}`
     : isEventRegistration
       ? `/payment-invoice/${registrationId}?type=event`
       : isSportsRegistration
@@ -859,7 +882,7 @@ export default function RegistrationDetails() {
               onClick={() =>
                 navigate(
                   isTrekBooking
-                    ? `/qr-ticket/${registrationId}?type=trek`
+                    ? `/qr-ticket/${registrationId}?type=trek${bookingAccess ? `&access=${encodeURIComponent(bookingAccess)}` : ''}`
                     : isEventRegistration
                       ? `/qr-ticket/${registrationId}?type=event`
                       : isSportsRegistration

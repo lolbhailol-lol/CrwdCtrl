@@ -50,16 +50,30 @@ const generateQR = async (req, res) => {
 
 const generateTrekQR = async (req, res) => {
   try {
-    const userId = req.user.userId;
     const { bookingId } = req.params;
+    const { getTrekBookingAccessFromRequest } = require('../utils/bookingAccess');
+    const access = getTrekBookingAccessFromRequest(req);
+    const userId = req.user?.userId || null;
 
-    const booking = await TrekBooking.findOne({ _id: bookingId, userId })
-      .populate({
-        path: 'trekId',
-        select: 'trekName trekDate city groupLink communityId',
-        populate: { path: 'communityId', select: 'name groupLink' },
-      })
-      .populate('userId', 'name');
+    let booking = null;
+    if (userId) {
+      booking = await TrekBooking.findOne({ _id: bookingId, userId })
+        .populate({
+          path: 'trekId',
+          select: 'trekName trekDate city groupLink communityId',
+          populate: { path: 'communityId', select: 'name groupLink' },
+        })
+        .populate('userId', 'name');
+    }
+    if (!booking && access && String(access.bookingId) === String(bookingId)) {
+      booking = await TrekBooking.findOne({ _id: bookingId })
+        .populate({
+          path: 'trekId',
+          select: 'trekName trekDate city groupLink communityId',
+          populate: { path: 'communityId', select: 'name groupLink' },
+        })
+        .populate('userId', 'name');
+    }
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Trek booking not found' });

@@ -29,6 +29,7 @@ export default function QRTicketPage() {
   const { registrationId } = useParams();
   const [searchParams] = useSearchParams();
   const ticketType = searchParams.get('type');
+  const bookingAccess = searchParams.get('access') || '';
   const isTrekTicket = ticketType === 'trek';
   const isSportsTicket = ticketType === 'sports';
   const isEventTicket = ticketType === 'event';
@@ -39,7 +40,8 @@ export default function QRTicketPage() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!isAuthenticated) {
+    const canGuestTrek = isTrekTicket && Boolean(bookingAccess);
+    if (!isAuthenticated && !canGuestTrek) {
       navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
       return;
     }
@@ -57,10 +59,25 @@ export default function QRTicketPage() {
               ? `${API_BASE_URL}/qr/event-registrations/${registrationId}/qr`
               : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
 
-        const data = await authenticatedFetchJSON(url, { token: authToken });
-        setTicket(data.data);
+        if (canGuestTrek && !isAuthenticated) {
+          const res = await fetch(`${url}?access=${encodeURIComponent(bookingAccess)}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-booking-access': bookingAccess,
+            },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.message || data.error || 'Failed to load ticket');
+          setTicket(data.data);
+        } else {
+          const data = await authenticatedFetchJSON(url, {
+            token: authToken,
+            headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
+          });
+          setTicket(data.data);
+        }
       } catch (err) {
-        if (err.code === 'AUTH_401') {
+        if (err.code === 'AUTH_401' && !canGuestTrek) {
           navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
           return;
         }
@@ -71,7 +88,7 @@ export default function QRTicketPage() {
     };
 
     fetchTicket();
-  }, [registrationId, isTrekTicket, isSportsTicket, isEventTicket, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search]);
+  }, [registrationId, isTrekTicket, isSportsTicket, isEventTicket, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search, bookingAccess]);
 
   const cardClass = isDark
     ? 'bg-[#111213] border-gray-800'

@@ -571,10 +571,12 @@ export default function TrekDetailPage() {
         >
             <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
 
-                {/* Price block */}
+                {/* Price block — don't treat missing fee as Free (seed flash) */}
                 <div className="min-w-0 shrink-0">
                     <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
-                    {Number(trek.registrationFee) > 0 ? (
+                    {trek.registrationFee == null ? (
+                        <p className={`mt-0.5 text-2xl font-bold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>—</p>
+                    ) : Number(trek.registrationFee) > 0 ? (
                         <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                             ₹{Number(trek.registrationFee).toLocaleString('en-IN')}
                         </p>
@@ -652,7 +654,7 @@ export default function TrekDetailPage() {
                         {[
                             { Icon: ClockIcon,  label: 'Trek Duration',   value: trek.trekDuration || trek.duration || '—' },
                             { Icon: ChartIcon,  label: 'Difficulty',      value: (trek.difficultyLevel || trek.difficulty || '—'), extra: 'capitalize' },
-                            { Icon: GridIcon,   label: 'Trek Category',      value: trek.trekCategory || 'Adventure Trek', extra: 'capitalize' },
+                            { Icon: GridIcon,   label: 'Trek Category',      value: trek.trekCategory || '—', extra: 'capitalize' },
                             ...(formatTrekDisplayDate(trek) ? [{ Icon: CalendarIcon, label: 'Trek Date', value: formatTrekDisplayDate(trek) }] : []),
                         ].map((row) => (
                             <div key={row.label} className="flex items-center gap-2.5">

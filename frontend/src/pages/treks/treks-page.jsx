@@ -127,6 +127,10 @@ function mapTrekCards(trekData, commList) {
             featuredSection: t.featuredSection || null,
             homeSection: t.homeSection || null,
             trekPagePriority: t.trekPagePriority || 999,
+            registrationFee: t.registrationFee,
+            registration: t.registration || null,
+            registrationLink: t.registrationLink || '',
+            detail: t,
             type: t.difficultyLevel
                 ? t.difficultyLevel.charAt(0).toUpperCase() + t.difficultyLevel.slice(1)
                 : 'Trek',
@@ -462,7 +466,7 @@ function TreksPage() {
             return;
         }
         navigate(trekPath(item), {
-            state: { trek: { ...item, trekName: item.title, images: item.image ? [item.image] : [] } },
+            state: { trek: item.detail || { ...item, trekName: item.title, images: item.image ? [item.image] : [] } },
         });
     }, [heroItems, navigate]);
 
@@ -653,7 +657,7 @@ function TreksPage() {
                                                     isDark={isDark}
                                                     isFavorite={isFavorite(trek.id)}
                                                     onToggleFavorite={() => handleFav(trek)}
-                                                    onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                    onClick={() => navigate(trekPath(trek), { state: { trek: trek.detail || { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
                                                     eager={index < 2}
                                                 />
                                             </div>
@@ -730,7 +734,7 @@ function TreksPage() {
                                                     isDark={isDark}
                                                     isFavorite={isFavorite(trek.id)}
                                                     onToggleFavorite={() => handleFav(trek)}
-                                                    onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                    onClick={() => navigate(trekPath(trek), { state: { trek: trek.detail || { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
                                                     eager={index < 3}
                                                 />
                                                 </div>
@@ -771,7 +775,7 @@ function TreksPage() {
                                                 isDark={isDark}
                                                 isFavorite={isFavorite(trek.id)}
                                                 onToggleFavorite={() => handleFav(trek)}
-                                                onClick={() => navigate(trekPath(trek), { state: { trek: { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
+                                                onClick={() => navigate(trekPath(trek), { state: { trek: trek.detail || { ...trek, trekName: trek.title, images: trek.image ? [trek.image] : [] } } })}
                                                 eager={index < 3}
                                             />
                                         </div>

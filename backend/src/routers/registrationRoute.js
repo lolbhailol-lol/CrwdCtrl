@@ -23,7 +23,7 @@ const {
   upload
 } = require('../controllers/registrationController');
 
-const { authenticateToken } = require('../middleware/authmiddleware');
+const { authenticateToken, optionalAuthenticateToken } = require('../middleware/authmiddleware');
 const authenticateAdmin = require('../middleware/adminAuth');
 const devOnly = require('../middleware/devOnly');
 const { registrationLimiter } = require('../middleware/rateLimiter');
@@ -111,8 +111,8 @@ router.get('/details/:registrationId', authenticateToken, getRegistrationDetails
 router.get('/event-registration/:registrationId', authenticateToken, getEventShowRegistrationDetails);
 router.get('/invoice/:registrationId', authenticateToken, getPaymentInvoice);
 router.get('/event-registration/:registrationId/invoice', authenticateToken, getEventShowPaymentInvoice);
-router.get('/trek-booking/:bookingId/invoice', authenticateToken, getTrekPaymentInvoice);
-router.get('/trek-booking/:bookingId', authenticateToken, getTrekBookingDetails);
+router.get('/trek-booking/:bookingId/invoice', optionalAuthenticateToken, getTrekPaymentInvoice);
+router.get('/trek-booking/:bookingId', optionalAuthenticateToken, getTrekBookingDetails);
 
 /* ======================
    ADMIN ROUTES

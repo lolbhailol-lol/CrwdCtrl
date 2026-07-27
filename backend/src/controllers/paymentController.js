@@ -384,6 +384,19 @@ exports.verifyPayment = async (req, res) => {
 // POST /api/payment/trek-order — guest-friendly; price computed server-side only
 exports.createTrekOrder = async (req, res) => {
   try {
+    // Prefer logged-in user when Authorization is present (coupons / dedupe)
+    if (!req.user?.userId && req.headers.authorization?.startsWith('Bearer ')) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const { getJwtSecret } = require('../config/jwtSecret');
+        const token = req.headers.authorization.substring(7);
+        const decoded = jwt.verify(token, getJwtSecret());
+        if (decoded?.userId) req.user = { userId: decoded.userId };
+      } catch {
+        /* guest checkout still allowed when trek.requireLogin is false */
+      }
+    }
+
     const {
       trekId,
       trekName = 'Trek Booking',
@@ -414,6 +427,15 @@ exports.createTrekOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Trek not found or not published' });
     }
 
+    const requireLogin = trek.registration?.requireLogin !== false;
+    if (requireLogin && !req.user?.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Please log in to book this trek.',
+        requireLogin: true,
+      });
+    }
+
     if (trek.registration?.mode === 'organizer_qr') {
       return res.status(400).json({
         success: false,
@@ -440,6 +462,22 @@ exports.createTrekOrder = async (req, res) => {
             ? 'You already have a registration waiting for organizer approval'
             : 'You already have a registration for this trek',
           bookingId: existingBooking._id,
+        });
+      }
+    } else if (email) {
+      const existingGuest = await TrekBooking.findOne({
+        trekId: trek._id,
+        userEmail: email,
+        userId: null,
+        status: { $in: ['confirmed', 'pending'] },
+      }).select('_id status').lean();
+      if (existingGuest) {
+        return res.status(409).json({
+          success: false,
+          message: existingGuest.status === 'pending'
+            ? 'This email already has a registration waiting for organizer approval'
+            : 'This email already has a registration for this trek',
+          bookingId: existingGuest._id,
         });
       }
     }

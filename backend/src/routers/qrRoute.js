@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middleware/authmiddleware');
+const { authenticateToken, optionalAuthenticateToken } = require('../middleware/authmiddleware');
 const adminAuth = require('../middleware/adminAuth');
 const { scannerCheckinLimiter } = require('../middleware/rateLimiter');
 const {
@@ -15,7 +15,7 @@ const {
 
 // User: Generate QR code for their registration
 router.get('/registrations/:registrationId/qr', authenticateToken, generateQR);
-router.get('/trek-bookings/:bookingId/qr', authenticateToken, generateTrekQR);
+router.get('/trek-bookings/:bookingId/qr', optionalAuthenticateToken, generateTrekQR);
 router.get('/sports-registrations/:registrationId/qr', authenticateToken, generateSportsQR);
 router.get('/event-registrations/:registrationId/qr', authenticateToken, generateEventShowQR);
 

@@ -10,7 +10,7 @@ const { consumeCouponUsageForOrder } = require('../utils/couponPricing');
 const { createNotification } = require('../controllers/notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { sendTrekRegistrationEmails } = require('../services/emailService');
-const { authenticateToken } = require('../middleware/authmiddleware');
+const { optionalAuthenticateToken } = require('../middleware/authmiddleware');
 const { getJwtSecret } = require('../config/jwtSecret');
 const {
     getGenderRegistrationSnapshot,
@@ -20,6 +20,9 @@ const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
 const { findByIdOrSlug } = require('../utils/slug');
 const { isAllowedPaymentScreenshotUrl, normalizeTransactionId } = require('../utils/runClubRegistrationGuards');
 const { notifyTrekParticipant } = require('../utils/trekParticipantOutreach');
+const { signTrekBookingAccess } = require('../utils/bookingAccess');
+const { registrationLimiter } = require('../middleware/rateLimiter');
+const uploadCtrl = require('../controllers/uploadController');
 
 function stripTrekGroupLinks(trek) {
     if (!trek) return trek;
@@ -82,8 +85,11 @@ function dispatchTrekBookingConfirmation({
     groupLink = '',
     communityName = '',
     sendEmailOnly = false,
+    accessToken = '',
 }) {
-    const link = `/registration-details/${bookingId}?type=trek`;
+    const accessQuery = accessToken ? `&access=${encodeURIComponent(accessToken)}` : '';
+    const link = `/registration-details/${bookingId}?type=trek${accessQuery}`;
+    const ticketLink = `/qr-ticket/${bookingId}?type=trek${accessQuery}`;
     void (async () => {
         try {
             const emailResult = await sendTrekRegistrationEmails({
@@ -98,6 +104,7 @@ function dispatchTrekBookingConfirmation({
                 amountPaid,
                 groupLink,
                 communityName,
+                ticketLink,
             });
             if (!emailResult?.success) {
                 console.error('[Trek Register] Confirmation email failed:', emailResult?.error || emailResult);
@@ -219,9 +226,49 @@ router.get('/:idOrSlug', async (req, res) => {
     }
 });
 
-// POST /api/treks/:id/register — save booking (login required; payment re-verified server-side for paid treks)
+// POST /api/treks/:id/payment-screenshot — guest QR proof upload (when requireLogin=false or logged in)
+router.post(
+    '/:id/payment-screenshot',
+    registrationLimiter,
+    uploadCtrl.uploadSingle,
+    uploadCtrl.multerErrorHandler,
+    async (req, res) => {
+        try {
+            const trekMatch = await findByIdOrSlug(Trek, req.params.id, {
+                baseFilter: { status: 'published' },
+                pickName: (row) => row.trekName || row.title || '',
+                lean: true,
+            });
+            if (!trekMatch) return res.status(404).json({ message: 'Trek not found' });
+
+            const trek = await Trek.findById(trekMatch._id).select('registration status').lean();
+            if (!trek || trek.status !== 'published') {
+                return res.status(404).json({ message: 'Trek not found' });
+            }
+            if ((trek.registration?.mode || 'internal_form') !== 'organizer_qr') {
+                return res.status(400).json({ message: 'Payment screenshots are only used for UPI / QR treks.' });
+            }
+            if (trek.registration?.requireLogin !== false && !getOptionalUserId(req)) {
+                return res.status(401).json({
+                    message: 'Please log in to upload a payment screenshot for this trek.',
+                    requireLogin: true,
+                });
+            }
+            if (!req.file) {
+                return res.status(400).json({ message: 'Image file is required' });
+            }
+
+            return uploadCtrl.uploadImage(req, res);
+        } catch (err) {
+            console.error('[Trek payment-screenshot] error:', err);
+            res.status(500).json({ message: 'Failed to upload payment screenshot' });
+        }
+    },
+);
+
+// POST /api/treks/:id/register — save booking (login required unless registration.requireLogin === false)
 // :id accepts Mongo ObjectId OR trek name slug (same as GET /treks/:idOrSlug)
-router.post('/:id/register', authenticateToken, async (req, res) => {
+router.post('/:id/register', registrationLimiter, optionalAuthenticateToken, async (req, res) => {
     try {
         const trekMatch = await findByIdOrSlug(Trek, req.params.id, {
             baseFilter: { status: 'published' },
@@ -244,6 +291,15 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: 'Registration is not open yet for this trek' });
         }
 
+        const requireLogin = trek.registration?.requireLogin !== false;
+        const userId = req.user?.userId || null;
+        if (requireLogin && !userId) {
+            return res.status(401).json({
+                message: 'Please log in to book this trek.',
+                requireLogin: true,
+            });
+        }
+
         const { formData = {}, bookingDetails = {} } = req.body;
         const configuredMax = Number(trek.registration?.maxPeoplePerBooking);
         const people = Math.max(1, Number(bookingDetails.people) || 1);
@@ -257,7 +313,7 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
 
         const genderCheck = await validateTrekGenderRegistration({
             trek,
-            userId: req.user.userId,
+            userId,
             formData,
             people,
         });
@@ -290,10 +346,10 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         let userEmail = extractEmail(formData);
 
         // Phone-only accounts / custom forms without email — fall back to logged-in user
-        if (!EMAIL_REGEX.test(userEmail) && req.user?.userId) {
+        if (!EMAIL_REGEX.test(userEmail) && userId) {
             try {
                 const User = require('../model/usermodel');
-                const account = await User.findById(req.user.userId).select('email').lean();
+                const account = await User.findById(userId).select('email').lean();
                 if (account?.email) userEmail = String(account.email).trim().toLowerCase();
             } catch (_) { /* ignore */ }
         }
@@ -317,11 +373,10 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         let paymentStatus = registrationFee > 0 ? null : 'free';
 
         // Block duplicate active bookings (confirmed or awaiting QR review)
-        const activeExisting = await TrekBooking.findOne({
-            trekId: trek._id,
-            userId: req.user.userId,
-            status: { $in: ['pending', 'confirmed'] },
-        }).lean();
+        const activeQuery = userId
+            ? { trekId: trek._id, userId, status: { $in: ['pending', 'confirmed'] } }
+            : { trekId: trek._id, userEmail, userId: null, status: { $in: ['pending', 'confirmed'] } };
+        const activeExisting = await TrekBooking.findOne(activeQuery).lean();
         const isQrPendingResubmit = Boolean(
             activeExisting
             && activeExisting.status === 'pending'
@@ -336,19 +391,26 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             });
         }
 
-        // Idempotent: same user + trek + payment → return the existing booking as
-        // success. Must run BEFORE verifyTrekBookingPayment, which 409s on any order
-        // reuse. Scoped to this trek + user so an unrelated order id can't match.
+        // Idempotent: same trek + payment → return the existing booking as success
         if (paymentOrderId) {
-            const existingBooking = await TrekBooking.findOne({
+            const existingBookingQuery = {
                 payment_order_id: paymentOrderId,
                 trekId: trek._id,
-                userId: req.user.userId,
-            }).lean();
+            };
+            if (userId) existingBookingQuery.userId = userId;
+            else {
+                existingBookingQuery.userEmail = userEmail;
+                existingBookingQuery.userId = null;
+            }
+            const existingBooking = await TrekBooking.findOne(existingBookingQuery).lean();
             if (existingBooking) {
-                // Retry path: booking already saved — still ensure user gets confirmation mail
+                const accessToken = signTrekBookingAccess({
+                    bookingId: existingBooking._id,
+                    trekId: trek._id,
+                    userEmail: existingBooking.userEmail || userEmail,
+                });
                 dispatchTrekBookingConfirmation({
-                    userId: req.user.userId,
+                    userId: existingBooking.userId || userId,
                     userEmail: existingBooking.userEmail || userEmail,
                     userName: existingBooking.userName || userName,
                     trekName: trek.trekName || 'your trek',
@@ -358,12 +420,14 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
                     groupLink,
                     communityName,
                     sendEmailOnly: true,
+                    accessToken,
                 });
                 return res.json({
                     success: true,
                     alreadyBooked: true,
                     message: 'Booking already completed',
                     bookingId: existingBooking._id,
+                    accessToken,
                 });
             }
         }
@@ -419,8 +483,6 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             bookingStatus = 'confirmed';
         }
 
-        const userId = req.user.userId;
-
         const bookingFields = {
             userName,
             userEmail,
@@ -447,13 +509,18 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         let booking;
         if (isQrPendingResubmit) {
             // Atomic update: only overwrite while still pending (blocks race with approve/reject)
+            const pendingFilter = {
+                _id: activeExisting._id,
+                trekId: trek._id,
+                status: 'pending',
+            };
+            if (userId) pendingFilter.userId = userId;
+            else {
+                pendingFilter.userEmail = userEmail;
+                pendingFilter.userId = null;
+            }
             booking = await TrekBooking.findOneAndUpdate(
-                {
-                    _id: activeExisting._id,
-                    trekId: trek._id,
-                    userId,
-                    status: 'pending',
-                },
+                pendingFilter,
                 { $set: bookingFields },
                 { new: true },
             );
@@ -467,18 +534,17 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             try {
                 booking = await TrekBooking.create({
                     trekId: trek._id,
-                    userId,
+                    userId: userId || null,
                     payment_order_id: paymentOrderId || undefined,
                     ...bookingFields,
                 });
             } catch (createErr) {
-                // Concurrent double-submit: unique (trekId,userId) for active statuses
+                // Concurrent double-submit: unique indexes for active statuses
                 if (createErr?.code === 11000) {
-                    const raced = await TrekBooking.findOne({
-                        trekId: trek._id,
-                        userId,
-                        status: { $in: ['pending', 'confirmed'] },
-                    }).lean();
+                    const racedQuery = userId
+                        ? { trekId: trek._id, userId, status: { $in: ['pending', 'confirmed'] } }
+                        : { trekId: trek._id, userEmail, userId: null, status: { $in: ['pending', 'confirmed'] } };
+                    const raced = await TrekBooking.findOne(racedQuery).lean();
                     if (raced) {
                         return res.status(409).json({
                             message: raced.status === 'pending'
@@ -540,13 +606,21 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
         }
 
         const trekName = trek.trekName || 'your trek';
+        const accessToken = signTrekBookingAccess({
+            bookingId: booking._id,
+            trekId: trek._id,
+            userEmail,
+        });
+
         if (bookingStatus === 'pending') {
             res.json({
                 success: true,
                 pendingReview: true,
                 message: 'Payment submitted — waiting for organizer approval',
                 bookingId: booking._id,
+                accessToken,
             });
+            const accessQuery = `&access=${encodeURIComponent(accessToken)}`;
             void notifyTrekParticipant({
                 booking: booking.toObject ? booking.toObject() : booking,
                 trekId: trek._id,
@@ -554,7 +628,7 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
                 title: 'Payment submitted — awaiting approval',
                 message: `Thanks! Your payment screenshot for ${trekName} was submitted. The trek organizer will review it and confirm your spot. You’ll get another email once it’s approved.`,
                 type: 'registration',
-                link: `/registration-details/${booking._id}?type=trek`,
+                link: `/registration-details/${booking._id}?type=trek${accessQuery}`,
                 emailSubject: `Payment submitted — waiting for approval · ${trekName}`,
                 metadata: { registrationId: booking._id, stage: 'pending_review' },
             }).catch((err) => console.error('[Trek Register] Pending notify error:', err.message));
@@ -565,6 +639,7 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             success: true,
             message: 'Registration recorded',
             bookingId: booking._id,
+            accessToken,
         });
 
         dispatchTrekBookingConfirmation({
@@ -577,11 +652,12 @@ router.post('/:id/register', authenticateToken, async (req, res) => {
             amountPaid,
             groupLink,
             communityName,
+            accessToken,
         });
     } catch (err) {
         if (err.code === 11000) {
             const keys = Object.keys(err.keyPattern || {});
-            if (keys.includes('trekId') || keys.includes('userId')) {
+            if (keys.includes('trekId') || keys.includes('userId') || keys.includes('userEmail')) {
                 return res.status(409).json({ message: 'You already have a registration for this trek' });
             }
             return res.status(409).json({ message: 'This payment has already been used for a booking' });

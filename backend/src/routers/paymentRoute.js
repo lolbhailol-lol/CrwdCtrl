@@ -7,7 +7,7 @@ router.post('/quote', authenticateToken, getPaymentQuote);
 router.post('/order', authenticateToken, createOrder);
 router.post('/verify', authenticateToken, verifyPayment);
 router.post('/coupon-validate', validateCoupon);
-router.post('/trek-order', authenticateToken, createTrekOrder);
+router.post('/trek-order', createTrekOrder); // public — enforces trek.registration.requireLogin inside
 router.post('/trek-verify', verifyTrekPayment);    // public — no auth
 router.post('/sports-order', createSportsOrder);   // public — no auth
 router.post('/sports-verify', verifySportsPayment); // public — no auth

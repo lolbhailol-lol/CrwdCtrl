@@ -4,7 +4,8 @@ const crypto = require('crypto');
 const trekBookingSchema = new mongoose.Schema(
     {
         trekId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Trek', required: true },
-        userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        /** Optional for guest checkout (registration.requireLogin === false) */
+        userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         userEmail: { type: String, trim: true, lowercase: true },
         userName:  { type: String, trim: true },
         /** Female | Male | Others — for gender quota counting */
@@ -51,14 +52,33 @@ const trekBookingSchema = new mongoose.Schema(
 trekBookingSchema.index({ userId: 1 });
 trekBookingSchema.index({ trekId: 1 });
 trekBookingSchema.index({ trekId: 1, status: 1 });
+trekBookingSchema.index({ userEmail: 1 });
 trekBookingSchema.index({ payment_order_id: 1 }, { unique: true, sparse: true });
-// One active registration per user per trek (blocks concurrent double-create races)
+
+// Logged-in: one active booking per user per trek
 trekBookingSchema.index(
     { trekId: 1, userId: 1 },
     {
         unique: true,
-        partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } },
+        partialFilterExpression: {
+            status: { $in: ['pending', 'confirmed'] },
+            userId: { $type: 'objectId' },
+        },
         name: 'trek_user_active_booking_unique',
+    },
+);
+
+// Guest: one active booking per email per trek
+trekBookingSchema.index(
+    { trekId: 1, userEmail: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            status: { $in: ['pending', 'confirmed'] },
+            userId: null,
+            userEmail: { $type: 'string' },
+        },
+        name: 'trek_guest_email_active_booking_unique',
     },
 );
 
@@ -79,4 +99,39 @@ trekBookingSchema.pre('save', function assignQrCodeData(next) {
     next();
 });
 
-module.exports = mongoose.models.TrekBooking || mongoose.model('TrekBooking', trekBookingSchema);
+const TrekBooking = mongoose.models.TrekBooking || mongoose.model('TrekBooking', trekBookingSchema);
+
+const ensureTrekBookingIndexes = async () => {
+    try {
+        const indexes = await TrekBooking.collection.indexes();
+        for (const idx of indexes) {
+            // Drop old unique that required userId without guest partial filter
+            if (
+                idx.name === 'trek_user_active_booking_unique'
+                && idx.unique
+                && !idx.partialFilterExpression?.userId
+            ) {
+                try {
+                    await TrekBooking.collection.dropIndex(idx.name);
+                    console.log('ℹ️ Dropped legacy trek_user_active_booking_unique index');
+                } catch (_) { /* ignore */ }
+            }
+        }
+    } catch (_) { /* ignore */ }
+
+    try {
+        await TrekBooking.syncIndexes();
+    } catch (err) {
+        if (err?.code !== 85 && err?.code !== 86) {
+            console.warn('⚠️ Could not sync TrekBooking indexes:', err.message);
+        }
+    }
+};
+
+if (mongoose.connection.readyState === 1) {
+    ensureTrekBookingIndexes();
+} else {
+    mongoose.connection.once('open', ensureTrekBookingIndexes);
+}
+
+module.exports = TrekBooking;

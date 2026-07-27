@@ -274,14 +274,27 @@ const getEventShowRegistrationDetails = async (req, res) => {
 const getTrekBookingDetails = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user?.userId || null;
+    const { getTrekBookingAccessFromRequest } = require('../../utils/bookingAccess');
+    const access = getTrekBookingAccessFromRequest(req);
 
-    const booking = await TrekBooking.findOne({ _id: bookingId, userId })
-      .populate({
-        path: 'trekId',
-        select: 'trekName city coverImage images trekDate difficultyLevel registration communityId groupLink',
-        populate: { path: 'communityId', select: 'name groupLink' },
-      });
+    let booking = null;
+    if (userId) {
+      booking = await TrekBooking.findOne({ _id: bookingId, userId })
+        .populate({
+          path: 'trekId',
+          select: 'trekName city coverImage images trekDate difficultyLevel registration communityId groupLink',
+          populate: { path: 'communityId', select: 'name groupLink' },
+        });
+    }
+    if (!booking && access && String(access.bookingId) === String(bookingId)) {
+      booking = await TrekBooking.findOne({ _id: bookingId })
+        .populate({
+          path: 'trekId',
+          select: 'trekName city coverImage images trekDate difficultyLevel registration communityId groupLink',
+          populate: { path: 'communityId', select: 'name groupLink' },
+        });
+    }
 
     if (!booking) {
       return res.status(404).json({ error: 'Trek booking not found' });
@@ -365,11 +378,21 @@ const getPaymentInvoice = async (req, res) => {
 const getTrekPaymentInvoice = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user?.userId || null;
+    const { getTrekBookingAccessFromRequest } = require('../../utils/bookingAccess');
+    const access = getTrekBookingAccessFromRequest(req);
 
-    const booking = await TrekBooking.findOne({ _id: bookingId, userId })
-      .populate('trekId', 'trekName city trekDate')
-      .populate('userId', 'name email phoneNumber');
+    let booking = null;
+    if (userId) {
+      booking = await TrekBooking.findOne({ _id: bookingId, userId })
+        .populate('trekId', 'trekName city trekDate')
+        .populate('userId', 'name email phoneNumber');
+    }
+    if (!booking && access && String(access.bookingId) === String(bookingId)) {
+      booking = await TrekBooking.findOne({ _id: bookingId })
+        .populate('trekId', 'trekName city trekDate')
+        .populate('userId', 'name email phoneNumber');
+    }
 
     if (!booking) {
       return res.status(404).json({ error: 'Trek booking not found' });

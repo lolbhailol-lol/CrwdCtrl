@@ -15,6 +15,7 @@ export default function PaymentInvoicePage() {
   const [searchParams] = useSearchParams();
   const isTrek = searchParams.get('type') === 'trek';
   const isEvent = searchParams.get('type') === 'event';
+  const bookingAccess = searchParams.get('access') || '';
   const { isDark } = useDarkMode();
   const { token: authToken, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -26,7 +27,8 @@ export default function PaymentInvoicePage() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!isAuthenticated) {
+    const canGuestTrek = isTrek && Boolean(bookingAccess);
+    if (!isAuthenticated && !canGuestTrek) {
       navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
       return;
     }
@@ -42,10 +44,25 @@ export default function PaymentInvoicePage() {
             ? `${API_BASE_URL}/registrations/event-registration/${id}/invoice`
             : `${API_BASE_URL}/registrations/invoice/${id}`;
 
-        const data = await authenticatedFetchJSON(url, { token: authToken });
-        setInvoice(data.data);
+        if (canGuestTrek && !isAuthenticated) {
+          const res = await fetch(`${url}?access=${encodeURIComponent(bookingAccess)}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-booking-access': bookingAccess,
+            },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || data.message || 'Failed to load receipt');
+          setInvoice(data.data);
+        } else {
+          const data = await authenticatedFetchJSON(url, {
+            token: authToken,
+            headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
+          });
+          setInvoice(data.data);
+        }
       } catch (err) {
-        if (err.code === 'AUTH_401') {
+        if (err.code === 'AUTH_401' && !canGuestTrek) {
           navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
           return;
         }
@@ -56,7 +73,7 @@ export default function PaymentInvoicePage() {
     };
 
     fetchInvoice();
-  }, [id, isTrek, isEvent, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search]);
+  }, [id, isTrek, isEvent, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search, bookingAccess]);
 
   const handlePrint = () => window.print();
 
