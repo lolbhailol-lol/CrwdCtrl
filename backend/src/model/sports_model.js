@@ -1,12 +1,17 @@
 const mongoose = require('mongoose');
 const coverImagesSchema = require('./coverImagesSchema');
-const { toSlug } = require('../utils/slug');
+const { ensureUniqueSlug } = require('../utils/slug');
 
 const sportsEventSchema = new mongoose.Schema(
     {
         title: { type: String, required: true, trim: true },
-        /** Stable URL slug derived from title — used by /sports/run/:slug deep links */
+        /**
+         * Stable URL slug for /sports/run/:slug deep links.
+         * Set once on create — never rewritten on title rename (shared links stay valid).
+         */
         slug: { type: String, trim: true, lowercase: true, index: true },
+        /** Former primary slugs after any intentional slug change — kept for shared-link resolution */
+        previousSlugs: { type: [{ type: String, trim: true, lowercase: true }], default: [] },
         sportType: {
             type: String,
             enum: ['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other'],
@@ -170,17 +175,19 @@ const sportsEventSchema = new mongoose.Schema(
 
 sportsEventSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
 
-sportsEventSchema.pre('save', function stripLegacyScannerPassword(next) {
+sportsEventSchema.pre('save', async function stripLegacyScannerPasswordAndSlug() {
     if (this.scannerAccess?.password) {
         this.scannerAccess.password = undefined;
         this.markModified('scannerAccess');
         this.$unset('scannerAccess.password');
     }
-    if (this.isModified('title') || !this.slug) {
-        const nextSlug = toSlug(this.title);
+    // Immutable once set — title renames must not break shared /sports/run/:slug links
+    if (!this.slug) {
+        const nextSlug = await ensureUniqueSlug(this.constructor, this.title, {
+            excludeId: this._id,
+        });
         if (nextSlug) this.slug = nextSlug;
     }
-    next();
 });
 
 sportsEventSchema.index({ sportType: 1 });
@@ -194,5 +201,6 @@ sportsEventSchema.index({ showOnSportsPage: 1 });
 sportsEventSchema.index({ homeSection: 1 });
 sportsEventSchema.index({ homePriority: 1 });
 sportsEventSchema.index({ runClubId: 1 });
+sportsEventSchema.index({ previousSlugs: 1 });
 
 module.exports = mongoose.model('SportsEvent', sportsEventSchema);

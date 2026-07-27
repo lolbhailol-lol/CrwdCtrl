@@ -44,12 +44,15 @@ function pickId(entity = {}) {
 export function entityMatchesRouteParam(entity, routeParam, nameKeys = ['name', 'title']) {
     if (!entity || !routeParam) return false;
     const param = String(routeParam);
+    const paramSlug = toSlug(param);
     const eid = String(pickId(entity) || '');
     if (eid && eid === param) return true;
-    if (entity.slug && toSlug(entity.slug) === toSlug(param)) return true;
+    if (entity.slug && toSlug(entity.slug) === paramSlug) return true;
+    const previous = Array.isArray(entity.previousSlugs) ? entity.previousSlugs : [];
+    if (previous.some((s) => toSlug(s) === paramSlug)) return true;
     for (const key of nameKeys) {
         const slug = toSlug(entity[key] || '');
-        if (slug && slug === param) return true;
+        if (slug && slug === paramSlug) return true;
     }
     return false;
 }

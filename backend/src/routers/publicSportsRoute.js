@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const SportsEvent = require('../model/sports_model');
-const { findByIdOrSlug, toSlug } = require('../utils/slug');
+const { findByIdOrSlug, ensureUniqueSlug } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
     sumConfirmedSeats,
@@ -91,10 +91,16 @@ router.get('/:idOrSlug', async (req, res) => {
 
         // Backfill slug for legacy rows so shared /sports/run/:slug links stay stable
         if (!event.slug && event.title) {
-            const slug = toSlug(event.title);
-            if (slug) {
-                event.slug = slug;
-                SportsEvent.updateOne({ _id: event._id }, { $set: { slug } }).catch(() => {});
+            try {
+                const slug = await ensureUniqueSlug(SportsEvent, event.title, {
+                    excludeId: event._id,
+                });
+                if (slug) {
+                    event.slug = slug;
+                    await SportsEvent.updateOne({ _id: event._id }, { $set: { slug } });
+                }
+            } catch (err) {
+                console.warn('publicSports slug backfill failed:', err?.message || err);
             }
         }
 

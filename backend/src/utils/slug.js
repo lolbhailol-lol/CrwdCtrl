@@ -22,7 +22,10 @@ async function ensureUniqueSlug(Model, baseValue, { excludeId = null, filter = {
 
     let candidate = base;
     for (let n = 2; n < 200; n += 1) {
-        const query = { ...filter, slug: candidate };
+        const query = {
+            ...filter,
+            $or: [{ slug: candidate }, { previousSlugs: candidate }],
+        };
         if (excludeId) query._id = { $ne: excludeId };
         // eslint-disable-next-line no-await-in-loop
         const taken = await Model.exists(query);
@@ -78,9 +81,18 @@ async function findByIdOrSlug(Model, idOrSlug, {
         // Model may not have a slug path — ignore
     }
 
+    // Former primary slugs (kept after intentional rename / migration)
+    try {
+        const byPrevious = applyQueryOpts(Model.findOne({ ...baseFilter, previousSlugs: slug }));
+        const hit = lean ? await byPrevious.lean() : await byPrevious;
+        if (hit) return hit;
+    } catch (_) {
+        // Model may not have previousSlugs — ignore
+    }
+
     // Lightweight scan for legacy docs without slug.
     // Prefer newest when multiple names share a slug (cross-community collision).
-    const scanSelect = select || 'title name festName trekName displayName slug createdAt';
+    const scanSelect = select || 'title name festName trekName displayName slug previousSlugs createdAt';
     const rowsQuery = Model.find(baseFilter)
         .select(scanSelect)
         .sort(sort || { createdAt: -1 })
@@ -89,7 +101,10 @@ async function findByIdOrSlug(Model, idOrSlug, {
     const matched = rows.find((row) => {
         const named = toSlug(pickName(row));
         const stored = row.slug ? toSlug(row.slug) : '';
-        return named === slug || stored === slug;
+        const previous = Array.isArray(row.previousSlugs)
+            ? row.previousSlugs.map((s) => toSlug(s)).filter(Boolean)
+            : [];
+        return named === slug || stored === slug || previous.includes(slug);
     });
     if (!matched) return null;
 
