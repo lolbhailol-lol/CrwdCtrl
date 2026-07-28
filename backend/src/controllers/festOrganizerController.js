@@ -18,23 +18,21 @@ const Event = require('../model/event_model');
 const Competition = require('../model/competition_model');
 const { parseTicketPrice } = require('../utils/platformFee');
 const { findByIdOrSlug } = require('../utils/slug');
+const { sanitizePublicFest } = require('../utils/publicEntitySanitize');
 
 const getCompetitionBaseFee = (registrationFee, feeAmount) => {
     const numericFeeAmount = parseTicketPrice(feeAmount);
     return numericFeeAmount || parseTicketPrice(registrationFee);
 };
 
-// ✅ Enhanced in-memory cache system for better Cloud Run performance
+// In-memory cache is kept only for non-sensitive public list payloads.
+// Do not cache fest detail objects in-process because multi-instance
+// deployments can serve stale data inconsistently across instances.
 const cache = {
     fests: {
         data: new Map(), // Use Map for better performance
         timestamp: 0,
         duration: 30 * 1000 // 30 seconds cache for fests list
-    },
-    festDetails: {
-        data: new Map(), // Individual fest details cache
-        timestamp: 0,
-        duration: 60 * 1000 // 1 minute cache for individual fests
     },
     competitions: {
         data: new Map(),
@@ -278,28 +276,36 @@ exports.getMyFests = async (req, res) => {
     }
 };
 
-// ✅ Get single fest details
-exports.getFestById = async (req, res) => {
+async function fetchFestWithCompetitionsById(festId, organizerSelect = 'name college') {
+    let fest = await FestOrganizer.findById(festId)
+        .populate({
+            path: 'organizer',
+            select: organizerSelect,
+            options: { strictPopulate: false },
+        })
+        .lean();
+
+    if (!fest) return null;
+
+    if (fest.competitions && fest.competitions.length > 0) {
+        try {
+            const populatedCompetitions = await Competition.find({
+                _id: { $in: fest.competitions },
+            }).lean();
+            fest.competitions = populatedCompetitions;
+        } catch (populateError) {
+            console.error('fetchFestWithCompetitionsById - competitions populate failed:', populateError);
+            fest.competitions = [];
+        }
+    }
+
+    return fest;
+}
+
+// ✅ Get single fest details (public view)
+exports.getPublicFestById = async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Check cache first
-        const cachedFest = getFromCache('festDetails', id);
-        if (cachedFest) {
-            console.log('⚡ Returning cached fest details');
-            const isProduction = process.env.NODE_ENV === 'production';
-            const cacheMaxAge = isProduction ? 300 : 60;
-            
-            res.set({
-                'Cache-Control': `public, max-age=${cacheMaxAge}, must-revalidate`,
-                'X-Cache': 'HIT',
-                'ETag': `"${Date.now()}"`,
-                'Last-Modified': new Date().toUTCString()
-            });
-            return res.status(200).json(cachedFest);
-        }
-
-        console.log('🔄 Fetching fresh fest details from database');
 
         // Handle case where organizer might be null (admin-created fests)
         const festMatch = await findByIdOrSlug(FestOrganizer, id, {
@@ -308,58 +314,57 @@ exports.getFestById = async (req, res) => {
             lean: true,
         });
         if (!festMatch) {
-            console.log(`❌ Fest not found in database: ${id}`);
             return res.status(404).json({ message: 'Fest not found' });
         }
 
-        let fest = await FestOrganizer.findById(festMatch._id)
-            .populate({
-                path: 'organizer',
-                select: 'name email college',
-                // Don't fail if organizer is null
-                options: { strictPopulate: false }
-            })
-            .lean(); // Use lean for better performance
-
-        if (fest && fest.competitions && fest.competitions.length > 0) {
-            // Manually populate competitions to ensure they're loaded correctly
-            try {
-                const Competition = require('../model/competition_model');
-                
-                const populatedCompetitions = await Competition.find({
-                    _id: { $in: fest.competitions }
-                }).lean(); // Use lean for better performance
-                
-                fest.competitions = populatedCompetitions;
-            } catch (populateError) {
-                console.error('getFestById - Error populating competitions:', populateError);
-                fest.competitions = [];
-            }
-        }
-
+        const fest = await fetchFestWithCompetitionsById(festMatch._id, 'name college');
         if (!fest) return res.status(404).json({ message: 'Fest not found' });
 
-        console.log(`🔍 Fest found: ${fest.festName}, isApproved: ${fest.isApproved}, formType: ${fest.registration?.formType}, schemaFields: ${fest.registration?.formSchema?.length || 0}, steps: ${fest.registration?.steps?.length || 0}`);
+        const publicFest = sanitizePublicFest(fest);
 
+        publicFest.cached = false;
+        publicFest.timestamp = new Date().toISOString();
 
-        // Add metadata
-        fest.cached = false;
-        fest.timestamp = new Date().toISOString();
-
-        // Cache the fest details with shorter TTL for frequently updated data
-        setCache('festDetails', id, fest);
-
-        // Add cache headers with environment-appropriate cache time
         const isProduction = process.env.NODE_ENV === 'production';
-        const cacheMaxAge = isProduction ? 30 : 10; // 30s prod, 10s dev
-        
+        const cacheMaxAge = isProduction ? 30 : 10;
         res.set({
             'Cache-Control': `public, max-age=${cacheMaxAge}, must-revalidate`,
-            'X-Cache': 'MISS',
+            'X-Cache': 'BYPASS',
             'ETag': `"${Date.now()}"`,
-            'Last-Modified': new Date().toUTCString()
+            'Last-Modified': new Date().toUTCString(),
         });
-        
+
+        res.status(200).json(publicFest);
+    } catch (err) {
+        console.error('Error in getPublicFestById:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// ✅ Get single fest details (organizer view)
+exports.getFestById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const organizerId = req.user?.userId;
+        if (!organizerId) return res.status(401).json({ message: 'Unauthorized' });
+
+        let festMatch = null;
+        if (mongoose.Types.ObjectId.isValid(id)) {
+            festMatch = await FestOrganizer.findOne({ _id: id, organizer: organizerId }).select('_id').lean();
+        } else {
+            festMatch = await findByIdOrSlug(FestOrganizer, id, {
+                baseFilter: { organizer: organizerId },
+                pickName: (row) => row.festName,
+                lean: true,
+            });
+        }
+
+        if (!festMatch) return res.status(404).json({ message: 'Fest not found' });
+
+        const fest = await fetchFestWithCompetitionsById(festMatch._id, 'name email college');
+        if (!fest) return res.status(404).json({ message: 'Fest not found' });
+
+        res.set('Cache-Control', 'no-store');
         res.status(200).json(fest);
     } catch (err) {
         console.error('Error in getFestById:', err);

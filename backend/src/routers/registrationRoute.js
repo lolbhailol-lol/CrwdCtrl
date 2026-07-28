@@ -120,9 +120,9 @@ router.get('/trek-booking/:bookingId', optionalAuthenticateToken, getTrekBooking
 
 router.get('/admin/fests/:festId/registrations', authenticateAdmin, getFestRegistrations);
 router.put('/admin/registrations/:registrationId/status', authenticateAdmin, updateRegistrationStatus);
-router.post('/admin/test-google-sheets', authenticateAdmin, testGoogleSheets);
+router.post('/admin/test-google-sheets', devOnly, authenticateAdmin, testGoogleSheets);
 // ✅ NEW: Diagnostic endpoint for Google Sheets integration
-router.get('/admin/fests/:festId/diagnose-google-sheets', authenticateAdmin, diagnoseGoogleSheets);
+router.get('/admin/fests/:festId/diagnose-google-sheets', devOnly, authenticateAdmin, diagnoseGoogleSheets);
 
 /* ======================
    DEBUG (OPTIONAL)

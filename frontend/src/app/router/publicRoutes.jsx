@@ -19,7 +19,6 @@ import {
   EmailVerification,
   CompetitionsViewDetails,
   CompetitionListPage,
-  CompetitionRegisterPage,
   TermsAndConditions,
   PrivacyPolicy,
   ContactUs,
@@ -86,7 +85,7 @@ export const publicRoutes = (
       <Route path="/competitions-view-details/:competitionId" element={<CompetitionsViewDetails />} />
       <Route path="/competitions-view-details" element={<CompetitionsViewDetails />} />
       <Route path="/competition-list/:eventId" element={<CompetitionListPage />} />
-      <Route path="/competition-register" element={<CompetitionRegisterPage />} />
+      <Route path="/competition-register" element={<CompetitionRegistration />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/edit-profile" element={<EditProfile />} />
       <Route path="/booking" element={<Booking />} />

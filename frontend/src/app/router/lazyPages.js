@@ -1,8 +1,7 @@
 import { lazyWithRetry } from '../../utils/lazyWithRetry';
 
-// Eager-loaded for fastest first paint
-export { default as Dashboard } from '../../pages/home/Dashboard';
-export { default as Booking } from '../../pages/profile/booking';
+export const Dashboard = lazyWithRetry(() => import('../../pages/home/Dashboard'));
+export const Booking = lazyWithRetry(() => import('../../pages/profile/booking'));
 
 export const CulturalFestPage = lazyWithRetry(() => import('../../pages/fests/cultural-fest'));
 export const TechFestPage = lazyWithRetry(() => import('../../pages/fests/tech-fest'));
@@ -20,7 +19,6 @@ export const CrwdCtrlRegister = lazyWithRetry(() => import('../../pages/auth/reg
 export const EmailVerification = lazyWithRetry(() => import('../../pages/auth/EmailVerification'));
 export const CompetitionsViewDetails = lazyWithRetry(() => import('../../pages/competitions/Competitions-view-details'));
 export const CompetitionListPage = lazyWithRetry(() => import('../../pages/competitions/competition-list'));
-export const CompetitionRegisterPage = lazyWithRetry(() => import('../../pages/competitions/compition-register-page/compition-register-page'));
 export const TermsAndConditions = lazyWithRetry(() => import('../../pages/legal/terms-and-conditions'));
 export const PrivacyPolicy = lazyWithRetry(() => import('../../pages/legal/privacy-policy'));
 export const ContactUs = lazyWithRetry(() => import('../../pages/legal/contact-us'));

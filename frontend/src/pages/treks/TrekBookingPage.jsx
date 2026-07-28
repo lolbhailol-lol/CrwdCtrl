@@ -6,8 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
+import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 
-import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import {
     getPendingPayment,
@@ -38,6 +38,13 @@ import {
     createDetailCache,
     DETAIL_FETCH_OPTS,
 } from '../../utils/detailPageLoad';
+import {
+    createAuthModalHandlers,
+    getInitialBookingUiState,
+    runCashfreeCheckoutAndVerify,
+    setPaymentFlowToStepTwo,
+    setPaymentFlowToSuccess,
+} from '../../utils/bookingFlowShared';
 
 const API = API_BASE_URL;
 const trekDetailCache = createDetailCache('crwdctrl_trek_detail_v1_');
@@ -75,48 +82,14 @@ function getInitialTrekBookingUi(trekId, search) {
         extraFields: {},
         bookingGender: '',
     };
-    if (!trekId) return defaults;
-
-    let draft = {};
-    const raw = sessionStorage.getItem(trekDraftKey(trekId));
-    if (raw) {
-        try {
-            draft = JSON.parse(raw);
-        } catch {
-            draft = {};
-        }
-    }
-
-    const returnPath = `/trek/${trekId}/book`;
-    const resumingPayment = shouldResumePendingPayment(
-        getPendingPayment(),
-        returnPath,
+    return getInitialBookingUiState({
+        entityId: trekId,
         search,
-    );
-
-    if (resumingPayment) {
-        return {
-            step: 3,
-            payDone: false,
-            paying: true,
-            selDate: draft.selDate || '',
-            selTime: draft.selTime || '',
-            people: Math.max(1, Number(draft.people) || 1),
-            extraFields: draft.extraFields || {},
-            bookingGender: draft.bookingGender || '',
-        };
-    }
-
-    return {
-        step: 1,
-        payDone: false,
-        paying: false,
-        selDate: draft.selDate || '',
-        selTime: draft.selTime || '',
-        people: Math.max(1, Number(draft.people) || 1),
-        extraFields: draft.extraFields || {},
-        bookingGender: draft.bookingGender || '',
-    };
+        returnPath: `/trek/${trekId}/book`,
+        defaults,
+        draftKeyFactory: trekDraftKey,
+        restoreStepFromDraft: false,
+    });
 }
 
 export default function TrekBookingPage() {
@@ -143,16 +116,12 @@ export default function TrekBookingPage() {
         return hasUsableAuthToken(authToken) || hasUsableAuthToken(null) || Boolean(isAuthenticated);
     }, [authToken, isAuthenticated]);
 
-    const handleCloseLogin = () => setShowLogin(false);
-    const handleCloseRegister = () => setShowRegister(false);
-    const handleSwitchToRegister = () => {
-        setShowLogin(false);
-        setShowRegister(true);
-    };
-    const handleSwitchToLogin = () => {
-        setShowRegister(false);
-        setShowLogin(true);
-    };
+    const {
+        handleCloseLogin,
+        handleCloseRegister,
+        handleSwitchToRegister,
+        handleSwitchToLogin,
+    } = createAuthModalHandlers({ setShowLogin, setShowRegister });
 
     useEffect(() => {
         // Dismiss auth modals as soon as a session exists (context or storage).
@@ -960,66 +929,76 @@ export default function TrekBookingPage() {
 
                 saveDraft({ step: 2, extraFields: buildFormData(), selDate, selTime, people, bookingGender });
 
-                let checkoutResult;
-                try {
-                    checkoutResult = await openCashfreeCheckout({
-                        paymentSessionId: order.paymentSessionId,
-                        orderId: order.orderId,
-                        returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
-                        entityType: 'trek',
-                        cashfreeMode: order.cashfreeMode,
-                    });
-                } catch (checkoutErr) {
-                    const { kind, message } = classifyCheckoutError(checkoutErr);
-                    setStep(2);
-                    setPayDone(false);
-                    setPaying(false);
-                    if (kind !== 'cancelled') {
-                        retryCheckoutRef.current = () => next();
-                        setPaymentModal({ open: true, message, orderId: order.orderId });
-                    }
+                const checkoutFlow = await runCashfreeCheckoutAndVerify({
+                    order,
+                    returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
+                    entityType: 'trek',
+                    cashfreeMode: order.cashfreeMode,
+                    verifyOrder: ({ orderId }) => verifyPaymentWithRetry(API, orderId, {
+                        kind: 'trek',
+                        token: resolveAuthToken(authToken),
+                    }),
+                });
+
+                if (checkoutFlow.status === 'redirect_deferred') {
+                    setStep(3);
+                    setPaying(true);
                     return;
                 }
 
-                if (checkoutResult?.redirectDeferred) {
-                    setStep(3);
-                    setPaying(true);
+                if (checkoutFlow.status === 'cancelled') {
+                    setPaymentFlowToStepTwo({
+                        setStep,
+                        setPayDone,
+                        setPaying,
+                        setError,
+                        message: '',
+                    });
+                    return;
+                }
+
+                if (checkoutFlow.status === 'checkout_error') {
+                    setPaymentFlowToStepTwo({
+                        setStep,
+                        setPayDone,
+                        setPaying,
+                        setError,
+                        message: '',
+                    });
+                    retryCheckoutRef.current = () => next();
+                    setPaymentModal({ open: true, message: checkoutFlow.message, orderId: order.orderId });
                     return;
                 }
 
                 setStep(3);
                 setPaying(true);
 
-                const checkoutPaymentId =
-                    checkoutResult?.paymentDetails?.paymentId ||
-                    checkoutResult?.paymentDetails?.cf_payment_id ||
-                    '';
-
-                const { ok, data: v } = await verifyPaymentWithRetry(API, order.orderId, {
-                    kind: 'trek',
-                    token: resolveAuthToken(authToken),
-                });
-                if (ok && v?.verified) {
-                    const verified = buildVerifiedPaymentFields(v, order.orderId);
+                if (checkoutFlow.status === 'verified') {
+                    const { verified, checkoutPaymentId } = checkoutFlow;
                     setPaymentId(verified.payment_id || checkoutPaymentId);
                     await submitTrekRegistration({
                         paymentOrderId: verified.payment_order_id || order.orderId,
                         paymentId: verified.payment_id || checkoutPaymentId,
                         amountPaid: order.totalAmount ?? total,
                     });
-                    setPayDone(true);
-                    setPaying(false);
+                    setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
                 } else {
-                    setStep(2);
-                    setPayDone(false);
-                    setPaying(false);
-                    setError(v?.message || 'Payment verification failed. Contact support.');
+                    setPaymentFlowToStepTwo({
+                        setStep,
+                        setPayDone,
+                        setPaying,
+                        setError,
+                        message: checkoutFlow.message || 'Payment verification failed. Contact support.',
+                    });
                 }
             } catch (e) {
-                setStep(2);
-                setPayDone(false);
-                setPaying(false);
-                setError('Payment error: ' + e.message);
+                setPaymentFlowToStepTwo({
+                    setStep,
+                    setPayDone,
+                    setPaying,
+                    setError,
+                    message: 'Payment error: ' + e.message,
+                });
             }
         }
     };

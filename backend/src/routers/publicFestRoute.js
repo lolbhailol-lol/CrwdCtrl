@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const festOrganizerController = require('../controllers/festOrganizerController');
 const devOnly = require('../middleware/devOnly');
+const { sanitizePublicCompetition } = require('../utils/publicEntitySanitize');
 
 /**
  * Server-side sanitization: remove duplicated content blocks from descriptions.
@@ -191,15 +192,13 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         
         // ✅ CRITICAL FIX: Ensure fest registration data is always complete
         if (competitionData.fest && competitionData.fest.registration) {
-            // Make sure fest registration has all required fields with proper defaults
+            // Make sure fest registration has all required public fields with proper defaults
             competitionData.fest.registration = {
                 mode: competitionData.fest.registration.mode || 'NOT_STARTED',
                 externalLink: competitionData.fest.registration.externalLink || '',
                 paymentQR: competitionData.fest.registration.paymentQR || '',
                 paymentQRMessage: competitionData.fest.registration.paymentQRMessage || '',
-                googleSheetsUrl: competitionData.fest.registration.googleSheetsUrl || '',
                 formInstructions: competitionData.fest.registration.formInstructions || '',
-                organizerEmail: competitionData.fest.registration.organizerEmail || '',
                 formSchema: competitionData.fest.registration.formSchema || []
             };
         } else if (competitionData.fest) {
@@ -210,9 +209,7 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
                 externalLink: '',
                 paymentQR: '',
                 paymentQRMessage: '',
-                googleSheetsUrl: '',
                 formInstructions: '',
-                organizerEmail: '',
                 formSchema: []
             };
         }
@@ -227,17 +224,15 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         
         // Ensure registration object has proper structure
         if (competitionData.registrationType === 'custom' && competitionData.registration) {
-            // Make sure custom registration has all required fields
+            // Make sure custom registration has all required public fields
             competitionData.registration = {
                 status: competitionData.registration.status || 'not_started',
                 externalUrl: competitionData.registration.externalUrl || '',
-                googleSheetsUrl: competitionData.registration.googleSheetsUrl || '',
                 formSchema: competitionData.registration.formSchema || [],
                 formType: competitionData.registration.formType || 'SINGLE_STEP',
                 steps: competitionData.registration.steps || [],
                 qrCode: competitionData.registration.qrCode || '',
                 qrCodeMessage: competitionData.registration.qrCodeMessage || '',
-                confirmationEmail: competitionData.registration.confirmationEmail || '',
                 settings: competitionData.registration.settings || {
                     allowMultipleRegistrations: true,
                     requireEmailVerification: false,
@@ -273,15 +268,15 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
             registrationType: competitionData.registrationType
         });
 
-        res.status(200).json(competitionData);
+        res.status(200).json(sanitizePublicCompetition(competitionData));
     } catch (err) {
         console.error('Error in public competition fetch:', err);
-        res.status(500).json({ error: 'Server error', details: err.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
 // ✅ Get single fest details (public view)
-router.get('/:id/public', festOrganizerController.getFestById);
+router.get('/:id/public', festOrganizerController.getPublicFestById);
 
 // Debug route — development only
 router.get('/:id/debug', devOnly, async (req, res) => {
@@ -323,7 +318,8 @@ router.get('/:id/debug', devOnly, async (req, res) => {
             });
         }
     } catch (err) {
-        res.json({ error: err.message, status: 'Database error' });
+        console.error('publicFest debug error:', err.message);
+        res.status(500).json({ error: 'Server error', status: 'Database error' });
     }
 });
 

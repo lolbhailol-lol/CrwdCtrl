@@ -11,6 +11,7 @@ const {
 const { getJwtSecret } = require('../config/jwtSecret');
 const { registrationLimiter } = require('../middleware/rateLimiter');
 const uploadCtrl = require('../controllers/uploadController');
+const { sanitizePublicSportsEvent } = require('../utils/publicEntitySanitize');
 
 function getOptionalUserId(req) {
     try {
@@ -76,7 +77,9 @@ router.get('/', async (req, res) => {
             .lean();
 
         res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-        res.status(200).json({ events });
+        res.status(200).json({
+            events: events.map((e) => sanitizePublicSportsEvent(e)),
+        });
     } catch (error) {
         console.error('publicSports getAll error:', error);
         res.status(500).json({ message: 'Failed to fetch sports events' });
@@ -159,7 +162,7 @@ router.get('/:idOrSlug', async (req, res) => {
             event.isFull = false;
         }
 
-        res.json({ event });
+        res.json({ event: sanitizePublicSportsEvent(event) });
     } catch (error) {
         console.error('publicSports getById error:', error);
         res.status(500).json({ message: 'Failed to fetch sports event' });

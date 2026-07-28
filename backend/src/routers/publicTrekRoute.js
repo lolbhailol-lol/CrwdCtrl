@@ -23,17 +23,7 @@ const { notifyTrekParticipant } = require('../utils/trekParticipantOutreach');
 const { signTrekBookingAccess } = require('../utils/bookingAccess');
 const { registrationLimiter } = require('../middleware/rateLimiter');
 const uploadCtrl = require('../controllers/uploadController');
-
-function stripTrekGroupLinks(trek) {
-    if (!trek) return trek;
-    const copy = { ...trek };
-    delete copy.groupLink;
-    if (copy.communityId && typeof copy.communityId === 'object') {
-        const { groupLink: _omit, ...communityRest } = copy.communityId;
-        copy.communityId = communityRest;
-    }
-    return copy;
-}
+const { sanitizePublicTrek } = require('../utils/publicEntitySanitize');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -184,7 +174,7 @@ router.get('/', async (req, res) => {
             .limit(50)
             .lean();
 
-        res.status(200).json({ treks });
+        res.status(200).json({ treks: treks.map((t) => sanitizePublicTrek(t)) });
     } catch (error) {
         console.error('publicTrek getAllTreks error:', error);
         res.status(500).json({ message: 'Failed to fetch treks' });
@@ -235,7 +225,7 @@ router.get('/:idOrSlug', async (req, res) => {
             }
         }
 
-        res.json({ trek: stripTrekGroupLinks(trek), genderRegistration, userBooking });
+        res.json({ trek: sanitizePublicTrek(trek), genderRegistration, userBooking });
     } catch (error) {
         console.error('publicTrek getTrekById error:', error);
         res.status(500).json({ message: 'Failed to fetch trek' });

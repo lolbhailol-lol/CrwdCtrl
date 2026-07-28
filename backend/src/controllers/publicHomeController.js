@@ -5,6 +5,13 @@ const RunClub = require('../model/run_club_model');
 const EventShow = require('../model/event_show_model');
 const festOrganizerController = require('./festOrganizerController');
 const { readHomeSectionLabels, DEFAULT_HOME_SECTION_LABELS } = require('./siteSettingController');
+const {
+  sanitizePublicTrek,
+  sanitizePublicSportsEvent,
+  sanitizePublicRunClub,
+  sanitizePublicCommunity,
+  sanitizePublicEventShow,
+} = require('../utils/publicEntitySanitize');
 
 /**
  * Invoke an existing Express handler programmatically and resolve with the JSON
@@ -67,11 +74,11 @@ exports.getHomeFeed = async (_req, res) => {
     success: true,
     partial,
     fests,
-    treks: Array.isArray(treks) ? treks : [],
-    communities: Array.isArray(communities) ? communities : [],
-    sports: Array.isArray(sports) ? sports : [],
-    runClubs: Array.isArray(runClubs) ? runClubs : [],
-    eventShows: Array.isArray(eventShows) ? eventShows : [],
+    treks: Array.isArray(treks) ? treks.map(sanitizePublicTrek) : [],
+    communities: Array.isArray(communities) ? communities.map(sanitizePublicCommunity) : [],
+    sports: Array.isArray(sports) ? sports.map(sanitizePublicSportsEvent) : [],
+    runClubs: Array.isArray(runClubs) ? runClubs.map(sanitizePublicRunClub) : [],
+    eventShows: Array.isArray(eventShows) ? eventShows.map(sanitizePublicEventShow) : [],
     sectionLabels: sectionLabels || { ...DEFAULT_HOME_SECTION_LABELS },
     timestamp: new Date().toISOString(),
   });

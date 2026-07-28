@@ -2,12 +2,7 @@ const express = require('express');
 const router = express.Router();
 const TrekCommunity = require('../model/trek_community_model');
 const { findByIdOrSlug } = require('../utils/slug');
-
-function stripCommunityGroupLink(community) {
-    if (!community) return community;
-    const { groupLink: _omit, ...rest } = community;
-    return rest;
-}
+const { sanitizePublicCommunity } = require('../utils/publicEntitySanitize');
 
 router.get('/', async (req, res) => {
     try {
@@ -20,7 +15,7 @@ router.get('/', async (req, res) => {
             .sort({ trekPagePriority: 1, createdAt: -1 })
             .limit(limit)
             .lean();
-        res.json({ communities: communities.map(stripCommunityGroupLink) });
+        res.json({ communities: communities.map(sanitizePublicCommunity) });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch communities' });
     }
@@ -34,7 +29,7 @@ router.get('/:idOrSlug', async (req, res) => {
             lean: true,
         });
         if (!community) return res.status(404).json({ message: 'Not found' });
-        res.json({ community: stripCommunityGroupLink(community) });
+        res.json({ community: sanitizePublicCommunity(community) });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch community' });
     }

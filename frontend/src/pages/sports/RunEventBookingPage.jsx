@@ -6,8 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
+import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 
-import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import {
     getPendingPayment,
@@ -29,6 +29,13 @@ import {
     createDetailCache,
     DETAIL_FETCH_OPTS,
 } from '../../utils/detailPageLoad';
+import {
+    createAuthModalHandlers,
+    getInitialBookingUiState,
+    runCashfreeCheckoutAndVerify,
+    setPaymentFlowToStepTwo,
+    setPaymentFlowToSuccess,
+} from '../../utils/bookingFlowShared';
 import {
     findSportsTier,
     getSportsTiers,
@@ -57,7 +64,6 @@ const STEPS = ['Party size', 'Your Details', 'Confirm'];
 
 function getInitialUi(eventId, search, locationState) {
     const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {}, tierId: '', addOnSelected: false };
-    if (!eventId) return defaults;
 
     let draft = {};
     const raw = sessionStorage.getItem(runDraftKey(eventId));
@@ -69,26 +75,17 @@ function getInitialUi(eventId, search, locationState) {
     const tierFromQuery = params.get('tier') || '';
     const tierId = tierFromQuery || locationState?.tierId || draft.tierId || '';
 
-    const returnPath = `/sports/run/${eventId}/book`;
-    const resuming = shouldResumePendingPayment(getPendingPayment(), returnPath, search);
-
-    if (resuming) {
-        return {
-            step: 3, payDone: false, paying: true,
-            selDate: draft.selDate || '', selTime: draft.selTime || '',
-            people: draft.people || 1, extraFields: draft.extraFields || {},
-            tierId: draft.tierId || tierId,
-            addOnSelected: Boolean(draft.addOnSelected),
-        };
-    }
-
-    return {
-        step: draft.step || 1, payDone: false, paying: false,
-        selDate: draft.selDate || '', selTime: draft.selTime || '',
-        people: draft.people || 1, extraFields: draft.extraFields || {},
-        tierId,
-        addOnSelected: Boolean(draft.addOnSelected),
-    };
+    return getInitialBookingUiState({
+        entityId: eventId,
+        search,
+        returnPath: `/sports/run/${eventId}/book`,
+        defaults: {
+            ...defaults,
+            tierId,
+        },
+        draftKeyFactory: runDraftKey,
+        restoreStepFromDraft: true,
+    });
 }
 
 export default function RunEventBookingPage() {
@@ -114,10 +111,12 @@ export default function RunEventBookingPage() {
         return isAuthenticated || hasUsableAuthToken(authToken);
     }, [isAuthenticated, authToken]);
 
-    const handleCloseLogin = () => setShowLogin(false);
-    const handleCloseRegister = () => setShowRegister(false);
-    const handleSwitchToRegister = () => { setShowLogin(false); setShowRegister(true); };
-    const handleSwitchToLogin = () => { setShowRegister(false); setShowLogin(true); };
+    const {
+        handleCloseLogin,
+        handleCloseRegister,
+        handleSwitchToRegister,
+        handleSwitchToLogin,
+    } = createAuthModalHandlers({ setShowLogin, setShowRegister });
 
     useEffect(() => {
         if (isAuthenticated && showLogin) setShowLogin(false);
@@ -707,67 +706,83 @@ export default function RunEventBookingPage() {
 
                 saveDraft({ step: 2, extraFields, selDate, selTime, people, tierId: selectedTierId, addOnSelected });
 
-                let checkoutResult;
-                try {
-                    checkoutResult = await openCashfreeCheckout({
-                        paymentSessionId: order.paymentSessionId,
-                        orderId: order.orderId,
-                        returnPath: `/sports/run/${id || event?._id || event?.id}/book`,
-                        entityType: 'sports',
-                        cashfreeMode: order.cashfreeMode,
-                    });
-                } catch (checkoutErr) {
-                    const { kind, message } = classifyCheckoutError(checkoutErr);
-                    setStep(2);
-                    setPayDone(false);
-                    setPaying(false);
-                    if (kind !== 'cancelled') {
-                        retryCheckoutRef.current = () => next();
-                        setPaymentModal({ open: true, message, orderId: order.orderId });
-                    }
+                const checkoutFlow = await runCashfreeCheckoutAndVerify({
+                    order,
+                    returnPath: `/sports/run/${id || event?._id || event?.id}/book`,
+                    entityType: 'sports',
+                    cashfreeMode: order.cashfreeMode,
+                    verifyOrder: ({ orderId, paymentId }) => {
+                        return fetch(`${API}/payment/sports-verify`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ payment_order_id: orderId, payment_id: paymentId }),
+                        })
+                            .then(async (res) => {
+                                const data = await res.json().catch(() => ({}));
+                                return { ok: res.ok && data?.verified, data };
+                            });
+                    },
+                });
+
+                if (checkoutFlow.status === 'redirect_deferred') {
+                    setStep(3);
+                    setPaying(true);
                     return;
                 }
 
-                if (checkoutResult?.redirectDeferred) {
-                    setStep(3);
-                    setPaying(true);
+                if (checkoutFlow.status === 'cancelled') {
+                    setPaymentFlowToStepTwo({
+                        setStep,
+                        setPayDone,
+                        setPaying,
+                        setError,
+                        message: '',
+                    });
+                    return;
+                }
+
+                if (checkoutFlow.status === 'checkout_error') {
+                    setPaymentFlowToStepTwo({
+                        setStep,
+                        setPayDone,
+                        setPaying,
+                        setError,
+                        message: '',
+                    });
+                    retryCheckoutRef.current = () => next();
+                    setPaymentModal({ open: true, message: checkoutFlow.message, orderId: order.orderId });
                     return;
                 }
 
                 setStep(3);
                 setPaying(true);
 
-                const checkoutPaymentId =
-                    checkoutResult?.paymentDetails?.paymentId ||
-                    checkoutResult?.paymentDetails?.cf_payment_id || '';
-
-                const vRes = await fetch(`${API}/payment/sports-verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ payment_order_id: order.orderId, payment_id: checkoutPaymentId }),
-                });
-                const v = await vRes.json();
-                if (v.verified) {
-                    const verified = buildVerifiedPaymentFields(v, order.orderId);
+                if (checkoutFlow.status === 'verified') {
+                    const { verified } = checkoutFlow;
                     setPaymentId(verified.payment_id);
                     await submitRunRegistration({
                         paymentOrderId: verified.payment_order_id || order.orderId,
                         paymentId: verified.payment_id,
                         amountPaid: order.totalAmount ?? total,
                     });
-                    setPayDone(true);
-                    setPaying(false);
+                    setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
                 } else {
-                    setStep(2);
-                    setPayDone(false);
-                    setPaying(false);
-                    setError(v.message || 'Payment verification failed. Contact support.');
+                    setPaymentFlowToStepTwo({
+                        setStep,
+                        setPayDone,
+                        setPaying,
+                        setError,
+                        message: checkoutFlow.message || 'Payment verification failed. Contact support.',
+                    });
                 }
             } catch (e) {
-                setStep(2);
-                setPayDone(false);
-                setPaying(false);
-                setError('Payment error: ' + e.message);
+                setPaymentFlowToStepTwo({
+                    setStep,
+                    setPayDone,
+                    setPaying,
+                    setError,
+                    message: 'Payment error: ' + e.message,
+                });
             }
         }
     };

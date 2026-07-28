@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const EventShow = require('../model/event_show_model');
 const { findByIdOrSlug } = require('../utils/slug');
+const { sanitizePublicEventShow } = require('../utils/publicEntitySanitize');
 
 // GET /api/events — list published event shows
 router.get('/', async (req, res) => {
@@ -15,7 +16,7 @@ router.get('/', async (req, res) => {
       .limit(100)
       .lean();
 
-    res.status(200).json({ shows });
+    res.status(200).json({ shows: shows.map(sanitizePublicEventShow) });
   } catch (error) {
     console.error('publicEventShow getAll error:', error);
     res.status(500).json({ message: 'Failed to fetch events' });
@@ -31,7 +32,7 @@ router.get('/:idOrSlug', async (req, res) => {
       lean: true,
     });
     if (!show) return res.status(404).json({ message: 'Event not found' });
-    res.json({ show });
+    res.json({ show: sanitizePublicEventShow(show) });
   } catch (error) {
     console.error('publicEventShow getById error:', error);
     res.status(500).json({ message: 'Failed to fetch event' });

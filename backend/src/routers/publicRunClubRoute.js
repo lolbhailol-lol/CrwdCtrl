@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const RunClub = require('../model/run_club_model');
 const { findByIdOrSlug } = require('../utils/slug');
+const { sanitizePublicRunClub } = require('../utils/publicEntitySanitize');
 
 router.get('/', async (req, res) => {
     try {
@@ -14,7 +15,7 @@ router.get('/', async (req, res) => {
             .limit(100)
             .lean();
         res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-        res.json({ clubs });
+        res.json({ clubs: clubs.map(sanitizePublicRunClub) });
     } catch (err) {
         console.error('publicRunClub getAll error:', err.message);
         res.status(500).json({ message: 'Failed to fetch run clubs' });
@@ -32,7 +33,7 @@ router.get('/:idOrSlug', async (req, res) => {
             lean: true,
         });
         if (!club) return res.status(404).json({ message: 'Run club not found' });
-        res.json({ club });
+        res.json({ club: sanitizePublicRunClub(club) });
     } catch (err) {
         console.error('publicRunClub getById error:', err.message);
         res.status(500).json({ message: 'Failed to fetch run club' });
