@@ -2,34 +2,79 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Loader, Bell, QrCode,
-    Copy, ExternalLink, RefreshCw, Download,
+    Copy, ExternalLink, RefreshCw, MapPin, Venus, Mars,
+    Link2, Share2, Sparkles, ContactRound,
 } from 'lucide-react';
 import {
     fetchTrekOrganizerDashboard,
     updateTrekOrganizerRegistration,
-    exportTrekOrganizerParticipants,
 } from '../../services/api/trekOrganizer.api';
 import { trekPath } from '../../utils/slugRoutes';
 import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
 import TrekOrganizerRegistrationPanel from './TrekOrganizerRegistrationPanel';
 
-function StatTile({ label, value, tone = 'default', onClick, to }) {
+function StatTile({ label, value, tone = 'default', icon: Icon, onClick, to, hint }) {
     const navigate = useNavigate();
     const tones = {
-        default: 'border-gray-800 bg-[#161718]',
-        accent: 'border-[#0ECCEE]/25 bg-[#0ECCEE]/5',
-        women: 'border-pink-500/20 bg-pink-500/5',
-        men: 'border-sky-500/20 bg-sky-500/5',
-        ok: 'border-emerald-500/20 bg-emerald-500/5',
-        warn: 'border-amber-500/20 bg-amber-500/5',
+        default: {
+            card: 'border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516]',
+            icon: 'bg-white/5 text-gray-300',
+            value: 'text-white',
+        },
+        accent: {
+            card: 'border-[#0ECCEE]/25 bg-linear-to-br from-[#0ECCEE]/15 to-[#0ECCEE]/5',
+            icon: 'bg-[#0ECCEE]/15 text-[#0ECCEE]',
+            value: 'text-white',
+        },
+        women: {
+            card: 'border-pink-500/20 bg-linear-to-br from-pink-500/15 to-pink-500/5',
+            icon: 'bg-pink-500/15 text-pink-300',
+            value: 'text-pink-100',
+        },
+        men: {
+            card: 'border-sky-500/20 bg-linear-to-br from-sky-500/15 to-sky-500/5',
+            icon: 'bg-sky-500/15 text-sky-300',
+            value: 'text-sky-100',
+        },
+        ok: {
+            card: 'border-emerald-500/20 bg-linear-to-br from-emerald-500/15 to-emerald-500/5',
+            icon: 'bg-emerald-500/15 text-emerald-300',
+            value: 'text-emerald-100',
+        },
+        warn: {
+            card: 'border-amber-500/20 bg-linear-to-br from-amber-500/15 to-amber-500/5',
+            icon: 'bg-amber-500/15 text-amber-300',
+            value: 'text-amber-100',
+        },
+        money: {
+            card: 'border-emerald-500/20 bg-linear-to-br from-emerald-500/10 to-[#141516]',
+            icon: 'bg-emerald-500/15 text-emerald-300',
+            value: 'text-emerald-300',
+        },
     };
-    const className = `rounded-2xl border p-4 min-h-[88px] text-left transition-colors ${tones[tone] || tones.default} ${
-        onClick || to ? 'hover:border-[#0ECCEE]/40 active:scale-[0.99]' : ''
+    const t = tones[tone] || tones.default;
+    const interactive = Boolean(onClick || to);
+    const className = `group relative overflow-hidden rounded-2xl border p-4 min-h-[100px] text-left transition-all duration-200 ${t.card} ${
+        interactive
+            ? 'hover:border-[#0ECCEE]/45 active:scale-[0.985] cursor-pointer'
+            : ''
     }`;
     const inner = (
         <>
-            <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
-            <p className="text-2xl font-bold mt-1.5 tabular-nums text-white">{value}</p>
+            <div className="relative flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.08em] text-gray-500 font-medium">{label}</p>
+                    <p className={`text-[1.65rem] leading-none font-semibold mt-2.5 tabular-nums tracking-tight ${t.value}`}>
+                        {value}
+                    </p>
+                    {hint ? <p className="text-[11px] text-gray-500 mt-2">{hint}</p> : null}
+                </div>
+                {Icon ? (
+                    <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${t.icon}`}>
+                        <Icon size={16} strokeWidth={2.25} />
+                    </div>
+                ) : null}
+            </div>
         </>
     );
     if (to) {
@@ -45,6 +90,14 @@ function StatTile({ label, value, tone = 'default', onClick, to }) {
     return <div className={className}>{inner}</div>;
 }
 
+function SectionCard({ children, className = '' }) {
+    return (
+        <div className={`rounded-2xl border border-white/10 bg-[#161718]/95 backdrop-blur-sm ${className}`}>
+            {children}
+        </div>
+    );
+}
+
 export default function TrekOrganizerDashboardPage() {
     const { trekId } = useParams();
     const navigate = useNavigate();
@@ -55,7 +108,6 @@ export default function TrekOrganizerDashboardPage() {
     const [copyNotice, setCopyNotice] = useState('');
     const [actionBusy, setActionBusy] = useState(false);
     const [actionNotice, setActionNotice] = useState('');
-    const [exporting, setExporting] = useState(false);
 
     const load = useCallback(async ({ silent = false } = {}) => {
         if (!trekId) return;
@@ -96,20 +148,24 @@ export default function TrekOrganizerDashboardPage() {
 
     if (loading) {
         return (
-            <div className="flex justify-center py-20">
-                <Loader className="animate-spin text-[#0ECCEE]" />
+            <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <Loader className="animate-spin text-[#0ECCEE]" size={28} />
+                <p className="text-xs text-gray-500 tracking-wide">Loading trek dashboard…</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="text-center py-16 space-y-3 max-w-md mx-auto">
-                <p className="text-red-400 text-sm">{error}</p>
+            <div className="text-center py-16 space-y-4 max-w-md mx-auto">
+                <div className="mx-auto size-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                    <RefreshCw size={18} className="text-red-400" />
+                </div>
+                <p className="text-red-300 text-sm">{error}</p>
                 <button
                     type="button"
                     onClick={() => load()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700 text-sm text-[#0ECCEE]"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-sm text-[#0ECCEE] hover:border-[#0ECCEE]/40"
                 >
                     <RefreshCw size={14} /> Retry
                 </button>
@@ -130,11 +186,11 @@ export default function TrekOrganizerDashboardPage() {
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
     const isOrganizerQr = (trek?.registrationMode || 'internal_form') === 'organizer_qr';
-    // Seat fills (not booking counts) — bar shares match Women/Men tiles
     const womenPct = genderSeats > 0 ? Math.round((female / genderSeats) * 100) : 0;
     const menPct = genderSeats > 0 ? Math.round((male / genderSeats) * 100) : 0;
     const regStatus = trek.registrationStatus || 'open';
     const isOpen = regStatus === 'open';
+    const dateLabel = formatOrganizerTrekDate(trek);
 
     const copyLink = async () => {
         try {
@@ -166,76 +222,88 @@ export default function TrekOrganizerDashboardPage() {
         }
     };
 
-    const handleExport = async () => {
-        setExporting(true);
-        try {
-            const blob = await exportTrekOrganizerParticipants(trekId);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${(trek.trekName || 'trek').replace(/[^a-z0-9-_]+/gi, '_')}_participants.xlsx`;
-            a.click();
-            URL.revokeObjectURL(url);
-            setActionNotice('Excel sheet downloaded');
-        } catch (e) {
-            setActionNotice(e.message || 'Export failed');
-        } finally {
-            setExporting(false);
-        }
-    };
-
     return (
         <div className="space-y-5 max-w-3xl mx-auto">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <h1 className="text-2xl font-bold tracking-tight leading-tight">{trek.trekName}</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        {[trek.city, formatOrganizerTrekDate(trek)].filter(Boolean).join(' · ')}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 mt-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ${
-                            String(trek.status).toLowerCase() === 'published'
-                                ? 'bg-emerald-500/15 text-emerald-400'
-                                : 'bg-amber-500/15 text-amber-400'
-                        }`}>
-                            {trek.status || 'draft'}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            isOpen ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
-                        }`}>
-                            Reg {isOpen ? 'open' : 'closed'}
-                        </span>
+            {/* Hero */}
+            <SectionCard className="overflow-hidden relative">
+                <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/15 via-transparent to-[#053780]/20 pointer-events-none" />
+                <div className="relative p-5 sm:p-6">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-3">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0ECCEE]">
+                                <Sparkles size={11} /> Trek dashboard
+                            </div>
+                            <div>
+                                <h1 className="text-2xl sm:text-[1.75rem] font-semibold tracking-tight leading-tight text-white">
+                                    {trek.trekName}
+                                </h1>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-sm text-gray-400">
+                                    {trek.city ? (
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <MapPin size={13} className="text-[#0ECCEE]" /> {trek.city}
+                                        </span>
+                                    ) : null}
+                                    {dateLabel ? <span>{dateLabel}</span> : null}
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold capitalize border ${
+                                    String(trek.status).toLowerCase() === 'published'
+                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
+                                        : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+                                }`}>
+                                    {trek.status || 'draft'}
+                                </span>
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
+                                    isOpen
+                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
+                                        : 'bg-red-500/10 text-red-300 border-red-500/25'
+                                }`}>
+                                    Booking {isOpen ? 'open' : 'closed'}
+                                </span>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => load({ silent: true })}
+                            disabled={refreshing}
+                            className="shrink-0 p-2.5 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-[#0ECCEE]/40 disabled:opacity-50"
+                            aria-label="Refresh"
+                        >
+                            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                        </button>
                     </div>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => load({ silent: true })}
-                    disabled={refreshing}
-                    className="shrink-0 p-2.5 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl border border-gray-800 text-gray-400 hover:text-white hover:border-gray-600 disabled:opacity-50"
-                    aria-label="Refresh"
-                >
-                    <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-                </button>
-            </div>
+            </SectionCard>
 
             {actionNotice ? (
-                <p className="text-xs text-[#0ECCEE] -mt-2">{actionNotice}</p>
+                <div className="rounded-xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 px-3.5 py-2.5 text-xs text-[#9BE8F7]">
+                    {actionNotice}
+                </div>
             ) : null}
 
             {/* Share */}
             {publicUrl ? (
-                <div className="rounded-2xl border border-gray-800 bg-[#161718] p-4 space-y-3">
-                    <div>
-                        <p className="text-xs font-medium text-gray-400">Share with trekkers</p>
-                        <p className="text-sm text-gray-300 break-all mt-1">{publicUrl}</p>
-                        {copyNotice ? <p className="text-[11px] text-emerald-400 mt-1">{copyNotice}</p> : null}
+                <SectionCard className="p-4 sm:p-5 space-y-3.5">
+                    <div className="flex items-start gap-3">
+                        <div className="size-10 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center shrink-0">
+                            <Share2 size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-white">Share with trekkers</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Copy the public trek page or open it in a new tab.</p>
+                            <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+                                <Link2 size={13} className="text-gray-500 shrink-0" />
+                                <p className="text-[12px] text-gray-300 truncate font-mono">{publicUrl}</p>
+                            </div>
+                            {copyNotice ? <p className="text-[11px] text-emerald-400 mt-1.5">{copyNotice}</p> : null}
+                        </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2.5">
                         <button
                             type="button"
                             onClick={copyLink}
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-[48px] rounded-xl border border-gray-700 text-sm font-medium hover:border-[#0ECCEE]/50"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-[48px] rounded-xl border border-white/10 bg-white/5 text-sm font-medium hover:border-[#0ECCEE]/45 hover:bg-[#0ECCEE]/10 transition-colors"
                         >
                             <Copy size={15} /> Copy link
                         </button>
@@ -243,44 +311,57 @@ export default function TrekOrganizerDashboardPage() {
                             href={publicPath}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-[48px] rounded-xl border border-gray-700 text-sm font-medium hover:border-[#0ECCEE]/50"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-[48px] rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold hover:brightness-110 transition"
                         >
                             <ExternalLink size={15} /> Open page
                         </a>
                     </div>
-                </div>
+                </SectionCard>
             ) : null}
 
             {/* Core stats */}
             <div className="grid grid-cols-2 gap-3">
-                <StatTile label="Total booked" value={total} tone="accent" to={`/trek-organizer/treks/${trekId}/participants`} />
+                <StatTile
+                    label="Total booked"
+                    value={total}
+                    tone="accent"
+                    icon={Users}
+                    to={`/trek-organizer/treks/${trekId}/participants`}
+                    hint="View list"
+                />
                 <StatTile
                     label="Collected"
                     value={`₹${revenue.toLocaleString('en-IN')}`}
+                    tone="money"
+                    icon={IndianRupee}
                 />
                 <StatTile
                     label="Women"
                     value={female}
                     tone="women"
+                    icon={Venus}
                     to={`/trek-organizer/treks/${trekId}/participants?gender=Female`}
                 />
                 <StatTile
                     label="Men"
                     value={male}
                     tone="men"
+                    icon={Mars}
                     to={`/trek-organizer/treks/${trekId}/participants?gender=Male`}
                 />
                 <StatTile
                     label="Checked in"
                     value={checkedIn}
                     tone="ok"
+                    icon={UserCheck}
                     to={`/trek-organizer/treks/${trekId}/scan`}
                 />
                 {isOrganizerQr ? (
                     <StatTile
-                        label="Needs payment review"
+                        label="Needs review"
                         value={stats.pendingReview ?? 0}
                         tone="warn"
+                        icon={Clock}
                         to={`/trek-organizer/treks/${trekId}/participants?paymentStatus=pending_review`}
                     />
                 ) : null}
@@ -288,22 +369,28 @@ export default function TrekOrganizerDashboardPage() {
                     label="Pending check-in"
                     value={pending}
                     tone="warn"
+                    icon={Clock}
                     to={`/trek-organizer/treks/${trekId}/participants`}
                 />
             </div>
 
             {/* Check-in progress */}
-            <div className="rounded-2xl border border-gray-800 bg-[#161718] p-4 space-y-3">
+            <SectionCard className="p-4 sm:p-5 space-y-3.5">
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <UserCheck size={16} className="text-emerald-400" />
-                        <p className="text-sm font-semibold">Check-in progress</p>
+                    <div className="flex items-center gap-2.5">
+                        <div className="size-9 rounded-xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center">
+                            <UserCheck size={16} />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold">Check-in progress</p>
+                            <p className="text-[11px] text-gray-500">Live gate status for this trek</p>
+                        </div>
                     </div>
-                    <p className="text-sm font-bold tabular-nums text-emerald-400">{checkInPct}%</p>
+                    <p className="text-lg font-semibold tabular-nums text-emerald-300">{checkInPct}%</p>
                 </div>
-                <div className="h-2.5 rounded-full bg-[#111213] overflow-hidden">
+                <div className="h-2.5 rounded-full bg-black/40 overflow-hidden border border-white/5">
                     <div
-                        className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                        className="h-full rounded-full bg-linear-to-r from-emerald-500 to-emerald-300 transition-all duration-500"
                         style={{ width: `${checkInPct}%` }}
                     />
                 </div>
@@ -313,36 +400,36 @@ export default function TrekOrganizerDashboardPage() {
                 </p>
                 {total > 0 ? (
                     <div className="pt-1">
-                        <div className="flex h-2 rounded-full overflow-hidden bg-[#111213]">
+                        <div className="flex h-2 rounded-full overflow-hidden bg-black/40">
                             {female > 0 ? (
-                                <div className="bg-pink-400/80" style={{ width: `${womenPct}%` }} title={`Women ${female}`} />
+                                <div className="bg-pink-400/85" style={{ width: `${womenPct}%` }} title={`Women ${female}`} />
                             ) : null}
                             {male > 0 ? (
-                                <div className="bg-sky-400/80" style={{ width: `${menPct}%` }} title={`Men ${male}`} />
+                                <div className="bg-sky-400/85" style={{ width: `${menPct}%` }} title={`Men ${male}`} />
                             ) : null}
                             {others > 0 ? (
                                 <div className="bg-gray-500" style={{ width: `${100 - womenPct - menPct}%` }} title={`Others ${others}`} />
                             ) : null}
                         </div>
-                        <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-gray-500">
+                        <div className="flex flex-wrap gap-3 mt-2.5 text-[11px] text-gray-500">
                             <span className="inline-flex items-center gap-1.5">
-                                <span className="size-2 rounded-full bg-pink-400" /> Women {female} seats
+                                <span className="size-2 rounded-full bg-pink-400" /> Women {female}
                             </span>
                             <span className="inline-flex items-center gap-1.5">
-                                <span className="size-2 rounded-full bg-sky-400" /> Men {male} seats
+                                <span className="size-2 rounded-full bg-sky-400" /> Men {male}
                             </span>
                             {others > 0 ? (
                                 <span className="inline-flex items-center gap-1.5">
-                                    <span className="size-2 rounded-full bg-gray-500" /> Others {others} seats
+                                    <span className="size-2 rounded-full bg-gray-500" /> Others {others}
                                 </span>
                             ) : null}
                         </div>
                     </div>
                 ) : null}
-            </div>
+            </SectionCard>
 
             {/* Registration controls */}
-            <div className="rounded-2xl border border-gray-800 bg-[#161718] p-4 space-y-4">
+            <SectionCard className="p-4 sm:p-5 space-y-4">
                 <div className="flex items-start justify-between gap-3">
                     <div>
                         <p className="text-sm font-semibold">Registration</p>
@@ -354,10 +441,10 @@ export default function TrekOrganizerDashboardPage() {
                         type="button"
                         disabled={actionBusy}
                         onClick={toggleRegistration}
-                        className={`shrink-0 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold border disabled:opacity-50 ${
+                        className={`shrink-0 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold border disabled:opacity-50 transition-colors ${
                             isOpen
-                                ? 'border-red-500/40 text-red-300 hover:bg-red-500/10'
-                                : 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10'
+                                ? 'border-red-500/35 text-red-300 bg-red-500/5 hover:bg-red-500/10'
+                                : 'border-emerald-500/35 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10'
                         }`}
                     >
                         {actionBusy ? '…' : isOpen ? 'Close booking' : 'Open booking'}
@@ -376,53 +463,52 @@ export default function TrekOrganizerDashboardPage() {
                         genderRegistration: res.genderRegistration,
                     }))}
                 />
-            </div>
+            </SectionCard>
 
             {/* Quick actions */}
             <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2 px-0.5">Quick actions</p>
+                <p className="text-[11px] uppercase tracking-[0.1em] text-gray-500 mb-2.5 px-0.5 font-medium">Quick actions</p>
                 <div className="grid grid-cols-2 gap-3">
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/trek-organizer/treks/${trekId}/participants`)}
-                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
-                    >
-                        <Users className="text-[#0ECCEE] mb-2" size={20} />
-                        <p className="text-sm font-semibold">Participants</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5">List, filter, message</p>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/trek-organizer/treks/${trekId}/scan`)}
-                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
-                    >
-                        <QrCode className="text-[#0ECCEE] mb-2" size={20} />
-                        <p className="text-sm font-semibold">Scan QR</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5">Check-in at gate</p>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/trek-organizer/treks/${trekId}/notifications`)}
-                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all"
-                    >
-                        <Bell className="text-[#0ECCEE] mb-2" size={20} />
-                        <p className="text-sm font-semibold">Notify</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5">Remind or announce</p>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleExport}
-                        disabled={exporting}
-                        className="rounded-2xl border border-gray-800 bg-[#161718] p-4 min-h-[88px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.99] transition-all disabled:opacity-60"
-                    >
-                        {exporting ? (
-                            <Loader className="animate-spin text-[#0ECCEE] mb-2" size={20} />
-                        ) : (
-                            <Download className="text-[#0ECCEE] mb-2" size={20} />
-                        )}
-                        <p className="text-sm font-semibold">Export Excel</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5">Download .xlsx guest list</p>
-                    </button>
+                    {[
+                        {
+                            label: 'Participants',
+                            hint: 'List, filter, message',
+                            icon: Users,
+                            onClick: () => navigate(`/trek-organizer/treks/${trekId}/participants`),
+                        },
+                        {
+                            label: 'Customers',
+                            hint: 'This trek + WhatsApp',
+                            icon: ContactRound,
+                            onClick: () => navigate(`/trek-organizer/treks/${trekId}/customers`),
+                        },
+                        {
+                            label: 'Scan QR',
+                            hint: 'Check-in at gate',
+                            icon: QrCode,
+                            onClick: () => navigate(`/trek-organizer/treks/${trekId}/scan`),
+                        },
+                        {
+                            label: 'Notify',
+                            hint: 'Remind or announce',
+                            icon: Bell,
+                            onClick: () => navigate(`/trek-organizer/treks/${trekId}/notifications`),
+                        },
+                    ].map((action) => (
+                        <button
+                            key={action.label}
+                            type="button"
+                            onClick={action.onClick}
+                            disabled={action.disabled}
+                            className="rounded-2xl border border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516] p-4 min-h-[96px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.985] transition-all disabled:opacity-60"
+                        >
+                            <div className="size-9 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center mb-3">
+                                <action.icon size={18} className={action.spin ? 'animate-spin' : ''} />
+                            </div>
+                            <p className="text-sm font-semibold">{action.label}</p>
+                            <p className="text-[11px] text-gray-500 mt-0.5">{action.hint}</p>
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -430,7 +516,7 @@ export default function TrekOrganizerDashboardPage() {
                 <button
                     type="button"
                     onClick={() => navigate(`/trek-organizer/treks/${trekId}/scan`)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3.5 min-h-[52px]"
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-linear-to-r from-amber-500/15 to-amber-500/5 px-4 py-3.5 min-h-[52px] hover:border-amber-400/50 transition-colors"
                 >
                     <span className="inline-flex items-center gap-2 text-sm text-amber-100 font-medium">
                         <Clock size={16} />

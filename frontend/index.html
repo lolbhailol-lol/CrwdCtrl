@@ -9,6 +9,11 @@
   <script>
     (function () {
       try {
+        // Apex → www before any API. Instagram opens apex; POST /api there 307s and drops the body.
+        if (location.hostname === 'crwdctrl.in') {
+          location.replace('https://www.crwdctrl.in' + location.pathname + location.search + location.hash);
+          return;
+        }
         var saved = localStorage.getItem('crwdctrl-theme');
         var dark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) document.documentElement.classList.add('dark');

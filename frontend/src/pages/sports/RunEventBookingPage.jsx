@@ -20,6 +20,7 @@ import {
 } from '../../utils/paymentNavigation';
 import { calculatePlatformFee } from '../../utils/platformFee';
 import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
+import { isInAppBrowser } from '../../config/apiBase';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { mergeRunFormFields } from '../../utils/formFieldDedupe';
@@ -342,6 +343,13 @@ export default function RunEventBookingPage() {
         } catch { /* ignore corrupt draft */ }
     }, [id, event?._id, event?.id, location.search]);
 
+    // Re-price coupon when tier or Ice Bath add-on changes
+    useEffect(() => {
+        setCouponInfo(null);
+        setCouponError('');
+        setCouponJustApplied(false);
+    }, [selectedTierId, addOnSelected, people]);
+
     useEffect(() => {
         const evId = id || event?._id || event?.id;
         if (!user || !evId || sessionStorage.getItem(runDraftKey(evId))) return;
@@ -484,26 +492,53 @@ export default function RunEventBookingPage() {
     const applyCoupon = async () => {
         setCouponError('');
         setCouponJustApplied(false);
+        setError((prev) => (prev && /failed to fetch|network error/i.test(prev) ? '' : prev));
         const code = couponCode.trim();
         if (!code) {
             setCouponInfo(null);
             return;
         }
+        const eventId = event?._id || event?.id || id;
+        if (!eventId) {
+            setCouponError('Event not loaded yet — wait a moment and try again.');
+            return;
+        }
+        // Tiered FitRanger-style events 400 without tierId — never omit it.
+        const urlTier = (() => {
+            try {
+                return new URLSearchParams(window.location.search).get('tier') || '';
+            } catch {
+                return '';
+            }
+        })();
+        const tiers = event ? getSportsTiers(event) : [];
+        const effectiveTierId = String(
+            selectedTierId || urlTier || location.state?.tierId || tiers[0]?.id || '',
+        ).trim();
+        if (isTiersPricing(event) && !effectiveTierId) {
+            setCouponError('Please select a registration tier first.');
+            return;
+        }
+        const effectiveFee = event
+            ? resolveSportsPerPersonFee(event, effectiveTierId).fee
+            : fee;
+        const effectiveAddOnFee = optionalAddOn && addOnSelected ? optionalAddOn.fee : 0;
+        const ticketTotal = (effectiveFee + effectiveAddOnFee) * Math.max(1, Number(people) || 1);
         setCouponLoading(true);
         try {
-            const res = await fetch(`${API}/payment/coupon-validate`, {
+            const { data } = await publicFetchJSONRetry('/payment/coupon-validate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    eventId: event?._id || event?.id || id,
+                body: {
+                    eventId,
                     people,
                     couponCode: code,
-                    tierId: selectedTierId || undefined,
+                    tierId: effectiveTierId || undefined,
                     addOnSelected: Boolean(addOnSelected && optionalAddOn),
-                }),
+                    expectedTicketTotal: ticketTotal,
+                },
+                retries: 3,
+                timeout: 20000,
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.message || 'Invalid coupon');
             setCouponInfo(data);
             if (data.couponApplied) {
                 setCouponJustApplied(true);
@@ -511,7 +546,15 @@ export default function RunEventBookingPage() {
             }
         } catch (e) {
             setCouponInfo(null);
-            setCouponError(e.message || 'Invalid coupon');
+            const msg = e?.message || 'Invalid coupon';
+            const network = e?.isNetworkError || e?.code === 'ERR_NETWORK' || /failed to fetch|network error|timeout/i.test(msg);
+            setCouponError(
+                network
+                    ? (isInAppBrowser()
+                        ? 'Instagram browser blocked the request. Tap Apply again, or open this page in Chrome/Safari.'
+                        : 'Could not reach the server. Check your connection and tap Apply again.')
+                    : msg,
+            );
         } finally {
             setCouponLoading(false);
         }

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
     ChevronDown, Phone, Calendar, Users,
-    CheckCircle, Clock, Copy, MessageCircle, Trash2, Mail, Bell,
+    CheckCircle, Clock, Copy, MessageCircle, Trash2, Mail, Bell, ContactRound, Mountain,
 } from 'lucide-react';
 import TrekRegistrationResponses from './TrekRegistrationResponses';
+import { isValidWhatsAppPhone } from '../../utils/whatsappDeepLink';
 
 function Pill({ children, tone = 'neutral' }) {
     const styles = {
@@ -11,6 +12,7 @@ function Pill({ children, tone = 'neutral' }) {
         free: 'bg-gray-700/40 text-gray-400 border-gray-600/40',
         in: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/25',
         pending: 'bg-amber-500/20 text-amber-400 border-amber-500/25',
+        repeat: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
     };
     return (
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${styles[tone] || styles.free}`}>
@@ -45,11 +47,13 @@ export default function ParticipantCard({
     onResend,
     onSendEmail,
     onNotify,
+    onWhatsApp,
     onDelete,
     onCopied,
     onApprovePayment,
     onRejectPayment,
     onReviewPayment,
+    onOpenCrm,
 }) {
     const [open, setOpen] = useState(false);
     const isOpen = forceOpen || open;
@@ -60,6 +64,9 @@ export default function ParticipantCard({
     const rejected = participant.paymentStatus === 'Rejected' || participant.status === 'cancelled';
     const phone = participant.phone && participant.phone !== '—' ? participant.phone : '';
     const email = participant.userEmail || participant.email || '';
+    const canWhatsApp = isValidWhatsAppPhone(phone);
+    const trekCount = Number(participant.trekCount) || 1;
+    const isRepeat = Boolean(participant.isRepeat) || trekCount >= 2;
 
     const borderTone = checkedIn
         ? 'border-l-emerald-500'
@@ -72,7 +79,7 @@ export default function ParticipantCard({
                     : 'border-l-gray-500';
 
     return (
-        <article className={`rounded-xl border border-gray-800 border-l-[3px] ${borderTone} bg-[#161718] overflow-hidden ${selected ? 'ring-1 ring-[#0ECCEE]/50' : ''}`}>
+        <article className={`rounded-2xl border border-white/10 border-l-[3px] ${borderTone} bg-linear-to-br from-[#1a1b1d] to-[#141516] overflow-hidden ${selected ? 'ring-1 ring-[#0ECCEE]/50' : ''}`}>
             <div className="flex items-start gap-2 p-3 sm:p-4 pb-0">
                 {onToggleSelect ? (
                     <input
@@ -119,6 +126,13 @@ export default function ParticipantCard({
                             <Pill tone={checkedIn ? 'in' : 'pending'}>
                                 {checkedIn ? 'Checked in' : 'Awaiting'}
                             </Pill>
+                            {isRepeat ? (
+                                <Pill tone="repeat">Repeat · {trekCount} treks</Pill>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 text-[#0ECCEE]">
+                                    <Mountain size={10} /> {trekCount} trek
+                                </span>
+                            )}
                         </div>
 
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400">
@@ -173,7 +187,26 @@ export default function ParticipantCard({
                                     >
                                         <Copy size={13} /> Copy phone
                                     </button>
+                                    {onWhatsApp ? (
+                                        <button
+                                            type="button"
+                                            disabled={!canWhatsApp}
+                                            onClick={() => onWhatsApp(participant)}
+                                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg bg-[#25D366]/15 text-[#25D366] text-xs font-semibold border border-[#25D366]/25 disabled:opacity-40"
+                                        >
+                                            <MessageCircle size={13} /> WhatsApp
+                                        </button>
+                                    ) : null}
                                 </>
+                            ) : null}
+                            {onOpenCrm ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onOpenCrm(participant)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 text-xs text-[#0ECCEE] font-medium"
+                                >
+                                    <ContactRound size={13} /> Open in CRM
+                                </button>
                             ) : null}
                             <button
                                 type="button"
@@ -287,9 +320,6 @@ export default function ParticipantCard({
                         ) : null}
 
                         <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                                Registration details
-                            </p>
                             <TrekRegistrationResponses
                                 fields={fields}
                                 bookingDetails={participant.bookingDetails}

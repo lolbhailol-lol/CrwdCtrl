@@ -52,9 +52,9 @@ export default function TrekOrganizerRegistrationPanel({
     }
 
     const body = (
-        <div className="space-y-3">
+        <div className="space-y-3.5">
             <div>
-                <p className={embedded ? 'text-xs uppercase tracking-wide text-gray-500' : 'text-sm font-semibold text-gray-100'}>
+                <p className={embedded ? 'text-[11px] uppercase tracking-[0.1em] text-gray-500 font-medium' : 'text-sm font-semibold text-gray-100'}>
                     {embedded ? 'Who can register' : 'Who can register now'}
                 </p>
                 {!embedded ? (
@@ -69,12 +69,12 @@ export default function TrekOrganizerRegistrationPanel({
                     {quotaRows.map((q) => {
                         const pct = q.cap > 0 ? Math.min(100, Math.round((q.filled / q.cap) * 100)) : 0;
                         return (
-                            <div key={q.label} className="rounded-xl border border-gray-800 bg-[#111213] px-2.5 py-2.5">
-                                <p className="text-[10px] uppercase tracking-wide text-gray-500">{q.label}</p>
+                            <div key={q.label} className="rounded-xl border border-white/10 bg-black/25 px-2.5 py-2.5">
+                                <p className="text-[10px] uppercase tracking-[0.08em] text-gray-500">{q.label}</p>
                                 <p className="text-sm font-semibold tabular-nums mt-0.5">
                                     {q.filled}<span className="text-gray-500 font-normal">/{q.cap}</span>
                                 </p>
-                                <div className="mt-1.5 h-1 rounded-full bg-gray-800 overflow-hidden">
+                                <div className="mt-1.5 h-1.5 rounded-full bg-white/5 overflow-hidden">
                                     <div
                                         className={`h-full rounded-full ${pct >= 100 ? 'bg-red-400' : 'bg-[#0ECCEE]'}`}
                                         style={{ width: `${pct}%` }}
@@ -96,7 +96,7 @@ export default function TrekOrganizerRegistrationPanel({
                         className={`px-3 py-3 min-h-[48px] rounded-xl text-xs font-semibold border transition-colors ${
                             phase === opt.value
                                 ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]'
-                                : 'border-gray-700 text-gray-300 hover:border-[#0ECCEE]/40'
+                                : 'border-white/10 text-gray-300 hover:border-[#0ECCEE]/40 bg-white/5'
                         }`}
                     >
                         {opt.label}
@@ -115,11 +115,11 @@ export default function TrekOrganizerRegistrationPanel({
     );
 
     if (embedded) {
-        return <div className="pt-3 border-t border-gray-800">{body}</div>;
+        return <div className="pt-4 border-t border-white/10">{body}</div>;
     }
 
     return (
-        <div className="rounded-xl border border-gray-800 bg-[#161718] p-4">
+        <div className="rounded-2xl border border-white/10 bg-[#161718] p-4">
             {body}
         </div>
     );

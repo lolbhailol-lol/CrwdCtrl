@@ -1,7 +1,9 @@
 /**
- * Simple registration details list for trek (and similar) organizers.
- * One row per field — easy to scan on phone.
+ * Premium registration details for trek organizers.
+ * Clean labeled rows that stay easy to scan on phone.
  */
+import { FileText, ExternalLink, Paperclip } from 'lucide-react';
+
 function FieldValue({ field }) {
     if (field.isFile && field.fileUrl) {
         return (
@@ -9,17 +11,23 @@ function FieldValue({ field }) {
                 href={field.fileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#0ECCEE] font-medium hover:underline"
+                className="inline-flex items-center gap-1.5 text-[#0ECCEE] font-medium hover:underline"
             >
+                <ExternalLink size={13} />
                 Open file
             </a>
         );
     }
     if (field.isFile) {
-        return <span className="text-emerald-400">File uploaded</span>;
+        return (
+            <span className="inline-flex items-center gap-1.5 text-emerald-400">
+                <Paperclip size={13} />
+                File uploaded
+            </span>
+        );
     }
     const text = field.value == null || field.value === '' ? '—' : String(field.value);
-    return <span className="text-gray-100 wrap-break-word whitespace-pre-wrap">{text}</span>;
+    return <span className="text-gray-100 wrap-break-word whitespace-pre-wrap leading-relaxed">{text}</span>;
 }
 
 const SKIP_KEYS = new Set([
@@ -33,6 +41,17 @@ function shouldSkipField(field, { skipNamePhone = true } = {}) {
     if (SKIP_KEYS.has(key)) return true;
     if (label === 'name' || label === 'full name' || label === 'phone' || label === 'mobile') return true;
     return false;
+}
+
+function DetailRow({ label, children, tall = false }) {
+    return (
+        <div className={`grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-1 sm:gap-4 px-3.5 sm:px-4 ${tall ? 'py-3.5' : 'py-3'} border-b border-white/5 last:border-0`}>
+            <p className="text-[11px] uppercase tracking-[0.08em] text-gray-500 font-medium pt-0.5">
+                {label}
+            </p>
+            <div className="text-sm min-w-0">{children}</div>
+        </div>
+    );
 }
 
 export default function TrekRegistrationResponses({
@@ -61,36 +80,42 @@ export default function TrekRegistrationResponses({
     if (gender && gender !== '—' && !hasGenderInFields) metaRows.push({ label: 'Gender', value: gender });
 
     if (!visibleFields.length && !metaRows.length) {
-        return <p className="text-sm text-gray-500 py-1">No form details saved.</p>;
+        return (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-center">
+                <FileText size={18} className="mx-auto text-gray-600 mb-2" />
+                <p className="text-sm text-gray-500">No form details saved.</p>
+            </div>
+        );
     }
 
-    const rowClass = compact
-        ? 'flex gap-3 py-2 border-b border-gray-800/60 last:border-0'
-        : 'flex gap-3 py-2.5 border-b border-gray-800/70 last:border-0';
-
     return (
-        <div className="rounded-xl border border-gray-800 bg-[#111213] overflow-hidden">
-            <div className="px-3 sm:px-4">
+        <div className="rounded-2xl border border-white/10 bg-linear-to-b from-[#1a1b1d] to-[#121314] overflow-hidden">
+            <div className={`flex items-center gap-2 px-3.5 sm:px-4 border-b border-white/5 bg-white/5 ${compact ? 'py-2' : 'py-2.5'}`}>
+                <div className="size-7 rounded-lg bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center">
+                    <FileText size={13} />
+                </div>
+                <p className="text-[11px] uppercase tracking-widest text-gray-400 font-semibold">
+                    Form details
+                </p>
+                <span className="ml-auto text-[10px] text-gray-600 tabular-nums">
+                    {metaRows.length + visibleFields.length} fields
+                </span>
+            </div>
+
+            <div>
                 {metaRows.map((row) => (
-                    <div key={row.label} className={rowClass}>
-                        <p className="w-[88px] sm:w-28 shrink-0 text-[11px] uppercase tracking-wide text-gray-500 pt-0.5">
-                            {row.label}
-                        </p>
-                        <p className="flex-1 text-sm text-gray-100 wrap-break-word">{row.value}</p>
-                    </div>
+                    <DetailRow key={row.label} label={row.label}>
+                        <span className="text-gray-100 wrap-break-word">{row.value}</span>
+                    </DetailRow>
                 ))}
                 {visibleFields.map((field) => (
-                    <div
+                    <DetailRow
                         key={field.fieldName}
-                        className={`${rowClass} ${field.type === 'textarea' ? 'flex-col sm:flex-row' : ''}`}
+                        label={field.label}
+                        tall={field.type === 'textarea' || String(field.value || '').length > 80}
                     >
-                        <p className="w-[88px] sm:w-28 shrink-0 text-[11px] uppercase tracking-wide text-gray-500 pt-0.5">
-                            {field.label}
-                        </p>
-                        <div className="flex-1 text-sm min-w-0">
-                            <FieldValue field={field} />
-                        </div>
-                    </div>
+                        <FieldValue field={field} />
+                    </DetailRow>
                 ))}
             </div>
         </div>

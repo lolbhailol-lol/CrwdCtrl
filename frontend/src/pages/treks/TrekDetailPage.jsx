@@ -16,6 +16,7 @@ import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { fetchTrekCommunity } from '../../services/api/public.api';
 import { publicFetchJSONRetry } from '../../services/api/client';
+import { trackBookNowClick } from '../../services/analyticsService';
 import { trekPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { resolveTrekHeroSlides, resolveTrekGalleryImages } from '../../utils/trekImages';
 import {
@@ -610,9 +611,21 @@ export default function TrekDetailPage() {
                         <button
                             onClick={() => {
                                 if (extLink) {
+                                    trackBookNowClick({
+                                        entityType: 'trek',
+                                        entityId: trek._id || trek.id || trek.slug || '',
+                                        mode: 'external_link',
+                                        destination: 'external',
+                                    });
                                     window.open(extLink, '_blank', 'noopener,noreferrer');
                                     return;
                                 }
+                                trackBookNowClick({
+                                    entityType: 'trek',
+                                    entityId: trek._id || trek.id || trek.slug || '',
+                                    mode: trek.registration?.mode || 'internal_form',
+                                    destination: 'internal_book_page',
+                                });
                                 navigate(`${trekPath(trek)}/book`, { state: { trek, genderRegistration, freshBooking: true } });
                             }}
                             className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"

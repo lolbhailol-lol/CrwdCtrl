@@ -74,6 +74,7 @@ export const TrekOrganizerSignupPage = lazyWithRetry(() => import('../../pages/t
 export const TrekOrganizerLayout = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerLayout'));
 export const TrekOrganizerProtectedRoute = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerProtectedRoute'));
 export const TrekOrganizerHomePage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerHomePage'));
+export const TrekOrganizerCustomersPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerCustomersPage'));
 export const TrekOrganizerDashboardPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerDashboardPage'));
 export const TrekOrganizerParticipantsPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerParticipantsPage'));
 export const TrekOrganizerScanPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerScanPage'));

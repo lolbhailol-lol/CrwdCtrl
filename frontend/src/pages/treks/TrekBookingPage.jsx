@@ -656,26 +656,38 @@ export default function TrekBookingPage() {
 
     const applyCoupon = async () => {
         setCouponError('');
+        setError((prev) => (prev && /failed to fetch|network error/i.test(prev) ? '' : prev));
         const code = couponCode.trim();
         if (!code) {
             setCouponInfo(null);
             return;
         }
+        const trekId = trek?._id || trek?.id || id;
+        if (!trekId) {
+            setCouponError('Trek not loaded yet — wait a moment and try again.');
+            return;
+        }
         setCouponLoading(true);
         try {
-            const res = await fetch(`${API}/payment/coupon-validate`, {
+            const { data } = await publicFetchJSONRetry('/payment/coupon-validate', {
                 method: 'POST',
+                body: { trekId, people, couponCode: code },
                 headers: hasUsableAuthToken(authToken)
-                    ? getBearerAuthHeaders(authToken)
-                    : { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ trekId: trek?._id || trek?.id || id, people, couponCode: code }),
+                    ? { Authorization: `Bearer ${resolveAuthToken(authToken)}` }
+                    : {},
+                retries: 3,
+                timeout: 20000,
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.message || 'Invalid coupon');
             setCouponInfo(data);
         } catch (e) {
             setCouponInfo(null);
-            setCouponError(e.message || 'Invalid coupon');
+            const msg = e?.message || 'Invalid coupon';
+            const network = e?.isNetworkError || e?.code === 'ERR_NETWORK' || /failed to fetch|network error|timeout/i.test(msg);
+            setCouponError(
+                network
+                    ? 'Could not reach the server. Check your connection and tap Apply again — or open in Chrome/Safari if you are in Instagram.'
+                    : msg,
+            );
         } finally {
             setCouponLoading(false);
         }

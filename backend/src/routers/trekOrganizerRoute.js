@@ -12,6 +12,8 @@ router.get('/auth/communities', ctrl.listSignupCommunities);
 router.get('/auth/profile-eligible', authenticateToken, ctrl.profileEligible);
 router.post('/auth/app-session', authenticateToken, ctrl.appSession);
 router.get('/me', authenticateTrekOrganizer, ctrl.getMe);
+router.get('/customers/export', authenticateTrekOrganizer, ctrl.exportCustomers);
+router.get('/customers', authenticateTrekOrganizer, ctrl.listCustomers);
 
 router.get('/treks/:trekId/dashboard', authenticateTrekOrganizer, requireTrekAccess, ctrl.getDashboard);
 router.patch('/treks/:trekId/registration', authenticateTrekOrganizer, requireTrekAccess, ctrl.updateRegistrationSettings);

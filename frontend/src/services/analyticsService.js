@@ -104,3 +104,19 @@ export const trackLogin = () => {
 export const trackSignup = () => {
   sendEvent('signup', {});
 };
+
+export const trackBookNowClick = ({
+  entityType = '',
+  entityId = '',
+  mode = '',
+  destination = '',
+  page = '',
+} = {}) => {
+  sendEvent('book_now_click', {
+    entityType,
+    entityId,
+    mode,
+    destination,
+    page: page || window.location.pathname || '',
+  });
+};

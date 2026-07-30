@@ -18,6 +18,7 @@ import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPa
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
+import { trackBookNowClick } from '../../services/analyticsService';
 
 function formatEventDateTime(showTimings) {
   if (!showTimings?.length) return 'Date & time TBA';
@@ -188,11 +189,25 @@ export default function EventDetailsPage() {
         setShowLogin(true);
         return;
       }
+      trackBookNowClick({
+        entityType: 'events',
+        entityId: event?.id || '',
+        mode: 'internal_form',
+        destination: 'internal_register_page',
+      });
       navigate(`${eventShowPath(event)}/register`);
       return;
     }
     const link = event?.registrationLink || event?.bookingLink;
-    if (link) openExternalUrl(link);
+    if (link) {
+      trackBookNowClick({
+        entityType: 'events',
+        entityId: event?.id || '',
+        mode: 'external_link',
+        destination: 'external',
+      });
+      openExternalUrl(link);
+    }
     else toast('Registration link not available yet');
   };
 

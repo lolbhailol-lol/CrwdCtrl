@@ -211,7 +211,7 @@ exports.validateCoupon = async (req, res) => {
       const coupon = await validateAndPriceCoupon({
         couponCode,
         entityType: 'trek',
-        userId: req.user?.userId || null,
+        userId: req.user?.userId || req.user?._id || null,
         amountBeforeDiscount: totalAmount,
         people: Math.max(1, Number(people) || 1),
         failOnMissingCode: true,
@@ -228,9 +228,12 @@ exports.validateCoupon = async (req, res) => {
       let ticket;
       try {
         ticket = resolveSportsTicketTotal(event, {
-          tierId: req.body.tierId,
+          tierId: req.body.tierId || req.body.tier,
           people,
           addOnSelected: req.body.addOnSelected,
+          // Coupon preview only — never use inference on create-order / charge paths
+          expectedTicketTotal: req.body.expectedTicketTotal ?? req.body.amountBeforeDiscount,
+          inferMissingTier: true,
         });
       } catch (e) {
         return res.status(e.status || 400).json({ message: e.message || 'Invalid tier' });
@@ -243,7 +246,7 @@ exports.validateCoupon = async (req, res) => {
       const coupon = await validateAndPriceCoupon({
         couponCode,
         entityType: 'sports',
-        userId: req.user?.userId || null,
+        userId: req.user?.userId || req.user?._id || null,
         amountBeforeDiscount,
         people: Math.max(1, Number(people) || 1),
         failOnMissingCode: true,
@@ -256,13 +259,14 @@ exports.validateCoupon = async (req, res) => {
     const coupon = await validateAndPriceCoupon({
       couponCode,
       entityType: pricing.entityType,
-      userId: req.user?.userId || null,
+      userId: req.user?.userId || req.user?._id || null,
       amountBeforeDiscount: pricing.amountBeforeDiscount ?? pricing.totalAmount,
       people: Math.max(1, Number(people) || 1),
       failOnMissingCode: true,
     });
     return res.json(coupon);
   } catch (err) {
+    console.warn('[payment.validateCoupon]', err.message || err);
     return res.status(400).json({ message: err.message || 'Invalid coupon' });
   }
 };

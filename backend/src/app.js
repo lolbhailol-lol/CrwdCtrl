@@ -24,6 +24,9 @@ app.set('trust proxy', 1);
 app.use(helmet({
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   crossOriginEmbedderPolicy: false,
+  // cross-origin: Instagram / FB / WhatsApp WebViews fetch the Railway host from
+  // www.crwdctrl.in — CORP same-origin surfaces as opaque "Failed to fetch".
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: false,
 }));
 

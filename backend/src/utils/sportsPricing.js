@@ -100,12 +100,53 @@ function resolveOptionalAddOn(event) {
 /**
  * Ticket subtotal before platform fee / coupons.
  * Add-on (if enabled + selected) is charged per person.
+ *
+ * @param {object} [opts]
+ * @param {boolean} [opts.inferMissingTier=false] - For coupon preview only: if tierId
+ *   is missing, match expectedTicketTotal to a tier+addon combo, or use the sole tier.
+ *   Never enable for create-order / charge paths.
  */
-function resolveSportsTicketTotal(event, { tierId, people = 1, addOnSelected = false } = {}) {
-    const priced = resolveSportsPerPersonFee(event, tierId);
+function resolveSportsTicketTotal(event, {
+    tierId,
+    people = 1,
+    addOnSelected = false,
+    expectedTicketTotal = null,
+    inferMissingTier = false,
+} = {}) {
     const peopleCount = Math.max(1, Number(people) || 1);
     const addOn = resolveOptionalAddOn(event);
-    const selected = Boolean(addOnSelected) && Boolean(addOn);
+    let resolvedTierId = String(tierId || '').trim();
+    let selected = Boolean(addOnSelected) && Boolean(addOn);
+
+    if (inferMissingTier && !resolvedTierId && event?.pricingMode === 'tiers') {
+        const tiers = getSportsTiers(event);
+        if (tiers.length === 1) {
+            resolvedTierId = tiers[0].id;
+        } else if (tiers.length > 1) {
+            const expected = Number(expectedTicketTotal);
+            if (Number.isFinite(expected) && expected >= 0) {
+                const candidates = [];
+                for (const tier of tiers) {
+                    const fee = Math.max(0, Number(tier.fee) || 0);
+                    candidates.push({ tierId: tier.id, addOnSelected: false, total: fee * peopleCount });
+                    if (addOn) {
+                        candidates.push({
+                            tierId: tier.id,
+                            addOnSelected: true,
+                            total: (fee + addOn.fee) * peopleCount,
+                        });
+                    }
+                }
+                const match = candidates.find((c) => c.total === expected);
+                if (match) {
+                    resolvedTierId = match.tierId;
+                    selected = match.addOnSelected;
+                }
+            }
+        }
+    }
+
+    const priced = resolveSportsPerPersonFee(event, resolvedTierId);
     const addOnFeePerPerson = selected ? addOn.fee : 0;
     const ticketPricePerPerson = Math.max(0, Number(priced.fee) || 0);
     const perPerson = ticketPricePerPerson + addOnFeePerPerson;

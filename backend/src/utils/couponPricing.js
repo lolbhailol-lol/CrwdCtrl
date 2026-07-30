@@ -13,6 +13,31 @@ function isCouponApplicableToEntity(coupon, entityType) {
   return types.includes(entityType);
 }
 
+function couponEntityTypeLabel(entityType) {
+  const labels = {
+    trek: 'treks',
+    sports: 'runs / sports events',
+    fest: 'fests',
+    competition: 'competitions',
+    event: 'events',
+    event_show: 'shows / events',
+  };
+  return labels[entityType] || entityType || 'this booking';
+}
+
+function assertCouponAppliesToEntity(coupon, entityType) {
+  if (isCouponApplicableToEntity(coupon, entityType)) return;
+  const allowed = (Array.isArray(coupon.applicableEntityTypes) ? coupon.applicableEntityTypes : [])
+    .map(couponEntityTypeLabel)
+    .filter(Boolean);
+  if (!allowed.length) {
+    throw new Error('This coupon is not valid for this registration type.');
+  }
+  throw new Error(
+    `This coupon is only valid for ${allowed.join(' / ')} — not for ${couponEntityTypeLabel(entityType)}.`,
+  );
+}
+
 function computeCouponDiscount({ baseAmount, discountPercent, maxDiscountAmount }) {
   const safeBase = Math.max(0, Number(baseAmount) || 0);
   const percent = Math.max(0, Number(discountPercent) || 0);
@@ -86,9 +111,7 @@ async function validateAndPriceCoupon({
   if (isCouponExpired(coupon.expiresAt, now)) {
     throw new Error('This coupon has expired. Ask the organizer to extend the expiry date in admin.');
   }
-  if (!isCouponApplicableToEntity(coupon, entityType)) {
-    throw new Error('This coupon is not valid for this registration type.');
-  }
+  assertCouponAppliesToEntity(coupon, entityType);
   if (coupon.maxTotalUses > 0 && Number(coupon.usedCount || 0) >= Number(coupon.maxTotalUses)) {
     throw new Error('This coupon has reached its total usage limit.');
   }

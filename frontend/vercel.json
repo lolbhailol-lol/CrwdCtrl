@@ -32,6 +32,15 @@
       "VITE_FIREBASE_VAPID_KEY": "BM9MVSbTORq4oGhfCR8wvd5PAYZd_rORlqPGinjRTsbnyHE2FHy7rfMFSYpcOs_x4igmITWvKn0Iwdkv0KjFTkA"
     }
   },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "Cross-Origin-Resource-Policy", "value": "cross-origin" }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",

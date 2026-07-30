@@ -22,6 +22,8 @@ function securityHeaders(req, res, next) {
   res.set('Vary', 'Accept-Encoding');
   res.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  // Allow browser/WebView reads from www.crwdctrl.in → Railway (CORS still gates origins)
+  res.set('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 }
 

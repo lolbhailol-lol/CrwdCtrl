@@ -5,6 +5,7 @@ import {
     TrekOrganizerLayout,
     TrekOrganizerProtectedRoute,
     TrekOrganizerHomePage,
+    TrekOrganizerCustomersPage,
     TrekOrganizerDashboardPage,
     TrekOrganizerParticipantsPage,
     TrekOrganizerScanPage,
@@ -24,7 +25,9 @@ export const trekOrganizerRoutes = (
             }
         >
             <Route index element={<TrekOrganizerHomePage />} />
+            <Route path="customers" element={<TrekOrganizerCustomersPage />} />
             <Route path="treks/:trekId" element={<TrekOrganizerDashboardPage />} />
+            <Route path="treks/:trekId/customers" element={<TrekOrganizerCustomersPage />} />
             <Route path="treks/:trekId/participants" element={<TrekOrganizerParticipantsPage />} />
             <Route path="treks/:trekId/scan" element={<TrekOrganizerScanPage />} />
             <Route path="treks/:trekId/notifications" element={<TrekOrganizerNotificationsPage />} />

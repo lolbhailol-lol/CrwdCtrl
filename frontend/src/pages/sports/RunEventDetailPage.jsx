@@ -15,6 +15,7 @@ import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../u
 
 import { publicFetchJSONRetry } from '../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
+import { trackBookNowClick } from '../../services/analyticsService';
 
 const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v1_';
 const readRunDetailCache = (key) => {
@@ -430,15 +431,33 @@ export default function RunEventDetailPage() {
                             <button
                                 onClick={() => {
                                     if (extLink) {
+                                        trackBookNowClick({
+                                            entityType: 'sports',
+                                            entityId: event._id || event.id || event.slug || '',
+                                            mode: 'external_link',
+                                            destination: 'external',
+                                        });
                                         window.open(extLink, '_blank', 'noopener,noreferrer');
                                         return;
                                     }
                                     if (tiers.length) {
+                                        trackBookNowClick({
+                                            entityType: 'sports',
+                                            entityId: event._id || event.id || event.slug || '',
+                                            mode: event.registration?.mode || 'internal_form',
+                                            destination: 'tier_selection',
+                                        });
                                         setExpandedTierId(null);
                                         setSelectingTierId(null);
                                         setTierSheetOpen(true);
                                         return;
                                     }
+                                    trackBookNowClick({
+                                        entityType: 'sports',
+                                        entityId: event._id || event.id || event.slug || '',
+                                        mode: event.registration?.mode || 'internal_form',
+                                        destination: 'internal_book_page',
+                                    });
                                     navigate(`${sportRunPath(event)}/book`, { state: { event, runClub: club } });
                                 }}
                                 className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
@@ -461,7 +480,7 @@ export default function RunEventDetailPage() {
                 </div>
 
                 {tierSheetOpen && (
-                    <div className="fixed inset-0 z-[60] flex items-end justify-center">
+                    <div className="fixed inset-0 z-60 flex items-end justify-center">
                         <button
                             type="button"
                             aria-label="Close"

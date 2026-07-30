@@ -11,7 +11,7 @@ import PaymentErrorModal from '../../components/PaymentErrorModal';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
 import { verifyPaymentWithRetry, goToBookings } from '../../utils/paymentNavigation';
 import { buildEventPriceBreakdown } from '../../utils/platformFee';
-import { API_BASE_URL } from '../../services/api/client';
+import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { eventShowPath } from '../../utils/slugRoutes';
 
@@ -497,17 +497,22 @@ export default function EventRegistrationPage() {
         }
         setCouponLoading(true);
         try {
-            const res = await fetch(`${API}/payment/coupon-validate`, {
+            const { data } = await publicFetchJSONRetry('/payment/coupon-validate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventShowId: eventId, couponCode: code }),
+                body: { eventShowId: eventId, couponCode: code },
+                retries: 4,
+                timeout: 25000,
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.message || 'Invalid coupon');
             setCouponInfo(data);
         } catch (e) {
             setCouponInfo(null);
-            setCouponError(e.message || 'Invalid coupon');
+            const msg = e?.message || 'Invalid coupon';
+            const network = e?.isNetworkError || e?.code === 'ERR_NETWORK' || /failed to fetch|network error|timeout/i.test(msg);
+            setCouponError(
+                network
+                    ? 'Could not reach the server. Tap Apply again — or open in Chrome/Safari if you are in Instagram.'
+                    : msg,
+            );
         } finally {
             setCouponLoading(false);
         }

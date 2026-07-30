@@ -115,6 +115,36 @@ export async function fetchTrekOrganizerMe() {
     return trekOrganizerFetch('/trek-organizer/me');
 }
 
+export async function fetchTrekOrganizerCustomers(params = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') qs.set(key, String(value));
+    });
+    const query = qs.toString();
+    return trekOrganizerFetch(`/trek-organizer/customers${query ? `?${query}` : ''}`);
+}
+
+export async function exportTrekOrganizerCustomers(params = {}) {
+    const token = getTrekOrganizerToken();
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') qs.set(key, String(value));
+    });
+    const query = qs.toString();
+    const res = await fetch(`${API}/trek-organizer/customers/export${query ? `?${query}` : ''}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (res.status === 401) {
+        handleOrganizerUnauthorized();
+        throw new Error('Session expired');
+    }
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Export failed');
+    }
+    return res.blob();
+}
+
 export async function fetchTrekOrganizerDashboard(trekId) {
     return trekOrganizerFetch(`/trek-organizer/treks/${trekId}/dashboard`);
 }

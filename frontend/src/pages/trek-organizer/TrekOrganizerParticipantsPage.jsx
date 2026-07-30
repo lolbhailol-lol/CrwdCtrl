@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     Download, Loader, Search, ChevronLeft, ChevronRight,
-    Users, UserCheck, ChevronsDownUp, X, Mail,
+    Users, UserCheck, ChevronsDownUp, X, Mail, Venus, Mars,
+    ArrowUpDown, Copy, CheckSquare, Square, Sparkles, Clock,
+    IndianRupee, Filter, MessageCircle,
 } from 'lucide-react';
 import {
     exportTrekOrganizerParticipants,
@@ -14,33 +16,78 @@ import {
     reviewTrekOrganizerPayment,
 } from '../../services/api/trekOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
+import { getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
+import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
 import ParticipantCard from './ParticipantCard';
 import TrekOrganizerMessageModal from './TrekOrganizerMessageModal';
+import TrekOrganizerWhatsAppModal from './TrekOrganizerWhatsAppModal';
+import TrekOrganizerParticipantModal from './TrekOrganizerParticipantModal';
 import PaymentProofReviewModal from '../run-club-organizer/PaymentProofReviewModal';
+import { isValidWhatsAppPhone } from '../../utils/whatsappDeepLink';
 
-function FilterChip({ active, onClick, children }) {
+const SORT_OPTIONS = [
+    { value: 'createdAt:desc', label: 'Newest first' },
+    { value: 'createdAt:asc', label: 'Oldest first' },
+    { value: 'name:asc', label: 'Name A–Z' },
+    { value: 'name:desc', label: 'Name Z–A' },
+    { value: 'checkIn:desc', label: 'Checked in first' },
+    { value: 'payment:desc', label: 'Highest paid' },
+];
+
+function FilterChip({ active, onClick, children, count }) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className={`px-3 py-2 min-h-[36px] rounded-full text-xs font-medium border transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-9 rounded-full text-xs font-medium border transition-colors ${
                 active
                     ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]'
-                    : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                    : 'border-white/10 text-gray-400 hover:border-[#0ECCEE]/40 hover:text-gray-200 bg-white/5'
             }`}
         >
             {children}
+            {typeof count === 'number' ? (
+                <span className={`tabular-nums ${active ? 'text-black/70' : 'text-gray-600'}`}>{count}</span>
+            ) : null}
+        </button>
+    );
+}
+
+function StatPill({ label, value, tone = 'default', active, onClick, icon: Icon }) {
+    const tones = {
+        default: 'border-white/10 from-[#1a1b1d] to-[#141516]',
+        accent: 'border-[#0ECCEE]/25 from-[#0ECCEE]/15 to-[#0ECCEE]/5',
+        women: 'border-pink-500/20 from-pink-500/15 to-pink-500/5',
+        men: 'border-sky-500/20 from-sky-500/15 to-sky-500/5',
+        ok: 'border-emerald-500/20 from-emerald-500/15 to-emerald-500/5',
+        warn: 'border-amber-500/20 from-amber-500/15 to-amber-500/5',
+        money: 'border-emerald-500/20 from-emerald-500/10 to-[#141516]',
+    };
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`rounded-2xl border bg-linear-to-br ${tones[tone] || tones.default} px-3 py-3 text-left transition-all ${
+                active ? 'ring-1 ring-[#0ECCEE]/50 border-[#0ECCEE]/40' : 'hover:border-[#0ECCEE]/35'
+            }`}
+        >
+            <p className="text-[10px] uppercase tracking-widest text-gray-500 flex items-center gap-1">
+                {Icon ? <Icon size={11} /> : null}
+                {label}
+            </p>
+            <p className="text-xl font-semibold mt-1 tabular-nums text-white">{value}</p>
         </button>
     );
 }
 
 function SkeletonCard() {
     return (
-        <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 animate-pulse flex gap-3">
-            <div className="size-11 rounded-xl bg-gray-800 shrink-0" />
+        <div className="rounded-2xl border border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516] p-4 animate-pulse flex gap-3">
+            <div className="size-11 rounded-xl bg-white/5 shrink-0" />
             <div className="flex-1 space-y-2">
-                <div className="h-4 bg-gray-800 rounded w-2/5" />
-                <div className="h-3 bg-gray-800/70 rounded w-3/5" />
+                <div className="h-4 bg-white/5 rounded w-2/5" />
+                <div className="h-3 bg-white/5 rounded w-3/5" />
+                <div className="h-3 bg-white/5 rounded w-1/3" />
             </div>
         </div>
     );
@@ -48,35 +95,57 @@ function SkeletonCard() {
 
 export default function TrekOrganizerParticipantsPage() {
     const { trekId } = useParams();
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { confirm, toast } = useDialog();
+    const session = getTrekOrganizerSession();
+    const communityId = session?.community?._id || session?.organizer?.communityId || '';
+    const sessionTrek = session?.treks?.find((t) => String(t._id) === String(trekId));
+    const trekDateLabel = formatOrganizerTrekDate(sessionTrek || {}) || sessionTrek?.dateLabel || '';
+    const meetingPoint = sessionTrek?.meetingLocation || '';
+
     const [rows, setRows] = useState([]);
     const [trekName, setTrekName] = useState('');
     const [stats, setStats] = useState(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
-    const [expandAll, setExpandAll] = useState(true);
+    const [expandAll, setExpandAll] = useState(false);
     const [selectedIds, setSelectedIds] = useState(() => new Set());
     const [messageModal, setMessageModal] = useState({ open: false, bookingIds: [], label: '' });
+    const [waRecipients, setWaRecipients] = useState(null);
     const [reviewTarget, setReviewTarget] = useState(null);
+    const [detailBookingId, setDetailBookingId] = useState(() => searchParams.get('bookingId') || '');
+    const [sortValue, setSortValue] = useState('createdAt:desc');
 
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [paymentFilter, setPaymentFilter] = useState(() => {
-        const q = new URLSearchParams(window.location.search).get('paymentStatus');
+        const q = searchParams.get('paymentStatus');
         return ['paid', 'free', 'pending_review', 'rejected'].includes(q) ? q : '';
     });
-    const [checkInFilter, setCheckInFilter] = useState('');
+    const [checkInFilter, setCheckInFilter] = useState(() => {
+        const q = searchParams.get('checkInStatus');
+        return ['pending', 'checked_in'].includes(q) ? q : '';
+    });
     const [genderFilter, setGenderFilter] = useState(() => {
-        const q = new URLSearchParams(window.location.search).get('gender');
+        const q = searchParams.get('gender');
         return ['Female', 'Male', 'Others'].includes(q) ? q : '';
     });
     const [page, setPage] = useState(1);
     const [registrationMode, setRegistrationMode] = useState('internal_form');
 
+    useEffect(() => {
+        const id = searchParams.get('bookingId') || '';
+        if (id) setDetailBookingId(id);
+    }, [searchParams]);
+
     const hasFilters = search || paymentFilter || checkInFilter || genderFilter;
     const isOrganizerQr = registrationMode === 'organizer_qr';
     const pendingCount = isOrganizerQr ? (stats?.pendingReview ?? 0) : 0;
+    const revenue = Number(stats?.organizerRevenue ?? stats?.revenue ?? 0);
+    const [sortBy, sortDir] = sortValue.split(':');
+
     const pendingQueue = useMemo(
         () => rows.filter((r) => r.paymentStatus === 'Pending review' || r.status === 'pending'),
         [rows],
@@ -84,6 +153,9 @@ export default function TrekOrganizerParticipantsPage() {
     const reviewIndex = reviewTarget
         ? pendingQueue.findIndex((r) => r.bookingId === reviewTarget.bookingId)
         : -1;
+
+    const pageSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.bookingId));
+    const selectedCount = selectedIds.size;
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -97,7 +169,7 @@ export default function TrekOrganizerParticipantsPage() {
         if (!trekId) return;
         setLoading(true);
         try {
-            const params = { page, limit: 25, sortBy: 'createdAt', sortDir: 'desc' };
+            const params = { page, limit: 25, sortBy, sortDir };
             if (search) params.search = search;
             if (paymentFilter) params.paymentStatus = paymentFilter;
             if (checkInFilter) params.checkInStatus = checkInFilter;
@@ -124,7 +196,7 @@ export default function TrekOrganizerParticipantsPage() {
         } finally {
             setLoading(false);
         }
-    }, [trekId, page, search, paymentFilter, checkInFilter, genderFilter, toast]);
+    }, [trekId, page, search, paymentFilter, checkInFilter, genderFilter, sortBy, sortDir, toast]);
 
     useEffect(() => {
         load();
@@ -132,7 +204,7 @@ export default function TrekOrganizerParticipantsPage() {
 
     useEffect(() => {
         setSelectedIds(new Set());
-    }, [page, search, paymentFilter, checkInFilter, genderFilter, trekId]);
+    }, [page, search, paymentFilter, checkInFilter, genderFilter, trekId, sortValue]);
 
     const toggleSelect = (bookingId) => {
         setSelectedIds((prev) => {
@@ -145,10 +217,9 @@ export default function TrekOrganizerParticipantsPage() {
 
     const toggleSelectPage = () => {
         const pageIds = rows.map((r) => r.bookingId);
-        const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
         setSelectedIds((prev) => {
             const next = new Set(prev);
-            if (allSelected) pageIds.forEach((id) => next.delete(id));
+            if (pageSelected) pageIds.forEach((id) => next.delete(id));
             else pageIds.forEach((id) => next.add(id));
             return next;
         });
@@ -157,6 +228,44 @@ export default function TrekOrganizerParticipantsPage() {
     const openMessageModal = (bookingIds, label = '') => {
         setMessageModal({ open: true, bookingIds, label });
     };
+
+    const openWhatsAppFor = (participants) => {
+        const list = (Array.isArray(participants) ? participants : [participants])
+            .filter(Boolean)
+            .map((p) => ({
+                name: p.participantName || p.name || 'Guest',
+                phone: p.phone,
+                trekName: trekName || p.trekName || '',
+                trekDate: trekDateLabel,
+                meetingPoint,
+            }));
+        setWaRecipients(list);
+    };
+
+    const openInCrm = (participant) => {
+        if (participant.customerId) {
+            navigate(`/trek-organizer/treks/${trekId}/customers?focus=${encodeURIComponent(participant.customerId)}`);
+            return;
+        }
+        navigate(`/trek-organizer/treks/${trekId}/customers`);
+        if (participant.phone && participant.phone !== '—') {
+            toast('Opened CRM — search by phone if needed');
+        }
+    };
+
+    const closeDetailModal = () => {
+        setDetailBookingId('');
+        if (searchParams.get('bookingId')) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('bookingId');
+            setSearchParams(next, { replace: true });
+        }
+    };
+
+    const selectedRows = useMemo(
+        () => rows.filter((r) => selectedIds.has(r.bookingId)),
+        [rows, selectedIds],
+    );
 
     const handleSendMessage = async (payload) => {
         const res = await sendTrekOrganizerParticipantMessage(trekId, {
@@ -177,6 +286,23 @@ export default function TrekOrganizerParticipantsPage() {
         const checkedIn = rows.filter((r) => r.checkInStatus === 'Checked In').length;
         return { paid, checkedIn, pending: rows.length - checkedIn };
     }, [rows]);
+
+    const copySelectedPhones = async () => {
+        const phones = rows
+            .filter((r) => selectedIds.has(r.bookingId))
+            .map((r) => (r.phone && r.phone !== '—' ? r.phone : ''))
+            .filter(Boolean);
+        if (!phones.length) {
+            toast('No phone numbers in selection');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(phones.join('\n'));
+            toast(`Copied ${phones.length} phone${phones.length === 1 ? '' : 's'}`);
+        } catch {
+            toast('Copy failed');
+        }
+    };
 
     const handleExport = async () => {
         setExporting(true);
@@ -265,60 +391,132 @@ export default function TrekOrganizerParticipantsPage() {
         setPage(1);
     };
 
+    const togglePayment = (value) => {
+        setPaymentFilter((prev) => (prev === value ? '' : value));
+        setPage(1);
+    };
+    const toggleCheckIn = (value) => {
+        setCheckInFilter((prev) => (prev === value ? '' : value));
+        setPage(1);
+    };
+    const toggleGender = (value) => {
+        setGenderFilter((prev) => (prev === value ? '' : value));
+        setPage(1);
+    };
+
+    /** Stat pills: focus one dimension and clear the others for a clean jump. */
+    const jumpFilter = (type, value) => {
+        const nextPayment = type === 'payment' ? value : '';
+        const nextCheckIn = type === 'checkIn' ? value : '';
+        const nextGender = type === 'gender' ? value : '';
+        setPaymentFilter(nextPayment);
+        setCheckInFilter(nextCheckIn);
+        setGenderFilter(nextGender);
+        setPage(1);
+    };
+
     const startIndex = (pagination.page - 1) * pagination.limit;
+    const title = paymentFilter === 'pending_review' ? 'Payment review' : 'Participants';
 
     return (
-        <div className="space-y-5 max-w-4xl mx-auto">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold">
-                        {paymentFilter === 'pending_review' ? 'Payment review' : 'Participants'}
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-0.5">{trekName || 'Trek registrations'}</p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                    {selectedIds.size > 0 ? (
-                        <button
-                            type="button"
-                            onClick={() => openMessageModal([...selectedIds])}
-                            className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg bg-[#25D366] text-white text-xs font-bold hover:opacity-90"
-                        >
-                            <Mail size={14} />
-                            Email ({selectedIds.size})
-                        </button>
+        <div className="space-y-5 max-w-4xl mx-auto pb-24">
+            {/* Hero */}
+            <div className="rounded-3xl border border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#121314] overflow-hidden relative">
+                <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/12 via-transparent to-[#053780]/15 pointer-events-none" />
+                <div className="relative p-5 sm:p-6 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-2">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 text-[10px] font-semibold uppercase tracking-widest text-[#0ECCEE]">
+                                <Sparkles size={11} /> Guest list
+                            </div>
+                            <div>
+                                <h1 className="text-2xl sm:text-[1.75rem] font-semibold tracking-tight">{title}</h1>
+                                <p className="text-sm text-gray-400 mt-1 truncate">{trekName || 'Trek registrations'}</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setExpandAll((v) => !v)}
+                                className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 rounded-xl border border-white/10 bg-white/5 text-xs font-medium text-gray-300 hover:border-[#0ECCEE]/40"
+                            >
+                                <ChevronsDownUp size={14} />
+                                {expandAll ? 'Collapse forms' : 'Expand forms'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleExport}
+                                disabled={exporting}
+                                className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 rounded-xl bg-[#0ECCEE] text-black text-xs font-bold hover:brightness-110 disabled:opacity-60"
+                            >
+                                {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
+                                Export Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    {stats ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                            <StatPill
+                                label="Total"
+                                value={stats.totalRegistrations ?? 0}
+                                tone="accent"
+                                icon={Users}
+                                active={!hasFilters}
+                                onClick={clearFilters}
+                            />
+                            <StatPill
+                                label="Women"
+                                value={stats.femaleCount ?? 0}
+                                tone="women"
+                                icon={Venus}
+                                active={genderFilter === 'Female' && !paymentFilter && !checkInFilter}
+                                onClick={() => jumpFilter('gender', genderFilter === 'Female' ? '' : 'Female')}
+                            />
+                            <StatPill
+                                label="Men"
+                                value={stats.maleCount ?? 0}
+                                tone="men"
+                                icon={Mars}
+                                active={genderFilter === 'Male' && !paymentFilter && !checkInFilter}
+                                onClick={() => jumpFilter('gender', genderFilter === 'Male' ? '' : 'Male')}
+                            />
+                            <StatPill
+                                label="Checked in"
+                                value={stats.checkedIn ?? 0}
+                                tone="ok"
+                                icon={UserCheck}
+                                active={checkInFilter === 'checked_in' && !paymentFilter && !genderFilter}
+                                onClick={() => jumpFilter('checkIn', checkInFilter === 'checked_in' ? '' : 'checked_in')}
+                            />
+                            <StatPill
+                                label="Awaiting"
+                                value={Math.max(0, (stats.totalRegistrations ?? 0) - (stats.checkedIn ?? 0))}
+                                tone="warn"
+                                icon={Clock}
+                                active={checkInFilter === 'pending' && !paymentFilter && !genderFilter}
+                                onClick={() => jumpFilter('checkIn', checkInFilter === 'pending' ? '' : 'pending')}
+                            />
+                            <StatPill
+                                label="Collected"
+                                value={`₹${revenue.toLocaleString('en-IN')}`}
+                                tone="money"
+                                icon={IndianRupee}
+                                onClick={() => jumpFilter('payment', paymentFilter === 'paid' ? '' : 'paid')}
+                                active={paymentFilter === 'paid' && !checkInFilter && !genderFilter}
+                            />
+                        </div>
                     ) : null}
-                    {rows.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={() => setExpandAll((v) => !v)}
-                            className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg border border-gray-700 text-xs font-medium text-gray-300 hover:border-[#0ECCEE]/40"
-                        >
-                            <ChevronsDownUp size={14} />
-                            {expandAll ? 'Hide forms' : 'Show forms'}
-                        </button>
-                    ) : null}
-                    <button
-                        type="button"
-                        onClick={handleExport}
-                        disabled={exporting}
-                        className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg bg-[#0ECCEE] text-black text-xs font-bold hover:opacity-90 disabled:opacity-60"
-                    >
-                        {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
-                        Export
-                    </button>
                 </div>
             </div>
 
             {pendingCount > 0 && paymentFilter !== 'pending_review' ? (
                 <button
                     type="button"
-                    onClick={() => {
-                        setPaymentFilter('pending_review');
-                        setPage(1);
-                    }}
-                    className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-left hover:border-amber-400/50"
+                    onClick={() => jumpFilter('payment', 'pending_review')}
+                    className="w-full rounded-2xl border border-amber-500/30 bg-linear-to-r from-amber-500/15 to-amber-500/5 px-4 py-3.5 text-left hover:border-amber-400/50 transition-colors"
                 >
-                    <p className="text-sm font-semibold text-amber-300">
+                    <p className="text-sm font-semibold text-amber-200">
                         Review {pendingCount} payment{pendingCount === 1 ? '' : 's'}
                     </p>
                     <p className="text-xs text-amber-200/70 mt-0.5">
@@ -327,60 +525,67 @@ export default function TrekOrganizerParticipantsPage() {
                 </button>
             ) : null}
 
-            {stats ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
-                        <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><Users size={11} /> Total</p>
-                        <p className="text-xl font-bold mt-0.5">{stats.totalRegistrations}</p>
+            {/* Search + filters + sort */}
+            <div className="rounded-2xl border border-white/10 bg-[#161718]/95 p-3.5 sm:p-4 space-y-3.5">
+                <div className="flex flex-col sm:flex-row gap-2.5">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                        <input
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            placeholder="Search name, phone, or email…"
+                            className="w-full pl-10 pr-10 py-3 min-h-12 rounded-xl bg-black/30 border border-white/10 text-base focus:outline-none focus:border-[#0ECCEE]/50"
+                        />
+                        {searchInput ? (
+                            <button type="button" onClick={() => setSearchInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+                                <X size={16} />
+                            </button>
+                        ) : null}
                     </div>
-                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
-                        <p className="text-[10px] uppercase text-gray-500">Women</p>
-                        <p className="text-xl font-bold mt-0.5 text-pink-300">{stats.femaleCount ?? 0}</p>
-                    </div>
-                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
-                        <p className="text-[10px] uppercase text-gray-500">Men</p>
-                        <p className="text-xl font-bold mt-0.5 text-sky-300">{stats.maleCount ?? 0}</p>
-                    </div>
-                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
-                        <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><UserCheck size={11} /> Checked in</p>
-                        <p className="text-xl font-bold mt-0.5 text-emerald-400">{stats.checkedIn}</p>
-                    </div>
+                    <label className="relative sm:w-52 shrink-0">
+                        <ArrowUpDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                        <select
+                            value={sortValue}
+                            onChange={(e) => {
+                                setSortValue(e.target.value);
+                                setPage(1);
+                            }}
+                            className="w-full appearance-none pl-9 pr-8 py-3 min-h-12 rounded-xl bg-black/30 border border-white/10 text-sm text-gray-200 focus:outline-none focus:border-[#0ECCEE]/50"
+                        >
+                            {SORT_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </select>
+                    </label>
                 </div>
-            ) : null}
 
-            <div className="rounded-xl border border-gray-800 bg-[#161718] p-3 space-y-3">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                    <input
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Search name or phone…"
-                        className="w-full pl-10 pr-10 py-3 min-h-[48px] rounded-lg bg-[#111213] border border-gray-700 text-base focus:outline-none focus:border-[#0ECCEE]/50"
-                    />
-                    {searchInput ? (
-                        <button type="button" onClick={() => setSearchInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
-                            <X size={16} />
-                        </button>
-                    ) : null}
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-gray-500 font-medium">
+                    <Filter size={12} /> Filters
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter} onClick={() => { setPaymentFilter(''); setCheckInFilter(''); setGenderFilter(''); setPage(1); }}>All</FilterChip>
-                    <span className="w-px h-4 bg-gray-700 hidden sm:block" />
+                    <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter} onClick={clearFilters}>All</FilterChip>
+                    <span className="w-px h-4 bg-white/10 hidden sm:block" />
                     {isOrganizerQr ? (
-                        <FilterChip active={paymentFilter === 'pending_review'} onClick={() => { setPaymentFilter(paymentFilter === 'pending_review' ? '' : 'pending_review'); setPage(1); }}>Needs review</FilterChip>
+                        <FilterChip
+                            active={paymentFilter === 'pending_review'}
+                            count={pendingCount || undefined}
+                            onClick={() => togglePayment('pending_review')}
+                        >
+                            Needs review
+                        </FilterChip>
                     ) : null}
-                    <FilterChip active={paymentFilter === 'paid'} onClick={() => { setPaymentFilter(paymentFilter === 'paid' ? '' : 'paid'); setPage(1); }}>Paid</FilterChip>
-                    <FilterChip active={paymentFilter === 'free'} onClick={() => { setPaymentFilter(paymentFilter === 'free' ? '' : 'free'); setPage(1); }}>Free</FilterChip>
+                    <FilterChip active={paymentFilter === 'paid'} onClick={() => togglePayment('paid')}>Paid</FilterChip>
+                    <FilterChip active={paymentFilter === 'free'} onClick={() => togglePayment('free')}>Free</FilterChip>
                     {isOrganizerQr ? (
-                        <FilterChip active={paymentFilter === 'rejected'} onClick={() => { setPaymentFilter(paymentFilter === 'rejected' ? '' : 'rejected'); setPage(1); }}>Rejected</FilterChip>
+                        <FilterChip active={paymentFilter === 'rejected'} onClick={() => togglePayment('rejected')}>Rejected</FilterChip>
                     ) : null}
-                    <span className="w-px h-4 bg-gray-700 hidden sm:block" />
-                    <FilterChip active={checkInFilter === 'checked_in'} onClick={() => { setCheckInFilter(checkInFilter === 'checked_in' ? '' : 'checked_in'); setPage(1); }}>Checked in</FilterChip>
-                    <FilterChip active={checkInFilter === 'pending'} onClick={() => { setCheckInFilter(checkInFilter === 'pending' ? '' : 'pending'); setPage(1); }}>Not yet</FilterChip>
-                    <span className="w-px h-4 bg-gray-700 hidden sm:block" />
-                    <FilterChip active={genderFilter === 'Female'} onClick={() => { setGenderFilter(genderFilter === 'Female' ? '' : 'Female'); setPage(1); }}>Women</FilterChip>
-                    <FilterChip active={genderFilter === 'Male'} onClick={() => { setGenderFilter(genderFilter === 'Male' ? '' : 'Male'); setPage(1); }}>Men</FilterChip>
+                    <span className="w-px h-4 bg-white/10 hidden sm:block" />
+                    <FilterChip active={checkInFilter === 'checked_in'} onClick={() => toggleCheckIn('checked_in')}>Checked in</FilterChip>
+                    <FilterChip active={checkInFilter === 'pending'} onClick={() => toggleCheckIn('pending')}>Not yet</FilterChip>
+                    <span className="w-px h-4 bg-white/10 hidden sm:block" />
+                    <FilterChip active={genderFilter === 'Female'} onClick={() => toggleGender('Female')}>Women</FilterChip>
+                    <FilterChip active={genderFilter === 'Male'} onClick={() => toggleGender('Male')}>Men</FilterChip>
                     {hasFilters ? (
                         <button type="button" onClick={clearFilters} className="text-xs text-[#0ECCEE] ml-auto hover:underline">
                             Clear filters
@@ -389,22 +594,24 @@ export default function TrekOrganizerParticipantsPage() {
                 </div>
             </div>
 
+            {/* List controls */}
             {!loading && rows.length > 0 ? (
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-0.5">
                     <p className="text-xs text-gray-500">
-                        Showing {rows.length} of {pagination.total}
-                        {hasFilters ? ' (filtered)' : ''}
-                        {' · '}{pageStats.checkedIn} checked in on this page
+                        Showing <span className="text-gray-300">{rows.length}</span> of{' '}
+                        <span className="text-gray-300">{pagination.total}</span>
+                        {hasFilters ? ' · filtered' : ''}
+                        {' · '}
+                        <span className="text-emerald-400">{pageStats.checkedIn}</span> checked in on this page
                     </p>
-                    <label className="inline-flex items-center gap-2 text-xs text-gray-400 cursor-pointer shrink-0">
-                        <input
-                            type="checkbox"
-                            checked={rows.length > 0 && rows.every((r) => selectedIds.has(r.bookingId))}
-                            onChange={toggleSelectPage}
-                            className="rounded border-gray-600"
-                        />
-                        Select page
-                    </label>
+                    <button
+                        type="button"
+                        onClick={toggleSelectPage}
+                        className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-[#0ECCEE] transition-colors"
+                    >
+                        {pageSelected ? <CheckSquare size={14} className="text-[#0ECCEE]" /> : <Square size={14} />}
+                        {pageSelected ? 'Deselect page' : 'Select page'}
+                    </button>
                 </div>
             ) : null}
 
@@ -413,12 +620,18 @@ export default function TrekOrganizerParticipantsPage() {
                     {[1, 2, 3, 4].map((n) => <SkeletonCard key={n} />)}
                 </div>
             ) : rows.length === 0 ? (
-                <div className="text-center py-16 rounded-xl border border-dashed border-gray-800">
-                    <Users className="mx-auto text-gray-600 mb-3" size={32} />
-                    <p className="text-gray-400 font-medium">No participants found</p>
-                    <p className="text-sm text-gray-600 mt-1">{hasFilters ? 'Try clearing filters' : 'Registrations will appear here'}</p>
+                <div className="text-center py-16 rounded-3xl border border-dashed border-white/15 bg-white/5">
+                    <div className="mx-auto size-12 rounded-2xl bg-[#0ECCEE]/10 text-[#0ECCEE] flex items-center justify-center mb-3">
+                        <Users size={22} />
+                    </div>
+                    <p className="text-gray-200 font-medium">No participants found</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                        {hasFilters ? 'Try clearing filters or search' : 'Registrations will appear here'}
+                    </p>
                     {hasFilters ? (
-                        <button type="button" onClick={clearFilters} className="mt-4 text-sm text-[#0ECCEE] hover:underline">Clear filters</button>
+                        <button type="button" onClick={clearFilters} className="mt-4 text-sm text-[#0ECCEE] hover:underline">
+                            Clear filters
+                        </button>
                     ) : null}
                 </div>
             ) : (
@@ -432,9 +645,12 @@ export default function TrekOrganizerParticipantsPage() {
                             selected={selectedIds.has(row.bookingId)}
                             onToggleSelect={toggleSelect}
                             onResend={row.status === 'confirmed' ? handleResend : undefined}
+                            onNotify={row.status === 'confirmed' ? (p) => openMessageModal([p.bookingId], p.participantName) : undefined}
                             onSendEmail={row.status === 'confirmed' ? (p) => openMessageModal([p.bookingId], p.participantName) : undefined}
+                            onWhatsApp={isValidWhatsAppPhone(row.phone) ? (p) => openWhatsAppFor(p) : undefined}
                             onDelete={row.status === 'confirmed' ? handleDelete : undefined}
                             onCopied={(msg) => toast(msg)}
+                            onOpenCrm={(p) => openInCrm(p)}
                             onReviewPayment={
                                 row.paymentStatus === 'Pending review' || row.status === 'pending'
                                     ? () => setReviewTarget(row)
@@ -446,15 +662,66 @@ export default function TrekOrganizerParticipantsPage() {
             )}
 
             {pagination.totalPages > 1 ? (
-                <div className="flex items-center justify-between pt-2 sticky bottom-0 bg-[#0f1011]/95 backdrop-blur py-3 -mx-1 px-1 border-t border-gray-800/50">
+                <div className="flex items-center justify-between pt-1 rounded-2xl border border-white/10 bg-[#161718]/90 px-3 py-3">
                     <p className="text-xs text-gray-500">Page {pagination.page} of {pagination.totalPages}</p>
                     <div className="flex gap-2">
-                        <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-700 text-xs disabled:opacity-30 hover:bg-white/5">
+                        <button
+                            type="button"
+                            disabled={page <= 1}
+                            onClick={() => setPage((p) => p - 1)}
+                            className="inline-flex items-center gap-1 px-3 py-2 min-h-10 rounded-xl border border-white/10 text-xs disabled:opacity-30 hover:bg-white/5"
+                        >
                             <ChevronLeft size={16} /> Prev
                         </button>
-                        <button type="button" disabled={page >= pagination.totalPages} onClick={() => setPage((p) => p + 1)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-700 text-xs disabled:opacity-30 hover:bg-white/5">
+                        <button
+                            type="button"
+                            disabled={page >= pagination.totalPages}
+                            onClick={() => setPage((p) => p + 1)}
+                            className="inline-flex items-center gap-1 px-3 py-2 min-h-10 rounded-xl border border-white/10 text-xs disabled:opacity-30 hover:bg-white/5"
+                        >
                             Next <ChevronRight size={16} />
                         </button>
+                    </div>
+                </div>
+            ) : null}
+
+            {/* Sticky bulk actions */}
+            {selectedCount > 0 ? (
+                <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 z-40 px-3 sm:px-6 pointer-events-none">
+                    <div className="max-w-4xl mx-auto pointer-events-auto">
+                        <div className="rounded-2xl border border-[#0ECCEE]/30 bg-[#121314]/95 backdrop-blur shadow-2xl px-3.5 py-3 flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-white mr-auto px-1">
+                                {selectedCount} selected
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => openMessageModal([...selectedIds])}
+                                className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 rounded-xl bg-[#0ECCEE] text-black text-xs font-bold"
+                            >
+                                <Mail size={14} /> Message
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => openWhatsAppFor(selectedRows)}
+                                className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 rounded-xl bg-[#25D366] text-black text-xs font-bold"
+                            >
+                                <MessageCircle size={14} /> WhatsApp
+                            </button>
+                            <button
+                                type="button"
+                                onClick={copySelectedPhones}
+                                className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 rounded-xl border border-white/10 bg-white/5 text-xs font-medium text-gray-200"
+                            >
+                                <Copy size={14} /> Copy phones
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedIds(new Set())}
+                                className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 rounded-xl border border-white/10 text-xs text-gray-400"
+                            >
+                                <X size={14} /> Clear
+                            </button>
+                        </div>
                     </div>
                 </div>
             ) : null}
@@ -488,6 +755,25 @@ export default function TrekOrganizerParticipantsPage() {
                 recipientLabel={messageModal.label}
                 onSend={handleSendMessage}
             />
+
+            <TrekOrganizerWhatsAppModal
+                open={!!waRecipients}
+                onClose={() => setWaRecipients(null)}
+                recipients={waRecipients || []}
+                trekName={trekName}
+                trekDate={trekDateLabel}
+                meetingPoint={meetingPoint}
+                communityId={String(communityId || '')}
+            />
+
+            {detailBookingId ? (
+                <TrekOrganizerParticipantModal
+                    trekId={trekId}
+                    bookingId={detailBookingId}
+                    onClose={closeDetailModal}
+                    onUpdated={load}
+                />
+            ) : null}
         </div>
     );
 }

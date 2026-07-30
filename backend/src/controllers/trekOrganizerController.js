@@ -560,11 +560,57 @@ exports.listParticipants = async (req, res) => {
 
         const formSchema = trek?.registration?.formSchema || [];
 
+        let crmByUserId = new Map();
+        let crmByPhone = new Map();
+        try {
+            const orgTreks = await getOrganizerTreks(req.organizer);
+            const orgTrekIds = orgTreks.map((t) => t._id);
+            if (orgTrekIds.length) {
+                const communityBookings = await TrekBooking.find({
+                    trekId: { $in: orgTrekIds },
+                    status: { $in: ['confirmed', 'pending'] },
+                })
+                    .populate('userId', 'name email phoneNumber')
+                    .select('trekId userId userName userEmail formData createdAt status paymentStatus payment_gateway paymentReviewNote bookingDetails checkedIn')
+                    .lean();
+                const trekNameById = new Map(orgTreks.map((t) => [String(t._id), t.trekName || 'Trek']));
+                const trekMetaById = new Map(
+                    orgTreks.map((t) => [String(t._id), { dateLabel: formatTrekMetaDate(t) }]),
+                );
+                const crmRows = buildCustomerRows(communityBookings, { trekNameById, trekMetaById, scopedTrek: null });
+                for (const row of crmRows) {
+                    if (row.id.startsWith('user:')) {
+                        crmByUserId.set(row.id.slice(5), row);
+                    }
+                    if (row.phoneNormalized) {
+                        crmByPhone.set(row.phoneNormalized, row);
+                    }
+                }
+            }
+        } catch (crmErr) {
+            console.warn('[trekOrganizer.listParticipants] CRM enrich skipped', crmErr.message);
+        }
+
+        const participants = bookings.map((b) => {
+            const row = formatParticipantSheetRow(b, trek);
+            const phoneNorm = normalizeCustomerPhone(row.phone);
+            const userKey = b.userId?._id ? String(b.userId._id) : (b.userId ? String(b.userId) : '');
+            const crm = (userKey && crmByUserId.get(userKey))
+                || (phoneNorm && crmByPhone.get(phoneNorm))
+                || null;
+            return {
+                ...row,
+                trekCount: crm?.trekCount || 1,
+                customerId: crm?.id || null,
+                isRepeat: (crm?.trekCount || 1) >= 2,
+            };
+        });
+
         res.json({
             success: true,
             trekName: trek?.trekName || '',
             columns: buildSheetColumns(formSchema),
-            participants: bookings.map((b) => formatParticipantSheetRow(b, trek)),
+            participants,
             pagination: {
                 page,
                 limit,
@@ -1188,5 +1234,500 @@ exports.getCheckinStats = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to load check-in stats' });
+    }
+};
+
+function normalizeCustomerPhone(raw) {
+    const digits = String(raw || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.length === 10) return `91${digits}`;
+    if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`;
+    if (digits.length >= 12 && digits.startsWith('91')) return digits.slice(0, 12);
+    return digits;
+}
+
+function isValidCustomerPhone(normalizedOrRaw) {
+    const n = normalizeCustomerPhone(normalizedOrRaw);
+    return /^\d{10,15}$/.test(n);
+}
+
+function pickCustomerPhone(booking) {
+    const form = booking.formData || {};
+    const fromForm = ['contact_no', 'phone', 'mobile', 'contact', 'whatsapp']
+        .map((k) => form[k])
+        .find((v) => v !== undefined && v !== null && String(v).trim());
+    return String(fromForm || booking.userId?.phoneNumber || '').trim();
+}
+
+function pickCustomerName(booking) {
+    const form = booking.formData || {};
+    return (
+        ['full_name', 'name', 'fullname', 'Full Name']
+            .map((k) => form[k])
+            .find((v) => v !== undefined && v !== null && String(v).trim())
+        || booking.userName
+        || booking.userId?.name
+        || 'Guest'
+    );
+}
+
+function customerIdentityKey(booking) {
+    if (booking.userId?._id || (booking.userId && typeof booking.userId === 'object' && booking.userId._id)) {
+        return `user:${String(booking.userId._id)}`;
+    }
+    if (booking.userId && mongoose.Types.ObjectId.isValid(booking.userId)) {
+        return `user:${String(booking.userId)}`;
+    }
+    const phone = normalizeCustomerPhone(pickCustomerPhone(booking));
+    if (phone) return `phone:${phone}`;
+    const email = String(booking.userEmail || booking.userId?.email || '').trim().toLowerCase();
+    if (email) return `email:${email}`;
+    return `booking:${String(booking._id)}`;
+}
+
+function formatCustomerPaymentLabel(booking) {
+    const gross = Number(booking.bookingDetails?.amountPaid) || 0;
+    if (booking.status === 'cancelled' && (booking.paymentStatus === 'failed' || booking.paymentReviewNote)) {
+        return 'Rejected';
+    }
+    if (
+        booking.status === 'pending'
+        || booking.paymentStatus === 'pending'
+        || (booking.payment_gateway === 'organizer_qr' && booking.status === 'pending')
+    ) {
+        return 'Pending review';
+    }
+    if (gross > 0 || booking.paymentStatus === 'paid') return 'Paid';
+    return 'Free';
+}
+
+function preferCustomerName(current, next) {
+    const a = String(current || '').trim();
+    const b = String(next || '').trim();
+    if (!a || a === 'Guest') return b || a || 'Guest';
+    if (!b || b === 'Guest') return a;
+    return a.length >= b.length ? a : b;
+}
+
+function mergeCustomerRows(into, from) {
+    for (const trekId of from.trekIds) into.trekIds.add(trekId);
+    into.bookingCount += from.bookingCount;
+    into.name = preferCustomerName(into.name, from.name);
+    if ((!into.phone || into.phone === '—') && from.phone) {
+        into.phone = from.phone;
+        into.phoneNormalized = from.phoneNormalized;
+    } else if (from.phoneNormalized && !into.phoneNormalized) {
+        into.phone = from.phone;
+        into.phoneNormalized = from.phoneNormalized;
+    }
+    if (!into.email && from.email) into.email = from.email;
+    if (from.lastBookedAt && (!into.lastBookedAt || from.lastBookedAt > into.lastBookedAt)) {
+        into.lastBookedAt = from.lastBookedAt;
+        into.lastTrekName = from.lastTrekName;
+    }
+    if (from.firstBookedAt && (!into.firstBookedAt || from.firstBookedAt < into.firstBookedAt)) {
+        into.firstBookedAt = from.firstBookedAt;
+    }
+    if (from.scopedBookedAt && (!into.scopedBookedAt || from.scopedBookedAt > into.scopedBookedAt)) {
+        into.scopedBookedAt = from.scopedBookedAt;
+        into.scopedBookingId = from.scopedBookingId;
+    }
+    into.history.push(...from.history);
+}
+
+/** Prefer user: keys; merge guests that share a normalized phone with a user or each other. */
+function mergeCustomersByPhone(byKey) {
+    const phoneToCanonical = new Map();
+    const keys = [...byKey.keys()];
+
+    for (const key of keys) {
+        const row = byKey.get(key);
+        if (!row?.phoneNormalized) continue;
+        const existing = phoneToCanonical.get(row.phoneNormalized);
+        if (!existing) {
+            phoneToCanonical.set(row.phoneNormalized, key);
+            continue;
+        }
+        const keepUser = key.startsWith('user:') && !existing.startsWith('user:');
+        const dropKey = keepUser ? existing : key;
+        const keepKey = keepUser ? key : existing;
+        if (dropKey === keepKey) continue;
+        const keepRow = byKey.get(keepKey);
+        const dropRow = byKey.get(dropKey);
+        if (!keepRow || !dropRow) continue;
+        mergeCustomerRows(keepRow, dropRow);
+        keepRow.id = keepKey;
+        byKey.delete(dropKey);
+        phoneToCanonical.set(row.phoneNormalized, keepKey);
+    }
+    return byKey;
+}
+
+function formatTrekMetaDate(trek) {
+    if (!trek) return '';
+    if (trek.dateLabel) return String(trek.dateLabel).trim();
+    if (trek.trekDate) {
+        const d = new Date(trek.trekDate);
+        if (!Number.isNaN(d.getTime())) {
+            return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+    }
+    return '';
+}
+
+function buildCustomerRows(bookings, { trekNameById, trekMetaById, scopedTrek }) {
+    const byKey = new Map();
+
+    for (const booking of bookings) {
+        const key = customerIdentityKey(booking);
+        const phoneRaw = pickCustomerPhone(booking);
+        const phoneNorm = normalizeCustomerPhone(phoneRaw);
+        const name = String(pickCustomerName(booking) || 'Guest').trim() || 'Guest';
+        const trekIdStr = String(booking.trekId);
+        const bookedAt = booking.createdAt ? new Date(booking.createdAt) : null;
+        const trekMeta = trekMetaById.get(trekIdStr) || {};
+        const historyEntry = {
+            trekId: trekIdStr,
+            trekName: trekNameById.get(trekIdStr) || 'Trek',
+            trekDate: booking.bookingDetails?.date || trekMeta.dateLabel || '',
+            bookedAt,
+            status: booking.status || 'confirmed',
+            paymentStatus: formatCustomerPaymentLabel(booking),
+            checkedIn: Boolean(booking.checkedIn),
+            bookingId: String(booking._id),
+        };
+
+        let row = byKey.get(key);
+        if (!row) {
+            row = {
+                id: key,
+                name,
+                phone: phoneRaw || '',
+                phoneNormalized: phoneNorm,
+                email: String(booking.userEmail || booking.userId?.email || '').trim(),
+                trekIds: new Set(),
+                bookingCount: 0,
+                lastBookedAt: null,
+                lastTrekName: '',
+                firstBookedAt: null,
+                scopedBookedAt: null,
+                scopedBookingId: null,
+                history: [],
+            };
+            byKey.set(key, row);
+        }
+
+        row.bookingCount += 1;
+        row.trekIds.add(trekIdStr);
+        row.history.push(historyEntry);
+
+        if (phoneRaw) {
+            if (!row.phone || row.phone === '—' || (!row.phoneNormalized && phoneNorm)) {
+                row.phone = phoneRaw;
+                row.phoneNormalized = phoneNorm;
+            } else if (phoneNorm && phoneNorm.length >= String(row.phoneNormalized || '').length) {
+                row.phone = phoneRaw;
+                row.phoneNormalized = phoneNorm;
+            }
+        }
+        row.name = preferCustomerName(row.name, name);
+        if (!row.email && (booking.userEmail || booking.userId?.email)) {
+            row.email = String(booking.userEmail || booking.userId?.email || '').trim();
+        }
+        if (bookedAt && (!row.lastBookedAt || bookedAt > row.lastBookedAt)) {
+            row.lastBookedAt = bookedAt;
+            row.lastTrekName = trekNameById.get(trekIdStr) || '';
+        }
+        if (bookedAt && (!row.firstBookedAt || bookedAt < row.firstBookedAt)) {
+            row.firstBookedAt = bookedAt;
+        }
+        if (scopedTrek && trekIdStr === scopedTrek.id) {
+            if (bookedAt && (!row.scopedBookedAt || bookedAt > row.scopedBookedAt)) {
+                row.scopedBookedAt = bookedAt;
+                row.scopedBookingId = String(booking._id);
+            }
+        }
+    }
+
+    mergeCustomersByPhone(byKey);
+
+    return [...byKey.values()].map((row) => {
+        const history = [...row.history].sort((a, b) => {
+            const at = a.bookedAt ? new Date(a.bookedAt).getTime() : 0;
+            const bt = b.bookedAt ? new Date(b.bookedAt).getTime() : 0;
+            return bt - at;
+        });
+        const hasPhone = isValidCustomerPhone(row.phoneNormalized || row.phone);
+        return {
+            id: row.id,
+            name: row.name,
+            phone: row.phone || '—',
+            phoneNormalized: row.phoneNormalized || '',
+            hasPhone,
+            email: row.email || '',
+            trekCount: row.trekIds.size,
+            bookingCount: row.bookingCount,
+            lastBookedAt: row.lastBookedAt,
+            lastTrekName: row.lastTrekName,
+            firstBookedAt: row.firstBookedAt,
+            scopedBookedAt: row.scopedBookedAt,
+            scopedBookingId: row.scopedBookingId,
+            onThisTrek: scopedTrek ? row.trekIds.has(scopedTrek.id) : true,
+            trekHistory: history,
+        };
+    });
+}
+
+function parseCustomerListQuery(req) {
+    return {
+        page: Math.max(1, Number(req.query.page) || 1),
+        limit: Math.min(500, Math.max(10, Number(req.query.limit) || 50)),
+        search: String(req.query.search || '').trim().toLowerCase(),
+        sortBy: String(req.query.sortBy || 'trekCount'),
+        sortDir: req.query.sortDir === 'asc' ? 1 : -1,
+        repeatOnly: req.query.repeatOnly === '1' || req.query.repeatOnly === 'true',
+        missingPhone: req.query.missingPhone === '1' || req.query.missingPhone === 'true',
+        filterTrekId: String(req.query.trekId || '').trim(),
+        forSelect: req.query.forSelect === '1' || req.query.forSelect === 'true',
+    };
+}
+
+async function loadOrganizerCustomerContext(organizer, filterTrekId) {
+    const treks = await getOrganizerTreks(organizer);
+    const trekIds = treks.map((t) => t._id);
+    const trekNameById = new Map(treks.map((t) => [String(t._id), t.trekName || 'Trek']));
+    const trekMetaById = new Map(
+        treks.map((t) => [
+            String(t._id),
+            {
+                dateLabel: formatTrekMetaDate(t),
+                meetingLocation: String(t.meetingLocation || '').trim(),
+                trekName: t.trekName || 'Trek',
+            },
+        ]),
+    );
+
+    let scopedTrek = null;
+    if (filterTrekId) {
+        if (!mongoose.Types.ObjectId.isValid(filterTrekId)) {
+            const err = new Error('Invalid trek id');
+            err.status = 400;
+            throw err;
+        }
+        const allowed = trekIds.some((id) => String(id) === filterTrekId);
+        if (!allowed) {
+            const err = new Error('Trek not in your community');
+            err.status = 403;
+            throw err;
+        }
+        const meta = trekMetaById.get(filterTrekId) || {};
+        scopedTrek = {
+            id: filterTrekId,
+            name: trekNameById.get(filterTrekId) || 'Trek',
+            dateLabel: meta.dateLabel || '',
+            meetingLocation: meta.meetingLocation || '',
+        };
+    }
+
+    return { treks, trekIds, trekNameById, trekMetaById, scopedTrek };
+}
+
+function filterAndSortCustomers(customers, { search, repeatOnly, missingPhone, sortBy, sortDir, scopedTrek }) {
+    let list = customers;
+    if (scopedTrek) {
+        list = list.filter((c) => c.onThisTrek);
+    }
+
+    const stats = {
+        totalCustomers: list.length,
+        repeatCustomers: list.filter((c) => c.trekCount >= 2).length,
+        missingPhone: list.filter((c) => !c.hasPhone).length,
+    };
+
+    if (search) {
+        const digits = search.replace(/\D/g, '');
+        list = list.filter((c) => {
+            const nameHit = c.name.toLowerCase().includes(search);
+            const phoneHit = digits
+                ? String(c.phoneNormalized || c.phone).replace(/\D/g, '').includes(digits)
+                : String(c.phone).toLowerCase().includes(search);
+            const emailHit = c.email.toLowerCase().includes(search);
+            return nameHit || phoneHit || emailHit;
+        });
+    }
+    if (repeatOnly) {
+        list = list.filter((c) => c.trekCount >= 2);
+    }
+    if (missingPhone) {
+        list = list.filter((c) => !c.hasPhone);
+    }
+
+    list.sort((a, b) => {
+        let av;
+        let bv;
+        if (sortBy === 'name') {
+            av = a.name.toLowerCase();
+            bv = b.name.toLowerCase();
+        } else if (sortBy === 'lastBookedAt') {
+            av = a.lastBookedAt ? new Date(a.lastBookedAt).getTime() : 0;
+            bv = b.lastBookedAt ? new Date(b.lastBookedAt).getTime() : 0;
+        } else if (sortBy === 'firstBookedAt') {
+            av = a.firstBookedAt ? new Date(a.firstBookedAt).getTime() : 0;
+            bv = b.firstBookedAt ? new Date(b.firstBookedAt).getTime() : 0;
+        } else if (sortBy === 'scopedBookedAt') {
+            av = a.scopedBookedAt ? new Date(a.scopedBookedAt).getTime() : 0;
+            bv = b.scopedBookedAt ? new Date(b.scopedBookedAt).getTime() : 0;
+        } else {
+            av = a.trekCount;
+            bv = b.trekCount;
+        }
+        if (av < bv) return -1 * sortDir;
+        if (av > bv) return 1 * sortDir;
+        return a.name.localeCompare(b.name);
+    });
+
+    return { list, stats };
+}
+
+async function queryOrganizerCustomers(organizer, query) {
+    const ctx = await loadOrganizerCustomerContext(organizer, query.filterTrekId);
+    const { trekIds, trekNameById, trekMetaById, scopedTrek } = ctx;
+
+    if (!trekIds.length) {
+        return {
+            scopedTrek: null,
+            bookings: [],
+            customers: [],
+            stats: { totalCustomers: 0, repeatCustomers: 0, missingPhone: 0, totalBookings: 0 },
+            list: [],
+        };
+    }
+
+    const bookings = await TrekBooking.find({
+        trekId: { $in: trekIds },
+        status: { $in: ['confirmed', 'pending'] },
+    })
+        .populate('userId', 'name email phoneNumber')
+        .select('trekId userId userName userEmail formData createdAt status paymentStatus payment_gateway paymentReviewNote bookingDetails checkedIn checkedInAt')
+        .lean();
+
+    const customers = buildCustomerRows(bookings, { trekNameById, trekMetaById, scopedTrek });
+    const { list, stats } = filterAndSortCustomers(customers, {
+        ...query,
+        scopedTrek,
+    });
+    const scopedBookingCount = scopedTrek
+        ? bookings.filter((b) => String(b.trekId) === scopedTrek.id).length
+        : bookings.length;
+
+    return {
+        scopedTrek,
+        bookings,
+        customers,
+        list,
+        stats: { ...stats, totalBookings: scopedBookingCount },
+    };
+}
+
+/** Community-wide or trek-scoped unique guests with trek counts (for organizer CRM). */
+exports.listCustomers = async (req, res) => {
+    try {
+        const query = parseCustomerListQuery(req);
+        const { scopedTrek, list, stats } = await queryOrganizerCustomers(req.organizer, query);
+
+        if (query.forSelect) {
+            const selectRows = list
+                .filter((c) => c.hasPhone)
+                .slice(0, 500)
+                .map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    phone: c.phone,
+                    trekCount: c.trekCount,
+                    lastTrekName: c.lastTrekName,
+                    scopedBookingId: c.scopedBookingId,
+                }));
+            return res.json({
+                success: true,
+                scope: scopedTrek ? 'trek' : 'community',
+                trek: scopedTrek,
+                customers: selectRows,
+                stats,
+            });
+        }
+
+        const total = list.length;
+        const totalPages = Math.max(1, Math.ceil(total / query.limit));
+        const start = (query.page - 1) * query.limit;
+        const pageRows = list.slice(start, start + query.limit);
+
+        res.json({
+            success: true,
+            scope: scopedTrek ? 'trek' : 'community',
+            trek: scopedTrek,
+            customers: pageRows,
+            pagination: { page: query.page, limit: query.limit, total, totalPages },
+            stats,
+        });
+    } catch (error) {
+        if (error.status) {
+            return res.status(error.status).json({ success: false, message: error.message });
+        }
+        console.error('[trekOrganizer.listCustomers]', error);
+        res.status(500).json({ success: false, message: 'Failed to load customers' });
+    }
+};
+
+exports.exportCustomers = async (req, res) => {
+    try {
+        const query = {
+            ...parseCustomerListQuery(req),
+            page: 1,
+            limit: 5000,
+            forSelect: false,
+        };
+        const { scopedTrek, list } = await queryOrganizerCustomers(req.organizer, query);
+
+        const header = [
+            'Name',
+            'Phone',
+            'Email',
+            'Trek count',
+            'Booking count',
+            'Last trek',
+            'Last booked',
+            'First booked',
+            'Has phone',
+        ];
+        const lines = [header.join(',')];
+        for (const c of list) {
+            const cells = [
+                c.name,
+                c.phone === '—' ? '' : c.phone,
+                c.email,
+                c.trekCount,
+                c.bookingCount,
+                c.lastTrekName || '',
+                c.lastBookedAt ? new Date(c.lastBookedAt).toISOString().slice(0, 10) : '',
+                c.firstBookedAt ? new Date(c.firstBookedAt).toISOString().slice(0, 10) : '',
+                c.hasPhone ? 'yes' : 'no',
+            ].map((v) => {
+                const str = String(v ?? '');
+                if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+                return str;
+            });
+            lines.push(cells.join(','));
+        }
+
+        const safeName = (scopedTrek?.name || 'community').replace(/[^a-z0-9-_]+/gi, '_');
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}_customers.csv"`);
+        res.send(`\uFEFF${lines.join('\n')}`);
+    } catch (error) {
+        if (error.status) {
+            return res.status(error.status).json({ success: false, message: error.message });
+        }
+        console.error('[trekOrganizer.exportCustomers]', error);
+        res.status(500).json({ success: false, message: 'Export failed' });
     }
 };
