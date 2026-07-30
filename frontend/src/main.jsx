@@ -11,12 +11,6 @@ import { isNativeApp } from './utils/capacitorPlatform'
 import { initCashfreeNativeGateway } from './utils/bootstrapCashfreeNative'
 import { initGlobalErrorHandlers } from './utils/chunkError'
 import { preloadAllCategoryNavIcons } from './constants/categoryNavIcons'
-import { forceWwwHost } from './config/apiBase.js'
-
-// Apex → www before any API calls. Instagram opens apex links; POST /api on apex 307s and drops the body.
-if (forceWwwHost()) {
-  // Hard navigation in progress — don't mount React on the apex document
-} else {
 
 initThemeClass()
 initSentry()
@@ -77,5 +71,3 @@ window.requestAnimationFrame(() => {
   const fallback = document.getElementById('boot-fallback');
   if (fallback) fallback.hidden = true;
 })
-
-} // end forceWwwHost else

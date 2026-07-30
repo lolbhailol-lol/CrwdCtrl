@@ -75,6 +75,13 @@ export function shouldShowBootSplash() {
     if (hasAuthCallbackParams()) return false;
     if (hasPaymentReturnContext()) return false;
     if (isSharedContentDeepLink()) return false;
+    // Instagram / FB / WhatsApp: splash + timers often leave a blank black shell
+    try {
+      const ua = navigator.userAgent || '';
+      if (/Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp|Line\/|Telegram|TikTok|BytedanceWebview|MicroMessenger/i.test(ua)) {
+        return false;
+      }
+    } catch { /* ignore */ }
 
     const [nav] = performance.getEntriesByType?.('navigation') ?? [];
     if (nav?.type === 'reload' || nav?.type === 'navigate') return true;
@@ -92,8 +99,11 @@ export function shouldShowBootSplash() {
 export function removeHtmlBootSplash() {
   const el = document.getElementById('boot-splash');
   if (!el) return;
-  // Deep links / skip class — drop instantly (no fade lag)
-  if (document.documentElement.classList.contains('skip-boot-splash') || isSharedContentDeepLink()) {
+  // Deep links / Instagram skip class — drop instantly (no fade lag)
+  if (
+    document.documentElement.classList.contains('skip-boot-splash')
+    || isSharedContentDeepLink()
+  ) {
     el.remove();
     return;
   }

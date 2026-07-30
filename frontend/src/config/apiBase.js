@@ -5,6 +5,7 @@ export const PRODUCTION_API_BASE_URL =
 export const LOCAL_DEV_API_BASE_URL = 'http://localhost:8080/api';
 
 const WEB_HOSTS = new Set(['crwdctrl.in', 'www.crwdctrl.in']);
+const WWW_API_BASE = 'https://www.crwdctrl.in/api';
 
 /**
  * Instagram / Facebook / WhatsApp / Line / Telegram in-app browsers.
@@ -16,37 +17,27 @@ export function isInAppBrowser(ua = typeof navigator !== 'undefined' ? navigator
 }
 
 /**
- * Apex crwdctrl.in 307-redirects every request (including POST /api) to www,
- * which drops POST bodies in many WebViews. Call once at boot on web.
+ * Apex crwdctrl.in 307-redirects at the CDN. Do NOT hard-navigate in JS —
+ * Instagram / FB WebViews often fail location.replace and leave a black shell
+ * (bottom nav only). Keep this as a no-op so the app always mounts.
  */
 export function forceWwwHost() {
-  if (typeof window === 'undefined') return false;
-  try {
-    const { hostname, protocol, pathname, search, hash } = window.location;
-    if (hostname !== 'crwdctrl.in') return false;
-    if (protocol === 'file:' || protocol === 'capacitor:' || protocol === 'ionic:') return false;
-    window.location.replace(`https://www.crwdctrl.in${pathname}${search}${hash}`);
-    return true;
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 /**
- * Same-origin `/api` on the production web domain (Vercel → Railway rewrite).
- * Uses the current origin (relative) so Instagram WebViews never cross-origin
- * for the primary path. Prefer www via forceWwwHost() before calling APIs.
+ * Preferred API base for the marketing site.
+ * - www → same-origin `/api` (Vercel→Railway rewrite; Instagram-safe)
+ * - apex → www `/api` (apex `/api` 307s and drops POST bodies)
  */
 export function getSameOriginApiBase() {
   if (typeof window === 'undefined') return null;
   const { hostname, protocol, origin } = window.location;
   if (!WEB_HOSTS.has(hostname)) return null;
   if (protocol === 'file:' || protocol === 'capacitor:' || protocol === 'ionic:') return null;
-  // Relative `/api` stays on the exact host the page loaded — no apex→www hop mid-POST
-  if (hostname === 'www.crwdctrl.in' || hostname === 'crwdctrl.in') {
-    return `${origin}/api`;
-  }
-  return null;
+  // Apex POST /api is 307'd to www — never use apex origin for API
+  if (hostname === 'crwdctrl.in') return WWW_API_BASE;
+  return `${origin}/api`;
 }
 
 /**
@@ -67,27 +58,26 @@ export function getApiBaseUrl() {
 
 /**
  * Ordered bases for resilient public fetches.
- * On crwdctrl.in / www, prefer same-origin `/api` first —
- * Instagram / WhatsApp / FB in-app browsers often block direct railway.app XHR
- * (and Helmet CORP used to make that fail even when CORS allowed it).
- * Then Railway direct as fallback.
+ * Prefer www `/api` (or same-origin on www), then Railway.
  */
 export function getApiBaseCandidates() {
   const primary = getApiBaseUrl();
-  const sameOrigin = getSameOriginApiBase();
+  const siteApi = getSameOriginApiBase();
   const bases = [];
 
-  // Always try true same-origin first on the marketing site (Instagram-safe)
-  if (sameOrigin) bases.push(sameOrigin);
+  if (siteApi) bases.push(siteApi);
+  // On apex, also try relative /api only after www — usually 307 fails for POST
+  if (typeof window !== 'undefined' && window.location.hostname === 'www.crwdctrl.in') {
+    // already covered by siteApi
+  } else if (siteApi === WWW_API_BASE && !bases.includes(WWW_API_BASE)) {
+    bases.push(WWW_API_BASE);
+  }
 
-  // In-app browsers: skip putting Railway early when same-origin exists —
-  // only use it as last resort after same-origin fails.
   if (!bases.includes(primary)) bases.push(primary);
   if (primary !== PRODUCTION_API_BASE_URL && !bases.includes(PRODUCTION_API_BASE_URL)) {
     bases.push(PRODUCTION_API_BASE_URL);
   }
 
-  // Dedupe while preserving order
   return [...new Set(bases.filter(Boolean))];
 }
 

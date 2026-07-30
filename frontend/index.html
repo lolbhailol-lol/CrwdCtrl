@@ -9,11 +9,9 @@
   <script>
     (function () {
       try {
-        // Apex → www before any API. Instagram opens apex; POST /api there 307s and drops the body.
-        if (location.hostname === 'crwdctrl.in') {
-          location.replace('https://www.crwdctrl.in' + location.pathname + location.search + location.hash);
-          return;
-        }
+        // Do NOT client-redirect apex → www here. Instagram's in-app browser often
+        // fails location.replace and leaves a black shell. Apex already 307s to www
+        // at the CDN; API calls use same-origin /api on whatever host loaded.
         var saved = localStorage.getItem('crwdctrl-theme');
         var dark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) document.documentElement.classList.add('dark');
@@ -26,6 +24,8 @@
     (function () {
       try {
         var p = location.pathname || '';
+        var ua = navigator.userAgent || '';
+        var inApp = /Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp|Line\/|Telegram|TikTok|BytedanceWebview|MicroMessenger/i.test(ua);
         var deep = /^\/trek(\/|$)/.test(p)
           || /^\/treks\/community(\/|$)/.test(p)
           || /^\/view-details(\/|$)/.test(p)
@@ -33,7 +33,8 @@
           || /^\/sports\/run(\/|$)/.test(p)
           || /^\/sports\/run-club(\/|$)/.test(p)
           || /^\/events\/[^/]+/.test(p);
-        if (deep) document.documentElement.classList.add('skip-boot-splash');
+        // Instagram: never show boot splash — it commonly sticks as a black screen
+        if (deep || inApp) document.documentElement.classList.add('skip-boot-splash');
       } catch (e) {}
     })();
   </script>

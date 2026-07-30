@@ -90,6 +90,8 @@ export function PageTransitionProvider({ children }) {
                 onComplete?.();
             }, SKELETON_LOADING_MS),
             setTimeout(finishTransition, SKELETON_LOADING_SAFETY_MS),
+            // Instagram / throttled WebViews sometimes drop short timers — hard unlock
+            setTimeout(finishTransition, 1500),
         );
     }, [finishTransition]);
 
@@ -114,6 +116,13 @@ export function PageTransitionProvider({ children }) {
             window.history.scrollRestoration = 'manual';
         }
     }, []);
+
+    // Never leave route content visibility:hidden (black shell + bottom nav only)
+    useEffect(() => {
+        if (!isTransitioning) return undefined;
+        const unlock = window.setTimeout(() => setIsTransitioning(false), 2000);
+        return () => window.clearTimeout(unlock);
+    }, [isTransitioning]);
 
     useLayoutEffect(() => {
         document.body.classList.toggle('page-transition-active', showSkeleton);
@@ -183,6 +192,7 @@ export function PageTransitionProvider({ children }) {
 /** Wrap route content — visually hidden while transition skeleton is showing.
  *  Use `inert` (not aria-hidden) so a focused control inside never violates a11y
  *  when the shell is temporarily non-interactive.
+ *  Prefer opacity over visibility so Instagram WebViews never leave an empty black panel.
  */
 export function PageTransitionContent({ children }) {
     const { contentVisible } = usePageTransition();
@@ -202,7 +212,9 @@ export function PageTransitionContent({ children }) {
             ref={ref}
             className="page-transition-content"
             inert={!contentVisible ? true : undefined}
-            style={contentVisible ? undefined : { visibility: 'hidden', pointerEvents: 'none' }}
+            style={contentVisible
+                ? undefined
+                : { opacity: 0, pointerEvents: 'none', minHeight: '40vh' }}
         >
             {children}
         </div>
