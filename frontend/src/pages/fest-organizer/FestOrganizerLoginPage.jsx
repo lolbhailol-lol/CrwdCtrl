@@ -7,6 +7,7 @@ import { showAppPopup } from '../../utils/appPopup';
 export default function FestOrganizerLoginPage() {
     const navigate = useNavigate();
     const location = useLocation();
+    const [displayName, setDisplayName] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -15,13 +16,18 @@ export default function FestOrganizerLoginPage() {
     const submit = async (e) => {
         e.preventDefault();
         setError('');
+        const name = displayName.trim();
+        if (name.length < 2) {
+            setError('Enter your name');
+            return;
+        }
         setLoading(true);
         try {
-            const data = await festOrganizerLogin(username, password);
+            const data = await festOrganizerLogin(username, password, name);
             applyFestOrganizerAuthPayload(data);
             showAppPopup({
                 title: 'Signed in successfully',
-                message: 'Welcome to the fest organizer portal.',
+                message: `Welcome, ${name}.`,
                 tone: 'login',
             });
             navigate(location.state?.from || '/fest-organizer', { replace: true });
@@ -36,9 +42,19 @@ export default function FestOrganizerLoginPage() {
         <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-5">
             <div className="w-full max-w-sm">
                 <h1 className="text-2xl font-bold text-white tracking-tight">Fest Organizer</h1>
-                <p className="text-sm text-gray-500 mt-1 mb-8">Sign in</p>
+                <p className="text-sm text-gray-500 mt-1 mb-8">Write your name, then sign in</p>
 
                 <form onSubmit={submit} className="space-y-3">
+                    <input
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value.slice(0, 80))}
+                        placeholder="Your name"
+                        autoComplete="name"
+                        autoFocus
+                        className="w-full px-0 py-3 bg-transparent border-0 border-b border-white/15 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]"
+                        required
+                        minLength={2}
+                    />
                     <input
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}

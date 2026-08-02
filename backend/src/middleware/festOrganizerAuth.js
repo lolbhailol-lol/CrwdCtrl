@@ -24,6 +24,7 @@ async function authenticateFestOrganizer(req, res, next) {
 
         req.organizer = organizer;
         req.organizerId = organizer._id;
+        req.displayName = String(decoded.displayName || '').trim();
         next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') {

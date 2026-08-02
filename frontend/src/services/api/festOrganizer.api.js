@@ -41,10 +41,10 @@ async function festOrganizerFetch(path, options = {}) {
     return data;
 }
 
-export async function festOrganizerLogin(username, password) {
+export async function festOrganizerLogin(username, password, displayName) {
     return festOrganizerFetch('/fest-organizer/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, displayName, name: displayName }),
     });
 }
 

@@ -9,10 +9,9 @@ const router = express.Router();
 router.post('/auth/login', authLimiter, ctrl.login);
 router.post('/auth/signup', authLimiter, ctrl.signup);
 router.get('/me', authenticateFestOrganizer, ctrl.getMe);
+router.get('/logged-in', authenticateFestOrganizer, ctrl.listLoggedInUsers);
 
 router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAccess, ctrl.getDashboard);
-router.get('/fests/:festId/logged-in', authenticateFestOrganizer, requireFestAccess, ctrl.listLoggedInUsers);
-
 router.get('/fests/:festId/participants/export', authenticateFestOrganizer, requireFestAccess, ctrl.exportParticipants);
 router.get('/fests/:festId/participants/:registrationId', authenticateFestOrganizer, requireFestAccess, ctrl.getParticipant);
 router.patch('/fests/:festId/participants/:registrationId/status', authenticateFestOrganizer, requireFestAccess, ctrl.updateParticipantStatus);

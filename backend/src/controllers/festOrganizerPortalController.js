@@ -11,63 +11,60 @@ const {
     normalizeUsername,
     getOrganizerFests,
 } = require('../utils/festOrganizerAccess');
-const FestOrganizerAccess = require('../model/fest_organizer_access_model');
+const FestOrganizerLoginLog = require('../model/fest_organizer_login_log_model');
 
 const TOKEN_TTL = '7d';
 
-function serializeAccess(row, selfId) {
+function normalizeDisplayName(raw) {
+    return String(raw || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+}
+
+function serializeLoginLog(row, selfId, selfDisplayName) {
+    const name = row.displayName || row.username || 'Organizer';
+    const isYou = String(row.organizer) === String(selfId)
+        && String(row.displayNameKey || '') === String(selfDisplayName || '').trim().toLowerCase();
     return {
-        id: String(row.organizer),
-        name: row.name || row.username || 'Organizer',
+        id: String(row._id),
+        organizerId: String(row.organizer),
+        name,
         username: row.username || '',
-        firstAccessAt: row.firstAccessAt || row.createdAt || null,
-        lastAccessAt: row.lastAccessAt || null,
-        accessCount: Number(row.accessCount) || 1,
-        isYou: String(row.organizer) === String(selfId),
+        firstLoginAt: row.firstLoginAt || row.createdAt || null,
+        lastLoginAt: row.lastLoginAt || null,
+        loginCount: Number(row.loginCount) || 1,
+        isYou,
     };
 }
 
-async function listLoggedInForFest(festId, selfId) {
-    const rows = await FestOrganizerAccess.find({ fest: festId })
-        .sort({ name: 1 })
+async function listPortalLoggedInUsers(selfId, selfDisplayName = '') {
+    const rows = await FestOrganizerLoginLog.find({})
+        .sort({ lastLoginAt: -1, displayName: 1 })
+        .limit(200)
         .lean();
-    return rows.map((r) => serializeAccess(r, selfId));
+    return rows.map((r) => serializeLoginLog(r, selfId, selfDisplayName));
 }
 
-/** Store organizer name when they sign in / open this fest dashboard */
-async function recordFestAccess({ festId, organizer }) {
-    if (!festId || !organizer?._id) return;
-    const festOid = new mongoose.Types.ObjectId(String(festId));
-    const orgOid = organizer._id;
+/** Save the name typed on the login page */
+async function recordLoginDisplayName({ organizer, displayName }) {
+    const name = normalizeDisplayName(displayName);
+    if (!name || !organizer?._id) return null;
+    const key = name.toLowerCase();
     const now = new Date();
-    await FestOrganizerAccess.findOneAndUpdate(
-        { fest: festOid, organizer: orgOid },
+    return FestOrganizerLoginLog.findOneAndUpdate(
+        { organizer: organizer._id, displayNameKey: key },
         {
             $set: {
-                name: organizer.name || '',
+                displayName: name,
                 username: organizer.username || '',
-                lastAccessAt: now,
+                lastLoginAt: now,
             },
-            $inc: { accessCount: 1 },
+            $inc: { loginCount: 1 },
             $setOnInsert: {
-                fest: festOid,
-                organizer: orgOid,
-                firstAccessAt: now,
+                organizer: organizer._id,
+                displayNameKey: key,
+                firstLoginAt: now,
             },
         },
         { upsert: true, new: true },
-    );
-}
-
-async function recordAccessForAssignedFests(organizer, fests = []) {
-    const ids = (fests || [])
-        .map((f) => f?._id || f?.id)
-        .filter(Boolean);
-    if (!ids.length && Array.isArray(organizer.assignedFestIds)) {
-        ids.push(...organizer.assignedFestIds);
-    }
-    await Promise.allSettled(
-        [...new Set(ids.map(String))].map((festId) => recordFestAccess({ festId, organizer })),
     );
 }
 
@@ -110,24 +107,37 @@ function formatParticipant(reg) {
     };
 }
 
-async function buildOrganizerAuthResponse(organizer) {
+async function buildOrganizerAuthResponse(organizer, { displayName } = {}) {
     organizer.lastLoginAt = new Date();
     if (!organizer.status) organizer.status = 'approved';
     await organizer.save();
 
+    const typedName = normalizeDisplayName(displayName) || organizer.name || organizer.username || '';
+
     const token = jwt.sign(
-        { organizerId: organizer._id, role: 'fest_organizer', username: organizer.username },
+        {
+            organizerId: organizer._id,
+            role: 'fest_organizer',
+            username: organizer.username,
+            displayName: typedName,
+        },
         getJwtSecret(),
         { expiresIn: TOKEN_TTL },
     );
 
     const fests = await getOrganizerFests(organizer);
 
-    // Store names for each assigned fest when they sign in
     try {
-        await recordAccessForAssignedFests(organizer, fests);
+        await recordLoginDisplayName({ organizer, displayName: typedName });
     } catch (err) {
-        console.warn('[festOrganizerPortal.login] access log', err.message);
+        console.warn('[festOrganizerPortal.login] login log', err.message);
+    }
+
+    let loggedInUsers = [];
+    try {
+        loggedInUsers = await listPortalLoggedInUsers(organizer._id, typedName);
+    } catch (err) {
+        console.warn('[festOrganizerPortal.login] list logins', err.message);
     }
 
     return {
@@ -135,14 +145,18 @@ async function buildOrganizerAuthResponse(organizer) {
         token,
         organizer: {
             id: organizer._id,
-            name: organizer.name,
+            name: typedName,
+            accountName: organizer.name || '',
             username: organizer.username,
             email: organizer.email || '',
             phone: organizer.phone,
             status: FestOrganizerAccount.effectiveStatus(organizer),
             assignedFestIds: organizer.assignedFestIds || [],
+            displayName: typedName,
         },
         fests,
+        loggedInCount: loggedInUsers.length,
+        loggedInUsers,
     };
 }
 
@@ -150,7 +164,11 @@ exports.login = async (req, res) => {
     try {
         const username = normalizeUsername(req.body.username || req.body.email);
         const password = String(req.body.password || '');
+        const displayName = normalizeDisplayName(req.body.displayName || req.body.name);
 
+        if (!displayName || displayName.length < 2) {
+            return res.status(400).json({ success: false, message: 'Enter your name to sign in' });
+        }
         if (!username || !password) {
             return res.status(400).json({ success: false, message: 'Username and password are required' });
         }
@@ -192,7 +210,7 @@ exports.login = async (req, res) => {
             });
         }
 
-        res.json(await buildOrganizerAuthResponse(organizer));
+        res.json(await buildOrganizerAuthResponse(organizer, { displayName }));
     } catch (error) {
         console.error('[festOrganizerPortal.login]', error);
         res.status(500).json({ success: false, message: 'Login failed' });
@@ -285,17 +303,28 @@ exports.signup = async (req, res) => {
 exports.getMe = async (req, res) => {
     try {
         const fests = await getOrganizerFests(req.organizer);
+        const displayName = normalizeDisplayName(req.displayName) || req.organizer.name || '';
+        let loggedInUsers = [];
+        try {
+            loggedInUsers = await listPortalLoggedInUsers(req.organizerId, displayName);
+        } catch (err) {
+            console.warn('[festOrganizerPortal.getMe] login log', err.message);
+        }
         res.json({
             success: true,
             organizer: {
                 id: req.organizer._id,
-                name: req.organizer.name,
+                name: displayName || req.organizer.name,
+                accountName: req.organizer.name || '',
                 username: req.organizer.username,
                 email: req.organizer.email || '',
                 phone: req.organizer.phone,
                 status: FestOrganizerAccount.effectiveStatus(req.organizer),
+                displayName: displayName || req.organizer.name || '',
             },
             fests,
+            loggedInCount: loggedInUsers.length,
+            loggedInUsers,
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to load profile' });
@@ -496,17 +525,6 @@ exports.getDashboard = async (req, res) => {
             };
         });
 
-        let loggedInUsers = [];
-        try {
-            await recordFestAccess({
-                festId,
-                organizer: req.organizer,
-            });
-            loggedInUsers = await listLoggedInForFest(festId, req.organizerId);
-        } catch (accessErr) {
-            console.warn('[festOrganizerPortal.getDashboard] access log', accessErr.message);
-        }
-
         res.json({
             success: true,
             fest: {
@@ -546,8 +564,6 @@ exports.getDashboard = async (req, res) => {
             },
             competitions: competitionStats,
             recent,
-            loggedInCount: loggedInUsers.length,
-            loggedInUsers,
         });
     } catch (error) {
         console.error('[festOrganizerPortal.getDashboard]', error);
@@ -555,10 +571,11 @@ exports.getDashboard = async (req, res) => {
     }
 };
 
-/** Organizers who have signed into this fest dashboard (cumulative, not live) */
+/** People who typed their name and signed into the portal */
 exports.listLoggedInUsers = async (req, res) => {
     try {
-        const loggedInUsers = await listLoggedInForFest(req.festId, req.organizerId);
+        const displayName = normalizeDisplayName(req.displayName) || req.organizer?.name || '';
+        const loggedInUsers = await listPortalLoggedInUsers(req.organizerId, displayName);
         res.json({
             success: true,
             loggedInCount: loggedInUsers.length,

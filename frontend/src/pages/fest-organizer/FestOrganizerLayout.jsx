@@ -75,7 +75,7 @@ export default function FestOrganizerLayout() {
                         <div className="min-w-0">
                             <p className="font-semibold text-sm tracking-tight">Fest Organizer</p>
                             <p className="text-[11px] text-gray-500 truncate">
-                                {session?.organizer?.name || 'Portal'}
+                                {session?.organizer?.displayName || session?.organizer?.name || 'Portal'}
                             </p>
                         </div>
                     </div>
