@@ -3,6 +3,7 @@ const express = require('express');
 const userRoutes = require('../routers/userroute');
 const studentRoutes = require('../routers/studentroute');
 const festOrganizerRoutes = require('../routers/festOrganizerRoute');
+const festOrganizerPortalRoutes = require('../routers/festOrganizerPortalRoute');
 const publicFestRoutes = require('../routers/publicFestRoute');
 const competitionRoutes = require('../routers/competitionRoute');
 const adminRoutes = require('../routers/adminRoute');
@@ -16,6 +17,7 @@ const adminRunClubRoutes = require('../routers/adminRunClubRoute');
 const publicRunClubRoutes = require('../routers/publicRunClubRoute');
 const adminTrekRoutes = require('../routers/adminTrekRoute');
 const adminTrekOrganizerRoutes = require('../routers/adminTrekOrganizerRoute');
+const adminFestOrganizerRoutes = require('../routers/adminFestOrganizerRoute');
 const adminRunClubOrganizerRoutes = require('../routers/adminRunClubOrganizerRoute');
 const adminTrekCommunityRoutes = require('../routers/adminTrekCommunityRoute');
 const publicTrekCommunityRoutes = require('../routers/publicTrekCommunityRoute');
@@ -42,7 +44,10 @@ const router = express.Router();
 
 router.use('/users', authLimiter, userRoutes);
 router.use('/students', studentRoutes);
-router.use('/fest-organizer', festOrganizerRoutes);
+// Legacy User-role fest CRUD + check-in (scanner account portal)
+router.use('/organizer/fests', festOrganizerRoutes);
+// Dedicated fest organizer portal (FestOrganizerAccount JWT)
+router.use('/fest-organizer', festOrganizerPortalRoutes);
 router.use('/fests', publicFestRoutes);
 router.use('/competitions', competitionRoutes);
 router.use('/admin', adminRoutes);
@@ -51,6 +56,7 @@ router.use('/admin/sports', adminSportsRoutes);
 router.use('/admin/run-clubs', adminRunClubRoutes);
 router.use('/admin/treks', adminTrekRoutes);
 router.use('/admin/trek-organizers', adminTrekOrganizerRoutes);
+router.use('/admin/fest-organizers', adminFestOrganizerRoutes);
 router.use('/admin/run-club-organizers', adminRunClubOrganizerRoutes);
 router.use('/admin/trek-communities', adminTrekCommunityRoutes);
 router.use('/admin/site-settings', adminSiteSettingRoutes);

@@ -17,7 +17,7 @@ export default function OrganizerFestListPage() {
 
     (async () => {
       try {
-        const res = await fetch(`${getApiBaseUrl()}/fest-organizer/my-fests`, {
+        const res = await fetch(`${getApiBaseUrl()}/organizer/fests/my-fests`, {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         if (!res.ok) {
@@ -75,7 +75,7 @@ export default function OrganizerFestListPage() {
 
         {fests.map((fest) => {
           const festId = fest._id || fest.id;
-          const exportHref = `${getApiBaseUrl()}/fest-organizer/${festId}/checkins/export`;
+          const exportHref = `${getApiBaseUrl()}/organizer/fests/${festId}/checkins/export`;
           return (
             <div
               key={festId}

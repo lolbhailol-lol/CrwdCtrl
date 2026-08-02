@@ -278,6 +278,12 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
 // ✅ Get single fest details (public view)
 router.get('/:id/public', festOrganizerController.getPublicFestById);
 
+// Shubharam / stall interest capture (no auth)
+const stallLeadCtrl = require('../controllers/festStallLeadController');
+const { stallLeadLimiter } = require('../middleware/rateLimiter');
+router.get('/:id/stall', stallLeadCtrl.getPublicStallMeta);
+router.post('/:id/stall-leads', stallLeadLimiter, stallLeadCtrl.createPublicStallLead);
+
 // Debug route — development only
 router.get('/:id/debug', devOnly, async (req, res) => {
     try {

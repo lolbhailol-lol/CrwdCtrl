@@ -1,0 +1,207 @@
+import { useEffect, useState } from 'react';
+import { X, Loader, Check, Ban, RotateCcw } from 'lucide-react';
+import {
+    fetchFestOrganizerParticipant,
+    updateFestOrganizerParticipantStatus,
+} from '../../services/api/festOrganizer.api';
+import { useDialog } from '../../context/DialogContext';
+
+function Badge({ children, tone = 'neutral' }) {
+    const tones = {
+        success: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+        warning: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+        danger: 'bg-red-500/15 text-red-300 border-red-500/30',
+        neutral: 'bg-white/5 text-gray-300 border-white/10',
+        info: 'bg-[#0ECCEE]/15 text-[#0ECCEE] border-[#0ECCEE]/30',
+    };
+    return (
+        <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-medium border ${tones[tone] || tones.neutral}`}>
+            {children}
+        </span>
+    );
+}
+
+function formatDt(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function statusTone(status) {
+    if (status === 'approved') return 'success';
+    if (status === 'pending') return 'warning';
+    if (status === 'rejected') return 'danger';
+    return 'neutral';
+}
+
+export default function FestOrganizerParticipantModal({ festId, registrationId, onClose, onUpdated }) {
+    const { confirm, toast } = useDialog();
+    const [participant, setParticipant] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [busy, setBusy] = useState('');
+
+    useEffect(() => {
+        if (!festId || !registrationId) return;
+        let cancelled = false;
+        (async () => {
+            setLoading(true);
+            try {
+                const data = await fetchFestOrganizerParticipant(festId, registrationId);
+                if (!cancelled) setParticipant(data.participant);
+            } catch (e) {
+                if (!cancelled) {
+                    toast(e.message || 'Failed to load participant');
+                    onClose();
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [festId, registrationId]);
+
+    const setStatus = async (status, label) => {
+        const ok = await confirm({
+            title: `${label}?`,
+            message: `${participant?.userName || participant?.userEmail || 'This registration'} will be marked ${status}.`,
+        });
+        if (!ok) return;
+        setBusy(status);
+        try {
+            const data = await updateFestOrganizerParticipantStatus(festId, registrationId, status);
+            setParticipant(data.participant);
+            toast(data.message || 'Updated');
+            onUpdated?.();
+        } catch (e) {
+            toast(e.message || 'Failed to update');
+        } finally {
+            setBusy('');
+        }
+    };
+
+    const responses = participant?.responses && typeof participant.responses === 'object'
+        ? Object.entries(participant.responses).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+        : [];
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <button type="button" className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={onClose} aria-label="Close" />
+            <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-white/10 bg-[#121314] shadow-2xl">
+                <div className="sticky top-0 flex items-center justify-between px-4 py-3.5 border-b border-white/10 bg-[#121314]/95 backdrop-blur z-10">
+                    <div>
+                        <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500 font-semibold">Participant</p>
+                        <h2 className="font-semibold text-white">Registration details</h2>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2.5 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl border border-white/10 hover:bg-white/5 text-gray-400"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {loading ? (
+                    <div className="flex justify-center py-16 text-gray-400 gap-2">
+                        <Loader className="animate-spin" size={18} /> Loading…
+                    </div>
+                ) : participant ? (
+                    <div className="p-4 space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-lg font-semibold text-white truncate">{participant.userName || '—'}</p>
+                                <p className="text-sm text-gray-400 truncate">{participant.userEmail || '—'}</p>
+                                {participant.userPhone ? (
+                                    <p className="text-sm text-gray-500 mt-0.5">{participant.userPhone}</p>
+                                ) : null}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                <Badge tone={statusTone(participant.status)}>{participant.status}</Badge>
+                                <Badge tone="info">{participant.paymentStatus}</Badge>
+                                {participant.checkedIn ? <Badge tone="success">Checked in</Badge> : null}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="rounded-xl bg-white/3 px-3 py-2.5">
+                                <p className="text-[10px] text-gray-500 uppercase">Competition</p>
+                                <p className="text-white mt-1">{participant.competitionName || '—'}</p>
+                            </div>
+                            <div className="rounded-xl bg-white/3 px-3 py-2.5">
+                                <p className="text-[10px] text-gray-500 uppercase">Amount</p>
+                                <p className="text-white mt-1">₹{Number(participant.amountPaid || 0).toLocaleString('en-IN')}</p>
+                            </div>
+                            <div className="rounded-xl bg-white/3 px-3 py-2.5">
+                                <p className="text-[10px] text-gray-500 uppercase">Submitted</p>
+                                <p className="text-white mt-1 text-xs">{formatDt(participant.submittedAt || participant.createdAt)}</p>
+                            </div>
+                            <div className="rounded-xl bg-white/3 px-3 py-2.5">
+                                <p className="text-[10px] text-gray-500 uppercase">Check-in</p>
+                                <p className="text-white mt-1 text-xs">
+                                    {participant.checkedIn ? formatDt(participant.checkedInAt) : 'Not yet'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {responses.length ? (
+                            <div className="rounded-xl border border-white/10 overflow-hidden">
+                                <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500 bg-white/3">Form responses</p>
+                                <div className="divide-y divide-white/5">
+                                    {responses.map(([key, value]) => (
+                                        <div key={key} className="px-3 py-2.5 flex items-start justify-between gap-3">
+                                            <p className="text-[11px] text-gray-500 shrink-0 max-w-[40%] break-words">{key}</p>
+                                            <p className="text-sm text-white text-right break-all">
+                                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+
+                        <div className="flex flex-wrap gap-2 pt-1">
+                            {participant.status !== 'approved' ? (
+                                <button
+                                    type="button"
+                                    disabled={Boolean(busy)}
+                                    onClick={() => setStatus('approved', 'Approve registration')}
+                                    className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500 text-black text-sm font-semibold disabled:opacity-50"
+                                >
+                                    {busy === 'approved' ? <Loader className="animate-spin" size={14} /> : <Check size={14} />}
+                                    Approve
+                                </button>
+                            ) : null}
+                            {participant.status !== 'rejected' ? (
+                                <button
+                                    type="button"
+                                    disabled={Boolean(busy)}
+                                    onClick={() => setStatus('rejected', 'Reject registration')}
+                                    className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-red-500/40 text-red-300 text-sm font-semibold disabled:opacity-50"
+                                >
+                                    {busy === 'rejected' ? <Loader className="animate-spin" size={14} /> : <Ban size={14} />}
+                                    Reject
+                                </button>
+                            ) : null}
+                            {participant.status === 'rejected' ? (
+                                <button
+                                    type="button"
+                                    disabled={Boolean(busy)}
+                                    onClick={() => setStatus('pending', 'Move back to pending')}
+                                    className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-white/10 text-gray-300 text-sm disabled:opacity-50"
+                                >
+                                    {busy === 'pending' ? <Loader className="animate-spin" size={14} /> : <RotateCcw size={14} />}
+                                    Set pending
+                                </button>
+                            ) : null}
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+        </div>
+    );
+}

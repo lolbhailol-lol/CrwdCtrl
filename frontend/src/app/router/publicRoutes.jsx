@@ -44,6 +44,7 @@ import {
   RunEventBookingPage,
   TrekCategoryPage,
   PaymentCheckoutPage,
+  FestStallInterestPage,
 } from './lazyPages';
 import {
   paymentReturnRedirect,
@@ -54,6 +55,8 @@ import {
 
 export const publicRoutes = (
   <>
+      <Route path="/stall/:festSlugOrId" element={<FestStallInterestPage />} />
+      <Route path="/s/:festSlugOrId" element={<FestStallInterestPage />} />
       <Route path="/payment/checkout" element={<PaymentCheckoutPage />} />
       {paymentReturnRedirect}
       <Route path="/" element={<Dashboard />} />

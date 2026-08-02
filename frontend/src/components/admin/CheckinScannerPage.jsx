@@ -105,7 +105,7 @@ export default function CheckinScannerPage({
         : mode === 'scanner' && festId
           ? `${getApiBaseUrl()}/scanner/${festId}/checkin`
           : mode === 'organizer' && festId
-            ? `${getApiBaseUrl()}/fest-organizer/${festId}/checkin`
+            ? `${getApiBaseUrl()}/organizer/fests/${festId}/checkin`
             : `${getApiBaseUrl()}/qr/checkin`);
   const resolvedStatsUrl =
     statsUrl ||
@@ -116,7 +116,7 @@ export default function CheckinScannerPage({
         : mode === 'scanner' && festId
           ? `${getApiBaseUrl()}/scanner/${festId}/stats`
           : mode === 'organizer' && festId
-            ? `${getApiBaseUrl()}/fest-organizer/${festId}/checkin-stats`
+            ? `${getApiBaseUrl()}/organizer/fests/${festId}/checkin-stats`
             : null);
   const resolvedTitle =
     title ||

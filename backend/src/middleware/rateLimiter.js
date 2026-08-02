@@ -79,6 +79,15 @@ const scannerCheckinLimiter = rateLimit({
   message: { success: false, message: 'Too many check-in attempts, please slow down.' },
 });
 
+/** Public stall interest form — prevent spam floods */
+const stallLeadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many submissions. Please wait a moment and try again.' },
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
@@ -87,4 +96,5 @@ module.exports = {
   competitionRegisterLimiter,
   registrationLimiter,
   scannerCheckinLimiter,
+  stallLeadLimiter,
 };

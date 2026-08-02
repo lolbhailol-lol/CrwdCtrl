@@ -250,6 +250,15 @@ const festOrganizerSchema = new mongoose.Schema(
     default: 'upcoming',
   },
 
+  /** Public URL slug — e.g. aarohan-2027 for /stall/aarohan-2027 and /view-details/... */
+  slug: {
+    type: String,
+    trim: true,
+    sparse: true,
+    index: true,
+  },
+  previousSlugs: [{ type: String, trim: true }],
+
   priority: {
     type: Number,
     default: 999, // New fests appear last until admin sets priority

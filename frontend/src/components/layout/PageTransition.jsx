@@ -24,6 +24,9 @@ function shouldSkipPageTransition(pathname) {
         pathname === '/profile'
         || pathname.startsWith('/admin')
         || pathname.startsWith('/trek-organizer')
+        || pathname.startsWith('/fest-organizer')
+        || pathname.startsWith('/stall')
+        || pathname.startsWith('/s/')
         || pathname.startsWith('/run-club-organizer')
     );
 }

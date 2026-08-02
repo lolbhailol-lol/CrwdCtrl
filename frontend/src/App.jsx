@@ -65,6 +65,9 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/organizer') ||
     location.pathname.startsWith('/trek-organizer') ||
+    location.pathname.startsWith('/fest-organizer') ||
+    location.pathname.startsWith('/stall') ||
+    location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||
     location.pathname.startsWith('/view-details') ||
     location.pathname.startsWith('/events/') ||
@@ -104,6 +107,9 @@ function ConditionalFooter() {
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/organizer') ||
     location.pathname.startsWith('/trek-organizer') ||
+    location.pathname.startsWith('/fest-organizer') ||
+    location.pathname.startsWith('/stall') ||
+    location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||
     location.pathname.startsWith('/competition-registration') ||
     location.pathname.startsWith('/qr-ticket') ||
@@ -132,7 +138,7 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile,
   const location = useLocation();
 
   // Hide navigation on login, register, and email verification pages
-  const shouldHideNavigation = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin') || location.pathname.startsWith('/trek-organizer') || location.pathname.startsWith('/run-club-organizer');
+  const shouldHideNavigation = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin') || location.pathname.startsWith('/trek-organizer') || location.pathname.startsWith('/fest-organizer') || location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/') || location.pathname.startsWith('/run-club-organizer');
 
   if (shouldHideNavigation) {
     return null;
@@ -174,8 +180,10 @@ function AppContent({
   const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isTrekOrganizerRoute = location.pathname.startsWith('/trek-organizer');
+  const isFestOrganizerRoute = location.pathname.startsWith('/fest-organizer');
+  const isStallRoute = location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/');
   const isRunClubOrganizerRoute = location.pathname.startsWith('/run-club-organizer');
-  const isStandaloneRoute = isAdminRoute || isTrekOrganizerRoute || isRunClubOrganizerRoute;
+  const isStandaloneRoute = isAdminRoute || isTrekOrganizerRoute || isFestOrganizerRoute || isStallRoute || isRunClubOrganizerRoute;
 
   useGlobalSmoothScroll();
 

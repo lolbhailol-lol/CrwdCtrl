@@ -18,6 +18,7 @@ import {
   Users,
   UserCog,
   Footprints,
+  PartyPopper,
   TicketPercent,
   Bell,
 } from 'lucide-react';
@@ -51,6 +52,7 @@ export default function AdminLayout() {
     { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },
     { icon: UserCog, label: 'Community Organizers', path: '/admin/trek-organizers' },
+    { icon: PartyPopper, label: 'Fest Organizers', path: '/admin/fest-organizers' },
     { icon: Footprints, label: 'Run Club Organizers', path: '/admin/run-club-organizers' },
     { icon: Theater, label: 'Events', path: '/admin/events' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
