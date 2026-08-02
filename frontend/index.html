@@ -19,7 +19,8 @@
     })();
   </script>
 
-  <!-- Shared trek/fest/club links: hide logo splash before paint (no lag on open) -->
+  <!-- Shared trek/fest/club links: hide logo splash before paint (no lag on open).
+       Full refresh still shows the logo (see performance.navigation / Navigation Timing). -->
   <script>
     (function () {
       try {
@@ -30,11 +31,20 @@
           || /^\/treks\/community(\/|$)/.test(p)
           || /^\/view-details(\/|$)/.test(p)
           || /^\/competitions-view-details(\/|$)/.test(p)
+          || /^\/competition(\/|$)/.test(p)
+          || /^\/stall(\/|$)/.test(p)
+          || /^\/s(\/|$)/.test(p)
           || /^\/sports\/run(\/|$)/.test(p)
           || /^\/sports\/run-club(\/|$)/.test(p)
           || /^\/events\/[^/]+/.test(p);
+        var isReload = false;
+        try {
+          var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+          isReload = (nav && nav.type === 'reload') || (performance.navigation && performance.navigation.type === 1);
+        } catch (e) {}
         // Instagram: never show boot splash — it commonly sticks as a black screen
-        if (deep || inApp) document.documentElement.classList.add('skip-boot-splash');
+        // Deep links: skip on first open only; keep logo splash on refresh
+        if (inApp || (deep && !isReload)) document.documentElement.classList.add('skip-boot-splash');
       } catch (e) {}
     })();
   </script>

@@ -26,12 +26,55 @@ export function formatTicketPrice(festData = {}) {
   return 'Free';
 }
 
+/** Parse "₹2,500", "2500", 2500, "Free" → number or null if unknown */
+export function parseCompetitionFeeAmount(raw) {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0, raw);
+  const text = String(raw).trim();
+  if (!text) return null;
+  if (/^free$/i.test(text)) return 0;
+  const digits = text.replace(/[^\d.]/g, '');
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) ? Math.max(0, n) : null;
+}
+
+/**
+ * Prefer numeric feeAmount when set (>0), else parse registrationFee / entryFee label.
+ * Avoids showing Free when registrationFee is "2500" but feeAmount is still 0.
+ */
+export function resolveCompetitionFee(comp = {}) {
+  const fromAmount = parseCompetitionFeeAmount(comp.feeAmount);
+  const fromLabel = parseCompetitionFeeAmount(
+    comp.registrationFee ?? comp.entryFee ?? comp.fee,
+  );
+
+  let amount = null;
+  if (fromAmount != null && fromAmount > 0) amount = fromAmount;
+  else if (fromLabel != null) amount = fromLabel;
+  else if (fromAmount === 0) amount = 0;
+
+  if (amount == null) {
+    return { amount: null, label: '—', isFree: false, known: false };
+  }
+  if (amount === 0) {
+    return { amount: 0, label: 'Free', isFree: true, known: true };
+  }
+  return {
+    amount,
+    label: `₹${amount.toLocaleString('en-IN')}`,
+    isFree: false,
+    known: true,
+  };
+}
+
 export function isFestRegistrationDisabled(mode) {
   return mode === 'NOT_STARTED' || mode === 'CLOSED';
 }
 
 export function transformCompetitionItem(comp, festData) {
   const festId = festData?._id || festData?.id;
+  const fee = resolveCompetitionFee(comp);
   return {
     id: comp._id,
     _id: comp._id,
@@ -41,7 +84,7 @@ export function transformCompetitionItem(comp, festData) {
     image: comp.coverImage,
     coverImage: comp.coverImage,
     gallery: comp.gallery || [],
-    fee: comp.registrationFee || 'Free',
+    fee: fee.known ? fee.label : (comp.registrationFee || 'Free'),
     prize: comp.prizePool || 'TBD',
     prizePool: comp.prizePool,
     description: comp.description,
@@ -54,8 +97,8 @@ export function transformCompetitionItem(comp, festData) {
     contact: comp.contact,
     competitionType: comp.competitionType,
     category: comp.category,
-    registrationFee: comp.registrationFee || 'Free',
-    feeAmount: comp.feeAmount || 0,
+    registrationFee: fee.known ? fee.label : (comp.registrationFee || 'Free'),
+    feeAmount: fee.amount ?? 0,
     registrationLink: comp.registrationLink || '',
     registrationType: comp.registrationType || 'fest',
     registration: comp.registration || { status: 'not_started' },
@@ -114,7 +157,7 @@ export function transformFestPublicData(festData) {
     status: festData.status || 'upcoming',
     registrationLink: festData.registrationLink || externalLink,
     registration: { ...registration, externalLink },
-    artists: festData.artists || [],
+    artists: prioritizeFeaturedArtists(festData.artists || []),
     artistsHeading: festData.artistsHeading || "Artists You'll Love",
     contacts: festData.contacts || [],
     sponsors: festData.sponsors || [],
@@ -129,6 +172,21 @@ export function transformFestPublicData(festData) {
         ? 'Sports Festival'
         : 'Festival',
   };
+}
+
+/** Put Kaustubh / Vivek first in the artists carousel when present */
+function prioritizeFeaturedArtists(artists = []) {
+  if (!Array.isArray(artists) || artists.length < 2) return artists || [];
+  const featured = [/kaustubh?/i, /vivek/i];
+  const ranked = [...artists];
+  ranked.sort((a, b) => {
+    const ai = featured.findIndex((re) => re.test(String(a?.name || '')));
+    const bi = featured.findIndex((re) => re.test(String(b?.name || '')));
+    const aRank = ai === -1 ? featured.length : ai;
+    const bRank = bi === -1 ? featured.length : bi;
+    return aRank - bRank;
+  });
+  return ranked;
 }
 
 /** Payload for competitions-view-details navigation state */

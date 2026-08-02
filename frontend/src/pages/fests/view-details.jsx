@@ -19,6 +19,7 @@ import {
   transformFestPublicData,
   buildCompetitionNavPayload,
   isFestRegistrationDisabled,
+  resolveCompetitionFee,
 } from '../../utils/festPublicTransform';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
@@ -32,11 +33,11 @@ function formatCompetitionTabLabel(tab) {
   return tab.charAt(0) + tab.slice(1).toLowerCase();
 }
 
-function formatCompFee(fee) {
-  if (fee == null || fee === '' || fee === 'Free') return 'Free';
-  if (typeof fee === 'object') return 'TBA';
-  const str = String(fee);
-  return str.startsWith('₹') ? str : `₹${str}`;
+function formatCompFee(compOrFee) {
+  if (compOrFee && typeof compOrFee === 'object') {
+    return resolveCompetitionFee(compOrFee).label;
+  }
+  return resolveCompetitionFee({ registrationFee: compOrFee }).label;
 }
 
 function getPrimaryPhone(contacts = []) {
@@ -57,7 +58,7 @@ function getPrimaryInstagram(contacts = []) {
 
 function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onClick }) {
   const compName = typeof comp.name === 'string' ? comp.name : 'Competition';
-  const feeLabel = formatCompFee(comp.fee);
+  const feeLabel = formatCompFee(comp);
   const feeIsFree = feeLabel === 'Free';
 
   return (
@@ -426,7 +427,7 @@ function EventDetailsPage() {
   const galleryExtraCount = Math.max(0, galleryPreview.length - 3);
   const registrationOpen = !isFestRegistrationDisabled(eventData?.registration?.mode);
   const registerLabel = eventData?.registration?.mode === 'NOT_STARTED'
-    ? 'Registrations Not Started'
+    ? 'Registration Not Open Yet'
     : eventData?.registration?.mode === 'CLOSED'
     ? 'Registration Closed'
     : isRegistered(eventData.id)
@@ -674,15 +675,15 @@ function EventDetailsPage() {
                           : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
                       }`}
                       disabled={isFestRegistrationDisabled(eventData?.registration?.mode)}
-                      title={eventData?.registration?.mode === 'NOT_STARTED' ? 'Registrations Not Started' : 
+                      title={eventData?.registration?.mode === 'NOT_STARTED' ? 'Registration Not Open Yet' :
                              eventData?.registration?.mode === 'CLOSED' ? 'Registration Closed' : ''}
                     >
                       {eventData?.registration?.mode === 'NOT_STARTED'
-                        ? 'Registrations Not Started'
+                        ? 'Registration Not Open Yet'
                         : eventData?.registration?.mode === 'CLOSED'
                         ? 'Registration Closed'
-                        : isRegistered(eventData.id) 
-                        ? '✓ Register Again' 
+                        : isRegistered(eventData.id)
+                        ? '✓ Register Again'
                         : 'Register Now'}
                     </button>
                     <button
@@ -701,20 +702,15 @@ function EventDetailsPage() {
                   </h2>
                 </div>
                 {eventData.artists && eventData.artists.length > 0 && (
-                    <div className={`${isDark ? 'bg-[#111213] rounded-2xl' : 'bg-white-100 rounded-2xl'} w-full`}>
+                    <div className={`${isDark ? 'bg-[#111213] rounded-2xl' : 'bg-[#EDEDF2] rounded-2xl'} w-full overflow-hidden`}>
 
-                      {/* Artist Card */}
-                      <div className={`w-full max-w-full rounded-2xl overflow-hidden duration-300 
-      ${isDark
-                          ? 'bg-[#111213] border-8 border-[#111213]'
-                          : 'bg-[#EDEDF2] border-8 border-[#EDEDF2]'
-                      }`}
-                      >
-                        <div className="relative detail-hero-height overflow-hidden">
+                      {/* Artist Card — image flush into sheet (no border ring gap) */}
+                      <div className={`w-full max-w-full rounded-2xl overflow-hidden ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+                        <div className="relative detail-hero-height overflow-hidden bg-[#1A1B1D]">
                           <img
                               src={getImageUrl(eventData.artists[currentArtist].image, { preset: 'card' })}
                               alt={eventData.artists[currentArtist].name}
-                              className="w-full h-full object-cover transition-transform duration-300 rounded-[16px]"
+                              className="absolute inset-0 w-full h-full object-cover transition-transform duration-300"
                               onError={(e) => {
                                 handleImageErrorWithFallback(e, 300, 300, '#2A2B2E', eventData.artists[currentArtist].name || 'Artist');
                               }}
@@ -744,7 +740,7 @@ function EventDetailsPage() {
                           )}
                         </div>
 
-                        <div className={`p-4 sm:p-5 rounded-[16px] ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+                        <div className={`p-4 sm:p-5 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
                           {/* Artist Name */}
                           <div className="mb-2">
                             <h3 className={`text-lg sm:text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -869,9 +865,9 @@ function EventDetailsPage() {
       </div>
 
       {/* Mobile Version - Show below 768px */}
-      <div className="md:hidden pb-8">
-        {/* Hero with overlay controls */}
-        <div className="relative h-[320px]">
+      <div className={`md:hidden pb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+        {/* Hero with overlay controls — full bleed, overlaps into content sheet */}
+        <div className="relative h-[320px] overflow-hidden bg-[#1A1B1D]">
           <img
             src={getImageUrl(currentHeroImage, { preset: 'hero' })}
             alt={eventData.title}
@@ -880,7 +876,7 @@ function EventDetailsPage() {
               handleImageErrorWithFallback(e, 400, 320, '#2A2B2E', eventData.title || 'Event');
             }}
           />
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent z-10">
             <button
               type="button"
               onClick={() => navigate('/fests', { replace: true })}
@@ -913,8 +909,8 @@ function EventDetailsPage() {
           </div>
         </div>
 
-        {/* Content sheet */}
-        <div className={`relative -mt-2 rounded-t-[28px] px-5 pt-6 pb-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+        {/* Content sheet — overlaps hero so rounded corners sit on the image (no white ring) */}
+        <div className={`relative -mt-10 rounded-t-[28px] z-10 overflow-hidden px-5 pt-6 pb-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
           <div className="flex items-start justify-between gap-3 mb-5">
             <div className="min-w-0 flex-1">
               <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -994,9 +990,6 @@ function EventDetailsPage() {
                           </h3>
                           <p className={`text-sm font-medium mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                             {artist.genre || 'Artist'}
-                          </p>
-                          <p className={`text-sm mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                            {artist.dateTime || eventData.dateTime}
                           </p>
                         </div>
                         <CardShareButton

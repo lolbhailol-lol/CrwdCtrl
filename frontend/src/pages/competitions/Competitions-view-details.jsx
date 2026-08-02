@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Instagram, Check, Moon, Sun, Mail, User, ArrowLeft, Trophy, Ticket, Zap } from 'lucide-react';
+import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Trophy, Ticket, Zap, Share2 } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import Navbar from '../../components/layout/Navbar';
@@ -19,6 +19,8 @@ import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath } from '../../utils/slugRoutes';
+import { resolveCompetitionFee } from '../../utils/festPublicTransform';
+import { trackBookNowClick } from '../../services/analyticsService';
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -31,6 +33,13 @@ const sanitizeRoundDescription = (rawDesc) => {
 
     // Normalize line breaks
     let desc = rawDesc.replace(/\r\n/g, '\n').replace(/<br\s*\/?\s*>/gi, '\n');
+
+    // Drop standalone Offline / Online / Final Round headings (shown as extra labels in UI)
+    desc = desc
+        .split('\n')
+        .filter((line) => !/^\s*(offline|online|final)\s*rounds?\s*:?\s*$/i.test(line))
+        .join('\n');
+
 
     // Remove the known duplicated metadata paragraph that can appear between
     // "Submission Deadline" and the "Rules" heading.
@@ -204,10 +213,11 @@ const sanitizeRulesArray = (rules) => {
 const buildCompetitionData = (compData, options = {}) => {
     if (!compData) return null;
 
-    const useFestRegistrationFallback = options.useFestRegistrationFallback ?? true;
     const roundsSource = Array.isArray(compData.rounds) ? compData.rounds : [];
     const roundsObject = !Array.isArray(compData.rounds) && compData.rounds ? compData.rounds : null;
     const roundsListSource = Array.isArray(roundsObject?.roundsList) ? roundsObject.roundsList : roundsSource;
+
+    const fee = resolveCompetitionFee(compData);
 
     return {
         id: compData._id || compData.id,
@@ -216,8 +226,11 @@ const buildCompetitionData = (compData, options = {}) => {
         date: compData.dateTime || compData.date || '',
         time: compData.time || '',
         venue: compData.venue || 'TBD',
-        entryFee: compData.registrationFee || compData.entryFee || 'Free',
-        feeAmount: compData.feeAmount || 0,
+        entryFee: fee.known ? fee.label : (compData.registrationFee || compData.entryFee || 'Free'),
+        feeAmount: fee.amount ?? 0,
+        feeLabel: fee.known ? fee.label : '—',
+        feeIsFree: fee.isFree,
+        feeKnown: fee.known,
         prize: compData.prizePool || compData.prize || 'TBD',
         image: compData.coverImage || compData.image,
         contact: compData.contact || { phone: '', instagram: '', email: '' },
@@ -227,9 +240,8 @@ const buildCompetitionData = (compData, options = {}) => {
         registrationLink: compData.registrationLink || '',
 
         registrationType: compData.registrationType || 'fest',
-        registration: useFestRegistrationFallback && (compData.registrationType === 'fest' || !compData.registrationType)
-            ? (compData.fest?.registration || compData.registration || { mode: 'NOT_STARTED' })
-            : (compData.registration || { status: 'not_started' }),
+        // Keep competition-level status; never overwrite with fest.registration (that drops not_started)
+        registration: compData.registration || { status: 'not_started' },
         legacyRegistration: compData.legacyRegistration || { status: 'NOT_STARTED' },
 
         fest: compData.fest || null,
@@ -522,21 +534,70 @@ function EventPage() {
         return sanitizeRulesArray(eventData?.commonRules || []);
     };
 
-    // Function to get round rules
+    // Function to get round rules (merge nested offline/online — no separate mode labels)
     const getRoundRules = (roundData) => {
         if (!roundData) return [];
-        
-        // Display priority: show message field if present, otherwise show individual rules
+
         if (roundData.roundRulesMessage && roundData.roundRulesMessage.trim()) {
-            // Return message field content as a single item for display
             return [sanitizeRoundDescription(roundData.roundRulesMessage)];
         }
-        
-        // Use rules array
-        return sanitizeRulesArray(roundData.rules || []);
+
+        const merged = [
+            ...sanitizeRulesArray(roundData.rules || []),
+            ...sanitizeRulesArray(roundData.offline?.rules || []),
+            ...sanitizeRulesArray(roundData.online?.rules || []),
+        ];
+        // Dedupe while preserving order
+        return [...new Set(merged.map((r) => String(r).trim()).filter(Boolean))];
+    };
+
+    /** Hide generic Offline / Online titles — Final stays on the last round tab */
+    const getRoundDisplayTitle = (round, idx, totalRounds = 0) => {
+        const title = String(round?.title || '').trim();
+        if (!title) return '';
+        if (/^(offline|online)\s*rounds?$/i.test(title)) return '';
+        if (/^final\s*rounds?$/i.test(title)) return '';
+        if (/^rounds?\s*\d+$/i.test(title)) return '';
+        if (title.toLowerCase() === `round ${idx + 1}`.toLowerCase()) return '';
+        // Last round tab already says Final — don't repeat
+        if (totalRounds > 1 && idx === totalRounds - 1 && /final/i.test(title)) return '';
+        return title;
+    };
+
+    const getRoundTabLabel = (round, idx, totalRounds) => {
+        const title = String(round?.title || '').trim();
+        const isLast = totalRounds > 1 && idx === totalRounds - 1;
+        if (isLast || /^final\s*rounds?$/i.test(title)) return 'Final';
+        if (title && !/^(offline|online)\s*rounds?$/i.test(title) && !/^rounds?\s*\d+$/i.test(title)) {
+            return title;
+        }
+        return `Round ${idx + 1}`;
     };
 
     const commonRules = getCommonRules();
+
+    const contactList = (() => {
+        const c = eventData?.contact;
+        if (!c) return [];
+        const hasAny = Boolean(c.name || c.email || c.phone || c.instagram);
+        if (!hasAny) return [];
+        let instagramId = c.instagram || '';
+        if (instagramId.startsWith('http')) {
+            try {
+                const path = new URL(instagramId).pathname.replace(/^\/+|\/+$/g, '');
+                instagramId = path || instagramId;
+            } catch {
+                /* keep as-is */
+            }
+        }
+        return [{
+            name: c.name || '',
+            role: c.role || '',
+            email: c.email || '',
+            phone: c.phone || '',
+            instagramId: instagramId.replace(/^@/, ''),
+        }];
+    })();
 
     const isRegistered = registeredEvents.some(event => event.id === eventData?.id);
 
@@ -577,64 +638,80 @@ function EventPage() {
     // Helper function to determine registration availability
     const getRegistrationStatus = () => {
         const registrationType = eventData?.registrationType || 'fest';
-        const registrationStatus = eventData?.registration?.status || 'not_started';
-        
-        // ✅ CRITICAL: Also check registration from passedEventData (from navigation state)
-        const festRegistrationFromState = passedEventData?.registration || eventData?.registration;
-        const festRegistrationMode = eventData?.fest?.registration?.mode || 
-                                     festRegistrationFromState?.mode || 
-                                     eventData?.registration?.mode;
-        
-        console.log('🔍 Registration check:', { 
-            registrationType, 
-            registrationStatus,
-            festRegistrationMode,
-            eventData: eventData,
-            festData: eventData?.fest,
-            festRegistration: eventData?.fest?.registration,
-            passedEventData: passedEventData
+        const registrationStatus = String(eventData?.registration?.status || 'not_started').toLowerCase();
+        const festMode = String(
+            eventData?.fest?.registration?.mode
+            || passedEventData?.registration?.mode
+            || 'NOT_STARTED'
+        ).toUpperCase();
+        const legacyStatus = String(
+            eventData?.legacyRegistration?.status || ''
+        ).toUpperCase();
+
+        const closedResult = (buttonText) => ({
+            isAvailable: false,
+            buttonText,
+            isDisabled: true,
         });
-        
+
+        // Competition-level "not open yet" / closed always wins
+        if (registrationStatus === 'not_started') {
+            return closedResult('Registration Not Open Yet');
+        }
+        if (registrationStatus === 'registration_closed') {
+            return closedResult('Registration Closed');
+        }
+        if (legacyStatus === 'NOT_STARTED') {
+            // Only block legacy when competition status isn't explicitly open
+            if (!['external_link', 'internal_form', 'started'].includes(registrationStatus)) {
+                return closedResult('Registration Not Open Yet');
+            }
+        }
+        if (legacyStatus === 'CLOSED') {
+            return closedResult('Registration Closed');
+        }
+
+        // Parent fest still not open → keep all comps closed
+        if (festMode === 'NOT_STARTED') {
+            return closedResult('Registration Not Open Yet');
+        }
+        if (festMode === 'CLOSED') {
+            return closedResult('Registration Closed');
+        }
+
         if (registrationType === 'fest') {
-            // ✅ Use mode from multiple sources
-            const mode = festRegistrationMode || 'NOT_STARTED';
-            console.log('🎯 Fest registration mode:', mode);
-            
+            const mode = festMode || 'NOT_STARTED';
             return {
                 isAvailable: mode === 'EXTERNAL_LINK' || mode === 'INTERNAL_FORM',
-                buttonText: mode === 'NOT_STARTED' ? 'Registrations Not Started' : 
-                           mode === 'CLOSED' ? 'Registration Closed' : 'Register Now',
-                isDisabled: mode === 'NOT_STARTED' || mode === 'CLOSED'
+                buttonText: mode === 'NOT_STARTED' ? 'Registration Not Open Yet'
+                    : mode === 'CLOSED' ? 'Registration Closed' : 'Register Now',
+                isDisabled: mode === 'NOT_STARTED' || mode === 'CLOSED',
             };
-        } else if (registrationType === 'custom') {
-            // Check if form is properly configured
+        }
+
+        if (registrationType === 'custom') {
             const isConfigured = isCustomFormConfigured();
-            
-            if (!isConfigured) {
+            if (!isConfigured && registrationStatus === 'internal_form') {
                 return {
                     isAvailable: false,
                     buttonText: 'Form Not Configured',
                     isDisabled: true,
-                    notConfigured: true
+                    notConfigured: true,
                 };
             }
-            
             return {
                 isAvailable: registrationStatus === 'external_link' || registrationStatus === 'internal_form',
-                buttonText: registrationStatus === 'not_started' ? 'Registrations Not Started' : 
-                           registrationStatus === 'registration_closed' ? 'Registration Closed' : 'Register Now',
-                isDisabled: registrationStatus === 'not_started' || registrationStatus === 'registration_closed'
-            };
-        } else {
-            // Legacy compatibility - check both new and old status fields
-            const legacyStatus = eventData?.legacyRegistration?.status || eventData?.registration?.status || 'NOT_STARTED';
-            return {
-                isAvailable: legacyStatus === 'STARTED' || legacyStatus === 'internal_form' || legacyStatus === 'external_link',
-                buttonText: legacyStatus === 'NOT_STARTED' || legacyStatus === 'not_started' ? 'Registrations Not Started' : 
-                           legacyStatus === 'CLOSED' || legacyStatus === 'registration_closed' ? 'Registration Closed' : 'Register Now',
-                isDisabled: legacyStatus === 'NOT_STARTED' || legacyStatus === 'CLOSED' || legacyStatus === 'not_started' || legacyStatus === 'registration_closed'
+                buttonText: registrationStatus === 'not_started' ? 'Registration Not Open Yet'
+                    : registrationStatus === 'registration_closed' ? 'Registration Closed' : 'Register Now',
+                isDisabled: registrationStatus === 'not_started' || registrationStatus === 'registration_closed',
             };
         }
+
+        return {
+            isAvailable: legacyStatus === 'STARTED' || registrationStatus === 'internal_form' || registrationStatus === 'external_link',
+            buttonText: 'Register Now',
+            isDisabled: false,
+        };
     };
 
     const registrationInfo = getRegistrationStatus();
@@ -645,53 +722,70 @@ function EventPage() {
             return;
         }
 
+        const statusInfo = getRegistrationStatus();
+        if (statusInfo.isDisabled) {
+            if (statusInfo.notConfigured) {
+                showAlert({
+                    title: 'Registration unavailable',
+                    message: 'Registration is not available. Please contact the organizers.',
+                });
+                return;
+            }
+            showAlert({
+                title: statusInfo.buttonText === 'Registration Closed' ? 'Registration closed' : 'Registration not open yet',
+                message: statusInfo.buttonText === 'Registration Closed'
+                    ? 'Registration for this competition is closed.'
+                    : 'Registration has not opened yet for this competition.',
+            });
+            return;
+        }
+
         const registrationType = eventData?.registrationType || 'fest';
-        const registrationStatus = eventData?.registration?.status || 'not_started';
-        const festRegistrationFromState = passedEventData?.registration || eventData?.registration;
-        const festRegistrationMode = eventData?.fest?.registration?.mode ||
-                                     festRegistrationFromState?.mode ||
-                                     eventData?.registration?.mode;
+        const registrationStatus = String(eventData?.registration?.status || 'not_started').toLowerCase();
+        const festRegistrationMode = String(
+            eventData?.fest?.registration?.mode
+            || passedEventData?.registration?.mode
+            || 'NOT_STARTED'
+        ).toUpperCase();
 
         if (registrationType === 'fest') {
             const mode = festRegistrationMode || 'NOT_STARTED';
             if (mode === 'EXTERNAL_LINK') {
-                const externalLink = eventData?.fest?.registration?.externalLink ||
-                                     festRegistrationFromState?.externalLink ||
-                                     eventData?.registration?.externalLink;
-                externalLink?.trim()
-                    ? openExternalUrl(externalLink)
-                    : showAlert({ title: 'Registration unavailable', message: 'Registration link is not available. Please contact the organizers.' });
+                const link = eventData?.fest?.registration?.externalLink || eventData?.registrationLink;
+                if (link) openExternalUrl(link);
+                else showAlert({ title: 'Registration unavailable', message: 'Registration link is not available. Please contact the organizers.' });
             } else if (mode === 'INTERNAL_FORM') {
-                const festId = eventData?.fest?._id || passedEventData?.id || eventData?.festId || eventData?.fest?.id;
-                const compId = eventData?.id;
-                festId
-                    ? navigate(`${festRegisterPath(eventData?.fest || { _id: festId, festName: eventData?.fest?.festName })}?competition=${compId}`)
-                    : showAlert({ title: 'Registration unavailable', message: 'Registration is not available. Please contact the organizers.' });
+                navigate(festRegisterPath(eventData?.fest || { _id: eventData?.festId }), {
+                    state: { festId: eventData?.festId || eventData?.fest?._id, competitionId: eventData?.id },
+                });
             } else if (mode === 'NOT_STARTED') {
-                showAlert({ title: 'Registration not started', message: 'Registration has not started yet for this competition.' });
+                showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
             } else if (mode === 'CLOSED') {
                 showAlert({ title: 'Registration closed', message: 'Registration for this competition is closed.' });
             } else {
                 showAlert({ title: 'Registration unavailable', message: 'Registration configuration is not set up properly. Please contact the organizers.' });
             }
-        } else if (registrationType === 'custom') {
-            if (registrationStatus === 'internal_form') {
-                navigate(competitionRegistrationPath(eventData));
-            } else if (registrationStatus === 'external_link') {
-                const externalUrl = eventData?.registration?.externalUrl;
-                externalUrl?.trim()
-                    ? openExternalUrl(externalUrl)
-                    : showAlert({ title: 'Registration unavailable', message: 'External registration link not available. Please contact the organizers.' });
+            return;
+        }
+
+        if (registrationType === 'custom') {
+            if (registrationStatus === 'external_link') {
+                const link = eventData?.registration?.externalUrl || eventData?.registrationLink;
+                if (link) openExternalUrl(link);
+                else showAlert({ title: 'Registration unavailable', message: 'External registration link not available. Please contact the organizers.' });
+            } else if (registrationStatus === 'internal_form') {
+                navigate(competitionRegistrationPath(eventData || { id: competitionId }));
             } else if (registrationStatus === 'not_started') {
-                showAlert({ title: 'Registration not started', message: 'Registration has not started yet for this competition.' });
+                showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
             } else if (registrationStatus === 'registration_closed') {
                 showAlert({ title: 'Registration closed', message: 'Registration for this competition is closed.' });
             } else {
                 showAlert({ title: 'Registration unavailable', message: 'Registration configuration is not set up properly. Please contact the organizers.' });
             }
-        } else {
-            showAlert({ title: 'Registration not started', message: 'Registration has not started yet for this competition.' });
+            return;
         }
+
+        showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
     };
 
     // Component for rendering rules with read more functionality
@@ -820,7 +914,7 @@ function EventPage() {
         eventData.description || eventData.subtitle || `${eventData.title} — a competition on CrwdCtrl.`;
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col transition-colors">
+        <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 transition-colors ${isDark ? 'bg-[#0c0d0e]' : 'bg-white'}`}>
             <Seo
                 title={eventData.title}
                 description={competitionDescription}
@@ -846,61 +940,69 @@ function EventPage() {
                 ]}
             />
 
-            <main className="flex-1 pb-8">
-                    <div className="max-w-7xl mx-auto">
-                        {/* Mobile/Narrow Layout - Only visible below 768px */}
-                        <div className="block md:hidden">
-                            {/* Mobile Back Button */}
-                            <div className="px-4 pt-4 pb-2">
-                                <button
-                                    onClick={() => {
-                                        const fest = eventData?.fest;
-                                        if (fest?._id || fest?.id || eventData?.festId) {
-                                            navigate(festPath(fest || { _id: eventData.festId }), { replace: true });
-                                            return;
-                                        }
-                                        navigate('/fests', { replace: true });
-                                    }}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                                        isDark 
-                                            ? 'bg-[#111213] text-gray-300 hover:bg-[#1D1E20] hover:text-white' 
-                                            : 'bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                                    } shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-                                >
-                                    <ArrowLeft className="w-4 h-4" />
-                                    <span className="text-sm font-medium">Back</span>
-                                </button>
-                            </div>
-
-                            {/* Mobile Event Image */}
-                            <div className="px-4 pt-4">
-                                <div className="bg-[#EDEDF2] dark:bg-[#111213] rounded-lg overflow-hidden shadow-sm">
+            <main className="flex-1 w-full">
+                    {/* Mobile — full-bleed hero (no side gutters) */}
+                    <div className="block md:hidden w-full">
+                            <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
+                                <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
                                     <img
                                         src={getImageUrl(eventData?.image, { preset: 'hero' }) || '/default-image.jpg'}
                                         alt={eventData?.title || 'Competition'}
-                                        className="w-full h-48 object-cover"
+                                        className="absolute inset-0 w-full h-full object-cover content-image"
+                                        loading="eager"
+                                        fetchPriority="high"
+                                        decoding="async"
                                         onError={(e) => {
-                                            console.log('Image load error for:', eventData?.image);
-                                            console.log('Resolved URL:', getImageUrl(eventData?.image));
                                             e.target.src = '/default-image.jpg';
                                         }}
                                     />
+                                    <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
+                                    <div
+                                        className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
+                                        style={{ paddingTop: 'calc(max(env(safe-area-inset-top), 0px) + 2.5rem)' }}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const fest = eventData?.fest;
+                                                if (fest?._id || fest?.id || eventData?.festId) {
+                                                    navigate(festPath(fest || { _id: eventData.festId }), { replace: true });
+                                                    return;
+                                                }
+                                                navigate('/fests', { replace: true });
+                                            }}
+                                            aria-label="Go back"
+                                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+                                        >
+                                            <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleShare('native')}
+                                            aria-label="Share"
+                                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+                                        >
+                                            <Share2 size={20} strokeWidth={2.25} className="text-white" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
 
+                                <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                             {/* Mobile Event Header */}
-                            <div className="px-4 py-4">
-                                <h1 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <div className="px-4 pt-5 pb-3">
+                                <h1 className={`text-[26px] font-bold leading-8 wrap-break-word mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     {eventData?.title || 'Competition Title'}
                                 </h1>
-                                <p className={`text-lg mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                    {eventData?.subtitle || 'Competition Subtitle'}
-                                </p>
+                                {eventData?.subtitle ? (
+                                    <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        {eventData.subtitle}
+                                    </p>
+                                ) : null}
                                 <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                     <p>
-                                        <span className="font-semibold">Entry fee: </span>
-                                        <span className="font-bold text-[#0ECCEE]">
-                                            {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}` : 'Free'}
+                                        <span className="font-semibold">Registration fee: </span>
+                                        <span className={`font-bold ${eventData?.feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                                            {eventData?.feeLabel || (eventData?.feeAmount > 0 ? `₹${Number(eventData.feeAmount).toLocaleString('en-IN')}` : 'Free')}
                                         </span>
                                     </p>
                                 </div>
@@ -1060,7 +1162,7 @@ function EventPage() {
                                                         : `${isDark ? 'bg-dark-700 text-gray-300' : 'bg-gray-100 text-black'}`
                                                         }`}
                                                 >
-                                                    Round {idx + 1}
+                                                    {getRoundTabLabel(round, idx, eventData.rounds.roundsList.length)}
                                                 </button>
                                             ))}
                                         </div>
@@ -1082,6 +1184,13 @@ function EventPage() {
                                                 (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
                                                     normalizedRoundDescription.includes(normalizedOverviewDescription));
 
+                                            const displayTitle = getRoundDisplayTitle(
+                                                round,
+                                                activeRound,
+                                                eventData.rounds.roundsList.length,
+                                            );
+                                            const roundRules = getRoundRules(round);
+
                                             return (
                                                 <>
                                                     {cleanedRoundDescription && !isDuplicateOfOverview && (
@@ -1090,42 +1199,16 @@ function EventPage() {
                                                         </p>
                                                     )}
 
-                                                    {round.title && (
+                                                    {displayTitle ? (
                                                         <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                            {round.title}
+                                                            {displayTitle}
                                                         </h3>
-                                                    )}
+                                                    ) : null}
 
-                                                    {round.offline && (
-                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                            <p className={`font-semibold mb-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                                {round.offline.title || 'Offline Round'}
-                                                            </p>
-                                                            <RulesList
-                                                                rules={round.offline.rules}
-                                                                ruleKey={`mobile-round${activeRound}-offline-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    {round.online && (
-                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                            <p className={`font-semibold mb-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                                {round.online.title || 'Online Round'}
-                                                            </p>
-                                                            <RulesList
-                                                                rules={round.online.rules}
-                                                                ruleKey={`mobile-round${activeRound}-online-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    {!round.offline && !round.online && round.rules && (
+                                                    {roundRules.length > 0 && (
                                                         <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
                                                             <RulesList
-                                                                rules={getRoundRules(round)}
+                                                                rules={roundRules}
                                                                 ruleKey={`mobile-round${activeRound}-${eventData?.id}`}
                                                                 maxItems={5}
                                                             />
@@ -1151,112 +1234,92 @@ function EventPage() {
                                 </div>
                             </div>
 
-                            {/* Mobile Contact Details */}
-                            <div className="px-4 py-4 mb-6">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
-
-                                    {/* Contact Name */}
-                                    {eventData?.contact?.name && (
-                                        <div className="mb-3">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <div className={`p-1 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} rounded-full`}>
-                                                    <User className="w-4 h-4" />
+                            {/* Mobile Contact Details — same layout as fest view-details */}
+                            {contactList.length > 0 ? (
+                            <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                                <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
+                                <div className="space-y-3">
+                                    {contactList.map((contact, index) => (
+                                        <div
+                                            key={index}
+                                            className={`rounded-xl p-3 ${isDark ? 'bg-[#1f2021]' : 'bg-gray-100'}`}
+                                        >
+                                            {(contact.name || contact.role) && (
+                                                <div className="mb-2">
+                                                    <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        {contact.name || 'Contact Person'}
+                                                    </span>
+                                                    {contact.role && (
+                                                        <span className={`text-xs ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                            - {contact.role}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Person</p>
-                                            </div>
-                                            <p className={`text-sm pl-7 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{eventData.contact.name}</p>
-                                        </div>
-                                    )}
+                                            )}
 
-                                    {/* Email Display */}
-                                    {eventData?.contact?.email && (
-                                        <div className="mb-4">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <div className={`p-1 ${isDark ? 'bg-red-900 text-red-400' : 'bg-red-100 text-red-600'} rounded-full`}>
-                                                    <Mail className="w-4 h-4" />
-                                                </div>
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Email</p>
-                                            </div>
-                                            <a
-                                                href={`mailto:${eventData.contact.email}`}
-                                                className={`text-sm break-all pl-7 ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
-                                            >
-                                                {eventData.contact.email}
-                                            </a>
-                                        </div>
-                                    )}
+                                            <div className="space-y-2">
+                                                {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
+                                                    const nameMatch = entry.match(/\(([^)]+)\)/);
+                                                    const name = nameMatch ? nameMatch[1].trim() : null;
+                                                    const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
+                                                    return (
+                                                        <a
+                                                            key={pi}
+                                                            href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
+                                                            className="flex items-center gap-2.5"
+                                                        >
+                                                            <span className="size-9 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
+                                                                <Phone size={16} className="text-white" />
+                                                            </span>
+                                                            <span className="min-w-0">
+                                                                {name && (
+                                                                    <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                                        {name}
+                                                                    </span>
+                                                                )}
+                                                                <span className={`block text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                                                    {rawNumber}
+                                                                </span>
+                                                            </span>
+                                                        </a>
+                                                    );
+                                                })}
 
-                                    {/* Phone Numbers Section */}
-                                    {eventData?.contact?.phone && (
-                                        <div className="mb-4">
-                                            <div className="flex items-center space-x-2 mb-3">
-                                                <div className={`p-1 ${isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full`}>
-                                                    <Phone className="w-4 h-4" />
-                                                </div>
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Phone</p>
-                                            </div>
-                                            <div className="space-y-2 pl-7">
-                                                {eventData.contact.phone
-                                                    .split(/\s*(?:,|\/)\s*/)
-                                                    .map(s => s.trim())
-                                                    .filter(Boolean)
-                                                    .map((entry, index) => {
-                                                        const nameMatch = entry.match(/\(([^)]+)\)/);
-                                                        const name = nameMatch ? nameMatch[1].trim() : null;
-                                                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                                                        const telHref = `tel:${rawNumber.replace(/[\s-]/g, '')}`;
-                                                        return (
-                                                            <a
-                                                                key={index}
-                                                                href={telHref}
-                                                                className={`flex items-center gap-2.5 group py-2 px-3 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50'}`}
-                                                            >
-                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                                                                    {name ? name.charAt(0).toUpperCase() : '#'}
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    {name && (
-                                                                        <p className={`text-xs font-medium leading-none mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</p>
-                                                                    )}
-                                                                    <p className={`text-sm font-medium ${isDark ? 'text-blue-400 group-hover:text-blue-300' : 'text-blue-600 group-hover:text-blue-800'} transition-colors`}>{rawNumber}</p>
-                                                                </div>
-                                                            </a>
-                                                        );
-                                                    })
-                                                }
+                                                {contact.instagramId && (
+                                                    <a
+                                                        href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-2.5"
+                                                    >
+                                                        <span className="size-9 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
+                                                            <Instagram size={16} className="text-white" />
+                                                        </span>
+                                                        <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                                            {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
+                                                        </span>
+                                                    </a>
+                                                )}
+
+                                                {contact.email && (
+                                                    <a
+                                                        href={`mailto:${contact.email}`}
+                                                        className="flex items-center gap-2.5"
+                                                    >
+                                                        <span className="size-9 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
+                                                            <Mail size={16} className="text-white" />
+                                                        </span>
+                                                        <span className={`text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                                            {contact.email}
+                                                        </span>
+                                                    </a>
+                                                )}
                                             </div>
                                         </div>
-                                    )}
-
-                                    {/* Instagram */}
-                                    {eventData?.contact?.instagram && (
-                                        <div className="mb-4">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <div className={`p-1 bg-linear-to-br from-purple-500 to-pink-500 rounded-full`}>
-                                                    <Instagram className="w-4 h-4 text-white" />
-                                                </div>
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Instagram</p>
-                                            </div>
-                                            <a
-                                                href={eventData.contact.instagram.startsWith('http') 
-                                                    ? eventData.contact.instagram 
-                                                    : `https://instagram.com/${eventData.contact.instagram.replace('@', '')}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className={`text-sm pl-7 ${isDark ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-800'} transition-colors`}
-                                            >
-                                                {eventData.contact.instagram}
-                                            </a>
-                                        </div>
-                                    )}
-
-                                    {/* Show message if no contact details */}
-                                    {!eventData?.contact?.name && !eventData?.contact?.email && !eventData?.contact?.phone && !eventData?.contact?.instagram && (
-                                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            Contact details will be updated soon.
-                                        </p>
-                                    )}
+                                    ))}
+                                </div>
+                            </section>
+                            ) : null}
                                 </div>
                             </div>
                         </div>
@@ -1266,17 +1329,17 @@ function EventPage() {
                             {/* Left Column - Image and Rules */}
                             <div className="w-1/2 shrink-0 space-y-6">
                                 {/* Event Image Card */}
-                                <div className="bg-[#EDEDF2] rounded-2xl overflow-hidden">
+                                <div className={`rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
+                                    <div className="rounded-2xl overflow-hidden">
                                     <img
                                         src={getImageUrl(eventData?.image, { preset: 'hero' }) || '/default-image.jpg'}
                                         alt={eventData?.title || 'Competition'}
                                         className="w-full h-80 object-cover"
                                         onError={(e) => {
-                                            console.log('Image load error for:', eventData?.image);
-                                            console.log('Resolved URL:', getImageUrl(eventData?.image));
                                             e.target.src = '/default-image.jpg';
                                         }}
                                     />
+                                    </div>
                                 </div>
 
                                 <div className="space-y-6">
@@ -1312,109 +1375,76 @@ function EventPage() {
                                     </div>
                                 </div>
 
-                                {/* Contact Details */}
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
-                                    <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact details</h2>
-
-                                    {/* Contact Name */}
-                                    {eventData?.contact?.name && (
-                                        <div className="mb-4">
-                                            <div className="flex items-center space-x-3 mb-2">
-                                                <div className={`p-2 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} rounded-full`}>
-                                                    <User className="w-5 h-5" />
+                                {/* Contact Details — same layout as fest view-details */}
+                                {contactList.length > 0 ? (
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 transition-colors duration-300`}>
+                                    <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
+                                    <div className="space-y-2">
+                                        {contactList.map((contact, index) => (
+                                            <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} rounded-lg p-3 transition-colors duration-300`}>
+                                                <div className="mb-1">
+                                                    <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        {contact.name || 'Contact Person'}
+                                                    </span>
+                                                    {contact.role && (
+                                                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} ml-2`}>
+                                                            - {contact.role}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Person</p>
-                                            </div>
-                                            <p className={`text-sm pl-12 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{eventData.contact.name}</p>
-                                        </div>
-                                    )}
 
-                                    {/* Email Display */}
-                                    {eventData?.contact?.email && (
-                                        <div className="mb-6">
-                                            <div className="flex items-center space-x-3 mb-2">
-                                                <div className={`p-2 ${isDark ? 'bg-red-900 text-red-400' : 'bg-red-100 text-red-600'} rounded-full`}>
-                                                    <Mail className="w-5 h-5" />
-                                                </div>
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Email</p>
-                                            </div>
-                                            <a
-                                                href={`mailto:${eventData.contact.email}`}
-                                                className={`text-sm break-all pl-12 ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
-                                            >
-                                                {eventData.contact.email}
-                                            </a>
-                                        </div>
-                                    )}
-
-                                    {/* Phone Numbers Section */}
-                                    {eventData?.contact?.phone && (
-                                        <div className="mb-6">
-                                            <div className="flex items-center space-x-3 mb-3">
-                                                <div className={`p-2 ${isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full`}>
-                                                    <Phone className="w-5 h-5" />
-                                                </div>
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Phone Numbers</p>
-                                            </div>
-                                            <div className="space-y-1 pl-12">
-                                                {eventData.contact.phone
-                                                    .split(/\s*(?:,|\/)\s*/)
-                                                    .map(s => s.trim())
-                                                    .filter(Boolean)
-                                                    .map((entry, index) => {
+                                                <div className="space-y-1">
+                                                    {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
                                                         const nameMatch = entry.match(/\(([^)]+)\)/);
                                                         const name = nameMatch ? nameMatch[1].trim() : null;
                                                         const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
                                                         return (
-                                                            <a
-                                                                key={index}
-                                                                href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                                                                className={`flex items-center gap-2.5 group py-2 px-3 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50'}`}
-                                                            >
-                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                                                                    {name ? name.charAt(0).toUpperCase() : '#'}
-                                                                </div>
+                                                            <div key={pi} className="flex items-start gap-1.5">
+                                                                <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 shrink-0`} />
                                                                 <div>
-                                                                    {name && <p className={`text-xs font-medium leading-none mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</p>}
-                                                                    <p className={`text-sm font-medium ${isDark ? 'text-blue-400 group-hover:text-blue-300' : 'text-blue-600 group-hover:text-blue-800'} transition-colors`}>{rawNumber}</p>
+                                                                    {name && <span className={`text-fluid-2xs ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
+                                                                    <a
+                                                                        href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
+                                                                        className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
+                                                                    >
+                                                                        {rawNumber}
+                                                                    </a>
                                                                 </div>
-                                                            </a>
+                                                            </div>
                                                         );
-                                                    })
-                                                }
-                                            </div>
-                                        </div>
-                                    )}
+                                                    })}
 
-                                    {/* Instagram */}
-                                    {eventData?.contact?.instagram && (
-                                        <div className="mb-6">
-                                            <div className="flex items-center space-x-3 mb-2">
-                                                <div className={`p-2 bg-linear-to-br from-purple-500 to-pink-500 rounded-full`}>
-                                                    <Instagram className="w-5 h-5 text-white" />
+                                                    {contact.email && (
+                                                        <div className="flex items-center">
+                                                            <Mail size={12} className={`${isDark ? 'text-green-400' : 'text-green-600'} mr-2`} />
+                                                            <a
+                                                                href={`mailto:${contact.email}`}
+                                                                className={`text-xs ${isDark ? 'text-gray-300 hover:text-green-400' : 'text-gray-600 hover:text-green-600'} transition truncate`}
+                                                            >
+                                                                {contact.email}
+                                                            </a>
+                                                        </div>
+                                                    )}
+
+                                                    {contact.instagramId && (
+                                                        <div className="flex items-center">
+                                                            <Instagram size={12} className={`${isDark ? 'text-pink-400' : 'text-pink-600'} mr-2`} />
+                                                            <a
+                                                                href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className={`text-xs ${isDark ? 'text-gray-300 hover:text-pink-400' : 'text-gray-600 hover:text-pink-600'} transition`}
+                                                            >
+                                                                {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
+                                                            </a>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Instagram</p>
                                             </div>
-                                            <a
-                                                href={eventData.contact.instagram.startsWith('http') 
-                                                    ? eventData.contact.instagram 
-                                                    : `https://instagram.com/${eventData.contact.instagram.replace('@', '')}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className={`text-sm pl-12 ${isDark ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-800'} transition-colors`}
-                                            >
-                                                {eventData.contact.instagram}
-                                            </a>
-                                        </div>
-                                    )}
-
-                                    {/* Show message if no contact details */}
-                                    {!eventData?.contact?.name && !eventData?.contact?.email && !eventData?.contact?.phone && !eventData?.contact?.instagram && (
-                                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            Contact details will be updated soon.
-                                        </p>
-                                    )}
+                                        ))}
+                                    </div>
                                 </div>
+                                ) : null}
                             </div>
 
                             {/* Right Column - Event Details */}
@@ -1443,33 +1473,32 @@ function EventPage() {
                                     </div>
 
                                     <div className="flex items-center gap-3 mb-4">
-                                        {/* Fee pill */}
-                                        <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-linear-to-r from-[#0060DF]/10 to-[#00C2CB]/10 border-[#00C2CB]/30">
-                                            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-linear-to-br from-[#0060DF]/25 to-[#00C2CB]/25">
-                                                {eventData?.feeAmount > 0
-                                                    ? <Ticket className="w-3.5 h-3.5 text-[#00C2CB]" />
-                                                    : <Zap className="w-3.5 h-3.5 text-[#00C2CB]" />
+                                        <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-[#0ECCEE]/10 border-[#0ECCEE]/30">
+                                            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-[#0ECCEE]/20">
+                                                {eventData?.feeIsFree
+                                                    ? <Zap className="w-3.5 h-3.5 text-[#0ECCEE]" />
+                                                    : <Ticket className="w-3.5 h-3.5 text-[#0ECCEE]" />
                                                 }
                                             </div>
                                             <div>
-                                                <span className="text-base font-bold leading-tight block text-[#00C2CB]">
-                                                    {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}` : 'Free'}
+                                                <span className={`text-base font-bold leading-tight block ${eventData?.feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                                                    {eventData?.feeLabel || (eventData?.feeAmount > 0 ? `₹${Number(eventData.feeAmount).toLocaleString('en-IN')}` : 'Free')}
                                                 </span>
                                                 <span className={`text-[10px] leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                    {eventData?.feeAmount > 0 ? 'Entry Fee' : 'No Entry Fee'}
+                                                    {eventData?.feeIsFree ? 'No Entry Fee' : 'Registration Fee'}
                                                 </span>
                                             </div>
                                         </div>
 
-                                        {/* Register button */}
+                                        {/* Register button — trek/run style */}
                                         <button
                                             onClick={handleRegister}
                                             disabled={registrationInfo.isDisabled}
-                                            className={`flex-1 py-3 px-4 rounded-full font-semibold transition ${isRegistered
+                                            className={`flex flex-1 items-center justify-center gap-2 h-14 px-6 rounded-3xl text-base font-medium shadow-lg transition ${isRegistered
                                                 ? 'bg-green-500 text-white hover:opacity-90'
                                                 : registrationInfo.isDisabled
-                                                ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
-                                                : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
+                                                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                                : 'bg-[#0ECCEE] text-black active:opacity-90'
                                                 }`}
                                             title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
                                         >
@@ -1479,7 +1508,14 @@ function EventPage() {
                                                     Register Again
                                                 </span>
                                             ) : (
-                                                registrationInfo.buttonText
+                                                <>
+                                                    {registrationInfo.buttonText}
+                                                    {!registrationInfo.isDisabled ? (
+                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="m9 18 6-6-6-6"/>
+                                                        </svg>
+                                                    ) : null}
+                                                </>
                                             )}
                                         </button>
                                         <div className="relative">
@@ -1576,7 +1612,7 @@ function EventPage() {
                                                         : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#EDEDF2] text-black'}`
                                                         }`}
                                                 >
-                                                    Round {idx + 1}
+                                                    {getRoundTabLabel(round, idx, eventData.rounds.roundsList.length)}
                                                 </button>
                                             ))}
                                         </div>
@@ -1597,6 +1633,13 @@ function EventPage() {
                                                 (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
                                                     normalizedRoundDescription.includes(normalizedOverviewDescription));
 
+                                            const displayTitle = getRoundDisplayTitle(
+                                                round,
+                                                activeRound,
+                                                eventData.rounds.roundsList.length,
+                                            );
+                                            const roundRules = getRoundRules(round);
+
                                             return (
                                                 <>
                                                     {cleanedRoundDescription && !isDuplicateOfOverview && (
@@ -1605,41 +1648,15 @@ function EventPage() {
                                                         </p>
                                                     )}
 
-                                                    {round.title && (
+                                                    {displayTitle ? (
                                                         <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                            {round.title}
+                                                            {displayTitle}
                                                         </h3>
-                                                    )}
+                                                    ) : null}
 
-                                                    {round.offline && (
-                                                        <div className="mb-4">
-                                                            <p className={`font-semibold mb-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                                {round.offline.title || 'Offline Round'}
-                                                            </p>
-                                                            <RulesList
-                                                                rules={round.offline.rules}
-                                                                ruleKey={`desktop-round${activeRound}-offline-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    {round.online && (
-                                                        <div className="mb-4">
-                                                            <p className={`font-semibold mb-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                                {round.online.title || 'Online Round'}
-                                                            </p>
-                                                            <RulesList
-                                                                rules={round.online.rules}
-                                                                ruleKey={`desktop-round${activeRound}-online-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    {!round.offline && !round.online && round.rules && (
+                                                    {roundRules.length > 0 && (
                                                         <RulesList
-                                                            rules={getRoundRules(round)}
+                                                            rules={roundRules}
                                                             ruleKey={`desktop-round${activeRound}-${eventData?.id}`}
                                                             maxItems={5}
                                                         />
@@ -1652,41 +1669,64 @@ function EventPage() {
                                 )}
                             </div>
                         </div>
-                    </div>
                 </main>
 
                 {/* Spacer for fixed mobile footer */}
-                <div className="md:hidden h-20"></div>
+                <div className="md:hidden h-24"></div>
 
 
-            {/* Fixed Mobile/Tablet Register Button Footer */}
-            <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden px-4 py-3 flex items-center gap-3 ${isDark ? 'bg-[#0F1014] border-t border-gray-700' : 'bg-white border-t border-gray-200'}`}>
-                {/* Fee display */}
-                <div className="shrink-0">
-                    <span className={`text-lg font-bold leading-tight block ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}/-` : 'Free'}
-                    </span>
-                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {eventData?.feeAmount > 0 ? 'Fee' : 'No Fee'}
-                    </span>
+            {/* Fixed mobile sticky fee + Register — same pattern as treks / runs */}
+            <div
+                className="fixed bottom-0 left-0 right-0 z-40 md:hidden px-2"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
+            >
+                <div className={`mx-auto w-full max-w-md flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                    <div className="min-w-0 shrink-0">
+                        <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
+                        {!eventData?.feeKnown ? (
+                            <p className={`mt-0.5 text-2xl font-bold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>—</p>
+                        ) : eventData?.feeIsFree ? (
+                            <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
+                        ) : (
+                            <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {eventData?.feeLabel || `₹${Number(eventData.feeAmount || 0).toLocaleString('en-IN')}`}
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            trackBookNowClick({
+                                entityType: 'competition',
+                                entityId: eventData?.id || '',
+                                mode: eventData?.registrationType || 'fest',
+                                destination: 'competition_register',
+                            });
+                            handleRegister();
+                        }}
+                        disabled={registrationInfo.isDisabled}
+                        className={`flex flex-1 items-center justify-center gap-2 h-14 px-6 rounded-3xl text-lg font-medium shadow-lg transition ${
+                            registrationInfo.isDisabled
+                                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                : isRegistered
+                                ? 'bg-green-600 text-white'
+                                : 'bg-[#0ECCEE] text-black active:opacity-90'
+                        }`}
+                    >
+                        {isRegistered ? (
+                            <><Check className="w-4 h-4" /> Register Again</>
+                        ) : (
+                            <>
+                                {registrationInfo.buttonText}
+                                {!registrationInfo.isDisabled ? (
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="m9 18 6-6-6-6" />
+                                    </svg>
+                                ) : null}
+                            </>
+                        )}
+                    </button>
                 </div>
-
-                {/* Register button */}
-                <button
-                    onClick={handleRegister}
-                    disabled={registrationInfo.isDisabled}
-                    className={`flex-1 font-semibold py-3 rounded-xl transition ${
-                        registrationInfo.isDisabled
-                            ? 'bg-gray-500 text-white cursor-not-allowed'
-                            : isRegistered
-                            ? 'bg-green-600 hover:bg-green-700 text-white'
-                            : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
-                    }`}
-                >
-                    {isRegistered ? (
-                        <><span className="mr-1">✓</span> Register Again</>
-                    ) : registrationInfo.buttonText}
-                </button>
             </div>
 
             {/* Login Modal */}

@@ -36,6 +36,9 @@ export function isSharedContentDeepLink(pathname = '') {
     || /^\/treks\/community(\/|$)/.test(path)
     || /^\/view-details(\/|$)/.test(path)
     || /^\/competitions-view-details(\/|$)/.test(path)
+    || /^\/competition(\/|$)/.test(path)
+    || /^\/stall(\/|$)/.test(path)
+    || /^\/s(\/|$)/.test(path)
     || /^\/sports\/run(\/|$)/.test(path)
     || /^\/sports\/run-club(\/|$)/.test(path)
     || /^\/events\/[^/]+/.test(path)
@@ -67,14 +70,15 @@ export function hasAuthCallbackParams() {
 }
 
 /**
- * Show branded splash on first open (navigate) and refresh — not on back/forward
- * or shared content deep links (trek / fest / club detail pages).
+ * Show branded splash on first open (navigate) and refresh — not on back/forward.
+ * Shared content deep links skip splash on first open (WhatsApp / Instagram lag),
+ * but still show the logo on a full page refresh.
  */
 export function shouldShowBootSplash() {
   try {
     if (hasAuthCallbackParams()) return false;
     if (hasPaymentReturnContext()) return false;
-    if (isSharedContentDeepLink()) return false;
+
     // Instagram / FB / WhatsApp: splash + timers often leave a blank black shell
     try {
       const ua = navigator.userAgent || '';
@@ -84,8 +88,14 @@ export function shouldShowBootSplash() {
     } catch { /* ignore */ }
 
     const [nav] = performance.getEntriesByType?.('navigation') ?? [];
+    const isReload = nav?.type === 'reload' || performance.navigation?.type === 1;
+    const isBackForward = nav?.type === 'back_forward' || performance.navigation?.type === 2;
+
+    // Deep-linked content: skip splash on open, keep logo on refresh
+    if (isSharedContentDeepLink() && !isReload) return false;
+
+    if (isBackForward) return false;
     if (nav?.type === 'reload' || nav?.type === 'navigate') return true;
-    if (nav?.type === 'back_forward') return false;
 
     const legacyType = performance.navigation?.type;
     if (legacyType === 0 || legacyType === 1) return true;

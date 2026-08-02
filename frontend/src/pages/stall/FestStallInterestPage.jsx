@@ -104,8 +104,8 @@ export default function FestStallInterestPage() {
                 `/fests/${encodeURIComponent(festSlugOrId)}/stall-leads`,
                 {
                     method: 'POST',
-                    retries: 4,
-                    timeout: 25000,
+                    retries: 2,
+                    timeout: 12000,
                     body: {
                         name: form.name.trim(),
                         phone,

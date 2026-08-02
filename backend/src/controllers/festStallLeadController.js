@@ -7,6 +7,25 @@ const { findByIdOrSlug } = require('../utils/slug');
 /** Stall day boundaries always use India time so Railway UTC doesn't hide leads. */
 const STALL_TZ = 'Asia/Kolkata';
 
+/** Short in-memory cache — QR scans hammer the same fest meta repeatedly */
+const stallCache = new Map();
+const STALL_CACHE_TTL_MS = 60_000;
+
+function cacheGet(key) {
+    const hit = stallCache.get(key);
+    if (!hit) return null;
+    if (Date.now() > hit.expiresAt) {
+        stallCache.delete(key);
+        return null;
+    }
+    return hit.value;
+}
+
+function cacheSet(key, value, ttlMs = STALL_CACHE_TTL_MS) {
+    stallCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+    return value;
+}
+
 function ymdInTz(date = new Date(), timeZone = STALL_TZ) {
     const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone,
@@ -74,10 +93,15 @@ function serializeLead(lead) {
 }
 
 async function resolveFest(idOrSlug) {
-    return findByIdOrSlug(FestOrganizer, idOrSlug, {
+    const key = `fest:${String(idOrSlug || '').trim().toLowerCase()}`;
+    const cached = cacheGet(key);
+    if (cached) return cached;
+    const fest = await findByIdOrSlug(FestOrganizer, idOrSlug, {
         select: 'festName collegeName city slug coverImage status isApproved',
         pickName: (row) => row.festName || '',
     });
+    if (fest) cacheSet(key, fest);
+    return fest;
 }
 
 function parseLeadBody(body = {}, festCompetitions = []) {
@@ -152,17 +176,31 @@ function parseLeadBody(body = {}, festCompetitions = []) {
 }
 
 async function loadFestCompetitions(festId) {
-    return Competition.find({ fest: festId }).select('name').sort({ name: 1 }).lean();
+    const key = `comps:${String(festId)}`;
+    const cached = cacheGet(key);
+    if (cached) return cached;
+    const rows = await Competition.find({ fest: festId }).select('name').sort({ name: 1 }).lean();
+    return cacheSet(key, rows);
 }
 
-/** Upsert same phone + fest within today (IST) — race-safe via dayKey unique index */
+/** Only the comps the student picked — keeps submit fast under load */
+async function loadCompetitionsByIds(festId, ids = []) {
+    const unique = [...new Set((ids || []).map(String).filter((id) => mongoose.Types.ObjectId.isValid(id)))].slice(0, 20);
+    if (!unique.length) return [];
+    return Competition.find({
+        fest: festId,
+        _id: { $in: unique.map((id) => new mongoose.Types.ObjectId(id)) },
+    })
+        .select('name')
+        .lean();
+}
+
+/** Upsert same phone + fest within today (IST) — single atomic write when possible */
 async function upsertSameDayLead({ festId, payload, capturedBy = null }) {
     const festOid = mongoose.Types.ObjectId.isValid(String(festId))
         ? new mongoose.Types.ObjectId(String(festId))
         : festId;
     const dayKey = ymdInTz(new Date());
-    const todayStart = startOfToday();
-    const todayEnd = endOfToday();
     const setFields = {
         name: payload.name,
         interest: payload.interest,
@@ -175,25 +213,6 @@ async function upsertSameDayLead({ festId, payload, capturedBy = null }) {
         dayKey,
     };
     if (capturedBy) setFields.capturedBy = capturedBy;
-
-    // Prefer existing same-day row (by dayKey or legacy createdAt window)
-    const existing = await FestInterestLead.findOne({
-        fest: festOid,
-        phone: payload.phone,
-        $or: [
-            { dayKey },
-            {
-                $or: [{ dayKey: '' }, { dayKey: null }, { dayKey: { $exists: false } }],
-                createdAt: { $gte: todayStart, $lt: todayEnd },
-            },
-        ],
-    }).sort({ createdAt: -1 });
-
-    if (existing) {
-        Object.assign(existing, setFields);
-        await existing.save();
-        return { lead: existing, updated: true };
-    }
 
     try {
         const lead = await FestInterestLead.findOneAndUpdate(
@@ -212,7 +231,10 @@ async function upsertSameDayLead({ festId, payload, capturedBy = null }) {
                 runValidators: true,
             },
         );
-        return { lead, updated: false };
+        const createdMs = new Date(lead.createdAt).getTime();
+        const updatedMs = new Date(lead.updatedAt).getTime();
+        const updated = Number.isFinite(createdMs) && Number.isFinite(updatedMs) && (updatedMs - createdMs) > 800;
+        return { lead, updated };
     } catch (error) {
         // Concurrent duplicate key — retry as update
         if (error?.code === 11000) {
@@ -222,6 +244,21 @@ async function upsertSameDayLead({ festId, payload, capturedBy = null }) {
                 { new: true, runValidators: true },
             );
             if (lead) return { lead, updated: true };
+
+            // Legacy row without dayKey — update today's phone match
+            const todayStart = startOfToday();
+            const todayEnd = endOfToday();
+            const legacy = await FestInterestLead.findOneAndUpdate(
+                {
+                    fest: festOid,
+                    phone: payload.phone,
+                    $or: [{ dayKey: '' }, { dayKey: null }, { dayKey: { $exists: false } }],
+                    createdAt: { $gte: todayStart, $lt: todayEnd },
+                },
+                { $set: setFields },
+                { new: true, runValidators: true, sort: { createdAt: -1 } },
+            );
+            if (legacy) return { lead: legacy, updated: true };
         }
         throw error;
     }
@@ -239,6 +276,7 @@ exports.getPublicStallMeta = async (req, res) => {
 
         const competitions = await loadFestCompetitions(fest._id);
 
+        res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
         res.json({
             success: true,
             fest: {
@@ -272,7 +310,13 @@ exports.createPublicStallLead = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Fest not available' });
         }
 
-        const festCompetitions = await loadFestCompetitions(fest._id);
+        const rawCompIds = Array.isArray(req.body?.competitionIds)
+            ? req.body.competitionIds
+            : Array.isArray(req.body?.competitions)
+                ? req.body.competitions.map((c) => (typeof c === 'object' ? c.id || c._id : c))
+                : [];
+        // Only fetch selected comps — avoid loading the full fest catalog on every submit
+        const festCompetitions = await loadCompetitionsByIds(fest._id, rawCompIds);
         const parsed = parseLeadBody({
             ...req.body,
             source: req.body.source || 'shubharam_stall',

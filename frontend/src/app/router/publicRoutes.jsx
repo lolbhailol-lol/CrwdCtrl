@@ -44,8 +44,8 @@ import {
   RunEventBookingPage,
   TrekCategoryPage,
   PaymentCheckoutPage,
-  FestStallInterestPage,
 } from './lazyPages';
+import FestStallInterestPage from '../../pages/stall/FestStallInterestPage';
 import {
   paymentReturnRedirect,
   dashboardRedirect,
