@@ -18,7 +18,7 @@ import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../services/ap
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
-import { competitionPath, competitionRegistrationPath, festRegisterPath } from '../../utils/slugRoutes';
+import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath } from '../../utils/slugRoutes';
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -853,7 +853,14 @@ function EventPage() {
                             {/* Mobile Back Button */}
                             <div className="px-4 pt-4 pb-2">
                                 <button
-                                    onClick={() => navigate(-1)}
+                                    onClick={() => {
+                                        const fest = eventData?.fest;
+                                        if (fest?._id || fest?.id || eventData?.festId) {
+                                            navigate(festPath(fest || { _id: eventData.festId }), { replace: true });
+                                            return;
+                                        }
+                                        navigate('/fests', { replace: true });
+                                    }}
                                     className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                                         isDark 
                                             ? 'bg-[#111213] text-gray-300 hover:bg-[#1D1E20] hover:text-white' 

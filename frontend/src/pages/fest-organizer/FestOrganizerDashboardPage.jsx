@@ -5,6 +5,7 @@ import {
     Trophy, Calendar, MapPin, Building2, ArrowRight,
 } from 'lucide-react';
 import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
+import { getFestOrganizerSession } from '../../utils/festOrganizerSession';
 
 function StatTile({ label, value, sub, tone = 'default', icon: Icon, to }) {
     const navigate = useNavigate();
@@ -50,6 +51,7 @@ function formatWhen(d) {
 export default function FestOrganizerDashboardPage() {
     const { festId } = useParams();
     const navigate = useNavigate();
+    const session = getFestOrganizerSession();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -95,6 +97,13 @@ export default function FestOrganizerDashboardPage() {
         ? `${window.location.origin}/view-details/${fest.slug}`
         : `${window.location.origin}/view-details/${fest.id}`;
     const topComps = competitions.filter((c) => c.id).slice(0, 5);
+    const meId = String(session?.organizer?.id || session?.organizer?._id || '');
+    const loggedInUsers = Array.isArray(data.loggedInUsers) ? data.loggedInUsers : [];
+    const loggedInSorted = [...loggedInUsers].sort((a, b) => {
+        if (a.isYou || String(a.id) === meId) return -1;
+        if (b.isYou || String(b.id) === meId) return 1;
+        return String(a.name || '').localeCompare(String(b.name || ''));
+    });
 
     return (
         <div className="max-w-5xl mx-auto space-y-6">
@@ -132,6 +141,37 @@ export default function FestOrganizerDashboardPage() {
                     </button>
                 </div>
             </div>
+
+            <section className="rounded-2xl border border-white/10 bg-[#161718] px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-white">
+                        {loggedInSorted.length} user{loggedInSorted.length === 1 ? '' : 's'} logged in to this dashboard
+                    </p>
+                    <p className="text-[11px] text-gray-500">Saved on sign-in</p>
+                </div>
+                {loggedInSorted.length ? (
+                    <ul className="mt-3 flex flex-wrap gap-2">
+                        {loggedInSorted.map((person) => {
+                            const you = person.isYou || String(person.id) === meId;
+                            return (
+                                <li
+                                    key={person.id}
+                                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+                                        you
+                                            ? 'border-[#0ECCEE]/35 bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                                            : 'border-white/10 bg-white/5 text-gray-200'
+                                    }`}
+                                >
+                                    <span className="font-medium">{person.name || person.username || 'Organizer'}</span>
+                                    {you ? <span className="text-[10px] opacity-80">(you)</span> : null}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                ) : (
+                    <p className="mt-2 text-xs text-gray-500">No logins recorded yet.</p>
+                )}
+            </section>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatTile label="Approved" value={stats.totalRegistrations} sub={`${stats.allActive || 0} active total`} icon={Users} tone="accent" to={`/fest-organizer/fests/${festId}/participants?status=approved`} />

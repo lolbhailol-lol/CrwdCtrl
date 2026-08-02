@@ -20,7 +20,11 @@ const apiLimiter = rateLimit({
     if (req.method === 'GET') {
       if (/^\/sports\/[^/]+$/.test(path)) return true;
       if (/^\/treks\/[^/]+$/.test(path)) return true;
+      // Stall form meta — many phones load this at once on shared WiFi
+      if (/^\/fests\/[^/]+\/stall$/.test(path)) return true;
     }
+    // Stall lead POSTs have their own high ceiling limiter
+    if (req.method === 'POST' && /^\/fests\/[^/]+\/stall-leads$/.test(path)) return true;
     return false;
   },
 });
@@ -79,13 +83,13 @@ const scannerCheckinLimiter = rateLimit({
   message: { success: false, message: 'Too many check-in attempts, please slow down.' },
 });
 
-/** Public stall interest form — prevent spam floods */
+/** Public stall interest form — high ceiling (college WiFi = many users, one IP) */
 const stallLeadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 200 : 60,
+  max: isDev ? 5000 : Number(process.env.STALL_LEAD_RATE_LIMIT_MAX) || 3000,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Too many submissions. Please wait a moment and try again.' },
+  message: { success: false, message: 'Too many submissions right now. Please wait a few seconds and try again.' },
 });
 
 module.exports = {

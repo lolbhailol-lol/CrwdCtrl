@@ -156,6 +156,12 @@ export async function updateFestOrganizerLead(festId, leadId, body) {
     });
 }
 
+export async function deleteFestOrganizerLead(festId, leadId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/leads/${leadId}`, {
+        method: 'DELETE',
+    });
+}
+
 export async function exportFestOrganizerLeads(festId, params = {}) {
     const qs = new URLSearchParams();
     if (params.date) qs.set('date', params.date);

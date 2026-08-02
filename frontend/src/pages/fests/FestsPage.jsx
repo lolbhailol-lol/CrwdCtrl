@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Bell } from 'lucide-react';
+import { MapPin, Bell, ArrowLeft } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
@@ -277,7 +277,17 @@ export default function FestsPage() {
                 shellClassName="fests-page-header"
                 brandingRow={
                     <>
-                        <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
+                        <div className="flex items-center gap-2 min-w-0">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/', { replace: true })}
+                                className={`p-2 rounded-xl bg-transparent transition-colors shrink-0 ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-black/5'}`}
+                                aria-label="Back to home"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                            </button>
+                            <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
+                        </div>
                         <div className="mobile-header-actions">
                             <button
                                 onClick={() => navigate('/')}

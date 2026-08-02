@@ -883,9 +883,9 @@ function EventDetailsPage() {
           <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/fests', { replace: true })}
               className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
-              aria-label="Go back"
+              aria-label="Back to fests"
             >
               <ArrowLeft size={20} />
             </button>

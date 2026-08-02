@@ -9,7 +9,7 @@ import { openExternalUrl } from './externalLink';
 /**
  * Initialize Capacitor native behaviors: splash, status bar, back button, deep links.
  */
-export async function initCapacitorApp({ navigate, onBackWhenRoot }) {
+export async function initCapacitorApp({ navigate, onBack, onBackWhenRoot }) {
   if (!isNativeApp()) return () => {};
 
   const cleanups = [];
@@ -34,6 +34,10 @@ export async function initCapacitorApp({ navigate, onBackWhenRoot }) {
   }
 
   const backHandle = await App.addListener('backButton', ({ canGoBack }) => {
+    // Prefer browse-flow targets (fest → fests → home) over raw history
+    if (typeof onBack === 'function' && onBack()) {
+      return;
+    }
     if (canGoBack) {
       window.history.back();
     } else if (typeof onBackWhenRoot === 'function') {

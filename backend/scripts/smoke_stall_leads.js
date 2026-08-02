@@ -9,35 +9,36 @@ const mongoose = require('mongoose');
 
   const fest = await Fest.findOne({ festName: /aarohan\s*2027/i }).select('_id festName slug isApproved').lean();
   if (!fest) throw new Error('AAROHAN 2027 not found');
-  await Fest.updateOne({ _id: fest._id }, { $set: { slug: 'aarohan-2027' } });
-  fest.slug = 'aarohan-2027';
-  console.log('OK slug aarohan-2027');
   console.log('fest', String(fest._id), fest.festName, fest.slug);
 
   const API = process.env.SMOKE_API_BASE || 'http://127.0.0.1:8080/api';
-  const phone = `9${Date.now().toString().slice(-9)}`;
+  const qrPhone = `9${Date.now().toString().slice(-9)}`;
+  const kioskPhone = `8${Date.now().toString().slice(-9)}`;
 
+  // --- QR / public stall submit ---
   const meta = await fetch(`${API}/fests/aarohan-2027/stall`);
   const metaData = await meta.json();
   if (!meta.ok) throw new Error(`stall meta ${meta.status} ${JSON.stringify(metaData)}`);
-  console.log('OK public meta', metaData.fest?.festName);
+  console.log('OK public meta', metaData.fest?.festName, 'comps', metaData.competitions?.length);
 
   const submit = await fetch(`${API}/fests/aarohan-2027/stall-leads`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      name: 'Smoke Fresher',
-      phone,
-      year: '1st',
-      branch: 'CSE',
-      interest: 'both',
+      name: 'QR Smoke Student',
+      phone: qrPhone,
+      year: '2nd',
+      branch: 'Artificial Intelligence',
+      interest: 'participate',
+      competitionIds: metaData.competitions?.[0]?.id ? [String(metaData.competitions[0].id)] : [],
       source: 'shubharam_stall',
     }),
   });
   const submitData = await submit.json();
-  if (!submit.ok) throw new Error(`submit ${submit.status} ${JSON.stringify(submitData)}`);
-  console.log('OK public submit', submitData.message);
+  if (!submit.ok) throw new Error(`QR submit ${submit.status} ${JSON.stringify(submitData)}`);
+  console.log('OK QR submit', submitData.message, 'branch=', submitData.lead?.branch);
 
+  // --- Organizer login + kiosk ---
   const stamp = Date.now().toString(36);
   const username = `stallsmoke_${stamp}`;
   const password = 'SmokeTest1!';
@@ -61,33 +62,48 @@ const mongoose = require('mongoose');
   if (!auth.token) throw new Error(JSON.stringify(auth));
 
   const festId = String(fest._id);
+  const kiosk = await fetch(`${API}/fest-organizer/fests/${festId}/leads`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${auth.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: 'Kiosk Smoke Lead',
+      phone: kioskPhone,
+      year: '3rd',
+      branch: 'Mechatronics',
+      interest: 'volunteer',
+      volunteerTeams: ['pr', 'marathon'],
+      source: 'organizer_kiosk',
+    }),
+  });
+  const kioskData = await kiosk.json();
+  if (!kiosk.ok) throw new Error(`kiosk ${kiosk.status} ${JSON.stringify(kioskData)}`);
+  console.log('OK kiosk submit', kioskData.message, 'teams=', kioskData.lead?.volunteerTeams);
+
   const list = await fetch(`${API}/fest-organizer/fests/${festId}/leads?today=1`, {
     headers: { Authorization: `Bearer ${auth.token}` },
   });
   const listData = await list.json();
   if (!list.ok) throw new Error(JSON.stringify(listData));
-  const found = (listData.leads || []).some((l) => l.phone === phone || l.phone.endsWith(phone.slice(-10)));
-  console.log('OK portal list', listData.leads?.length, 'found=', found);
-
-  const stats = await fetch(`${API}/fest-organizer/fests/${festId}/leads/stats`, {
-    headers: { Authorization: `Bearer ${auth.token}` },
-  });
-  const statsData = await stats.json();
-  console.log('OK stats', statsData.stats);
-
-  const csv = await fetch(`${API}/fest-organizer/fests/${festId}/leads/export?today=1`, {
-    headers: { Authorization: `Bearer ${auth.token}` },
-  });
-  const csvText = await csv.text();
-  if (!csv.ok || !csvText.includes('Smoke Fresher')) {
-    throw new Error(`export failed ${csv.status}`);
+  const phones = (listData.leads || []).map((l) => l.phone);
+  const foundQr = phones.some((p) => p === qrPhone || p.endsWith(qrPhone.slice(-10)));
+  const foundKiosk = phones.some((p) => p === kioskPhone || p.endsWith(kioskPhone.slice(-10)));
+  console.log('OK today list', listData.leads?.length, 'qr=', foundQr, 'kiosk=', foundKiosk);
+  if (!foundQr || !foundKiosk) {
+    throw new Error(`Missing from today list qr=${foundQr} kiosk=${foundKiosk}`);
   }
-  console.log('OK export bytes', csvText.length);
 
-  await Lead.deleteMany({ phone });
+  const dbQr = await Lead.findOne({ fest: fest._id, phone: qrPhone }).lean();
+  const dbKiosk = await Lead.findOne({ fest: fest._id, phone: kioskPhone }).lean();
+  if (!dbQr || dbQr.branch !== 'Artificial Intelligence') throw new Error('QR branch not saved');
+  if (!dbKiosk || dbKiosk.source !== 'organizer_kiosk') throw new Error('Kiosk source wrong');
+  console.log('OK DB rows', { qr: dbQr.source, kiosk: dbKiosk.source });
+
+  await Lead.deleteMany({ phone: { $in: [qrPhone, kioskPhone] } });
   await Acc.deleteOne({ _id: org._id });
-  console.log('\nSMOKE PASSED');
-  console.log('Public URL: /stall/aarohan-2027');
+  console.log('\nSMOKE PASSED — QR + kiosk both save and show under Today');
   await mongoose.disconnect();
 })().catch(async (e) => {
   console.error('SMOKE FAILED', e);

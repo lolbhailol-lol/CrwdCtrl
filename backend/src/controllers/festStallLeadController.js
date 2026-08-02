@@ -4,42 +4,45 @@ const FestOrganizer = require('../model/fest_organizer_model');
 const Competition = require('../model/competition_model');
 const { findByIdOrSlug } = require('../utils/slug');
 
-function startOfToday() {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
+/** Stall day boundaries always use India time so Railway UTC doesn't hide leads. */
+const STALL_TZ = 'Asia/Kolkata';
+
+function ymdInTz(date = new Date(), timeZone = STALL_TZ) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(date);
+    const get = (type) => parts.find((p) => p.type === type)?.value;
+    return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
-function endOfToday() {
-    const d = startOfToday();
-    d.setDate(d.getDate() + 1);
-    return d;
-}
-
-/** Parse YYYY-MM-DD (local calendar day). Returns { start, end } or null for invalid. */
-function dayRangeFromQuery(dateStr) {
+function dayRangeIST(dateStr) {
     const raw = String(dateStr || '').trim();
-    if (!raw) return null;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-    const [y, m, d] = raw.split('-').map(Number);
-    const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+    if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    const start = new Date(`${raw}T00:00:00+05:30`);
     if (Number.isNaN(start.getTime())) return null;
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
     return { start, end, date: raw };
 }
 
+function startOfToday() {
+    return dayRangeIST(ymdInTz(new Date())).start;
+}
+
+function endOfToday() {
+    return dayRangeIST(ymdInTz(new Date())).end;
+}
+
 function dateFilterFromReq(query = {}) {
-    const range = dayRangeFromQuery(query.date);
-    if (range) return range;
+    if (query.date) {
+        const range = dayRangeIST(query.date);
+        if (range) return range;
+    }
     const todayOnly = String(query.today || '') === '1' || String(query.today || '') === 'true';
     if (todayOnly) {
-        const start = startOfToday();
-        const end = endOfToday();
-        const y = start.getFullYear();
-        const m = String(start.getMonth() + 1).padStart(2, '0');
-        const d = String(start.getDate()).padStart(2, '0');
-        return { start, end, date: `${y}-${m}-${d}` };
+        return dayRangeIST(ymdInTz(new Date()));
     }
     return null;
 }
@@ -96,9 +99,7 @@ function parseLeadBody(body = {}, festCompetitions = []) {
     if (!FestInterestLead.INTERESTS.includes(interest)) {
         return { error: 'Choose volunteer, participate, or both' };
     }
-    if (!FestInterestLead.SOURCES.includes(source)) {
-        return { error: 'Invalid source' };
-    }
+    const safeSource = FestInterestLead.SOURCES.includes(source) ? source : 'shubharam_stall';
 
     const wantsVolunteer = interest === 'volunteer' || interest === 'both';
     const wantsParticipate = interest === 'participate' || interest === 'both';
@@ -145,7 +146,7 @@ function parseLeadBody(body = {}, festCompetitions = []) {
             volunteerTeams,
             competitions,
             note: note.slice(0, 500),
-            source,
+            source: safeSource,
         },
     };
 }
@@ -154,36 +155,76 @@ async function loadFestCompetitions(festId) {
     return Competition.find({ fest: festId }).select('name').sort({ name: 1 }).lean();
 }
 
-/** Upsert same phone + fest within today */
+/** Upsert same phone + fest within today (IST) — race-safe via dayKey unique index */
 async function upsertSameDayLead({ festId, payload, capturedBy = null }) {
+    const festOid = mongoose.Types.ObjectId.isValid(String(festId))
+        ? new mongoose.Types.ObjectId(String(festId))
+        : festId;
+    const dayKey = ymdInTz(new Date());
     const todayStart = startOfToday();
     const todayEnd = endOfToday();
+    const setFields = {
+        name: payload.name,
+        interest: payload.interest,
+        volunteerTeams: Array.isArray(payload.volunteerTeams) ? payload.volunteerTeams : [],
+        competitions: Array.isArray(payload.competitions) ? payload.competitions : [],
+        year: payload.year || '',
+        branch: payload.branch || '',
+        note: payload.note || '',
+        source: payload.source || 'shubharam_stall',
+        dayKey,
+    };
+    if (capturedBy) setFields.capturedBy = capturedBy;
+
+    // Prefer existing same-day row (by dayKey or legacy createdAt window)
     const existing = await FestInterestLead.findOne({
-        fest: festId,
+        fest: festOid,
         phone: payload.phone,
-        createdAt: { $gte: todayStart, $lt: todayEnd },
-    });
+        $or: [
+            { dayKey },
+            {
+                $or: [{ dayKey: '' }, { dayKey: null }, { dayKey: { $exists: false } }],
+                createdAt: { $gte: todayStart, $lt: todayEnd },
+            },
+        ],
+    }).sort({ createdAt: -1 });
 
     if (existing) {
-        existing.name = payload.name;
-        existing.interest = payload.interest;
-        existing.volunteerTeams = payload.volunteerTeams || [];
-        existing.competitions = payload.competitions || [];
-        if (payload.year) existing.year = payload.year;
-        if (payload.branch) existing.branch = payload.branch;
-        if (payload.note) existing.note = payload.note;
-        if (payload.source) existing.source = payload.source;
-        if (capturedBy) existing.capturedBy = capturedBy;
+        Object.assign(existing, setFields);
         await existing.save();
         return { lead: existing, updated: true };
     }
 
-    const lead = await FestInterestLead.create({
-        fest: festId,
-        ...payload,
-        capturedBy: capturedBy || null,
-    });
-    return { lead, updated: false };
+    try {
+        const lead = await FestInterestLead.findOneAndUpdate(
+            { fest: festOid, phone: payload.phone, dayKey },
+            {
+                $set: setFields,
+                $setOnInsert: {
+                    fest: festOid,
+                    phone: payload.phone,
+                },
+            },
+            {
+                upsert: true,
+                new: true,
+                setDefaultsOnInsert: true,
+                runValidators: true,
+            },
+        );
+        return { lead, updated: false };
+    } catch (error) {
+        // Concurrent duplicate key — retry as update
+        if (error?.code === 11000) {
+            const lead = await FestInterestLead.findOneAndUpdate(
+                { fest: festOid, phone: payload.phone, dayKey },
+                { $set: setFields },
+                { new: true, runValidators: true },
+            );
+            if (lead) return { lead, updated: true };
+        }
+        throw error;
+    }
 }
 
 exports.getPublicStallMeta = async (req, res) => {
@@ -259,7 +300,12 @@ exports.createPublicStallLead = async (req, res) => {
         });
     } catch (error) {
         console.error('[stall.createPublicStallLead]', error);
-        res.status(500).json({ success: false, message: 'Failed to save interest' });
+        res.status(500).json({
+            success: false,
+            message: error?.message?.includes('validation') || error?.name === 'ValidationError'
+                ? error.message
+                : 'Failed to save interest',
+        });
     }
 };
 
@@ -271,11 +317,30 @@ exports.listLeads = async (req, res) => {
         const skip = (page - 1) * limit;
         const interest = String(req.query.interest || '').trim().toLowerCase();
         const search = String(req.query.search || '').trim();
+        const team = String(req.query.team || '').trim().toLowerCase();
+        const competitionId = String(req.query.competitionId || '').trim();
         const day = dateFilterFromReq(req.query);
 
-        const filter = { fest: festId };
-        if (FestInterestLead.INTERESTS.includes(interest)) {
+        const festOid = new mongoose.Types.ObjectId(String(festId));
+        const filter = { fest: festOid };
+        if (interest === 'volunteer') {
+            filter.interest = { $in: ['volunteer', 'both'] };
+        } else if (interest === 'participate') {
+            filter.interest = { $in: ['participate', 'both'] };
+        } else if (FestInterestLead.INTERESTS.includes(interest)) {
             filter.interest = interest;
+        }
+        if (team && FestInterestLead.VOLUNTEER_TEAM_IDS.includes(team)) {
+            filter.volunteerTeams = team;
+            if (!filter.interest) {
+                filter.interest = { $in: ['volunteer', 'both'] };
+            }
+        }
+        if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
+            filter['competitions.id'] = new mongoose.Types.ObjectId(competitionId);
+            if (!filter.interest) {
+                filter.interest = { $in: ['participate', 'both'] };
+            }
         }
         if (day) {
             filter.createdAt = { $gte: day.start, $lt: day.end };
@@ -297,7 +362,7 @@ exports.listLeads = async (req, res) => {
                 .skip(skip)
                 .limit(limit)
                 .lean(),
-            loadFestCompetitions(festId),
+            loadFestCompetitions(festOid),
         ]);
 
         res.json({
@@ -350,7 +415,10 @@ exports.createKioskLead = async (req, res) => {
         });
     } catch (error) {
         console.error('[stall.createKioskLead]', error);
-        res.status(500).json({ success: false, message: 'Failed to save lead' });
+        res.status(500).json({
+            success: false,
+            message: error?.name === 'ValidationError' ? error.message : 'Failed to save lead',
+        });
     }
 };
 
@@ -366,7 +434,7 @@ exports.getLeadStats = async (req, res) => {
         }
 
         const [allTime, scopedCount, byInterest] = await Promise.all([
-            FestInterestLead.countDocuments({ fest: festId }),
+            FestInterestLead.countDocuments({ fest: festOid }),
             FestInterestLead.countDocuments(scopeMatch),
             FestInterestLead.aggregate([
                 { $match: scopeMatch },
@@ -424,8 +492,29 @@ exports.updateLeadContacted = async (req, res) => {
     }
 };
 
+exports.deleteLead = async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        if (!mongoose.Types.ObjectId.isValid(String(leadId))) {
+            return res.status(400).json({ success: false, message: 'Invalid lead id' });
+        }
+        const lead = await FestInterestLead.findOneAndDelete({
+            _id: leadId,
+            fest: req.festId,
+        });
+        if (!lead) {
+            return res.status(404).json({ success: false, message: 'Lead not found' });
+        }
+        res.json({ success: true, message: 'Lead deleted', id: lead._id });
+    } catch (error) {
+        console.error('[stall.deleteLead]', error);
+        res.status(500).json({ success: false, message: 'Failed to delete lead' });
+    }
+};
+
 exports.exportLeads = async (req, res) => {
     try {
+        const ExcelJS = require('exceljs');
         const fest = await FestOrganizer.findById(req.festId).select('festName').lean();
         const day = dateFilterFromReq(req.query);
         const filter = { fest: req.festId };
@@ -434,32 +523,111 @@ exports.exportLeads = async (req, res) => {
         }
 
         const rows = await FestInterestLead.find(filter).sort({ createdAt: -1 }).lean();
-        const header = ['id', 'name', 'phone', 'year', 'branch', 'interest', 'volunteerTeams', 'competitions', 'source', 'note', 'contacted', 'createdAt'];
-        const lines = [header.join(',')];
+        const teamLabel = Object.fromEntries(
+            (FestInterestLead.VOLUNTEER_TEAMS || []).map((t) => [t.id, t.label]),
+        );
+        const sourceLabel = {
+            shubharam_stall: 'QR / stall',
+            organizer_kiosk: 'Kiosk',
+            other: 'Other',
+        };
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'CrwdCtrl';
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet('Stall leads', {
+            views: [{ state: 'frozen', ySplit: 1 }],
+        });
+
+        const header = [
+            'Name',
+            'Phone',
+            'Year',
+            'Branch / Dept',
+            'Interest',
+            'Volunteer teams',
+            'Competitions',
+            'Source',
+            'Note',
+            'Contacted',
+            'Submitted at (IST)',
+            'Lead ID',
+        ];
+        sheet.addRow(header);
+        const headerRow = sheet.getRow(1);
+        headerRow.font = { bold: true };
+        headerRow.alignment = { vertical: 'middle', wrapText: true };
+        headerRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFE8F8FC' },
+        };
+
         for (const row of rows) {
-            const teams = (row.volunteerTeams || []).join('|');
-            const comps = (row.competitions || []).map((c) => c.name || '').filter(Boolean).join('|');
-            lines.push([
-                row._id,
-                JSON.stringify(row.name || ''),
-                JSON.stringify(row.phone || ''),
-                JSON.stringify(row.year || ''),
-                JSON.stringify(row.branch || ''),
-                row.interest,
-                JSON.stringify(teams),
-                JSON.stringify(comps),
-                row.source,
-                JSON.stringify(row.note || ''),
-                row.contacted ? 'yes' : 'no',
-                row.createdAt ? new Date(row.createdAt).toISOString() : '',
-            ].join(','));
+            const teams = (row.volunteerTeams || [])
+                .map((id) => teamLabel[id] || id)
+                .join(', ');
+            const comps = (row.competitions || [])
+                .map((c) => c.name || '')
+                .filter(Boolean)
+                .join(', ');
+            let submitted = '';
+            if (row.createdAt) {
+                try {
+                    submitted = new Date(row.createdAt).toLocaleString('en-IN', {
+                        timeZone: 'Asia/Kolkata',
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                    });
+                } catch {
+                    submitted = new Date(row.createdAt).toISOString();
+                }
+            }
+            sheet.addRow([
+                row.name || '',
+                row.phone || '',
+                row.year || '',
+                row.branch || '',
+                row.interest || '',
+                teams,
+                comps,
+                sourceLabel[row.source] || row.source || '',
+                row.note || '',
+                row.contacted ? 'Yes' : 'No',
+                submitted,
+                String(row._id),
+            ]);
         }
 
+        header.forEach((_, colIdx) => {
+            const column = sheet.getColumn(colIdx + 1);
+            let max = String(header[colIdx] || '').length;
+            sheet.eachRow((r, rowNumber) => {
+                if (rowNumber === 1) return;
+                const len = String(r.getCell(colIdx + 1).value ?? '').length;
+                if (len > max) max = len;
+            });
+            column.width = Math.min(40, Math.max(12, max + 2));
+        });
+
+        // Phone as text so Excel doesn't mangle numbers
+        sheet.getColumn(2).numFmt = '@';
+
+        const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
         const safeName = (fest?.festName || 'fest').replace(/[^a-z0-9-_]+/gi, '_');
         const dateSuffix = day?.date ? `_${day.date}` : '';
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="${safeName}_stall_leads${dateSuffix}.csv"`);
-        res.send(lines.join('\n'));
+        res.setHeader(
+            'Content-Type',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        );
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${safeName}_stall_leads${dateSuffix}.xlsx"`,
+        );
+        res.send(buffer);
     } catch (error) {
         console.error('[stall.exportLeads]', error);
         res.status(500).json({ success: false, message: 'Export failed' });

@@ -4,6 +4,7 @@ import { initCapacitorApp } from '../utils/capacitorApp';
 import { initNativePushNavigation, initNativePushForegroundRefresh } from '../utils/nativePush';
 import { initCashfreeNativeGateway } from '../utils/bootstrapCashfreeNative';
 import { getPendingPayment } from '../utils/deepLinks';
+import { resolveBrowseBackPath } from '../utils/categoryHubRoutes';
 /**
  * Wires Capacitor back button, deep links, and payment return verification.
  */
@@ -20,6 +21,14 @@ export default function CapacitorInit() {
 
     initCapacitorApp({
       navigate,
+      onBack: () => {
+        const target = resolveBrowseBackPath(location.pathname);
+        if (target) {
+          navigate(target, { replace: true });
+          return true;
+        }
+        return false;
+      },
       onBackWhenRoot: () => {
         if (location.pathname !== '/') {
           navigate('/');

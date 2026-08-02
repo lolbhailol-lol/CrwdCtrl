@@ -157,8 +157,8 @@ export default function FestTypePage({
                 <div className="flex items-center gap-3 mt-2">
                     <button
                         type="button"
-                        onClick={() => navigate(-1)}
-                        aria-label="Go back"
+                        onClick={() => navigate('/fests', { replace: true })}
+                        aria-label="Back to fests"
                         className={`touch-target size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}
                     >
                         <ArrowLeft size={18} className={isDark ? 'text-white' : 'text-gray-700'} />

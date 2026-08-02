@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
     ClipboardList, Download, Loader, RefreshCw, QrCode, Users,
-    Phone, MessageCircle, Check, Maximize2, X,
+    Phone, MessageCircle, Check, Maximize2, X, Trash2, Filter,
 } from 'lucide-react';
 import {
     createFestOrganizerLead,
+    deleteFestOrganizerLead,
     exportFestOrganizerLeads,
     fetchFestOrganizerLeadStats,
     fetchFestOrganizerLeads,
@@ -46,6 +47,7 @@ function formatTime(d) {
     return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 }
 
+/** Local calendar date as YYYY-MM-DD (India-facing UI; backend filters in IST). */
 function localDateInputValue(d = new Date()) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -79,14 +81,21 @@ function telHref(phone) {
 
 export default function FestOrganizerLeadsPage() {
     const { festId } = useParams();
-    const { toast } = useDialog();
+    const { toast, confirm } = useDialog();
     const [stats, setStats] = useState(null);
     const [leads, setLeads] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [interestFilter, setInterestFilter] = useState('');
-    const [search, setSearch] = useState('');
+    /** YYYY-MM-DD or '' for all dates */
     const [selectedDate, setSelectedDate] = useState(() => localDateInputValue());
+    /** '' | volunteer | participate */
+    const [interestFilter, setInterestFilter] = useState('');
+    /** volunteer team id or '' */
+    const [teamFilter, setTeamFilter] = useState('');
+    /** competition id or '' */
+    const [competitionFilter, setCompetitionFilter] = useState('');
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const [search, setSearch] = useState('');
     const [qrFullscreen, setQrFullscreen] = useState(false);
     const [volunteerTeams, setVolunteerTeams] = useState(DEFAULT_TEAMS);
     const [festCompetitions, setFestCompetitions] = useState([]);
@@ -114,12 +123,14 @@ export default function FestOrganizerLeadsPage() {
         : stallPath;
     const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=480x480&data=${encodeURIComponent(stallUrl)}`;
 
-    const load = useCallback(async () => {
-        setLoading(true);
+    const load = useCallback(async ({ silent = false } = {}) => {
+        if (!silent) setLoading(true);
         try {
-            const params = { limit: 50 };
+            const params = { limit: 80 };
             if (selectedDate) params.date = selectedDate;
             if (interestFilter) params.interest = interestFilter;
+            if (teamFilter) params.team = teamFilter;
+            if (competitionFilter) params.competitionId = competitionFilter;
             if (search.trim()) params.search = search.trim();
             const statsParams = selectedDate ? { date: selectedDate } : {};
             const [listData, statsData] = await Promise.all([
@@ -135,16 +146,33 @@ export default function FestOrganizerLeadsPage() {
                 setFestCompetitions(listData.competitions);
             }
         } catch (e) {
-            toast(e.message || 'Failed to load leads');
+            if (!silent) toast(e.message || 'Failed to load leads');
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
-    }, [festId, interestFilter, search, selectedDate, toast]);
+    }, [festId, interestFilter, teamFilter, competitionFilter, search, selectedDate, toast]);
 
     useEffect(() => {
-        load();
-        const t = setInterval(load, 20000);
-        return () => clearInterval(t);
+        load({ silent: false });
+
+        const poll = () => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            load({ silent: true });
+        };
+
+        const t = setInterval(poll, 3000);
+        const onVisible = () => {
+            if (!document.hidden) load({ silent: true });
+        };
+        const onFocus = () => load({ silent: true });
+
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onFocus);
+        return () => {
+            clearInterval(t);
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onFocus);
+        };
     }, [load]);
 
     useEffect(() => {
@@ -158,21 +186,22 @@ export default function FestOrganizerLeadsPage() {
 
     const saveKiosk = async (e) => {
         e.preventDefault();
-        const wantsVolunteer = form.interest === 'volunteer' || form.interest === 'both';
-        const wantsParticipate = form.interest === 'participate' || form.interest === 'both';
-        if (wantsVolunteer && !form.volunteerTeams.length) {
-            toast('Pick a volunteer team');
+        const phone = String(form.phone || '').replace(/\D/g, '');
+        if (phone.length !== 10) {
+            toast('Enter a valid 10-digit phone');
             return;
         }
-        if (wantsParticipate && festCompetitions.length && !form.competitionIds.length) {
-            toast('Pick a competition');
+        if (!form.name.trim() || form.name.trim().length < 2) {
+            toast('Enter name');
             return;
         }
         setSaving(true);
         try {
-            await createFestOrganizerLead(festId, {
+            const wantsVolunteer = form.interest === 'volunteer' || form.interest === 'both';
+            const wantsParticipate = form.interest === 'participate' || form.interest === 'both';
+            const data = await createFestOrganizerLead(festId, {
                 name: form.name.trim(),
-                phone: form.phone.trim(),
+                phone,
                 year: form.year.trim(),
                 branch: form.branch.trim(),
                 interest: form.interest,
@@ -192,8 +221,15 @@ export default function FestOrganizerLeadsPage() {
                 competitionIds: [],
                 note: '',
             });
-            setSelectedDate(localDateInputValue());
-            load();
+            const today = localDateInputValue();
+            setSelectedDate(today);
+            if (data.lead) {
+                setLeads((prev) => {
+                    const without = prev.filter((l) => l.id !== data.lead.id && l.phone !== data.lead.phone);
+                    return [data.lead, ...without];
+                });
+            }
+            await load({ silent: true });
         } catch (err) {
             toast(err.message || 'Save failed');
         } finally {
@@ -201,7 +237,7 @@ export default function FestOrganizerLeadsPage() {
         }
     };
 
-    const exportCsv = async () => {
+    const exportExcel = async () => {
         try {
             const blob = await exportFestOrganizerLeads(festId, {
                 date: selectedDate || undefined,
@@ -209,7 +245,7 @@ export default function FestOrganizerLeadsPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `stall_leads${selectedDate ? `_${selectedDate}` : ''}.csv`;
+            a.download = `stall_leads${selectedDate ? `_${selectedDate}` : ''}.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (e) {
@@ -240,11 +276,61 @@ export default function FestOrganizerLeadsPage() {
         }
     };
 
+    const deleteLead = async (lead) => {
+        const ok = await confirm({
+            title: 'Delete lead?',
+            message: `Remove ${lead.name || 'this entry'} (${lead.phone || 'no phone'})? This cannot be undone.`,
+            confirmText: 'Delete',
+            tone: 'danger',
+        });
+        if (!ok) return;
+        try {
+            await deleteFestOrganizerLead(festId, lead.id);
+            setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+            toast('Lead deleted');
+            load({ silent: true });
+        } catch (e) {
+            toast(e.message || 'Delete failed');
+        }
+    };
+
     const messageForLead = (lead) => {
         const who = firstName(lead.name);
         const interest = interestLabel(lead.interest).toLowerCase();
         return `Hi${who ? ` ${who}` : ''}! Thanks for signing up to ${interest} at ${festName}. Quick follow-up from the team.`;
     };
+
+    const todayStr = localDateInputValue();
+    const activeFilterCount = [
+        selectedDate && selectedDate !== todayStr ? selectedDate : null,
+        !selectedDate ? 'all' : null,
+        interestFilter,
+        teamFilter,
+        competitionFilter,
+    ].filter(Boolean).length;
+
+    const clearFilters = () => {
+        setSelectedDate(todayStr);
+        setInterestFilter('');
+        setTeamFilter('');
+        setCompetitionFilter('');
+    };
+
+    const chipBtn = (active) =>
+        `px-2.5 py-1.5 rounded-lg text-[11px] border transition ${
+            active
+                ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                : 'border-white/10 text-gray-400'
+        }`;
+
+    const filterSummary = [
+        formatDayLabel(selectedDate),
+        interestFilter ? interestLabel(interestFilter) : null,
+        teamFilter ? teamLabel(teamFilter, volunteerTeams) : null,
+        competitionFilter
+            ? festCompetitions.find((c) => String(c.id) === competitionFilter)?.name
+            : null,
+    ].filter(Boolean).join(' · ');
 
     return (
         <div className="max-w-5xl mx-auto space-y-5">
@@ -253,13 +339,13 @@ export default function FestOrganizerLeadsPage() {
                     <h1 className="text-xl font-bold flex items-center gap-2">
                         <ClipboardList className="text-[#0ECCEE]" size={20} /> Stall / Leads
                     </h1>
-                    <p className="text-xs text-gray-500 mt-1">Shubharam interest capture — kiosk + live list</p>
+                    <p className="text-xs text-gray-500 mt-1">Add at kiosk or scan QR — list updates live</p>
                 </div>
                 <div className="flex gap-2">
-                    <button type="button" onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 text-sm text-gray-300">
-                        <Download size={14} /> Export
+                    <button type="button" onClick={exportExcel} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 text-sm text-gray-300">
+                        <Download size={14} /> Export Excel
                     </button>
-                    <button type="button" onClick={load} className="p-2 rounded-xl border border-white/10 text-gray-400">
+                    <button type="button" onClick={() => load({ silent: false })} className="p-2 rounded-xl border border-white/10 text-gray-400">
                         <RefreshCw size={16} />
                     </button>
                 </div>
@@ -284,7 +370,7 @@ export default function FestOrganizerLeadsPage() {
             <div className="grid lg:grid-cols-2 gap-4">
                 <form onSubmit={saveKiosk} className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
                     <p className="text-sm font-semibold flex items-center gap-2">
-                        <Users size={14} className="text-[#0ECCEE]" /> Kiosk entry
+                        <Users size={14} className="text-[#0ECCEE]" /> Quick add
                     </p>
                     <div className="grid grid-cols-3 gap-2">
                         {INTERESTS.map((opt) => (
@@ -308,48 +394,54 @@ export default function FestOrganizerLeadsPage() {
                         ))}
                     </div>
                     {(form.interest === 'volunteer' || form.interest === 'both') ? (
-                        <div className="flex flex-wrap gap-1.5">
-                            {volunteerTeams.map((t) => (
-                                <button
-                                    key={t.id}
-                                    type="button"
-                                    onClick={() => setForm({
-                                        ...form,
-                                        volunteerTeams: toggleInList(form.volunteerTeams, t.id),
-                                    })}
-                                    className={`px-2.5 py-1.5 rounded-lg text-[11px] border ${
-                                        form.volunteerTeams.includes(t.id)
-                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
-                                            : 'border-white/10 text-gray-500'
-                                    }`}
-                                >
-                                    {t.label}
-                                </button>
-                            ))}
-                        </div>
-                    ) : null}
-                    {(form.interest === 'participate' || form.interest === 'both') && festCompetitions.length ? (
-                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                            {festCompetitions.map((c) => {
-                                const id = String(c.id);
-                                return (
+                        <div>
+                            <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Team (optional)</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {volunteerTeams.map((t) => (
                                     <button
-                                        key={id}
+                                        key={t.id}
                                         type="button"
                                         onClick={() => setForm({
                                             ...form,
-                                            competitionIds: toggleInList(form.competitionIds, id),
+                                            volunteerTeams: toggleInList(form.volunteerTeams, t.id),
                                         })}
                                         className={`px-2.5 py-1.5 rounded-lg text-[11px] border ${
-                                            form.competitionIds.includes(id)
+                                            form.volunteerTeams.includes(t.id)
                                                 ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
                                                 : 'border-white/10 text-gray-500'
                                         }`}
                                     >
-                                        {c.name}
+                                        {t.label}
                                     </button>
-                                );
-                            })}
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
+                    {(form.interest === 'participate' || form.interest === 'both') && festCompetitions.length ? (
+                        <div>
+                            <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Competition (optional)</p>
+                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                {festCompetitions.map((c) => {
+                                    const id = String(c.id);
+                                    return (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            onClick={() => setForm({
+                                                ...form,
+                                                competitionIds: toggleInList(form.competitionIds, id),
+                                            })}
+                                            className={`px-2.5 py-1.5 rounded-lg text-[11px] border ${
+                                                form.competitionIds.includes(id)
+                                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                                                    : 'border-white/10 text-gray-500'
+                                            }`}
+                                        >
+                                            {c.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     ) : null}
                     <input
@@ -373,22 +465,16 @@ export default function FestOrganizerLeadsPage() {
                         <input
                             value={form.year}
                             onChange={(e) => setForm({ ...form, year: e.target.value })}
-                            placeholder="Year"
+                            placeholder="Year (opt)"
                             className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
                         />
                         <input
                             value={form.branch}
                             onChange={(e) => setForm({ ...form, branch: e.target.value })}
-                            placeholder="Branch"
+                            placeholder="Branch (opt)"
                             className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
                         />
                     </div>
-                    <input
-                        value={form.note}
-                        onChange={(e) => setForm({ ...form, note: e.target.value })}
-                        placeholder="Note (optional)"
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
-                    />
                     <button
                         type="submit"
                         disabled={saving}
@@ -412,7 +498,7 @@ export default function FestOrganizerLeadsPage() {
                             <Maximize2 size={12} /> Fullscreen
                         </button>
                     </div>
-                    <p className="text-xs text-gray-500">Display on phone/tablet or print for the table.</p>
+                    <p className="text-xs text-gray-500">Show on tablet or print for the stall.</p>
                     <div className="flex justify-center bg-white rounded-xl p-3">
                         <img src={qrImg} alt="Stall QR" width={200} height={200} className="rounded-lg" />
                     </div>
@@ -424,67 +510,187 @@ export default function FestOrganizerLeadsPage() {
             </div>
 
             <div className="space-y-3">
-                <div className="flex flex-wrap gap-2 items-center">
-                    <label className="flex items-center gap-2 text-sm text-gray-400">
-                        <span className="text-xs uppercase tracking-wider text-gray-500">Date</span>
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="px-3 py-1.5 rounded-lg bg-[#161718] border border-white/10 text-sm text-white"
-                        />
-                    </label>
-                    <button
-                        type="button"
-                        onClick={() => setSelectedDate(localDateInputValue())}
-                        className={`px-3 py-1.5 rounded-lg text-sm ${
-                            selectedDate === localDateInputValue()
-                                ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]'
-                                : 'text-gray-500'
-                        }`}
-                    >
-                        Today
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setSelectedDate('')}
-                        className={`px-3 py-1.5 rounded-lg text-sm ${
-                            !selectedDate ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-500'
-                        }`}
-                    >
-                        All dates
-                    </button>
-                    {['', 'volunteer', 'participate', 'both'].map((id) => (
-                        <button
-                            key={id || 'all'}
-                            type="button"
-                            onClick={() => setInterestFilter(id)}
-                            className={`px-3 py-1.5 rounded-lg text-sm capitalize ${
-                                interestFilter === id ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-500'
-                            }`}
-                        >
-                            {id || 'all interests'}
-                        </button>
-                    ))}
-                </div>
-                <p className="text-[11px] text-gray-600">
-                    Showing {formatDayLabel(selectedDate)}
-                    {stats?.allTime != null ? ` · ${stats.allTime} total all-time` : ''}
-                </p>
-
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        load();
-                    }}
-                >
+                <div className="flex gap-2 items-center">
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search name or phone…"
-                        className="w-full px-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white"
+                        className="min-w-0 flex-1 px-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white"
                     />
-                </form>
+                    <button
+                        type="button"
+                        onClick={() => setFiltersOpen((v) => !v)}
+                        className={`relative shrink-0 p-2.5 rounded-xl border transition ${
+                            filtersOpen || activeFilterCount
+                                ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                                : 'border-white/10 text-gray-400'
+                        }`}
+                        aria-label="Filters"
+                        title="Filters"
+                    >
+                        <Filter size={18} />
+                        {activeFilterCount ? (
+                            <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[#0ECCEE] text-black text-[10px] font-bold flex items-center justify-center">
+                                {activeFilterCount}
+                            </span>
+                        ) : null}
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-gray-500 truncate">
+                        {filterSummary}
+                        {stats?.allTime != null ? ` · ${stats.allTime} total` : ''}
+                        {` · ${leads.length} shown`}
+                    </p>
+                    {activeFilterCount ? (
+                        <button
+                            type="button"
+                            onClick={clearFilters}
+                            className="text-[11px] text-gray-500 hover:text-[#0ECCEE] shrink-0"
+                        >
+                            Reset
+                        </button>
+                    ) : null}
+                </div>
+
+                {filtersOpen ? (
+                    <div className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-white">Filters</p>
+                            <button
+                                type="button"
+                                onClick={() => setFiltersOpen(false)}
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-white"
+                                aria-label="Close filters"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-500">Date</p>
+                            <div className="flex flex-wrap gap-2 items-center">
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    className="px-3 py-2 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedDate(todayStr)}
+                                    className={chipBtn(selectedDate === todayStr)}
+                                >
+                                    Today
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedDate('')}
+                                    className={chipBtn(!selectedDate)}
+                                >
+                                    All
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-500">Type</p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setInterestFilter('');
+                                        setTeamFilter('');
+                                        setCompetitionFilter('');
+                                    }}
+                                    className={chipBtn(!interestFilter && !teamFilter && !competitionFilter)}
+                                >
+                                    Any
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setInterestFilter('volunteer');
+                                        setCompetitionFilter('');
+                                    }}
+                                    className={chipBtn(interestFilter === 'volunteer')}
+                                >
+                                    Volunteer
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setInterestFilter('participate');
+                                        setTeamFilter('');
+                                    }}
+                                    className={chipBtn(interestFilter === 'participate')}
+                                >
+                                    Participate
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-500">Volunteer team</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {volunteerTeams.map((t) => (
+                                    <button
+                                        key={t.id}
+                                        type="button"
+                                        onClick={() => {
+                                            const next = teamFilter === t.id ? '' : t.id;
+                                            setTeamFilter(next);
+                                            if (next) {
+                                                setInterestFilter('volunteer');
+                                                setCompetitionFilter('');
+                                            }
+                                        }}
+                                        className={chipBtn(teamFilter === t.id)}
+                                    >
+                                        {t.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {festCompetitions.length ? (
+                            <div className="space-y-2">
+                                <p className="text-[10px] uppercase tracking-wider text-gray-500">Competition</p>
+                                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                                    {festCompetitions.map((c) => {
+                                        const id = String(c.id);
+                                        return (
+                                            <button
+                                                key={id}
+                                                type="button"
+                                                onClick={() => {
+                                                    const next = competitionFilter === id ? '' : id;
+                                                    setCompetitionFilter(next);
+                                                    if (next) {
+                                                        setInterestFilter('participate');
+                                                        setTeamFilter('');
+                                                    }
+                                                }}
+                                                className={chipBtn(competitionFilter === id)}
+                                            >
+                                                {c.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ) : null}
+
+                        <button
+                            type="button"
+                            onClick={() => setFiltersOpen(false)}
+                            className="w-full py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold"
+                        >
+                            Done
+                        </button>
+                    </div>
+                ) : null}
 
                 {loading ? (
                     <div className="flex justify-center py-12 text-gray-400 gap-2">
@@ -563,12 +769,25 @@ export default function FestOrganizerLeadsPage() {
                                         >
                                             <Check size={14} />
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => deleteLead(lead)}
+                                            className="p-2 rounded-lg border border-white/10 text-red-400 hover:bg-red-500/10"
+                                            title="Delete"
+                                            aria-label={`Delete ${lead.name}`}
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
                                     </div>
                                 </div>
                             );
                         })}
                         {!leads.length ? (
-                            <p className="text-center text-gray-500 py-10 text-sm">No leads yet — scan QR or use kiosk.</p>
+                            <p className="text-center text-gray-500 py-10 text-sm">
+                                {selectedDate
+                                    ? `No leads for ${formatDayLabel(selectedDate)} — try All, or add via Quick add / QR.`
+                                    : 'No leads yet — use Quick add or QR.'}
+                            </p>
                         ) : null}
                     </div>
                 )}

@@ -79,6 +79,13 @@ const festInterestLeadSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        /** IST calendar day YYYY-MM-DD — unique with fest+phone for same-day upsert */
+        dayKey: {
+            type: String,
+            trim: true,
+            default: '',
+            index: true,
+        },
         capturedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FestOrganizerAccount',
@@ -90,6 +97,10 @@ const festInterestLeadSchema = new mongoose.Schema(
 
 festInterestLeadSchema.index({ fest: 1, createdAt: -1 });
 festInterestLeadSchema.index({ fest: 1, phone: 1 });
+festInterestLeadSchema.index(
+    { fest: 1, phone: 1, dayKey: 1 },
+    { unique: true, partialFilterExpression: { dayKey: { $gt: '' } } },
+);
 
 festInterestLeadSchema.statics.INTERESTS = INTERESTS;
 festInterestLeadSchema.statics.SOURCES = SOURCES;

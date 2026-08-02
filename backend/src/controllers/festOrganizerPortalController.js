@@ -11,8 +11,65 @@ const {
     normalizeUsername,
     getOrganizerFests,
 } = require('../utils/festOrganizerAccess');
+const FestOrganizerAccess = require('../model/fest_organizer_access_model');
 
 const TOKEN_TTL = '7d';
+
+function serializeAccess(row, selfId) {
+    return {
+        id: String(row.organizer),
+        name: row.name || row.username || 'Organizer',
+        username: row.username || '',
+        firstAccessAt: row.firstAccessAt || row.createdAt || null,
+        lastAccessAt: row.lastAccessAt || null,
+        accessCount: Number(row.accessCount) || 1,
+        isYou: String(row.organizer) === String(selfId),
+    };
+}
+
+async function listLoggedInForFest(festId, selfId) {
+    const rows = await FestOrganizerAccess.find({ fest: festId })
+        .sort({ name: 1 })
+        .lean();
+    return rows.map((r) => serializeAccess(r, selfId));
+}
+
+/** Store organizer name when they sign in / open this fest dashboard */
+async function recordFestAccess({ festId, organizer }) {
+    if (!festId || !organizer?._id) return;
+    const festOid = new mongoose.Types.ObjectId(String(festId));
+    const orgOid = organizer._id;
+    const now = new Date();
+    await FestOrganizerAccess.findOneAndUpdate(
+        { fest: festOid, organizer: orgOid },
+        {
+            $set: {
+                name: organizer.name || '',
+                username: organizer.username || '',
+                lastAccessAt: now,
+            },
+            $inc: { accessCount: 1 },
+            $setOnInsert: {
+                fest: festOid,
+                organizer: orgOid,
+                firstAccessAt: now,
+            },
+        },
+        { upsert: true, new: true },
+    );
+}
+
+async function recordAccessForAssignedFests(organizer, fests = []) {
+    const ids = (fests || [])
+        .map((f) => f?._id || f?.id)
+        .filter(Boolean);
+    if (!ids.length && Array.isArray(organizer.assignedFestIds)) {
+        ids.push(...organizer.assignedFestIds);
+    }
+    await Promise.allSettled(
+        [...new Set(ids.map(String))].map((festId) => recordFestAccess({ festId, organizer })),
+    );
+}
 
 function startOfToday() {
     const d = new Date();
@@ -65,6 +122,13 @@ async function buildOrganizerAuthResponse(organizer) {
     );
 
     const fests = await getOrganizerFests(organizer);
+
+    // Store names for each assigned fest when they sign in
+    try {
+        await recordAccessForAssignedFests(organizer, fests);
+    } catch (err) {
+        console.warn('[festOrganizerPortal.login] access log', err.message);
+    }
 
     return {
         success: true,
@@ -432,6 +496,17 @@ exports.getDashboard = async (req, res) => {
             };
         });
 
+        let loggedInUsers = [];
+        try {
+            await recordFestAccess({
+                festId,
+                organizer: req.organizer,
+            });
+            loggedInUsers = await listLoggedInForFest(festId, req.organizerId);
+        } catch (accessErr) {
+            console.warn('[festOrganizerPortal.getDashboard] access log', accessErr.message);
+        }
+
         res.json({
             success: true,
             fest: {
@@ -471,10 +546,27 @@ exports.getDashboard = async (req, res) => {
             },
             competitions: competitionStats,
             recent,
+            loggedInCount: loggedInUsers.length,
+            loggedInUsers,
         });
     } catch (error) {
         console.error('[festOrganizerPortal.getDashboard]', error);
         res.status(500).json({ success: false, message: 'Failed to load dashboard' });
+    }
+};
+
+/** Organizers who have signed into this fest dashboard (cumulative, not live) */
+exports.listLoggedInUsers = async (req, res) => {
+    try {
+        const loggedInUsers = await listLoggedInForFest(req.festId, req.organizerId);
+        res.json({
+            success: true,
+            loggedInCount: loggedInUsers.length,
+            loggedInUsers,
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.listLoggedInUsers]', error);
+        res.status(500).json({ success: false, message: 'Failed to load logged-in users' });
     }
 };
 
