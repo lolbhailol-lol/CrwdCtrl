@@ -1,11 +1,9 @@
-import { getApiBaseUrl } from '../../config/apiBase';
+import { getApiBaseUrl, getApiBaseCandidates, isInAppBrowser } from '../../config/apiBase';
 import {
     getFestOrganizerToken,
     clearFestOrganizerSession,
     setFestOrganizerSession,
 } from '../../utils/festOrganizerSession';
-
-const API = getApiBaseUrl();
 
 function handleUnauthorized() {
     clearFestOrganizerSession();
@@ -16,42 +14,150 @@ function handleUnauthorized() {
     }
 }
 
+function isNetworkFetchError(err) {
+    return err?.name === 'AbortError'
+        || err?.name === 'TypeError'
+        || err?.code === 'ERR_NETWORK'
+        || err?.code === 'ERR_NOT_JSON'
+        || err?.code === 'ECONNABORTED'
+        || /failed to fetch|network error|load failed|timeout|networkerror/i.test(String(err?.message || ''));
+}
+
+function resolveUrl(path, base) {
+    if (!path) return base;
+    if (path.startsWith('http')) return path;
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${normalized}`;
+}
+
+/**
+ * Fest organizer API fetch with same-origin → Railway failover.
+ * Fixes production "Failed to fetch" when Railway is cold or CORS blocks a host.
+ */
 async function festOrganizerFetch(path, options = {}) {
     const token = getFestOrganizerToken();
-    const headers = {
-        'Content-Type': 'application/json',
-        ...(options.headers || {}),
+    const method = String(options.method || 'GET').toUpperCase();
+    const timeout = options.timeout
+        ?? (isInAppBrowser() ? 25000 : 18000);
+    const maxRetries = options.retries ?? 3;
+    const bases = getApiBaseCandidates();
+
+    let body = options.body;
+    if (body != null && typeof body === 'object' && !(body instanceof FormData) && !(body instanceof Blob)) {
+        body = JSON.stringify(body);
+    }
+
+    const attempt = async (retryCount = 0, baseIndex = 0) => {
+        const base = bases[Math.min(baseIndex, bases.length - 1)] || getApiBaseUrl();
+        const url = resolveUrl(path, base);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        if (options.signal) {
+            options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+        }
+
+        const isSameOriginBase = typeof window !== 'undefined'
+            && base.startsWith(window.location.origin);
+
+        try {
+            const res = await fetch(url, {
+                method,
+                credentials: 'omit',
+                mode: isSameOriginBase ? 'same-origin' : 'cors',
+                cache: 'no-store',
+                headers: {
+                    Accept: 'application/json',
+                    ...(typeof body === 'string' ? { 'Content-Type': 'application/json' } : {}),
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(options.headers || {}),
+                },
+                ...(body != null && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (options.rawResponse) return res;
+
+            const contentType = res.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const err = new Error('Non-JSON response');
+                err.code = 'ERR_NOT_JSON';
+                err.isNetworkError = true;
+                if (baseIndex < bases.length - 1) {
+                    return attempt(retryCount, baseIndex + 1);
+                }
+                throw err;
+            }
+
+            const data = await res.json().catch(() => ({}));
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                throw new Error(data.message || 'Session expired');
+            }
+            if (!res.ok) {
+                const err = new Error(data.message || 'Request failed');
+                err.code = data.code;
+                err.status = res.status;
+                // Retry transient gateway / overload
+                if ((res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500)
+                    && retryCount < maxRetries) {
+                    const nextBase = retryCount >= 1 && baseIndex < bases.length - 1 ? baseIndex + 1 : baseIndex;
+                    await new Promise((r) => setTimeout(r, Math.min(400 * (retryCount + 1), 1500)));
+                    return attempt(retryCount + 1, nextBase);
+                }
+                throw err;
+            }
+            return data;
+        } catch (err) {
+            clearTimeout(timeoutId);
+
+            if (err?.status === 401 || err?.status === 403) throw err;
+            if (err?.message?.includes('Session expired')) throw err;
+            if (options.signal?.aborted) {
+                const aborted = new Error('Request cancelled');
+                aborted.code = 'ECONNABORTED';
+                throw aborted;
+            }
+
+            const canFlipHost = isNetworkFetchError(err) || err?.code === 'ERR_NOT_JSON';
+            if (canFlipHost && baseIndex < bases.length - 1) {
+                await new Promise((r) => setTimeout(r, Math.min(250 * (retryCount + 1), 900)));
+                return attempt(retryCount, baseIndex + 1);
+            }
+            if (canFlipHost && retryCount < maxRetries) {
+                await new Promise((r) => setTimeout(r, Math.min(400 * (retryCount + 1), 1500)));
+                return attempt(retryCount + 1, baseIndex);
+            }
+
+            if (err?.name === 'AbortError') {
+                throw new Error('Connection timed out — check your network and try again');
+            }
+            if (isNetworkFetchError(err)) {
+                throw new Error('Cannot reach server — check your connection and try Sign in again');
+            }
+            throw err;
+        }
     };
-    if (token) headers.Authorization = `Bearer ${token}`;
 
-    const res = await fetch(`${API}${path}`, { ...options, headers });
-    if (options.rawResponse) return res;
-
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-        handleUnauthorized();
-        throw new Error(data.message || 'Session expired');
-    }
-    if (!res.ok) {
-        const err = new Error(data.message || 'Request failed');
-        err.code = data.code;
-        err.status = res.status;
-        throw err;
-    }
-    return data;
+    return attempt();
 }
 
 export async function festOrganizerLogin(username, password, displayName) {
     return festOrganizerFetch('/fest-organizer/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password, displayName, name: displayName }),
+        retries: 4,
+        timeout: 25000,
+        body: { username, password, displayName, name: displayName },
     });
 }
 
 export async function festOrganizerSignup(payload) {
     return festOrganizerFetch('/fest-organizer/auth/signup', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        retries: 3,
+        timeout: 25000,
+        body: payload,
     });
 }
 
@@ -81,7 +187,7 @@ export async function deleteFestOrganizerParticipant(festId, registrationId) {
 export async function updateFestOrganizerParticipantStatus(festId, registrationId, status) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/${registrationId}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        body: { status },
     });
 }
 
@@ -102,7 +208,7 @@ export async function exportFestOrganizerParticipants(festId, params = {}) {
 export async function festOrganizerCheckin(festId, payload) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/checkin`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: payload,
     });
 }
 
@@ -113,14 +219,14 @@ export async function fetchFestOrganizerCheckinStats(festId) {
 export async function sendFestOrganizerReminder(festId, body) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/notifications/reminder`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body,
     });
 }
 
 export async function sendFestOrganizerBroadcast(festId, body) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/notifications/broadcast`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body,
     });
 }
 
@@ -145,14 +251,14 @@ export async function fetchFestOrganizerLeadStats(festId, params = {}) {
 export async function createFestOrganizerLead(festId, body) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/leads`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body,
     });
 }
 
 export async function updateFestOrganizerLead(festId, leadId, body) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/leads/${leadId}`, {
         method: 'PATCH',
-        body: JSON.stringify(body),
+        body,
     });
 }
 

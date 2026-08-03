@@ -15,7 +15,7 @@ const apiLimiter = rateLimit({
   message: { success: false, message: 'Too many requests, please try again later.' },
   skip: (req) => {
     const path = String(req.path || '');
-    if (path === '/health' || path === '/ready' || path === '/') return true;
+    if (path === '/health' || path === '/ready' || path === '/' || path === '/keep-alive' || path === '/status') return true;
     // Public detail GETs — viral shared run/trek links must not 429 as "not found"
     if (req.method === 'GET') {
       if (/^\/sports\/[^/]+$/.test(path)) return true;
@@ -32,7 +32,7 @@ const apiLimiter = rateLimit({
 /** Stricter limit for auth endpoints */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 100 : 40,
+  max: isDev ? 100 : 80,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many login attempts, please try again later.' },

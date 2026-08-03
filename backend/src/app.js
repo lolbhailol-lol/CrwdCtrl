@@ -71,6 +71,25 @@ app.get('/', (_req, res) => {
   });
 });
 
+/** Railway / uptime probes sometimes hit /health without the /api prefix */
+app.get('/health', (_req, res) => {
+  const dbConnected = mongoose.connection.readyState === 1;
+  res.status(dbConnected ? 200 : 503).json({
+    success: dbConnected,
+    status: dbConnected ? 'OK' : 'DEGRADED',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/ready', (_req, res) => {
+  const dbReady = isDbReady();
+  res.status(dbReady ? 200 : 503).json({
+    success: dbReady,
+    ready: dbReady,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get('/api/health', (_req, res) => {
   const dbConnected = mongoose.connection.readyState === 1;
   const firebase = getFirebaseAdminStatus();

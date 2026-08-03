@@ -27,6 +27,7 @@ const corsOrigins = [
   'https://crwdctrl.in',
   'https://crwdctrl-mvp.vercel.app',
   'https://crwdctrl.vercel.app',
+  'https://frontend-five-tau-70.vercel.app',
   'https://crwdctrl-730576782394.asia-south2.run.app',
   'https://crwdctrl-production-9c58.up.railway.app',
   'https://crwdctrl-mvp-git-main.vercel.app',
@@ -55,15 +56,19 @@ function isCapacitorOrigin(origin) {
   );
 }
 
-/** Vercel preview deploys for this project (hash URLs change every push). */
+/** Vercel preview / alias deploys for this project (hash URLs change every push). */
 function isCrwdCtrlVercelPreview(origin) {
   const o = normalizeOrigin(origin);
   if (!o.startsWith('https://')) return false;
+  // https://*-crwdctrls-projects.vercel.app (any project slug under the team)
+  if (/^https:\/\/[a-z0-9-]+-crwdctrls-projects\.vercel\.app$/i.test(o)) return true;
   // https://crwd-ctrl-<hash>-crwdctrls-projects.vercel.app
   if (/^https:\/\/crwd-ctrl-[a-z0-9]+-crwdctrls-projects\.vercel\.app$/i.test(o)) return true;
   // https://crwdctrl-<branch>-<team>.vercel.app / https://crwd-ctrl-*.vercel.app
   if (/^https:\/\/crwdctrl(-[a-z0-9]+)+\.vercel\.app$/i.test(o)) return true;
   if (/^https:\/\/crwd-ctrl(-[a-z0-9]+)+\.vercel\.app$/i.test(o)) return true;
+  // https://frontend-*.vercel.app (legacy alias)
+  if (/^https:\/\/frontend(-[a-z0-9]+)*\.vercel\.app$/i.test(o)) return true;
   return false;
 }
 

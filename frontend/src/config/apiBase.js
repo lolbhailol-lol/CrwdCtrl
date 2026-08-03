@@ -1,4 +1,4 @@
-/** Canonical production API — used by native builds and when VITE_API_BASE_URL is unset. */
+/** Canonical production API — used by native builds and as fallback when same-origin proxy fails. */
 export const PRODUCTION_API_BASE_URL =
   'https://crwdctrl-production-9c58.up.railway.app/api';
 
@@ -40,42 +40,52 @@ export function getSameOriginApiBase() {
   return `${origin}/api`;
 }
 
-/**
- * Single source of truth for API base URL.
- * Prefer VITE_API_BASE_URL (Railway) so admin/organizer creates keep working even if
- * the Vercel `/api` proxy rewrite is missing or returning the SPA HTML shell.
- */
-export function getApiBaseUrl() {
+function envApiBase() {
   const fromEnv = import.meta.env.VITE_API_BASE_URL;
   if (fromEnv && String(fromEnv).trim()) {
     return String(fromEnv).replace(/\/$/, '');
   }
+  return '';
+}
+
+/**
+ * Single source of truth for API base URL.
+ * On www/apex production web: prefer same-origin `/api` so login never depends on
+ * cross-origin Railway (CORS / cold-start "Failed to fetch"). Railway stays as fallback.
+ */
+export function getApiBaseUrl() {
   if (import.meta.env.PROD) {
-    return getSameOriginApiBase() || PRODUCTION_API_BASE_URL;
+    const sameOrigin = getSameOriginApiBase();
+    if (sameOrigin) return sameOrigin;
+  }
+
+  const fromEnv = envApiBase();
+  if (fromEnv) return fromEnv;
+
+  if (import.meta.env.PROD) {
+    return PRODUCTION_API_BASE_URL;
   }
   return LOCAL_DEV_API_BASE_URL;
 }
 
 /**
- * Ordered bases for resilient public fetches.
- * Prefer www `/api` (or same-origin on www), then Railway.
+ * Ordered bases for resilient fetches (login / public / organizer).
+ * Prefer www `/api`, then Railway direct.
  */
 export function getApiBaseCandidates() {
   const primary = getApiBaseUrl();
   const siteApi = getSameOriginApiBase();
+  const fromEnv = envApiBase();
   const bases = [];
 
   if (siteApi) bases.push(siteApi);
-  // On apex, also try relative /api only after www — usually 307 fails for POST
+  if (primary && !bases.includes(primary)) bases.push(primary);
+  if (fromEnv && !bases.includes(fromEnv)) bases.push(fromEnv);
+  if (!bases.includes(PRODUCTION_API_BASE_URL)) bases.push(PRODUCTION_API_BASE_URL);
   if (typeof window !== 'undefined' && window.location.hostname === 'www.crwdctrl.in') {
-    // already covered by siteApi
-  } else if (siteApi === WWW_API_BASE && !bases.includes(WWW_API_BASE)) {
-    bases.push(WWW_API_BASE);
-  }
-
-  if (!bases.includes(primary)) bases.push(primary);
-  if (primary !== PRODUCTION_API_BASE_URL && !bases.includes(PRODUCTION_API_BASE_URL)) {
-    bases.push(PRODUCTION_API_BASE_URL);
+    if (!bases.includes(`${window.location.origin}/api`)) {
+      bases.unshift(`${window.location.origin}/api`);
+    }
   }
 
   return [...new Set(bases.filter(Boolean))];
