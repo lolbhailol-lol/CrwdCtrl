@@ -630,7 +630,19 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                         <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-700/50">
                             <div><label className="block text-sm font-medium text-gray-300 mb-1">Starting Point</label><input type="text" value={form.startingPoint} onChange={e => set('startingPoint', e.target.value)} className={inp} /></div>
                             <div><label className="block text-sm font-medium text-gray-300 mb-1">Destination</label><input type="text" value={form.destination} onChange={e => set('destination', e.target.value)} className={inp} /></div>
-                            <div className="col-span-2"><label className="block text-sm font-medium text-gray-300 mb-1">Meeting Location</label><input type="text" value={form.meetingLocation} onChange={e => set('meetingLocation', e.target.value)} className={inp} placeholder="Used for map on trek page" /></div>
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Map location</label>
+                                <input
+                                    type="text"
+                                    value={form.meetingLocation}
+                                    onChange={(e) => set('meetingLocation', e.target.value)}
+                                    className={inp}
+                                    placeholder="e.g. Deccan Gymkhana, Pune  — or paste a Google Maps pin link"
+                                />
+                                <p className="text-[10px] text-gray-600 mt-1">
+                                    This is only for the trek-page map pin. Write a clear place name (area + city), or paste a Google Maps share/pin link for an exact dot. Booking meeting-point choices are separate (Meeting Points under registration).
+                                </p>
+                            </div>
                         </div>
                     </FormSection>
 
@@ -1075,7 +1087,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                             ) : (
                             <>
                             {/* ── Step 1 config ── */}
-                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Step 1 — Date · Time · People</p>
+                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Step 1 — Date · Meeting Point · People</p>
 
                             {/* Available Dates */}
                             <RegListEditor
@@ -1087,23 +1099,23 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 inp={inp}
                             />
 
-                            {/* Time Slots */}
+                            {/* Meeting Points — shown on booking step 1 */}
                             <RegListEditor
-                                label="Time Slots"
-                                hint='e.g. "6:00 AM", "8:30 AM"'
-                                items={form.registration?.timeSlots || []}
-                                placeholder="e.g. 6:00 AM"
-                                onChange={arr => set('registration', { ...form.registration, timeSlots: arr })}
+                                label="Meeting Points"
+                                hint='Shown on booking page 1 instead of departure time. e.g. "Deccan Gymkhana 5:30 AM", "Swargate 6:00 AM"'
+                                items={form.registration?.locationOptions || []}
+                                placeholder="e.g. Deccan Gymkhana 5:30 AM"
+                                onChange={arr => set('registration', { ...form.registration, locationOptions: arr })}
                                 inp={inp}
                             />
 
-                            {/* Location Options */}
+                            {/* Time Slots — only used if no meeting points */}
                             <RegListEditor
-                                label="Location Options"
-                                hint='Leave empty to use the trek city. Add multiple for user to choose.'
-                                items={form.registration?.locationOptions || []}
-                                placeholder="e.g. Rishikesh, Uttarakhand"
-                                onChange={arr => set('registration', { ...form.registration, locationOptions: arr })}
+                                label="Time Slots (optional)"
+                                hint="Only shown on booking page 1 if Meeting Points above are empty."
+                                items={form.registration?.timeSlots || []}
+                                placeholder="e.g. 6:00 AM"
+                                onChange={arr => set('registration', { ...form.registration, timeSlots: arr })}
                                 inp={inp}
                             />
 

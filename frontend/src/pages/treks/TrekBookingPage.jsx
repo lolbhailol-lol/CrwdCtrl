@@ -69,7 +69,8 @@ function generateDates(baseDate) {
     return dates;
 }
 
-const STEPS = ['Date & Time', 'Your Details', 'Confirm'];
+const STEPS_TIME = ['Date & Time', 'Your Details', 'Confirm'];
+const STEPS_MEETING = ['Date & Meet', 'Your Details', 'Confirm'];
 
 function getInitialTrekBookingUi(trekId, search) {
     const defaults = {
@@ -226,10 +227,19 @@ export default function TrekBookingPage() {
         () => (reg.availableDates?.length ? reg.availableDates : generateDates(trek?.trekDate)),
         [reg.availableDates, trek?.trekDate],
     );
+    const meetingPoints = useMemo(
+        () => (Array.isArray(reg.locationOptions) ? reg.locationOptions.map((s) => String(s || '').trim()).filter(Boolean) : []),
+        [reg.locationOptions],
+    );
     const times = useMemo(
-        () => (reg.timeSlots?.length ? reg.timeSlots : trek?.departureTime ? [trek.departureTime] : ['6:00 AM', '8:30 AM']),
+        () => (reg.timeSlots?.length ? reg.timeSlots : trek?.departureTime ? [trek.departureTime] : []),
         [reg.timeSlots, trek?.departureTime],
     );
+    /** Prefer meeting points on step 1 when organizer added them; else fall back to time slots. */
+    const step1Choices = meetingPoints.length ? meetingPoints : times;
+    const step1ChoiceLabel = meetingPoints.length ? 'Meeting Point' : 'Departure Time';
+    const usesMeetingPoints = meetingPoints.length > 0;
+    const STEPS = usesMeetingPoints ? STEPS_MEETING : STEPS_TIME;
     useEffect(() => {
         setPeople((p) => Math.min(maxPeople, Math.max(1, Number(p) || 1)));
     }, [trek?._id, trek?.id, maxPeople]);
@@ -244,6 +254,8 @@ export default function TrekBookingPage() {
     );
 
     const step1Blocked = !bookingGender || (
+        step1Choices.length > 0 && !selTime
+    ) || (
         genderRegistration?.enabled
         && bookingGender
         && genderAccess.canRegister === false
@@ -791,6 +803,10 @@ export default function TrekBookingPage() {
             return;
         }
         if (step === 1) {
+            if (step1Choices.length > 0 && !selTime) {
+                setError(usesMeetingPoints ? 'Please select a meeting point.' : 'Please select a departure time.');
+                return;
+            }
             if (!bookingGender) {
                 setError('Please select Female or Male to continue.');
                 return;
@@ -1193,7 +1209,7 @@ export default function TrekBookingPage() {
                         <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Booking Details</p>
                         {[
                             { label: 'Date',  value: selDate || '—' },
-                            { label: 'Time',  value: selTime },
+                            { label: usesMeetingPoints ? 'Meeting Point' : 'Time', value: selTime || '—' },
                             { label: 'Tickets', value: '1 person' },
                             { label: 'Trek Fee', value: fee > 0 ? `₹${baseFee.toLocaleString('en-IN')}` : 'Free' },
                             ...(total > 0 ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }] : []),
@@ -1344,7 +1360,7 @@ export default function TrekBookingPage() {
                     {step === 1 && (
                         <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                             <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
-                                Select Date & Time
+                                {usesMeetingPoints ? 'Select Date & Meeting Point' : 'Select Date & Time'}
                             </h3>
                             <div className="space-y-5">
 
@@ -1365,22 +1381,24 @@ export default function TrekBookingPage() {
                                     </div>
                                 </div>
 
-                                {/* Time chips */}
-                                <div>
-                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Departure Time</label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {times.map(t => (
-                                            <button key={t} type="button" onClick={() => setSelTime(t)}
-                                                className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
-                                                    selTime === t
-                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-[#0ECCEE]'
-                                                        : isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'
-                                                }`}>
-                                                {t}
-                                            </button>
-                                        ))}
+                                {/* Meeting point (preferred) or departure time chips */}
+                                {step1Choices.length > 0 ? (
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{step1ChoiceLabel}</label>
+                                        <div className="flex gap-2 flex-wrap">
+                                            {step1Choices.map((t) => (
+                                                <button key={t} type="button" onClick={() => setSelTime(t)}
+                                                    className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors text-left ${
+                                                        selTime === t
+                                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                                                            : isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                                                    }`}>
+                                                    {t}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                ) : null}
 
                                 {phaseStepNotice ? (
                                     <p className={`text-xs leading-relaxed rounded-lg px-3 py-2.5 ${isDark ? 'bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/25' : 'bg-cyan-50 text-cyan-800 border border-cyan-200'}`}>

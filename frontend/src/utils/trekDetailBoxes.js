@@ -96,11 +96,31 @@ export function normalizeDetailBoxes(list, trek = null) {
     push('Max People', trek.maxParticipants > 0 ? trek.maxParticipants : '', 'people');
     push('Trek Timing', trek.departureTime, 'sun');
     push('Return Time', trek.returnTime, 'moon');
-    push('Meeting Point', trek.meetingLocation, 'map-pin');
+    push('Meeting Point', trek.meetingLocation && !/^https?:\/\//i.test(String(trek.meetingLocation).trim()) ? trek.meetingLocation : '', 'map-pin');
     push('Age Limit', trek.ageRestrictions, 'age');
     push('Fitness', trek.fitnessRequirements, 'fitness');
 
     return legacy;
+}
+
+/** Map pin query + optional Google Maps link for LazyMap. */
+export function resolveTrekMapPin(trek) {
+    if (!trek) return { query: '', mapUrl: '', caption: '' };
+    const meeting = String(trek.meetingLocation || '').trim();
+    const options = Array.isArray(trek.registration?.locationOptions)
+        ? trek.registration.locationOptions.map((s) => String(s || '').trim()).filter(Boolean)
+        : [];
+    const firstOption = options[0] || '';
+
+    // meetingLocation can be a Google Maps share/pin link
+    if (/^https?:\/\//i.test(meeting)) {
+        const caption = firstOption || trek.startingPoint || trek.city || 'Meeting point';
+        return { query: firstOption || trek.city || trek.destination || '', mapUrl: meeting, caption };
+    }
+
+    const query = meeting || firstOption || trek.startingPoint || trek.destination || trek.city || '';
+    const caption = meeting || firstOption || [trek.city, trek.destination].filter(Boolean).join(', ');
+    return { query, mapUrl: '', caption };
 }
 
 /** Same editor shape for sports / run events — falls back to classic run fields. */

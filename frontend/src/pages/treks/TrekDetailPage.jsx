@@ -12,7 +12,7 @@ import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { formatTrekDisplayDate, formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
 import { ScheduleMainMarker, ScheduleSubMarker } from '../../components/SchedulePointMarkers';
 import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../utils/trekItinerary';
-import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';
+import { normalizeDetailBoxes, resolveTrekMapPin } from '../../utils/trekDetailBoxes';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { fetchTrekCommunity } from '../../services/api/public.api';
 import { publicFetchJSONRetry } from '../../services/api/client';
@@ -458,7 +458,8 @@ export default function TrekDetailPage() {
     };
 
     const trekName = trek.trekName || trek.title || trek.name || 'Trek';
-    const trekLocation = trek.city || trek.destination || trek.meetingLocation || trek.startingPoint || null;
+    const trekLocation = trek.meetingLocation || trek.startingPoint || trek.city || trek.destination || null;
+    const mapPin = resolveTrekMapPin(trek);
     const canonicalPath = trekPath(trek);
 
     return (
@@ -675,26 +676,31 @@ export default function TrekDetailPage() {
                         ))}
                     </div>
 
-                    {/* Right: map + location — fixed width so the caption can't blow up the column */}
+                    {/* Right: map pinned to meeting point */}
                     <div className="w-60 shrink-0 flex flex-col">
                         <div className="w-full h-[132px] rounded-2xl overflow-hidden relative">
-                            {(trek.city || trek.destination || trek.meetingLocation) ? (
-                                <LazyMap query={trek.city || trek.destination || trek.meetingLocation} isDark={isDark} />
+                            {(mapPin.query || mapPin.mapUrl) ? (
+                                <LazyMap
+                                    query={mapPin.query}
+                                    mapUrl={mapPin.mapUrl || undefined}
+                                    isDark={isDark}
+                                    title="trek-meeting-point"
+                                />
                             ) : (
                                 <div className="w-full h-full bg-linear-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
                                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
                                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
                                         <circle cx="12" cy="9" r="2.5" fill="#9CA3AF"/>
                                     </svg>
-                                    <span className="text-[10px] text-gray-400">No location</span>
+                                    <span className="text-[10px] text-gray-400">No meeting point</span>
                                 </div>
                             )}
                         </div>
-                        {(trek.city || trek.destination) && (
-                            <p className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {[trek.city, trek.destination].filter(Boolean).join(', ')}
+                        {mapPin.caption ? (
+                            <p className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {mapPin.caption}
                             </p>
-                        )}
+                        ) : null}
                     </div>
                 </ScrollReveal>
 
