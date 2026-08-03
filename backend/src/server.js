@@ -58,6 +58,13 @@ async function startServer() {
       } catch (cronErr) {
         logger.warn('Reminder cron failed to start', { error: cronErr.message });
       }
+
+      try {
+        const { initKeepAlive } = require('./services/keepAliveService');
+        initKeepAlive();
+      } catch (keepAliveErr) {
+        logger.warn('Keep-alive failed to start', { error: keepAliveErr.message });
+      }
     });
 
     const gracefulShutdown = (signal) => {

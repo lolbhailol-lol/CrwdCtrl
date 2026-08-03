@@ -127,6 +127,10 @@ app.get('/api/ready', (_req, res) => {
   });
 });
 
+app.get('/keep-alive', (_req, res) => {
+  res.status(200).json({ success: true, status: 'OK', timestamp: new Date().toISOString() });
+});
+
 app.get('/api/keep-alive', (_req, res) => {
   res.status(200).json({ success: true, status: 'OK', timestamp: new Date().toISOString() });
 });
