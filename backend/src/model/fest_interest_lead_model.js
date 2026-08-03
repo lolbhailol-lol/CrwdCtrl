@@ -3,12 +3,17 @@ const mongoose = require('mongoose');
 const INTERESTS = ['volunteer', 'participate', 'both'];
 const SOURCES = ['shubharam_stall', 'organizer_kiosk', 'other'];
 const VOLUNTEER_TEAMS = [
-    { id: 'team', label: 'Core team' },
+    { id: 'creatives', label: 'Creatives' },
     { id: 'competition', label: 'Competitions' },
     { id: 'pr', label: 'PR' },
     { id: 'sponsorship', label: 'Sponsorship' },
     { id: 'marathon', label: 'Marathon' },
 ];
+
+/** Legacy stall picks still readable in leads/export */
+const LEGACY_VOLUNTEER_TEAM_LABELS = {
+    team: 'Creatives',
+};
 
 const festInterestLeadSchema = new mongoose.Schema(
     {
@@ -47,7 +52,7 @@ const festInterestLeadSchema = new mongoose.Schema(
             enum: INTERESTS,
             required: true,
         },
-        /** Volunteer team picks: team | competition | pr | sponsorship | marathon */
+        /** Volunteer team picks: creatives | competition | pr | sponsorship | marathon */
         volunteerTeams: {
             type: [String],
             default: [],
@@ -106,6 +111,15 @@ festInterestLeadSchema.statics.INTERESTS = INTERESTS;
 festInterestLeadSchema.statics.SOURCES = SOURCES;
 festInterestLeadSchema.statics.VOLUNTEER_TEAMS = VOLUNTEER_TEAMS;
 festInterestLeadSchema.statics.VOLUNTEER_TEAM_IDS = VOLUNTEER_TEAMS.map((t) => t.id);
+festInterestLeadSchema.statics.LEGACY_VOLUNTEER_TEAM_LABELS = LEGACY_VOLUNTEER_TEAM_LABELS;
+festInterestLeadSchema.statics.volunteerTeamLabel = function volunteerTeamLabel(id) {
+    const key = String(id || '').toLowerCase();
+    return (
+        VOLUNTEER_TEAMS.find((t) => t.id === key)?.label
+        || LEGACY_VOLUNTEER_TEAM_LABELS[key]
+        || key
+    );
+};
 
 festInterestLeadSchema.statics.normalizePhone = function normalizePhone(raw) {
     return String(raw || '').replace(/\D/g, '').slice(-12);

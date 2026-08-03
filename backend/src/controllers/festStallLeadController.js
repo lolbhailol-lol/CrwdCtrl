@@ -136,7 +136,12 @@ function parseLeadBody(body = {}, festCompetitions = []) {
             .map((s) => s.trim())
             .filter(Boolean);
     const volunteerTeams = wantsVolunteer
-        ? [...new Set(rawTeams.map((t) => String(t).toLowerCase()).filter((t) => teamIds.includes(t)))].slice(0, 8)
+        ? [...new Set(
+            rawTeams
+                .map((t) => String(t).toLowerCase())
+                .map((t) => (t === 'team' ? 'creatives' : t))
+                .filter((t) => teamIds.includes(t)),
+        )].slice(0, 8)
         : [];
 
     const compById = new Map(
@@ -375,7 +380,8 @@ exports.listLeads = async (req, res) => {
             filter.interest = interest;
         }
         if (team && FestInterestLead.VOLUNTEER_TEAM_IDS.includes(team)) {
-            filter.volunteerTeams = team;
+            // creatives replaced legacy "team" (Core team) — include both in filters
+            filter.volunteerTeams = team === 'creatives' ? { $in: ['creatives', 'team'] } : team;
             if (!filter.interest) {
                 filter.interest = { $in: ['volunteer', 'both'] };
             }
@@ -567,9 +573,12 @@ exports.exportLeads = async (req, res) => {
         }
 
         const rows = await FestInterestLead.find(filter).sort({ createdAt: -1 }).lean();
-        const teamLabel = Object.fromEntries(
-            (FestInterestLead.VOLUNTEER_TEAMS || []).map((t) => [t.id, t.label]),
-        );
+        const teamLabel = {
+            ...(FestInterestLead.LEGACY_VOLUNTEER_TEAM_LABELS || {}),
+            ...Object.fromEntries(
+                (FestInterestLead.VOLUNTEER_TEAMS || []).map((t) => [t.id, t.label]),
+            ),
+        };
         const sourceLabel = {
             shubharam_stall: 'QR / stall',
             organizer_kiosk: 'Kiosk',

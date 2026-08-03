@@ -10,7 +10,7 @@ const INTERESTS = [
 ];
 
 const DEFAULT_TEAMS = [
-    { id: 'team', label: 'Core team' },
+    { id: 'creatives', label: 'Creatives' },
     { id: 'competition', label: 'Competitions' },
     { id: 'pr', label: 'PR' },
     { id: 'sponsorship', label: 'Sponsorship' },
