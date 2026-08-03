@@ -100,6 +100,9 @@ function formatParticipantRow(booking, trek = null) {
     const isRejected = booking.status === 'cancelled'
         && (booking.paymentStatus === 'failed' || booking.paymentReviewNote);
 
+    const meetingPoint = String(booking.bookingDetails?.time || '').trim();
+    const hasUserId = Boolean(booking.userId && (booking.userId._id || booking.userId));
+
     const row = {
         bookingId: String(booking._id),
         qrStatus: booking.checkedIn ? 'Checked In' : 'Pending',
@@ -126,7 +129,15 @@ function formatParticipantRow(booking, trek = null) {
         people,
         bookingDate: booking.createdAt,
         trekDate: booking.bookingDetails?.date || '',
-        trekTime: booking.bookingDetails?.time || '',
+        trekTime: meetingPoint,
+        meetingPoint,
+        isGuest: !hasUserId,
+        bookingDetails: {
+            date: booking.bookingDetails?.date || '',
+            time: meetingPoint,
+            people,
+            amountPaid: grossCollected,
+        },
         checkInStatus: booking.checkedIn ? 'Checked In' : 'Pending',
         checkedInAt: booking.checkedInAt || null,
         status: booking.status || 'confirmed',
@@ -176,7 +187,7 @@ function buildSheetColumns(formSchema = []) {
         { key: 'participantGender', label: 'Gender', group: 'booking', minWidth: 88 },
         ...formCols,
         { key: 'trekDate', label: 'Trek Date', group: 'booking', minWidth: 118 },
-        { key: 'trekTime', label: 'Time Slot', group: 'booking', minWidth: 96 },
+        { key: 'trekTime', label: 'Meeting Point / Time', group: 'booking', minWidth: 140 },
         { key: 'people', label: 'People', group: 'booking', minWidth: 72 },
         { key: 'paymentStatus', label: 'Payment', group: 'status', minWidth: 88 },
         { key: 'organizerNet', label: 'Your share (₹)', group: 'status', minWidth: 104 },
@@ -308,7 +319,7 @@ function buildParticipantExportTable(rows, options = {}) {
         'People',
         'Booking Date',
         'Trek Date',
-        'Trek Time',
+        'Meeting Point / Time',
         'Check-in Status',
         'Check-in Time',
         'Email',

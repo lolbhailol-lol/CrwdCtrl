@@ -1,4 +1,5 @@
-const TrekBooking = require('../model/trek_booking_model');const { pickFormField } = require('./trekOrganizerFormat');
+const TrekBooking = require('../model/trek_booking_model');
+const { pickFormField } = require('./trekOrganizerFormat');
 
 const GENDER_VALUES = ['Female', 'Male', 'Others'];
 const GENDER_PHASES = ['closed', 'women_only', 'men_only', 'all'];
@@ -172,32 +173,17 @@ async function getGenderRegistrationSnapshot(trek, participantGender = null) {
 
 async function assertUserCanBookTrek({ trekId, userId, people = 1 }) {
     const peopleCount = Math.max(1, Number(people) || 1);
-    if (peopleCount > 1) {
+    if (peopleCount < 1) {
         return {
             ok: false,
             status: 400,
-            message: 'One ticket per registration. Book again with another account for extra tickets.',
+            message: 'Select at least 1 person for this booking.',
         };
     }
 
-    if (!userId || !trekId) {
-        return { ok: true };
-    }
-
-    const existing = await TrekBooking.findOne({
-        trekId,
-        userId,
-        status: 'confirmed',
-    }).select('_id').lean();
-
-    if (existing) {
-        return {
-            ok: false,
-            status: 409,
-            message: 'You already have a registration for this trek with this account.',
-        };
-    }
-
+    // Multiple bookings per account are allowed (same as BookMyShow-style apps).
+    void trekId;
+    void userId;
     return { ok: true };
 }
 

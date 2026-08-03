@@ -323,11 +323,11 @@ export default function TrekBookingPage() {
                     trekDetailCache.write(trekId, d.trek);
                     if (d.trek._id) trekDetailCache.write(String(d.trek._id), d.trek);
                     if (d.trek.slug) trekDetailCache.write(String(d.trek.slug), d.trek);
-                    if (d.userBooking?.bookingId) {
+                    if (d.userBooking?.bookingId && d.userBooking.status === 'pending') {
                         setExistingBookingId(String(d.userBooking.bookingId));
-                        setExistingBookingStatus(String(d.userBooking.status || 'confirmed'));
+                        setExistingBookingStatus('pending');
                     } else if (isAuthenticated || hasUsableAuthToken(authToken)) {
-                        // Logged in and no booking for this trek — clear stale guest/previous state
+                        // Logged in — confirmed past bookings do not block a new ticket
                         setExistingBookingId('');
                         setExistingBookingStatus('');
                     }
@@ -1081,7 +1081,7 @@ export default function TrekBookingPage() {
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className={`w-14 h-14 mx-auto mb-5 ${isPending ? 'text-amber-400' : 'text-[#0ECCEE]'}`} />
                     <h1 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {isPending ? 'Awaiting approval' : 'Already registered'}
+                        {isPending ? 'Awaiting approval' : 'Booking in progress'}
                     </h1>
                     <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         {isPending ? (
@@ -1090,7 +1090,7 @@ export default function TrekBookingPage() {
                             </>
                         ) : (
                             <>
-                                You already have one registration for <span className="text-[#0ECCEE] font-semibold">{trekName}</span> with this account. Only one ticket is allowed per login.
+                                Finish or view your current booking for <span className="text-[#0ECCEE] font-semibold">{trekName}</span>. You can book again anytime after this one is done.
                             </>
                         )}
                     </p>
@@ -1111,6 +1111,18 @@ export default function TrekBookingPage() {
                                 className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
                             >
                                 View registration
+                            </button>
+                        ) : null}
+                        {!isPending ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setExistingBookingId('');
+                                    setExistingBookingStatus('');
+                                }}
+                                className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                            >
+                                Book again
                             </button>
                         ) : null}
                         <button
@@ -1415,7 +1427,7 @@ export default function TrekBookingPage() {
                                     error={showGenderPhaseError ? genderAccess.message : undefined}
                                 />
 
-                                {/* Party size — one registration per login */}
+                                {/* Party size */}
                                 <div className={`rounded-xl p-3 border flex items-center justify-between gap-4 ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
                                     <div>
                                         <p className={`text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>People</p>
@@ -1439,10 +1451,9 @@ export default function TrekBookingPage() {
                                             </button>
                                         </div>
                                         <p className={`text-[10px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                            One registration per login
                                             {Number.isFinite(configuredMax) && configuredMax > 0 && configuredMax !== 10
-                                                ? ` · max ${maxPeople}`
-                                                : ''}
+                                                ? `Max ${maxPeople} per booking`
+                                                : 'You can book again anytime with the same account'}
                                         </p>
                                     </div>
                                     <div className="text-right">

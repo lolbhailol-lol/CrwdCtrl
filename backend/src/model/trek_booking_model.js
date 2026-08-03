@@ -52,35 +52,9 @@ const trekBookingSchema = new mongoose.Schema(
 trekBookingSchema.index({ userId: 1 });
 trekBookingSchema.index({ trekId: 1 });
 trekBookingSchema.index({ trekId: 1, status: 1 });
+trekBookingSchema.index({ trekId: 1, userId: 1, createdAt: -1 });
 trekBookingSchema.index({ userEmail: 1 });
 trekBookingSchema.index({ payment_order_id: 1 }, { unique: true, sparse: true });
-
-// Logged-in: one active booking per user per trek
-trekBookingSchema.index(
-    { trekId: 1, userId: 1 },
-    {
-        unique: true,
-        partialFilterExpression: {
-            status: { $in: ['pending', 'confirmed'] },
-            userId: { $type: 'objectId' },
-        },
-        name: 'trek_user_active_booking_unique',
-    },
-);
-
-// Guest: one active booking per email per trek
-trekBookingSchema.index(
-    { trekId: 1, userEmail: 1 },
-    {
-        unique: true,
-        partialFilterExpression: {
-            status: { $in: ['pending', 'confirmed'] },
-            userId: null,
-            userEmail: { $type: 'string' },
-        },
-        name: 'trek_guest_email_active_booking_unique',
-    },
-);
 
 trekBookingSchema.pre('validate', function enforcePaidBookingPaymentOrder(next) {
     const amountPaid = Number(this.bookingDetails?.amountPaid) || 0;
@@ -105,15 +79,14 @@ const ensureTrekBookingIndexes = async () => {
     try {
         const indexes = await TrekBooking.collection.indexes();
         for (const idx of indexes) {
-            // Drop old unique that required userId without guest partial filter
+            // Drop one-booking-per-user/email uniques — users may book the same trek again
             if (
                 idx.name === 'trek_user_active_booking_unique'
-                && idx.unique
-                && !idx.partialFilterExpression?.userId
+                || idx.name === 'trek_guest_email_active_booking_unique'
             ) {
                 try {
                     await TrekBooking.collection.dropIndex(idx.name);
-                    console.log('ℹ️ Dropped legacy trek_user_active_booking_unique index');
+                    console.log(`ℹ️ Dropped ${idx.name} (multi-booking enabled)`);
                 } catch (_) { /* ignore */ }
             }
         }

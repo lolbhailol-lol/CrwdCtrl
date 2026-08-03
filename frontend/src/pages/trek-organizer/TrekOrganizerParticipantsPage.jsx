@@ -4,7 +4,7 @@ import {
     Download, Loader, Search, ChevronLeft, ChevronRight,
     Users, UserCheck, ChevronsDownUp, X, Mail, Venus, Mars,
     ArrowUpDown, Copy, CheckSquare, Square, Sparkles, Clock,
-    IndianRupee, Filter, MessageCircle,
+    IndianRupee, Filter, MessageCircle, MapPin, Calendar,
 } from 'lucide-react';
 import {
     exportTrekOrganizerParticipants,
@@ -102,10 +102,13 @@ export default function TrekOrganizerParticipantsPage() {
     const communityId = session?.community?._id || session?.organizer?.communityId || '';
     const sessionTrek = session?.treks?.find((t) => String(t._id) === String(trekId));
     const trekDateLabel = formatOrganizerTrekDate(sessionTrek || {}) || sessionTrek?.dateLabel || '';
-    const meetingPoint = sessionTrek?.meetingLocation || '';
+    const sessionMeetingPoint = sessionTrek?.meetingLocation || '';
 
     const [rows, setRows] = useState([]);
     const [trekName, setTrekName] = useState('');
+    const [mapMeetingLocation, setMapMeetingLocation] = useState(sessionMeetingPoint);
+    const [locationOptions, setLocationOptions] = useState([]);
+    const [dashDateLabel, setDashDateLabel] = useState(trekDateLabel);
     const [stats, setStats] = useState(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
     const [loading, setLoading] = useState(true);
@@ -132,6 +135,7 @@ export default function TrekOrganizerParticipantsPage() {
         const q = searchParams.get('gender');
         return ['Female', 'Male', 'Others'].includes(q) ? q : '';
     });
+    const [meetingFilter, setMeetingFilter] = useState(() => searchParams.get('meetingPoint') || '');
     const [page, setPage] = useState(1);
     const [registrationMode, setRegistrationMode] = useState('internal_form');
 
@@ -140,11 +144,13 @@ export default function TrekOrganizerParticipantsPage() {
         if (id) setDetailBookingId(id);
     }, [searchParams]);
 
-    const hasFilters = search || paymentFilter || checkInFilter || genderFilter;
+    const hasFilters = search || paymentFilter || checkInFilter || genderFilter || meetingFilter;
     const isOrganizerQr = registrationMode === 'organizer_qr';
     const pendingCount = isOrganizerQr ? (stats?.pendingReview ?? 0) : 0;
     const revenue = Number(stats?.organizerRevenue ?? stats?.revenue ?? 0);
     const [sortBy, sortDir] = sortValue.split(':');
+    const displayDateLabel = dashDateLabel || trekDateLabel;
+    const displayMapMeeting = mapMeetingLocation || sessionMeetingPoint;
 
     const pendingQueue = useMemo(
         () => rows.filter((r) => r.paymentStatus === 'Pending review' || r.status === 'pending'),
@@ -174,6 +180,7 @@ export default function TrekOrganizerParticipantsPage() {
             if (paymentFilter) params.paymentStatus = paymentFilter;
             if (checkInFilter) params.checkInStatus = checkInFilter;
             if (genderFilter) params.gender = genderFilter;
+            if (meetingFilter) params.meetingPoint = meetingFilter;
 
             const [listData, dashData] = await Promise.all([
                 fetchTrekOrganizerParticipants(trekId, params),
@@ -182,8 +189,19 @@ export default function TrekOrganizerParticipantsPage() {
 
             setRows(listData.participants || []);
             setTrekName(listData.trekName || '');
+            if (listData.meetingLocation) setMapMeetingLocation(listData.meetingLocation);
+            const opts = Array.isArray(listData.locationOptions) ? listData.locationOptions.filter(Boolean) : [];
+            if (opts.length) setLocationOptions(opts);
             setPagination(listData.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 });
             if (dashData?.stats) setStats(dashData.stats);
+            if (dashData?.trek) {
+                const dLabel = formatOrganizerTrekDate(dashData.trek) || dashData.trek.dateLabel || '';
+                if (dLabel) setDashDateLabel(dLabel);
+                if (dashData.trek.meetingLocation) setMapMeetingLocation(dashData.trek.meetingLocation);
+                if (Array.isArray(dashData.trek.locationOptions) && dashData.trek.locationOptions.length) {
+                    setLocationOptions(dashData.trek.locationOptions.filter(Boolean));
+                }
+            }
             if (dashData?.trek?.registrationMode) {
                 const mode = dashData.trek.registrationMode || 'internal_form';
                 setRegistrationMode(mode);
@@ -196,7 +214,7 @@ export default function TrekOrganizerParticipantsPage() {
         } finally {
             setLoading(false);
         }
-    }, [trekId, page, search, paymentFilter, checkInFilter, genderFilter, sortBy, sortDir, toast]);
+    }, [trekId, page, search, paymentFilter, checkInFilter, genderFilter, meetingFilter, sortBy, sortDir, toast]);
 
     useEffect(() => {
         load();
@@ -204,7 +222,7 @@ export default function TrekOrganizerParticipantsPage() {
 
     useEffect(() => {
         setSelectedIds(new Set());
-    }, [page, search, paymentFilter, checkInFilter, genderFilter, trekId, sortValue]);
+    }, [page, search, paymentFilter, checkInFilter, genderFilter, meetingFilter, trekId, sortValue]);
 
     const toggleSelect = (bookingId) => {
         setSelectedIds((prev) => {
@@ -236,8 +254,8 @@ export default function TrekOrganizerParticipantsPage() {
                 name: p.participantName || p.name || 'Guest',
                 phone: p.phone,
                 trekName: trekName || p.trekName || '',
-                trekDate: trekDateLabel,
-                meetingPoint,
+                trekDate: p.trekDate || displayDateLabel,
+                meetingPoint: p.meetingPoint || p.trekTime || displayMapMeeting,
             }));
         setWaRecipients(list);
     };
@@ -388,6 +406,7 @@ export default function TrekOrganizerParticipantsPage() {
         setPaymentFilter('');
         setCheckInFilter('');
         setGenderFilter('');
+        setMeetingFilter('');
         setPage(1);
     };
 
@@ -403,6 +422,10 @@ export default function TrekOrganizerParticipantsPage() {
         setGenderFilter((prev) => (prev === value ? '' : value));
         setPage(1);
     };
+    const toggleMeeting = (value) => {
+        setMeetingFilter((prev) => (prev === value ? '' : value));
+        setPage(1);
+    };
 
     /** Stat pills: focus one dimension and clear the others for a clean jump. */
     const jumpFilter = (type, value) => {
@@ -412,6 +435,7 @@ export default function TrekOrganizerParticipantsPage() {
         setPaymentFilter(nextPayment);
         setCheckInFilter(nextCheckIn);
         setGenderFilter(nextGender);
+        setMeetingFilter('');
         setPage(1);
     };
 
@@ -432,6 +456,20 @@ export default function TrekOrganizerParticipantsPage() {
                             <div>
                                 <h1 className="text-2xl sm:text-[1.75rem] font-semibold tracking-tight">{title}</h1>
                                 <p className="text-sm text-gray-400 mt-1 truncate">{trekName || 'Trek registrations'}</p>
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
+                                    {displayDateLabel ? (
+                                        <span className="inline-flex items-center gap-1">
+                                            <Calendar size={12} className="text-[#0ECCEE]" />
+                                            {displayDateLabel}
+                                        </span>
+                                    ) : null}
+                                    {displayMapMeeting ? (
+                                        <span className="inline-flex items-center gap-1 min-w-0">
+                                            <MapPin size={12} className="text-[#0ECCEE] shrink-0" />
+                                            <span className="truncate">{displayMapMeeting}</span>
+                                        </span>
+                                    ) : null}
+                                </div>
                             </div>
                         </div>
                         <div className="flex flex-wrap gap-2 shrink-0">
@@ -564,7 +602,7 @@ export default function TrekOrganizerParticipantsPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter} onClick={clearFilters}>All</FilterChip>
+                    <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter && !meetingFilter} onClick={clearFilters}>All</FilterChip>
                     <span className="w-px h-4 bg-white/10 hidden sm:block" />
                     {isOrganizerQr ? (
                         <FilterChip
@@ -586,6 +624,20 @@ export default function TrekOrganizerParticipantsPage() {
                     <span className="w-px h-4 bg-white/10 hidden sm:block" />
                     <FilterChip active={genderFilter === 'Female'} onClick={() => toggleGender('Female')}>Women</FilterChip>
                     <FilterChip active={genderFilter === 'Male'} onClick={() => toggleGender('Male')}>Men</FilterChip>
+                    {locationOptions.length > 0 ? (
+                        <>
+                            <span className="w-px h-4 bg-white/10 hidden sm:block" />
+                            {locationOptions.map((opt) => (
+                                <FilterChip
+                                    key={opt}
+                                    active={meetingFilter === opt}
+                                    onClick={() => toggleMeeting(opt)}
+                                >
+                                    {opt}
+                                </FilterChip>
+                            ))}
+                        </>
+                    ) : null}
                     {hasFilters ? (
                         <button type="button" onClick={clearFilters} className="text-xs text-[#0ECCEE] ml-auto hover:underline">
                             Clear filters
@@ -761,8 +813,8 @@ export default function TrekOrganizerParticipantsPage() {
                 onClose={() => setWaRecipients(null)}
                 recipients={waRecipients || []}
                 trekName={trekName}
-                trekDate={trekDateLabel}
-                meetingPoint={meetingPoint}
+                trekDate={displayDateLabel}
+                meetingPoint={displayMapMeeting}
                 communityId={String(communityId || '')}
             />
 

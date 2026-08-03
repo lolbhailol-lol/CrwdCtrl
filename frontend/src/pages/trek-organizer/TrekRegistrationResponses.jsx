@@ -73,7 +73,7 @@ export default function TrekRegistrationResponses({
 
     const metaRows = [];
     if (bookingDetails?.date) metaRows.push({ label: 'Date', value: bookingDetails.date });
-    if (bookingDetails?.time) metaRows.push({ label: 'Time', value: bookingDetails.time });
+    if (bookingDetails?.time) metaRows.push({ label: 'Meeting point', value: bookingDetails.time });
     if (bookingDetails?.people) metaRows.push({ label: 'People', value: String(bookingDetails.people) });
     if (phone && phone !== '—') metaRows.push({ label: 'Phone', value: phone });
     if (userEmail && !hasEmailInFields) metaRows.push({ label: 'Email', value: userEmail });

@@ -458,34 +458,30 @@ exports.createTrekOrder = async (req, res) => {
     }
 
     if (req.user?.userId) {
-      const existingBooking = await TrekBooking.findOne({
+      const pendingBooking = await TrekBooking.findOne({
         trekId: trek._id,
         userId: req.user.userId,
-        status: { $in: ['confirmed', 'pending'] },
-      }).select('_id status').lean();
-      if (existingBooking) {
+        status: 'pending',
+      }).select('_id status').sort({ createdAt: -1 }).lean();
+      if (pendingBooking) {
         return res.status(409).json({
           success: false,
-          message: existingBooking.status === 'pending'
-            ? 'You already have a registration waiting for organizer approval'
-            : 'You already have a registration for this trek',
-          bookingId: existingBooking._id,
+          message: 'You already have a registration waiting for organizer approval',
+          bookingId: pendingBooking._id,
         });
       }
     } else if (email) {
-      const existingGuest = await TrekBooking.findOne({
+      const pendingGuest = await TrekBooking.findOne({
         trekId: trek._id,
         userEmail: email,
         userId: null,
-        status: { $in: ['confirmed', 'pending'] },
-      }).select('_id status').lean();
-      if (existingGuest) {
+        status: 'pending',
+      }).select('_id status').sort({ createdAt: -1 }).lean();
+      if (pendingGuest) {
         return res.status(409).json({
           success: false,
-          message: existingGuest.status === 'pending'
-            ? 'This email already has a registration waiting for organizer approval'
-            : 'This email already has a registration for this trek',
-          bookingId: existingGuest._id,
+          message: 'This email already has a registration waiting for organizer approval',
+          bookingId: pendingGuest._id,
         });
       }
     }

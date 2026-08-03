@@ -397,7 +397,7 @@ exports.getDashboard = async (req, res) => {
     try {
         const trekId = req.trekId;
         const trek = await Trek.findById(trekId).select(
-            'trekName city trekDate dateLabel status maxParticipants trekBatches registrationFee platformFeePercent registration'
+            'trekName city trekDate dateLabel status maxParticipants trekBatches registrationFee platformFeePercent registration meetingLocation'
         ).lean();
         if (!trek) return res.status(404).json({ success: false, message: 'Trek not found' });
 
@@ -433,6 +433,12 @@ exports.getDashboard = async (req, res) => {
         const seatsRemaining = capacity > 0 ? Math.max(0, capacity - seatsFilled) : null;
         const genderRegistration = await getGenderRegistrationSnapshot(trek);
         const genderStats = await aggregateGenderQuotaStats(trekId);
+        const locationOptions = Array.isArray(trek.registration?.locationOptions)
+            ? trek.registration.locationOptions.map((s) => String(s || '').trim()).filter(Boolean)
+            : [];
+        const availableDates = Array.isArray(trek.registration?.availableDates)
+            ? trek.registration.availableDates.map((s) => String(s || '').trim()).filter(Boolean)
+            : [];
 
         res.json({
             success: true,
@@ -442,6 +448,9 @@ exports.getDashboard = async (req, res) => {
                 city: trek.city,
                 trekDate: trek.trekDate,
                 dateLabel: trek.dateLabel || '',
+                meetingLocation: trek.meetingLocation || '',
+                locationOptions,
+                availableDates,
                 trekBatches: Array.isArray(trek.trekBatches) ? trek.trekBatches : [],
                 status: trek.status,
                 capacity,
@@ -455,6 +464,12 @@ exports.getDashboard = async (req, res) => {
                 genderPhase: trek.registration?.genderPhase || 'all',
             },
             genderRegistration,
+            bookingSummary: {
+                confirmedBookings: totalRegistrations,
+                seatsFilled,
+                pendingReview,
+                todayRegistrations,
+            },
             stats: {
                 totalRegistrations,
                 seatsFilled,
@@ -495,6 +510,7 @@ exports.listParticipants = async (req, res) => {
         const paymentStatus = req.query.paymentStatus;
         const checkInStatus = req.query.checkInStatus;
         const genderFilter = req.query.gender;
+        const meetingPointFilter = String(req.query.meetingPoint || '').trim();
         const sortBy = req.query.sortBy || 'createdAt';
         const sortDir = req.query.sortDir === 'asc' ? 1 : -1;
 
@@ -521,6 +537,9 @@ exports.listParticipants = async (req, res) => {
         if (checkInStatus === 'pending') filter.checkedIn = { $ne: true };
         if (genderFilter === 'Female' || genderFilter === 'Male' || genderFilter === 'Others') {
             filter.participantGender = genderFilter;
+        }
+        if (meetingPointFilter) {
+            filter['bookingDetails.time'] = meetingPointFilter;
         }
 
         if (search) {
@@ -555,10 +574,13 @@ exports.listParticipants = async (req, res) => {
                 .limit(limit)
                 .lean(),
             TrekBooking.countDocuments(filter),
-            Trek.findById(trekId).select('trekName registration.formSchema registrationFee platformFeePercent').lean(),
+            Trek.findById(trekId).select('trekName meetingLocation registration.formSchema registration.locationOptions registration.availableDates registrationFee platformFeePercent').lean(),
         ]);
 
         const formSchema = trek?.registration?.formSchema || [];
+        const locationOptions = Array.isArray(trek?.registration?.locationOptions)
+            ? trek.registration.locationOptions.map((s) => String(s || '').trim()).filter(Boolean)
+            : [];
 
         let crmByUserId = new Map();
         let crmByPhone = new Map();
@@ -609,6 +631,8 @@ exports.listParticipants = async (req, res) => {
         res.json({
             success: true,
             trekName: trek?.trekName || '',
+            meetingLocation: trek?.meetingLocation || '',
+            locationOptions,
             columns: buildSheetColumns(formSchema),
             participants,
             pagination: {

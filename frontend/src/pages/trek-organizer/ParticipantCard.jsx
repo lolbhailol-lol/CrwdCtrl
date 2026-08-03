@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    ChevronDown, Phone, Calendar, Users,
+    ChevronDown, Phone, Calendar, Users, MapPin,
     CheckCircle, Clock, Copy, MessageCircle, Trash2, Mail, Bell, ContactRound, Mountain,
 } from 'lucide-react';
 import TrekRegistrationResponses from './TrekRegistrationResponses';
@@ -13,6 +13,7 @@ function Pill({ children, tone = 'neutral' }) {
         in: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/25',
         pending: 'bg-amber-500/20 text-amber-400 border-amber-500/25',
         repeat: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+        guest: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
     };
     return (
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${styles[tone] || styles.free}`}>
@@ -67,6 +68,15 @@ export default function ParticipantCard({
     const canWhatsApp = isValidWhatsAppPhone(phone);
     const trekCount = Number(participant.trekCount) || 1;
     const isRepeat = Boolean(participant.isRepeat) || trekCount >= 2;
+    const isGuest = Boolean(participant.isGuest);
+    const meetingPoint = participant.meetingPoint || participant.trekTime || '';
+    const trekDate = participant.trekDate || participant.bookingDetails?.date || '';
+    const peopleCount = Number(participant.people ?? participant.bookingDetails?.people ?? 1) || 1;
+    const bookingDetails = participant.bookingDetails || {
+        date: trekDate,
+        time: meetingPoint,
+        people: peopleCount,
+    };
 
     const borderTone = checkedIn
         ? 'border-l-emerald-500'
@@ -114,6 +124,7 @@ export default function ParticipantCard({
                             <Pill tone={pendingReview ? 'pending' : rejected ? 'pending' : paid ? 'paid' : 'free'}>
                                 {participant.paymentStatus}
                             </Pill>
+                            {isGuest ? <Pill tone="guest">Guest</Pill> : null}
                             {participant.tierName ? (
                                 <Pill tone="paid">{participant.tierName}</Pill>
                             ) : null}
@@ -141,18 +152,22 @@ export default function ParticipantCard({
                                     <Phone size={12} className="text-[#0ECCEE]" />{phone}
                                 </span>
                             ) : null}
-                            {participant.trekDate ? (
-                                <span className="inline-flex items-center gap-1">
-                                    <Calendar size={12} />
-                                    {participant.trekDate}
-                                    {participant.trekTime ? ` · ${participant.trekTime}` : ''}
+                            {trekDate ? (
+                                <span className="inline-flex items-center gap-1 text-gray-300">
+                                    <Calendar size={12} className="text-[#0ECCEE]" />
+                                    {trekDate}
                                 </span>
                             ) : null}
-                            {(participant.people ?? 1) > 1 ? (
-                                <span className="inline-flex items-center gap-1">
-                                    <Users size={12} />{participant.people} people
+                            {meetingPoint ? (
+                                <span className="inline-flex items-center gap-1 text-gray-300 min-w-0">
+                                    <MapPin size={12} className="text-[#0ECCEE] shrink-0" />
+                                    <span className="truncate">{meetingPoint}</span>
                                 </span>
                             ) : null}
+                            <span className="inline-flex items-center gap-1">
+                                <Users size={12} />
+                                {peopleCount} {peopleCount === 1 ? 'person' : 'people'}
+                            </span>
                             {!isOpen && fields.length > 0 ? (
                                 <span className="text-gray-600">
                                     {fields.length} form field{fields.length === 1 ? '' : 's'} · tap to view
@@ -322,7 +337,7 @@ export default function ParticipantCard({
                         <div>
                             <TrekRegistrationResponses
                                 fields={fields}
-                                bookingDetails={participant.bookingDetails}
+                                bookingDetails={bookingDetails}
                                 userEmail={email}
                                 phone={phone}
                                 gender={participant.participantGender}

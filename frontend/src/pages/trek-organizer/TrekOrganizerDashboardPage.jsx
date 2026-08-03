@@ -191,6 +191,9 @@ export default function TrekOrganizerDashboardPage() {
     const regStatus = trek.registrationStatus || 'open';
     const isOpen = regStatus === 'open';
     const dateLabel = formatOrganizerTrekDate(trek);
+    const mapMeeting = String(trek.meetingLocation || '').trim();
+    const bookingMeetingOptions = Array.isArray(trek.locationOptions) ? trek.locationOptions.filter(Boolean) : [];
+    const pendingReviewCount = Number(stats.pendingReview ?? 0);
 
     const copyLink = async () => {
         try {
@@ -245,6 +248,27 @@ export default function TrekOrganizerDashboardPage() {
                                     ) : null}
                                     {dateLabel ? <span>{dateLabel}</span> : null}
                                 </div>
+                                {(mapMeeting || bookingMeetingOptions.length > 0) ? (
+                                    <div className="mt-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 space-y-1.5">
+                                        {mapMeeting ? (
+                                            <p className="text-xs text-gray-300 inline-flex items-start gap-1.5">
+                                                <MapPin size={12} className="text-[#0ECCEE] mt-0.5 shrink-0" />
+                                                <span>
+                                                    <span className="text-gray-500">Map pin · </span>
+                                                    {mapMeeting}
+                                                </span>
+                                            </p>
+                                        ) : null}
+                                        {bookingMeetingOptions.length > 0 ? (
+                                            <p className="text-[11px] text-gray-500">
+                                                Booking meeting points · {bookingMeetingOptions.length} option{bookingMeetingOptions.length === 1 ? '' : 's'}
+                                                {' · '}
+                                                {bookingMeetingOptions.slice(0, 3).join(' · ')}
+                                                {bookingMeetingOptions.length > 3 ? '…' : ''}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                ) : null}
                             </div>
                             <div className="flex flex-wrap gap-1.5">
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold capitalize border ${
@@ -327,7 +351,7 @@ export default function TrekOrganizerDashboardPage() {
                     tone="accent"
                     icon={Users}
                     to={`/trek-organizer/treks/${trekId}/participants`}
-                    hint="View list"
+                    hint="Guests · date · meeting point"
                 />
                 <StatTile
                     label="Collected"
@@ -356,13 +380,14 @@ export default function TrekOrganizerDashboardPage() {
                     icon={UserCheck}
                     to={`/trek-organizer/treks/${trekId}/scan`}
                 />
-                {isOrganizerQr ? (
+                {isOrganizerQr || pendingReviewCount > 0 ? (
                     <StatTile
                         label="Needs review"
-                        value={stats.pendingReview ?? 0}
+                        value={pendingReviewCount}
                         tone="warn"
                         icon={Clock}
                         to={`/trek-organizer/treks/${trekId}/participants?paymentStatus=pending_review`}
+                        hint="Open payment queue"
                     />
                 ) : null}
                 <StatTile
@@ -370,7 +395,7 @@ export default function TrekOrganizerDashboardPage() {
                     value={pending}
                     tone="warn"
                     icon={Clock}
-                    to={`/trek-organizer/treks/${trekId}/participants`}
+                    to={`/trek-organizer/treks/${trekId}/participants?checkInStatus=pending`}
                 />
             </div>
 
@@ -472,7 +497,7 @@ export default function TrekOrganizerDashboardPage() {
                     {[
                         {
                             label: 'Participants',
-                            hint: 'List, filter, message',
+                            hint: 'Guests · date · meeting point',
                             icon: Users,
                             onClick: () => navigate(`/trek-organizer/treks/${trekId}/participants`),
                         },
