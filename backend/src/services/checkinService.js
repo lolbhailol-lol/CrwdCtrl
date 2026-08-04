@@ -81,6 +81,7 @@ function scheduleCheckinSheetLog({
  * @param {string} [options.festId] - Restrict to this fest (fest organizer scanners)
  * @param {string} [options.trekId] - Restrict to this trek (trek organizer scanners)
  * @param {string} [options.sportEventId] - Restrict to this sports event (sport scanners)
+ * @param {string} [options.eventShowId] - Restrict to this EventShow (event organizers)
  * @param {boolean} [options.allowTrek=true] - Admin can scan treks
  * @param {boolean} [options.allowSports=true] - Admin can scan sports tickets
  * @param {string} [options.scannedBy] - Name/email of scanner for sheet log
@@ -91,6 +92,7 @@ async function performCheckinFromRaw(raw, options = {}) {
     festId = null,
     trekId = null,
     sportEventId = null,
+    eventShowId = null,
     allowTrek = true,
     allowSports = true,
     scannedBy = 'Admin',
@@ -147,6 +149,17 @@ async function performCheckinFromRaw(raw, options = {}) {
       return {
         status: 404,
         body: { success: false, status: 'invalid', message: 'Event registration not found.' },
+      };
+    }
+
+    if (eventShowId && String(eventReg.eventShow) !== String(eventShowId)) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This ticket is for a different event.',
+        },
       };
     }
 
@@ -216,6 +229,16 @@ async function performCheckinFromRaw(raw, options = {}) {
   }
 
   if (resolved.kind === 'sports') {
+    if (eventShowId) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This scanner is for event tickets only.',
+        },
+      };
+    }
     if (festId) {
       return {
         status: 403,
@@ -373,6 +396,16 @@ async function performCheckinFromRaw(raw, options = {}) {
   }
 
   if (resolved.kind === 'trek') {
+    if (eventShowId) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This scanner is for event tickets only.',
+        },
+      };
+    }
     if (festId || sportEventId) {
       return {
         status: 403,
@@ -530,15 +563,17 @@ async function performCheckinFromRaw(raw, options = {}) {
     };
   }
 
-  if (trekId || sportEventId) {
+  if (trekId || sportEventId || eventShowId) {
     return {
       status: 403,
       body: {
         success: false,
         status: 'invalid',
-        message: sportEventId
-          ? 'This scanner is for sports tickets only. Fest tickets cannot be checked in here.'
-          : 'This scanner is for trek tickets only. Fest tickets cannot be checked in here.',
+        message: eventShowId
+          ? 'This scanner is for event tickets only. Fest tickets cannot be checked in here.'
+          : sportEventId
+            ? 'This scanner is for sports tickets only. Fest tickets cannot be checked in here.'
+            : 'This scanner is for trek tickets only. Fest tickets cannot be checked in here.',
       },
     };
   }

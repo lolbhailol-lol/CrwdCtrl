@@ -82,6 +82,7 @@ export const TrekOrganizerNotificationsPage = lazyWithRetry(() => import('../../
 export const TrekOrganizersPage = lazyWithRetry(() => import('../../pages/admin/TrekOrganizersPage'));
 export const RunClubOrganizersPage = lazyWithRetry(() => import('../../pages/admin/RunClubOrganizersPage'));
 export const FestOrganizersPage = lazyWithRetry(() => import('../../pages/admin/FestOrganizersPage'));
+export const EventOrganizersPage = lazyWithRetry(() => import('../../pages/admin/EventOrganizersPage'));
 
 export const RunClubOrganizerLoginPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerLoginPage'));
 export const RunClubOrganizerSignupPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerSignupPage'));
@@ -93,6 +94,15 @@ export const RunClubOrganizerParticipantsPage = lazyWithRetry(() => import('../.
 export const RunClubOrganizerScanPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerScanPage'));
 export const RunClubOrganizerNotificationsPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerNotificationsPage'));
 export const RunClubOrganizerEventEditorPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerEventEditorPage'));
+
+export const EventOrganizerLoginPage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerLoginPage'));
+export const EventOrganizerLayout = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerLayout'));
+export const EventOrganizerProtectedRoute = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerProtectedRoute'));
+export const EventOrganizerHomePage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerHomePage'));
+export const EventOrganizerDashboardPage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerDashboardPage'));
+export const EventOrganizerParticipantsPage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerParticipantsPage'));
+export const EventOrganizerScanPage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerScanPage'));
+export const EventOrganizerNotificationsPage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerNotificationsPage'));
 
 export const FestOrganizerLoginPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerLoginPage'));
 export const FestOrganizerSignupPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerSignupPage'));

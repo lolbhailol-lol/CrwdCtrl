@@ -55,6 +55,7 @@ export default function AdminLayout() {
     { icon: PartyPopper, label: 'Fest Organizers', path: '/admin/fest-organizers' },
     { icon: Footprints, label: 'Run Club Organizers', path: '/admin/run-club-organizers' },
     { icon: Theater, label: 'Events', path: '/admin/events' },
+    { icon: Users, label: 'Event Organizers', path: '/admin/event-organizers' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
     { icon: LayoutGrid, label: 'Page Sections', path: '/admin/page-sections' },
     { icon: TicketPercent, label: 'Coupons', path: '/admin/coupons' },

@@ -234,7 +234,7 @@ export default function CheckinScannerPage({
   }, [releaseCamera]);
 
   const fetchCheckinStats = useCallback(async () => {
-    if (!showStats || (!festId && !trekId && !sportEventId)) return;
+    if (!showStats || (!festId && !trekId && !sportEventId && !statsUrl)) return;
     const token = resolvedGetToken();
     if (!token) return;
     try {
@@ -248,7 +248,7 @@ export default function CheckinScannerPage({
     } catch {
       /* ignore */
     }
-  }, [showStats, festId, trekId, sportEventId, resolvedGetToken, resolvedStatsUrl]);
+  }, [showStats, festId, trekId, sportEventId, statsUrl, resolvedGetToken, resolvedStatsUrl]);
 
   useEffect(() => {
     fetchCheckinStats();
