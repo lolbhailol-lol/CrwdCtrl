@@ -49,6 +49,8 @@ export const buildPriceBreakdown = (ticketPrice) => {
 export const calculateEventPlatformFee = (ticketPrice, platformFeePercent = 2.5) => {
   const normalizedTicketPrice = parseTicketPrice(ticketPrice);
   const rate = Number(platformFeePercent);
+  // Explicit 0% = Cashfree only, no CrwdCtrl platform fee
+  if (Number.isFinite(rate) && rate === 0) return 0;
   const pct = Number.isFinite(rate) && rate > 0 ? rate / 100 : EVENT_PLATFORM_FEE_RATE;
   return Math.ceil(normalizedTicketPrice * pct);
 };

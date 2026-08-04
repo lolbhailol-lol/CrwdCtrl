@@ -83,6 +83,8 @@ const eventShowSchema = new mongoose.Schema(
         organizer: { type: String, trim: true },
         cast: { type: [String], default: [] },
         venue: { type: String, trim: true },
+        /** Google Maps pin / share link for venue directions */
+        mapUrl: { type: String, trim: true },
         city: { type: String, trim: true },
         showTimings: [
             {
@@ -94,6 +96,24 @@ const eventShowSchema = new mongoose.Schema(
         language: { type: String, trim: true },
         ageRating: { type: String, trim: true },
         ticketPrice: { type: Number, default: 0 },
+        /**
+         * Pricing style:
+         * - single: use ticketPrice only
+         * - tiers: custom tiers[] each with its own fee (e.g. Trackday lap packages)
+         */
+        pricingMode: {
+            type: String,
+            enum: ['single', 'tiers'],
+            default: 'single',
+        },
+        tiers: [{
+            id: { type: String, trim: true, default: '' },
+            name: { type: String, trim: true, default: '' },
+            description: { type: String, trim: true, default: '' },
+            fee: { type: Number, default: 0 },
+            inclusions: { type: [String], default: [] },
+            order: { type: Number, default: 0 },
+        }],
         /** Platform fee % added on top of ticket price at checkout (e.g. 2.5 = ₹25 on ₹1000). */
         platformFeePercent: { type: Number, default: 2.5 },
         seatingCapacity: { type: Number, default: 0 },

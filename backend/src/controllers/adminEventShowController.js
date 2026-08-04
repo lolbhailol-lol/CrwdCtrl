@@ -3,18 +3,41 @@ const EventShow = require('../model/event_show_model');
 const { sanitizeEventPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
 const { setExclusiveEventsPageHero } = require('../utils/featuredPlacement');
+const {
+    sanitizeSportsTiers,
+    mirrorRegistrationFeeFromTiers,
+} = require('../utils/sportsPricing');
 
 function normalizeEventShowPayload(body = {}) {
     const payload = { ...body };
-    if (payload.ticketPrice !== undefined) {
-        payload.ticketPrice = Math.max(0, Number(payload.ticketPrice) || 0);
-    }
     if (payload.platformFeePercent !== undefined) {
         payload.platformFeePercent = sanitizeEventPlatformFeePercent(payload.platformFeePercent);
     }
     if (payload.coverImages !== undefined) {
         payload.coverImages = sanitizeCoverImages(payload.coverImages);
         payload.poster = primaryCoverUrl(payload.coverImages, payload.poster) || '';
+    }
+    if (payload.mapUrl !== undefined) {
+        payload.mapUrl = String(payload.mapUrl || '').trim();
+    }
+    if (payload.pricingMode !== undefined) {
+        payload.pricingMode = payload.pricingMode === 'tiers' ? 'tiers' : 'single';
+    }
+    if (payload.tiers !== undefined) {
+        payload.tiers = sanitizeSportsTiers(payload.tiers);
+    }
+    const mode = payload.pricingMode
+        || (body.pricingMode === 'tiers' ? 'tiers' : undefined);
+    if (mode === 'tiers' || payload.pricingMode === 'tiers') {
+        const tiers = payload.tiers !== undefined ? payload.tiers : sanitizeSportsTiers(body.tiers);
+        if (payload.tiers !== undefined || body.tiers !== undefined) {
+            payload.tiers = tiers;
+        }
+        if (payload.tiers && payload.tiers.length) {
+            payload.ticketPrice = mirrorRegistrationFeeFromTiers('tiers', payload.tiers, payload.ticketPrice);
+        }
+    } else if (payload.ticketPrice !== undefined) {
+        payload.ticketPrice = Math.max(0, Number(payload.ticketPrice) || 0);
     }
     return payload;
 }

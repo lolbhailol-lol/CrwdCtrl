@@ -7,6 +7,11 @@ import CoverImageUploadField from './CoverImageUploadField';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { sanitizeEventPlatformFeePercent } from '../../utils/trekRegistrationFee';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
+import {
+    createEmptyTier,
+    sanitizeEventShowTiers,
+    formatInr,
+} from '../../utils/eventShowTiers';
 
 const EVENT_TYPE_OPTIONS = [
     { value: 'play', label: 'Play' },
@@ -15,11 +20,13 @@ const EVENT_TYPE_OPTIONS = [
     { value: 'improv', label: 'Improv' },
     { value: 'dance_drama', label: 'Dance Drama' },
     { value: 'fashion', label: 'Fashion' },
+    { value: 'other', label: 'Other' },
 ];
 
 const EMPTY = {
     title: '', displayName: '', description: '', eventType: '', eventHeading: '', organizer: '',
-    venue: '', city: '', ticketPrice: 0, platformFeePercent: 2.5,
+    venue: '', mapUrl: '', city: '', ticketPrice: 0, platformFeePercent: 2.5,
+    pricingMode: 'single', tiers: [],
     sponsors: '', poster: '', coverImages: EMPTY_COVER_IMAGES(), banner: '', bookingLink: '',
     generalRules: '', process: '', prizePool: '',
     whatsIncluded: '', benefits: '', eligibility: '', slots: '', registrationProcess: '', registrationLink: '',
@@ -72,6 +79,10 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                     steps: Array.isArray(show.registration?.steps) ? show.registration.steps : [],
                 },
                 platformFeePercent: show.platformFeePercent ?? 2.5,
+                pricingMode: show.pricingMode === 'tiers' ? 'tiers' : 'single',
+                tiers: Array.isArray(show.tiers) && show.tiers.length
+                    ? sanitizeEventShowTiers(show.tiers)
+                    : [],
                 sponsors: Array.isArray(show.sponsors) ? show.sponsors.join(', ') : (show.sponsors || ''),
                 rounds: Array.isArray(show.rounds) ? show.rounds.map(r => ({ title: r.title || '', content: r.content || '' })) : [],
                 contacts: Array.isArray(show.contacts) ? show.contacts.map(c => ({
@@ -160,12 +171,25 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
             };
             const validField = (f) => !!(f.label?.trim());
             const coverImages = normalizeCoverImages(form.coverImages);
+            const pricingMode = form.pricingMode === 'tiers' ? 'tiers' : 'single';
+            const tiers = pricingMode === 'tiers' ? sanitizeEventShowTiers(form.tiers) : [];
+            if (pricingMode === 'tiers' && tiers.length < 1) {
+                setError('Add at least one registration package when using Custom tiers.');
+                setSaving(false);
+                return;
+            }
+            const ticketPrice = pricingMode === 'tiers'
+                ? (tiers.length ? Math.min(...tiers.map((t) => Number(t.fee) || 0)) : 0)
+                : Number(form.ticketPrice) || 0;
             const payload = {
                 ...form,
                 coverImages,
                 poster: primaryCoverUrl(coverImages, form.poster),
                 sponsors: form.sponsors ? form.sponsors.split(',').map(s => s.trim()).filter(Boolean) : [],
-                ticketPrice: Number(form.ticketPrice) || 0,
+                pricingMode,
+                tiers,
+                ticketPrice,
+                mapUrl: (form.mapUrl || '').trim(),
                 platformFeePercent: sanitizeEventPlatformFeePercent(form.platformFeePercent),
                 rounds: form.rounds.filter(r => (r.title || '').trim() || (r.content || '').trim()),
                 contacts: form.contacts.filter(c => (c.name || c.phone || c.email || c.instagramId || '').trim()),
@@ -280,6 +304,18 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Booking Link</label><input type="url" value={form.bookingLink} onChange={e => set('bookingLink', e.target.value)} className={inp} placeholder="https://..." /></div>
                     </div>
 
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Map link</label>
+                        <input
+                            type="url"
+                            value={form.mapUrl || ''}
+                            onChange={e => set('mapUrl', e.target.value)}
+                            className={inp}
+                            placeholder="https://maps.app.goo.gl/… or https://www.google.com/maps/…"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Paste a Google Maps pin / share link for venue directions on the event page.</p>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Sponsors (comma-separated)</label><input type="text" value={form.sponsors} onChange={e => set('sponsors', e.target.value)} className={inp} /></div>
                     </div>
@@ -328,12 +364,137 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                         </div>
                     </div>
 
-                    <EventRegistrationFeePicker
-                        ticketPrice={form.ticketPrice}
-                        platformFeePercent={form.platformFeePercent ?? 2.5}
-                        onTicketPriceChange={(ticketPrice) => set('ticketPrice', ticketPrice)}
-                        onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}
-                    />
+                    <div className="pt-1">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Pricing style</label>
+                        <p className="text-[11px] text-gray-500 mb-2">Normal = one fee. Custom tiers = packages (Solo / Trio laps, etc.) at checkout.</p>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                            {[
+                                { id: 'single', label: 'Normal (single fee)' },
+                                { id: 'tiers', label: 'Custom tiers' },
+                            ].map((opt) => (
+                                <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => {
+                                        if (opt.id === 'tiers' && !(form.tiers || []).length) {
+                                            setForm((f) => ({
+                                                ...f,
+                                                pricingMode: 'tiers',
+                                                tiers: [createEmptyTier(0, 'Solo · 1 Lap')],
+                                            }));
+                                        } else {
+                                            set('pricingMode', opt.id);
+                                        }
+                                    }}
+                                    className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                                        (form.pricingMode || 'single') === opt.id
+                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                                            : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                                    }`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {(form.pricingMode || 'single') === 'tiers' ? (
+                            <div className="space-y-3 rounded-xl border border-gray-700 bg-[#1D1E20] p-4 mb-4">
+                                <EventRegistrationFeePicker
+                                    ticketPrice={0}
+                                    hideFeeInput
+                                    sampleFee={Math.min(...(form.tiers || []).map((t) => Number(t.fee) || 0).filter((n) => n > 0).concat([750]))}
+                                    platformFeePercent={form.platformFeePercent ?? 2.5}
+                                    onTicketPriceChange={() => {}}
+                                    onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}
+                                />
+                                <p className="text-[11px] text-gray-500">
+                                    Platform fee % applies on top of whichever package the user selects. Package list below.
+                                </p>
+                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-700">
+                                    <p className="text-xs text-gray-500">Packages users pick on Register</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => set('tiers', [...(form.tiers || []), createEmptyTier((form.tiers || []).length)])}
+                                        className="text-xs font-semibold text-[#0ECCEE] hover:underline"
+                                    >
+                                        + Add package
+                                    </button>
+                                </div>
+                                {(form.tiers || []).map((tier, idx) => (
+                                    <div key={tier.id || idx} className="rounded-lg border border-gray-700 bg-[#111213] p-3 space-y-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className="text-xs font-semibold text-gray-300">Package {idx + 1}</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => set('tiers', (form.tiers || []).filter((_, i) => i !== idx))}
+                                                className="text-[10px] text-red-400 hover:underline"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={tier.name || ''}
+                                            onChange={(e) => {
+                                                const next = [...(form.tiers || [])];
+                                                next[idx] = { ...next[idx], name: e.target.value };
+                                                set('tiers', next);
+                                            }}
+                                            className={inp}
+                                            placeholder="e.g. Solo · 1 Lap"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={tier.description || ''}
+                                            onChange={(e) => {
+                                                const next = [...(form.tiers || [])];
+                                                next[idx] = { ...next[idx], description: e.target.value };
+                                                set('tiers', next);
+                                            }}
+                                            className={inp}
+                                            placeholder="Group label e.g. Solo Participant Package"
+                                        />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={tier.fee > 0 ? tier.fee : ''}
+                                            onChange={(e) => {
+                                                const next = [...(form.tiers || [])];
+                                                next[idx] = { ...next[idx], fee: Math.max(0, Number(e.target.value) || 0) };
+                                                set('tiers', next);
+                                            }}
+                                            className={inp}
+                                            placeholder="Fee ₹"
+                                        />
+                                        <textarea
+                                            rows={2}
+                                            value={Array.isArray(tier.inclusions) ? tier.inclusions.join('\n') : ''}
+                                            onChange={(e) => {
+                                                const next = [...(form.tiers || [])];
+                                                next[idx] = {
+                                                    ...next[idx],
+                                                    inclusions: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean),
+                                                };
+                                                set('tiers', next);
+                                            }}
+                                            className={`${inp} resize-none`}
+                                            placeholder="Inclusions (one per line)"
+                                        />
+                                        <p className="text-[11px] text-gray-500">
+                                            Checkout: {formatInr(tier.fee || 0)} + {form.platformFeePercent ?? 2.5}% platform fee
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <EventRegistrationFeePicker
+                                ticketPrice={form.ticketPrice}
+                                platformFeePercent={form.platformFeePercent ?? 2.5}
+                                onTicketPriceChange={(ticketPrice) => set('ticketPrice', ticketPrice)}
+                                onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}
+                            />
+                        )}
+                    </div>
 
                     {reg.mode === 'external_link' && (
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Link</label><input type="url" value={form.registrationLink} onChange={e => set('registrationLink', e.target.value)} className={inp} placeholder="https://forms.gle/..." /></div>

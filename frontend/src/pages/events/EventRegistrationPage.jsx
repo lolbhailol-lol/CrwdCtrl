@@ -11,9 +11,17 @@ import PaymentErrorModal from '../../components/PaymentErrorModal';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
 import { verifyPaymentWithRetry, goToBookings } from '../../utils/paymentNavigation';
 import { buildEventPriceBreakdown } from '../../utils/platformFee';
+import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
 import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { eventShowPath } from '../../utils/slugRoutes';
+import {
+    getEventShowTiers,
+    isEventShowTiersPricing,
+    findEventShowTier,
+    resolveEventShowFee,
+    formatInr,
+} from '../../utils/eventShowTiers';
 
 const API = API_BASE_URL;
 
@@ -81,6 +89,13 @@ export default function EventRegistrationPage() {
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
+    const [selectedTierId, setSelectedTierId] = useState(() => {
+        try {
+            return new URLSearchParams(window.location.search).get('tier') || location.state?.tierId || '';
+        } catch {
+            return location.state?.tierId || '';
+        }
+    });
     const retryRef = useRef(null);
     const resumeRef = useRef(false);
 
@@ -122,8 +137,12 @@ export default function EventRegistrationPage() {
     }, [event, navigate, location.state]);
 
     const reg = event?.registration || {};
-    const ticketPrice = Number(event?.ticketPrice) || 0;
-    const platformFeePercent = Number(event?.platformFeePercent) || 2.5;
+    const tiersMode = isEventShowTiersPricing(event);
+    const packages = useMemo(() => (event ? getEventShowTiers(event) : []), [event]);
+    const selectedTier = findEventShowTier(event, selectedTierId);
+    const priced = resolveEventShowFee(event, selectedTierId);
+    const ticketPrice = priced.fee;
+    const platformFeePercent = resolveTrekPlatformFeePercent(event?.platformFeePercent, 2.5);
     const breakdown = useMemo(
         () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
         [ticketPrice, platformFeePercent],
@@ -139,19 +158,46 @@ export default function EventRegistrationPage() {
     });
 
     const formSteps = useMemo(() => {
-        if (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0) {
-            return reg.steps.map((s, i) => ({
-                title: s.stepTitle || `Step ${i + 1}`,
-                description: s.stepDescription || '',
-                fields: (s.fields || []).filter((f) => f.label && f.fieldName),
-            }));
+        const detailSteps = (() => {
+            if (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0) {
+                return reg.steps.map((s, i) => ({
+                    title: s.stepTitle || `Step ${i + 1}`,
+                    description: s.stepDescription || '',
+                    fields: (s.fields || []).filter((f) => f.label && f.fieldName),
+                }));
+            }
+            const fields = (reg.formSchema || []).filter((f) => f.label && f.fieldName);
+            return [{ title: 'Your Details', description: '', fields }];
+        })();
+        // Package is chosen on the event detail sheet (run-club style).
+        // Only show an in-flow picker if the user landed here without a valid ?tier=.
+        const needsPackagePick = tiersMode && !findEventShowTier(event, selectedTierId);
+        if (needsPackagePick) {
+            return [{ title: 'Choose Package', packageSelect: true, fields: [] }, ...detailSteps];
         }
-        const fields = (reg.formSchema || []).filter((f) => f.label && f.fieldName);
-        return [{ title: 'Your Details', description: '', fields }];
-    }, [reg.formType, reg.steps, reg.formSchema]);
+        return detailSteps;
+    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, event, selectedTierId]);
+
+    // Sync tier from query; default only if somehow missing (fallback picker)
+    useEffect(() => {
+        if (!event || !tiersMode) return;
+        try {
+            const fromQuery = new URLSearchParams(window.location.search).get('tier') || '';
+            if (fromQuery && findEventShowTier(event, fromQuery) && fromQuery !== selectedTierId) {
+                setSelectedTierId(fromQuery);
+                return;
+            }
+        } catch { /* ignore */ }
+        if (selectedTierId && findEventShowTier(event, selectedTierId)) return;
+        // Do not auto-pick — keep Choose Package step as fallback
+    }, [event, tiersMode, selectedTierId]);
+
+    useEffect(() => {
+        setCouponInfo(null);
+    }, [selectedTierId]);
 
     const allSteps = useMemo(() => [...formSteps, { title: 'Confirm & Pay', payment: true }], [formSteps]);
-    const allFields = useMemo(() => formSteps.flatMap((s) => s.fields), [formSteps]);
+    const allFields = useMemo(() => formSteps.flatMap((s) => s.fields || []), [formSteps]);
 
     // Prefill basic info from the logged-in user
     useEffect(() => {
@@ -270,6 +316,13 @@ export default function EventRegistrationPage() {
     const validateStep = (idx) => {
         const s = allSteps[idx];
         if (!s || s.payment) return true;
+        if (s.packageSelect) {
+            if (tiersMode && !findEventShowTier(event, selectedTierId)) {
+                setError('Please select a registration package.');
+                return false;
+            }
+            return true;
+        }
         const missing = s.fields.filter((f) => {
             if (!f.required) return false;
             if (FILE_TYPES.includes(f.type)) {
@@ -314,6 +367,7 @@ export default function EventRegistrationPage() {
         fd.append('responses', JSON.stringify(textResponses));
         if (paymentOrderId) fd.append('payment_order_id', paymentOrderId);
         if (paymentId) fd.append('payment_id', paymentId);
+        if (selectedTierId) fd.append('tierId', selectedTierId);
 
         const res = await fetch(`${API}/registrations/events/${eventId}/custom`, {
             method: 'POST',
@@ -328,7 +382,7 @@ export default function EventRegistrationPage() {
         if (regId) setRegistrationId(String(regId));
         void amountPaid;
         return data;
-    }, [allFields, files, values, eventId, refreshNotifications]);
+    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId]);
 
     // Resume after Cashfree redirect
     useEffect(() => {
@@ -350,6 +404,7 @@ export default function EventRegistrationPage() {
                 const parsed = JSON.parse(rawDraft);
                 draftValues = parsed.values || {};
                 if (Object.keys(draftValues).length > 0) setValues(draftValues);
+                if (parsed.tierId) setSelectedTierId(parsed.tierId);
             } catch { /* ignore */ }
         }
 
@@ -415,7 +470,7 @@ export default function EventRegistrationPage() {
         const customer = pickCustomer(values);
         if (!customer.email) { setError('An email field is required to complete payment.'); return; }
 
-        sessionStorage.setItem(draftKey(eventId), JSON.stringify({ values }));
+        sessionStorage.setItem(draftKey(eventId), JSON.stringify({ values, tierId: selectedTierId }));
         setPaying(true);
         try {
             const token = localStorage.getItem('crwdctrl_token');
@@ -424,6 +479,7 @@ export default function EventRegistrationPage() {
                 headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({
                     eventShowId: eventId,
+                    tierId: selectedTierId || undefined,
                     customerName: customer.name,
                     customerEmail: customer.email,
                     customerPhone: customer.phone,
@@ -499,7 +555,7 @@ export default function EventRegistrationPage() {
         try {
             const { data } = await publicFetchJSONRetry('/payment/coupon-validate', {
                 method: 'POST',
-                body: { eventShowId: eventId, couponCode: code },
+                body: { eventShowId: eventId, tierId: selectedTierId || undefined, couponCode: code },
                 retries: 4,
                 timeout: 25000,
             });
@@ -671,12 +727,120 @@ export default function EventRegistrationPage() {
                         </div>
                     </div>
 
-                    {/* Form step */}
-                    {!isPaymentStep && (
+                    {/* Selected package summary — run-club style, shown on every step once chosen */}
+                    {selectedTier && !current?.packageSelect && (
+                        <div className={`rounded-2xl border mb-4 overflow-hidden ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
+                            <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    Registration
+                                </p>
+                                <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {title}
+                                </p>
+                            </div>
+                            <div className="px-4 py-3 space-y-2.5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Package</p>
+                                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {selectedTier.name}
+                                        </p>
+                                        {selectedTier.description ? (
+                                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                {selectedTier.description}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(eventShowPath(event))}
+                                        className="text-[11px] font-semibold text-[#0ECCEE] shrink-0"
+                                    >
+                                        Change
+                                    </button>
+                                </div>
+                                <div className={`flex justify-between text-sm py-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>People</span>
+                                    <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>1 person</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Package fee</span>
+                                    <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                        {ticketPrice > 0 ? formatInr(ticketPrice) : 'Free'}
+                                    </span>
+                                </div>
+                                {ticketPrice > 0 ? (
+                                    <div className="flex justify-between text-sm">
+                                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                                            Platform fee{platformFeePercent > 0 ? ` (${platformFeePercent}%)` : ''}
+                                        </span>
+                                        <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                            {breakdown.platformFee > 0 ? formatInr(breakdown.platformFee) : '₹0'}
+                                        </span>
+                                    </div>
+                                ) : null}
+                                {ticketPrice > 0 ? (
+                                    <div className={`flex justify-between text-sm pt-2 border-t font-bold text-[#0ECCEE] ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                        <span>Total</span>
+                                        <span>₹{payableAmount.toLocaleString('en-IN')}</span>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Package / form step */}
+                    {!isPaymentStep && current?.packageSelect && (
+                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+                            <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                Pick a Trackday participant package. Platform fee is added at checkout.
+                            </p>
+                            <div className="space-y-2">
+                                {packages.map((tier) => {
+                                    const selected = selectedTierId === tier.id;
+                                    return (
+                                        <button
+                                            key={tier.id}
+                                            type="button"
+                                            onClick={() => setSelectedTierId(tier.id)}
+                                            className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
+                                                selected
+                                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
+                                                    : isDark
+                                                        ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
+                                                        : 'border-gray-200 bg-white hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    {tier.description ? (
+                                                        <p className={`text-[11px] font-semibold uppercase tracking-wide ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                            {tier.description}
+                                                        </p>
+                                                    ) : null}
+                                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</p>
+                                                    {Array.isArray(tier.inclusions) && tier.inclusions.length > 0 ? (
+                                                        <ul className={`mt-1 text-xs space-y-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                            {tier.inclusions.map((line) => (
+                                                                <li key={line}>• {line}</li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : null}
+                                                </div>
+                                                <span className="shrink-0 text-sm font-bold text-[#0ECCEE]">{formatInr(tier.fee)}</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {!isPaymentStep && !current?.packageSelect && (
                         <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                             {current?.description && <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current.description}</p>}
                             <div className="space-y-4">
-                                {current.fields.map((field) => (
+                                {(current?.fields || []).map((field) => (
                                     <div key={field.id || field.fieldName}>
                                         <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {field.label}{field.required && <span className="text-red-400 ml-1">*</span>}
@@ -711,11 +875,25 @@ export default function EventRegistrationPage() {
                             <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{ticketPrice > 0 ? 'Payment Breakdown' : 'Confirm Registration'}</p>
                             {ticketPrice > 0 ? (
                                 <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                    <div className="flex justify-between gap-4"><span>Registration Fee</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
-                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}><span>Platform Fee</span><span>₹{breakdown.platformFee}</span></div>
+                                    {selectedTier ? (
+                                        <div className="flex justify-between gap-4">
+                                            <span>Package</span>
+                                            <span className="text-right font-medium">{selectedTier.name}</span>
+                                        </div>
+                                    ) : null}
+                                    <div className="flex justify-between gap-4"><span>People</span><span>1 person</span></div>
+                                    <div className="flex justify-between gap-4"><span>Package fee</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
+                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        <span>Platform fee{platformFeePercent > 0 ? ` (${platformFeePercent}%)` : ''}</span>
+                                        <span>{breakdown.platformFee > 0 ? `₹${breakdown.platformFee}` : '₹0'}</span>
+                                    </div>
                                     {couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
                                     <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]"><span>Amount Payable</span><span>₹{payableAmount.toLocaleString('en-IN')}</span></div>
-                                    <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Includes all charges · Secure payment via Cashfree</p>
+                                    <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {breakdown.platformFee > 0
+                                            ? 'Includes all charges · Secure payment via Cashfree'
+                                            : 'No platform fee · Secure payment via Cashfree'}
+                                    </p>
                                 </div>
                             ) : (
                                 <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>This event is free. Click confirm to complete your registration.</p>

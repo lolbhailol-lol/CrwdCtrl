@@ -29,7 +29,7 @@ const { extractPaymentFields } = require('../utils/paymentVerification');
 const { signPaymentProof } = require('../utils/paymentProof');
 const { validateAndPriceCoupon } = require('../utils/couponPricing');
 const { findByIdOrSlug } = require('../utils/slug');
-const { resolveSportsTicketTotal } = require('../utils/sportsPricing');
+const { resolveSportsTicketTotal, resolveSportsPerPersonFee } = require('../utils/sportsPricing');
 const {
   extractEntityId,
   findReusablePendingOrder,
@@ -48,24 +48,40 @@ const respondCashfreeError = (res, err, fallbackMessage) => {
   return res.status(500).json({ message: cfError?.message || fallbackMessage });
 };
 
-const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId, notes = {} }) => {
+const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId, notes = {}, tierId } = {}) => {
   const resolvedEventId = eventId || notes.eventId;
   const resolvedCompetitionId = competitionId || notes.competitionId;
   const resolvedFestId = festId || notes.festId;
   const resolvedEventShowId = eventShowId || notes.eventShowId;
+  const resolvedTierId = tierId || notes.tierId || '';
 
   if (resolvedEventShowId) {
     const eventShow = await findByIdOrSlug(EventShow, resolvedEventShowId, {
       pickName: (row) => row.title || row.displayName || '',
-      select: 'title ticketPrice platformFeePercent',
+      select: 'title ticketPrice platformFeePercent pricingMode tiers',
       lean: true,
     });
     if (!eventShow) return null;
+
+    let ticketPrice = Math.max(0, Number(eventShow.ticketPrice) || 0);
+    let tier = null;
+    if (eventShow.pricingMode === 'tiers') {
+      const priced = resolveSportsPerPersonFee(
+        { ...eventShow, registrationFee: eventShow.ticketPrice },
+        resolvedTierId,
+      );
+      ticketPrice = priced.fee;
+      tier = priced.tier;
+    }
+
     return {
       entityType: 'event_show',
-      ticketPrice: eventShow.ticketPrice,
-      platformFeePercent: Number(eventShow.platformFeePercent) || 2.5,
-      notes: { eventShowId: String(eventShow._id) },
+      ticketPrice,
+      platformFeePercent: resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5),
+      notes: {
+        eventShowId: String(eventShow._id),
+        ...(tier ? { tierId: tier.id, tierName: tier.name } : {}),
+      },
     };
   }
 
@@ -112,8 +128,25 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
 };
 
 const getPricingForRequest = async (req) => {
-  const { eventId, competitionId, festId, eventShowId, notes = {}, couponCode } = req.body;
-  const pricedEntity = await resolvePricedEntity({ eventId, competitionId, festId, eventShowId, notes });
+  const { eventId, competitionId, festId, eventShowId, notes = {}, couponCode, tierId } = req.body;
+  let pricedEntity;
+  try {
+    pricedEntity = await resolvePricedEntity({
+      eventId,
+      competitionId,
+      festId,
+      eventShowId,
+      notes,
+      tierId,
+    });
+  } catch (e) {
+    if (e.status) {
+      const err = new Error(e.message);
+      err.status = e.status;
+      throw err;
+    }
+    throw e;
+  }
 
   if (!pricedEntity) return null;
 
@@ -192,6 +225,7 @@ exports.getPaymentQuote = async (req, res) => {
     });
   } catch (err) {
     console.error('Payment quote error:', err);
+    if (err.status) return res.status(err.status).json({ message: err.message });
     res.status(500).json({ message: 'Failed to calculate payment quote' });
   }
 };
@@ -360,6 +394,7 @@ exports.createOrder = async (req, res) => {
       totalAmount: pricing.totalAmount,
     });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
     respondCashfreeError(res, err, 'Failed to create payment order');
   }
 };

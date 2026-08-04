@@ -17,6 +17,7 @@ const submitEventShowRegistration = async (req, res) => {
     const EventShow = require('../../model/event_show_model');
     const EventShowRegistration = require('../../model/event_show_registration_model');
     const { buildEventPriceBreakdown } = require('../../utils/platformFee');
+    const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
     const { findByIdOrSlug } = require('../../utils/slug');
 
     const eventShow = await findByIdOrSlug(EventShow, eventShowId, {
@@ -76,9 +77,28 @@ const submitEventShowRegistration = async (req, res) => {
       }
     }
 
-    // Verify payment when the event has a fee
-    const ticketPrice = Number(eventShow.ticketPrice) || 0;
-    const platformFeePercent = Number(eventShow.platformFeePercent) || 2.5;
+    // Verify payment when the selected package / ticket has a fee
+    const { resolveSportsPerPersonFee } = require('../../utils/sportsPricing');
+    let tierId = req.body.tierId;
+    if (typeof tierId === 'string') tierId = tierId.trim();
+    else tierId = '';
+
+    let ticketPrice = Number(eventShow.ticketPrice) || 0;
+    let selectedTier = null;
+    if (eventShow.pricingMode === 'tiers') {
+      try {
+        const priced = resolveSportsPerPersonFee(
+          { ...eventShow.toObject?.() || eventShow, registrationFee: eventShow.ticketPrice },
+          tierId,
+        );
+        ticketPrice = priced.fee;
+        selectedTier = priced.tier;
+      } catch (tierErr) {
+        return res.status(tierErr.status || 400).json({ error: tierErr.message || 'Please select a registration package.' });
+      }
+    }
+
+    const platformFeePercent = resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5);
     const totalAmount = buildEventPriceBreakdown(ticketPrice, platformFeePercent).totalAmount;
     let payment_order_id = null;
     let payment_id = null;
@@ -130,6 +150,8 @@ const submitEventShowRegistration = async (req, res) => {
       payment_gateway: paymentStatus === 'paid' ? 'cashfree' : null,
       paymentStatus,
       amountPaid: paymentStatus === 'paid' ? totalAmount : 0,
+      tierId: selectedTier?.id || null,
+      tierName: selectedTier?.name || null,
       submittedAt: new Date(),
     });
 

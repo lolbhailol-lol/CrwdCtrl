@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Share2, Heart, Calendar, MapPin,
-  Phone, Instagram, Mail, ChevronRight, ChevronLeft, X,
+  Phone, Instagram, Mail, ChevronRight, ChevronLeft, X, Check,
 } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -19,6 +19,7 @@ import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
 import { trackBookNowClick } from '../../services/analyticsService';
+import { getEventShowTiers, isEventShowTiersPricing, minEventShowFee, formatInr } from '../../utils/eventShowTiers';
 
 function formatEventDateTime(showTimings) {
   if (!showTimings?.length) return 'Date & time TBA';
@@ -45,8 +46,11 @@ function mapEventDetail(raw) {
     type: raw.eventHeading || EVENT_TYPE_LABELS[raw.eventType] || raw.eventType || 'Event',
     dateTime: formatEventDateTime(raw.showTimings),
     venue: raw.venue || raw.city || 'Venue TBA',
+    mapUrl: (raw.mapUrl || '').trim(),
     ticketPrice: raw.ticketPrice,
     priceLabel: raw.priceLabel || '',
+    pricingMode: raw.pricingMode === 'tiers' ? 'tiers' : 'single',
+    tiers: Array.isArray(raw.tiers) ? raw.tiers : [],
     about: raw.description || '',
     whatsIncluded: raw.whatsIncluded || '',
     benefits: raw.benefits || '',
@@ -104,6 +108,9 @@ export default function EventDetailsPage() {
   const [activeTab, setActiveTab] = useState(null);
   const [showFullAbout, setShowFullAbout] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [tierSheetOpen, setTierSheetOpen] = useState(false);
+  const [expandedTierId, setExpandedTierId] = useState(null);
+  const [selectingTierId, setSelectingTierId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -189,13 +196,26 @@ export default function EventDetailsPage() {
         setShowLogin(true);
         return;
       }
+      const tiers = isEventShowTiersPricing(event) ? getEventShowTiers(event) : [];
+      if (tiers.length) {
+        trackBookNowClick({
+          entityType: 'events',
+          entityId: event?.id || '',
+          mode: 'internal_form',
+          destination: 'tier_selection',
+        });
+        setExpandedTierId(null);
+        setSelectingTierId(null);
+        setTierSheetOpen(true);
+        return;
+      }
       trackBookNowClick({
         entityType: 'events',
         entityId: event?.id || '',
         mode: 'internal_form',
         destination: 'internal_register_page',
       });
-      navigate(`${eventShowPath(event)}/register`);
+      navigate(`${eventShowPath(event)}/register`, { state: { event: event.raw || event } });
       return;
     }
     const link = event?.registrationLink || event?.bookingLink;
@@ -242,8 +262,13 @@ export default function EventDetailsPage() {
   const galleryPreview = gallery.slice(0, 4);
   const galleryExtra = Math.max(0, gallery.length - 4);
   const activeTabObj = tabs.find((t) => t.key === activeTab);
-  const hasPrice = Boolean(event.priceLabel) || event.ticketPrice > 0;
-  const priceText = event.priceLabel || formatPrice(event.ticketPrice);
+  const tiersPricing = isEventShowTiersPricing(event);
+  const packageTiers = tiersPricing ? getEventShowTiers(event) : [];
+  const fromFee = minEventShowFee(event);
+  // Run-club style: sticky bar shows "From" + amount for tiers (ignore long priceLabel)
+  const hasPrice = tiersPricing
+    ? fromFee >= 0
+    : (Boolean(event.priceLabel) || event.ticketPrice > 0);
   const aboutLong = event.about.length > 180;
   const benefitsList = toLines(event.benefits);
   const hasRegistrationInfo = event.slots || event.registrationProcess;
@@ -256,11 +281,12 @@ export default function EventDetailsPage() {
   const cardBg = isDark ? 'bg-[#111213]' : 'bg-white';
   const sheetBg = isDark ? 'bg-[#161718]' : 'bg-slate-100';
 
-  // Make the venue name open directions in Google Maps (when a real venue is set)
+  // Prefer organizer-pasted Maps pin; fall back to Google search on venue text
   const hasVenue = Boolean(event.venue) && event.venue !== 'Venue TBA';
-  const directionsUrl = hasVenue
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue)}`
-    : null;
+  const directionsUrl = event.mapUrl
+    || (hasVenue
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue)}`
+      : null);
 
   return (
     <div className="crwdctrl-page min-h-screen pb-28">
@@ -645,7 +671,7 @@ export default function EventDetailsPage() {
         </div>
       </div>
 
-      {/* Sticky bottom bar: price + register */}
+      {/* Sticky bottom bar: From + Register (run-club style for tiers) */}
       <div
         className="fixed bottom-0 left-0 right-0 z-40 px-2"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
@@ -653,8 +679,22 @@ export default function EventDetailsPage() {
         <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
           {hasPrice && (
             <div className="min-w-0 shrink-0">
-              <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
-              <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{priceText}</p>
+              <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {tiersPricing ? 'From' : 'Registration Fee'}
+              </p>
+              {tiersPricing ? (
+                fromFee > 0 ? (
+                  <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {formatInr(fromFee)}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
+                )
+              ) : (
+                <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {event.priceLabel || formatPrice(event.ticketPrice)}
+                </p>
+              )}
             </div>
           )}
           <button
@@ -672,6 +712,150 @@ export default function EventDetailsPage() {
           </button>
         </div>
       </div>
+
+      {/* Package sheet — same pattern as run clubs */}
+      {tierSheetOpen && packageTiers.length > 0 && (
+        <div className="fixed inset-0 z-60 flex items-end justify-center">
+          <button
+            type="button"
+            aria-label="Close"
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+            onClick={() => {
+              if (selectingTierId) return;
+              setTierSheetOpen(false);
+              setExpandedTierId(null);
+            }}
+          />
+          <div
+            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${
+              isDark ? 'bg-[#161718]' : 'bg-white'
+            }`}
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-500/40" />
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Choose a package</h3>
+                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                  Tap a plan, expand what’s included, then continue.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={Boolean(selectingTierId)}
+                onClick={() => {
+                  setTierSheetOpen(false);
+                  setExpandedTierId(null);
+                }}
+                className={`text-xs font-medium px-2.5 py-1.5 rounded-lg ${isDark ? 'text-gray-400 hover:bg-white/5' : 'text-gray-500 hover:bg-gray-100'}`}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {packageTiers.map((tier) => {
+                const inclusions = Array.isArray(tier.inclusions) ? tier.inclusions.filter(Boolean) : [];
+                const expanded = expandedTierId === tier.id;
+                const selecting = selectingTierId === tier.id;
+                const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
+
+                return (
+                  <div
+                    key={tier.id}
+                    className={`rounded-2xl border overflow-hidden transition-all duration-200 cursor-pointer ${
+                      selecting
+                        ? 'border-[#0ECCEE] ring-2 ring-[#0ECCEE]/35 scale-[0.985]'
+                        : isDark
+                          ? 'bg-[#111213] border-white/10 hover:border-[#0ECCEE]/45'
+                          : 'bg-white border-gray-200 hover:border-[#0ECCEE]/55 shadow-sm'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      disabled={Boolean(selectingTierId)}
+                      onClick={() => {
+                        setSelectingTierId(tier.id);
+                        window.setTimeout(() => {
+                          setTierSheetOpen(false);
+                          setExpandedTierId(null);
+                          setSelectingTierId(null);
+                          navigate(`${eventShowPath(event)}/register?tier=${encodeURIComponent(tier.id)}`, {
+                            state: { tierId: tier.id },
+                          });
+                        }, 320);
+                      }}
+                      className="w-full text-left p-4 cursor-pointer disabled:cursor-wait"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span
+                          className={`mt-0.5 size-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200 ${
+                            selecting
+                              ? 'border-[#0ECCEE] bg-[#0ECCEE] scale-110'
+                              : isDark
+                                ? 'border-gray-600'
+                                : 'border-gray-300'
+                          }`}
+                          aria-hidden
+                        >
+                          {selecting ? <Check size={12} className="text-black" strokeWidth={3} /> : null}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {tier.name}
+                            </p>
+                            <p className={`text-base font-bold shrink-0 tabular-nums ${
+                              Number(tier.fee) > 0
+                                ? (isDark ? 'text-white' : 'text-gray-900')
+                                : 'text-green-500'
+                            }`}>
+                              {feeLabel}
+                            </p>
+                          </div>
+                          {tier.description ? (
+                            <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {tier.description}
+                            </p>
+                          ) : null}
+                          <p className={`text-[11px] mt-2 font-medium ${selecting ? 'text-[#0ECCEE]' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            {selecting ? 'Opening registration…' : 'Tap to select'}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {inclusions.length > 0 ? (
+                      <div className={`border-t ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                        <button
+                          type="button"
+                          disabled={Boolean(selectingTierId)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedTierId((prev) => (prev === tier.id ? null : tier.id));
+                          }}
+                          className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-xs font-semibold ${
+                            isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span>What’s included</span>
+                          <ChevronRight size={14} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
+                        </button>
+                        {expanded ? (
+                          <ul className={`px-4 pb-3 space-y-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {inclusions.map((line) => (
+                              <li key={line}>• {line}</li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Gallery lightbox */}
       {lightboxIndex != null && gallery[lightboxIndex] && (
