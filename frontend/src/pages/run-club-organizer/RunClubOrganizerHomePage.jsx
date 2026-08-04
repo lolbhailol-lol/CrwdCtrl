@@ -98,8 +98,8 @@ export default function RunClubOrganizerHomePage() {
                             ) : null}
                         </div>
                         <p className="text-xs text-gray-500">
-                            Track registrations, approve payment screenshots, check in runners, and notify your club.
-                            Runs are published by CrwdCtrl admin.
+                            Track registrations, approve payments when needed, check in runners, and notify your club.
+                            Run pricing is set by CrwdCtrl admin.
                         </p>
                     </div>
                 </div>
@@ -120,12 +120,15 @@ export default function RunClubOrganizerHomePage() {
                     </div>
                 ) : (
                     <div className="grid gap-3">
-                        {events.map((event) => (
+                        {events.map((event) => {
+                            const isPaid = Number(event.registrationFee) > 0;
+                            const pendingReview = isPaid ? Number(event.pendingPaymentReview || 0) : 0;
+                            return (
                             <button
                                 key={event._id}
                                 type="button"
                                 onClick={() => navigate(
-                                    (event.pendingPaymentReview || 0) > 0
+                                    pendingReview > 0
                                         ? `/run-club-organizer/events/${event._id}/participants?paymentStatus=pending_review`
                                         : `/run-club-organizer/events/${event._id}`,
                                 )}
@@ -136,14 +139,19 @@ export default function RunClubOrganizerHomePage() {
                                         <Footprints className="text-[#0ECCEE]" size={18} />
                                     </div>
                                     <div className="min-w-0">
-                                        <div className="flex items-center gap-2 min-w-0">
+                                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
                                             <p className="font-semibold truncate">{event.title}</p>
                                             <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusBadge(event.status)}`}>
                                                 {event.status || 'draft'}
                                             </span>
-                                            {(event.pendingPaymentReview || 0) > 0 ? (
+                                            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium border border-white/10 bg-white/5 text-gray-300">
+                                                {isPaid
+                                                    ? `₹${Number(event.registrationFee).toLocaleString('en-IN')}`
+                                                    : 'Free'}
+                                            </span>
+                                            {pendingReview > 0 ? (
                                                 <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300">
-                                                    {event.pendingPaymentReview} to review
+                                                    {pendingReview} to review
                                                 </span>
                                             ) : null}
                                         </div>
@@ -155,7 +163,8 @@ export default function RunClubOrganizerHomePage() {
                                 </div>
                                 <ChevronRight className="text-gray-600 shrink-0" size={18} />
                             </button>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

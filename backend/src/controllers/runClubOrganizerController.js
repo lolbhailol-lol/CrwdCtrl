@@ -992,6 +992,7 @@ exports.getDashboard = async (req, res) => {
                 status: event.status,
                 capacity,
                 distance: event.distance || '',
+                registrationFee: Number(event.registrationFee) || 0,
                 registrationStatus: event.registration?.status || 'open',
             },
             stats: {

@@ -174,6 +174,7 @@ export default function RunClubOrganizerLayout() {
                     <div className="grid grid-cols-4">
                         {nav.map((item) => {
                             const pendingBadge = item.short === 'Guests'
+                                && Number(activeEvent?.registrationFee) > 0
                                 ? Number(activeEvent?.pendingPaymentReview || 0)
                                 : 0;
                             return (

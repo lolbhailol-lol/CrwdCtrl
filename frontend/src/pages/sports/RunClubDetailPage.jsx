@@ -20,7 +20,6 @@ import {
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 
-const GALLERY_PREVIEW_COUNT = 4;
 import {
     fetchRunClub,
     fetchSportsByRunClub,
@@ -835,47 +834,49 @@ export default function RunClubDetailPage() {
                 </ScrollReveal>
 
                 <ScrollReveal className="mb-2" delay={0.1}>
-                    <h2
-                        className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}
-                    >
-                        Gallery
-                    </h2>
+                    <div className="flex items-end justify-between gap-3 mb-3 px-0.5">
+                        <h2
+                            className={`text-lg font-medium font-inter leading-7 tracking-wide ${isDark ? 'text-white' : 'text-gray-900'}`}
+                        >
+                            Gallery
+                        </h2>
+                        {galleryImages.length > 1 ? (
+                            <p className={`text-xs shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                Swipe · {galleryImages.length} photos
+                            </p>
+                        ) : null}
+                    </div>
                     {galleryImages.length > 0 ? (
-                        <div className="grid grid-cols-4 gap-2.5">
-                            {galleryImages.slice(0, GALLERY_PREVIEW_COUNT).map((img, i) => {
-                                const isOverflowTile =
-                                    galleryImages.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
-                                const remainingCount = galleryImages.length - GALLERY_PREVIEW_COUNT;
-                                return (
-                                    <button
-                                        key={`${img}-${i}`}
-                                        type="button"
-                                        onClick={() => openGallery(i)}
-                                        aria-label={
-                                            isOverflowTile
-                                                ? `View all ${galleryImages.length} gallery images`
-                                                : `View gallery image ${i + 1}`
-                                        }
-                                        className={`relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-transform ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
-                                    >
-                                        <img
-                                            src={resolveGallerySrc(img, 'square')}
-                                            alt={`${name} gallery ${i + 1}`}
-                                            className="absolute inset-0 w-full h-full object-cover"
-                                            loading="lazy"
-                                            decoding="async"
-                                            onError={(e) => handleImageErrorWithFallback(e, 120, 120, '#2A2B2E', name)}
-                                        />
-                                        {isOverflowTile && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/55">
-                                                <span className="text-white text-base font-semibold tracking-wide">
-                                                    {remainingCount}+
-                                                </span>
-                                            </div>
-                                        )}
-                                    </button>
-                                );
-                            })}
+                        <div className="-mx-4 sm:-mx-6">
+                            <div
+                                className="flex gap-3 overflow-x-auto px-4 sm:px-6 pb-2 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                                style={{ WebkitOverflowScrolling: 'touch' }}
+                            >
+                                {galleryImages.map((img, i) => {
+                                    const src = resolveGallerySrc(img, 'detail');
+                                    return (
+                                        <button
+                                            key={`${img}-${i}`}
+                                            type="button"
+                                            onClick={() => openGallery(i)}
+                                            aria-label={`View gallery image ${i + 1} of ${galleryImages.length}`}
+                                            className={`relative shrink-0 snap-center w-[78vw] max-w-[340px] sm:w-[320px] h-[220px] sm:h-[260px] rounded-3xl overflow-hidden border active:scale-[0.985] transition-transform ${
+                                                isDark ? 'border-white/10 bg-[#111213]' : 'border-gray-100 bg-white shadow-sm'
+                                            }`}
+                                            style={{
+                                                backgroundImage: src ? `url(${src})` : undefined,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center',
+                                            }}
+                                        >
+                                            <span className="absolute inset-0 bg-linear-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
+                                            <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/45 text-white text-[11px] font-medium tabular-nums backdrop-blur-sm">
+                                                {i + 1}/{galleryImages.length}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     ) : (
                         <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No gallery images yet.</p>
