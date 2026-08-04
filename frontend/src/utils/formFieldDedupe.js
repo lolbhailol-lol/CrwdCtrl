@@ -96,6 +96,51 @@ export function dedupeResponseEntries(entries = []) {
   return out;
 }
 
+/** True when a form field is the default name / email / phone contact trio. */
+export function isDefaultContactField(field) {
+  if (!field) return false;
+  const key = String(field.fieldName || field.id || '').trim().toLowerCase();
+  const label = String(field.label || '').trim().toLowerCase();
+  if (responseAliasGroup(key)) return true;
+  if (/^(full name|name)$/.test(label)) return true;
+  if (/^(e-?mail|email)$/.test(label)) return true;
+  if (/^(contact|phone|mobile)/.test(label)) return true;
+  return false;
+}
+
+/** Map AuthContext / Google user → run form responses for organizer dashboard. */
+export function profileToRunFormData(user) {
+  if (!user) return {};
+  const name = String(user.name || user.fullName || '').trim();
+  const email = String(user.email || '').trim();
+  const phone = String(user.phoneNumber || user.phone || user.mobile || '').trim();
+  const out = {};
+  if (name) {
+    out.full_name = name;
+    out.name = name;
+  }
+  if (email) out.email = email;
+  if (phone) {
+    out.contact_no = phone;
+    out.phone = phone;
+  }
+  return out;
+}
+
+/**
+ * Free run + logged-in profile has name+email, and form has no custom required fields
+ * beyond the default contact trio → skip details step.
+ */
+export function canExpressBookFreeRun({ user, formSchema = [], isFree = false } = {}) {
+  if (!isFree || !user) return false;
+  const profile = profileToRunFormData(user);
+  if (!profile.full_name || !profile.email) return false;
+  const customRequired = (formSchema || []).filter(
+    (f) => f?.required && !isDefaultContactField(f),
+  );
+  return customRequired.length === 0;
+}
+
 /** Merge default run fields with custom schema, then dedupe. */
 export function mergeRunFormFields(customSchema = []) {
   const custom = (customSchema || []).filter((f) => f?.label?.trim() && f?.fieldName?.trim());

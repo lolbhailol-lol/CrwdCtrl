@@ -106,6 +106,24 @@ const ICONS = {
             <path d="M7 16a4 4 0 1 1 .5-8A5 5 0 0 1 18 10a3.5 3.5 0 1 1 .2 7H7z" fill="#BAE6FD" stroke="#0EA5E9" strokeWidth="1.2" />
         </svg>
     ),
+    ice: ({ size }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9.5" fill="#E0F2FE" />
+            <path
+                d="M12 4v16M5.5 8l13 8M5.5 16l13-8"
+                stroke="#0EA5E9"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+            />
+            <path
+                d="M12 6.2l1.1 1.9M12 6.2l-1.1 1.9M12 17.8l1.1-1.9M12 17.8l-1.1-1.9M7.2 9.1l2.1.2M7.2 9.1l.8 2M16.8 14.9l-2.1-.2M16.8 14.9l-.8-2M7.2 14.9l2.1-.2M7.2 14.9l.8-2M16.8 9.1l-2.1.2M16.8 9.1l-.8 2"
+                stroke="#0284C7"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+            />
+            <circle cx="12" cy="12" r="2" fill="#7DD3FC" stroke="#0369A1" strokeWidth="0.9" />
+        </svg>
+    ),
     star: ({ size }) => (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
             <path d="M12 3l2.6 5.8L21 10l-4.5 4.2L18 21l-6-3.4L6 21l1.5-6.8L3 10l6.4-1.2L12 3z" fill="#FDE047" stroke="#EAB308" strokeWidth="1" />

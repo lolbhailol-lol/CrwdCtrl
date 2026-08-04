@@ -38,6 +38,7 @@ const mapsRoutes = require('../routers/mapsRoute');
 const adminSiteSettingRoutes = require('../routers/adminSiteSettingRoute');
 const adminCouponRoutes = require('../routers/adminCouponRoute');
 const adminNotificationRoutes = require('../routers/adminNotificationRoute');
+const communityFollowRoutes = require('../routers/communityFollowRoute');
 const { authLimiter, paymentLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -83,5 +84,6 @@ router.use('/search', publicSearchRoutes);
 router.use('/homepage-sections', publicHomepageSectionRoutes);
 router.use('/page-sections', publicHomepageSectionRoutes);
 router.use('/maps', mapsRoutes);
+router.use('/follows', communityFollowRoutes);
 
 module.exports = router;

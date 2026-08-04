@@ -10,7 +10,7 @@ import TrekDetailIcon from '../../components/TrekDetailIcon';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { shareContent } from '../../utils/externalLink';
 import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
-import { normalizeRunDetailBoxes } from '../../utils/trekDetailBoxes';
+import { normalizeRunDetailBoxes, resolveRunMapPin } from '../../utils/trekDetailBoxes';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
@@ -241,8 +241,10 @@ export default function RunEventDetailPage() {
     // Top slider = gallery uploads only (cover/card stays out). Fall back to cover if no gallery yet.
     const images = galleryImages.length ? galleryImages : (coverImg ? [coverImg] : [null]);
     const communityName = club?.name || event.organizer || '';
-    const mapQuery = event.venue || event.city || club?.basedIn || '';
-    const mapUrl = String(event.routeMap || '').trim();
+    const mapPin = resolveRunMapPin(event);
+    const mapQuery = mapPin.query;
+    const mapUrl = mapPin.mapUrl;
+    const mapCaption = mapPin.caption;
     const desc =
         event.description?.trim() ||
         `${event.title || 'This run'} is hosted by ${communityName}. Join fellow runners for a great session.`;
@@ -692,7 +694,7 @@ export default function RunEventDetailPage() {
                         </div>
                         {(mapQuery || mapUrl) && (
                             <p className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {mapQuery || 'Open map'}
+                                {mapCaption || mapQuery || 'Open map'}
                             </p>
                         )}
                     </div>

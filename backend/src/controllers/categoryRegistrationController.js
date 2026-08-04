@@ -28,6 +28,7 @@ const {
     isPiiEncryptionEnabled,
 } = require('../utils/runClubPiiCrypto');
 const { notifyRunClubParticipant } = require('../utils/runClubParticipantOutreach');
+const User = require('../model/usermodel');
 
 const MODEL_MAP = {
     sports: SportsEvent,
@@ -92,6 +93,33 @@ exports.registerForEvent = async (req, res) => {
 
         const responses = { ...(req.body.responses || req.body.formData || {}) };
         const bookingDetails = req.body.bookingDetails || {};
+
+        // Logged-in free/quick book: fill missing contact fields from Google/profile
+        // so organizer guest list always shows name / email / phone.
+        if (userId && category === 'sports') {
+            try {
+                const profile = await User.findById(userId).select('name email phoneNumber').lean();
+                if (profile) {
+                    const name = String(profile.name || '').trim();
+                    const email = String(profile.email || '').trim();
+                    const phone = String(profile.phoneNumber || '').trim();
+                    if (name) {
+                        if (!String(responses.full_name || '').trim()) responses.full_name = name;
+                        if (!String(responses.name || '').trim()) responses.name = name;
+                    }
+                    if (email && !String(responses.email || responses.e_mail || responses.e_mail_id || '').trim()) {
+                        responses.email = email;
+                    }
+                    if (phone) {
+                        if (!String(responses.contact_no || '').trim()) responses.contact_no = phone;
+                        if (!String(responses.phone || '').trim()) responses.phone = phone;
+                    }
+                }
+            } catch (profileErr) {
+                console.warn('[registerForEvent.profileFill]', profileErr.message);
+            }
+        }
+
         let registrationFee = Number(event.registrationFee) || 0;
         let selectedTier = null;
         let addOnSelected = false;
@@ -114,11 +142,14 @@ exports.registerForEvent = async (req, res) => {
         const regMode = event.registration?.mode || 'internal_form';
         const isOrganizerQr = category === 'sports' && regMode === 'organizer_qr';
         const maxPeople = Math.max(1, Number(event.registration?.maxPeoplePerBooking) || 10);
-        const people = Math.min(maxPeople, Math.max(1, Number(bookingDetails.people) || 1));
-        const bookingDate = String(bookingDetails.date || '').trim();
-        const bookingTime = String(bookingDetails.time || '').trim();
         const addOnFeePerPerson = addOnSelected && addOnMeta ? addOnMeta.fee : 0;
         const chargePerPerson = registrationFee + addOnFeePerPerson;
+        // Free runs: hard-cap at 1 seat per booking (matches “1 person per login”)
+        const people = chargePerPerson <= 0
+            ? 1
+            : Math.min(maxPeople, Math.max(1, Number(bookingDetails.people) || 1));
+        const bookingDate = String(bookingDetails.date || '').trim();
+        const bookingTime = String(bookingDetails.time || '').trim();
 
         // Persist slot into responses so organizer sheets stay consistent
         responses.people = people;
@@ -144,15 +175,28 @@ exports.registerForEvent = async (req, res) => {
             data.full_name || data.name || data.Name || data['Full Name'] || '',
         ).trim();
 
-        let guestName = '';
+        // Always denormalize name/email onto the registration for organizer lists
+        // (works for Google free-book even when formSchema is empty).
+        let guestName = extractGuestName(responses);
+        guestEmail = extractGuestEmail(responses);
         if (!userId) {
-            guestEmail = extractGuestEmail(responses);
-            guestName = extractGuestName(responses);
             if (!EMAIL_REGEX.test(guestEmail)) {
                 return res.status(400).json({
                     message: 'A valid email is required to complete registration. Please fill the email field on the form.',
                 });
             }
+        } else {
+            // Logged-in free book: name+email must land in responses for organizer guest list
+            if (chargePerPerson <= 0) {
+                if (!extractGuestName(responses) || !EMAIL_REGEX.test(extractGuestEmail(responses))) {
+                    return res.status(400).json({
+                        message: 'Sign in with Google so we can save your name and email for the organizer guest list.',
+                    });
+                }
+            }
+            // Keep PII in encrypted responses + User ref (not plaintext guest fields)
+            guestName = '';
+            guestEmail = '';
         }
 
         const ownerFilter = userId
@@ -424,8 +468,8 @@ exports.registerForEvent = async (req, res) => {
             category,
             eventId: resolvedEventId,
             user: userId || null,
-            guestEmail: userId ? '' : guestEmail,
-            guestName: userId ? '' : guestName,
+            guestEmail: userId ? '' : (guestEmail || ''),
+            guestName: userId ? '' : (guestName || ''),
             responses,
             paymentStatus,
             amountPaid,

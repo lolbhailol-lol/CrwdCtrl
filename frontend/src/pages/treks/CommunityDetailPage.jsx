@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight, ChevronDown, Users } from 'lucide-react';
+import { ArrowLeft, Share2, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
+import FollowCommunityBar from '../../components/FollowCommunityBar';
+import CrwdCtrlLogin from '../auth/login';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
@@ -205,9 +207,9 @@ export default function CommunityDetailPage() {
     const [activeCategory, setActiveCategory] = useState(null);
     const [expanded, setExpanded] = useState(false);
     const [showPast, setShowPast] = useState(false);
-    const [liked, setLiked] = useState(false);
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [galleryIndex, setGalleryIndex] = useState(0);
+    const [showLogin, setShowLogin] = useState(false);
 
     const communityId = community?.id || id || null;
 
@@ -478,7 +480,7 @@ export default function CommunityDetailPage() {
                     >
                         <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
-                    {/* Right: Share + Heart */}
+                    {/* Right: Share */}
                     <div className="flex items-center gap-2.5">
                         <button
                             type="button"
@@ -488,18 +490,6 @@ export default function CommunityDetailPage() {
                         >
                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setLiked(l => !l)}
-                            aria-label="Favourite"
-                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
-                        >
-                            <Heart
-                                size={20}
-                                strokeWidth={2.25}
-                                className={liked ? 'fill-red-500 text-red-500' : 'text-white'}
-                            />
-                        </button>
                     </div>
                 </div>
             </ImmersiveHero>
@@ -508,31 +498,30 @@ export default function CommunityDetailPage() {
             <div className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
                 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
 
-                {/* Community name + call */}
-                <div className="flex items-start justify-between mb-1">
-                    <div className="flex-1 min-w-0 pr-3">
-                        <h1 className={`text-3xl font-medium font-inter leading-9 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {name}
-                        </h1>
-                        <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {basedIn}
-                        </p>
+                {/* Community name + follow */}
+                <div className="mb-1">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                            <h1 className={`text-3xl font-medium font-inter leading-9 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {name}
+                            </h1>
+                            <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {basedIn}
+                            </p>
+                        </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (community?.contactPhone) {
-                                window.location.href = `tel:${community.contactPhone}`;
-                            }
-                        }}
-                        disabled={!community?.contactPhone}
-                        aria-label="Call community"
-                        className={`size-8 shrink-0 rounded-full flex items-center justify-center mt-1 transition-opacity
-                            ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}
-                            ${!community?.contactPhone ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
-                    >
-                        <Phone size={18} strokeWidth={2.25} className="text-[#0ECCEE]" />
-                    </button>
+                    {communityId ? (
+                        <div className="mt-4">
+                            <FollowCommunityBar
+                                entityType="trek_community"
+                                entityId={communityId}
+                                followLabel="Follow Community"
+                                followingLabel="Following"
+                                membersTitle={`${name || 'Community'} members`}
+                                onRequireLogin={() => setShowLogin(true)}
+                            />
+                        </div>
+                    ) : null}
                 </div>
 
                 {/* ── About Us ── */}
@@ -845,6 +834,15 @@ export default function CommunityDetailPage() {
                     onIndexChange={setGalleryIndex}
                 />
             )}
+
+            {showLogin ? (
+                <CrwdCtrlLogin
+                    googleOnly
+                    title="Sign in to follow"
+                    subtitle="One tap with Google — then you’re in"
+                    onClose={() => setShowLogin(false)}
+                />
+            ) : null}
         </div>
     );
 }

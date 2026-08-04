@@ -1696,7 +1696,12 @@ export default function TrekBookingPage() {
 
             {showLogin && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                    <CrwdCtrlLogin
+                        googleOnly
+                        title="Sign in to book"
+                        subtitle="One tap with Google — then finish your trek booking"
+                        onClose={handleCloseLogin}
+                    />
                 </div>
             )}
 

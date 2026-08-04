@@ -68,6 +68,7 @@ function formatParticipantRow(reg, event = null) {
         participantName:
             pickFormField(form, ['full_name', 'name', 'fullname', 'Full Name']) ||
             booking.userName ||
+            reg.guestName ||
             '—',
         phone:
             pickFormField(form, ['contact_no', 'phone', 'mobile', 'contact']) ||
@@ -92,7 +93,14 @@ function formatParticipantRow(reg, event = null) {
         checkInStatus: booking.checkedIn ? 'Checked In' : 'Pending',
         checkedInAt: booking.checkedInAt,
         status: booking.status,
-        userEmail: booking.userEmail,
+        userEmail: booking.userEmail
+            || reg.guestEmail
+            || pickFormField(form, ['email', 'e_mail', 'e_mail_id', 'Email'])
+            || '',
+        email: booking.userEmail
+            || reg.guestEmail
+            || pickFormField(form, ['email', 'e_mail', 'e_mail_id', 'Email'])
+            || '',
         qrCodeData: booking.qrCodeData,
         trekName: event?.title || '',
         grossCollected,
@@ -168,7 +176,17 @@ function buildSheetColumns(formSchema = []) {
 function formatParticipantSheetRow(reg, event = null) {
     const row = formatParticipantRow(reg, event);
     const formSchema = event?.registration?.formSchema || [];
-    const formData = responsesToObject(reg);
+    const formData = {
+        ...responsesToObject(reg),
+        // Ensure organizer always sees Google/profile contact even if schema omitted defaults
+        ...(row.participantName && row.participantName !== '—'
+            ? { full_name: responsesToObject(reg).full_name || row.participantName }
+            : {}),
+        ...(row.userEmail ? { email: responsesToObject(reg).email || row.userEmail } : {}),
+        ...(row.phone && row.phone !== '—'
+            ? { contact_no: responsesToObject(reg).contact_no || row.phone }
+            : {}),
+    };
     return {
         ...row,
         formData,
@@ -231,7 +249,17 @@ function buildParticipantTimeline(reg, event = null) {
 function formatParticipantDetail(reg, event = null) {
     const row = formatParticipantRow(reg, event);
     const formSchema = event?.registration?.formSchema || [];
-    const formData = responsesToObject(reg);
+    const baseForm = responsesToObject(reg);
+    const formData = {
+        ...baseForm,
+        ...(row.participantName && row.participantName !== '—'
+            ? { full_name: baseForm.full_name || row.participantName }
+            : {}),
+        ...(row.userEmail ? { email: baseForm.email || row.userEmail } : {}),
+        ...(row.phone && row.phone !== '—'
+            ? { contact_no: baseForm.contact_no || row.phone }
+            : {}),
+    };
     const bd = normalizeRegistrationForFormat(reg).bookingDetails;
 
     return {

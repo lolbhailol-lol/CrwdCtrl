@@ -12,6 +12,7 @@ export const TREK_DETAIL_ICON_OPTIONS = [
     { id: 'tent', label: 'Camping' },
     { id: 'food', label: 'Meals' },
     { id: 'weather', label: 'Weather' },
+    { id: 'ice', label: 'Ice / Ice bath' },
     { id: 'star', label: 'Highlight' },
     { id: 'info', label: 'Info' },
     { id: 'default', label: 'Default' },
@@ -35,6 +36,7 @@ export const RUN_DETAIL_BOX_PRESETS = [
     { label: 'Fitness', value: '', icon: 'fitness' },
     { label: 'Distance', value: '', icon: 'route' },
     { label: 'Pace', value: '', icon: 'clock' },
+    { label: 'Ice Bath', value: '', icon: 'ice' },
 ];
 
 const LABEL_ICON_RULES = [
@@ -51,6 +53,7 @@ const LABEL_ICON_RULES = [
     { match: /camp|tent|stay/i, icon: 'tent' },
     { match: /meal|food|breakfast|lunch|dinner/i, icon: 'food' },
     { match: /weather|rain|season/i, icon: 'weather' },
+    { match: /ice|cold.?plunge|cryo|snow/i, icon: 'ice' },
 ];
 
 export function guessIconForLabel(label = '') {
@@ -121,6 +124,33 @@ export function resolveTrekMapPin(trek) {
     const query = meeting || firstOption || trek.startingPoint || trek.destination || trek.city || '';
     const caption = meeting || firstOption || [trek.city, trek.destination].filter(Boolean).join(', ');
     return { query, mapUrl: '', caption };
+}
+
+/** Map pin for run detail pages — venue/city text + optional pasted Google Maps link. */
+export function resolveRunMapPin(event) {
+    if (!event) return { query: '', mapUrl: '', caption: '' };
+    const routeMap = String(event.routeMap || '').trim();
+    const venue = String(event.venue || '').trim();
+    const city = String(event.city || '').trim();
+    const meetingPoint = String(event.meetingPoint || '').trim();
+    const clubBase = String(event.runClub?.basedIn || '').trim();
+
+    if (/^https?:\/\//i.test(routeMap)) {
+        const caption = venue || meetingPoint || city || clubBase || 'Open map';
+        return { query: venue || meetingPoint || city || clubBase, mapUrl: routeMap, caption };
+    }
+    // Organizers sometimes paste the Maps link into Venue instead of Route Map
+    if (/^https?:\/\//i.test(venue)) {
+        const caption = meetingPoint || city || clubBase || 'Meeting point';
+        return { query: meetingPoint || city || clubBase, mapUrl: venue, caption };
+    }
+    if (/^https?:\/\//i.test(meetingPoint)) {
+        const caption = venue || city || clubBase || 'Meeting point';
+        return { query: venue || city || clubBase, mapUrl: meetingPoint, caption };
+    }
+
+    const query = venue || meetingPoint || city || clubBase;
+    return { query, mapUrl: '', caption: query };
 }
 
 /** Same editor shape for sports / run events — falls back to classic run fields. */

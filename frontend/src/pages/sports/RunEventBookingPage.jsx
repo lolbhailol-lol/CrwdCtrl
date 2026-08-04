@@ -23,7 +23,7 @@ import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { isInAppBrowser } from '../../config/apiBase';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
-import { mergeRunFormFields } from '../../utils/formFieldDedupe';
+import { mergeRunFormFields, profileToRunFormData, isDefaultContactField, responseAliasGroup } from '../../utils/formFieldDedupe';
 import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken, isAuthFailureMessage } from '../../utils/authToken';
 import {
     classifyDetailLoadError,
@@ -61,7 +61,12 @@ function formatRunDate(baseDate) {
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-const STEPS = ['Party size', 'Your Details', 'Confirm'];
+const PAID_STEPS = ['Party size', 'Your Details', 'Confirm'];
+const FREE_STEPS = ['Party size', 'Confirm'];
+
+function getBookingSteps(isFree) {
+    return isFree ? FREE_STEPS : PAID_STEPS;
+}
 
 function getInitialUi(eventId, search, locationState) {
     const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {}, tierId: '', addOnSelected: false };
@@ -115,7 +120,7 @@ export default function RunEventBookingPage() {
     const {
         handleCloseLogin,
         handleCloseRegister,
-        handleSwitchToRegister,
+        handleSwitchToRegister: _handleSwitchToRegister,
         handleSwitchToLogin,
     } = createAuthModalHandlers({ setShowLogin, setShowRegister });
 
@@ -207,13 +212,20 @@ export default function RunEventBookingPage() {
     const optionalAddOn = event ? resolveOptionalAddOn(event) : null;
     const addOnFeePerPerson = optionalAddOn && addOnSelected ? optionalAddOn.fee : 0;
     const chargePerPerson = fee + addOnFeePerPerson;
+    const isFreeFlow = chargePerPerson <= 0;
+    const bookingSteps = getBookingSteps(isFreeFlow);
+    const successStep = isFreeFlow ? 2 : 3;
     const regMode = event?.registration?.mode || 'internal_form';
     const isOrganizerQr = regMode === 'organizer_qr';
     const paymentQR = event?.registration?.paymentQR || '';
     const paymentQRMessage = event?.registration?.paymentQRMessage || '';
     const paymentUpiId = event?.registration?.paymentUpiId || '';
-    const showSuccess = step === 3 && payDone && !paying;
-    const showProcessing = step === 3 && paying;
+    const showSuccess = isFreeFlow
+        ? step === 2 && payDone && !paying
+        : step === 3 && payDone && !paying;
+    const showProcessing = isFreeFlow
+        ? step === 2 && paying
+        : step === 3 && paying;
     const qrNeedsReview = chargePerPerson > 0 && isOrganizerQr && !(couponInfo?.amountAfterDiscount === 0);
 
     useBookingSuccessPopup(showSuccess && !qrNeedsReview, {
@@ -227,6 +239,8 @@ export default function RunEventBookingPage() {
     const runDateLabel = useMemo(() => formatRunDate(event?.eventDate), [event?.eventDate]);
     const runTimeLabel = String(event?.reportingTime || '').trim();
     const maxPeople = reg.maxPeoplePerBooking || event?.maxParticipants || 10;
+    const onePersonFreeLimit = isFreeFlow && loggedIn;
+    const maxSelectablePeople = onePersonFreeLimit ? 1 : maxPeople;
 
     const regSchema = useMemo(() => mergeRunFormFields(reg.formSchema || []), [reg.formSchema]);
 
@@ -343,6 +357,19 @@ export default function RunEventBookingPage() {
         } catch { /* ignore corrupt draft */ }
     }, [id, event?._id, event?.id, location.search]);
 
+    // Free runs only have 2 steps; clamp drafts saved under the old 3-step flow
+    useEffect(() => {
+        if (!event || !isFreeFlow) return;
+        if (payDone && step > 2) setStep(2);
+        else if (!payDone && step > 1) setStep(1);
+    }, [event, isFreeFlow, payDone, step]);
+
+    // Free run policy: one seat per logged-in account.
+    useEffect(() => {
+        if (!onePersonFreeLimit) return;
+        if (people !== 1) setPeople(1);
+    }, [onePersonFreeLimit, people]);
+
     // Re-price coupon when tier or Ice Bath add-on changes
     useEffect(() => {
         setCouponInfo(null);
@@ -354,11 +381,16 @@ export default function RunEventBookingPage() {
         const evId = id || event?._id || event?.id;
         if (!user || !evId || sessionStorage.getItem(runDraftKey(evId))) return;
         setExtraFields((prev) => {
-            if (Object.keys(prev).length > 0) return prev;
+            const profile = profileToRunFormData(user);
+            if (!profile.full_name && !profile.email) return prev;
+            // Always refresh defaults from Google/profile when empty; keep any custom answers
             return {
-                full_name: user.name || user.fullName || '',
-                email: user.email || '',
-                contact_no: user.phone || user.mobile || '',
+                ...profile,
+                ...prev,
+                full_name: prev.full_name || profile.full_name || '',
+                email: prev.email || profile.email || '',
+                contact_no: prev.contact_no || profile.contact_no || '',
+                name: prev.name || profile.name || '',
             };
         });
     }, [user, id, event?._id, event?.id]);
@@ -629,33 +661,96 @@ export default function RunEventBookingPage() {
 
     const next = async () => {
         setError('');
+        if (onePersonFreeLimit && people !== 1) setPeople(1);
         if (requireLogin && !isAuthed()) {
             setShowLogin(true);
             setError('Please log in to book this run.');
             return;
         }
+
+        const isFreeRun = isFreeFlow;
+        // Free run: only 2 steps — party size → confirm (skip details form)
+        if (step === 1 && isFreeRun) {
+            const formData = {
+                ...profileToRunFormData(user),
+                ...extraFields,
+            };
+            if (!formData.full_name) formData.full_name = user?.name || user?.fullName || '';
+            if (!formData.email) formData.email = user?.email || '';
+            if (!formData.contact_no) {
+                formData.contact_no = user?.phoneNumber || user?.phone || user?.mobile || '';
+            }
+            if (!formData.full_name?.trim() || !formData.email?.trim()) {
+                setError('Sign in with Google so we can reserve your spot.');
+                setShowLogin(true);
+                return;
+            }
+            setExtraFields(formData);
+            setPaying(true);
+            try {
+                await submitRunRegistration({
+                    amountPaid: 0,
+                    formData,
+                    booking: {
+                        people: 1,
+                        couponCode: couponCode.trim() || undefined,
+                        tierId: selectedTierId || undefined,
+                        addOnSelected: Boolean(addOnSelected && optionalAddOn),
+                    },
+                });
+                setStep(2);
+                setPayDone(true);
+            } catch (e) {
+                setError(e.message || 'Registration failed');
+            } finally {
+                setPaying(false);
+            }
+            return;
+        }
+
         if (step === 1) { setStep(2); return; }
 
         if (step === 2) {
-            const missing = regSchema.filter((f) => f.required && !extraFields[f.fieldName]?.toString().trim());
+            const mergedFields = {
+                ...profileToRunFormData(user),
+                ...extraFields,
+            };
+            const missing = regSchema.filter((f) => {
+                if (!f.required) return false;
+                if (
+                    isFreeRun
+                    && isAuthed()
+                    && isDefaultContactField(f)
+                    && responseAliasGroup(f.fieldName) === 'phone'
+                    && (mergedFields.full_name || mergedFields.name)
+                    && (mergedFields.email)
+                ) {
+                    return false;
+                }
+                const val = mergedFields[f.fieldName]?.toString().trim();
+                return !val;
+            });
             if (missing.length > 0) { setError(`Please fill: ${missing.map((f) => f.label).join(', ')}`); return; }
 
-            const customerEmail = extraFields.email || extraFields.e_mail_id || extraFields.e_mail || '';
+            const customerEmail = mergedFields.email || mergedFields.e_mail_id || mergedFields.e_mail || '';
             if (!customerEmail.trim()) { setError('Email is required to complete your booking.'); return; }
 
             if (payableAmount <= 0) {
                 try {
+                    setPaying(true);
                     await submitRunRegistration({
                         amountPaid: 0,
+                        formData: mergedFields,
                         booking: {
                             couponCode: couponCode.trim() || undefined,
                         },
                     });
-                    setStep(3);
+                    setStep(successStep);
                     setPayDone(true);
-                    setPaying(false);
                 } catch (e) {
                     setError(e.message || 'Registration failed');
+                } finally {
+                    setPaying(false);
                 }
                 return;
             }
@@ -1040,7 +1135,7 @@ export default function RunEventBookingPage() {
                         <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
                             Book: {eventName}
                         </h1>
-                        <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{STEPS[step - 1]}</p>
+                        <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{bookingSteps[step - 1]}</p>
                     </div>
                 </div>
 
@@ -1077,13 +1172,13 @@ export default function RunEventBookingPage() {
                     <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
                         <div className="flex items-center justify-between mb-3">
                             <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
-                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step} of {STEPS.length}</span>
+                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step} of {bookingSteps.length}</span>
                         </div>
                         <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                            <div className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300" style={{ width: `${(step / STEPS.length) * 100}%` }} />
+                            <div className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300" style={{ width: `${(step / bookingSteps.length) * 100}%` }} />
                         </div>
                         <div className="flex justify-between">
-                            {STEPS.map((s, i) => (
+                            {bookingSteps.map((s, i) => (
                                 <div key={s} className="flex flex-col items-center">
                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                                         i + 1 === step ? 'bg-[#0ECCEE] text-black'
@@ -1228,6 +1323,7 @@ export default function RunEventBookingPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => { setCouponInfo(null); setPeople((p) => Math.max(1, p - 1)); }}
+                                                disabled={onePersonFreeLimit || people <= 1}
                                                 className={`w-8 h-8 rounded-l-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
                                             >
                                                 <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
@@ -1237,12 +1333,18 @@ export default function RunEventBookingPage() {
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => { setCouponInfo(null); setPeople((p) => Math.min(maxPeople, p + 1)); }}
+                                                onClick={() => { setCouponInfo(null); setPeople((p) => Math.min(maxSelectablePeople, p + 1)); }}
+                                                disabled={onePersonFreeLimit || people >= maxSelectablePeople}
                                                 className={`w-8 h-8 rounded-r-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
                                             >
                                                 <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
                                             </button>
                                         </div>
+                                        {onePersonFreeLimit ? (
+                                            <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                Free run: 1 person per login.
+                                            </p>
+                                        ) : null}
                                     </div>
                                     <div className="text-right">
                                         <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Total</p>
@@ -1266,7 +1368,7 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && (
+                    {step === 2 && !isFreeFlow && (
                         <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                             <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
                                 Your Details
@@ -1292,7 +1394,7 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && chargePerPerson > 0 && isOrganizerQr && (
+                    {step === 2 && !isFreeFlow && chargePerPerson > 0 && isOrganizerQr && (
                         <div className={`mt-3 rounded-xl overflow-hidden border ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
                             {/* Header: amount + coupon */}
                             <div className={`px-4 py-3.5 flex items-start justify-between gap-3 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
@@ -1530,7 +1632,7 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && chargePerPerson > 0 && !isOrganizerQr && (
+                    {step === 2 && !isFreeFlow && chargePerPerson > 0 && !isOrganizerQr && (
                         <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
                             <div className="mb-3">
                                 <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
@@ -1599,15 +1701,18 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && chargePerPerson <= 0 && (
+                    {step === 2 && !isFreeFlow && chargePerPerson <= 0 && (
                         <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-emerald-900/15 border-emerald-700/40' : 'bg-emerald-50 border-emerald-200'}`}>
                             <p className={`text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>Free run</p>
                             <p className={`text-xs mt-1 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
-                                No payment needed — confirm your details to reserve your spot.
+                                {isAuthed() && (user?.email || user?.name)
+                                    ? 'We’ll use your Google account details for the organizer guest list.'
+                                    : 'No payment needed — confirm your details to reserve your spot.'}
                             </p>
                         </div>
                     )}
 
+                    {!(isFreeFlow && step === 2) ? (
                     <div className="flex flex-col sm:flex-row gap-3 pt-5">
                         <button type="button" onClick={back} disabled={paying}
                             className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
@@ -1617,6 +1722,8 @@ export default function RunEventBookingPage() {
                             className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60">
                             {paying ? (
                                 <><Loader className="w-4 h-4 animate-spin" /> Processing...</>
+                            ) : step === 1 && isFreeFlow ? (
+                                'Confirm free spot'
                             ) : step === 2 && chargePerPerson > 0 && isOrganizerQr ? (
                                 payableAmount > 0
                                     ? `Pay ₹${payableAmount.toLocaleString('en-IN')} · Submit proof`
@@ -1630,12 +1737,22 @@ export default function RunEventBookingPage() {
                             )}
                         </button>
                     </div>
+                    ) : null}
                 </div>
             </div>
 
             {showLogin && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                    <CrwdCtrlLogin
+                        googleOnly
+                        title="Sign in to book"
+                        subtitle={
+                            chargePerPerson <= 0
+                                ? 'One tap with Google — we save your spot automatically'
+                                : 'One tap with Google — then finish your run booking'
+                        }
+                        onClose={handleCloseLogin}
+                    />
                 </div>
             )}
 

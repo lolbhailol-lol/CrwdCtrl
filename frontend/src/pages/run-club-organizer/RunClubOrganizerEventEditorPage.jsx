@@ -31,6 +31,7 @@ const emptyForm = () => ({
     title: '',
     venue: '',
     city: '',
+    routeMap: '',
     eventDate: '',
     reportingTime: '',
     distance: '',
@@ -69,6 +70,7 @@ function eventToForm(event) {
         title: event.title || '',
         venue: event.venue || '',
         city: event.city || '',
+        routeMap: event.routeMap || '',
         eventDate: toDateInput(event.eventDate),
         reportingTime: event.reportingTime || '',
         distance: event.distance || '',
@@ -103,6 +105,7 @@ function formToPayload(form) {
         title: form.title.trim(),
         venue: form.venue.trim(),
         city: form.city.trim(),
+        routeMap: form.routeMap.trim(),
         eventDate: form.eventDate || null,
         reportingTime: form.reportingTime.trim(),
         distance: form.distance.trim(),
@@ -384,6 +387,19 @@ export default function RunClubOrganizerEventEditorPage() {
                         />
                     </label>
                 </div>
+                <label className="block space-y-1.5">
+                    <span className="text-xs text-gray-400">Map link</span>
+                    <input
+                        type="text"
+                        value={form.routeMap}
+                        onChange={(e) => setField('routeMap', e.target.value)}
+                        className="w-full rounded-xl bg-[#0f1011] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                        placeholder="Paste Google Maps pin / share link"
+                    />
+                    <p className="text-[10px] text-gray-500">
+                        Shown on the public run page map. Place name goes in Venue; paste a Maps link here for an exact pin.
+                    </p>
+                </label>
                 <div className="grid sm:grid-cols-2 gap-3">
                     <label className="block space-y-1.5">
                         <span className="text-xs text-gray-400">Distance</span>

@@ -883,8 +883,14 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                                 <input type="text" value={form.prizes} onChange={(e) => set('prizes', e.target.value)} className={inp} placeholder="Prize details" />
                             </Field>
                         </div>
-                        <Field label="Route Map (URL)">
-                            <input type="url" value={form.routeMap} onChange={(e) => set('routeMap', e.target.value)} className={inp} placeholder="https://..." />
+                        <Field label="Map link" hint="Paste a Google Maps pin / share link for the run-page map">
+                            <input
+                                type="text"
+                                value={form.routeMap}
+                                onChange={(e) => set('routeMap', e.target.value)}
+                                className={inp}
+                                placeholder="https://maps.app.goo.gl/… or https://www.google.com/maps/…"
+                            />
                         </Field>
                         <Field label="Sponsors (comma-separated)">
                             <input type="text" value={form.sponsors} onChange={(e) => set('sponsors', e.target.value)} className={inp} placeholder="Sponsor A, Sponsor B" />

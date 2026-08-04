@@ -1252,7 +1252,12 @@ function EventDetailsPage() {
       {/* Login Modal */}
       {showLogin && (
         <div className="fixed inset-0 z-50">
-          <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+          <CrwdCtrlLogin
+            googleOnly
+            title="Sign in to register"
+            subtitle="One tap with Google — then finish registration"
+            onClose={handleCloseLogin}
+          />
         </div>
       )}
 

@@ -722,6 +722,9 @@ export default function EventDetailsPage() {
       {showLogin && (
         <div className="fixed inset-0 z-70">
           <CrwdCtrlLogin
+            googleOnly
+            title="Sign in to register"
+            subtitle="One tap with Google — then finish registration"
             onClose={() => {
               setShowLogin(false);
               if (isLoggedIn()) navigate(`${eventShowPath(event)}/register`);

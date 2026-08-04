@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Share2, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
+import FollowCommunityBar from '../../components/FollowCommunityBar';
+import CrwdCtrlLogin from '../auth/login';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
@@ -215,10 +217,10 @@ export default function RunClubDetailPage() {
     const [expanded, setExpanded] = useState(false);
     const [showPast, setShowPast] = useState(false);
     const [imgPg, setImgPg] = useState(0);
-    const [liked, setLiked] = useState(false);
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [galleryIndex, setGalleryIndex] = useState(0);
     const [heroLoaded, setHeroLoaded] = useState(false);
+    const [showLogin, setShowLogin] = useState(false);
     const imgRef = useRef(null);
 
     const clubId = club?.id || id || null;
@@ -581,18 +583,6 @@ export default function RunClubDetailPage() {
                         >
                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setLiked((l) => !l)}
-                            aria-label="Favourite"
-                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
-                        >
-                            <Heart
-                                size={20}
-                                strokeWidth={2.25}
-                                className={liked ? 'fill-red-500 text-red-500' : 'text-white'}
-                            />
-                        </button>
                     </div>
                 </div>
 
@@ -617,8 +607,8 @@ export default function RunClubDetailPage() {
                 className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
                 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
             >
-                <div className="flex items-start justify-between mb-1">
-                    <div className="flex-1 min-w-0 pr-3">
+                <div className="mb-1">
+                    <div className="flex-1 min-w-0">
                         <h1
                             className={`text-3xl font-medium font-inter leading-9 ${isDark ? 'text-white' : 'text-gray-900'}`}
                         >
@@ -628,21 +618,18 @@ export default function RunClubDetailPage() {
                             {basedIn}
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (club?.contactPhone) {
-                                window.location.href = `tel:${club.contactPhone}`;
-                            }
-                        }}
-                        disabled={!club?.contactPhone}
-                        aria-label="Call run club"
-                        className={`size-8 shrink-0 rounded-full flex items-center justify-center mt-1 transition-opacity
-                            ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}
-                            ${!club?.contactPhone ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
-                    >
-                        <Phone size={18} strokeWidth={2.25} className="text-[#0ECCEE]" />
-                    </button>
+                    {clubId ? (
+                        <div className="mt-4">
+                            <FollowCommunityBar
+                                entityType="run_club"
+                                entityId={clubId}
+                                followLabel="Follow Club"
+                                followingLabel="Following"
+                                membersTitle={`${name || 'Club'} members`}
+                                onRequireLogin={() => setShowLogin(true)}
+                            />
+                        </div>
+                    ) : null}
                 </div>
 
                 <ScrollReveal className="mt-5 mb-5">
@@ -936,6 +923,15 @@ export default function RunClubDetailPage() {
                     onIndexChange={setGalleryIndex}
                 />
             )}
+
+            {showLogin ? (
+                <CrwdCtrlLogin
+                    googleOnly
+                    title="Sign in to follow"
+                    subtitle="One tap with Google — then you’re in"
+                    onClose={() => setShowLogin(false)}
+                />
+            ) : null}
         </div>
     );
 }
