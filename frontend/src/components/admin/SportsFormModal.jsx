@@ -920,6 +920,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                     <SectionBlock title="Cover images" hint="Cards and detail hero — separate from gallery">
                         <MultiCoverImagesUpload
                             value={form.coverImages}
+                            excludeKeys={['page']}
                             onChange={(coverImages) => {
                                 set('coverImages', coverImages);
                                 set('coverImage', primaryCoverUrl(coverImages, form.coverImage));

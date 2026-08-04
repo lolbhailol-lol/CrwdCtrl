@@ -315,14 +315,18 @@ export default function EventDetailsPage() {
       />
 
       <div className="mx-auto w-full md:max-w-2xl">
-        {/* Hero — full-width on phones, aligned with content on desktop */}
-        <div className="relative h-80 sm:h-96 w-full">
+        {/* Hero — 5:4 matches admin “Event page top image” crop / Adjust */}
+        <div className="relative w-full aspect-[5/4] max-h-[28rem]">
           {event.image ? (
             <img
-              src={getCoverImageUrl(event, 'hero') || getImageUrl(event.image, { preset: 'hero' })}
+              src={
+                getCoverImageUrl(event, 'eventPage')
+                || getCoverImageUrl(event, 'hero')
+                || getImageUrl(event.image, { preset: 'eventPage' })
+              }
               alt={event.title}
               className="absolute inset-0 w-full h-full object-cover"
-              onError={(e) => handleImageErrorWithFallback(e, 400, 384, '#2A2B2E', event.title)}
+              onError={(e) => handleImageErrorWithFallback(e, 400, 320, '#2A2B2E', event.title)}
             />
           ) : (
             <div className="absolute inset-0 bg-linear-to-br from-purple-800 to-indigo-600 flex items-center justify-center">

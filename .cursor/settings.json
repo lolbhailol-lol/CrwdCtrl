@@ -18,9 +18,6 @@
     "browse": {
       "enabled": true
     },
-    "mem0": {
-      "enabled": true
-    },
     "mongodb": {
       "enabled": true
     },

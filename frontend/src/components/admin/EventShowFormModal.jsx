@@ -668,7 +668,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                     <div className="rounded-xl border border-gray-700/60 p-4 space-y-4">
                         <div>
                             <p className="text-sm font-medium text-gray-200">Cover images</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Crop separately for portrait cards, wide cards, hero banners, and other layouts.</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Use Adjust on “Event page top image” to frame the upper section on the event detail page.</p>
                         </div>
                         <MultiCoverImagesUpload
                             value={form.coverImages}

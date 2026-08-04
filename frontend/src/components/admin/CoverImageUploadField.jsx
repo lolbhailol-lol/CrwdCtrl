@@ -52,6 +52,7 @@ export default function CoverImageUploadField({
     className = '',
 }) {
     const [cropFile, setCropFile] = useState(null);
+    const [cropImageUrl, setCropImageUrl] = useState('');
     const [internalUploading, setInternalUploading] = useState(false);
     const isUploading = uploading ?? internalUploading;
     const setUploading = (v) => {
@@ -62,11 +63,25 @@ export default function CoverImageUploadField({
     const handleFileSelect = (e) => {
         const file = e.target.files?.[0];
         e.target.value = '';
-        if (file) setCropFile(file);
+        if (file) {
+            setCropImageUrl('');
+            setCropFile(file);
+        }
+    };
+
+    const openAdjust = () => {
+        if (!value || isUploading) return;
+        setCropFile(null);
+        setCropImageUrl(value);
+    };
+
+    const closeCrop = () => {
+        setCropFile(null);
+        setCropImageUrl('');
     };
 
     const uploadCropped = async (file) => {
-        setCropFile(null);
+        closeCrop();
         setUploading(true);
         try {
             const fd = new FormData();
@@ -128,7 +143,19 @@ export default function CoverImageUploadField({
                             </button>
                         </div>
                     ) : null}
-                    {uploadControl}
+                    <div className="flex flex-col gap-2">
+                        {value ? (
+                            <button
+                                type="button"
+                                onClick={openAdjust}
+                                disabled={isUploading}
+                                className="rounded-lg border border-gray-600 hover:border-[#0ECCEE] px-3 py-1.5 text-xs text-gray-300 transition-colors disabled:opacity-50"
+                            >
+                                Adjust
+                            </button>
+                        ) : null}
+                        {uploadControl}
+                    </div>
                 </div>
             ) : (
                 <>
@@ -145,17 +172,31 @@ export default function CoverImageUploadField({
                             </button>
                         </div>
                     ) : null}
-                    {uploadControl}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {value ? (
+                            <button
+                                type="button"
+                                onClick={openAdjust}
+                                disabled={isUploading}
+                                className="rounded-lg border border-gray-600 hover:border-[#0ECCEE] px-4 py-2 text-sm text-gray-300 transition-colors disabled:opacity-50"
+                            >
+                                Adjust crop
+                            </button>
+                        ) : null}
+                        {uploadControl}
+                    </div>
                 </>
             )}
 
             {hint ? <p className="text-xs text-gray-500 mt-1">{hint}</p> : null}
             <CoverSizePreviews url={value} />
 
-            {cropFile ? (
+            {(cropFile || cropImageUrl) ? (
                 <CoverImageCropModal
                     file={cropFile}
-                    onCancel={() => setCropFile(null)}
+                    imageUrl={cropImageUrl}
+                    title={cropImageUrl ? 'Adjust cover image' : 'Crop cover image'}
+                    onCancel={closeCrop}
                     onCropped={uploadCropped}
                 />
             ) : null}

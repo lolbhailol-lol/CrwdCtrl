@@ -1,4 +1,4 @@
-const COVER_KEYS = ['portrait', 'wide', 'hero', 'square', 'landscape', 'video'];
+const COVER_KEYS = ['page', 'portrait', 'wide', 'hero', 'square', 'landscape', 'video'];
 
 function normalizeUrl(value) {
     if (!value) return '';
@@ -21,7 +21,7 @@ function sanitizeCoverImages(input) {
 }
 
 function primaryCoverUrl(coverImages = {}, fallback = '') {
-    const order = ['portrait', 'wide', 'hero', 'landscape', 'video', 'square'];
+    const order = ['portrait', 'wide', 'hero', 'page', 'landscape', 'video', 'square'];
     for (const key of order) {
         if (coverImages[key]) return coverImages[key];
     }

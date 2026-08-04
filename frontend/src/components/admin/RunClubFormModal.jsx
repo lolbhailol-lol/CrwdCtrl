@@ -192,6 +192,7 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                     >
                         <MultiCoverImagesUpload
                             value={form.coverImages}
+                            excludeKeys={['page']}
                             onChange={(coverImages) => {
                                 set('coverImages', coverImages);
                                 set('coverImage', primaryCoverUrl(coverImages, form.coverImage));

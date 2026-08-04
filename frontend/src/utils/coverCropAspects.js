@@ -25,6 +25,15 @@ export const CROP_ASPECT_OPTIONS = [
         outputH: 560,
     },
     {
+        /** Event detail page top image — matches EventDetailsPage aspect-[5/4] */
+        id: 'eventPage',
+        label: 'Event page',
+        short: '5:4',
+        ratio: 5 / 4,
+        outputW: 1200,
+        outputH: 960,
+    },
+    {
         id: 'communityBanner',
         label: 'Community page',
         short: '393:396',

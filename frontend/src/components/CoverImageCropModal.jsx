@@ -19,6 +19,7 @@ const DEFAULT_FRAMING = () => ({ zoom: 1, offset: { x: 0, y: 0 } });
  */
 export default function CoverImageCropModal({
     file,
+    imageUrl = '',
     isDark = true,
     fixedAspectId,
     fillFrame = false,
@@ -68,19 +69,38 @@ export default function CoverImageCropModal({
     const setOffset = (v) => setFraming({ offset: v });
 
     useEffect(() => {
-        if (!file) return undefined;
-        const url = URL.createObjectURL(file);
-        setImgSrc(url);
         setFramingByAspect({});
         setActiveAspectId(fixedAspectId || CROP_ASPECT_OPTIONS[0].id);
         setMinimized(false);
-        return () => URL.revokeObjectURL(url);
-    }, [file, fixedAspectId]);
+        setImgEl(null);
+
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setImgSrc(url);
+            return () => URL.revokeObjectURL(url);
+        }
+
+        const remote = String(imageUrl || '').trim();
+        if (remote) {
+            setImgSrc(remote);
+            return undefined;
+        }
+
+        setImgSrc('');
+        return undefined;
+    }, [file, imageUrl, fixedAspectId]);
 
     useEffect(() => {
         if (!imgSrc) return;
         const image = new Image();
+        image.crossOrigin = 'anonymous';
         image.onload = () => setImgEl(image);
+        image.onerror = () => {
+            // Retry without CORS if CDN blocks anonymous (canvas may still taint)
+            const fallback = new Image();
+            fallback.onload = () => setImgEl(fallback);
+            fallback.src = imgSrc;
+        };
         image.src = imgSrc;
     }, [imgSrc]);
 

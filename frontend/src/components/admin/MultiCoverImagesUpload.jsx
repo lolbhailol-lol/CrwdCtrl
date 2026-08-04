@@ -64,29 +64,56 @@ export default function MultiCoverImagesUpload({
                             key={slot.key}
                             className="flex items-center gap-3 rounded-xl border border-gray-700/60 bg-[#1D1E20]/50 p-3"
                         >
-                            <div className={`${slot.previewClass} shrink-0 rounded-lg overflow-hidden border border-gray-700 bg-[#161718]`}>
+                            <button
+                                type="button"
+                                disabled={!url || Boolean(uploadingKey)}
+                                onClick={() => {
+                                    if (!url) return;
+                                    setCropState({
+                                        key: slot.key,
+                                        aspectId: slot.aspectId,
+                                        imageUrl: url,
+                                    });
+                                }}
+                                className={`${slot.previewClass} shrink-0 rounded-lg overflow-hidden border border-gray-700 bg-[#161718] ${url ? 'cursor-pointer hover:border-[#0ECCEE]/80' : ''}`}
+                                title={url ? 'Click to adjust crop' : undefined}
+                            >
                                 {url ? (
-                                    <ContentImage src={url} preset={slot.preset} alt="" className="w-full h-full object-cover" />
+                                    <ContentImage src={url} preset={slot.preset} alt="" className="w-full h-full object-cover pointer-events-none" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-600 px-1 text-center">
                                         {slot.short}
                                     </div>
                                 )}
-                            </div>
+                            </button>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-200">{slot.label}</p>
                                 <p className="text-xs text-gray-500">{slot.short} aspect</p>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                                 {url ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => setSlot(slot.key, '')}
-                                        className="text-gray-500 hover:text-red-400 p-1"
-                                        aria-label={`Remove ${slot.label}`}
-                                    >
-                                        <X size={16} />
-                                    </button>
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCropState({
+                                                key: slot.key,
+                                                aspectId: slot.aspectId,
+                                                imageUrl: url,
+                                            })}
+                                            disabled={Boolean(uploadingKey)}
+                                            className="rounded-lg border border-gray-600 hover:border-[#0ECCEE] px-2.5 py-1.5 text-xs text-gray-300 transition-colors disabled:opacity-50"
+                                        >
+                                            Adjust
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSlot(slot.key, '')}
+                                            className="text-gray-500 hover:text-red-400 p-1"
+                                            aria-label={`Remove ${slot.label}`}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </>
                                 ) : null}
                                 <label className="flex items-center gap-1.5 cursor-pointer rounded-lg border border-dashed border-gray-600 hover:border-[#0ECCEE] px-3 py-1.5 text-xs text-gray-400 transition-colors">
                                     {busy ? (
@@ -115,10 +142,12 @@ export default function MultiCoverImagesUpload({
                 })}
             </div>
 
-            {cropState?.file ? (
+            {(cropState?.file || cropState?.imageUrl) ? (
                 <CoverImageCropModal
-                    file={cropState.file}
+                    file={cropState.file || null}
+                    imageUrl={cropState.imageUrl || ''}
                     fixedAspectId={cropState.aspectId}
+                    title={cropState.imageUrl ? 'Adjust cover image' : 'Crop cover image'}
                     onCancel={() => setCropState(null)}
                     onCropped={uploadCropped}
                 />

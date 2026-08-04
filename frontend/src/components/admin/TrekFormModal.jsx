@@ -820,6 +820,7 @@ export default function TrekFormModal({ trek, communityId, communityCategories, 
                                 </div>
                                 <MultiCoverImagesUpload
                                     value={form.coverImages}
+                                    excludeKeys={['page']}
                                     onChange={(coverImages) => {
                                         set('coverImages', coverImages);
                                         set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
