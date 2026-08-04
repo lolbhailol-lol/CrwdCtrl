@@ -23,6 +23,7 @@ export const config = {
     '/treks/community/:path*',
     '/sports/run/:path*',
     '/sports/run-club/:path*',
+    '/events/:path*',
   ],
 };
 
@@ -32,11 +33,12 @@ const API_BASE =
 const BOT_UA =
   /(facebookexternalhit|facebot|twitterbot|whatsapp|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|google-inspectiontool|storebot-google|bingbot|duckduckbot|applebot|gptbot|oai-searchbot|chatgpt-user|perplexitybot|claudebot|claude-web|anthropic-ai|bytespider|amazonbot|yandexbot|embedly|quora link preview|vkshare|w3c_validator|iframely|skypeuripreview|nuzzel|bitlybot|developers\.google\.com\/\+\/web\/snippet)/i;
 
-/** Prefer trek/fest cover slots over falling back to the CrwdCtrl logo in OG previews. */
+/** Prefer cover slots over falling back to the CrwdCtrl logo in OG previews. */
 function pickShareImage(entity) {
   if (!entity || typeof entity !== 'object') return undefined;
   const covers = entity.coverImages && typeof entity.coverImages === 'object' ? entity.coverImages : {};
   const candidates = [
+    covers.page,
     entity.coverImage,
     covers.hero,
     covers.portrait,
@@ -49,6 +51,7 @@ function pickShareImage(entity) {
     entity.image,
     Array.isArray(entity.heroImages) ? entity.heroImages[0] : null,
     Array.isArray(entity.images) ? entity.images[0] : null,
+    Array.isArray(entity.galleryImages) ? entity.galleryImages[0] : null,
   ];
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
@@ -92,6 +95,22 @@ const ROUTES = [
     api: (id) => `/run-clubs/${id}`,
     pick: (j) => j?.club || j?.data || j,
     build: (c, path) => buildPage(`${c.name} — Running Club`, c.aboutUs, pickShareImage(c), path, 'Sports', '/sports', c.name),
+  },
+  {
+    test: /^\/events\/([^/]+)\/?$/,
+    api: (id) => `/events/${id}`,
+    pick: (j) => j?.show || j?.data || j,
+    build: (e, path) => buildEvent(
+      e.displayName || e.title,
+      e.description || e.about,
+      pickShareImage(e),
+      e.venue || e.city,
+      e.ticketPrice,
+      e.organizer,
+      path,
+      'Events',
+      '/events',
+    ),
   },
 ];
 

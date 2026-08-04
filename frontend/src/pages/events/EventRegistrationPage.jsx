@@ -13,6 +13,7 @@ import { verifyPaymentWithRetry, goToBookings } from '../../utils/paymentNavigat
 import { buildEventPriceBreakdown } from '../../utils/platformFee';
 import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
 import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
+import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { eventShowPath } from '../../utils/slugRoutes';
 import {
@@ -99,7 +100,15 @@ export default function EventRegistrationPage() {
     const retryRef = useRef(null);
     const resumeRef = useRef(false);
 
-    const isAuthed = useCallback(() => isAuthenticated || !!authToken || !!localStorage.getItem('crwdctrl_token'), [isAuthenticated, authToken]);
+    const isAuthed = useCallback(
+        () => isAuthenticated || hasUsableAuthToken(authToken),
+        [isAuthenticated, authToken],
+    );
+
+    const getAuthToken = useCallback(
+        () => resolveAuthToken(authToken),
+        [authToken],
+    );
 
     useEffect(() => {
         if (authLoading || isAuthProcessing || isRedirectProcessing) return;
@@ -199,19 +208,43 @@ export default function EventRegistrationPage() {
     const allSteps = useMemo(() => [...formSteps, { title: 'Confirm & Pay', payment: true }], [formSteps]);
     const allFields = useMemo(() => formSteps.flatMap((s) => s.fields || []), [formSteps]);
 
-    // Prefill basic info from the logged-in user
+    // Prefill name / email / phone from logged-in user (incl. Google sign-in)
     useEffect(() => {
-        if (!user) return;
+        if (!user || !allFields.length) return;
+        const userName = String(user.name || user.fullName || user.displayName || '').trim();
+        const userEmail = String(user.email || '').trim();
+        const userPhone = String(user.phone || user.mobile || user.phoneNumber || '').trim();
+        if (!userName && !userEmail && !userPhone) return;
+
         setValues((prev) => {
-            if (Object.keys(prev).length > 0) return prev;
-            const next = {};
+            const next = { ...prev };
+            let changed = false;
             allFields.forEach((f) => {
-                const name = f.fieldName.toLowerCase();
-                if (name.includes('name') && (user.name || user.fullName)) next[f.fieldName] = user.name || user.fullName;
-                else if (name.includes('email') && user.email) next[f.fieldName] = user.email;
-                else if ((name.includes('phone') || name.includes('contact') || name.includes('mobile')) && (user.phone || user.mobile)) next[f.fieldName] = user.phone || user.mobile;
+                const key = f.fieldName;
+                const name = String(key || '').toLowerCase();
+                const current = String(next[key] ?? '').trim();
+                if (current) return;
+
+                const isNameField = (name === 'name' || name === 'full_name' || name.endsWith('_name') || name.includes('full_name'))
+                    && !name.includes('user')
+                    && !name.includes('org')
+                    && !name.includes('college')
+                    && !name.includes('team');
+                const isEmailField = name === 'email' || name.includes('email') || name.includes('e_mail');
+                const isPhoneField = name === 'phone' || name.includes('phone') || name.includes('mobile') || name.includes('contact_no') || name.includes('whatsapp');
+
+                if (isNameField && userName) {
+                    next[key] = userName;
+                    changed = true;
+                } else if (isEmailField && userEmail) {
+                    next[key] = userEmail;
+                    changed = true;
+                } else if (isPhoneField && userPhone) {
+                    next[key] = userPhone;
+                    changed = true;
+                }
             });
-            return next;
+            return changed ? next : prev;
         });
     }, [user, allFields]);
 
@@ -347,7 +380,7 @@ export default function EventRegistrationPage() {
         valuesOverride,
         filesOverride,
     } = {}) => {
-        const token = localStorage.getItem('crwdctrl_token');
+        const token = getAuthToken();
         if (!token) { setShowLogin(true); throw new Error('Please log in to register.'); }
 
         const submissionValues = valuesOverride ?? values;
@@ -382,7 +415,7 @@ export default function EventRegistrationPage() {
         if (regId) setRegistrationId(String(regId));
         void amountPaid;
         return data;
-    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId]);
+    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, getAuthToken]);
 
     // Resume after Cashfree redirect
     useEffect(() => {
@@ -395,7 +428,7 @@ export default function EventRegistrationPage() {
         setPaying(true);
         setPaymentResumeError('');
         setError('');
-        const token = localStorage.getItem('crwdctrl_token');
+        const token = getAuthToken();
 
         let draftValues = {};
         const rawDraft = sessionStorage.getItem(draftKey(eventId));
@@ -410,6 +443,13 @@ export default function EventRegistrationPage() {
 
         (async () => {
             try {
+                if (!token) {
+                    clearPendingPayment();
+                    setShowLogin(true);
+                    setPaymentResumeError('Please log in to complete registration after payment.');
+                    setPaying(false);
+                    return;
+                }
                 const { ok, data: v } = await verifyPaymentWithRetry(API, pending.orderId, { token, kind: 'fest' });
                 if (!ok || !v?.verified) {
                     clearPendingPayment();
@@ -473,10 +513,16 @@ export default function EventRegistrationPage() {
         sessionStorage.setItem(draftKey(eventId), JSON.stringify({ values, tierId: selectedTierId }));
         setPaying(true);
         try {
-            const token = localStorage.getItem('crwdctrl_token');
+            const token = getAuthToken();
+            if (!token) {
+                setShowLogin(true);
+                setError('Please log in to register.');
+                setPaying(false);
+                return;
+            }
             const orderRes = await fetch(`${API}/payment/order`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                headers: getBearerAuthHeaders(token),
                 body: JSON.stringify({
                     eventShowId: eventId,
                     tierId: selectedTierId || undefined,
@@ -521,7 +567,7 @@ export default function EventRegistrationPage() {
             const checkoutPaymentId = checkout?.paymentDetails?.paymentId || checkout?.paymentDetails?.cf_payment_id || '';
             const vRes = await fetch(`${API}/payment/verify`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                headers: getBearerAuthHeaders(token),
                 body: JSON.stringify({ payment_order_id: order.orderId, payment_id: checkoutPaymentId }),
             });
             const v = await vRes.json();
@@ -769,13 +815,13 @@ export default function EventRegistrationPage() {
                                         {ticketPrice > 0 ? formatInr(ticketPrice) : 'Free'}
                                     </span>
                                 </div>
-                                {ticketPrice > 0 ? (
+                                {ticketPrice > 0 && breakdown.platformFee > 0 ? (
                                     <div className="flex justify-between text-sm">
                                         <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
-                                            Platform fee{platformFeePercent > 0 ? ` (${platformFeePercent}%)` : ''}
+                                            Platform fee ({platformFeePercent}%)
                                         </span>
                                         <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                            {breakdown.platformFee > 0 ? formatInr(breakdown.platformFee) : '₹0'}
+                                            {formatInr(breakdown.platformFee)}
                                         </span>
                                     </div>
                                 ) : null}
@@ -793,7 +839,8 @@ export default function EventRegistrationPage() {
                     {!isPaymentStep && current?.packageSelect && (
                         <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                             <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                Pick a Trackday participant package. Platform fee is added at checkout.
+                                Pick a Trackday participant package
+                                {platformFeePercent > 0 ? '. Platform fee is added at checkout.' : '.'}
                             </p>
                             <div className="space-y-2">
                                 {packages.map((tier) => {
@@ -858,15 +905,25 @@ export default function EventRegistrationPage() {
                             {ticketPrice > 0 && (
                                 <div className="mb-3">
                                     <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
-                                    <div className="flex gap-2">
-                                        <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
-                                        <button type="button" onClick={applyCoupon} disabled={couponLoading} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">
-                                            {couponLoading ? 'Applying...' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply')}
+                                    <div className="flex items-stretch gap-2 min-w-0">
+                                        <input
+                                            value={couponCode}
+                                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                            placeholder="Enter coupon"
+                                            className={`min-w-0 flex-1 px-3 py-2 rounded-lg border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={applyCoupon}
+                                            disabled={couponLoading}
+                                            className="shrink-0 px-3 sm:px-4 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm whitespace-nowrap"
+                                        >
+                                            {couponLoading ? '…' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply')}
                                         </button>
                                     </div>
                                     {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
                                     {couponInfo?.couponApplied ? (
-                                        <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 animate-pulse ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                                        <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
                                             Coupon `{couponInfo.couponCode}` applied · You save ₹{couponInfo.discountAmount}
                                         </div>
                                     ) : null}
@@ -883,10 +940,12 @@ export default function EventRegistrationPage() {
                                     ) : null}
                                     <div className="flex justify-between gap-4"><span>People</span><span>1 person</span></div>
                                     <div className="flex justify-between gap-4"><span>Package fee</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
-                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                        <span>Platform fee{platformFeePercent > 0 ? ` (${platformFeePercent}%)` : ''}</span>
-                                        <span>{breakdown.platformFee > 0 ? `₹${breakdown.platformFee}` : '₹0'}</span>
-                                    </div>
+                                    {breakdown.platformFee > 0 ? (
+                                        <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            <span>Platform fee ({platformFeePercent}%)</span>
+                                            <span>₹{breakdown.platformFee}</span>
+                                        </div>
+                                    ) : null}
                                     {couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
                                     <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]"><span>Amount Payable</span><span>₹{payableAmount.toLocaleString('en-IN')}</span></div>
                                     <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>

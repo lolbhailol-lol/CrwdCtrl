@@ -294,7 +294,12 @@ export default function EventDetailsPage() {
         title={event.title}
         description={event.about ? event.about.slice(0, 160) : `${event.title} — ${event.type}`}
         canonical={eventShowPath(event)}
-        image={event.image}
+        image={
+          event.coverImages?.page
+          || event.coverImages?.hero
+          || event.coverImages?.portrait
+          || event.image
+        }
         type="article"
         jsonLd={[
           breadcrumbSchema([
@@ -306,7 +311,11 @@ export default function EventDetailsPage() {
             name: event.title,
             description: event.about,
             url: eventShowPath(event),
-            image: event.image,
+            image:
+              event.coverImages?.page
+              || event.coverImages?.hero
+              || event.coverImages?.portrait
+              || event.image,
             location: event.venue !== 'Venue TBA' ? event.venue : undefined,
             price: event.ticketPrice,
             organizerName: event.organizer || undefined,
