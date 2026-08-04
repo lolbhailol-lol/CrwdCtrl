@@ -12,6 +12,7 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
+import DetailPageLoader from '../../components/DetailPageLoader';
 import { normalizeRunCategory } from '../../constants/runClubCategories';
 import {
     AnimatedCard,
@@ -386,11 +387,7 @@ export default function RunClubDetailPage() {
         : runs.filter((run) => run.runCategory === activeCategory);
 
     if (showPageLoader) {
-        return (
-            <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
-                <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
-            </div>
-        );
+        return <DetailPageLoader />;
     }
 
     if (!club) {

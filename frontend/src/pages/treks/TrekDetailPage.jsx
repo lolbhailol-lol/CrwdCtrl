@@ -8,6 +8,7 @@ import { ScrollProgress, ScrollReveal } from '../../motion';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
+import DetailPageLoader from '../../components/DetailPageLoader';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { formatTrekDisplayDate, formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
 import { ScheduleMainMarker, ScheduleSubMarker } from '../../components/SchedulePointMarkers';
@@ -382,11 +383,7 @@ export default function TrekDetailPage() {
         }
     }, [trek, id, navigate, location.state]);
 
-    if (showPageLoader) return (
-        <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
-            <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
-        </div>
-    );
+    if (showPageLoader) return <DetailPageLoader />;
     if (!trek) {
         const isNotFound = loadError === 'not_found';
         const isRetryable = !isNotFound;

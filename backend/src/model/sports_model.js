@@ -93,6 +93,9 @@ const sportsEventSchema = new mongoose.Schema(
         termsAndConditions: { type: [String], default: [] },
         contactPhone: { type: String, trim: true, default: '' },
         contactInstagram: { type: String, trim: true, default: '' },
+        /** Multiple contact numbers / Instagram handles (first synced to legacy singles) */
+        contactPhones: { type: [String], default: [] },
+        contactInstagrams: { type: [String], default: [] },
         images: { type: [String], default: [] },
         sponsors: { type: [String], default: [] },
         registrationLink: { type: String, trim: true },

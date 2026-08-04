@@ -3,12 +3,14 @@ import { X } from 'lucide-react';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import TrekDetailBoxesEditor from './TrekDetailBoxesEditor';
+import MultiContactListField from './MultiContactListField';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES, excludeCoverUrlsFromGallery } from '../../utils/coverImages';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, RUN_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
 import { createEmptyTier, sanitizeSportsTiers, sanitizeOptionalAddOn } from '../../utils/sportsTiers';
+import { contactsFromEvent, contactsToPayload } from '../../utils/runContacts';
 
 const EMPTY = {
     title: '',
@@ -48,8 +50,8 @@ const EMPTY = {
     detailBoxes: [],
     infoSections: [],
     termsAndConditions: '',
-    contactPhone: '',
-    contactInstagram: '',
+    contactPhones: [''],
+    contactInstagrams: [''],
 };
 
 function SectionBlock({ title, hint, children }) {
@@ -120,8 +122,13 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 detailBoxes: normalizeRunDetailBoxes(event.detailBoxes, event),
                 infoSections: Array.isArray(event.infoSections) ? event.infoSections : [],
                 termsAndConditions: Array.isArray(event.termsAndConditions) ? event.termsAndConditions.join('\n') : '',
-                contactPhone: event.contactPhone || '',
-                contactInstagram: event.contactInstagram || '',
+                ...(() => {
+                    const c = contactsFromEvent(event);
+                    return {
+                        contactPhones: c.contactPhones.length ? c.contactPhones : [''],
+                        contactInstagrams: c.contactInstagrams.length ? c.contactInstagrams : [''],
+                    };
+                })(),
             });
         } else {
             setForm({
@@ -260,8 +267,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 termsAndConditions: form.termsAndConditions
                     ? form.termsAndConditions.split('\n').map((s) => s.trim()).filter(Boolean)
                     : [],
-                contactPhone: form.contactPhone?.trim() || '',
-                contactInstagram: form.contactInstagram?.trim() || '',
+                ...contactsToPayload(form.contactPhones, form.contactInstagrams),
                 status: form.status,
                 ...(event ? {} : {
                     showOnSportsPage: true,
@@ -865,12 +871,26 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                             <textarea value={form.termsAndConditions} onChange={(e) => set('termsAndConditions', e.target.value)} rows={4} className={`${inp} resize-none`} placeholder="Cancellation policy..." />
                         </Field>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Field label="Contact Phone" hint="Overrides run club contact on detail page">
-                                <input type="tel" value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} className={inp} placeholder="+91..." />
-                            </Field>
-                            <Field label="Contact Instagram">
-                                <input type="text" value={form.contactInstagram} onChange={(e) => set('contactInstagram', e.target.value)} className={inp} placeholder="@handle" />
-                            </Field>
+                            <MultiContactListField
+                                label="Contact phones"
+                                hint="Overrides run club contact on the detail page"
+                                values={form.contactPhones}
+                                onChange={(contactPhones) => set('contactPhones', contactPhones)}
+                                type="tel"
+                                placeholder="+91..."
+                                addLabel="Add phone"
+                                inputClassName={inp}
+                            />
+                            <MultiContactListField
+                                label="Instagram handles"
+                                hint="Shown on the run detail page"
+                                values={form.contactInstagrams}
+                                onChange={(contactInstagrams) => set('contactInstagrams', contactInstagrams)}
+                                type="text"
+                                placeholder="@handle"
+                                addLabel="Add Instagram"
+                                inputClassName={inp}
+                            />
                         </div>
                     </SectionBlock>
 

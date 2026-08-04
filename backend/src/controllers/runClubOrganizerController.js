@@ -22,6 +22,7 @@ const {
     getOrganizerRunClub,
 } = require('../utils/runClubOrganizerAccess');
 const { toSlug, mergePreviousSlugs } = require('../utils/slug');
+const { contactsFromBody } = require('../utils/runContacts');
 const {
     expireStalePendingRegistrations,
     MANUAL_EXPIRE_TTL_HOURS,
@@ -116,9 +117,11 @@ function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = nul
                 .map((box, index) => ({ ...box, order: index }))
             : [];
     }
-    if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
-    if (body.contactInstagram !== undefined) {
-        payload.contactInstagram = String(body.contactInstagram || '').trim();
+    if (body.contactPhone !== undefined
+        || body.contactInstagram !== undefined
+        || body.contactPhones !== undefined
+        || body.contactInstagrams !== undefined) {
+        Object.assign(payload, contactsFromBody(body));
     }
     if (body.runCategory !== undefined) payload.runCategory = String(body.runCategory || '').trim();
     if (body.status !== undefined && STATUSES.has(body.status)) payload.status = body.status;
@@ -642,8 +645,18 @@ exports.createEvent = async (req, res) => {
             fitnessLevel: body.fitnessLevel || '',
             returnTime: body.returnTime || '',
             ageLimit: body.ageLimit || '',
-            contactPhone: body.contactPhone || runClub?.contactPhone || req.organizer.phone || '',
-            contactInstagram: body.contactInstagram || runClub?.contactInstagram || '',
+            ...(() => {
+                const fromBody = contactsFromBody(body);
+                if (fromBody) return fromBody;
+                const phone = runClub?.contactPhone || req.organizer.phone || '';
+                const insta = runClub?.contactInstagram || '';
+                return {
+                    contactPhone: phone,
+                    contactInstagram: insta,
+                    contactPhones: phone ? [phone] : [],
+                    contactInstagrams: insta ? [insta] : [],
+                };
+            })(),
             runCategory: defaultCategory,
             status,
             showInUpcoming: true,

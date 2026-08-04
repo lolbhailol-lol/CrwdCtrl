@@ -11,11 +11,13 @@ import {
 import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { sportRunPath } from '../../utils/slugRoutes';
 import TrekDetailBoxesEditor from '../../components/admin/TrekDetailBoxesEditor';
+import MultiContactListField from '../../components/admin/MultiContactListField';
 import {
     normalizeRunDetailBoxes,
     sanitizeDetailBoxesPayload,
     RUN_DETAIL_BOX_PRESETS,
 } from '../../utils/trekDetailBoxes';
+import { contactsFromEvent, contactsToPayload } from '../../utils/runContacts';
 
 const FIELD_TYPES = [
     { value: 'text', label: 'Text' },
@@ -43,8 +45,8 @@ const emptyForm = () => ({
     returnTime: '',
     ageLimit: '',
     detailBoxes: [],
-    contactPhone: '',
-    contactInstagram: '',
+    contactPhones: [''],
+    contactInstagrams: [''],
     runCategory: '',
     status: 'draft',
     registration: {
@@ -82,8 +84,13 @@ function eventToForm(event) {
         returnTime: event.returnTime || '',
         ageLimit: event.ageLimit || '',
         detailBoxes: normalizeRunDetailBoxes(event.detailBoxes, event),
-        contactPhone: event.contactPhone || '',
-        contactInstagram: event.contactInstagram || '',
+        ...(() => {
+            const c = contactsFromEvent(event);
+            return {
+                contactPhones: c.contactPhones.length ? c.contactPhones : [''],
+                contactInstagrams: c.contactInstagrams.length ? c.contactInstagrams : [''],
+            };
+        })(),
         runCategory: event.runCategory || '',
         status: event.status || 'draft',
         registration: {
@@ -117,8 +124,7 @@ function formToPayload(form) {
         returnTime: form.returnTime.trim(),
         ageLimit: form.ageLimit.trim(),
         detailBoxes: sanitizeDetailBoxesPayload(form.detailBoxes),
-        contactPhone: form.contactPhone.trim(),
-        contactInstagram: form.contactInstagram.trim(),
+        ...contactsToPayload(form.contactPhones, form.contactInstagrams),
         runCategory: form.runCategory.trim(),
         registration: {
             ...form.registration,
@@ -179,11 +185,13 @@ export default function RunClubOrganizerEventEditorPage() {
     useEffect(() => {
         if (isNew) {
             const club = session?.runClub;
+            const phone = club?.contactPhone || session?.organizer?.phone || '';
+            const insta = club?.contactInstagram || '';
             setForm((prev) => ({
                 ...prev,
                 city: club?.basedIn || '',
-                contactPhone: club?.contactPhone || session?.organizer?.phone || '',
-                contactInstagram: club?.contactInstagram || '',
+                contactPhones: phone ? [phone] : [''],
+                contactInstagrams: insta ? [insta] : [''],
             }));
             return;
         }
@@ -446,6 +454,35 @@ export default function RunClubOrganizerEventEditorPage() {
                         placeholder="What runners should know…"
                     />
                 </label>
+            </section>
+
+            <section className="rounded-2xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">
+                <div>
+                    <h2 className="font-semibold">Contact</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                        Add multiple phones and Instagram handles for the public run page.
+                    </p>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                    <MultiContactListField
+                        label="Phones"
+                        values={form.contactPhones}
+                        onChange={(contactPhones) => setField('contactPhones', contactPhones)}
+                        type="tel"
+                        placeholder="+91..."
+                        addLabel="Add phone"
+                        inputClassName="w-full rounded-xl bg-[#0f1011] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                    />
+                    <MultiContactListField
+                        label="Instagram"
+                        values={form.contactInstagrams}
+                        onChange={(contactInstagrams) => setField('contactInstagrams', contactInstagrams)}
+                        type="text"
+                        placeholder="@handle"
+                        addLabel="Add Instagram"
+                        inputClassName="w-full rounded-xl bg-[#0f1011] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                    />
+                </div>
             </section>
 
             <section className="rounded-2xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">

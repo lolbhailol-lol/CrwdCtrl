@@ -8,6 +8,7 @@ const {
     sanitizeOptionalAddOn,
 } = require('../utils/sportsPricing');
 const { ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
+const { contactsFromBody } = require('../utils/runContacts');
 
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
@@ -170,8 +171,12 @@ function sanitizeSportsPayload(body = {}) {
                 .filter((s) => s.title || s.details)
             : [];
     }
-    if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
-    if (body.contactInstagram !== undefined) payload.contactInstagram = String(body.contactInstagram || '').trim();
+    if (body.contactPhone !== undefined
+        || body.contactInstagram !== undefined
+        || body.contactPhones !== undefined
+        || body.contactInstagrams !== undefined) {
+        Object.assign(payload, contactsFromBody(body));
+    }
     if (body.sponsors !== undefined) {
         payload.sponsors = Array.isArray(body.sponsors)
             ? body.sponsors.map((s) => String(s).trim()).filter(Boolean)

@@ -1210,6 +1210,16 @@ body.page-content-loading .crwdctrl-footer {
     pointer-events: none !important;
 }
 
+/* Detail deep-link loaders: hide header chrome so the screen stays one flat color */
+body.detail-page-loading .mobile-header-shell,
+body.detail-page-loading #crwdctrl-bottom-nav,
+body.detail-page-loading .bottom-nav-spacer,
+body.detail-page-loading .crwdctrl-footer {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 /* Custom animations */
 @keyframes fadeInUp {
     from {
