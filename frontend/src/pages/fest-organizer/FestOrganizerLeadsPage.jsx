@@ -23,7 +23,6 @@ const INTERESTS = [
 ];
 
 const DEFAULT_TEAMS = [
-    { id: 'creatives', label: 'Creatives' },
     { id: 'competition', label: 'Competitions' },
     { id: 'pr', label: 'PR' },
     { id: 'sponsorship', label: 'Sponsorship' },
@@ -35,7 +34,8 @@ function interestLabel(id) {
 }
 
 function teamLabel(id, teams = DEFAULT_TEAMS) {
-    if (id === 'team') return 'Creatives';
+    if (id === 'creatives') return 'Creatives';
+    if (id === 'team') return 'Core team';
     return teams.find((t) => t.id === id)?.label || id;
 }
 

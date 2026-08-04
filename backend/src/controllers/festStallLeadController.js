@@ -139,7 +139,6 @@ function parseLeadBody(body = {}, festCompetitions = []) {
         ? [...new Set(
             rawTeams
                 .map((t) => String(t).toLowerCase())
-                .map((t) => (t === 'team' ? 'creatives' : t))
                 .filter((t) => teamIds.includes(t)),
         )].slice(0, 8)
         : [];
@@ -380,8 +379,7 @@ exports.listLeads = async (req, res) => {
             filter.interest = interest;
         }
         if (team && FestInterestLead.VOLUNTEER_TEAM_IDS.includes(team)) {
-            // creatives replaced legacy "team" (Core team) — include both in filters
-            filter.volunteerTeams = team === 'creatives' ? { $in: ['creatives', 'team'] } : team;
+            filter.volunteerTeams = team;
             if (!filter.interest) {
                 filter.interest = { $in: ['volunteer', 'both'] };
             }

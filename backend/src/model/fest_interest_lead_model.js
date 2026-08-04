@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const INTERESTS = ['volunteer', 'participate', 'both'];
 const SOURCES = ['shubharam_stall', 'organizer_kiosk', 'other'];
 const VOLUNTEER_TEAMS = [
-    { id: 'creatives', label: 'Creatives' },
     { id: 'competition', label: 'Competitions' },
     { id: 'pr', label: 'PR' },
     { id: 'sponsorship', label: 'Sponsorship' },
@@ -12,7 +11,8 @@ const VOLUNTEER_TEAMS = [
 
 /** Legacy stall picks still readable in leads/export */
 const LEGACY_VOLUNTEER_TEAM_LABELS = {
-    team: 'Creatives',
+    team: 'Core team',
+    creatives: 'Creatives',
 };
 
 const festInterestLeadSchema = new mongoose.Schema(
@@ -52,7 +52,7 @@ const festInterestLeadSchema = new mongoose.Schema(
             enum: INTERESTS,
             required: true,
         },
-        /** Volunteer team picks: creatives | competition | pr | sponsorship | marathon */
+        /** Volunteer team picks: competition | pr | sponsorship | marathon */
         volunteerTeams: {
             type: [String],
             default: [],
