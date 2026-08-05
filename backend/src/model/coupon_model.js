@@ -4,13 +4,24 @@ const couponSchema = new mongoose.Schema(
   {
     code: { type: String, required: true, trim: true, uppercase: true, unique: true },
     description: { type: String, default: '', trim: true },
-    /** Percent off the payable amount (e.g. 10 = 10% of money). */
-    discountPercent: { type: Number, required: true, min: 1, max: 100 },
     /**
-     * Cap on ₹ saved. 0 = no cap (full percent applies).
+     * percent = % off payable amount
+     * flat = fixed ₹ off payable amount
+     */
+    discountType: {
+      type: String,
+      enum: ['percent', 'flat'],
+      default: 'percent',
+    },
+    /** Percent off the payable amount (e.g. 10 = 10% of money). Used when discountType=percent. */
+    discountPercent: { type: Number, default: 0, min: 0, max: 100 },
+    /**
+     * Cap on ₹ saved for percent coupons. 0 = no cap (full percent applies).
      * Example: 10% of ₹2000 = ₹200, but maxDiscountAmount 100 → save only ₹100.
      */
-    maxDiscountAmount: { type: Number, required: true, min: 0 },
+    maxDiscountAmount: { type: Number, default: 0, min: 0 },
+    /** Fixed ₹ off when discountType=flat (e.g. 200 = ₹200 off). */
+    flatDiscountAmount: { type: Number, default: 0, min: 0 },
     active: { type: Boolean, default: true },
     startsAt: { type: Date, default: null },
     expiresAt: { type: Date, default: null },

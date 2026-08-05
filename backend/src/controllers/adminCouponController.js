@@ -10,12 +10,22 @@ function sanitizeCouponPayload(body = {}) {
   const payload = {};
   if (body.code !== undefined) payload.code = String(body.code || '').trim().toUpperCase();
   if (body.description !== undefined) payload.description = String(body.description || '').trim();
+
+  if (body.discountType !== undefined) {
+    const type = String(body.discountType || 'percent').toLowerCase();
+    payload.discountType = type === 'flat' ? 'flat' : 'percent';
+  }
+
   if (body.discountPercent !== undefined) {
-    payload.discountPercent = Math.min(100, Math.max(1, Number(body.discountPercent) || 1));
+    payload.discountPercent = Math.min(100, Math.max(0, Number(body.discountPercent) || 0));
   }
   if (body.maxDiscountAmount !== undefined) {
     payload.maxDiscountAmount = Math.max(0, Number(body.maxDiscountAmount) || 0);
   }
+  if (body.flatDiscountAmount !== undefined) {
+    payload.flatDiscountAmount = Math.max(0, Math.round(Number(body.flatDiscountAmount) || 0));
+  }
+
   if (body.active !== undefined) payload.active = Boolean(body.active);
   if (body.startsAt !== undefined) payload.startsAt = parseAdminDateTime(body.startsAt, 'start');
   if (body.expiresAt !== undefined) payload.expiresAt = parseAdminDateTime(body.expiresAt, 'end');
@@ -50,6 +60,36 @@ function peopleRuleLabel(coupon) {
   return `At least ${min} people`;
 }
 
+function discountLabel(coupon) {
+  const type = String(coupon.discountType || 'percent').toLowerCase();
+  if (type === 'flat') {
+    const amount = Math.max(0, Number(coupon.flatDiscountAmount) || 0);
+    return `₹${amount} off`;
+  }
+  const percent = Number(coupon.discountPercent) || 0;
+  const cap = Number(coupon.maxDiscountAmount) || 0;
+  return cap > 0 ? `${percent}% off (max ₹${cap})` : `${percent}% off`;
+}
+
+function assertDiscountValid(payload, { isCreate = false } = {}) {
+  const type = payload.discountType
+    || (isCreate ? 'percent' : undefined);
+
+  if (type === 'flat') {
+    const flat = Number(payload.flatDiscountAmount);
+    if (!Number.isFinite(flat) || flat <= 0) {
+      throw new Error('Enter a flat discount amount in ₹ (greater than 0).');
+    }
+  } else if (type === 'percent' || (isCreate && payload.discountPercent != null)) {
+    const percent = Number(payload.discountPercent);
+    if (!Number.isFinite(percent) || percent < 1 || percent > 100) {
+      throw new Error('Discount percent must be between 1 and 100.');
+    }
+  } else if (isCreate) {
+    throw new Error('Choose percent (%) or flat (₹) discount.');
+  }
+}
+
 exports.listCoupons = async (req, res) => {
   const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();
   const couponIds = coupons.map((c) => c._id);
@@ -65,9 +105,12 @@ exports.listCoupons = async (req, res) => {
       const notStarted = isCouponNotStarted(c.startsAt, new Date(now));
       return {
         ...c,
+        discountType: c.discountType || 'percent',
+        flatDiscountAmount: Math.max(0, Number(c.flatDiscountAmount) || 0),
         minPeople: Math.max(1, Number(c.minPeople) || 1),
         maxPeople: Math.max(0, Number(c.maxPeople) || 0),
         peopleRuleLabel: peopleRuleLabel(c),
+        discountLabel: discountLabel(c),
         userCount: usageMap.get(String(c._id)) || 0,
         remainingUses:
           c.maxTotalUses > 0 ? Math.max(0, Number(c.maxTotalUses) - Number(c.usedCount || 0)) : null,
@@ -84,10 +127,15 @@ exports.createCoupon = async (req, res) => {
   try {
     const payload = sanitizeCouponPayload(req.body);
     if (!payload.code) return res.status(400).json({ message: 'Coupon code is required' });
-    if (payload.discountPercent == null) {
-      return res.status(400).json({ message: 'Discount percent is required' });
+    if (!payload.discountType) payload.discountType = 'percent';
+    assertDiscountValid(payload, { isCreate: true });
+    if (payload.discountType === 'flat') {
+      payload.discountPercent = 0;
+      payload.maxDiscountAmount = 0;
+    } else {
+      payload.flatDiscountAmount = 0;
+      if (payload.maxDiscountAmount == null) payload.maxDiscountAmount = 0;
     }
-    if (payload.maxDiscountAmount == null) payload.maxDiscountAmount = 0;
     if (payload.minPeople == null) payload.minPeople = 1;
     if (payload.maxPeople == null) payload.maxPeople = 0;
     const coupon = await Coupon.create(payload);
@@ -100,6 +148,25 @@ exports.createCoupon = async (req, res) => {
 exports.updateCoupon = async (req, res) => {
   try {
     const payload = sanitizeCouponPayload(req.body);
+    if (payload.discountType || payload.discountPercent != null || payload.flatDiscountAmount != null) {
+      const existing = await Coupon.findById(req.params.couponId).lean();
+      if (!existing) return res.status(404).json({ message: 'Coupon not found' });
+      const merged = {
+        discountType: payload.discountType || existing.discountType || 'percent',
+        discountPercent: payload.discountPercent != null ? payload.discountPercent : existing.discountPercent,
+        flatDiscountAmount: payload.flatDiscountAmount != null
+          ? payload.flatDiscountAmount
+          : existing.flatDiscountAmount,
+      };
+      assertDiscountValid(merged, { isCreate: true });
+      payload.discountType = merged.discountType;
+      if (merged.discountType === 'flat') {
+        payload.discountPercent = 0;
+        payload.maxDiscountAmount = 0;
+      } else {
+        payload.flatDiscountAmount = 0;
+      }
+    }
     const coupon = await Coupon.findByIdAndUpdate(req.params.couponId, payload, { new: true });
     if (!coupon) return res.status(404).json({ message: 'Coupon not found' });
     res.json({ coupon });

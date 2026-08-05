@@ -38,14 +38,28 @@ function assertCouponAppliesToEntity(coupon, entityType) {
   );
 }
 
-function computeCouponDiscount({ baseAmount, discountPercent, maxDiscountAmount }) {
+function computeCouponDiscount({
+  baseAmount,
+  discountType = 'percent',
+  discountPercent = 0,
+  maxDiscountAmount = 0,
+  flatDiscountAmount = 0,
+}) {
   const safeBase = Math.max(0, Number(baseAmount) || 0);
+  const type = String(discountType || 'percent').toLowerCase() === 'flat' ? 'flat' : 'percent';
+
+  if (type === 'flat') {
+    const flat = Math.max(0, Math.round(Number(flatDiscountAmount) || 0));
+    const discountAmount = Math.min(flat, safeBase);
+    return { discountAmount, finalAmount: Math.max(0, safeBase - discountAmount), discountType: 'flat' };
+  }
+
   const percent = Math.max(0, Number(discountPercent) || 0);
   const rawDiscount = Math.round((safeBase * percent) / 100);
   const cap = Math.max(0, Number(maxDiscountAmount) || 0);
   const discountAmount = Math.min(rawDiscount, cap > 0 ? cap : rawDiscount);
   const finalAmount = Math.max(0, safeBase - discountAmount);
-  return { discountAmount, finalAmount };
+  return { discountAmount, finalAmount, discountType: 'percent' };
 }
 
 function assertPeopleAllowed(coupon, people) {
@@ -125,10 +139,12 @@ async function validateAndPriceCoupon({
     }
   }
 
-  const { discountAmount, finalAmount } = computeCouponDiscount({
+  const { discountAmount, finalAmount, discountType } = computeCouponDiscount({
     baseAmount,
+    discountType: coupon.discountType || 'percent',
     discountPercent: coupon.discountPercent,
     maxDiscountAmount: coupon.maxDiscountAmount,
+    flatDiscountAmount: coupon.flatDiscountAmount,
   });
 
   return {
@@ -140,8 +156,10 @@ async function validateAndPriceCoupon({
     people: peopleCount,
     minPeople: Math.max(1, Number(coupon.minPeople) || 1),
     maxPeople: Math.max(0, Number(coupon.maxPeople) || 0),
+    discountType: discountType || coupon.discountType || 'percent',
     discountPercent: Number(coupon.discountPercent) || 0,
     maxDiscountAmount: Number(coupon.maxDiscountAmount) || 0,
+    flatDiscountAmount: Number(coupon.flatDiscountAmount) || 0,
     coupon,
   };
 }

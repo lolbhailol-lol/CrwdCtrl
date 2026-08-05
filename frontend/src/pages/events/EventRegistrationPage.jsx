@@ -1052,15 +1052,15 @@ export default function EventRegistrationPage() {
                 )}
 
                 {!isAuthed() && (
-                    <div className={`rounded-xl p-4 mb-4 border text-center ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className={`rounded-2xl p-4 mb-4 border text-center ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-100 shadow-md'}`}>
                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Log in to register for this event.</p>
                         <button type="button" onClick={() => setShowLogin(true)} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">Log in to continue</button>
                     </div>
                 )}
 
-                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'} ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className={`space-y-4 ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
                     {/* Progress (trek-style stepper) */}
-                    <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
+                    <div className={`rounded-2xl p-4 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                         <div className="flex items-center justify-between mb-3">
                             <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
                             <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step + 1} of {allSteps.length}</span>
@@ -1087,7 +1087,7 @@ export default function EventRegistrationPage() {
 
                     {/* Selected package summary — run-club style, shown on every step once chosen */}
                     {selectedTier && !current?.packageSelect && (
-                        <div className={`rounded-2xl border mb-4 overflow-hidden ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                                 <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                     Registration
@@ -1097,36 +1097,16 @@ export default function EventRegistrationPage() {
                                 </p>
                             </div>
                             <div className="px-4 py-3 space-y-2.5">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Package</p>
-                                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            {selectedTier.name}
+                                <div className="min-w-0">
+                                    <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Package</p>
+                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        {selectedTier.name}
+                                    </p>
+                                    {selectedTier.description ? (
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            {selectedTier.description}
                                         </p>
-                                        {selectedTier.description ? (
-                                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                {selectedTier.description}
-                                            </p>
-                                        ) : null}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
-                                            if (pkgIdx >= 0) setStep(pkgIdx);
-                                            else if (driveOnlyPath) {
-                                                const driveIdx = allSteps.findIndex((s) =>
-                                                    (s.fields || []).some((f) => DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))),
-                                                );
-                                                if (driveIdx >= 0) setStep(driveIdx);
-                                            } else {
-                                                navigate(eventShowPath(event));
-                                            }
-                                        }}
-                                        className="text-[11px] font-semibold text-[#0ECCEE] shrink-0"
-                                    >
-                                        Change
-                                    </button>
+                                    ) : null}
                                 </div>
                                 <div className={`flex justify-between text-sm py-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                                     <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Drivers</span>
@@ -1162,7 +1142,7 @@ export default function EventRegistrationPage() {
 
                     {/* Package / form step */}
                     {!isPaymentStep && current?.packageSelect && (
-                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 {skippingDrive
                                     ? 'Select a Trackday package.'
@@ -1260,7 +1240,7 @@ export default function EventRegistrationPage() {
                     )}
 
                     {!isPaymentStep && !current?.packageSelect && (
-                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             {current?.description && <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current.description}</p>}
                             <div className="space-y-4">
                                 {(current?.fields || []).map((field) => (
@@ -1277,9 +1257,9 @@ export default function EventRegistrationPage() {
 
                     {/* Payment / confirm step */}
                     {isPaymentStep && (
-                        <div className={`rounded-xl overflow-hidden border ${isDark ? 'border-[#0ECCEE]/30' : 'border-[#0ECCEE]/40'}`}>
+                        <div className={`rounded-2xl overflow-hidden border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             {ticketPrice > 0 ? (
-                                <div className={`px-4 py-3.5 flex items-start justify-between gap-3 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
+                                <div className={`px-4 py-3.5 flex items-start justify-between gap-3 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                                     <div className="min-w-0">
                                         <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
                                             {isOrganizerQr ? 'Amount to pay' : 'Amount payable'}
@@ -1306,7 +1286,7 @@ export default function EventRegistrationPage() {
                                     ) : null}
                                 </div>
                             ) : (
-                                <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
+                                <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                                     <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Confirm Registration</p>
                                 </div>
                             )}
@@ -1389,9 +1369,9 @@ export default function EventRegistrationPage() {
                                         </div>
                                     ) : null}
                                     {couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
-                                    <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]"><span>Amount Payable</span><span>₹{payableAmount.toLocaleString('en-IN')}</span></div>
+                                    <div className={`flex justify-between gap-4 pt-2.5 mt-1 border-t font-bold text-base text-[#0ECCEE] ${isDark ? 'border-gray-700' : 'border-gray-100'}`}><span>Amount Payable</span><span>₹{payableAmount.toLocaleString('en-IN')}</span></div>
                                     {isOrganizerQr && payableAmount > 0 ? (
-                                        <div className={`mt-3 rounded-xl border p-3 space-y-3 ${isDark ? 'border-gray-700 bg-[#1D1E20]' : 'border-gray-200 bg-gray-50'}`}>
+                                        <div className={`mt-3 rounded-xl border p-3 space-y-3 ${isDark ? 'border-gray-700 bg-[#1D1E20]' : 'border-gray-100 bg-white shadow-sm'}`}>
                                             {reg.paymentQR ? (
                                                 <div className="flex items-start gap-3">
                                                     <img src={reg.paymentQR} alt="Payment QR" className="h-28 w-28 rounded-xl object-contain bg-white p-1.5 border border-gray-200 shrink-0" />
@@ -1478,7 +1458,7 @@ export default function EventRegistrationPage() {
                     )}
 
                     {/* Nav buttons */}
-                    <div className="flex flex-col sm:flex-row gap-3 pt-5">
+                    <div className={`flex flex-col sm:flex-row gap-3 p-4 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                         <button type="button" onClick={back} disabled={paying} className={`px-4 sm:px-6 py-3 rounded-xl border font-medium text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
                             {step === 0 ? 'Cancel' : 'Previous'}
                         </button>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Tag, Plus, Users, Percent, Info } from 'lucide-react';
+import { Tag, Plus, Users, Percent, Info, IndianRupee } from 'lucide-react';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 const ENTITY_OPTIONS = [
@@ -22,8 +22,10 @@ const PEOPLE_PRESETS = [
 const EMPTY_FORM = {
   code: '',
   description: '',
+  discountType: 'percent',
   discountPercent: 10,
   maxDiscountAmount: 500,
+  flatDiscountAmount: 200,
   maxTotalUses: 0,
   maxUsesPerUser: 1,
   active: true,
@@ -135,12 +137,34 @@ export default function CouponsPage() {
 
   const discountPreview = useMemo(() => {
     const base = Math.max(0, Number(exampleAmount) || 0);
+    const isFlat = form.discountType === 'flat';
+    if (isFlat) {
+      const flat = Math.max(0, Math.round(Number(form.flatDiscountAmount) || 0));
+      const discount = Math.min(flat, base);
+      return {
+        base,
+        isFlat: true,
+        percent: 0,
+        raw: flat,
+        discount,
+        final: Math.max(0, base - discount),
+        capped: flat > base,
+      };
+    }
     const percent = Math.max(0, Math.min(100, Number(form.discountPercent) || 0));
     const raw = Math.round((base * percent) / 100);
     const cap = Math.max(0, Number(form.maxDiscountAmount) || 0);
     const discount = Math.min(raw, cap > 0 ? cap : raw);
-    return { base, percent, raw, discount, final: Math.max(0, base - discount), capped: cap > 0 && raw > cap };
-  }, [exampleAmount, form.discountPercent, form.maxDiscountAmount]);
+    return {
+      base,
+      isFlat: false,
+      percent,
+      raw,
+      discount,
+      final: Math.max(0, base - discount),
+      capped: cap > 0 && raw > cap,
+    };
+  }, [exampleAmount, form.discountType, form.discountPercent, form.maxDiscountAmount, form.flatDiscountAmount]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -150,11 +174,22 @@ export default function CouponsPage() {
       setError('Max people cannot be less than min people.');
       return;
     }
+    const isFlat = form.discountType === 'flat';
+    if (isFlat && Number(form.flatDiscountAmount) <= 0) {
+      setError('Enter rupees off amount greater than 0.');
+      return;
+    }
+    if (!isFlat && (Number(form.discountPercent) < 1 || Number(form.discountPercent) > 100)) {
+      setError('Discount percent must be between 1 and 100.');
+      return;
+    }
     const body = {
       code: form.code.trim().toUpperCase(),
       description: form.description.trim(),
-      discountPercent: Number(form.discountPercent),
-      maxDiscountAmount: Number(form.maxDiscountAmount),
+      discountType: isFlat ? 'flat' : 'percent',
+      discountPercent: isFlat ? 0 : Number(form.discountPercent),
+      maxDiscountAmount: isFlat ? 0 : Number(form.maxDiscountAmount),
+      flatDiscountAmount: isFlat ? Number(form.flatDiscountAmount) : 0,
       maxTotalUses: Number(form.maxTotalUses) || 0,
       maxUsesPerUser: Number(form.maxUsesPerUser) || 1,
       active: Boolean(form.active),
@@ -187,8 +222,10 @@ export default function CouponsPage() {
       ...EMPTY_FORM,
       code: coupon.code || '',
       description: coupon.description || '',
+      discountType: coupon.discountType === 'flat' ? 'flat' : 'percent',
       discountPercent: Number(coupon.discountPercent) || 10,
       maxDiscountAmount: Number(coupon.maxDiscountAmount) || 0,
+      flatDiscountAmount: Number(coupon.flatDiscountAmount) || 200,
       maxTotalUses: Number(coupon.maxTotalUses) || 0,
       maxUsesPerUser: Number(coupon.maxUsesPerUser) || 1,
       active: coupon.active !== false,
@@ -245,42 +282,91 @@ export default function CouponsPage() {
             </div>
           </section>
 
-          {/* Discount % */}
+          {/* Discount */}
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-gray-200 uppercase tracking-wide flex items-center gap-2">
-              <Percent size={14} className="text-[#0ECCEE]" /> Discount (percent of money)
+              <Percent size={14} className="text-[#0ECCEE]" /> Discount
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Discount percent (%)</label>
-                <input
-                  type="number"
-                  className={inputClass()}
-                  value={form.discountPercent}
-                  onChange={(e) => setForm((f) => ({ ...f, discountPercent: Number(e.target.value) }))}
-                  min={1}
-                  max={100}
-                  required
-                />
-                <FieldHint>
-                  e.g. <span className="text-gray-400">10</span> means save 10% of the payable amount (run fee × people, or checkout total depending on payment mode).
-                </FieldHint>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Max discount cap (₹)</label>
-                <input
-                  type="number"
-                  className={inputClass()}
-                  value={form.maxDiscountAmount}
-                  onChange={(e) => setForm((f) => ({ ...f, maxDiscountAmount: Number(e.target.value) }))}
-                  min={0}
-                  required
-                />
-                <FieldHint>
-                  Caps how much ₹ can be saved. Use <span className="text-gray-400">0</span> for no cap (full percent applies). Example: 10% of ₹2000 = ₹200, but cap ₹100 → user only saves ₹100.
-                </FieldHint>
-              </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, discountType: 'percent' }))}
+                className={`rounded-lg border px-3 py-2.5 text-left transition ${
+                  form.discountType === 'percent'
+                    ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/10'
+                    : 'border-gray-700 bg-[#1D1E20] hover:border-gray-600'
+                }`}
+              >
+                <p className="text-sm font-medium text-white flex items-center gap-1.5">
+                  <Percent size={14} className="text-[#0ECCEE]" /> Percent (%)
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">e.g. 10% off the payable amount</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, discountType: 'flat' }))}
+                className={`rounded-lg border px-3 py-2.5 text-left transition ${
+                  form.discountType === 'flat'
+                    ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/10'
+                    : 'border-gray-700 bg-[#1D1E20] hover:border-gray-600'
+                }`}
+              >
+                <p className="text-sm font-medium text-white flex items-center gap-1.5">
+                  <IndianRupee size={14} className="text-[#0ECCEE]" /> Rupees off (₹)
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">e.g. flat ₹200 off</p>
+              </button>
             </div>
+
+            {form.discountType === 'flat' ? (
+              <div className="max-w-sm">
+                <label className="block text-xs text-gray-400 mb-1">Flat discount (₹)</label>
+                <input
+                  type="number"
+                  className={inputClass()}
+                  value={form.flatDiscountAmount}
+                  onChange={(e) => setForm((f) => ({ ...f, flatDiscountAmount: Number(e.target.value) }))}
+                  min={1}
+                  required
+                />
+                <FieldHint>
+                  Fixed amount off. Example: <span className="text-gray-400">200</span> means user saves ₹200 (cannot exceed payable amount).
+                </FieldHint>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Discount percent (%)</label>
+                  <input
+                    type="number"
+                    className={inputClass()}
+                    value={form.discountPercent}
+                    onChange={(e) => setForm((f) => ({ ...f, discountPercent: Number(e.target.value) }))}
+                    min={1}
+                    max={100}
+                    required
+                  />
+                  <FieldHint>
+                    e.g. <span className="text-gray-400">10</span> means save 10% of the payable amount.
+                  </FieldHint>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Max discount cap (₹)</label>
+                  <input
+                    type="number"
+                    className={inputClass()}
+                    value={form.maxDiscountAmount}
+                    onChange={(e) => setForm((f) => ({ ...f, maxDiscountAmount: Number(e.target.value) }))}
+                    min={0}
+                    required
+                  />
+                  <FieldHint>
+                    Caps how much ₹ can be saved. Use <span className="text-gray-400">0</span> for no cap.
+                  </FieldHint>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-lg border border-gray-800 bg-[#0c0d0e] p-4 space-y-2">
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
@@ -294,13 +380,24 @@ export default function CouponsPage() {
                 />
               </div>
               <p className="text-sm text-gray-300">
-                {discountPreview.percent}% of ₹{discountPreview.base.toLocaleString('en-IN')} = ₹{discountPreview.raw.toLocaleString('en-IN')}
-                {discountPreview.capped ? (
-                  <> → capped to <span className="text-[#0ECCEE]">₹{discountPreview.discount.toLocaleString('en-IN')}</span></>
+                {discountPreview.isFlat ? (
+                  <>
+                    Flat ₹{discountPreview.raw.toLocaleString('en-IN')} off ₹{discountPreview.base.toLocaleString('en-IN')}
+                    {discountPreview.capped ? ' (capped to payable)' : ''}
+                    {' '}→ save <span className="text-[#0ECCEE]">₹{discountPreview.discount.toLocaleString('en-IN')}</span>
+                    {' '}→ pay <span className="text-white font-medium">₹{discountPreview.final.toLocaleString('en-IN')}</span>
+                  </>
                 ) : (
-                  <> → save <span className="text-[#0ECCEE]">₹{discountPreview.discount.toLocaleString('en-IN')}</span></>
+                  <>
+                    {discountPreview.percent}% of ₹{discountPreview.base.toLocaleString('en-IN')} = ₹{discountPreview.raw.toLocaleString('en-IN')}
+                    {discountPreview.capped ? (
+                      <> → capped to <span className="text-[#0ECCEE]">₹{discountPreview.discount.toLocaleString('en-IN')}</span></>
+                    ) : (
+                      <> → save <span className="text-[#0ECCEE]">₹{discountPreview.discount.toLocaleString('en-IN')}</span></>
+                    )}
+                    {' '}→ pay <span className="text-white font-medium">₹{discountPreview.final.toLocaleString('en-IN')}</span>
+                  </>
                 )}
-                {' '}→ pay <span className="text-white font-medium">₹{discountPreview.final.toLocaleString('en-IN')}</span>
               </p>
             </div>
           </section>
@@ -535,10 +632,10 @@ export default function CouponsPage() {
                 </div>
                 {coupon.description ? <p className="text-xs text-gray-400 mt-1">{coupon.description}</p> : null}
                 <p className="text-xs text-gray-400 mt-1">
-                  {coupon.discountPercent}% off
-                  {Number(coupon.maxDiscountAmount) > 0
-                    ? ` (max ₹${coupon.maxDiscountAmount})`
-                    : ' (no ₹ cap)'}
+                  {coupon.discountLabel
+                    || (coupon.discountType === 'flat'
+                      ? `₹${Number(coupon.flatDiscountAmount || 0)} off`
+                      : `${coupon.discountPercent}% off${Number(coupon.maxDiscountAmount) > 0 ? ` (max ₹${coupon.maxDiscountAmount})` : ' (no ₹ cap)'}`)}
                   {' · '}
                   {coupon.peopleRuleLabel || 'Anyone (1+ people)'}
                 </p>

@@ -120,6 +120,7 @@ function ConditionalFooter() {
     location.pathname.startsWith('/qr-ticket') ||
     location.pathname.startsWith('/payment-invoice') ||
     (location.pathname.includes('/fest/') && location.pathname.includes('/register')) ||
+    location.pathname.startsWith('/events/') ||
     location.pathname.startsWith('/trek/') ||
     location.pathname.startsWith('/treks/community/') ||
     location.pathname.startsWith('/sports/run-club/') ||

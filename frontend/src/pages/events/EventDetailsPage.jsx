@@ -20,6 +20,7 @@ import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
 import { trackBookNowClick } from '../../services/analyticsService';
 import { getEventShowTiers, isEventShowTiersPricing, minEventShowFee, formatInr } from '../../utils/eventShowTiers';
+import DetailPageLoader from '../../components/DetailPageLoader';
 
 function formatEventDateTime(showTimings) {
   if (!showTimings?.length) return 'Date & time TBA';
@@ -268,14 +269,7 @@ export default function EventDetailsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4" />
-          <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading event…</h2>
-        </div>
-      </div>
-    );
+    return <DetailPageLoader />;
   }
 
   if (error || !event) {
@@ -314,8 +308,10 @@ export default function EventDetailsPage() {
     ? reg.status !== 'open'
     : !(event.registrationLink || event.bookingLink);
 
-  const cardBg = isDark ? 'bg-[#111213]' : 'bg-white';
-  const sheetBg = isDark ? 'bg-[#161718]' : 'bg-slate-100';
+  const cardBg = isDark ? 'bg-[#111213]' : 'bg-white border border-gray-100 shadow-md';
+  const sheetBg = isDark ? 'bg-[#161718]' : 'bg-white';
+  const factCard = isDark ? 'bg-[#111213]' : 'bg-white border border-gray-100 shadow-md';
+  const sectionCard = isDark ? 'bg-[#111213]' : 'bg-white border border-gray-100 shadow-md';
 
   // Prefer organizer-pasted Maps pin; fall back to Google search on venue text
   const hasVenue = Boolean(event.venue) && event.venue !== 'Venue TBA';
@@ -440,12 +436,12 @@ export default function EventDetailsPage() {
 
           {/* Quick facts */}
           <div className="mt-4 space-y-2.5">
-            <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${isDark ? 'bg-[#111213]' : 'bg-white border border-gray-200'}`}>
+            <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${factCard}`}>
               <Calendar size={18} className="text-[#0ECCEE] shrink-0" />
               <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{event.dateTime}</span>
             </div>
             {event.meetingPoints?.length > 0 ? (
-              <div className={`rounded-xl px-3 py-2.5 ${isDark ? 'bg-[#111213]' : 'bg-white border border-gray-200'}`}>
+              <div className={`rounded-xl px-3 py-2.5 ${factCard}`}>
                 <div className="flex items-center gap-2.5 mb-2">
                   <MapPin size={18} className="text-[#0ECCEE] shrink-0" />
                   <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
@@ -497,7 +493,7 @@ export default function EventDetailsPage() {
                 ) : null}
               </div>
             ) : (
-              <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${isDark ? 'bg-[#111213]' : 'bg-white border border-gray-200'}`}>
+              <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${factCard}`}>
                 <MapPin size={18} className="text-[#0ECCEE] shrink-0" />
                 {directionsUrl ? (
                   <button
@@ -516,7 +512,7 @@ export default function EventDetailsPage() {
 
           {/* About */}
           {event.about && (
-            <div className="mt-6">
+            <div className={`mt-6 rounded-2xl p-4 ${sectionCard}`}>
               <h2 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>About</h2>
               <p className={`text-sm font-medium leading-5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 {showFullAbout || !aboutLong ? event.about : `${event.about.slice(0, 180)}...`}
@@ -536,7 +532,7 @@ export default function EventDetailsPage() {
           {/* Tab box (trek-style): General Rules / Process / Prize Pool / What's Included */}
           {tabs.length > 0 && (
             <div className="mt-6">
-              <div className={`rounded-2xl p-1 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
+              <div className={`rounded-2xl p-1 mb-4 border ${isDark ? 'bg-[#111213] border-transparent' : 'bg-white border-gray-100 shadow-md'}`}>
                 <div className="flex justify-center gap-1 overflow-x-auto scrollbar-hide rounded-xl p-1">
                   {tabs.map((t) => (
                     <button
@@ -545,7 +541,7 @@ export default function EventDetailsPage() {
                       onClick={() => setActiveTab(t.key)}
                       className={`relative shrink-0 whitespace-nowrap py-2 px-4 text-xs font-semibold rounded-xl transition-all duration-200 ${
                         activeTab === t.key
-                          ? isDark ? 'bg-[#1D1E20] text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
+                          ? isDark ? 'bg-[#1D1E20] text-white shadow-sm' : 'bg-gray-50 text-gray-900 shadow-sm'
                           : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
                       }`}
                     >
@@ -558,7 +554,7 @@ export default function EventDetailsPage() {
                 </div>
               </div>
 
-              <div className={`rounded-2xl p-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
+              <div className={`rounded-2xl p-4 ${sectionCard}`}>
                 {activeTabObj?.type === 'list' ? (
                   <ul className="space-y-2">
                     {toLines(activeTabObj.content).map((item, idx) => {
@@ -615,7 +611,7 @@ export default function EventDetailsPage() {
                           className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${
                             isDark
                               ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]'
-                              : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'
+                              : 'bg-white border-gray-100 shadow-md hover:bg-gray-50'
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0 text-left">
@@ -639,7 +635,7 @@ export default function EventDetailsPage() {
                           />
                         </button>
                         {open ? (
-                          <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                          <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-md'}`}>
                             {lines.map((line, i) => (
                               <div
                                 key={i}
@@ -658,7 +654,7 @@ export default function EventDetailsPage() {
                   }
 
                   return (
-                    <div key={idx} className={`rounded-2xl p-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
+                    <div key={idx} className={`rounded-2xl p-4 ${sectionCard}`}>
                       <h3 className={`font-bold text-lg mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {r.title || `Round ${idx + 1}`}
                       </h3>
@@ -681,7 +677,7 @@ export default function EventDetailsPage() {
 
           {/* Benefits */}
           {benefitsList.length > 0 && (
-            <div className="mt-6">
+            <div className={`mt-6 rounded-2xl p-4 ${sectionCard}`}>
               <h2 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Benefits</h2>
               <ul className="space-y-1.5">
                 {benefitsList.map((item, idx) => (
@@ -928,7 +924,7 @@ export default function EventDetailsPage() {
                         ? 'border-[#0ECCEE] ring-2 ring-[#0ECCEE]/35 scale-[0.985]'
                         : isDark
                           ? 'bg-[#111213] border-white/10 hover:border-[#0ECCEE]/45'
-                          : 'bg-white border-gray-200 hover:border-[#0ECCEE]/55 shadow-sm'
+                          : 'bg-white border-gray-100 hover:border-[#0ECCEE]/55 shadow-md'
                     }`}
                   >
                     <button
