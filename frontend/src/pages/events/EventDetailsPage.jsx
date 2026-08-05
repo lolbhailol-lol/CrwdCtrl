@@ -182,10 +182,18 @@ export default function EventDetailsPage() {
   }, [tabs, activeTab]);
 
   const handleShare = async () => {
+    const shareImage =
+      getCoverImageUrl(event, 'eventPage')
+      || getCoverImageUrl(event, 'hero')
+      || getCoverImageUrl(event, 'portrait')
+      || getImageUrl(event?.image, { preset: 'eventPage' })
+      || event?.image
+      || '';
     const result = await shareContent({
       title: event?.title,
       text: event?.about?.slice(0, 120),
       url: window.location.href,
+      imageUrl: shareImage,
     });
     if (result === 'copied') toast('Event link copied to clipboard!');
   };

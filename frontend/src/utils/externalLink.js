@@ -33,7 +33,23 @@ export async function openExternalUrl(url) {
  * - Web: navigator.share when available, else copies the link to the clipboard.
  * Returns: true (shared), 'copied' (link copied as fallback), or false (nothing happened).
  */
-export async function shareContent({ title, text, url } = {}) {
+async function buildShareFileFromImageUrl(imageUrl) {
+  const src = String(imageUrl || '').trim();
+  if (!src || typeof fetch === 'undefined') return null;
+  try {
+    const res = await fetch(src, { mode: 'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const mime = blob.type || 'image/jpeg';
+    const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+    const file = new File([blob], `event-share.${ext}`, { type: mime });
+    return file;
+  } catch {
+    return null;
+  }
+}
+
+export async function shareContent({ title, text, url, imageUrl } = {}) {
   // Only touch Capacitor Share when the native bridge is actually present.
   // Checking isNativeApp() alone is not enough in some WebViews where
   // window.webkit exists but messageHandlers is undefined.
@@ -57,6 +73,15 @@ export async function shareContent({ title, text, url } = {}) {
     }
   } else if (typeof navigator !== 'undefined' && navigator.share) {
     try {
+      // Prefer sharing an actual image file when possible so apps like WhatsApp
+      // display the event poster directly instead of plain link text.
+      if (imageUrl && typeof navigator.canShare === 'function' && typeof File !== 'undefined') {
+        const imageFile = await buildShareFileFromImageUrl(imageUrl);
+        if (imageFile && navigator.canShare({ files: [imageFile] })) {
+          await navigator.share({ title, text, url, files: [imageFile] });
+          return true;
+        }
+      }
       await navigator.share({ title, text, url });
       return true;
     } catch {
