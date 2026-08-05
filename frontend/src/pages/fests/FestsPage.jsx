@@ -31,27 +31,10 @@ import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { FESTS_FAQ } from '../../constants/faqs';
 import { festPath } from '../../utils/slugRoutes';
+import { readFestsCache, writeFestsCache } from '../../utils/festsSessionCache';
 
 const FESTS_DESCRIPTION =
     'Browse and register for college fests near you — cultural, technical and sports festivals. Find upcoming and ongoing fests, competitions and events on CrwdCtrl.';
-
-const FESTS_CACHE_KEY = 'crwdctrl_fests_page_v1';
-const readFestsCache = () => {
-    try {
-        const raw = sessionStorage.getItem(FESTS_CACHE_KEY);
-        const parsed = raw ? JSON.parse(raw) : null;
-        return Array.isArray(parsed) ? parsed : null;
-    } catch {
-        return null;
-    }
-};
-const writeFestsCache = (list) => {
-    try {
-        sessionStorage.setItem(FESTS_CACHE_KEY, JSON.stringify(list));
-    } catch {
-        /* storage full / unavailable */
-    }
-};
 
 const SUBCATEGORIES = [
     { id: 'cultural',   label: 'CULTURAL', icon: CulturalIcon, path: '/cultural-fest' },
@@ -386,7 +369,7 @@ export default function FestsPage() {
                     targetPage="fests"
                     fests={fests}
                     isDark={isDark}
-                    loading={loading}
+                    loading={false}
                     isFavorite={isFavorite}
                     onToggleFavorite={onSectionFav}
                     onItemClick={onItemClick}

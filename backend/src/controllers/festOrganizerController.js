@@ -404,7 +404,7 @@ exports.deleteFest = async (req, res) => {
 // ✅ Get all fests (public) - for discovery page with enhanced caching and priority sorting
 exports.getAllFests = async (req, res) => {
     try {
-        const { page = 1, limit = 20, festType, college, search, sortBy = 'priority' } = req.query;
+        const { page = 1, limit = 200, festType, college, search, sortBy = 'priority' } = req.query;
 
         // Create cache key based on query parameters
         const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy });

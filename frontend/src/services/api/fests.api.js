@@ -15,6 +15,9 @@ export async function fetchRawPublicFests(options = {}) {
     if (options.cacheBust !== false) params.set('_cb', String(Date.now()));
     if (options.festType) params.set('festType', options.festType);
     if (options.forceRefresh) params.set('force_refresh', '1');
+    // Public discovery needs the full approved list — backend default is too low (20).
+    params.set('limit', String(options.limit || 200));
+    if (options.page) params.set('page', String(options.page));
 
     const qs = params.toString();
     const path = qs ? `/fests/all?${qs}` : '/fests/all';
@@ -29,6 +32,7 @@ export async function fetchRawPublicFests(options = {}) {
 }
 
 export async function fetchPublicFestsByType(festType, options = {}) {
-  const all = await fetchRawPublicFests(options);
-  return all.filter((fest) => fest.festType === festType && fest.status !== 'lastyearhit');
+  const list = await fetchRawPublicFests({ ...options, festType });
+  // Server filters by festType when provided; keep client filter as a safety net.
+  return list.filter((fest) => fest.festType === festType && fest.status !== 'lastyearhit');
 }

@@ -28,6 +28,8 @@ function shouldSkipPageTransition(pathname) {
         || pathname.startsWith('/stall')
         || pathname.startsWith('/s/')
         || pathname.startsWith('/run-club-organizer')
+        // Fest type pages render their own skeleton — route overlay caused a double load flash
+        || pathname.endsWith('-fest')
     );
 }
 

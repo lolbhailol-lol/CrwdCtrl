@@ -14,7 +14,9 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
-import { fetchPublicFestsByType } from '../../services/api/fests.api';
+import { fetchRawPublicFests } from '../../services/api/fests.api';
+import { readFestsCacheByType, writeFestsCache } from '../../utils/festsSessionCache';
+import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 
 const FEST_TYPE_SEO = {
     cultural: {
@@ -79,9 +81,13 @@ function StatusBadge({ status }) {
     );
 }
 
-function formatDate(date) {
+/**
+ * festDate is a free-form display string ("12-14 Feb 2025", "To Be Announced").
+ * Never parse with new Date() — that produces "Invalid Date" / wrong dates.
+ */
+function formatFestDate(date) {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return String(date).trim();
 }
 
 export default function FestTypePage({
@@ -96,17 +102,24 @@ export default function FestTypePage({
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
 
-    const [fests, setFests] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const cached = readFestsCacheByType(festType);
+    const [fests, setFests] = useState(cached || []);
+    const [loading, setLoading] = useState(!cached?.length);
     const [featuredPg, setFeaturedPg] = useState(0);
     const scrollRef = useRef(null);
+    usePageContentLoading(loading);
 
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
             try {
-                const list = await fetchPublicFestsByType(festType);
-                if (!cancelled) setFests(list);
+                // One full public list — filter client-side and warm shared cache for sibling pages
+                const all = await fetchRawPublicFests({ cacheBust: false });
+                if (cancelled) return;
+                writeFestsCache(all);
+                setFests(
+                    all.filter((fest) => fest.festType === festType && fest.status !== 'lastyearhit'),
+                );
             } catch {
                 if (!cancelled) setFests([]);
             } finally {
@@ -265,7 +278,7 @@ export default function FestTypePage({
                                                     <p className={`card-event-subtitle line-clamp-1 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{toCardText(fest.collegeName)}</p>
                                                     {fest.festDate && (
                                                         <p className={`text-xs font-medium leading-4 tracking-tight ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                            {formatDate(fest.festDate)}
+                                                            {formatFestDate(fest.festDate)}
                                                         </p>
                                                     )}
                                                 </div>

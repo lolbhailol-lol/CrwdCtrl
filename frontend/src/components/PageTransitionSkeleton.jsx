@@ -2,7 +2,6 @@ import { useDarkMode } from '../context/DarkModeContext';
 import HomeCarouselCardsSkeleton, {
     HeroBannerSkeleton,
     FestCardsRowSkeleton,
-    FestSubpageLoadingSkeleton,
     CompactPortraitCardsRowSkeleton,
     WideActivityCardsRowSkeleton,
     BookingsPageLoadingSkeleton,
@@ -258,8 +257,13 @@ export default function PageTransitionSkeleton({ pathname }) {
                     </>
                 )}
 
+                {/* *-fest pages render their own FestSubpageLoadingSkeleton — skip here to avoid double load */}
                 {variant === 'category' && pathname.endsWith('-fest') && (
-                    <FestSubpageLoadingSkeleton listedCount={2} />
+                    <div className="px-4 pt-6" aria-hidden>
+                        <div className={`h-7 w-36 rounded-lg mb-6 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-200'}`} />
+                        <div className={`h-40 w-full rounded-2xl mb-4 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-200'}`} />
+                        <div className={`h-24 w-full rounded-2xl ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-200'}`} />
+                    </div>
                 )}
 
                 {variant === 'category'
