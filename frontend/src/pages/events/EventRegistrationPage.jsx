@@ -117,6 +117,7 @@ export default function EventRegistrationPage() {
     const [done, setDone] = useState(false);
     const [paymentResumeError, setPaymentResumeError] = useState('');
     const [registrationId, setRegistrationId] = useState('');
+    const [addedToExisting, setAddedToExisting] = useState(false);
     const [couponCode, setCouponCode] = useState('');
     const [couponInfo, setCouponInfo] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
@@ -630,6 +631,7 @@ export default function EventRegistrationPage() {
         refreshNotifications?.();
         const regId = data.registrationId || data._id || data.registration?._id || data.registration?.id;
         if (regId) setRegistrationId(String(regId));
+        setAddedToExisting(Boolean(data.addedToExisting));
         void amountPaid;
         return data;
     }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, getAuthToken, driverCount, selectedTier, pricedEvent, couponCode]);
@@ -992,14 +994,25 @@ export default function EventRegistrationPage() {
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
                     <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {ticketPrice > 0
-                            ? (isOrganizerQr
-                                ? (reg.qrAutoConfirm ? '🎉 Registration Confirmed!' : '✅ Payment Proof Submitted!')
-                                : '🎉 Payment Successful!')
-                            : '🎉 Registration Confirmed!'}
+                        {addedToExisting
+                            ? '🎉 Added to Your Booking!'
+                            : ticketPrice > 0
+                                ? (isOrganizerQr
+                                    ? (reg.qrAutoConfirm ? '🎉 Registration Confirmed!' : '✅ Payment Proof Submitted!')
+                                    : '🎉 Payment Successful!')
+                                : '🎉 Registration Confirmed!'}
                     </h1>
                     <p className={`mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        You're registered for <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                        {addedToExisting ? (
+                            <>
+                                Another package was added to your existing booking for{' '}
+                                <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                            </>
+                        ) : (
+                            <>
+                                You're registered for <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                            </>
+                        )}
                     </p>
                     <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         {isOrganizerQr && ticketPrice > 0 && !reg.qrAutoConfirm

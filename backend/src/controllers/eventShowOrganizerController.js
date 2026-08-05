@@ -100,13 +100,56 @@ function formatParticipant(reg) {
         || '',
     ).trim();
     const category = resolveRegistrationCategory(reg, responses);
+    const additionalEntries = Array.isArray(reg.additionalEntries)
+        ? reg.additionalEntries.map((entry) => {
+            const entryResponses = entry?.responses && typeof entry.responses === 'object'
+                ? (entry.responses instanceof Map
+                    ? Object.fromEntries(entry.responses)
+                    : entry.responses)
+                : {};
+            return {
+                id: entry._id ? String(entry._id) : null,
+                tierId: entry.tierId || null,
+                tierName: entry.tierName || null,
+                amountPaid: Number(entry.amountPaid) || 0,
+                paymentStatus: entry.paymentStatus || 'free',
+                payment_gateway: entry.payment_gateway || null,
+                paymentScreenshotUrl: entry.paymentScreenshotUrl || '',
+                transactionId: entry.transactionId || '',
+                payment_order_id: entry.payment_order_id || null,
+                payment_id: entry.payment_id || null,
+                status: entry.status || 'pending',
+                submittedAt: entry.submittedAt || null,
+                responses: entryResponses,
+            };
+        })
+        : [];
+    const reRegistrationCount = Number(reg.reRegistrationCount) || additionalEntries.length || 0;
+    const addOnPaid = additionalEntries.reduce((sum, e) => sum + (Number(e.amountPaid) || 0), 0);
+    // amountPaid on doc is already a running total after merge; fall back to primary+addons
+    const totalAmountPaid = Number(reg.amountPaid) || 0;
+    const primaryAmount = Math.max(0, totalAmountPaid - addOnPaid);
+    const allTier = [
+        reg.tierName || null,
+        ...additionalEntries.map((e) => e.tierName).filter(Boolean),
+    ].filter(Boolean);
+    const repeatLabel = reRegistrationCount > 0
+        ? `Registered again · +${reRegistrationCount}`
+        : null;
+
     return {
         id: String(reg._id),
         status: reg.status,
         paymentStatus: reg.paymentStatus || 'free',
-        amountPaid: Number(reg.amountPaid) || 0,
+        amountPaid: totalAmountPaid,
+        totalAmountPaid,
+        primaryAmountPaid: primaryAmount,
         tierId: reg.tierId || null,
         tierName: reg.tierName || null,
+        allTier,
+        additionalEntries,
+        reRegistrationCount,
+        repeatLabel,
         checkedIn: Boolean(reg.checkedIn),
         checkedInAt: reg.checkedInAt || null,
         // Prefer form answers (leader / registrant) over account profile
@@ -877,7 +920,44 @@ exports.updateParticipantStatus = async (req, res) => {
             eventShow: req.eventShowId,
         });
         if (!reg) return res.status(404).json({ success: false, message: 'Registration not found' });
-        reg.status = status;
+
+        const entryId = req.body.entryId ? String(req.body.entryId) : '';
+        const entryIndex = req.body.entryIndex != null && req.body.entryIndex !== ''
+            ? Number(req.body.entryIndex)
+            : null;
+
+        if (entryId || (Number.isInteger(entryIndex) && entryIndex >= 0)) {
+            const entries = reg.additionalEntries || [];
+            let entry = null;
+            if (entryId) {
+                entry = entries.id(entryId) || entries.find((e) => String(e._id) === entryId);
+            } else if (entryIndex < entries.length) {
+                entry = entries[entryIndex];
+            }
+            if (!entry) {
+                return res.status(404).json({ success: false, message: 'Additional registration entry not found' });
+            }
+            entry.status = status;
+            if (status === 'approved' && entry.paymentStatus === 'pending') {
+                entry.paymentStatus = 'paid';
+            }
+            if (status === 'rejected' && entry.paymentStatus === 'pending') {
+                entry.paymentStatus = 'failed';
+            }
+            // If any add-on is still pending proof, keep primary as-is; if approving add-on and primary was pending, approve primary too
+            if (status === 'approved' && reg.status === 'pending') {
+                reg.status = 'approved';
+            }
+        } else {
+            reg.status = status;
+            if (status === 'approved' && reg.paymentStatus === 'pending') {
+                reg.paymentStatus = 'paid';
+            }
+            if (status === 'rejected' && reg.paymentStatus === 'pending') {
+                reg.paymentStatus = 'failed';
+            }
+        }
+
         await reg.save();
         const populated = await EventShowRegistration.findById(reg._id)
             .populate('user', 'name email phone')
@@ -928,6 +1008,8 @@ exports.exportParticipants = async (req, res) => {
             'email',
             'phone',
             'package',
+            'all_packages',
+            're_registration_count',
             'category',
             'join_drive',
             'blood_group',
@@ -951,6 +1033,8 @@ exports.exportParticipants = async (req, res) => {
                 p.userEmail,
                 p.userPhone,
                 p.tierName || '',
+                (p.allTier || []).join(' | '),
+                p.reRegistrationCount || 0,
                 p.categoryLabel || '',
                 p.joinDrive || '',
                 p.bloodGroup || '',

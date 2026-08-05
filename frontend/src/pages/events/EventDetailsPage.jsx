@@ -19,7 +19,7 @@ import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
 import { trackBookNowClick } from '../../services/analyticsService';
-import { getEventShowTiers, isEventShowTiersPricing, minEventShowFee, formatInr } from '../../utils/eventShowTiers';
+import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../utils/eventShowTiers';
 import DetailPageLoader from '../../components/DetailPageLoader';
 
 function formatEventDateTime(showTimings) {
@@ -27,12 +27,6 @@ function formatEventDateTime(showTimings) {
   const first = showTimings.find((s) => s.date) || showTimings[0];
   const dateStr = formatEventShowDate(showTimings);
   return first?.time ? `${dateStr} · ${first.time}` : dateStr;
-}
-
-function formatPrice(price) {
-  const n = Number(price);
-  if (!n || n <= 0) return 'Free';
-  return `₹${n.toLocaleString('en-IN')}`;
 }
 
 function mapEventDetail(raw) {
@@ -294,11 +288,6 @@ export default function EventDetailsPage() {
   const activeTabObj = tabs.find((t) => t.key === activeTab);
   const tiersPricing = isEventShowTiersPricing(event);
   const packageTiers = tiersPricing ? getEventShowTiers(event) : [];
-  const fromFee = minEventShowFee(event);
-  // Run-club style: sticky bar shows "From" + amount for tiers (ignore long priceLabel)
-  const hasPrice = tiersPricing
-    ? fromFee >= 0
-    : (Boolean(event.priceLabel) || event.ticketPrice > 0);
   const aboutLong = event.about.length > 180;
   const benefitsList = toLines(event.benefits);
   const hasRegistrationInfo = event.slots || event.registrationProcess;
@@ -828,37 +817,17 @@ export default function EventDetailsPage() {
         </div>
       </div>
 
-      {/* Sticky bottom bar: From + Register (run-club style for tiers) */}
+      {/* Sticky bottom bar — Register only */}
       <div
         className="fixed bottom-0 left-0 right-0 z-40 px-2"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
       >
-        <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
-          {hasPrice && (
-            <div className="min-w-0 shrink-0">
-              <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                {tiersPricing ? 'From' : 'Registration Fee'}
-              </p>
-              {tiersPricing ? (
-                fromFee > 0 ? (
-                  <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {formatInr(fromFee)}
-                  </p>
-                ) : (
-                  <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
-                )
-              ) : (
-                <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {event.priceLabel || formatPrice(event.ticketPrice)}
-                </p>
-              )}
-            </div>
-          )}
+        <div className={`mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
           <button
             type="button"
             onClick={handleRegister}
             disabled={registrationClosed}
-            className={`flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
+            className={`flex w-full items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
               registrationClosed
                 ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                 : 'bg-[#0ECCEE] text-black active:opacity-90'

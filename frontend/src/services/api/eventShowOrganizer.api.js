@@ -162,10 +162,13 @@ export async function fetchEventOrganizerParticipant(eventId, registrationId) {
     return eventOrganizerFetch(`/event-organizer/events/${eventId}/participants/${registrationId}`);
 }
 
-export async function updateEventOrganizerParticipantStatus(eventId, registrationId, status) {
+export async function updateEventOrganizerParticipantStatus(eventId, registrationId, status, options = {}) {
+    const body = { status };
+    if (options.entryId) body.entryId = options.entryId;
+    if (options.entryIndex != null) body.entryIndex = options.entryIndex;
     return eventOrganizerFetch(`/event-organizer/events/${eventId}/participants/${registrationId}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
     });
 }
 

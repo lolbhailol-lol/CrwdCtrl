@@ -1,5 +1,25 @@
 const mongoose = require('mongoose');
 
+/** One re-register / extra-lap purchase attached to a primary registration. */
+const additionalEntrySchema = new mongoose.Schema(
+  {
+    tierId: { type: String, default: null },
+    tierName: { type: String, default: null },
+    amountPaid: { type: Number, default: 0 },
+    paymentStatus: { type: String, enum: ['free', 'pending', 'paid', 'failed'], default: 'free' },
+    payment_gateway: { type: String, default: null },
+    paymentScreenshotUrl: { type: String, default: '' },
+    transactionId: { type: String, default: '' },
+    payment_order_id: { type: String, default: null },
+    payment_id: { type: String, default: null },
+    /** Snapshot of form answers for this submit */
+    responses: { type: mongoose.Schema.Types.Mixed, default: {} },
+    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    submittedAt: { type: Date, default: Date.now },
+  },
+  { _id: true },
+);
+
 const eventShowRegistrationSchema = new mongoose.Schema(
   {
     eventShow: { type: mongoose.Schema.Types.ObjectId, ref: 'EventShow', required: true },
@@ -12,10 +32,15 @@ const eventShowRegistrationSchema = new mongoose.Schema(
     paymentScreenshotUrl: { type: String, default: '' },
     transactionId: { type: String, default: '' },
     paymentStatus: { type: String, enum: ['free', 'pending', 'paid', 'failed'], default: 'free' },
+    /** Running total across primary + all additionalEntries */
     amountPaid: { type: Number, default: 0 },
-    /** Selected package when event uses pricingMode: tiers */
+    /** Selected package when event uses pricingMode: tiers (first registration) */
     tierId: { type: String, default: null },
     tierName: { type: String, default: null },
+    /** Later registrations (2nd, 3rd, … Nth) for the same email/user */
+    additionalEntries: { type: [additionalEntrySchema], default: [] },
+    /** Count of re-registers after the primary (= additionalEntries.length) */
+    reRegistrationCount: { type: Number, default: 0 },
     qrCodeData: { type: String, default: null },
     checkedIn: { type: Boolean, default: false },
     checkedInAt: { type: Date, default: null },
@@ -24,7 +49,7 @@ const eventShowRegistrationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Non-unique index for fast lookups (users may register multiple times)
+// Non-unique index for fast lookups (users may register multiple times — merged into one doc)
 eventShowRegistrationSchema.index({ eventShow: 1, user: 1 });
 
 const EventShowRegistration =

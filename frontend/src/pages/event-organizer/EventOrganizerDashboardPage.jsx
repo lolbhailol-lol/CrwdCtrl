@@ -319,7 +319,17 @@ export default function EventOrganizerDashboardPage() {
                                 <div className="min-w-0">
                                     <p className="font-medium truncate">{p.userName || 'Guest'}</p>
                                     <p className="text-xs text-gray-500 truncate">
-                                        {[p.categoryLabel || p.tierName, p.paymentStatus, p.status, p.transactionId ? 'txn saved' : null, p.paymentScreenshotUrl ? 'proof' : null]
+                                        {[
+                                            p.repeatLabel || null,
+                                            p.categoryLabel || p.tierName,
+                                            Array.isArray(p.allTier) && p.allTier.length > 1
+                                                ? `${p.allTier.length} packages`
+                                                : null,
+                                            p.paymentStatus,
+                                            p.status,
+                                            p.transactionId ? 'txn saved' : null,
+                                            p.paymentScreenshotUrl ? 'proof' : null,
+                                        ]
                                             .filter(Boolean)
                                             .join(' · ')}
                                     </p>

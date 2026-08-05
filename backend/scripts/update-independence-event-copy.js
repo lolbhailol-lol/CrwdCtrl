@@ -257,7 +257,7 @@ Race car Trackday packages available on request (contact)`);
         venue: 'Deccan Ring, Pune',
         pricingMode: 'tiers',
         tiers,
-        ticketPrice: 750,
+        ticketPrice: 0,
         platformFeePercent: 0,
         registration,
       },

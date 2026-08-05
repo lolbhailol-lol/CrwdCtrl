@@ -199,11 +199,15 @@ const submitEventShowRegistration = async (req, res) => {
 
     // Idempotent: a paid order must not create duplicate event registrations.
     // Scoped to this event + user so an unrelated order id can never falsely match.
+    // Also check additionalEntries for re-register Cashfree orders.
     if (payment_order_id) {
       const alreadyPaid = await EventShowRegistration.findOne({
-        payment_order_id,
         eventShow: eventShow._id,
         user: userId,
+        $or: [
+          { payment_order_id },
+          { 'additionalEntries.payment_order_id': payment_order_id },
+        ],
       });
       if (alreadyPaid) {
         return res.status(200).json({
@@ -213,6 +217,7 @@ const submitEventShowRegistration = async (req, res) => {
           registrationId: alreadyPaid._id,
           eventName: eventShow.title,
           amountPaid: alreadyPaid.amountPaid,
+          addedToExisting: Boolean(alreadyPaid.reRegistrationCount),
         });
       }
     }
@@ -223,43 +228,103 @@ const submitEventShowRegistration = async (req, res) => {
       responses.coupon_code = appliedCouponCode;
     }
 
-    const registration = new EventShowRegistration({
-      eventShow: eventShow._id,
-      user: userId,
-      responses,
-      status: registrationStatus,
-      payment_order_id,
-      payment_id,
-      payment_gateway: isOrganizerQr && totalAmount > 0
-        ? 'organizer_qr'
-        : (paymentStatus === 'paid' ? 'cashfree' : (appliedCouponCode && isOrganizerQr ? 'organizer_qr' : null)),
-      paymentStatus,
-      paymentScreenshotUrl,
-      transactionId,
-      amountPaid: totalAmount > 0 ? totalAmount : 0,
-      tierId: selectedTier?.id || null,
-      tierName: selectedTier?.name || null,
-      submittedAt: new Date(),
-    });
+    const paymentGateway = isOrganizerQr && totalAmount > 0
+      ? 'organizer_qr'
+      : (paymentStatus === 'paid' ? 'cashfree' : (appliedCouponCode && isOrganizerQr ? 'organizer_qr' : null));
+    const entryAmount = totalAmount > 0 ? totalAmount : 0;
+    const now = new Date();
 
-    await registration.save();
+    const escapeRegex = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const formEmail = String(responses.email || '').trim().toLowerCase();
+    const accountEmail = String(user?.email || '').trim().toLowerCase();
+    const matchEmail = formEmail || accountEmail;
+
+    // Find earliest primary registration for this event + same user/email
+    const orClauses = [{ user: userId }];
+    if (matchEmail) {
+      orClauses.push({ 'responses.email': new RegExp(`^${escapeRegex(matchEmail)}$`, 'i') });
+    }
+    const existing = await EventShowRegistration.findOne({
+      eventShow: eventShow._id,
+      $or: orClauses,
+    }).sort({ submittedAt: 1, createdAt: 1 });
+
+    let registration;
+    let addedToExisting = false;
+
+    if (existing) {
+      // Append as unlimited re-register (2nd, 3rd, … Nth) on the same guest row
+      existing.additionalEntries = existing.additionalEntries || [];
+      existing.additionalEntries.push({
+        tierId: selectedTier?.id || null,
+        tierName: selectedTier?.name || null,
+        amountPaid: entryAmount,
+        paymentStatus,
+        payment_gateway: paymentGateway,
+        paymentScreenshotUrl,
+        transactionId,
+        payment_order_id,
+        payment_id,
+        responses: { ...responses },
+        status: registrationStatus,
+        submittedAt: now,
+      });
+      existing.reRegistrationCount = existing.additionalEntries.length;
+      existing.amountPaid = Number(existing.amountPaid || 0) + entryAmount;
+      // Keep primary status if already approved; pending add-ons stay on the entry
+      if (existing.status !== 'approved' && registrationStatus === 'approved') {
+        existing.status = 'approved';
+      }
+      await existing.save();
+      registration = existing;
+      addedToExisting = true;
+    } else {
+      registration = new EventShowRegistration({
+        eventShow: eventShow._id,
+        user: userId,
+        responses,
+        status: registrationStatus,
+        payment_order_id,
+        payment_id,
+        payment_gateway: paymentGateway,
+        paymentStatus,
+        paymentScreenshotUrl,
+        transactionId,
+        amountPaid: entryAmount,
+        tierId: selectedTier?.id || null,
+        tierName: selectedTier?.name || null,
+        additionalEntries: [],
+        reRegistrationCount: 0,
+        submittedAt: now,
+      });
+      await registration.save();
+    }
+
     if (payment_order_id) {
       consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
     }
 
-    res.status(201).json({
+    res.status(addedToExisting ? 200 : 201).json({
       success: true,
-      message: 'Registration successful',
+      message: addedToExisting
+        ? 'Added to your existing registration'
+        : 'Registration successful',
       _id: registration._id,
       registrationId: registration._id,
       eventName: eventShow.title,
       amountPaid: registration.amountPaid,
+      addedToExisting,
+      reRegistrationCount: registration.reRegistrationCount || 0,
     });
 
     scheduleRegistrationNotification(userId, {
-      title: 'Registration Confirmed!',
-      message: `You've successfully registered for ${eventShow.title}.`,
-      body: `You've registered for ${eventShow.title}`,
+      title: addedToExisting ? 'Registration Updated!' : 'Registration Confirmed!',
+      message: addedToExisting
+        ? `Another package was added to your booking for ${eventShow.title}.`
+        : `You've successfully registered for ${eventShow.title}.`,
+      body: addedToExisting
+        ? `Extra registration added for ${eventShow.title}`
+        : `You've registered for ${eventShow.title}`,
       link: `/registration-details/${registration._id}?type=event`,
       metadata: { eventShowId: eventShow._id, registrationId: registration._id },
     });
@@ -268,7 +333,9 @@ const submitEventShowRegistration = async (req, res) => {
       try {
         if (user?.email) {
           const eventTicketLink = `/registration-details/${registration._id}?type=event`;
-          const eventPaymentStatus = registration.amountPaid > 0 ? 'paid' : 'free';
+          const eventPaymentStatus = entryAmount > 0
+            ? (paymentStatus === 'pending' ? 'pending' : 'paid')
+            : 'free';
           await sendRegistrationThankYouEmail(user.email, user.name, eventShow.title, {
             type: 'event',
             ticketLink: eventTicketLink,
@@ -282,7 +349,7 @@ const submitEventShowRegistration = async (req, res) => {
             new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
             {
               status: eventPaymentStatus,
-              method: eventPaymentStatus === 'paid' ? 'cashfree' : '',
+              method: paymentGateway || (eventPaymentStatus === 'paid' ? 'cashfree' : ''),
               type: 'event',
               ticketLink: eventTicketLink,
             },
@@ -313,11 +380,13 @@ const submitEventShowRegistration = async (req, res) => {
               {
                 eventName: eventShow.title,
                 registrationId: registration._id,
-                amountPaid: registration.amountPaid,
-                paymentId: registration.payment_id || '',
-                paymentStatus: registration.paymentStatus,
-                tierName: registration.tierName || '',
-                tierId: registration.tierId || '',
+                amountPaid: entryAmount,
+                paymentId: payment_id || '',
+                paymentStatus,
+                tierName: selectedTier?.name || '',
+                tierId: selectedTier?.id || '',
+                reRegistration: addedToExisting,
+                reRegistrationCount: registration.reRegistrationCount || 0,
               },
               {
                 name: responses.name || responses.leader_name || user?.name || '',

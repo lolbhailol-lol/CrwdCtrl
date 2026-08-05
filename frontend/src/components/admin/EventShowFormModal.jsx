@@ -522,7 +522,10 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                                 <EventRegistrationFeePicker
                                     ticketPrice={0}
                                     hideFeeInput
-                                    sampleFee={Math.min(...(form.tiers || []).map((t) => Number(t.fee) || 0).filter((n) => n > 0).concat([750]))}
+                                    sampleFee={(() => {
+                                        const paid = (form.tiers || []).map((t) => Number(t.fee) || 0).filter((n) => n > 0);
+                                        return paid.length ? Math.min(...paid) : 0;
+                                    })()}
                                     platformFeePercent={form.platformFeePercent ?? 2.5}
                                     onTicketPriceChange={() => {}}
                                     onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}

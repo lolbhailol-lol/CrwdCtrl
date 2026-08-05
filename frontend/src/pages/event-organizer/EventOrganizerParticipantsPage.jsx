@@ -91,9 +91,9 @@ export default function EventOrganizerParticipantsPage() {
         }
     };
 
-    const onStatus = async (id, nextStatus) => {
+    const onStatus = async (id, nextStatus, options = {}) => {
         try {
-            await updateEventOrganizerParticipantStatus(eventId, id, nextStatus);
+            await updateEventOrganizerParticipantStatus(eventId, id, nextStatus, options);
             toast(`Marked ${nextStatus}`);
             load();
         } catch (e) {
@@ -118,7 +118,7 @@ export default function EventOrganizerParticipantsPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-bold">Guests</h1>
-                    <p className="text-sm text-gray-500">{pagination.total} registrations</p>
+                    <p className="text-sm text-gray-500">{pagination.total} guests</p>
                 </div>
                 <button
                     type="button"
@@ -210,6 +210,11 @@ export default function EventOrganizerParticipantsPage() {
                                                 className={`shrink-0 text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`}
                                             />
                                             <p className="font-semibold truncate">{p.userName || 'Guest'}</p>
+                                            {p.reRegistrationCount > 0 ? (
+                                                <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 text-[#0ECCEE]">
+                                                    {p.repeatLabel || `Registered again · +${p.reRegistrationCount}`}
+                                                </span>
+                                            ) : null}
                                         </div>
                                         <p className="text-xs text-gray-500 truncate pl-5">
                                             {[p.userEmail, p.userPhone].filter(Boolean).join(' · ')}
@@ -218,6 +223,9 @@ export default function EventOrganizerParticipantsPage() {
                                             {[
                                                 p.categoryLabel || p.tierName,
                                                 p.tierName && p.category !== 'drive_only' ? p.tierName : null,
+                                                Array.isArray(p.allTier) && p.allTier.length > 1
+                                                    ? `${p.allTier.length} packages`
+                                                    : null,
                                                 p.paymentStatus,
                                                 p.status,
                                                 p.checkedIn ? 'checked in' : null,
@@ -350,7 +358,7 @@ export default function EventOrganizerParticipantsPage() {
                                             ) : null}
                                             {p.paymentScreenshotUrl ? (
                                                 <div className="sm:col-span-2 rounded-lg border border-gray-800 bg-[#161718] p-2.5">
-                                                    <p className="text-gray-500 mb-2">Payment proof</p>
+                                                    <p className="text-gray-500 mb-2">Payment proof (first registration)</p>
                                                     <a href={p.paymentScreenshotUrl} target="_blank" rel="noreferrer" className="block">
                                                         <img
                                                             src={p.paymentScreenshotUrl}
@@ -358,6 +366,94 @@ export default function EventOrganizerParticipantsPage() {
                                                             className="max-h-52 w-full object-contain rounded-lg border border-gray-700 bg-black/20"
                                                         />
                                                     </a>
+                                                </div>
+                                            ) : null}
+                                            {Array.isArray(p.additionalEntries) && p.additionalEntries.length > 0 ? (
+                                                <div className="sm:col-span-2 mt-2 space-y-2">
+                                                    <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                                                        Additional registrations ({p.additionalEntries.length})
+                                                    </p>
+                                                    <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                                                        {p.additionalEntries.map((entry, idx) => (
+                                                            <div
+                                                                key={entry.id || idx}
+                                                                className="rounded-lg border border-gray-800 bg-[#161718] p-3 space-y-2"
+                                                            >
+                                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                    <p className="text-xs font-semibold text-gray-200">
+                                                                        #{idx + 2} · {entry.tierName || 'Package'}
+                                                                    </p>
+                                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] border ${paymentTone(entry.paymentStatus)}`}>
+                                                                            {entry.paymentStatus || 'free'}
+                                                                        </span>
+                                                                        <span className="px-2 py-0.5 rounded-full text-[10px] border border-gray-600 text-gray-400">
+                                                                            {entry.status || 'pending'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                                                    <div className="flex justify-between gap-2">
+                                                                        <span className="text-gray-500">Amount</span>
+                                                                        <span className="text-gray-200">
+                                                                            {Number(entry.amountPaid || 0) > 0
+                                                                                ? `₹${Number(entry.amountPaid || 0).toLocaleString('en-IN')}`
+                                                                                : 'Free'}
+                                                                        </span>
+                                                                    </div>
+                                                                    {entry.transactionId ? (
+                                                                        <div className="flex justify-between gap-2">
+                                                                            <span className="text-gray-500">Txn</span>
+                                                                            <span className="text-gray-200 break-all text-right">{entry.transactionId}</span>
+                                                                        </div>
+                                                                    ) : null}
+                                                                    {entry.submittedAt ? (
+                                                                        <div className="flex justify-between gap-2 sm:col-span-2">
+                                                                            <span className="text-gray-500">Submitted</span>
+                                                                            <span className="text-gray-200 text-right">
+                                                                                {new Date(entry.submittedAt).toLocaleString('en-IN')}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : null}
+                                                                </div>
+                                                                {entry.paymentScreenshotUrl ? (
+                                                                    <a href={entry.paymentScreenshotUrl} target="_blank" rel="noreferrer" className="block">
+                                                                        <img
+                                                                            src={entry.paymentScreenshotUrl}
+                                                                            alt={`payment proof ${idx + 2}`}
+                                                                            className="max-h-40 w-full object-contain rounded-lg border border-gray-700 bg-black/20"
+                                                                        />
+                                                                    </a>
+                                                                ) : null}
+                                                                <div className="flex flex-wrap gap-2 pt-1">
+                                                                    {entry.status !== 'approved' ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => onStatus(p.id, 'approved', {
+                                                                                entryId: entry.id,
+                                                                                entryIndex: idx,
+                                                                            })}
+                                                                            className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 text-xs"
+                                                                        >
+                                                                            Approve entry
+                                                                        </button>
+                                                                    ) : null}
+                                                                    {entry.status !== 'rejected' ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => onStatus(p.id, 'rejected', {
+                                                                                entryId: entry.id,
+                                                                                entryIndex: idx,
+                                                                            })}
+                                                                            className="px-2.5 py-1 rounded-lg bg-red-500/15 text-red-300 text-xs"
+                                                                        >
+                                                                            Reject entry
+                                                                        </button>
+                                                                    ) : null}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             ) : null}
                                             {responseEntries.map(([key, value]) => (
