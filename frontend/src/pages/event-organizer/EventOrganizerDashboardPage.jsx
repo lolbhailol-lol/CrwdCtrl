@@ -184,7 +184,7 @@ export default function EventOrganizerDashboardPage() {
                     </div>
                     <div className="mt-3 rounded-xl border border-fuchsia-500/25 bg-fuchsia-500/10 px-3 py-2.5">
                         <p className="text-[10px] uppercase tracking-wide text-fuchsia-300">
-                            CrwdCtrl commission due ({qr.commissionPercent || 3}%)
+                            CrwdCtrl commission due ({qr.commissionPercent || 2.5}%)
                         </p>
                         <p className="text-xl font-bold text-fuchsia-100 mt-1">
                             ₹{Number(qr.commissionDue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}

@@ -703,7 +703,7 @@ exports.getDashboard = async (req, res) => {
 
         const qrAgg = qrStatsRows[0] || {};
         const qrPaidAgg = qrPaidAmountRows[0] || {};
-        const commissionPercent = 3;
+        const commissionPercent = 2.5;
         const commissionBase = Number(qrPaidAgg.amount) || 0;
         const commissionDue = Math.round((commissionBase * (commissionPercent / 100)) * 100) / 100;
         const qrStats = {
