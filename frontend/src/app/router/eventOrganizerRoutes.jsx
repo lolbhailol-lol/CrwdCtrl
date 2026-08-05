@@ -1,6 +1,7 @@
 import { Route } from 'react-router-dom';
 import {
     EventOrganizerLoginPage,
+    EventOrganizerSignupPage,
     EventOrganizerLayout,
     EventOrganizerProtectedRoute,
     EventOrganizerHomePage,
@@ -13,6 +14,7 @@ import {
 export const eventOrganizerRoutes = (
     <>
         <Route path="/event-organizer/login" element={<EventOrganizerLoginPage />} />
+        <Route path="/event-organizer/signup" element={<EventOrganizerSignupPage />} />
         <Route
             path="/event-organizer"
             element={

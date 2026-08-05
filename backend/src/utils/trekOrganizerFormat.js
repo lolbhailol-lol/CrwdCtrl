@@ -289,19 +289,42 @@ function escapeCsv(value) {
 function buildParticipantExportTable(rows, options = {}) {
     const formSchema = Array.isArray(options.formSchema) ? options.formSchema : [];
     const includePaymentProof = Boolean(options.includePaymentProof);
+    const requiredOnlyFormFields = Boolean(options.requiredOnlyFormFields);
+    const minimalColumns = Boolean(options.minimalColumns);
     const dynamicCols = formSchema
+        .filter((f) => (requiredOnlyFormFields ? Boolean(f?.required) : true))
         .filter((f) => f?.fieldName)
         .map((f) => ({ key: f.fieldName, label: f.label || humanizeFieldName(f.fieldName) }));
 
-    const extraKeys = new Set();
-    for (const row of rows) {
-        const form = row.formData || {};
-        for (const key of Object.keys(form)) {
-            if (!dynamicCols.some((c) => c.key === key)) extraKeys.add(key);
+    if (!requiredOnlyFormFields) {
+        const extraKeys = new Set();
+        for (const row of rows) {
+            const form = row.formData || {};
+            for (const key of Object.keys(form)) {
+                if (!dynamicCols.some((c) => c.key === key)) extraKeys.add(key);
+            }
+        }
+        for (const key of extraKeys) {
+            dynamicCols.push({ key, label: humanizeFieldName(key) });
         }
     }
-    for (const key of extraKeys) {
-        dynamicCols.push({ key, label: humanizeFieldName(key) });
+
+    if (minimalColumns) {
+        const header = [
+            'Participant Name',
+            'Email',
+            'Registration Status',
+            'QR Scan Status',
+            'Check-in Time',
+        ];
+        const body = rows.map((r) => [
+            r.participantName,
+            r.userEmail || '',
+            r.status || '',
+            r.checkInStatus || r.qrStatus || '',
+            r.checkedInAt ? new Date(r.checkedInAt).toISOString() : '',
+        ]);
+        return { header, body };
     }
 
     const header = [

@@ -47,6 +47,14 @@ function mapEventDetail(raw) {
     dateTime: formatEventDateTime(raw.showTimings),
     venue: raw.venue || raw.city || 'Venue TBA',
     mapUrl: (raw.mapUrl || '').trim(),
+    meetingPoints: Array.isArray(raw.meetingPoints)
+      ? raw.meetingPoints
+        .map((p) => ({
+          label: String(p?.label || p?.name || '').trim(),
+          mapUrl: String(p?.mapUrl || p?.url || '').trim(),
+        }))
+        .filter((p) => p.label)
+      : [],
     ticketPrice: raw.ticketPrice,
     priceLabel: raw.priceLabel || '',
     pricingMode: raw.pricingMode === 'tiers' ? 'tiers' : 'single',
@@ -80,6 +88,16 @@ function toLines(text) {
     .filter(Boolean);
 }
 
+/** Strip leading "1. " / "1) " so Terms-style UI can number cleanly */
+function toNumberedLines(text) {
+  return toLines(text).map((l) => l.replace(/^\d+[.)]\s*/, '').trim()).filter(Boolean);
+}
+
+function isTermsStyleRound(title = '') {
+  const t = String(title).toLowerCase();
+  return t.includes('safety') || t.includes('indemnity') || t.includes('terms');
+}
+
 export default function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { toast } = useDialog();
@@ -111,6 +129,7 @@ export default function EventDetailsPage() {
   const [tierSheetOpen, setTierSheetOpen] = useState(false);
   const [expandedTierId, setExpandedTierId] = useState(null);
   const [selectingTierId, setSelectingTierId] = useState(null);
+  const [openInfoRound, setOpenInfoRound] = useState({});
 
   useEffect(() => {
     let active = true;
@@ -186,7 +205,7 @@ export default function EventDetailsPage() {
 
   const handleRegister = () => {
     const r = event?.registration || {};
-    if (r.mode === 'internal_form') {
+    if (['internal_form', 'organizer_qr'].includes(r.mode)) {
       if (r.status !== 'open') {
         toast('Registration is currently closed');
         return;
@@ -196,8 +215,17 @@ export default function EventDetailsPage() {
         setShowLogin(true);
         return;
       }
+      const formFields = [
+        ...(Array.isArray(r.formSchema) ? r.formSchema : []),
+        ...((Array.isArray(r.steps) ? r.steps : []).flatMap((s) => s.fields || [])),
+      ];
+      const asksDriveFirst = formFields.some((f) =>
+        /join_drive|independence_day_drive/i.test(String(f?.fieldName || ''))
+        || /independence day drive/i.test(String(f?.label || '')),
+      );
       const tiers = isEventShowTiersPricing(event) ? getEventShowTiers(event) : [];
-      if (tiers.length) {
+      // Drive Yes/No must come before package — skip the package sheet
+      if (tiers.length && !asksDriveFirst) {
         trackBookNowClick({
           entityType: 'events',
           entityId: event?.id || '',
@@ -274,7 +302,7 @@ export default function EventDetailsPage() {
   const hasRegistrationInfo = event.slots || event.registrationProcess;
 
   const reg = event.registration || {};
-  const registrationClosed = reg.mode === 'internal_form'
+  const registrationClosed = ['internal_form', 'organizer_qr'].includes(reg.mode)
     ? reg.status !== 'open'
     : !(event.registrationLink || event.bookingLink);
 
@@ -386,7 +414,7 @@ export default function EventDetailsPage() {
           <h1 className={`text-2xl font-semibold leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {event.title}
           </h1>
-          {event.displayName && (
+          {event.displayName && event.displayName.toLowerCase() !== event.title.toLowerCase() && (
             <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
               {event.displayName}
             </p>
@@ -403,25 +431,79 @@ export default function EventDetailsPage() {
           )}
 
           {/* Quick facts */}
-          <div className="mt-5 space-y-3">
-            <div className="flex items-center gap-3">
-              <Calendar size={32} className="text-[#0ECCEE] shrink-0" />
-              <span className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-black'}`}>{event.dateTime}</span>
+          <div className="mt-4 space-y-2.5">
+            <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${isDark ? 'bg-[#111213]' : 'bg-white border border-gray-200'}`}>
+              <Calendar size={18} className="text-[#0ECCEE] shrink-0" />
+              <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{event.dateTime}</span>
             </div>
-            <div className="flex items-center gap-3">
-              <MapPin size={32} className="text-[#0ECCEE] shrink-0" />
-              {directionsUrl ? (
-                <button
-                  type="button"
-                  onClick={() => openExternalUrl(directionsUrl)}
-                  className="text-base font-medium text-left text-[#0ECCEE] underline-offset-2 hover:underline active:opacity-80"
-                >
-                  {event.venue}
-                </button>
-              ) : (
-                <span className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-black'}`}>{event.venue}</span>
-              )}
-            </div>
+            {event.meetingPoints?.length > 0 ? (
+              <div className={`rounded-xl px-3 py-2.5 ${isDark ? 'bg-[#111213]' : 'bg-white border border-gray-200'}`}>
+                <div className="flex items-center gap-2.5 mb-2">
+                  <MapPin size={18} className="text-[#0ECCEE] shrink-0" />
+                  <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                    Meeting points
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  {event.meetingPoints.map((point, idx) => {
+                    const canOpen = Boolean(point.mapUrl);
+                    const RowTag = canOpen ? 'button' : 'div';
+                    return (
+                      <RowTag
+                        key={`${point.label}-${idx}`}
+                        type={canOpen ? 'button' : undefined}
+                        onClick={canOpen ? () => openExternalUrl(point.mapUrl) : undefined}
+                        className={`w-full flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left ${
+                          isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+                        } ${canOpen ? 'cursor-pointer' : ''}`}
+                      >
+                        <p className={`min-w-0 flex-1 truncate text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                          <span className={`mr-1.5 font-semibold ${isDark ? 'text-[#0ECCEE]' : 'text-cyan-700'}`}>{idx + 1}.</span>
+                          {point.label}
+                        </p>
+                        {canOpen ? (
+                          <span className="shrink-0 text-[11px] font-semibold text-[#0ECCEE]">
+                            Open map
+                          </span>
+                        ) : null}
+                      </RowTag>
+                    );
+                  })}
+                </div>
+
+                {event.venue && event.venue !== 'Venue TBA' ? (
+                  <div className={`flex items-start gap-2.5 pt-2 mt-1 border-t ${isDark ? 'border-white/10 text-gray-400' : 'border-gray-200 text-gray-600'}`}>
+                    <MapPin size={14} className="shrink-0 mt-0.5 opacity-70" />
+                    {directionsUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => openExternalUrl(directionsUrl)}
+                        className="text-xs font-medium text-left underline-offset-2 hover:underline hover:text-[#0ECCEE]"
+                      >
+                        Venue: {event.venue}
+                      </button>
+                    ) : (
+                      <span className="text-xs font-medium">Venue: {event.venue}</span>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${isDark ? 'bg-[#111213]' : 'bg-white border border-gray-200'}`}>
+                <MapPin size={18} className="text-[#0ECCEE] shrink-0" />
+                {directionsUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => openExternalUrl(directionsUrl)}
+                    className="text-sm font-medium text-left text-[#0ECCEE] underline-offset-2 hover:underline active:opacity-80"
+                  >
+                    {event.venue}
+                  </button>
+                ) : (
+                  <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{event.venue}</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* About */}
@@ -502,31 +584,89 @@ export default function EventDetailsPage() {
             </div>
           )}
 
-          {/* Competition Rounds — separate box per round */}
+          {/* Competition Rounds — Terms-style for safety / indemnity; cards for others */}
           {event.rounds.length > 0 && (
             <div className="mt-6">
               <h2 className={`text-lg font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {event.rounds.length > 1 ? 'Competition Rounds' : 'Rounds'}
+                {event.rounds.some((r) => isTermsStyleRound(r.title))
+                  ? 'Important information'
+                  : (event.rounds.length > 1 ? 'Competition Rounds' : 'Rounds')}
               </h2>
 
               <div className="space-y-3">
-                {event.rounds.map((r, idx) => (
-                  <div key={idx} className={`rounded-2xl p-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
-                    <h3 className={`font-bold text-lg mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {r.title || `Round ${idx + 1}`}
-                    </h3>
-                    {r.content && (
-                      <ul className="space-y-2">
-                        {toLines(r.content).map((item, i) => (
-                          <li key={i} className={`flex items-start gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                            <span className="mt-1.5 size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
+                {event.rounds.map((r, idx) => {
+                  const termsStyle = isTermsStyleRound(r.title);
+                  const lines = termsStyle ? toNumberedLines(r.content) : toLines(r.content);
+                  const open = Boolean(openInfoRound[idx]);
+                  if (termsStyle) {
+                    return (
+                      <div key={idx}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenInfoRound((prev) => ({ ...prev, [idx]: !prev[idx] }))}
+                          className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${
+                            isDark
+                              ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]'
+                              : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 text-left">
+                            <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-amber-50'}`}>
+                              <span className={`text-sm font-bold ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>
+                                {idx + 1}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className={`text-sm font-semibold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                                {r.title || `Section ${idx + 1}`}
+                              </p>
+                              <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {lines.length} points — tap to {open ? 'collapse' : 'read'}
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight
+                            size={16}
+                            className={`transition-transform duration-200 shrink-0 ${open ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                          />
+                        </button>
+                        {open ? (
+                          <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                            {lines.map((line, i) => (
+                              <div
+                                key={i}
+                                className={`flex gap-3 px-4 py-3 ${i < lines.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}
+                              >
+                                <span className={`text-xs font-bold mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20] text-amber-300' : 'bg-amber-50 text-amber-600'}`}>
+                                  {i + 1}
+                                </span>
+                                <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{line}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={idx} className={`rounded-2xl p-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
+                      <h3 className={`font-bold text-lg mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {r.title || `Round ${idx + 1}`}
+                      </h3>
+                      {r.content && (
+                        <ul className="space-y-2">
+                          {lines.map((item, i) => (
+                            <li key={i} className={`flex items-start gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              <span className="mt-1.5 size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -18,15 +18,20 @@ import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { eventShowPath } from '../../utils/slugRoutes';
 import {
     getEventShowTiers,
-    isEventShowTiersPricing,
     findEventShowTier,
     resolveEventShowFee,
+    resolveTierParticipantCount,
     formatInr,
 } from '../../utils/eventShowTiers';
 
 const API = API_BASE_URL;
 
 const FILE_TYPES = ['file', 'image'];
+const BLOOD_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Prefer not to say'];
+const DRIVE_FIELD_NAMES = new Set(['join_drive', 'join_independence_day_drive', 'independence_day_drive']);
+const DRIVE_ONLY_OPTION = 'Drive only (Free)';
+const DRIVE_AND_TRACKDAY_OPTION = 'Drive + Trackday';
+const TRACKDAY_ONLY_OPTION = 'Trackday only';
 
 function draftKey(eventId) {
     return `event_reg_draft_${eventId}`;
@@ -40,6 +45,33 @@ function getInitialEventRegistrationUi(eventId, search) {
     return { paying: false, step: 0 };
 }
 
+function isDriveOnlyTier(tier) {
+    if (!tier) return false;
+    if (String(tier.id || '') === 'tier_drive_only') return true;
+    const blob = `${tier.name || ''} ${tier.description || ''}`.toLowerCase();
+    return /drive only|no trackday/.test(blob);
+}
+
+function normalizeDriveChoice(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return '';
+    if (/drive only/i.test(v) || (/^yes/i.test(v) && /free/i.test(v) && !/trackday/i.test(v))) {
+        return DRIVE_ONLY_OPTION;
+    }
+    if (/drive\s*\+\s*trackday|both/i.test(v)) return DRIVE_AND_TRACKDAY_OPTION;
+    if (/trackday only|^no/i.test(v)) return TRACKDAY_ONLY_OPTION;
+    if (/^yes/i.test(v)) return DRIVE_AND_TRACKDAY_OPTION;
+    return v;
+}
+
+function isDriveOnlyChoice(choice) {
+    return normalizeDriveChoice(choice) === DRIVE_ONLY_OPTION;
+}
+
+function isTrackdayOnlyChoice(choice) {
+    return normalizeDriveChoice(choice) === TRACKDAY_ONLY_OPTION;
+}
+
 function pickCustomer(values) {
     const find = (keys) => {
         for (const k of Object.keys(values)) {
@@ -51,9 +83,9 @@ function pickCustomer(values) {
         return '';
     };
     return {
-        name: find(['name']),
-        email: find(['email', 'e_mail']),
-        phone: find(['phone', 'contact', 'mobile']),
+        name: String(values.name || values.leader_name || find(['name']) || '').trim(),
+        email: String(values.email || find(['email', 'e_mail']) || '').trim(),
+        phone: String(values.phone || find(['phone', 'contact', 'mobile']) || '').trim(),
     };
 }
 
@@ -90,6 +122,9 @@ export default function EventRegistrationPage() {
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
+    const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
+    const [transactionId, setTransactionId] = useState('');
+    const [uploadingProof, setUploadingProof] = useState(false);
     const [selectedTierId, setSelectedTierId] = useState(() => {
         try {
             return new URLSearchParams(window.location.search).get('tier') || location.state?.tierId || '';
@@ -146,18 +181,64 @@ export default function EventRegistrationPage() {
     }, [event, navigate, location.state]);
 
     const reg = event?.registration || {};
-    const tiersMode = isEventShowTiersPricing(event);
-    const packages = useMemo(() => (event ? getEventShowTiers(event) : []), [event]);
-    const selectedTier = findEventShowTier(event, selectedTierId);
-    const priced = resolveEventShowFee(event, selectedTierId);
+    const isOrganizerQr = reg.mode === 'organizer_qr';
+    const packages = useMemo(() => {
+        if (!event) return [];
+        // Prefer explicit tiers mode; also accept docs that have tiers[] even if mode was lost in client state
+        if (event.pricingMode === 'tiers' || (Array.isArray(event.tiers) && event.tiers.length > 0)) {
+            return getEventShowTiers({ ...event, pricingMode: 'tiers' });
+        }
+        return [];
+    }, [event]);
+    const tiersMode = packages.length > 0;
+    const pricedEvent = useMemo(
+        () => (tiersMode ? { ...event, pricingMode: 'tiers', tiers: event?.tiers || packages } : event),
+        [event, tiersMode, packages],
+    );
+    const selectedTier = findEventShowTier(pricedEvent, selectedTierId);
+    const driverCount = resolveTierParticipantCount(selectedTier);
+    const priced = resolveEventShowFee(pricedEvent, selectedTierId);
     const ticketPrice = priced.fee;
-    const platformFeePercent = resolveTrekPlatformFeePercent(event?.platformFeePercent, 2.5);
+    const platformFeePercent = isOrganizerQr ? 0 : resolveTrekPlatformFeePercent(event?.platformFeePercent, 2.5);
     const breakdown = useMemo(
         () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
         [ticketPrice, platformFeePercent],
     );
-    const payableAmount = couponInfo?.amountAfterDiscount ?? breakdown.totalAmount;
+    const payableAmount = isOrganizerQr
+        ? breakdown.totalAmount
+        : (couponInfo?.amountAfterDiscount ?? breakdown.totalAmount);
     const title = event?.displayName || event?.title || 'Event';
+    const joinDriveRaw = String(
+        values.join_drive || values.join_independence_day_drive || values.independence_day_drive || '',
+    ).trim();
+    const driveChoice = normalizeDriveChoice(joinDriveRaw);
+    const driveOnlyPath = isDriveOnlyChoice(driveChoice);
+    const skippingDrive = isTrackdayOnlyChoice(driveChoice);
+    const driveOnlyTier = useMemo(
+        () => packages.find((t) => isDriveOnlyTier(t)) || null,
+        [packages],
+    );
+
+    const visiblePackages = useMemo(() => {
+        // Drive-only path skips package picker; otherwise hide free drive-only tier
+        return packages.filter((tier) => !isDriveOnlyTier(tier));
+    }, [packages]);
+
+    // Auto-select free Drive-only package so user can skip Trackday and register free
+    useEffect(() => {
+        if (!driveOnlyPath || !driveOnlyTier) return;
+        if (selectedTierId !== driveOnlyTier.id) {
+            setSelectedTierId(driveOnlyTier.id);
+        }
+    }, [driveOnlyPath, driveOnlyTier, selectedTierId]);
+
+    // If they leave Drive-only path, clear a free drive tier so they must pick Trackday
+    useEffect(() => {
+        if (driveOnlyPath) return;
+        if (selectedTierId && isDriveOnlyTier(selectedTier)) {
+            setSelectedTierId('');
+        }
+    }, [driveOnlyPath, selectedTierId, selectedTier]);
 
     useBookingSuccessPopup(done, {
         name: title,
@@ -167,7 +248,7 @@ export default function EventRegistrationPage() {
     });
 
     const formSteps = useMemo(() => {
-        const detailSteps = (() => {
+        const configuredSteps = (() => {
             if (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0) {
                 return reg.steps.map((s, i) => ({
                     title: s.stepTitle || `Step ${i + 1}`,
@@ -176,37 +257,123 @@ export default function EventRegistrationPage() {
                 }));
             }
             const fields = (reg.formSchema || []).filter((f) => f.label && f.fieldName);
-            return [{ title: 'Your Details', description: '', fields }];
+            return fields.length ? [{ title: 'Your Details', description: '', fields }] : [];
         })();
-        // Package is chosen on the event detail sheet (run-club style).
-        // Only show an in-flow picker if the user landed here without a valid ?tier=.
-        const needsPackagePick = tiersMode && !findEventShowTier(event, selectedTierId);
-        if (needsPackagePick) {
-            return [{ title: 'Choose Package', packageSelect: true, fields: [] }, ...detailSteps];
-        }
-        return detailSteps;
-    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, event, selectedTierId]);
 
-    // Sync tier from query; default only if somehow missing (fallback picker)
+        const driveFields = [];
+        const detailFields = [];
+        configuredSteps.forEach((s) => {
+            (s.fields || []).forEach((f) => {
+                if (DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))) driveFields.push(f);
+                else detailFields.push(f);
+            });
+        });
+
+        const steps = [];
+        if (driveFields.length) {
+            steps.push({
+                title: 'What are you joining?',
+                description: 'Independence Day Drive is free. Pick Drive only to skip Trackday and register instantly, or add a Trackday package.',
+                fields: driveFields.map((f) => {
+                    if (!DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))) return f;
+                    return {
+                        ...f,
+                        label: 'Choose your registration',
+                        options: [DRIVE_ONLY_OPTION, DRIVE_AND_TRACKDAY_OPTION, TRACKDAY_ONLY_OPTION],
+                    };
+                }),
+            });
+        }
+
+        // Trackday packages only when they want Trackday (skip entirely for Drive-only free path)
+        if (tiersMode && !driveOnlyPath) {
+            steps.push({
+                title: 'Trackday package',
+                description: skippingDrive
+                    ? 'Select a Trackday package.'
+                    : 'Select your Trackday package (Drive is already included free).',
+                packageSelect: true,
+                fields: [],
+            });
+        }
+
+        const count = Math.max(1, driverCount || 1);
+        const isGroupPackage = count > 1 && !driveOnlyPath;
+        // Group packages: only the registering leader fills details (no per-driver forms)
+
+        const labeledDetailFields = (detailFields.length
+            ? detailFields
+            : [
+                { id: 'f_name', label: 'Full Name', fieldName: 'name', type: 'text', required: true, placeholder: 'Your full name', options: [] },
+                { id: 'f_email', label: 'Email', fieldName: 'email', type: 'email', required: true, placeholder: 'you@email.com', options: [] },
+                { id: 'f_phone', label: 'Phone', fieldName: 'phone', type: 'tel', required: true, placeholder: '10-digit mobile', options: [] },
+                { id: 'f_blood', label: 'Blood Group', fieldName: 'blood_group', type: 'select', required: true, placeholder: '', options: BLOOD_OPTIONS },
+                { id: 'f_vehicle', label: 'Vehicle details', fieldName: 'vehicle_details', type: 'text', required: false, placeholder: 'Make / model (optional)', options: [] },
+            ]
+        ).map((f) => {
+            const key = String(f.fieldName || '').toLowerCase();
+            // Drive-only: make blood group optional (convoy, not track)
+            if (driveOnlyPath && key === 'blood_group') {
+                return { ...f, required: false };
+            }
+            if (isGroupPackage && (key === 'name' || key === 'full_name' || key === 'leader_name')) {
+                return {
+                    ...f,
+                    fieldName: key === 'leader_name' ? f.fieldName : 'name',
+                    label: 'Leader name',
+                    placeholder: f.placeholder || 'Team leader full name',
+                };
+            }
+            return f;
+        });
+
+        steps.push({
+            title: driveOnlyPath ? 'Your details' : (isGroupPackage ? 'Leader details' : 'Your Details'),
+            description: driveOnlyPath
+                ? 'Free Independence Day Drive registration — no Trackday fee.'
+                : (isGroupPackage
+                    ? `Group package for ${count} drivers — only the registering leader’s details are needed.`
+                    : ''),
+            fields: labeledDetailFields,
+        });
+
+        return steps;
+    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, skippingDrive]);
+
+    // Sync tier from query; clear drive-only if they answered No
     useEffect(() => {
         if (!event || !tiersMode) return;
         try {
             const fromQuery = new URLSearchParams(window.location.search).get('tier') || '';
-            if (fromQuery && findEventShowTier(event, fromQuery) && fromQuery !== selectedTierId) {
+            if (fromQuery && findEventShowTier(pricedEvent, fromQuery) && fromQuery !== selectedTierId) {
                 setSelectedTierId(fromQuery);
                 return;
             }
         } catch { /* ignore */ }
-        if (selectedTierId && findEventShowTier(event, selectedTierId)) return;
-        // Do not auto-pick — keep Choose Package step as fallback
-    }, [event, tiersMode, selectedTierId]);
+        if (selectedTierId && findEventShowTier(pricedEvent, selectedTierId)) {
+            if (skippingDrive && isDriveOnlyTier(selectedTier)) {
+                setSelectedTierId('');
+            }
+            return;
+        }
+    }, [event, tiersMode, selectedTierId, skippingDrive, selectedTier, pricedEvent]);
 
     useEffect(() => {
         setCouponInfo(null);
     }, [selectedTierId]);
 
-    const allSteps = useMemo(() => [...formSteps, { title: 'Confirm & Pay', payment: true }], [formSteps]);
+    const allSteps = useMemo(
+        () => [...formSteps, {
+            title: ticketPrice > 0 ? 'Confirm & Pay' : 'Confirm registration',
+            payment: true,
+        }],
+        [formSteps, ticketPrice],
+    );
     const allFields = useMemo(() => formSteps.flatMap((s) => s.fields || []), [formSteps]);
+
+    useEffect(() => {
+        if (step > allSteps.length - 1) setStep(Math.max(0, allSteps.length - 1));
+    }, [allSteps.length, step]);
 
     // Prefill name / email / phone from logged-in user (incl. Google sign-in)
     useEffect(() => {
@@ -225,13 +392,16 @@ export default function EventRegistrationPage() {
                 const current = String(next[key] ?? '').trim();
                 if (current) return;
 
-                const isNameField = (name === 'name' || name === 'full_name' || name.endsWith('_name') || name.includes('full_name'))
+                const isNameField = (name === 'name' || name === 'full_name' || name === 'leader_name' || name.endsWith('_name') || name.includes('full_name'))
                     && !name.includes('user')
                     && !name.includes('org')
                     && !name.includes('college')
-                    && !name.includes('team');
+                    && !name.includes('team')
+                    && !/^driver_[2-9]_name$/.test(name)
+                    && !/^driver_1[0-9]_name$/.test(name);
                 const isEmailField = name === 'email' || name.includes('email') || name.includes('e_mail');
                 const isPhoneField = name === 'phone' || name.includes('phone') || name.includes('mobile') || name.includes('contact_no') || name.includes('whatsapp');
+                if (isPhoneField && /^driver_[2-9]_phone$/.test(name)) return;
 
                 if (isNameField && userName) {
                     next[key] = userName;
@@ -350,11 +520,19 @@ export default function EventRegistrationPage() {
         const s = allSteps[idx];
         if (!s || s.payment) return true;
         if (s.packageSelect) {
-            if (tiersMode && !findEventShowTier(event, selectedTierId)) {
-                setError('Please select a registration package.');
+            if (tiersMode && !findEventShowTier(pricedEvent, selectedTierId)) {
+                setError('Please select a Trackday package.');
+                return false;
+            }
+            if (isDriveOnlyTier(selectedTier)) {
+                setError('Please select a Trackday package.');
                 return false;
             }
             return true;
+        }
+        // Drive-only path must have free package selected (auto-set)
+        if (driveOnlyPath && !findEventShowTier(pricedEvent, selectedTierId)) {
+            if (driveOnlyTier?.id) setSelectedTierId(driveOnlyTier.id);
         }
         const missing = s.fields.filter((f) => {
             if (!f.required) return false;
@@ -379,12 +557,41 @@ export default function EventRegistrationPage() {
         amountPaid,
         valuesOverride,
         filesOverride,
+        tierIdOverride,
     } = {}) => {
         const token = getAuthToken();
         if (!token) { setShowLogin(true); throw new Error('Please log in to register.'); }
 
-        const submissionValues = valuesOverride ?? values;
+        const submissionValues = { ...(valuesOverride ?? values) };
         const submissionFiles = filesOverride ?? files;
+        const tierIdToUse = tierIdOverride || selectedTierId;
+        const tierToUse = findEventShowTier(pricedEvent, tierIdToUse) || selectedTier;
+
+        // Normalize drive answer for storage / dashboard
+        const driveRaw = String(
+            submissionValues.join_drive
+            || submissionValues.join_independence_day_drive
+            || submissionValues.independence_day_drive
+            || '',
+        ).trim();
+        const choice = normalizeDriveChoice(driveRaw);
+        if (choice === DRIVE_ONLY_OPTION || choice === DRIVE_AND_TRACKDAY_OPTION) {
+            submissionValues.join_drive = 'Yes';
+            submissionValues.registration_type = choice === DRIVE_ONLY_OPTION ? 'drive_only' : 'drive_and_trackday';
+        } else if (choice === TRACKDAY_ONLY_OPTION) {
+            submissionValues.join_drive = 'No';
+            submissionValues.registration_type = 'trackday_only';
+        } else if (driveRaw) {
+            submissionValues.join_drive = driveRaw;
+        }
+
+        if (driverCount > 1 && !isDriveOnlyTier(tierToUse)) {
+            submissionValues.driver_count = String(driverCount);
+            submissionValues.leader_name = submissionValues.name || submissionValues.leader_name || '';
+        }
+        if (tierToUse?.name) {
+            submissionValues.package_name = tierToUse.name;
+        }
 
         const fd = new FormData();
         const textResponses = {};
@@ -397,10 +604,18 @@ export default function EventRegistrationPage() {
                 textResponses[f.fieldName] = submissionValues[f.fieldName];
             }
         });
+        ['name', 'email', 'phone', 'blood_group', 'vehicle_details', 'join_drive', 'driver_count', 'leader_name', 'package_name', 'registration_type', 'payment_screenshot_url', 'transaction_id'].forEach((key) => {
+            if (submissionValues[key] !== undefined && textResponses[key] === undefined) {
+                textResponses[key] = submissionValues[key];
+            }
+        });
+
         fd.append('responses', JSON.stringify(textResponses));
         if (paymentOrderId) fd.append('payment_order_id', paymentOrderId);
         if (paymentId) fd.append('payment_id', paymentId);
-        if (selectedTierId) fd.append('tierId', selectedTierId);
+        if (tierIdToUse) fd.append('tierId', tierIdToUse);
+        if (submissionValues.payment_screenshot_url) fd.append('paymentScreenshotUrl', String(submissionValues.payment_screenshot_url));
+        if (submissionValues.transaction_id) fd.append('transactionId', String(submissionValues.transaction_id));
 
         const res = await fetch(`${API}/registrations/events/${eventId}/custom`, {
             method: 'POST',
@@ -415,7 +630,7 @@ export default function EventRegistrationPage() {
         if (regId) setRegistrationId(String(regId));
         void amountPaid;
         return data;
-    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, getAuthToken]);
+    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, getAuthToken, driverCount, selectedTier, pricedEvent]);
 
     // Resume after Cashfree redirect
     useEffect(() => {
@@ -493,11 +708,55 @@ export default function EventRegistrationPage() {
         setError('');
         if (!isAuthed()) { setShowLogin(true); setError('Please log in to register.'); return; }
 
-        // free event — submit directly
-        if (ticketPrice <= 0) {
+        const showId = event?._id || event?.id || eventId;
+
+        if (tiersMode && !findEventShowTier(pricedEvent, selectedTierId)) {
+            if (driveOnlyPath && driveOnlyTier?.id) {
+                setSelectedTierId(driveOnlyTier.id);
+            } else {
+                setError(driveOnlyPath ? 'Drive-only package is missing. Please refresh.' : 'Please select a Trackday package.');
+                const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
+                if (pkgIdx >= 0) setStep(pkgIdx);
+                return;
+            }
+        }
+
+        // Drive-only / free package — submit directly (no Cashfree)
+        const feeNow = Math.max(0, Number(resolveEventShowFee(pricedEvent, selectedTierId || driveOnlyTier?.id).fee) || 0);
+        if (feeNow <= 0 || driveOnlyPath) {
             setPaying(true);
             try {
-                await submitRegistration({ amountPaid: 0 });
+                const tierForSubmit = selectedTierId || driveOnlyTier?.id || '';
+                if (tierForSubmit && tierForSubmit !== selectedTierId) setSelectedTierId(tierForSubmit);
+                await submitRegistration({ amountPaid: 0, tierIdOverride: tierForSubmit });
+                setDone(true);
+            } catch (e) {
+                setError(e.message || 'Registration failed');
+            } finally {
+                setPaying(false);
+            }
+            return;
+        }
+
+        if (isOrganizerQr) {
+            if (!paymentScreenshotUrl) {
+                setError('Please upload your payment screenshot.');
+                return;
+            }
+            if (String(transactionId || '').trim().length < 4) {
+                setError('Please enter your UPI / transaction ID (at least 4 characters).');
+                return;
+            }
+            setPaying(true);
+            try {
+                await submitRegistration({
+                    amountPaid: feeNow,
+                    valuesOverride: {
+                        ...values,
+                        payment_screenshot_url: paymentScreenshotUrl,
+                        transaction_id: transactionId.trim(),
+                    },
+                });
                 setDone(true);
             } catch (e) {
                 setError(e.message || 'Registration failed');
@@ -520,21 +779,36 @@ export default function EventRegistrationPage() {
                 setPaying(false);
                 return;
             }
+            const showIdStr = String(showId || '').trim();
             const orderRes = await fetch(`${API}/payment/order`, {
                 method: 'POST',
                 headers: getBearerAuthHeaders(token),
                 body: JSON.stringify({
-                    eventShowId: eventId,
-                    tierId: selectedTierId || undefined,
-                    customerName: customer.name,
-                    customerEmail: customer.email,
-                    customerPhone: customer.phone,
+                    eventShowId: showIdStr,
+                    tierId: String(selectedTierId || '').trim() || undefined,
+                    customerName: customer.name || user?.name || 'Customer',
+                    customerEmail: customer.email || user?.email || '',
+                    customerPhone: customer.phone || user?.phone || user?.phoneNumber || '',
                     couponCode: couponCode.trim() || undefined,
                 }),
             });
-            const order = await orderRes.json();
+            const order = await orderRes.json().catch(() => ({}));
+
+            // Backend may report free package even if UI thought it was paid
+            if (order?.free || /does not require payment/i.test(order?.message || '')) {
+                await submitRegistration({ amountPaid: 0 });
+                setDone(true);
+                setPaying(false);
+                return;
+            }
+
             if (!orderRes.ok || !order.paymentSessionId) {
-                setError(order.message || 'Failed to create payment order.');
+                const msg = order.message || order.error || `Payment failed (${orderRes.status})`;
+                if (/select a registration tier|invalid registration tier|package/i.test(msg)) {
+                    const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
+                    if (pkgIdx >= 0) setStep(pkgIdx);
+                }
+                setError(msg);
                 setPaying(false);
                 return;
             }
@@ -590,8 +864,40 @@ export default function EventRegistrationPage() {
         }
     };
 
+    const uploadPaymentProof = async (file) => {
+        if (!file) return;
+        setUploadingProof(true);
+        setError('');
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                setShowLogin(true);
+                throw new Error('Please log in to upload payment screenshot.');
+            }
+            const fd = new FormData();
+            fd.append('image', file);
+            const uploadRes = await fetch(`${API}/users/upload/image`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: fd,
+            });
+            const data = await uploadRes.json().catch(() => ({}));
+            if (!uploadRes.ok) throw new Error(data.message || 'Upload failed');
+            setPaymentScreenshotUrl(data.url || '');
+        } catch (e) {
+            setError(e.message || 'Could not upload screenshot');
+        } finally {
+            setUploadingProof(false);
+        }
+    };
+
     const applyCoupon = async () => {
         setCouponError('');
+        if (isOrganizerQr) {
+            setCouponInfo(null);
+            setCouponError('Coupon is not supported in QR payment mode.');
+            return;
+        }
         const code = couponCode.trim();
         if (!code) {
             setCouponInfo(null);
@@ -671,7 +977,7 @@ export default function EventRegistrationPage() {
         );
     }
 
-    if (reg.status !== 'open' || reg.mode !== 'internal_form') {
+    if (reg.status !== 'open' || !['internal_form', 'organizer_qr'].includes(reg.mode)) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Registration is not open for this event.</p>
@@ -686,13 +992,19 @@ export default function EventRegistrationPage() {
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
                     <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {ticketPrice > 0 ? '🎉 Payment Successful!' : '🎉 Registration Confirmed!'}
+                        {ticketPrice > 0
+                            ? (isOrganizerQr
+                                ? (reg.qrAutoConfirm ? '🎉 Registration Confirmed!' : '✅ Payment Proof Submitted!')
+                                : '🎉 Payment Successful!')
+                            : '🎉 Registration Confirmed!'}
                     </h1>
                     <p className={`mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         You're registered for <span className="text-[#0ECCEE] font-semibold">{title}</span>.
                     </p>
                     <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        Download your ticket or view all bookings whenever you&apos;re ready.
+                        {isOrganizerQr && ticketPrice > 0 && !reg.qrAutoConfirm
+                            ? 'Your registration is pending organizer approval. You can track status in My Bookings.'
+                            : 'Download your ticket or view all bookings whenever you&apos;re ready.'}
                     </p>
                     <div className="flex flex-col gap-3">
                         {registrationId && (
@@ -799,15 +1111,28 @@ export default function EventRegistrationPage() {
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => navigate(eventShowPath(event))}
+                                        onClick={() => {
+                                            const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
+                                            if (pkgIdx >= 0) setStep(pkgIdx);
+                                            else if (driveOnlyPath) {
+                                                const driveIdx = allSteps.findIndex((s) =>
+                                                    (s.fields || []).some((f) => DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))),
+                                                );
+                                                if (driveIdx >= 0) setStep(driveIdx);
+                                            } else {
+                                                navigate(eventShowPath(event));
+                                            }
+                                        }}
                                         className="text-[11px] font-semibold text-[#0ECCEE] shrink-0"
                                     >
                                         Change
                                     </button>
                                 </div>
                                 <div className={`flex justify-between text-sm py-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>People</span>
-                                    <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>1 person</span>
+                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Drivers</span>
+                                    <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                        {driverCount} {driverCount === 1 ? 'driver' : 'drivers'}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Package fee</span>
@@ -839,46 +1164,97 @@ export default function EventRegistrationPage() {
                     {!isPaymentStep && current?.packageSelect && (
                         <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                             <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                Pick a Trackday participant package
-                                {platformFeePercent > 0 ? '. Platform fee is added at checkout.' : '.'}
+                                {skippingDrive
+                                    ? 'Select a Trackday package.'
+                                    : 'Select your Trackday package. Independence Day Drive is included free.'}
+                                {platformFeePercent > 0 ? ' Platform fee is added at checkout.' : ''}
                             </p>
-                            <div className="space-y-2">
-                                {packages.map((tier) => {
-                                    const selected = selectedTierId === tier.id;
-                                    return (
-                                        <button
-                                            key={tier.id}
-                                            type="button"
-                                            onClick={() => setSelectedTierId(tier.id)}
-                                            className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
-                                                selected
-                                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
-                                                    : isDark
-                                                        ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
-                                                        : 'border-gray-200 bg-white hover:border-gray-300'
-                                            }`}
-                                        >
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="min-w-0">
-                                                    {tier.description ? (
-                                                        <p className={`text-[11px] font-semibold uppercase tracking-wide ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                            {tier.description}
-                                                        </p>
-                                                    ) : null}
-                                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</p>
-                                                    {Array.isArray(tier.inclusions) && tier.inclusions.length > 0 ? (
-                                                        <ul className={`mt-1 text-xs space-y-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                            {tier.inclusions.map((line) => (
-                                                                <li key={line}>• {line}</li>
-                                                            ))}
-                                                        </ul>
-                                                    ) : null}
-                                                </div>
-                                                <span className="shrink-0 text-sm font-bold text-[#0ECCEE]">{formatInr(tier.fee)}</span>
+                            <div className="space-y-4">
+                                {(() => {
+                                    const groups = [
+                                        {
+                                            key: 'solo',
+                                            title: 'Solo Participant Package',
+                                            note: null,
+                                            tiers: visiblePackages.filter((t) => /solo/i.test(t.name)),
+                                        },
+                                        {
+                                            key: 'trio',
+                                            title: 'Trio Participant Package',
+                                            note: 'Group package — 3 drivers. Register as the team leader.',
+                                            tiers: visiblePackages.filter((t) => /trio/i.test(t.name)),
+                                        },
+                                        {
+                                            key: 'quattro',
+                                            title: 'Quattro Participant Package',
+                                            note: 'Group package — 4 drivers. Register as the team leader.',
+                                            tiers: visiblePackages.filter((t) => /quattro/i.test(t.name)),
+                                        },
+                                        {
+                                            key: 'penta',
+                                            title: 'Penta Participant Package',
+                                            note: 'Group package — 5 drivers. Register as the team leader.',
+                                            tiers: visiblePackages.filter((t) => /penta/i.test(t.name)),
+                                        },
+                                    ];
+                                    const groupedIds = new Set(groups.flatMap((g) => g.tiers.map((t) => t.id)));
+                                    const other = visiblePackages.filter((t) => !groupedIds.has(t.id));
+                                    if (other.length) {
+                                        groups.push({ key: 'other', title: 'Other packages', note: null, tiers: other });
+                                    }
+                                    return groups.filter((g) => g.tiers.length > 0).map((group) => (
+                                        <div key={group.key} className="space-y-2">
+                                            <div>
+                                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {group.title}
+                                                </p>
+                                                {group.note ? (
+                                                    <p className={`text-[11px] mt-0.5 leading-relaxed ${isDark ? 'text-amber-300/90' : 'text-amber-700'}`}>
+                                                        {group.note}
+                                                    </p>
+                                                ) : null}
                                             </div>
-                                        </button>
-                                    );
-                                })}
+                                            {group.tiers.map((tier) => {
+                                                const selected = selectedTierId === tier.id;
+                                                const count = resolveTierParticipantCount(tier);
+                                                const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
+                                                return (
+                                                    <button
+                                                        key={tier.id}
+                                                        type="button"
+                                                        onClick={() => setSelectedTierId(tier.id)}
+                                                        className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
+                                                            selected
+                                                                ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
+                                                                : isDark
+                                                                    ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
+                                                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</p>
+                                                                {tier.description ? (
+                                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                                        {tier.description}
+                                                                    </p>
+                                                                ) : null}
+                                                                {count > 1 ? (
+                                                                    <p className={`text-[11px] mt-1 font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                                        {count} drivers · leader registers
+                                                                    </p>
+                                                                ) : null}
+                                                            </div>
+                                                            <span className={`shrink-0 text-sm font-bold ${Number(tier.fee) > 0 ? 'text-[#0ECCEE]' : 'text-green-500'}`}>
+                                                                {feeLabel}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ));
+                                })()}
                             </div>
                         </div>
                     )}
@@ -902,7 +1278,7 @@ export default function EventRegistrationPage() {
                     {/* Payment / confirm step */}
                     {isPaymentStep && (
                         <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
-                            {ticketPrice > 0 && (
+                            {ticketPrice > 0 && !isOrganizerQr && (
                                 <div className="mb-3">
                                     <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
                                     <div className="flex items-stretch gap-2 min-w-0">
@@ -929,7 +1305,11 @@ export default function EventRegistrationPage() {
                                     ) : null}
                                 </div>
                             )}
-                            <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{ticketPrice > 0 ? 'Payment Breakdown' : 'Confirm Registration'}</p>
+                            <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {ticketPrice > 0
+                                    ? (isOrganizerQr ? 'QR payment confirmation' : 'Payment Breakdown')
+                                    : 'Confirm Registration'}
+                            </p>
                             {ticketPrice > 0 ? (
                                 <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {selectedTier ? (
@@ -938,7 +1318,7 @@ export default function EventRegistrationPage() {
                                             <span className="text-right font-medium">{selectedTier.name}</span>
                                         </div>
                                     ) : null}
-                                    <div className="flex justify-between gap-4"><span>People</span><span>1 person</span></div>
+                                    <div className="flex justify-between gap-4"><span>Drivers</span><span>{driverCount} {driverCount === 1 ? 'driver' : 'drivers'}</span></div>
                                     <div className="flex justify-between gap-4"><span>Package fee</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
                                     {breakdown.platformFee > 0 ? (
                                         <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -946,16 +1326,77 @@ export default function EventRegistrationPage() {
                                             <span>₹{breakdown.platformFee}</span>
                                         </div>
                                     ) : null}
-                                    {couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
+                                    {!isOrganizerQr && couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
                                     <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]"><span>Amount Payable</span><span>₹{payableAmount.toLocaleString('en-IN')}</span></div>
-                                    <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                        {breakdown.platformFee > 0
-                                            ? 'Includes all charges · Secure payment via Cashfree'
-                                            : 'No platform fee · Secure payment via Cashfree'}
-                                    </p>
+                                    {isOrganizerQr ? (
+                                        <div className={`mt-3 rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-[#1D1E20]' : 'border-gray-200 bg-white'}`}>
+                                            {reg.paymentQR ? (
+                                                <div className="flex items-start gap-3">
+                                                    <img src={reg.paymentQR} alt="Payment QR" className="h-24 w-24 rounded-lg object-contain bg-white p-1 border border-gray-200 shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        {reg.paymentUpiId ? (
+                                                            <p className={`text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                                UPI ID: <span className="font-semibold">{reg.paymentUpiId}</span>
+                                                            </p>
+                                                        ) : null}
+                                                        {reg.paymentQRMessage ? (
+                                                            <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{reg.paymentQRMessage}</p>
+                                                        ) : (
+                                                            <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                                Pay using this QR, then upload screenshot and transaction ID.
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-red-400">Payment QR not configured yet. Please contact organizer.</p>
+                                            )}
+                                            <label className={`mt-3 flex items-center gap-3 px-1 py-2 cursor-pointer ${uploadingProof ? 'opacity-60 pointer-events-none' : ''}`}>
+                                                {paymentScreenshotUrl ? (
+                                                    <img src={paymentScreenshotUrl} alt="" className="size-11 rounded-lg object-cover shrink-0" />
+                                                ) : (
+                                                    <div className={`size-11 rounded-lg border flex items-center justify-center text-[10px] ${isDark ? 'border-gray-600 text-gray-500' : 'border-gray-300 text-gray-400'}`}>Proof</div>
+                                                )}
+                                                <div className="min-w-0">
+                                                    <p className={`text-xs font-semibold ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                                                        {uploadingProof ? 'Uploading…' : paymentScreenshotUrl ? 'Screenshot added' : 'Payment screenshot'}
+                                                    </p>
+                                                    <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                        {paymentScreenshotUrl ? 'Tap to change' : 'Gallery or camera'}
+                                                    </p>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) uploadPaymentProof(file);
+                                                        e.target.value = '';
+                                                    }}
+                                                />
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={transactionId}
+                                                onChange={(e) => setTransactionId(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                                                placeholder="UPI / transaction ID"
+                                                className={`mt-2 w-full px-3 py-2 rounded-lg border text-sm ${isDark ? 'bg-[#111213] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            Secure payment via Cashfree
+                                        </p>
+                                    )}
                                 </div>
                             ) : (
-                                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>This event is free. Click confirm to complete your registration.</p>
+                                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    {driveOnlyPath
+                                        ? 'Independence Day Drive only — free. Confirm to finish registration (no payment).'
+                                        : 'This registration is free. Click confirm to complete.'}
+                                </p>
                             )}
                         </div>
                     )}
@@ -967,7 +1408,11 @@ export default function EventRegistrationPage() {
                         </button>
                         {isPaymentStep ? (
                             <button type="button" onClick={handleFinalSubmit} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                                {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0 ? `Pay ₹${payableAmount.toLocaleString('en-IN')} & Register` : 'Confirm Registration'}
+                                {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0
+                                    ? (isOrganizerQr
+                                        ? (reg.qrAutoConfirm ? 'Submit Payment Proof & Register' : 'Submit Proof for Approval')
+                                        : `Pay ₹${payableAmount.toLocaleString('en-IN')} & Register`)
+                                    : 'Confirm Registration'}
                             </button>
                         ) : (
                             <button type="button" onClick={next} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm">

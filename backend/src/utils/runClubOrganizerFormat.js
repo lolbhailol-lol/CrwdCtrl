@@ -4,6 +4,7 @@ const {
     formatFormValue,
     humanizeFieldName,
     participantsToCsv,
+    participantsToXlsx,
 } = require('./trekOrganizerFormat');
 
 function responsesToObject(reg) {
@@ -285,4 +286,5 @@ module.exports = {
     formatParticipantSheetRow,
     buildSheetColumns,
     participantsToCsv,
+    participantsToXlsx,
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon, Footprints, Mountain } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon, Footprints, Mountain, CalendarDays } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -16,6 +16,10 @@ import {
     fetchTrekCommunityProfileEligible,
     tryTrekOrganizerAppSession,
 } from '../../services/api/trekOrganizer.api';
+import {
+    fetchEventOrganizerProfileEligible,
+    tryEventOrganizerAppSession,
+} from '../../services/api/eventShowOrganizer.api';
 import { resolveAuthToken, hasUsableAuthToken } from '../../utils/authToken';
 
 export default function ProfileSidebar({
@@ -34,6 +38,7 @@ export default function ProfileSidebar({
     const [sidebarRevealReady, setSidebarRevealReady] = useState(false);
     const [clubManagerEligible, setClubManagerEligible] = useState(false);
     const [trekCommunityEligible, setTrekCommunityEligible] = useState(false);
+    const [eventOrganizerEligible, setEventOrganizerEligible] = useState(false);
     const [organizerAccessLoading, setOrganizerAccessLoading] = useState(false);
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
@@ -57,6 +62,7 @@ export default function ProfileSidebar({
         if (!isAuthenticated) {
             setClubManagerEligible(false);
             setTrekCommunityEligible(false);
+            setEventOrganizerEligible(false);
             setOrganizerAccessLoading(false);
             return undefined;
         }
@@ -77,7 +83,7 @@ export default function ProfileSidebar({
         setOrganizerAccessLoading(true);
         (async () => {
             try {
-                const [clubData, trekData] = await Promise.all([
+                const [clubData, trekData, eventData] = await Promise.all([
                     fetchClubManagerProfileEligible(authToken).catch((err) => {
                         console.warn('[ProfileSidebar] Club manager eligibility check failed', err?.message || err);
                         return { eligible: false };
@@ -86,10 +92,15 @@ export default function ProfileSidebar({
                         console.warn('[ProfileSidebar] Trek community eligibility check failed', err?.message || err);
                         return { eligible: false };
                     }),
+                    fetchEventOrganizerProfileEligible(authToken).catch((err) => {
+                        console.warn('[ProfileSidebar] Event organizer eligibility check failed', err?.message || err);
+                        return { eligible: false };
+                    }),
                 ]);
                 if (!cancelled) {
                     setClubManagerEligible(Boolean(clubData?.eligible));
                     setTrekCommunityEligible(Boolean(trekData?.eligible));
+                    setEventOrganizerEligible(Boolean(eventData?.eligible));
                 }
             } finally {
                 if (!cancelled) setOrganizerAccessLoading(false);
@@ -167,6 +178,23 @@ export default function ProfileSidebar({
             return;
         }
 
+        if (label === 'Event organizer') {
+            try {
+                const booted = await tryEventOrganizerAppSession(token);
+                const path = booted?.token ? '/event-organizer' : '/event-organizer/login';
+                prepareRouteNavigation(path);
+                navigate(path);
+            } catch (err) {
+                const path = err?.code === 'no_organizer_account'
+                    ? '/event-organizer/signup'
+                    : '/event-organizer/login';
+                prepareRouteNavigation(path);
+                navigate(path);
+            }
+            onClose();
+            return;
+        }
+
         const path = MENU_ROUTES[label];
         if (!path) return;
 
@@ -191,6 +219,9 @@ export default function ProfileSidebar({
         ...(trekCommunityEligible
             ? [{ icon: Mountain, label: 'Trek community', hint: 'Treks, participants, check-in & notify' }]
             : []),
+        ...(eventOrganizerEligible
+            ? [{ icon: CalendarDays, label: 'Event organizer', hint: 'Events, guests, check-in & notify' }]
+            : []),
         { icon: Calendar, label: 'Bookings' },
     ];
 
@@ -206,6 +237,9 @@ export default function ProfileSidebar({
             : []),
         ...(trekCommunityEligible
             ? [{ icon: Mountain, label: 'Trek community', requiresAuth: true, hint: 'Treks, participants, check-in & notify' }]
+            : []),
+        ...(eventOrganizerEligible
+            ? [{ icon: CalendarDays, label: 'Event organizer', requiresAuth: true, hint: 'Events, guests, check-in & notify' }]
             : []),
         { icon: Heart, label: 'Favourites', requiresAuth: false },
         { icon: Calendar, label: 'Bookings', requiresAuth: false },

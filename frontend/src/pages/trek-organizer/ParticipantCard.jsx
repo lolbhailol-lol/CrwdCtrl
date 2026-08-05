@@ -42,6 +42,8 @@ function copyText(text, onDone) {
 export default function ParticipantCard({
     participant,
     index,
+    activityLabelSingular = 'trek',
+    activityLabelPlural = 'treks',
     forceOpen = false,
     selected = false,
     onToggleSelect,
@@ -66,8 +68,8 @@ export default function ParticipantCard({
     const phone = participant.phone && participant.phone !== '—' ? participant.phone : '';
     const email = participant.userEmail || participant.email || '';
     const canWhatsApp = isValidWhatsAppPhone(phone);
-    const trekCount = Number(participant.trekCount) || 1;
-    const isRepeat = Boolean(participant.isRepeat) || trekCount >= 2;
+    const activityCount = Number(participant.trekCount) || 1;
+    const isRepeat = Boolean(participant.isRepeat) || activityCount >= 2;
     const isGuest = Boolean(participant.isGuest);
     const meetingPoint = participant.meetingPoint || participant.trekTime || '';
     const trekDate = participant.trekDate || participant.bookingDetails?.date || '';
@@ -138,10 +140,10 @@ export default function ParticipantCard({
                                 {checkedIn ? 'Checked in' : 'Awaiting'}
                             </Pill>
                             {isRepeat ? (
-                                <Pill tone="repeat">Repeat · {trekCount} treks</Pill>
+                                <Pill tone="repeat">Repeat · {activityCount} {activityLabelPlural}</Pill>
                             ) : (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 text-[#0ECCEE]">
-                                    <Mountain size={10} /> {trekCount} trek
+                                    <Mountain size={10} /> {activityCount} {activityLabelSingular}
                                 </span>
                             )}
                         </div>

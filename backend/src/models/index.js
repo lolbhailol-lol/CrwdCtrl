@@ -30,3 +30,4 @@ require('../model/notification_campaign_model');
 require('../model/event_show_registration_model');
 require('../model/run_club_manager_profile_invite_model');
 require('../model/trek_community_manager_profile_invite_model');
+require('../model/event_show_manager_profile_invite_model');

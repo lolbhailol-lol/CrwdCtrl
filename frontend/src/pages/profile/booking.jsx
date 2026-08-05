@@ -11,6 +11,7 @@ import { BookingsPageLoadingSkeleton } from '../../components/HomeEventCardSkele
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 
 import { fetchMyRegistrations, fetchMySportsRegistrations } from '../../services/api/auth.api';
+import { primaryCoverUrl } from '../../utils/coverImages';
 
 // Lightweight per-user session cache so returning to the bookings page paints
 // instantly (stale-while-revalidate) instead of showing a full skeleton while
@@ -167,28 +168,32 @@ function mapTrekBookings(trekBookings = []) {
 }
 
 function mapEventRegistrations(eventRegistrations = []) {
-    return eventRegistrations.map((reg) => ({
-        id: reg._id,
-        name: reg.eventShow?.displayName || reg.eventShow?.title || 'Event',
-        image: reg.eventShow?.coverImage || reg.eventShow?.banner || null,
-        date: reg.eventShow?.showTimings?.[0]?.date || null,
-        venue: reg.eventShow?.venue || reg.eventShow?.city || '',
-        type: 'event',
-        collegeName: '',
-        status: reg.eventShow?.status === 'completed' ? 'completed' : 'upcoming',
-        registrationStatus: reg.status,
-        registrationType: 'event',
-        isCompetition: false,
-        isTrek: false,
-        isSports: false,
-        isEvent: true,
-        paymentAmount: reg.eventShow?.ticketPrice || reg.amountPaid || 0,
-        paymentStatus: reg.paymentStatus,
-        amountPaid: reg.amountPaid || 0,
-        paymentId: reg.payment_id || '',
-        paymentOrderId: reg.payment_order_id || '',
-        registeredAt: reg.submittedAt || reg.createdAt,
-    }));
+    return eventRegistrations.map((reg) => {
+        const show = reg.eventShow || {};
+        const image = primaryCoverUrl(show.coverImages, show.poster || show.banner || show.coverImage || '');
+        return {
+            id: reg._id,
+            name: show.displayName || show.title || 'Event',
+            image: image || null,
+            date: show.showTimings?.[0]?.date || null,
+            venue: show.venue || show.city || '',
+            type: 'event',
+            collegeName: '',
+            status: show.status === 'completed' ? 'completed' : 'upcoming',
+            registrationStatus: reg.status,
+            registrationType: 'event',
+            isCompetition: false,
+            isTrek: false,
+            isSports: false,
+            isEvent: true,
+            paymentAmount: reg.amountPaid || show.ticketPrice || 0,
+            paymentStatus: reg.paymentStatus,
+            amountPaid: reg.amountPaid || 0,
+            paymentId: reg.payment_id || '',
+            paymentOrderId: reg.payment_order_id || '',
+            registeredAt: reg.submittedAt || reg.createdAt,
+        };
+    });
 }
 
 async function loadAllBookings(authToken = null) {

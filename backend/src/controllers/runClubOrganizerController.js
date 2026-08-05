@@ -15,6 +15,7 @@ const {
     formatParticipantSheetRow,
     buildSheetColumns,
     participantsToCsv,
+    participantsToXlsx,
 } = require('../utils/runClubOrganizerFormat');
 const {
     normalizeUsername,
@@ -1204,6 +1205,7 @@ exports.lookupParticipant = async (req, res) => {
 
 exports.exportParticipants = async (req, res) => {
     try {
+        const format = String(req.query.format || 'csv').trim().toLowerCase();
         const registrations = await CategoryRegistration.find({
             category: 'sports',
             eventId: req.eventId,
@@ -1221,15 +1223,32 @@ exports.exportParticipants = async (req, res) => {
             resolveEventRunClubId(event, req.organizer),
         );
         const rows = decrypted.map((r) => formatParticipantDetail(r, event));
+        const isFreeEvent = Number(event?.registrationFee) <= 0;
         const csv = participantsToCsv(rows, {
             formSchema: event?.registration?.formSchema || [],
             includePaymentProof: true,
+            requiredOnlyFormFields: true,
+            minimalColumns: isFreeEvent,
         });
         const safeName = (event?.title || 'run').replace(/[^a-z0-9-_]+/gi, '_');
+        if (format === 'xlsx' || format === 'excel') {
+            const xlsx = await participantsToXlsx(rows, {
+                formSchema: event?.registration?.formSchema || [],
+                includePaymentProof: true,
+                requiredOnlyFormFields: true,
+                minimalColumns: isFreeEvent,
+            });
+            res.setHeader(
+                'Content-Type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            );
+            res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.xlsx"`);
+            return res.send(xlsx);
+        }
 
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.csv"`);
-        res.send(csv);
+        return res.send(csv);
     } catch (error) {
         res.status(500).json({ success: false, message: 'Export failed' });
     }

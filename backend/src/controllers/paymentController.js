@@ -45,7 +45,22 @@ const respondCashfreeError = (res, err, fallbackMessage) => {
   if (err.code === 'CASHFREE_CREDENTIALS_MISSING' || cfError?.type === 'authentication_error') {
     return res.status(503).json({ message: CASHFREE_CONFIG_MSG });
   }
-  return res.status(500).json({ message: cfError?.message || fallbackMessage });
+  const cfMessage =
+    cfError?.message
+    || cfError?.error
+    || (Array.isArray(cfError?.message) ? cfError.message.join(', ') : null)
+    || fallbackMessage;
+  const status = Number(err.response?.status);
+  // Surface gateway validation errors as 400 with Cashfree's message
+  if (status >= 400 && status < 500) {
+    return res.status(400).json({
+      message: typeof cfMessage === 'string' ? cfMessage : fallbackMessage,
+      cashfree: cfError || undefined,
+    });
+  }
+  return res.status(500).json({
+    message: typeof cfMessage === 'string' ? cfMessage : fallbackMessage,
+  });
 };
 
 const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId, notes = {}, tierId } = {}) => {
@@ -77,9 +92,12 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
     return {
       entityType: 'event_show',
       ticketPrice,
-      platformFeePercent: resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5),
+      platformFeePercent: eventShow.registration?.mode === 'organizer_qr'
+        ? 0
+        : resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5),
       notes: {
         eventShowId: String(eventShow._id),
+        registrationMode: eventShow.registration?.mode || 'internal_form',
         ...(tier ? { tierId: tier.id, tierName: tier.name } : {}),
       },
     };
@@ -212,6 +230,12 @@ exports.getPaymentQuote = async (req, res) => {
       return res.status(400).json({ message: 'This event does not require payment' });
     }
 
+    if (pricing.entityType === 'event_show' && pricing.notes?.registrationMode === 'organizer_qr') {
+      return res.status(400).json({
+        message: 'This event uses organizer QR payment. Please complete payment from the registration form.',
+      });
+    }
+
     res.json({
       entityType: pricing.entityType,
       ticketPrice: pricing.ticketPrice,
@@ -316,7 +340,15 @@ exports.createOrder = async (req, res) => {
     }
 
     if (pricing.ticketPrice <= 0) {
-      return res.status(400).json({ message: 'This event does not require payment' });
+      // Free package (e.g. Independence Day Drive only) — not an error
+      return res.json({
+        free: true,
+        message: 'This registration does not require payment',
+        ticketPrice: 0,
+        totalAmount: 0,
+        entityType: pricing.entityType,
+        notes: pricing.notes,
+      });
     }
 
     const entityId = extractEntityId(pricing.notes);
@@ -338,23 +370,36 @@ exports.createOrder = async (req, res) => {
       });
     }
 
+    // Cashfree order_tags: only simple string pairs; URLs must be https; avoid special chars
+    const orderTags = {};
+    const allowTag = (key, value) => {
+      if (value === undefined || value === null) return;
+      const k = String(key || '').trim();
+      if (!/^[a-zA-Z0-9_]{1,64}$/.test(k)) return;
+      let str = String(value).trim().slice(0, 255);
+      if (!str) return;
+      // Cashfree rejects non-https looking URL-ish values
+      if (/^https?:\/\//i.test(str) && !/^https:\/\//i.test(str)) return;
+      // Strip characters that often break CF tag validation (middle dots, etc.)
+      str = str.replace(/[^\w\s.@+\-:/]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!str) return;
+      orderTags[k] = str;
+    };
+    allowTag('entityType', pricing.entityType);
+    allowTag('eventShowId', pricing.notes?.eventShowId);
+    allowTag('tierId', pricing.notes?.tierId);
+    allowTag('tierName', pricing.notes?.tierName);
+    allowTag('ticketPrice', pricing.ticketPrice);
+    allowTag('platformFee', pricing.platformFee);
+    allowTag('totalAmount', pricing.totalAmount);
+    if (pricing.couponCode) allowTag('couponCode', pricing.couponCode);
+
     const order = await createCashfreeOrder({
       orderAmount: pricing.totalAmount,
       currency,
       customerDetails,
       orderNote: `${pricing.entityType} registration`,
-      orderTags: {
-        ...notes,
-        ...pricing.notes,
-        entityType: pricing.entityType,
-        ticketPrice: String(pricing.ticketPrice),
-        platformFee: String(pricing.platformFee),
-        couponCode: pricing.couponCode || '',
-        couponDiscount: String(pricing.couponDiscount || 0),
-        amountBeforeDiscount: String(pricing.amountBeforeDiscount ?? pricing.totalAmount),
-        amountAfterDiscount: String(pricing.amountAfterDiscount ?? pricing.totalAmount),
-        totalAmount: String(pricing.totalAmount),
-      },
+      orderTags,
     });
 
     if (entityId) {
@@ -394,6 +439,18 @@ exports.createOrder = async (req, res) => {
       totalAmount: pricing.totalAmount,
     });
   } catch (err) {
+    console.error('[payment.createOrder]', {
+      message: err.message,
+      status: err.status,
+      httpStatus: err.response?.status,
+      cf: err.response?.data,
+      eventShowId: req.body?.eventShowId,
+      tierId: req.body?.tierId,
+    });
+    // Axios / Cashfree errors have response — never treat as our custom err.status
+    if (err.response || err.code === 'CASHFREE_CREDENTIALS_MISSING') {
+      return respondCashfreeError(res, err, 'Failed to create payment order');
+    }
     if (err.status) return res.status(err.status).json({ message: err.message });
     respondCashfreeError(res, err, 'Failed to create payment order');
   }

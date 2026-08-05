@@ -20,6 +20,16 @@ function normalizeEventShowPayload(body = {}) {
     if (payload.mapUrl !== undefined) {
         payload.mapUrl = String(payload.mapUrl || '').trim();
     }
+    if (payload.meetingPoints !== undefined) {
+        payload.meetingPoints = Array.isArray(payload.meetingPoints)
+            ? payload.meetingPoints
+                .map((p) => ({
+                    label: String(p?.label || p?.name || '').trim(),
+                    mapUrl: String(p?.mapUrl || p?.url || '').trim(),
+                }))
+                .filter((p) => p.label)
+            : [];
+    }
     if (payload.pricingMode !== undefined) {
         payload.pricingMode = payload.pricingMode === 'tiers' ? 'tiers' : 'single';
     }
@@ -42,13 +52,25 @@ function normalizeEventShowPayload(body = {}) {
     return payload;
 }
 
+function resolveMaxEventFee(payload = {}) {
+    if (payload.pricingMode === 'tiers') {
+        return Math.max(0, ...(Array.isArray(payload.tiers) ? payload.tiers.map((t) => Number(t.fee) || 0) : [0]));
+    }
+    return Math.max(0, Number(payload.ticketPrice) || 0);
+}
+
 exports.createEventShow = async (req, res) => {
     try {
         const { title, eventType } = req.body;
         if (!title || !eventType) {
             return res.status(400).json({ message: 'title and eventType are required' });
         }
-        const show = new EventShow({ ...normalizeEventShowPayload(req.body), createdBy: req.user?._id || null });
+        const body = normalizeEventShowPayload(req.body);
+        const regMode = body.registration?.mode || 'external_link';
+        if (regMode === 'organizer_qr' && resolveMaxEventFee(body) > 0 && !String(body.registration?.paymentQR || '').trim()) {
+            return res.status(400).json({ message: 'Payment QR is required for QR registration mode when fee is greater than 0' });
+        }
+        const show = new EventShow({ ...body, createdBy: req.user?._id || null });
         await show.save();
         res.status(201).json({ message: 'Event created successfully', show });
     } catch (error) {
@@ -115,6 +137,10 @@ exports.updateEventShow = async (req, res) => {
         }
 
         const body = normalizeEventShowPayload(req.body);
+        const regMode = body.registration?.mode;
+        if (regMode === 'organizer_qr' && resolveMaxEventFee(body) > 0 && !String(body.registration?.paymentQR || '').trim()) {
+            return res.status(400).json({ message: 'Payment QR is required for QR registration mode when fee is greater than 0' });
+        }
 
         if (body.showOnHomeSlide === true) {
             body.showOnHomeSlide = true;

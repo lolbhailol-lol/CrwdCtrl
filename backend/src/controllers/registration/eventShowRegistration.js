@@ -4,6 +4,10 @@ const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = req
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { logger } = require('../../utils/logger');
 const { scheduleRegistrationNotification } = require('./helpers');
+const {
+  isAllowedPaymentScreenshotUrl,
+  normalizeTransactionId,
+} = require('../../utils/runClubRegistrationGuards');
 
 /**
  * Submit an internal EventShow registration (authed, paid via Cashfree).
@@ -27,7 +31,7 @@ const submitEventShowRegistration = async (req, res) => {
     if (!eventShow) return res.status(404).json({ error: 'Event not found' });
 
     const reg = eventShow.registration || {};
-    if (reg.status !== 'open' || reg.mode !== 'internal_form') {
+    if (reg.status !== 'open' || !['internal_form', 'organizer_qr'].includes(reg.mode)) {
       return res.status(400).json({ error: 'Registration is not open for this event.' });
     }
 
@@ -98,24 +102,57 @@ const submitEventShowRegistration = async (req, res) => {
       }
     }
 
-    const platformFeePercent = resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5);
+    const regMode = eventShow.registration?.mode || 'internal_form';
+    const isOrganizerQr = regMode === 'organizer_qr';
+    const platformFeePercent = isOrganizerQr
+      ? 0
+      : resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5);
     const totalAmount = buildEventPriceBreakdown(ticketPrice, platformFeePercent).totalAmount;
     let payment_order_id = null;
     let payment_id = null;
+    let paymentScreenshotUrl = '';
+    let transactionId = '';
     let paymentStatus = 'free';
+    let registrationStatus = 'approved';
 
     if (ticketPrice > 0) {
-      const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
-      const paymentCheck = await verifyPaymentForRegistration(req.body, {
-        expectedTotalAmount: totalAmount,
-        entityId: eventShow._id,
-      });
-      if (!paymentCheck.ok) {
-        return res.status(400).json({ error: paymentCheck.error || 'Payment is required for this event.' });
+      if (isOrganizerQr) {
+        if (!String(eventShow.registration?.paymentQR || '').trim()) {
+          return res.status(400).json({
+            error: 'Organizer payment QR is not configured yet. Please contact event organizer.',
+          });
+        }
+        paymentScreenshotUrl = String(req.body.paymentScreenshotUrl || '').trim();
+        transactionId = normalizeTransactionId(req.body.transactionId || '');
+        if (!paymentScreenshotUrl) {
+          return res.status(400).json({ error: 'Please upload your payment screenshot.' });
+        }
+        if (!isAllowedPaymentScreenshotUrl(paymentScreenshotUrl)) {
+          return res.status(400).json({ error: 'Invalid payment screenshot URL. Please re-upload from the form.' });
+        }
+        if (transactionId.length < 4) {
+          return res.status(400).json({ error: 'Please enter your UPI / transaction ID (at least 4 characters).' });
+        }
+        if (eventShow.registration?.qrAutoConfirm === true) {
+          paymentStatus = 'paid';
+          registrationStatus = 'approved';
+        } else {
+          paymentStatus = 'pending';
+          registrationStatus = 'pending';
+        }
+      } else {
+        const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
+        const paymentCheck = await verifyPaymentForRegistration(req.body, {
+          expectedTotalAmount: totalAmount,
+          entityId: eventShow._id,
+        });
+        if (!paymentCheck.ok) {
+          return res.status(400).json({ error: paymentCheck.error || 'Payment is required for this event.' });
+        }
+        payment_order_id = paymentCheck.orderId;
+        payment_id = paymentCheck.paymentId;
+        paymentStatus = 'paid';
       }
-      payment_order_id = paymentCheck.orderId;
-      payment_id = paymentCheck.paymentId;
-      paymentStatus = 'paid';
     }
 
     // Idempotent: a paid order must not create duplicate event registrations.
@@ -144,12 +181,16 @@ const submitEventShowRegistration = async (req, res) => {
       eventShow: eventShow._id,
       user: userId,
       responses,
-      status: 'pending',
+      status: registrationStatus,
       payment_order_id,
       payment_id,
-      payment_gateway: paymentStatus === 'paid' ? 'cashfree' : null,
+      payment_gateway: isOrganizerQr && ticketPrice > 0
+        ? 'organizer_qr'
+        : (paymentStatus === 'paid' ? 'cashfree' : null),
       paymentStatus,
-      amountPaid: paymentStatus === 'paid' ? totalAmount : 0,
+      paymentScreenshotUrl,
+      transactionId,
+      amountPaid: ticketPrice > 0 ? totalAmount : 0,
       tierId: selectedTier?.id || null,
       tierName: selectedTier?.name || null,
       submittedAt: new Date(),
@@ -229,11 +270,13 @@ const submitEventShowRegistration = async (req, res) => {
                 amountPaid: registration.amountPaid,
                 paymentId: registration.payment_id || '',
                 paymentStatus: registration.paymentStatus,
+                tierName: registration.tierName || '',
+                tierId: registration.tierId || '',
               },
               {
-                name: user?.name,
-                email: user?.email,
-                phone: user?.phoneNumber || user?.phone || '',
+                name: responses.name || responses.leader_name || user?.name || '',
+                email: responses.email || user?.email || '',
+                phone: responses.phone || user?.phoneNumber || user?.phone || '',
               },
               formSchema,
             );

@@ -88,6 +88,8 @@ export default function EventOrganizerDashboardPage() {
     }
 
     const stats = data?.stats || {};
+    const segments = stats.segments || {};
+    const qr = stats.qr || {};
     const event = data?.event || {};
     const regOpen = (event.registrationStatus || event.registration?.status) === 'open';
     const publicPath = eventShowPath(event);
@@ -147,6 +149,97 @@ export default function EventOrganizerDashboardPage() {
                 <StatTile label="Revenue" value={`₹${Number(stats.revenue || 0).toLocaleString('en-IN')}`} tone="money" icon={IndianRupee} />
             </div>
 
+            {qr.enabled ? (
+                <div className="rounded-2xl border border-purple-500/25 bg-purple-500/5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[11px] uppercase tracking-wide text-purple-300/90">QR Payments</p>
+                            <p className="text-xs text-gray-500 mt-1">Proof uploads and approval status</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/event-organizer/events/${eventId}/participants?category=&paymentStatus=pending`)}
+                            className="text-[11px] font-semibold text-[#0ECCEE]"
+                        >
+                            Review pending →
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                            <p className="text-[10px] text-gray-400 uppercase">QR regs</p>
+                            <p className="text-lg font-semibold text-white">{qr.totalQr || 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                            <p className="text-[10px] text-amber-300 uppercase">Pending</p>
+                            <p className="text-lg font-semibold text-amber-200">{qr.pendingReview || 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
+                            <p className="text-[10px] text-emerald-300 uppercase">Approved paid</p>
+                            <p className="text-lg font-semibold text-emerald-200">{qr.paidApproved || 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2">
+                            <p className="text-[10px] text-cyan-300 uppercase">Proof uploaded</p>
+                            <p className="text-lg font-semibold text-cyan-100">{qr.withProof || 0}</p>
+                        </div>
+                    </div>
+                    <div className="mt-3 rounded-xl border border-fuchsia-500/25 bg-fuchsia-500/10 px-3 py-2.5">
+                        <p className="text-[10px] uppercase tracking-wide text-fuchsia-300">
+                            CrwdCtrl commission due ({qr.commissionPercent || 3}%)
+                        </p>
+                        <p className="text-xl font-bold text-fuchsia-100 mt-1">
+                            ₹{Number(qr.commissionDue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            On ₹{Number(qr.paidAmount || 0).toLocaleString('en-IN')} paid via QR
+                            {' · '}
+                            {qr.commissionEntries || 0} entries
+                            {qr.duplicateRows ? ` · ${qr.duplicateRows} duplicate submit(s) ignored` : ''}
+                        </p>
+                    </div>
+                </div>
+            ) : null}
+
+            {segments ? (
+                <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4">
+                        <p className="text-[11px] uppercase tracking-wide text-amber-400/90">Independence Day Drive</p>
+                        <p className="text-2xl font-semibold mt-2 tabular-nums text-amber-100">
+                            {segments.independenceDriveTotal || 0}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">
+                            Drive only (free): {segments.driveOnly || 0}
+                            {' · '}
+                            Drive + Trackday: {segments.driveAndTrackday || 0}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/event-organizer/events/${eventId}/participants?status=approved&category=independence_drive`)}
+                            className="mt-3 text-[11px] font-semibold text-[#0ECCEE]"
+                        >
+                            View Drive guests →
+                        </button>
+                    </div>
+                    <div className="rounded-2xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-4">
+                        <p className="text-[11px] uppercase tracking-wide text-[#0ECCEE]/90">Trackday</p>
+                        <p className="text-2xl font-semibold mt-2 tabular-nums text-cyan-100">
+                            {segments.trackdayTotal || 0}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">
+                            Trackday only: {segments.trackdayOnly || 0}
+                            {' · '}
+                            With Drive: {segments.driveAndTrackday || 0}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/event-organizer/events/${eventId}/participants?status=approved&category=trackday`)}
+                            className="mt-3 text-[11px] font-semibold text-[#0ECCEE]"
+                        >
+                            View Trackday guests →
+                        </button>
+                    </div>
+                </div>
+            ) : null}
+
             <div className="grid sm:grid-cols-2 gap-3">
                 <button
                     type="button"
@@ -155,7 +248,7 @@ export default function EventOrganizerDashboardPage() {
                 >
                     <Users className="text-[#0ECCEE] mb-2" size={18} />
                     <p className="font-semibold">Guests</p>
-                    <p className="text-xs text-gray-500 mt-1">Search, filter by package / payment, export CSV</p>
+                    <p className="text-xs text-gray-500 mt-1">Search, filter by Drive / Trackday, export CSV</p>
                 </button>
                 <button
                     type="button"
@@ -177,21 +270,45 @@ export default function EventOrganizerDashboardPage() {
                 </button>
             </div>
 
-            {Array.isArray(data?.tiers) && data.tiers.length > 0 ? (
+            <div className="grid sm:grid-cols-2 gap-3">
                 <div className="rounded-2xl border border-gray-800 bg-[#161718] p-4">
-                    <h2 className="text-sm font-semibold mb-3">Packages</h2>
-                    <div className="space-y-2">
-                        {data.tiers.map((t) => (
-                            <div key={`${t.tierId}-${t.tierName}`} className="flex items-center justify-between text-sm border-b border-gray-800/80 pb-2 last:border-0">
-                                <span className="text-gray-300">{t.tierName || 'Package'}</span>
-                                <span className="text-gray-500 tabular-nums">
-                                    {t.count} · ₹{Number(t.revenue || 0).toLocaleString('en-IN')}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+                    <h2 className="text-sm font-semibold mb-3">Independence Day Drive</h2>
+                    {(data?.driveTiers || []).length > 0 ? (
+                        <div className="space-y-2">
+                            {(data.driveTiers || []).map((t) => (
+                                <div key={`drive-${t.tierId}-${t.tierName}`} className="flex items-center justify-between text-sm border-b border-gray-800/80 pb-2 last:border-0">
+                                    <span className="text-gray-300">{t.tierName || 'Drive only'}</span>
+                                    <span className="text-gray-500 tabular-nums">{t.count} · Free</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-xs text-gray-500">
+                            {segments.driveOnly || 0} Drive-only guests
+                            {segments.driveAndTrackday ? ` · ${segments.driveAndTrackday} also on Trackday` : ''}
+                        </p>
+                    )}
                 </div>
-            ) : null}
+                <div className="rounded-2xl border border-gray-800 bg-[#161718] p-4">
+                    <h2 className="text-sm font-semibold mb-3">Trackday packages</h2>
+                    {(data?.trackdayTiers || data?.tiers || []).filter((t) => !/drive\s*only/i.test(t.tierName || '')).length > 0 ? (
+                        <div className="space-y-2">
+                            {(data.trackdayTiers || data.tiers || [])
+                                .filter((t) => !/drive\s*only/i.test(t.tierName || ''))
+                                .map((t) => (
+                                    <div key={`td-${t.tierId}-${t.tierName}`} className="flex items-center justify-between text-sm border-b border-gray-800/80 pb-2 last:border-0">
+                                        <span className="text-gray-300">{t.tierName || 'Package'}</span>
+                                        <span className="text-gray-500 tabular-nums">
+                                            {t.count} · ₹{Number(t.revenue || 0).toLocaleString('en-IN')}
+                                        </span>
+                                    </div>
+                                ))}
+                        </div>
+                    ) : (
+                        <p className="text-xs text-gray-500">No Trackday packages yet</p>
+                    )}
+                </div>
+            </div>
 
             {Array.isArray(data?.recent) && data.recent.length > 0 ? (
                 <div className="rounded-2xl border border-gray-800 bg-[#161718] p-4">
@@ -202,11 +319,15 @@ export default function EventOrganizerDashboardPage() {
                                 <div className="min-w-0">
                                     <p className="font-medium truncate">{p.userName || 'Guest'}</p>
                                     <p className="text-xs text-gray-500 truncate">
-                                        {[p.tierName, p.paymentStatus, p.status].filter(Boolean).join(' · ')}
+                                        {[p.categoryLabel || p.tierName, p.paymentStatus, p.status, p.transactionId ? 'txn saved' : null, p.paymentScreenshotUrl ? 'proof' : null]
+                                            .filter(Boolean)
+                                            .join(' · ')}
                                     </p>
                                 </div>
                                 <span className="text-xs text-gray-500 tabular-nums shrink-0">
-                                    ₹{Number(p.amountPaid || 0).toLocaleString('en-IN')}
+                                    {Number(p.amountPaid || 0) > 0
+                                        ? `₹${Number(p.amountPaid || 0).toLocaleString('en-IN')}`
+                                        : 'Free'}
                                 </span>
                             </div>
                         ))}

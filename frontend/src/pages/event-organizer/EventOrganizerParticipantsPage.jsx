@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Download, Loader, Search, Trash2 } from 'lucide-react';
+import { ChevronRight, Download, Loader, Search, Trash2 } from 'lucide-react';
 import {
     fetchEventOrganizerParticipants,
     updateEventOrganizerParticipantStatus,
@@ -8,6 +8,33 @@ import {
     downloadEventOrganizerExport,
 } from '../../services/api/eventShowOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
+
+const HIDDEN_RESPONSE_KEYS = new Set([
+    'name', 'full_name', 'leader_name', 'email', 'phone', 'mobile', 'contact_no',
+]);
+
+function formatResponseLabel(key) {
+    return String(key || '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatResponseValue(value) {
+    if (value == null || value === '') return '—';
+    if (typeof value === 'object') {
+        if (value.url) return value.url;
+        return JSON.stringify(value);
+    }
+    return String(value);
+}
+
+function paymentTone(paymentStatus) {
+    const s = String(paymentStatus || '').toLowerCase();
+    if (s === 'paid') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25';
+    if (s === 'pending') return 'bg-amber-500/15 text-amber-300 border-amber-500/25';
+    if (s === 'failed') return 'bg-red-500/15 text-red-300 border-red-500/25';
+    return 'bg-gray-500/15 text-gray-300 border-gray-500/25';
+}
 
 export default function EventOrganizerParticipantsPage() {
     const { eventId } = useParams();
@@ -17,9 +44,11 @@ export default function EventOrganizerParticipantsPage() {
     const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState(searchParams.get('search') || '');
+    const [expandedId, setExpandedId] = useState(null);
     const status = searchParams.get('status') || '';
     const paymentStatus = searchParams.get('paymentStatus') || '';
     const checkInStatus = searchParams.get('checkInStatus') || '';
+    const category = searchParams.get('category') || '';
     const page = Number(searchParams.get('page') || 1);
 
     const load = useCallback(async () => {
@@ -32,6 +61,7 @@ export default function EventOrganizerParticipantsPage() {
                 status,
                 paymentStatus,
                 checkInStatus,
+                category,
             });
             setRows(data.participants || []);
             setPagination(data.pagination || { page: 1, pages: 1, total: 0 });
@@ -40,7 +70,7 @@ export default function EventOrganizerParticipantsPage() {
         } finally {
             setLoading(false);
         }
-    }, [eventId, page, search, status, paymentStatus, checkInStatus, toast]);
+    }, [eventId, page, search, status, paymentStatus, checkInStatus, category, toast]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -111,7 +141,7 @@ export default function EventOrganizerParticipantsPage() {
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search name, email, phone, package…"
+                        placeholder="Search name, email, phone, package, drive…"
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#161718] border border-gray-800 text-sm focus:outline-none focus:border-[#0ECCEE]/50"
                     />
                 </div>
@@ -124,7 +154,14 @@ export default function EventOrganizerParticipantsPage() {
                     { key: 'status', value: 'approved', label: 'Approved' },
                     { key: 'status', value: 'pending', label: 'Pending' },
                     { key: 'status', value: 'rejected', label: 'Rejected' },
+                    { key: 'category', value: '', label: 'All types' },
+                    { key: 'category', value: 'independence_drive', label: 'Independence Drive' },
+                    { key: 'category', value: 'drive_only', label: 'Drive only (Free)' },
+                    { key: 'category', value: 'trackday', label: 'Trackday' },
+                    { key: 'category', value: 'trackday_only', label: 'Trackday only' },
+                    { key: 'category', value: 'drive_and_trackday', label: 'Drive + Trackday' },
                     { key: 'paymentStatus', value: 'paid', label: 'Paid' },
+                    { key: 'paymentStatus', value: 'free', label: 'Free' },
                     { key: 'paymentStatus', value: 'pending', label: 'Pay pending' },
                     { key: 'checkInStatus', value: 'checked_in', label: 'Checked in' },
                     { key: 'checkInStatus', value: 'not_checked_in', label: 'Not checked in' },
@@ -155,35 +192,186 @@ export default function EventOrganizerParticipantsPage() {
                 </div>
             ) : (
                 <div className="space-y-2">
-                    {rows.map((p) => (
-                        <div key={p.id} className="rounded-xl border border-gray-800 bg-[#161718] p-4">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                    <p className="font-semibold truncate">{p.userName || 'Guest'}</p>
-                                    <p className="text-xs text-gray-500 truncate">
-                                        {[p.userEmail, p.userPhone].filter(Boolean).join(' · ')}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        {[p.tierName, p.paymentStatus, p.status, p.checkedIn ? 'checked in' : null]
-                                            .filter(Boolean)
-                                            .join(' · ')}
-                                        {' · '}₹{Number(p.amountPaid || 0).toLocaleString('en-IN')}
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {p.status !== 'approved' ? (
-                                        <button type="button" onClick={() => onStatus(p.id, 'approved')} className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 text-xs">Approve</button>
-                                    ) : null}
-                                    {p.status !== 'rejected' ? (
-                                        <button type="button" onClick={() => onStatus(p.id, 'rejected')} className="px-2.5 py-1 rounded-lg bg-red-500/15 text-red-300 text-xs">Reject</button>
-                                    ) : null}
-                                    <button type="button" onClick={() => onDelete(p.id, p.userName)} className="px-2.5 py-1 rounded-lg border border-gray-700 text-gray-400 text-xs inline-flex items-center gap-1">
-                                        <Trash2 size={12} /> Delete
+                    {rows.map((p) => {
+                        const open = expandedId === p.id;
+                        const responseEntries = Object.entries(p.responses || {})
+                            .filter(([k]) => !HIDDEN_RESPONSE_KEYS.has(k));
+                        return (
+                            <div key={p.id} className="rounded-xl border border-gray-800 bg-[#161718] p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpandedId(open ? null : p.id)}
+                                        className="min-w-0 text-left flex-1"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <ChevronRight
+                                                size={14}
+                                                className={`shrink-0 text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`}
+                                            />
+                                            <p className="font-semibold truncate">{p.userName || 'Guest'}</p>
+                                        </div>
+                                        <p className="text-xs text-gray-500 truncate pl-5">
+                                            {[p.userEmail, p.userPhone].filter(Boolean).join(' · ')}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-1 pl-5">
+                                            {[
+                                                p.categoryLabel || p.tierName,
+                                                p.tierName && p.category !== 'drive_only' ? p.tierName : null,
+                                                p.paymentStatus,
+                                                p.status,
+                                                p.checkedIn ? 'checked in' : null,
+                                            ]
+                                                .filter(Boolean)
+                                                .filter((v, i, arr) => arr.indexOf(v) === i)
+                                                .join(' · ')}
+                                            {' · '}
+                                            {Number(p.amountPaid || 0) > 0
+                                                ? `₹${Number(p.amountPaid || 0).toLocaleString('en-IN')}`
+                                                : 'Free'}
+                                        </p>
+                                        <div className="pl-5 mt-2 flex flex-wrap items-center gap-1.5">
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] border ${paymentTone(p.paymentStatus)}`}>
+                                                {p.paymentStatus || 'free'}
+                                            </span>
+                                            {p.paymentScreenshotUrl ? (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] border border-cyan-500/25 bg-cyan-500/10 text-cyan-300">
+                                                    proof uploaded
+                                                </span>
+                                            ) : null}
+                                            {p.transactionId ? (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] border border-purple-500/25 bg-purple-500/10 text-purple-300">
+                                                    txn: {String(p.transactionId).slice(0, 8)}
+                                                </span>
+                                            ) : null}
+                                        </div>
                                     </button>
+                                    {p.paymentScreenshotUrl ? (
+                                        <a
+                                            href={p.paymentScreenshotUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="block shrink-0"
+                                            title="View payment screenshot"
+                                        >
+                                            <img
+                                                src={p.paymentScreenshotUrl}
+                                                alt="payment proof"
+                                                className="h-14 w-14 rounded-lg object-cover border border-gray-700"
+                                            />
+                                        </a>
+                                    ) : (
+                                        <div className="h-14 w-14 rounded-lg border border-dashed border-gray-700 text-[10px] text-gray-500 flex items-center justify-center shrink-0">
+                                            No proof
+                                        </div>
+                                    )}
+                                    <div className="flex flex-wrap gap-2">
+                                        {p.status !== 'approved' ? (
+                                            <button type="button" onClick={() => onStatus(p.id, 'approved')} className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 text-xs">Approve</button>
+                                        ) : null}
+                                        {p.status !== 'rejected' ? (
+                                            <button type="button" onClick={() => onStatus(p.id, 'rejected')} className="px-2.5 py-1 rounded-lg bg-red-500/15 text-red-300 text-xs">Reject</button>
+                                        ) : null}
+                                        <button type="button" onClick={() => onDelete(p.id, p.userName)} className="px-2.5 py-1 rounded-lg border border-gray-700 text-gray-400 text-xs inline-flex items-center gap-1">
+                                            <Trash2 size={12} /> Delete
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {open ? (
+                                    <div className="mt-3 ml-5 rounded-lg border border-gray-800 bg-[#111213] p-3 space-y-1.5">
+                                        <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-2">Registration details</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                                            <div className="flex justify-between gap-2">
+                                                <span className="text-gray-500">Type</span>
+                                                <span className="text-gray-200 text-right">{p.categoryLabel || '—'}</span>
+                                            </div>
+                                            <div className="flex justify-between gap-2">
+                                                <span className="text-gray-500">Package</span>
+                                                <span className="text-gray-200 text-right">{p.tierName || '—'}</span>
+                                            </div>
+                                            <div className="flex justify-between gap-2">
+                                                <span className="text-gray-500">Independence Day Drive</span>
+                                                <span className="text-gray-200 text-right">
+                                                    {p.joinsIndependenceDrive ? 'Yes' : (p.joinDrive || 'No')}
+                                                </span>
+                                            </div>
+                                            {p.bloodGroup ? (
+                                                <div className="flex justify-between gap-2">
+                                                    <span className="text-gray-500">Blood group</span>
+                                                    <span className="text-gray-200 text-right">{p.bloodGroup}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.vehicleDetails ? (
+                                                <div className="flex justify-between gap-2">
+                                                    <span className="text-gray-500">Vehicle</span>
+                                                    <span className="text-gray-200 text-right">{p.vehicleDetails}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.driverCount != null ? (
+                                                <div className="flex justify-between gap-2">
+                                                    <span className="text-gray-500">Drivers in package</span>
+                                                    <span className="text-gray-200 text-right">{p.driverCount}</span>
+                                                </div>
+                                            ) : null}
+                                            <div className="flex justify-between gap-2">
+                                                <span className="text-gray-500">Payment status</span>
+                                                <span className="text-gray-200 text-right">{p.paymentStatus || '—'}</span>
+                                            </div>
+                                            <div className="flex justify-between gap-2">
+                                                <span className="text-gray-500">Amount</span>
+                                                <span className="text-gray-200 text-right">
+                                                    {Number(p.amountPaid || 0) > 0 ? `₹${Number(p.amountPaid || 0).toLocaleString('en-IN')}` : 'Free'}
+                                                </span>
+                                            </div>
+                                            {p.paymentGateway ? (
+                                                <div className="flex justify-between gap-2">
+                                                    <span className="text-gray-500">Payment mode</span>
+                                                    <span className="text-gray-200 text-right">{p.paymentGateway}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.payment_order_id ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Order ID</span>
+                                                    <span className="text-gray-200 text-right break-all">{p.payment_order_id}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.payment_id ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Payment ID</span>
+                                                    <span className="text-gray-200 text-right break-all">{p.payment_id}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.transactionId ? (
+                                                <div className="flex justify-between gap-2">
+                                                    <span className="text-gray-500">Transaction ID</span>
+                                                    <span className="text-gray-200 text-right break-all">{p.transactionId}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.paymentScreenshotUrl ? (
+                                                <div className="sm:col-span-2 rounded-lg border border-gray-800 bg-[#161718] p-2.5">
+                                                    <p className="text-gray-500 mb-2">Payment proof</p>
+                                                    <a href={p.paymentScreenshotUrl} target="_blank" rel="noreferrer" className="block">
+                                                        <img
+                                                            src={p.paymentScreenshotUrl}
+                                                            alt="payment screenshot"
+                                                            className="max-h-52 w-full object-contain rounded-lg border border-gray-700 bg-black/20"
+                                                        />
+                                                    </a>
+                                                </div>
+                                            ) : null}
+                                            {responseEntries.map(([key, value]) => (
+                                                <div key={key} className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500 shrink-0">{formatResponseLabel(key)}</span>
+                                                    <span className="text-gray-200 text-right break-all">{formatResponseValue(value)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : null}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 

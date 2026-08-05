@@ -48,7 +48,7 @@ const getUserRegistrations = async (req, res) => {
         .sort({ createdAt: -1 })
         .lean(),
       EventShowRegistration.find({ user: userId })
-        .populate('eventShow', 'title displayName eventType coverImage banner venue city showTimings ticketPrice status')
+        .populate('eventShow', 'title displayName eventType coverImages poster banner venue city showTimings ticketPrice status')
         .sort({ submittedAt: -1 })
         .lean(),
       Registration.countDocuments({ user: userId }),
@@ -256,7 +256,7 @@ const getEventShowRegistrationDetails = async (req, res) => {
       _id: registrationId,
       user: userId,
     })
-      .populate('eventShow', 'title displayName eventType venue city showTimings coverImage banner registration ticketPrice status')
+      .populate('eventShow', 'title displayName eventType venue city showTimings coverImages poster banner registration ticketPrice status')
       .lean();
 
     if (!registration) {

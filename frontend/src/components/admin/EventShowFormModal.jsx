@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
-import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import EventRegistrationFeePicker from './EventRegistrationFeePicker';
 import MultiCoverImagesUpload from './MultiCoverImagesUpload';
 import CoverImageUploadField from './CoverImageUploadField';
@@ -32,7 +32,18 @@ const EMPTY = {
     whatsIncluded: '', benefits: '', eligibility: '', slots: '', registrationProcess: '', registrationLink: '',
     rounds: [], contacts: [], galleryImages: [],
     showTimings: [], status: 'published',
-    registration: { status: 'closed', mode: 'external_link', formType: 'SINGLE_STEP', formSchema: [], steps: [], googleSheetsUrl: '' },
+    registration: {
+        status: 'closed',
+        mode: 'external_link',
+        formType: 'SINGLE_STEP',
+        formSchema: [],
+        steps: [],
+        googleSheetsUrl: '',
+        paymentQR: '',
+        paymentQRMessage: '',
+        paymentUpiId: '',
+        qrAutoConfirm: false,
+    },
 };
 
 const FIELD_TYPES = [
@@ -153,6 +164,18 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
             setError('Title and Event Type are required.');
             return;
         }
+        if (
+            reg.mode === 'organizer_qr'
+            && (
+                form.pricingMode === 'tiers'
+                    ? Math.max(0, ...(form.tiers || []).map((t) => Number(t.fee) || 0)) > 0
+                    : Number(form.ticketPrice) > 0
+            )
+            && !String(reg.paymentQR || '').trim()
+        ) {
+            setError('Upload a payment QR image for QR mode when fee is greater than 0.');
+            return;
+        }
         setSaving(true);
         try {
             const slugify = (s) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -200,6 +223,10 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                     mode: reg.mode,
                     formType: reg.formType,
                     googleSheetsUrl: (reg.googleSheetsUrl || '').trim(),
+                    paymentQR: (reg.paymentQR || '').trim(),
+                    paymentQRMessage: (reg.paymentQRMessage || '').trim(),
+                    paymentUpiId: (reg.paymentUpiId || '').trim(),
+                    qrAutoConfirm: Boolean(reg.qrAutoConfirm),
                     formSchema: (reg.formSchema || []).filter(validField).map(cleanField),
                     steps: (reg.steps || []).map((s, i) => ({
                         stepNumber: i + 1,
@@ -359,10 +386,103 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                             <label className="block text-sm font-medium text-gray-300 mb-1">Registration Type</label>
                             <select value={reg.mode} onChange={e => setReg({ mode: e.target.value })} className={inp}>
                                 <option value="external_link">External Link</option>
-                                <option value="internal_form">Internal Form (multi-step + payment)</option>
+                                <option value="internal_form">Internal Form (Cashfree payment)</option>
+                                <option value="organizer_qr">Internal Form + QR / screenshot payment</option>
                             </select>
                         </div>
                     </div>
+
+                    {reg.mode === 'organizer_qr' && (
+                        <div className="space-y-4 rounded-lg border border-gray-700 p-4 bg-[#161718]">
+                            <p className="text-xs text-gray-400">
+                                Users fill the in-app form, pay organizer via QR/UPI, and upload payment screenshot.
+                                {(form.pricingMode === 'tiers'
+                                    ? Math.max(0, ...(form.tiers || []).map((t) => Number(t.fee) || 0))
+                                    : Number(form.ticketPrice)) > 0
+                                    ? (reg.qrAutoConfirm
+                                        ? ' Paid registrations auto-approve on submit.'
+                                        : ' Paid registrations remain pending until organizer approval.')
+                                    : ' Free registrations auto-approve (no screenshot needed).'}
+                            </p>
+                            {(form.pricingMode === 'tiers'
+                                ? Math.max(0, ...(form.tiers || []).map((t) => Number(t.fee) || 0))
+                                : Number(form.ticketPrice)) > 0 ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-1">After screenshot submit</label>
+                                        <select
+                                            value={reg.qrAutoConfirm ? 'auto' : 'approval'}
+                                            onChange={(e) => setReg({ qrAutoConfirm: e.target.value === 'auto' })}
+                                            className={inp}
+                                        >
+                                            <option value="approval">Keep pending for organizer approval</option>
+                                            <option value="auto">Auto-approve</option>
+                                        </select>
+                                    </div>
+                                ) : null}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Organizer payment QR</label>
+                                <div className="flex flex-wrap gap-3 items-center">
+                                    {reg.paymentQR ? (
+                                        <img src={reg.paymentQR} alt="Payment QR" className="h-24 w-24 object-contain rounded-lg border border-gray-700 bg-white p-1" />
+                                    ) : null}
+                                    <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-600 text-xs cursor-pointer hover:border-[#0ECCEE]">
+                                        {uploadingCover ? 'Uploading…' : 'Upload QR'}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setUploadingCover(true);
+                                                setError('');
+                                                try {
+                                                    const fd = new FormData();
+                                                    fd.append('image', file);
+                                                    fd.append('folder', 'crwdctrl/events');
+                                                    const res = await adminFetch('/admin/upload/image', { method: 'POST', body: fd });
+                                                    const data = await res.json().catch(() => ({}));
+                                                    if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
+                                                    setReg({ paymentQR: data.url || '' });
+                                                } catch (err) {
+                                                    setError(err.message || 'QR upload failed');
+                                                } finally {
+                                                    setUploadingCover(false);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                    <input
+                                        type="url"
+                                        value={reg.paymentQR || ''}
+                                        onChange={(e) => setReg({ paymentQR: e.target.value })}
+                                        className={`${inp} flex-1 min-w-[180px]`}
+                                        placeholder="Or paste QR image URL"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">UPI ID (optional)</label>
+                                <input
+                                    type="text"
+                                    value={reg.paymentUpiId || ''}
+                                    onChange={(e) => setReg({ paymentUpiId: e.target.value })}
+                                    className={inp}
+                                    placeholder="name@upi"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Payment instructions</label>
+                                <textarea
+                                    rows={2}
+                                    value={reg.paymentQRMessage || ''}
+                                    onChange={(e) => setReg({ paymentQRMessage: e.target.value })}
+                                    className={`${inp} resize-none`}
+                                    placeholder="Pay exact amount, then upload screenshot + transaction ID"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     <div className="pt-1">
                         <label className="block text-sm font-medium text-gray-300 mb-2">Pricing style</label>
@@ -500,9 +620,14 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                         <div><label className="block text-sm font-medium text-gray-300 mb-1">Registration Link</label><input type="url" value={form.registrationLink} onChange={e => set('registrationLink', e.target.value)} className={inp} placeholder="https://forms.gle/..." /></div>
                     )}
 
-                    {reg.mode === 'internal_form' && (
+                    {['internal_form', 'organizer_qr'].includes(reg.mode) && (
                         <div className="space-y-5 rounded-lg border border-gray-700 p-4 bg-[#161718]">
-                            <p className="text-xs text-gray-400">The &quot;Register Now&quot; button opens an in-app form. Uses the registration fee above — platform fee is added at checkout.</p>
+                            <p className="text-xs text-gray-400">
+                                The &quot;Register Now&quot; button opens an in-app form.
+                                {reg.mode === 'organizer_qr'
+                                    ? ' Users pay via organizer QR and upload proof.'
+                                    : ' Uses Cashfree for paid registrations.'}
+                            </p>
 
                             {/* Google Sheet auto-export */}
                             <div>

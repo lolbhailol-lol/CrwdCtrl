@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 const EventShowOrganizerAccount = require('../model/event_show_organizer_account_model');
 const EventShow = require('../model/event_show_model');
+const EventShowManagerProfileInvite = require('../model/event_show_manager_profile_invite_model');
 const { normalizeUsername } = require('../utils/normalizeUsername');
+const { sendEventOrganizerApprovalEmail } = require('../services/emailService');
 
 function serializeOrganizer(org) {
     const plain = typeof org.toObject === 'function' ? org.toObject() : { ...org };
@@ -18,6 +20,10 @@ function parseAssignedIds(raw) {
     return list
         .map((id) => String(id || '').trim())
         .filter((id) => mongoose.Types.ObjectId.isValid(id));
+}
+
+function normalizeInviteEmail(email) {
+    return String(email || '').trim().toLowerCase();
 }
 
 exports.listOrganizers = async (req, res) => {
@@ -96,11 +102,41 @@ exports.createOrganizer = async (req, res) => {
             .select('-passwordHash')
             .populate('assignedEventShowIds', 'title displayName status')
             .lean();
+        let emailStatus = { attempted: false, sent: false, reason: '' };
+        try {
+            if (email) {
+                const assigned = await EventShow.find({ _id: { $in: assignedEventShowIds } })
+                    .select('title displayName')
+                    .lean();
+                const eventTitles = assigned.map((e) => e.displayName || e.title || '').filter(Boolean);
+                const loginUrl = `${String(process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '')}/event-organizer/login`;
+                const mailResult = await sendEventOrganizerApprovalEmail({
+                    toEmail: email,
+                    organizerName: name,
+                    username,
+                    temporaryPassword: password,
+                    accountCreatedByAdmin: true,
+                    loginUrl,
+                    eventTitles,
+                });
+                emailStatus = {
+                    attempted: true,
+                    sent: Boolean(mailResult?.success !== false && !mailResult?.error),
+                    reason: mailResult?.error || '',
+                };
+            } else {
+                emailStatus = { attempted: false, sent: false, reason: 'Organizer email not provided' };
+            }
+        } catch (mailErr) {
+            console.error('[adminEventShowOrganizer.create] account mail failed:', mailErr.message);
+            emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+        }
 
         res.status(201).json({
             success: true,
             message: 'Event organizer created',
             organizer: serializeOrganizer(populated),
+            emailStatus,
         });
     } catch (error) {
         console.error('[adminEventShowOrganizer.create]', error);
@@ -182,7 +218,34 @@ exports.approveOrganizer = async (req, res) => {
         organizer.approvedBy = req.user?.userId || null;
         organizer.rejectedReason = '';
         await organizer.save();
-        res.json({ success: true, message: 'Organizer approved', organizer: serializeOrganizer(organizer) });
+        let emailStatus = { attempted: false, sent: false, reason: '' };
+        try {
+            if (organizer.email) {
+                const assigned = await EventShow.find({ _id: { $in: organizer.assignedEventShowIds || [] } })
+                    .select('title displayName')
+                    .lean();
+                const eventTitles = assigned.map((e) => e.displayName || e.title || '').filter(Boolean);
+                const loginUrl = `${String(process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '')}/event-organizer/login`;
+                const mailResult = await sendEventOrganizerApprovalEmail({
+                    toEmail: organizer.email,
+                    organizerName: organizer.name || '',
+                    username: organizer.username || '',
+                    loginUrl,
+                    eventTitles,
+                });
+                emailStatus = {
+                    attempted: true,
+                    sent: Boolean(mailResult?.success !== false && !mailResult?.error),
+                    reason: mailResult?.error || '',
+                };
+            } else {
+                emailStatus = { attempted: false, sent: false, reason: 'Organizer email not provided' };
+            }
+        } catch (mailErr) {
+            console.error('[adminEventShowOrganizer.approve] approval mail failed:', mailErr.message);
+            emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+        }
+        res.json({ success: true, message: 'Organizer approved', organizer: serializeOrganizer(organizer), emailStatus });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to approve' });
     }
@@ -209,5 +272,71 @@ exports.deleteOrganizer = async (req, res) => {
         res.json({ success: true, message: 'Organizer deleted' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to delete' });
+    }
+};
+
+exports.listProfileInvites = async (req, res) => {
+    try {
+        const invites = await EventShowManagerProfileInvite.find()
+            .sort({ createdAt: -1 })
+            .lean();
+        res.json({ success: true, invites });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Failed to list profile invites' });
+    }
+};
+
+exports.addProfileInvite = async (req, res) => {
+    try {
+        const email = normalizeInviteEmail(req.body.email);
+        const note = String(req.body.note || '').trim();
+        if (!email || !email.includes('@')) {
+            return res.status(400).json({ success: false, message: 'Valid email is required' });
+        }
+
+        const existing = await EventShowManagerProfileInvite.findOne({ email });
+        if (existing) {
+            existing.isActive = true;
+            if (note) existing.note = note;
+            await existing.save();
+            return res.json({
+                success: true,
+                message: 'Email re-activated for Event organizer profile access',
+                invite: existing,
+            });
+        }
+
+        const invite = await EventShowManagerProfileInvite.create({
+            email,
+            note,
+            isActive: true,
+            createdBy: req.user?.userId || null,
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Email approved — user will see Event organizer in Profile',
+            invite,
+        });
+    } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({ success: false, message: 'Email already added' });
+        }
+        console.error('[adminEventShowOrganizer.addProfileInvite]', error);
+        res.status(500).json({ success: false, message: 'Failed to add email' });
+    }
+};
+
+exports.removeProfileInvite = async (req, res) => {
+    try {
+        const { inviteId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(inviteId)) {
+            return res.status(400).json({ success: false, message: 'Invalid invite ID' });
+        }
+        const invite = await EventShowManagerProfileInvite.findByIdAndDelete(inviteId);
+        if (!invite) return res.status(404).json({ success: false, message: 'Invite not found' });
+        res.json({ success: true, message: 'Email removed from Event organizer profile access' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Failed to remove email' });
     }
 };

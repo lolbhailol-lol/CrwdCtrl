@@ -287,9 +287,12 @@ export async function lookupRunClubOrganizerParticipant(eventId, q) {
     return runClubOrganizerFetch(`/run-club-organizer/events/${eventId}/participants/lookup?q=${encodeURIComponent(q)}`);
 }
 
-export async function exportRunClubOrganizerParticipants(eventId) {
+export async function exportRunClubOrganizerParticipants(eventId, options = {}) {
     const token = getRunClubOrganizerToken();
-    const res = await fetch(`${API}/run-club-organizer/events/${eventId}/participants/export`, {
+    const format = String(options.format || 'csv').toLowerCase();
+    const qs = new URLSearchParams();
+    if (format) qs.set('format', format);
+    const res = await fetch(`${API}/run-club-organizer/events/${eventId}/participants/export?${qs.toString()}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (res.status === 401) {

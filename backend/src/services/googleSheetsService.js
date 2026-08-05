@@ -572,10 +572,18 @@ const appendToEventGoogleSheets = async (googleSheetsUrl, responses, eventInfo, 
 
     const safeFormSchema = Array.isArray(formSchema) ? formSchema : [];
 
-    // Build headers: meta + form fields + payment columns
+    // Build headers: meta + form fields + package + payment columns
     const headers = ['Timestamp', 'Name', 'Email', 'Phone', 'Event', 'Registration ID'];
     safeFormSchema.forEach((field) => headers.push(field.label || field.fieldName || 'Field'));
-    headers.push('Amount Paid (₹)', 'Payment ID', 'Payment Status');
+    // Extra keys stored on registration but not in schema (e.g. driver_count)
+    const schemaFieldNames = new Set(
+      safeFormSchema.map((f) => String(f.fieldName || '').trim()).filter(Boolean),
+    );
+    const extraKeys = Object.keys(responses || {})
+      .filter((k) => k && !schemaFieldNames.has(k))
+      .sort();
+    extraKeys.forEach((k) => headers.push(k));
+    headers.push('Package', 'Amount Paid (₹)', 'Payment ID', 'Payment Status');
 
     if (existingHeaders.length === 0 || !arraysEqual(existingHeaders, headers)) {
       await sheets.spreadsheets.values.update({
@@ -644,7 +652,19 @@ const appendToEventGoogleSheets = async (googleSheetsUrl, responses, eventInfo, 
       }
     });
 
+    extraKeys.forEach((k) => {
+      const value = responses?.[k];
+      if (Array.isArray(value)) {
+        rowData.push(value.length && typeof value[0] === 'object' ? JSON.stringify(value) : value.join(', '));
+      } else if (value && typeof value === 'object') {
+        rowData.push(JSON.stringify(value));
+      } else {
+        rowData.push(value ?? '');
+      }
+    });
+
     rowData.push(
+      eventInfo.tierName || '',
       eventInfo.amountPaid != null ? eventInfo.amountPaid : 0,
       eventInfo.paymentId || '',
       eventInfo.paymentStatus || '',

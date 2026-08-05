@@ -96,6 +96,7 @@ export const RunClubOrganizerNotificationsPage = lazyWithRetry(() => import('../
 export const RunClubOrganizerEventEditorPage = lazyWithRetry(() => import('../../pages/run-club-organizer/RunClubOrganizerEventEditorPage'));
 
 export const EventOrganizerLoginPage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerLoginPage'));
+export const EventOrganizerSignupPage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerSignupPage'));
 export const EventOrganizerLayout = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerLayout'));
 export const EventOrganizerProtectedRoute = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerProtectedRoute'));
 export const EventOrganizerHomePage = lazyWithRetry(() => import('../../pages/event-organizer/EventOrganizerHomePage'));

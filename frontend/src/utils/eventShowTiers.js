@@ -6,6 +6,7 @@ export {
     getSportsTiers as getEventShowTiers,
     isTiersPricing as isEventShowTiersPricing,
     findSportsTier as findEventShowTier,
+    resolveTierParticipantCount,
     formatInr,
 } from './sportsTiers';
 
@@ -27,6 +28,8 @@ export function resolveEventShowFee(event, tierId) {
 export function minEventShowFee(event) {
     if (isTiersPricing(event)) {
         const fees = getSportsTiers(event).map((t) => Math.max(0, Number(t.fee) || 0));
+        const paid = fees.filter((f) => f > 0);
+        if (paid.length) return Math.min(...paid);
         return fees.length ? Math.min(...fees) : 0;
     }
     return Math.max(0, Number(event?.ticketPrice) || 0);

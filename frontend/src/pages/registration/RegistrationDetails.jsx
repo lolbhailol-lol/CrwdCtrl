@@ -12,6 +12,7 @@ import {
   responseAliasGroup,
   mergeRunFormFields,
 } from '../../utils/formFieldDedupe';
+import { primaryCoverUrl } from '../../utils/coverImages';
 
 function normalizeResponses(responses) {
   if (!responses) return {};
@@ -259,7 +260,10 @@ export default function RegistrationDetails() {
   const eventImage = isTrekBooking
     ? registration.trekId?.coverImage || registration.trekId?.images?.[0]
     : isEventRegistration
-      ? eventShow.coverImage || eventShow.banner
+      ? primaryCoverUrl(
+          eventShow.coverImages,
+          eventShow.poster || eventShow.banner || eventShow.coverImage || '',
+        ) || null
       : isSportsRegistration
         ? sportsEvent.coverImage || sportsEvent.images?.[0]
         : isCompetitionRegistration

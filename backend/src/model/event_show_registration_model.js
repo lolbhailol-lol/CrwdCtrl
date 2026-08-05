@@ -9,6 +9,8 @@ const eventShowRegistrationSchema = new mongoose.Schema(
     payment_order_id: { type: String, default: null },
     payment_id: { type: String, default: null },
     payment_gateway: { type: String, default: null },
+    paymentScreenshotUrl: { type: String, default: '' },
+    transactionId: { type: String, default: '' },
     paymentStatus: { type: String, enum: ['free', 'pending', 'paid', 'failed'], default: 'free' },
     amountPaid: { type: Number, default: 0 },
     /** Selected package when event uses pricingMode: tiers */

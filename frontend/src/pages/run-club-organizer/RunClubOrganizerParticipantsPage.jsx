@@ -256,7 +256,7 @@ export default function RunClubOrganizerParticipantsPage() {
     const handleExport = async () => {
         setExporting(true);
         try {
-            const blob = await exportRunClubOrganizerParticipants(eventId);
+            const blob = await exportRunClubOrganizerParticipants(eventId, { format: 'csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -264,6 +264,24 @@ export default function RunClubOrganizerParticipantsPage() {
             a.click();
             URL.revokeObjectURL(url);
             toast('CSV downloaded');
+        } catch (e) {
+            toast(e.message || 'Export failed');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const handleExportExcel = async () => {
+        setExporting(true);
+        try {
+            const blob = await exportRunClubOrganizerParticipants(eventId, { format: 'xlsx' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${(eventTitle || 'run').replace(/[^a-z0-9-_]+/gi, '_')}_participants.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast('Excel downloaded');
         } catch (e) {
             toast(e.message || 'Export failed');
         } finally {
@@ -361,9 +379,13 @@ export default function RunClubOrganizerParticipantsPage() {
                             {expandAll ? 'Collapse' : 'Expand'}
                         </button>
                     ) : null}
+                    <button type="button" onClick={handleExportExcel} disabled={exporting} className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg border border-[#0ECCEE]/40 text-[#0ECCEE] text-xs font-bold hover:bg-[#0ECCEE]/10 disabled:opacity-60">
+                        {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
+                        Export Excel
+                    </button>
                     <button type="button" onClick={handleExport} disabled={exporting} className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg bg-[#0ECCEE] text-black text-xs font-bold hover:opacity-90 disabled:opacity-60">
                         {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
-                        Export
+                        Export CSV
                     </button>
                 </div>
             </div>
@@ -468,6 +490,8 @@ export default function RunClubOrganizerParticipantsPage() {
                             key={row.bookingId}
                             participant={row}
                             index={startIndex + i + 1}
+                            activityLabelSingular="run"
+                            activityLabelPlural="runs"
                             forceOpen={expandAll || paymentFilter === 'pending_review'}
                             onResend={row.status === 'confirmed' ? handleResend : undefined}
                             onNotify={row.status === 'confirmed' ? () => setNotifyTarget(row) : undefined}

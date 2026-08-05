@@ -6,9 +6,28 @@ export function createEmptyTier(order = 0, name = '') {
         name: name || (order === 0 ? 'Basic' : `Tier ${order + 1}`),
         description: '',
         fee: 0,
+        participantCount: 1,
         inclusions: [],
         order,
     };
+}
+
+function sanitizeParticipantCount(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.min(10, Math.round(n));
+}
+
+/** Infer driver count from package name when participantCount is missing. */
+export function resolveTierParticipantCount(tier) {
+    if (!tier) return 1;
+    const explicit = Number(tier.participantCount ?? tier.driverCount);
+    if (Number.isFinite(explicit) && explicit >= 1) return Math.min(10, Math.round(explicit));
+    const name = String(tier.name || tier.description || '').toLowerCase();
+    if (/\bpenta\b/.test(name)) return 5;
+    if (/\bquattro\b/.test(name)) return 4;
+    if (/\btrio\b/.test(name)) return 3;
+    return 1;
 }
 
 export function sanitizeSportsTiers(list) {
@@ -19,6 +38,9 @@ export function sanitizeSportsTiers(list) {
             name: String(tier?.name || '').trim(),
             description: String(tier?.description || '').trim(),
             fee: Math.max(0, Number(tier?.fee) || 0),
+            participantCount: sanitizeParticipantCount(
+                tier?.participantCount ?? tier?.driverCount ?? resolveTierParticipantCount(tier),
+            ),
             inclusions: Array.isArray(tier?.inclusions)
                 ? tier.inclusions.map((s) => String(s).trim()).filter(Boolean)
                 : String(tier?.inclusions || '')
@@ -63,6 +85,8 @@ export function resolveSportsPerPersonFee(event, tierId) {
 export function minSportsFee(event) {
     if (isTiersPricing(event)) {
         const fees = getSportsTiers(event).map((t) => Math.max(0, Number(t.fee) || 0));
+        const paid = fees.filter((f) => f > 0);
+        if (paid.length) return Math.min(...paid);
         return fees.length ? Math.min(...fees) : 0;
     }
     return Math.max(0, Number(event?.registrationFee) || 0);

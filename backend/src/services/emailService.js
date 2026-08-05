@@ -926,6 +926,83 @@ const sendOrganizerNotificationEmail = async (organizerEmail, userName, userEmai
     }
 };
 
+const sendEventOrganizerApprovalEmail = async ({
+    toEmail,
+    organizerName,
+    username,
+    loginUrl,
+    eventTitles = [],
+    temporaryPassword = '',
+    accountCreatedByAdmin = false,
+}) => {
+    try {
+        const email = String(toEmail || '').trim().toLowerCase();
+        if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
+            return { success: false, error: 'Organizer email missing or invalid' };
+        }
+        const eventsList = (Array.isArray(eventTitles) ? eventTitles : [])
+            .map((t) => String(t || '').trim())
+            .filter(Boolean)
+            .slice(0, 8);
+        const eventsHtml = eventsList.length
+            ? `<ul style="margin:10px 0 0 18px;padding:0;color:#374151;font-size:14px;line-height:1.6;">
+                ${eventsList.map((t) => `<li style="margin:0 0 6px;">${t}</li>`).join('')}
+            </ul>`
+            : '<p style="margin:8px 0 0;font-size:14px;color:#6b7280;">Your assigned events are visible after login.</p>';
+        const safeLogin = String(loginUrl || `${getSiteUrl()}/event-organizer/login`).trim();
+        const hasTempPassword = String(temporaryPassword || '').trim().length > 0;
+        const accountTypeLabel = accountCreatedByAdmin ? 'Organizer account created' : 'Organizer approval';
+        const subject = accountCreatedByAdmin
+            ? '✅ Your CrwdCtrl event organizer account is ready'
+            : '✅ Your CrwdCtrl organizer account is approved';
+        const mailOptions = {
+            from: getDefaultFrom(),
+            to: email,
+            subject,
+            html: buildEmailShell({
+                preheader: accountCreatedByAdmin
+                    ? 'Your organizer account has been created and is ready to use'
+                    : 'Your organizer account is now active',
+                eyebrow: accountTypeLabel,
+                title: accountCreatedByAdmin
+                    ? 'Your organizer account is ready'
+                    : 'Your organizer account is approved',
+                subtitle: 'You can now log in and manage registrations.',
+                bodyHtml: `
+                    <p style="margin:0 0 12px;">Hi <strong>${organizerName || 'Organizer'}</strong>,</p>
+                    <p style="margin:0 0 12px;">
+                        ${accountCreatedByAdmin
+        ? 'Your Event Organizer account on CrwdCtrl has been created by the admin team and is active now.'
+        : 'Your Event Organizer access on CrwdCtrl is now approved.'}
+                    </p>
+                    <p style="margin:0 0 8px;"><strong>Login details</strong></p>
+                    <p style="margin:0 0 12px;font-size:14px;color:#374151;">
+                        Username: <strong>${username || '—'}</strong><br/>
+                        ${hasTempPassword ? `Temporary password: <strong>${String(temporaryPassword)}</strong><br/>` : ''}
+                        Portal: <a href="${safeLogin}" style="color:#0ea5e9;text-decoration:underline;">${safeLogin}</a>
+                    </p>
+                    <div style="margin:14px 0;padding:14px;border-radius:12px;background:#f9fafb;border:1px solid #e5e7eb;">
+                        <p style="margin:0;font-size:13px;color:#6b7280;">Assigned events</p>
+                        ${eventsHtml}
+                    </div>
+                    <p style="margin:14px 0 0;font-size:13px;color:#6b7280;">
+                        ${hasTempPassword
+        ? 'For security, please change this temporary password after your first login.'
+        : 'If you forgot your password, contact the CrwdCtrl admin team to reset it.'}
+                    </p>
+                `,
+                ctaLabel: 'Open organizer portal',
+                ctaHref: safeLogin,
+                footnote: 'This approval email was sent automatically by CrwdCtrl.',
+            }),
+        };
+        return await sendEmail(mailOptions);
+    } catch (error) {
+        console.error('❌ Event organizer approval email failed:', error.message);
+        return { success: false, error: error.message };
+    }
+};
+
 // Generate HTML content for organizer notification email
 const generateOrganizerNotificationEmailHTML = (userName, userEmail, festName, competitionName, registrationId, submissionDate) => {
     return `
@@ -1255,6 +1332,7 @@ module.exports = {
     sendRegistrationConfirmationEmail,
     sendTrekRegistrationEmails,
     sendOrganizerNotificationEmail,
+    sendEventOrganizerApprovalEmail,
     sendLoginConfirmationEmail,
     sendEventBroadcast,
     sendTrekParticipantEmails,

@@ -34,16 +34,24 @@ export default function EventOrganizersPage() {
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [section, setSection] = useState('accounts');
     const [tab, setTab] = useState('all');
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
     const [actionBusy, setActionBusy] = useState('');
+    const [invites, setInvites] = useState([]);
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [inviteNote, setInviteNote] = useState('');
+    const [inviteSaving, setInviteSaving] = useState(false);
 
     const loginUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/event-organizer/login`
         : '/event-organizer/login';
+    const signupUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/event-organizer/signup`
+        : '/event-organizer/signup';
 
     const load = async () => {
         setLoading(true);
@@ -56,6 +64,8 @@ export default function EventOrganizersPage() {
             setOrganizers(orgData.organizers || []);
             setPendingCount(orgData.pendingCount ?? 0);
             setEvents(eventData.shows || eventData.events || eventData.data || []);
+            const inviteData = await adminFetchJSON('/admin/event-organizers/profile-invites').catch(() => ({ invites: [] }));
+            setInvites(inviteData.invites || []);
         } catch (e) {
             toast(e.message || 'Failed to load organizers');
         } finally {
@@ -64,6 +74,42 @@ export default function EventOrganizersPage() {
     };
 
     useEffect(() => { load(); }, [tab]);
+
+    const addInvite = async (e) => {
+        e.preventDefault();
+        const email = inviteEmail.trim().toLowerCase();
+        if (!email || !email.includes('@')) {
+            toast('Enter a valid email');
+            return;
+        }
+        setInviteSaving(true);
+        try {
+            await adminFetchJSON('/admin/event-organizers/profile-invites', {
+                method: 'POST',
+                body: JSON.stringify({ email, note: inviteNote.trim() }),
+            });
+            toast('Email approved for Profile → Event organizer');
+            setInviteEmail('');
+            setInviteNote('');
+            load();
+        } catch (err) {
+            toast(err.message || 'Failed to add email');
+        } finally {
+            setInviteSaving(false);
+        }
+    };
+
+    const removeInvite = async (invite) => {
+        const ok = await confirm(`Remove ${invite.email} from Event organizer profile access?`);
+        if (!ok) return;
+        try {
+            await adminFetchJSON(`/admin/event-organizers/profile-invites/${invite._id}`, { method: 'DELETE' });
+            toast('Email removed');
+            load();
+        } catch (err) {
+            toast(err.message || 'Failed to remove');
+        }
+    };
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -130,11 +176,17 @@ export default function EventOrganizersPage() {
                 });
                 toast('Organizer updated');
             } else {
-                await adminFetchJSON('/admin/event-organizers', {
+                const created = await adminFetchJSON('/admin/event-organizers', {
                     method: 'POST',
                     body: JSON.stringify(form),
                 });
-                toast('Organizer created');
+                if (created?.emailStatus?.attempted && created?.emailStatus?.sent) {
+                    toast('Organizer created + account email sent');
+                } else if (created?.emailStatus?.attempted && !created?.emailStatus?.sent) {
+                    toast(`Organizer created, but email failed: ${created?.emailStatus?.reason || 'unknown error'}`);
+                } else {
+                    toast('Organizer created (no email sent — add organizer email)');
+                }
             }
             setModalOpen(false);
             load();
@@ -148,8 +200,14 @@ export default function EventOrganizersPage() {
     const approve = async (org) => {
         setActionBusy(org._id);
         try {
-            await adminFetchJSON(`/admin/event-organizers/${org._id}/approve`, { method: 'POST', body: '{}' });
-            toast('Approved');
+            const approved = await adminFetchJSON(`/admin/event-organizers/${org._id}/approve`, { method: 'POST', body: '{}' });
+            if (approved?.emailStatus?.attempted && approved?.emailStatus?.sent) {
+                toast('Approved + approval email sent');
+            } else if (approved?.emailStatus?.attempted && !approved?.emailStatus?.sent) {
+                toast(`Approved, but email failed: ${approved?.emailStatus?.reason || 'unknown error'}`);
+            } else {
+                toast('Approved (no email sent — add organizer email)');
+            }
             load();
         } catch (e) {
             toast(e.message || 'Approve failed');
@@ -186,10 +244,10 @@ export default function EventOrganizersPage() {
         }
     };
 
-    const copyLogin = async () => {
+    const copyLogin = async (url = loginUrl, label = 'URL') => {
         try {
-            await navigator.clipboard.writeText(loginUrl);
-            toast('Login URL copied');
+            await navigator.clipboard.writeText(url);
+            toast(`${label} copied`);
         } catch {
             toast('Could not copy');
         }
@@ -221,6 +279,28 @@ export default function EventOrganizersPage() {
                 </div>
             </div>
 
+            <div className="flex flex-wrap gap-2">
+                {[
+                    { id: 'accounts', label: 'Organizer accounts' },
+                    { id: 'profile_emails', label: `Profile emails${invites.length ? ` (${invites.length})` : ''}` },
+                ].map((s) => (
+                    <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSection(s.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                            section === s.id
+                                ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                                : 'border-gray-800 text-gray-400 hover:border-gray-700'
+                        }`}
+                    >
+                        {s.label}
+                    </button>
+                ))}
+            </div>
+
+            {section === 'accounts' ? (
+            <>
             <div className="flex flex-wrap gap-2 items-center">
                 {['all', 'pending', 'approved', 'rejected'].map((t) => (
                     <button
@@ -281,6 +361,107 @@ export default function EventOrganizersPage() {
                     ))}
                 </div>
             )}
+            </>
+            ) : (
+                <div className="space-y-4">
+                    <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 space-y-3">
+                        <div>
+                            <h2 className="text-sm font-semibold text-white">Approve Profile → Event organizer</h2>
+                            <p className="text-xs text-gray-500 mt-1">
+                                These CrwdCtrl user emails see Event organizer in Profile and can request signup.
+                                Separately approve the organizer username under Organizer accounts.
+                            </p>
+                        </div>
+                        <form onSubmit={addInvite} className="flex flex-col sm:flex-row gap-2">
+                            <input
+                                type="email"
+                                required
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                                placeholder="organizer@event.com"
+                                className="flex-1 px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm"
+                            />
+                            <input
+                                value={inviteNote}
+                                onChange={(e) => setInviteNote(e.target.value)}
+                                placeholder="Note (optional)"
+                                className="sm:w-40 px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm"
+                            />
+                            <button
+                                type="submit"
+                                disabled={inviteSaving}
+                                className="px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-60"
+                            >
+                                {inviteSaving ? 'Adding…' : 'Add email'}
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-800 overflow-hidden">
+                        {loading ? (
+                            <div className="py-16 flex justify-center"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                        ) : (
+                            <table className="w-full text-sm">
+                                <thead className="bg-[#111213] text-gray-500 text-[11px] uppercase">
+                                    <tr>
+                                        <th className="text-left px-4 py-3">Email</th>
+                                        <th className="text-left px-4 py-3 hidden sm:table-cell">Note</th>
+                                        <th className="text-left px-4 py-3">Status</th>
+                                        <th className="text-right px-4 py-3">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {invites.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="px-4 py-12 text-center text-gray-500">
+                                                No emails yet — add a user email to show Event organizer in Profile
+                                            </td>
+                                        </tr>
+                                    ) : invites.map((inv) => (
+                                        <tr key={inv._id} className="border-t border-gray-800">
+                                            <td className="px-4 py-3 font-mono text-xs text-gray-200">{inv.email}</td>
+                                            <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{inv.note || '—'}</td>
+                                            <td className="px-4 py-3">
+                                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                    inv.isActive !== false
+                                                        ? 'bg-emerald-500/15 text-emerald-400'
+                                                        : 'bg-gray-500/20 text-gray-400'
+                                                }`}>
+                                                    {inv.isActive !== false ? 'Active' : 'Off'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeInvite(inv)}
+                                                    className="p-2 rounded-lg hover:bg-red-900/30 text-red-400"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            <div className="flex flex-col gap-2 text-xs text-gray-600">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span>Signup: <span className="text-[#0ECCEE]">{signupUrl}</span></span>
+                    <button type="button" onClick={() => copyLogin(signupUrl, 'Signup URL')} className="shrink-0 px-3 py-2 rounded-lg border border-gray-700 text-gray-300 hover:border-[#0ECCEE]/40 text-xs font-medium min-h-[36px]">
+                        Copy signup
+                    </button>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span>Login: <span className="text-[#0ECCEE]">{loginUrl}</span></span>
+                    <button type="button" onClick={() => copyLogin(loginUrl, 'Login URL')} className="shrink-0 px-3 py-2 rounded-lg border border-gray-700 text-gray-300 hover:border-[#0ECCEE]/40 text-xs font-medium min-h-[36px]">
+                        Copy login
+                    </button>
+                </div>
+            </div>
 
             {modalOpen ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">

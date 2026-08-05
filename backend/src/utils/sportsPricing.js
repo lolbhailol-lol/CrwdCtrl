@@ -3,6 +3,20 @@
  * Supports legacy single fee and custom tiers.
  */
 
+function sanitizeParticipantCount(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.min(10, Math.round(n));
+}
+
+function inferParticipantCountFromName(name = '') {
+    const n = String(name || '').toLowerCase();
+    if (/\bpenta\b/.test(n)) return 5;
+    if (/\bquattro\b/.test(n)) return 4;
+    if (/\btrio\b/.test(n)) return 3;
+    return 1;
+}
+
 function sanitizeSportsTiers(list) {
     if (!Array.isArray(list)) return [];
     return list
@@ -11,6 +25,11 @@ function sanitizeSportsTiers(list) {
             name: String(tier?.name || '').trim(),
             description: String(tier?.description || '').trim(),
             fee: Math.max(0, Number(tier?.fee) || 0),
+            participantCount: sanitizeParticipantCount(
+                tier?.participantCount
+                ?? tier?.driverCount
+                ?? inferParticipantCountFromName(tier?.name || tier?.description),
+            ),
             inclusions: Array.isArray(tier?.inclusions)
                 ? tier.inclusions.map((s) => String(s).trim()).filter(Boolean)
                 : typeof tier?.inclusions === 'string'
@@ -36,7 +55,11 @@ function getSportsTiers(event) {
 
 function minTierFee(tiers) {
     if (!tiers.length) return 0;
-    return Math.min(...tiers.map((t) => Math.max(0, Number(t.fee) || 0)));
+    const fees = tiers.map((t) => Math.max(0, Number(t.fee) || 0));
+    const paid = fees.filter((f) => f > 0);
+    // Prefer lowest paid package so a free "drive only" option does not zero the list price
+    if (paid.length) return Math.min(...paid);
+    return Math.min(...fees);
 }
 
 function maxTierFee(tiers) {

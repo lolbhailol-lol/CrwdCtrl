@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const EventShowOrganizerAccount = require('../model/event_show_organizer_account_model');
 const EventShow = require('../model/event_show_model');
 const EventShowRegistration = require('../model/event_show_registration_model');
+const EventShowManagerProfileInvite = require('../model/event_show_manager_profile_invite_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
 const {
@@ -39,9 +40,66 @@ function formatEvent(event) {
     };
 }
 
+function isDriveOnlyTierName(name) {
+    return /drive\s*only|independence\s*day\s*drive\s*only/i.test(String(name || ''));
+}
+
+function resolveRegistrationCategory(reg, responses = {}) {
+    const explicit = String(
+        responses.registration_type
+        || reg.registrationType
+        || '',
+    ).trim().toLowerCase();
+    if (['drive_only', 'drive_and_trackday', 'trackday_only'].includes(explicit)) {
+        return explicit;
+    }
+
+    const tierName = String(reg.tierName || '').trim();
+    if (isDriveOnlyTierName(tierName) || /tier_drive_only/i.test(String(reg.tierId || ''))) {
+        return 'drive_only';
+    }
+
+    const joinDrive = String(
+        responses.join_drive
+        || responses.join_independence_day_drive
+        || responses.independence_day_drive
+        || '',
+    ).trim().toLowerCase();
+    const joinsDrive = joinDrive === 'yes'
+        || /drive only/i.test(joinDrive)
+        || /drive \+ trackday|drive and trackday/i.test(joinDrive);
+
+    if (joinsDrive) return 'drive_and_trackday';
+    if (joinDrive === 'no' || /trackday only/i.test(joinDrive)) return 'trackday_only';
+    // Paid track packages without a drive answer → trackday
+    if (tierName && !isDriveOnlyTierName(tierName)) return 'trackday_only';
+    return 'unknown';
+}
+
+function categoryLabel(category) {
+    if (category === 'drive_only') return 'Independence Day Drive only';
+    if (category === 'drive_and_trackday') return 'Drive + Trackday';
+    if (category === 'trackday_only') return 'Trackday only';
+    return 'Other';
+}
+
 function formatParticipant(reg) {
     const responses = responsesToObject(reg.responses);
     const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
+    const formName = String(
+        responses.leader_name
+        || responses.full_name
+        || responses.name
+        || '',
+    ).trim();
+    const formEmail = String(responses.email || '').trim();
+    const formPhone = String(
+        responses.phone
+        || responses.contact_no
+        || responses.mobile
+        || '',
+    ).trim();
+    const category = resolveRegistrationCategory(reg, responses);
     return {
         id: String(reg._id),
         status: reg.status,
@@ -51,9 +109,26 @@ function formatParticipant(reg) {
         tierName: reg.tierName || null,
         checkedIn: Boolean(reg.checkedIn),
         checkedInAt: reg.checkedInAt || null,
-        userName: user?.name || responses.full_name || responses.name || '',
-        userEmail: user?.email || responses.email || '',
-        userPhone: user?.phone || user?.phoneNumber || responses.contact_no || responses.phone || responses.mobile || '',
+        // Prefer form answers (leader / registrant) over account profile
+        userName: formName || user?.name || '',
+        userEmail: formEmail || user?.email || '',
+        userPhone: formPhone || user?.phone || user?.phoneNumber || '',
+        joinDrive: String(
+            responses.join_drive
+            || responses.join_independence_day_drive
+            || responses.independence_day_drive
+            || '',
+        ).trim(),
+        registrationType: String(responses.registration_type || category || '').trim(),
+        category,
+        categoryLabel: categoryLabel(category),
+        joinsIndependenceDrive: category === 'drive_only' || category === 'drive_and_trackday',
+        hasTrackday: category === 'drive_and_trackday' || category === 'trackday_only',
+        bloodGroup: String(responses.blood_group || '').trim(),
+        vehicleDetails: String(responses.vehicle_details || responses.vehicle || '').trim(),
+        driverCount: responses.driver_count != null && responses.driver_count !== ''
+            ? Number(responses.driver_count) || String(responses.driver_count)
+            : null,
         submittedAt: reg.submittedAt || reg.createdAt,
         createdAt: reg.createdAt,
         updatedAt: reg.updatedAt,
@@ -61,6 +136,8 @@ function formatParticipant(reg) {
         payment_id: reg.payment_id || null,
         payment_order_id: reg.payment_order_id || null,
         payment_gateway: reg.payment_gateway || null,
+        paymentScreenshotUrl: reg.paymentScreenshotUrl || '',
+        transactionId: reg.transactionId || '',
         responses,
     };
 }
@@ -103,6 +180,188 @@ async function buildAuthResponse(organizer) {
         events,
     };
 }
+
+/** Published events for signup dropdown (id + title only). */
+exports.listSignupEvents = async (req, res) => {
+    try {
+        const events = await EventShow.find({ status: 'published' })
+            .select('title displayName startDate')
+            .sort({ startDate: -1, createdAt: -1 })
+            .limit(300)
+            .lean();
+        res.json({
+            success: true,
+            events: events.map((e) => ({
+                id: e._id,
+                title: e.displayName || e.title || 'Event',
+            })),
+        });
+    } catch (error) {
+        console.error('[eventShowOrganizer.listSignupEvents]', error);
+        res.status(500).json({ success: false, message: 'Failed to load events' });
+    }
+};
+
+/**
+ * Consumer Profile sidebar eligibility for Event organizer.
+ * Eligible if profile-invite exists OR approved organizer account exists for same email.
+ */
+exports.profileEligible = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) return res.json({ success: true, eligible: false });
+        const User = require('../model/usermodel');
+        const user = await User.findById(userId).select('email').lean();
+        const email = String(user?.email || '').trim().toLowerCase();
+        if (!email) return res.json({ success: true, eligible: false });
+
+        let invite = await EventShowManagerProfileInvite.findOne({ email, isActive: true })
+            .select('_id')
+            .lean();
+        if (!invite) {
+            invite = await EventShowManagerProfileInvite.findOne({
+                email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+                isActive: true,
+            }).select('_id').lean();
+        }
+        if (invite) return res.json({ success: true, eligible: true });
+
+        const organizers = await EventShowOrganizerAccount.find({
+            $or: [
+                { email },
+                { email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            ],
+        }).lean();
+        const approved = organizers.some((org) => EventShowOrganizerAccount.canLogin(org));
+        return res.json({ success: true, eligible: approved });
+    } catch (error) {
+        console.error('[eventShowOrganizer.profileEligible]', error);
+        res.status(500).json({ success: false, eligible: false, message: 'Failed to check access' });
+    }
+};
+
+/** Signed-in CrwdCtrl user -> event organizer session if approved account exists for same email. */
+exports.appSession = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Sign in to CrwdCtrl first' });
+        }
+        const User = require('../model/usermodel');
+        const user = await User.findById(userId).select('email').lean();
+        const email = String(user?.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(403).json({
+                success: false,
+                message: 'Add an email to your CrwdCtrl account to use Event organizer',
+            });
+        }
+
+        const organizers = await EventShowOrganizerAccount.find({
+            $or: [
+                { email },
+                { email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            ],
+        }).sort({ updatedAt: -1 });
+        const organizer = organizers.find((org) => EventShowOrganizerAccount.canLogin(org));
+        if (!organizer) {
+            return res.status(403).json({
+                success: false,
+                code: 'no_organizer_account',
+                message: 'No approved event organizer account for this email. Create one or sign in with your organizer username and password.',
+            });
+        }
+
+        res.json(await buildAuthResponse(organizer));
+    } catch (error) {
+        console.error('[eventShowOrganizer.appSession]', error);
+        res.status(500).json({ success: false, message: 'Failed to open event organizer session' });
+    }
+};
+
+exports.signup = async (req, res) => {
+    try {
+        const name = String(req.body.name || '').trim();
+        const username = normalizeUsername(req.body.username);
+        const password = String(req.body.password || '');
+        const phone = String(req.body.phone || '').trim();
+        const email = String(req.body.email || '').trim().toLowerCase();
+        const eventShowId = String(req.body.eventShowId || '').trim();
+
+        if (!name || !username || !password) {
+            return res.status(400).json({ success: false, message: 'Name, username and password are required' });
+        }
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email is required — use the same email CrwdCtrl approved for Event organizer access',
+            });
+        }
+        if (username.length < 3) {
+            return res.status(400).json({ success: false, message: 'Username must be at least 3 characters' });
+        }
+        if (password.length < 8) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+        }
+        if (!mongoose.Types.ObjectId.isValid(eventShowId)) {
+            return res.status(400).json({ success: false, message: 'Select a valid event' });
+        }
+
+        const invite = await EventShowManagerProfileInvite.findOne({ email, isActive: true })
+            .select('_id')
+            .lean();
+        if (!invite) {
+            return res.status(403).json({
+                success: false,
+                code: 'invite_required',
+                message: 'This email is not approved for event organizer signup. Ask CrwdCtrl to add your email under Admin → Event Organizers → Profile emails first.',
+            });
+        }
+
+        const event = await EventShow.findOne({ _id: eventShowId, status: 'published' })
+            .select('_id title displayName')
+            .lean();
+        if (!event) {
+            return res.status(400).json({ success: false, message: 'Event not found or not published yet' });
+        }
+
+        const existing = await EventShowOrganizerAccount.findOne({ username });
+        if (existing) {
+            return res.status(409).json({ success: false, message: 'Username already taken' });
+        }
+
+        const organizer = await EventShowOrganizerAccount.create({
+            name,
+            username,
+            email,
+            passwordHash: await EventShowOrganizerAccount.hashPassword(password),
+            phone,
+            assignedEventShowIds: [eventShowId],
+            status: 'pending',
+            isActive: false,
+            createdBy: null,
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Account created. CrwdCtrl will review and approve your login shortly.',
+            organizer: {
+                id: organizer._id,
+                name: organizer.name,
+                username: organizer.username,
+                status: organizer.status,
+                eventShowId,
+                eventTitle: event.displayName || event.title || 'Event',
+            },
+        });
+    } catch (error) {
+        console.error('[eventShowOrganizer.signup]', error);
+        if (error.code === 11000) {
+            return res.status(409).json({ success: false, message: 'Username already taken' });
+        }
+        res.status(500).json({ success: false, message: 'Failed to create account' });
+    }
+};
 
 exports.login = async (req, res) => {
     try {
@@ -239,6 +498,9 @@ exports.getDashboard = async (req, res) => {
             paymentBreakdown,
             tierBreakdown,
             recentRegs,
+            approvedForSegments,
+            qrStatsRows,
+            qrPaidAmountRows,
         ] = await Promise.all([
             EventShowRegistration.countDocuments({ eventShow: oid, status: 'approved' }),
             EventShowRegistration.countDocuments({ eventShow: oid, status: 'pending' }),
@@ -295,6 +557,118 @@ exports.getDashboard = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .limit(8)
                 .lean(),
+            EventShowRegistration.find({ eventShow: oid, status: 'approved' })
+                .select('tierId tierName amountPaid paymentStatus responses')
+                .lean(),
+            EventShowRegistration.aggregate([
+                { $match: { eventShow: oid, payment_gateway: 'organizer_qr' } },
+                {
+                    $group: {
+                        _id: null,
+                        totalQr: { $sum: 1 },
+                        pendingReview: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $or: [
+                                            { $eq: ['$status', 'pending'] },
+                                            { $eq: ['$paymentStatus', 'pending'] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                        paidApproved: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $and: [
+                                            { $eq: ['$status', 'approved'] },
+                                            { $eq: ['$paymentStatus', 'paid'] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                        withProof: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $gt: [{ $strLenCP: { $ifNull: ['$paymentScreenshotUrl', ''] } }, 0],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                    },
+                },
+            ]),
+            EventShowRegistration.aggregate([
+                {
+                    $match: {
+                        eventShow: oid,
+                        payment_gateway: 'organizer_qr',
+                        status: 'approved',
+                        paymentStatus: 'paid',
+                    },
+                },
+                {
+                    $project: {
+                        amountPaid: { $ifNull: ['$amountPaid', 0] },
+                        payment_order_id: { $ifNull: ['$payment_order_id', ''] },
+                        payment_id: { $ifNull: ['$payment_id', ''] },
+                        transactionId: { $ifNull: ['$transactionId', ''] },
+                    },
+                },
+                {
+                    $addFields: {
+                        _payRef: {
+                            $cond: [
+                                { $gt: [{ $strLenCP: '$payment_order_id' }, 0] },
+                                { $concat: ['order:', '$payment_order_id'] },
+                                {
+                                    $cond: [
+                                        { $gt: [{ $strLenCP: '$payment_id' }, 0] },
+                                        { $concat: ['pay:', '$payment_id'] },
+                                        {
+                                            $cond: [
+                                                { $gt: [{ $strLenCP: '$transactionId' }, 0] },
+                                                { $concat: ['txn:', '$transactionId'] },
+                                                null,
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                },
+                // Deduplicate multi-submit rows for the same payment reference
+                {
+                    $group: {
+                        _id: '$_payRef',
+                        amount: { $max: '$amountPaid' },
+                        rowCount: { $sum: 1 },
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        amount: { $sum: '$amount' },
+                        count: { $sum: 1 },
+                        duplicateRows: {
+                            $sum: {
+                                $cond: [{ $gt: ['$rowCount', 1] }, { $subtract: ['$rowCount', 1] }, 0],
+                            },
+                        },
+                    },
+                },
+            ]),
         ]);
 
         const revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
@@ -307,6 +681,59 @@ exports.getDashboard = async (req, res) => {
                 payments.unknown += Number(row.count) || 0;
             }
             if (key === 'paid') payments.paidAmount = Number(row.amount) || 0;
+        }
+
+        const segments = {
+            driveOnly: 0,
+            driveAndTrackday: 0,
+            trackdayOnly: 0,
+            unknown: 0,
+            independenceDriveTotal: 0,
+            trackdayTotal: 0,
+        };
+        for (const reg of approvedForSegments) {
+            const p = formatParticipant(reg);
+            if (p.category === 'drive_only') segments.driveOnly += 1;
+            else if (p.category === 'drive_and_trackday') segments.driveAndTrackday += 1;
+            else if (p.category === 'trackday_only') segments.trackdayOnly += 1;
+            else segments.unknown += 1;
+            if (p.joinsIndependenceDrive) segments.independenceDriveTotal += 1;
+            if (p.hasTrackday) segments.trackdayTotal += 1;
+        }
+
+        const qrAgg = qrStatsRows[0] || {};
+        const qrPaidAgg = qrPaidAmountRows[0] || {};
+        const commissionPercent = 3;
+        const commissionBase = Number(qrPaidAgg.amount) || 0;
+        const commissionDue = Math.round((commissionBase * (commissionPercent / 100)) * 100) / 100;
+        const qrStats = {
+            totalQr: Number(qrAgg.totalQr) || 0,
+            pendingReview: Number(qrAgg.pendingReview) || 0,
+            paidApproved: Number(qrAgg.paidApproved) || 0,
+            withProof: Number(qrAgg.withProof) || 0,
+            enabled: (event?.registration?.mode || '') === 'organizer_qr',
+            paidAmount: commissionBase,
+            commissionPercent,
+            commissionDue,
+            commissionEntries: Number(qrPaidAgg.count) || 0,
+            duplicateRows: Number(qrPaidAgg.duplicateRows) || 0,
+        };
+
+        const driveTiers = [];
+        const trackdayTiers = [];
+        for (const row of tierBreakdown) {
+            const entry = {
+                tierId: row._id?.tierId || null,
+                tierName: row._id?.tierName || 'No package',
+                count: Number(row.count) || 0,
+                paid: Number(row.paid) || 0,
+                revenue: Number(row.revenue) || 0,
+            };
+            if (isDriveOnlyTierName(entry.tierName) || /tier_drive_only/i.test(String(entry.tierId || ''))) {
+                driveTiers.push(entry);
+            } else {
+                trackdayTiers.push(entry);
+            }
         }
 
         res.json({
@@ -324,6 +751,8 @@ exports.getDashboard = async (req, res) => {
                 revenue,
                 todayRegistrations,
                 payments,
+                segments,
+                qr: qrStats,
             },
             tiers: tierBreakdown.map((row) => ({
                 tierId: row._id?.tierId || null,
@@ -332,6 +761,8 @@ exports.getDashboard = async (req, res) => {
                 paid: Number(row.paid) || 0,
                 revenue: Number(row.revenue) || 0,
             })),
+            driveTiers,
+            trackdayTiers,
             recent: recentRegs.map(formatParticipant),
         });
     } catch (error) {
@@ -351,6 +782,7 @@ exports.listParticipants = async (req, res) => {
         const paymentStatus = String(req.query.paymentStatus || '').trim();
         const checkInStatus = String(req.query.checkInStatus || '').trim();
         const tierId = String(req.query.tierId || '').trim();
+        const category = String(req.query.category || '').trim().toLowerCase();
 
         const filter = { eventShow: eventShowId };
         if (['pending', 'approved', 'rejected'].includes(status)) filter.status = status;
@@ -366,19 +798,41 @@ exports.listParticipants = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        let formatted = regs.map(formatParticipant);
+        if (['drive_only', 'drive_and_trackday', 'trackday_only', 'independence_drive', 'trackday'].includes(category)) {
+            formatted = formatted.filter((p) => {
+                if (category === 'independence_drive') return p.joinsIndependenceDrive;
+                if (category === 'trackday') return p.hasTrackday;
+                return p.category === category;
+            });
+        }
+
         if (search) {
             const q = search.toLowerCase();
-            regs = regs.filter((reg) => {
-                const p = formatParticipant(reg);
-                return [p.userName, p.userEmail, p.userPhone, p.tierName, String(p.id)]
+            formatted = formatted.filter((p) => {
+                const responseBlob = Object.values(p.responses || {})
+                    .map((v) => (typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')))
+                    .join(' ');
+                return [
+                    p.userName,
+                    p.userEmail,
+                    p.userPhone,
+                    p.tierName,
+                    p.joinDrive,
+                    p.categoryLabel,
+                    p.bloodGroup,
+                    p.vehicleDetails,
+                    String(p.id),
+                    responseBlob,
+                ]
                     .join(' ')
                     .toLowerCase()
                     .includes(q);
             });
         }
 
-        const total = regs.length;
-        const pageRows = regs.slice(skip, skip + limit).map(formatParticipant);
+        const total = formatted.length;
+        const pageRows = formatted.slice(skip, skip + limit);
 
         res.json({
             success: true,
@@ -460,25 +914,62 @@ exports.exportParticipants = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        const responseKeySet = new Set();
+        const formatted = regs.map((reg) => {
+            const p = formatParticipant(reg);
+            Object.keys(p.responses || {}).forEach((k) => responseKeySet.add(k));
+            return p;
+        });
+        const responseKeys = Array.from(responseKeySet).sort();
+
         const headers = [
-            'id', 'name', 'email', 'phone', 'status', 'paymentStatus', 'amountPaid',
-            'tierName', 'checkedIn', 'checkedInAt', 'submittedAt',
+            'id',
+            'name',
+            'email',
+            'phone',
+            'package',
+            'category',
+            'join_drive',
+            'blood_group',
+            'vehicle_details',
+            'driver_count',
+            'transaction_id',
+            'payment_screenshot_url',
+            'status',
+            'paymentStatus',
+            'amountPaid',
+            'checkedIn',
+            'checkedInAt',
+            'submittedAt',
+            ...responseKeys.map((k) => `response_${k}`),
         ];
         const lines = [headers.join(',')];
-        for (const reg of regs) {
-            const p = formatParticipant(reg);
+        for (const p of formatted) {
             lines.push([
                 p.id,
                 p.userName,
                 p.userEmail,
                 p.userPhone,
+                p.tierName || '',
+                p.categoryLabel || '',
+                p.joinDrive || '',
+                p.bloodGroup || '',
+                p.vehicleDetails || '',
+                p.driverCount != null ? p.driverCount : '',
+                p.transactionId || '',
+                p.paymentScreenshotUrl || '',
                 p.status,
                 p.paymentStatus,
                 p.amountPaid,
-                p.tierName || '',
                 p.checkedIn ? 'yes' : 'no',
                 p.checkedInAt || '',
                 p.submittedAt || '',
+                ...responseKeys.map((k) => {
+                    const v = p.responses?.[k];
+                    if (v == null) return '';
+                    if (typeof v === 'object') return JSON.stringify(v);
+                    return String(v);
+                }),
             ].map(csvEscape).join(','));
         }
 

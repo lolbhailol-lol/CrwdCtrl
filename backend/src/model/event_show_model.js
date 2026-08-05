@@ -56,13 +56,27 @@ const eventRegistrationSchema = new mongoose.Schema(
     {
         /** Whether registrations are currently being accepted */
         status: { type: String, enum: ['open', 'closed'], default: 'closed' },
-        /** internal_form = built-in multi-step form + payment; external_link = redirect to a URL */
-        mode: { type: String, enum: ['internal_form', 'external_link'], default: 'external_link' },
+        /**
+         * internal_form = built-in multi-step form + Cashfree payment
+         * external_link = redirect to a URL
+         * organizer_qr = in-app form + organizer QR/UPI + screenshot proof
+         */
+        mode: { type: String, enum: ['internal_form', 'external_link', 'organizer_qr'], default: 'external_link' },
         formType: { type: String, enum: ['SINGLE_STEP', 'MULTI_STEP'], default: 'SINGLE_STEP' },
         formSchema: { type: [eventFormFieldSchema], default: [] },
         steps: { type: [eventFormStepSchema], default: [] },
         /** Organiser's Google Sheet — registrations auto-append here after payment */
         googleSheetsUrl: { type: String, trim: true, default: '' },
+        /** Organizer UPI / payment QR image URL (organizer_qr mode) */
+        paymentQR: { type: String, trim: true, default: '' },
+        paymentQRMessage: { type: String, trim: true, default: '' },
+        paymentUpiId: { type: String, trim: true, default: '' },
+        /**
+         * organizer_qr + paid only:
+         * - true: screenshot submit auto-approves
+         * - false: organizer manually approves pending registrations
+         */
+        qrAutoConfirm: { type: Boolean, default: false },
     },
     { _id: false },
 );
@@ -85,6 +99,11 @@ const eventShowSchema = new mongoose.Schema(
         venue: { type: String, trim: true },
         /** Google Maps pin / share link for venue directions */
         mapUrl: { type: String, trim: true },
+        /** Optional multiple meetup locations (e.g. convoy start points) */
+        meetingPoints: [{
+            label: { type: String, trim: true, default: '' },
+            mapUrl: { type: String, trim: true, default: '' },
+        }],
         city: { type: String, trim: true },
         showTimings: [
             {
@@ -111,6 +130,8 @@ const eventShowSchema = new mongoose.Schema(
             name: { type: String, trim: true, default: '' },
             description: { type: String, trim: true, default: '' },
             fee: { type: Number, default: 0 },
+            /** How many drivers/participants need personal details for this package */
+            participantCount: { type: Number, default: 1, min: 1, max: 10 },
             inclusions: { type: [String], default: [] },
             order: { type: Number, default: 0 },
         }],

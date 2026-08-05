@@ -3,8 +3,10 @@ import {
     getEventOrganizerToken,
     clearEventOrganizerSession,
     setEventOrganizerSession,
+    getEventOrganizerSession,
     isEventOrganizerTokenExpired,
 } from '../../utils/eventShowOrganizerSession';
+import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 
 const API = getApiBaseUrl();
 
@@ -12,7 +14,7 @@ function handleUnauthorized() {
     clearEventOrganizerSession();
     if (typeof window === 'undefined') return;
     const path = window.location.pathname;
-    if (path.startsWith('/event-organizer/login')) return;
+    if (path.startsWith('/event-organizer/login') || path.startsWith('/event-organizer/signup')) return;
     window.location.href = `/event-organizer/login?from=${encodeURIComponent(path)}`;
 }
 
@@ -54,6 +56,72 @@ export async function eventOrganizerLogin(username, password) {
             organizer: data.organizer,
             events: data.events || [],
         });
+    }
+    return data;
+}
+
+export function applyEventOrganizerAuthPayload(data) {
+    if (!data?.token) return false;
+    setEventOrganizerSession({
+        token: data.token,
+        organizer: data.organizer,
+        events: data.events || [],
+    });
+    return true;
+}
+
+export async function tryEventOrganizerAppSession(authToken = null) {
+    const existing = getEventOrganizerToken();
+    if (existing && !isEventOrganizerTokenExpired(existing)) {
+        return getEventOrganizerSession();
+    }
+
+    const token = resolveAuthToken(authToken);
+    if (!token) return null;
+
+    const res = await fetch(`${API}/event-organizer/auth/app-session`, {
+        method: 'POST',
+        headers: getBearerAuthHeaders(token),
+        mode: 'cors',
+        credentials: 'omit',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.token) {
+        if (data?.code) {
+            const err = new Error(data.message || 'Event organizer session unavailable');
+            err.code = data.code;
+            err.status = res.status;
+            throw err;
+        }
+        return null;
+    }
+    applyEventOrganizerAuthPayload(data);
+    return getEventOrganizerSession();
+}
+
+export async function eventOrganizerSignup(payload) {
+    return eventOrganizerFetch('/event-organizer/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function fetchEventOrganizerSignupEvents() {
+    return eventOrganizerFetch('/event-organizer/auth/events');
+}
+
+export async function fetchEventOrganizerProfileEligible(authToken = null) {
+    const token = resolveAuthToken(authToken);
+    if (!token) return { success: true, eligible: false };
+
+    const res = await fetch(`${API}/event-organizer/auth/profile-eligible`, {
+        headers: getBearerAuthHeaders(token),
+        mode: 'cors',
+        credentials: 'omit',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(data.message || data.error || 'Failed to check Event organizer access');
     }
     return data;
 }

@@ -1,11 +1,16 @@
 const express = require('express');
 const ctrl = require('../controllers/eventShowOrganizerController');
 const { authenticateEventShowOrganizer, requireEventShowAccess } = require('../middleware/eventShowOrganizerAuth');
+const { authenticateToken } = require('../middleware/authmiddleware');
 const { authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
 router.post('/auth/login', authLimiter, ctrl.login);
+router.post('/auth/signup', authLimiter, ctrl.signup);
+router.get('/auth/events', ctrl.listSignupEvents);
+router.get('/auth/profile-eligible', authenticateToken, ctrl.profileEligible);
+router.post('/auth/app-session', authenticateToken, ctrl.appSession);
 router.get('/me', authenticateEventShowOrganizer, ctrl.getMe);
 
 router.get('/events', authenticateEventShowOrganizer, ctrl.listEvents);
