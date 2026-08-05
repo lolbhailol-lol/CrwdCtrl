@@ -163,7 +163,7 @@ export default function EventDetailsPage() {
   const tabs = event
     ? [
         { key: 'general', label: 'General Rules', content: event.generalRules, type: 'list' },
-        { key: 'process', label: 'Process', content: event.process, type: 'text' },
+        { key: 'process', label: 'Process', content: event.process, type: 'list' },
         { key: 'prize', label: 'Prize Pool', content: event.prizePool, type: 'list' },
         { key: 'included', label: "What's Included", content: event.whatsIncluded, type: 'list' },
         { key: 'eligibility', label: 'Eligibility', content: event.eligibility, type: 'list' },
