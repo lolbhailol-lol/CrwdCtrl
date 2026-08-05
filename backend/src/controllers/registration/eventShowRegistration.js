@@ -1,7 +1,11 @@
 const User = require('../../model/usermodel');
 const { uploadToCloudinary } = require('../../services/cloudinaryService');
 const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = require('../../services/emailService');
-const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
+const {
+  consumeCouponUsageForOrder,
+  validateAndPriceCoupon,
+  reserveCouponUsage,
+} = require('../../utils/couponPricing');
 const { logger } = require('../../utils/logger');
 const { scheduleRegistrationNotification } = require('./helpers');
 const {
@@ -107,43 +111,78 @@ const submitEventShowRegistration = async (req, res) => {
     const platformFeePercent = isOrganizerQr
       ? 0
       : resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5);
-    const totalAmount = buildEventPriceBreakdown(ticketPrice, platformFeePercent).totalAmount;
+    const baseTotalAmount = buildEventPriceBreakdown(ticketPrice, platformFeePercent).totalAmount;
     let payment_order_id = null;
     let payment_id = null;
     let paymentScreenshotUrl = '';
     let transactionId = '';
     let paymentStatus = 'free';
     let registrationStatus = 'approved';
+    let appliedCouponCode = '';
+    let totalAmount = baseTotalAmount;
 
     if (ticketPrice > 0) {
       if (isOrganizerQr) {
-        if (!String(eventShow.registration?.paymentQR || '').trim()) {
-          return res.status(400).json({
-            error: 'Organizer payment QR is not configured yet. Please contact event organizer.',
+        const rawCoupon = String(req.body.couponCode || responses.coupon_code || '').trim();
+        try {
+          const couponResult = await validateAndPriceCoupon({
+            couponCode: rawCoupon,
+            entityType: 'event_show',
+            userId,
+            amountBeforeDiscount: baseTotalAmount,
+            people: Math.max(1, Number(selectedTier?.participantCount) || Number(responses.driver_count) || 1),
+            failOnMissingCode: false,
           });
+          appliedCouponCode = couponResult.couponCode || '';
+          totalAmount = Number(couponResult.amountAfterDiscount);
+          if (!Number.isFinite(totalAmount) || totalAmount < 0) totalAmount = baseTotalAmount;
+        } catch (couponErr) {
+          return res.status(400).json({ error: couponErr.message || 'Invalid coupon' });
         }
-        paymentScreenshotUrl = String(req.body.paymentScreenshotUrl || '').trim();
-        transactionId = normalizeTransactionId(req.body.transactionId || '');
-        if (!paymentScreenshotUrl) {
-          return res.status(400).json({ error: 'Please upload your payment screenshot.' });
-        }
-        if (!isAllowedPaymentScreenshotUrl(paymentScreenshotUrl)) {
-          return res.status(400).json({ error: 'Invalid payment screenshot URL. Please re-upload from the form.' });
-        }
-        if (transactionId.length < 4) {
-          return res.status(400).json({ error: 'Please enter your UPI / transaction ID (at least 4 characters).' });
-        }
-        if (eventShow.registration?.qrAutoConfirm === true) {
-          paymentStatus = 'paid';
-          registrationStatus = 'approved';
+
+        if (totalAmount > 0) {
+          if (!String(eventShow.registration?.paymentQR || '').trim()) {
+            return res.status(400).json({
+              error: 'Organizer payment QR is not configured yet. Please contact event organizer.',
+            });
+          }
+          paymentScreenshotUrl = String(req.body.paymentScreenshotUrl || '').trim();
+          transactionId = normalizeTransactionId(req.body.transactionId || '');
+          if (!paymentScreenshotUrl) {
+            return res.status(400).json({ error: 'Please upload your payment screenshot.' });
+          }
+          if (!isAllowedPaymentScreenshotUrl(paymentScreenshotUrl)) {
+            return res.status(400).json({ error: 'Invalid payment screenshot URL. Please re-upload from the form.' });
+          }
+          if (transactionId.length < 4) {
+            return res.status(400).json({ error: 'Please enter your UPI / transaction ID (at least 4 characters).' });
+          }
+          if (eventShow.registration?.qrAutoConfirm === true) {
+            paymentStatus = 'paid';
+            registrationStatus = 'approved';
+          } else {
+            paymentStatus = 'pending';
+            registrationStatus = 'pending';
+          }
         } else {
-          paymentStatus = 'pending';
-          registrationStatus = 'pending';
+          // Coupon covered full amount — no QR proof needed
+          paymentStatus = 'free';
+          registrationStatus = 'approved';
+          paymentScreenshotUrl = '';
+          transactionId = '';
+        }
+
+        if (appliedCouponCode) {
+          try {
+            await reserveCouponUsage({ couponCode: appliedCouponCode, userId });
+          } catch (reserveErr) {
+            return res.status(400).json({ error: reserveErr.message || 'Coupon could not be applied' });
+          }
         }
       } else {
         const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
         const paymentCheck = await verifyPaymentForRegistration(req.body, {
-          expectedTotalAmount: totalAmount,
+          expectedTotalAmount: baseTotalAmount,
           entityId: eventShow._id,
         });
         if (!paymentCheck.ok) {
@@ -152,7 +191,10 @@ const submitEventShowRegistration = async (req, res) => {
         payment_order_id = paymentCheck.orderId;
         payment_id = paymentCheck.paymentId;
         paymentStatus = 'paid';
+        totalAmount = Number(paymentCheck.amountPaid) || baseTotalAmount;
       }
+    } else {
+      totalAmount = 0;
     }
 
     // Idempotent: a paid order must not create duplicate event registrations.
@@ -177,6 +219,10 @@ const submitEventShowRegistration = async (req, res) => {
 
     const user = await User.findById(userId);
 
+    if (appliedCouponCode) {
+      responses.coupon_code = appliedCouponCode;
+    }
+
     const registration = new EventShowRegistration({
       eventShow: eventShow._id,
       user: userId,
@@ -184,13 +230,13 @@ const submitEventShowRegistration = async (req, res) => {
       status: registrationStatus,
       payment_order_id,
       payment_id,
-      payment_gateway: isOrganizerQr && ticketPrice > 0
+      payment_gateway: isOrganizerQr && totalAmount > 0
         ? 'organizer_qr'
-        : (paymentStatus === 'paid' ? 'cashfree' : null),
+        : (paymentStatus === 'paid' ? 'cashfree' : (appliedCouponCode && isOrganizerQr ? 'organizer_qr' : null)),
       paymentStatus,
       paymentScreenshotUrl,
       transactionId,
-      amountPaid: ticketPrice > 0 ? totalAmount : 0,
+      amountPaid: totalAmount > 0 ? totalAmount : 0,
       tierId: selectedTier?.id || null,
       tierName: selectedTier?.name || null,
       submittedAt: new Date(),

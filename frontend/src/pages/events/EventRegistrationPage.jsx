@@ -121,6 +121,7 @@ export default function EventRegistrationPage() {
     const [couponInfo, setCouponInfo] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
+    const [showCouponField, setShowCouponField] = useState(true);
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
     const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
     const [transactionId, setTransactionId] = useState('');
@@ -204,9 +205,9 @@ export default function EventRegistrationPage() {
         () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
         [ticketPrice, platformFeePercent],
     );
-    const payableAmount = isOrganizerQr
-        ? breakdown.totalAmount
-        : (couponInfo?.amountAfterDiscount ?? breakdown.totalAmount);
+    const payableAmount = couponInfo?.amountAfterDiscount != null
+        ? Number(couponInfo.amountAfterDiscount)
+        : breakdown.totalAmount;
     const title = event?.displayName || event?.title || 'Event';
     const joinDriveRaw = String(
         values.join_drive || values.join_independence_day_drive || values.independence_day_drive || '',
@@ -616,6 +617,7 @@ export default function EventRegistrationPage() {
         if (tierIdToUse) fd.append('tierId', tierIdToUse);
         if (submissionValues.payment_screenshot_url) fd.append('paymentScreenshotUrl', String(submissionValues.payment_screenshot_url));
         if (submissionValues.transaction_id) fd.append('transactionId', String(submissionValues.transaction_id));
+        if (couponCode.trim()) fd.append('couponCode', couponCode.trim().toUpperCase());
 
         const res = await fetch(`${API}/registrations/events/${eventId}/custom`, {
             method: 'POST',
@@ -630,7 +632,7 @@ export default function EventRegistrationPage() {
         if (regId) setRegistrationId(String(regId));
         void amountPaid;
         return data;
-    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, getAuthToken, driverCount, selectedTier, pricedEvent]);
+    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, getAuthToken, driverCount, selectedTier, pricedEvent, couponCode]);
 
     // Resume after Cashfree redirect
     useEffect(() => {
@@ -739,22 +741,24 @@ export default function EventRegistrationPage() {
         }
 
         if (isOrganizerQr) {
-            if (!paymentScreenshotUrl) {
-                setError('Please upload your payment screenshot.');
-                return;
-            }
-            if (String(transactionId || '').trim().length < 4) {
-                setError('Please enter your UPI / transaction ID (at least 4 characters).');
-                return;
+            if (payableAmount > 0) {
+                if (!paymentScreenshotUrl) {
+                    setError('Please upload your payment screenshot.');
+                    return;
+                }
+                if (String(transactionId || '').trim().length < 4) {
+                    setError('Please enter your UPI / transaction ID (at least 4 characters).');
+                    return;
+                }
             }
             setPaying(true);
             try {
                 await submitRegistration({
-                    amountPaid: feeNow,
+                    amountPaid: payableAmount,
                     valuesOverride: {
                         ...values,
-                        payment_screenshot_url: paymentScreenshotUrl,
-                        transaction_id: transactionId.trim(),
+                        payment_screenshot_url: payableAmount > 0 ? paymentScreenshotUrl : '',
+                        transaction_id: payableAmount > 0 ? transactionId.trim() : '',
                     },
                 });
                 setDone(true);
@@ -893,11 +897,6 @@ export default function EventRegistrationPage() {
 
     const applyCoupon = async () => {
         setCouponError('');
-        if (isOrganizerQr) {
-            setCouponInfo(null);
-            setCouponError('Coupon is not supported in QR payment mode.');
-            return;
-        }
         const code = couponCode.trim();
         if (!code) {
             setCouponInfo(null);
@@ -912,6 +911,7 @@ export default function EventRegistrationPage() {
                 timeout: 25000,
             });
             setCouponInfo(data);
+            setShowCouponField(true);
         } catch (e) {
             setCouponInfo(null);
             const msg = e?.message || 'Invalid coupon';
@@ -1277,39 +1277,101 @@ export default function EventRegistrationPage() {
 
                     {/* Payment / confirm step */}
                     {isPaymentStep && (
-                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
-                            {ticketPrice > 0 && !isOrganizerQr && (
-                                <div className="mb-3">
-                                    <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
-                                    <div className="flex items-stretch gap-2 min-w-0">
-                                        <input
-                                            value={couponCode}
-                                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                                            placeholder="Enter coupon"
-                                            className={`min-w-0 flex-1 px-3 py-2 rounded-lg border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                                        />
+                        <div className={`rounded-xl overflow-hidden border ${isDark ? 'border-[#0ECCEE]/30' : 'border-[#0ECCEE]/40'}`}>
+                            {ticketPrice > 0 ? (
+                                <div className={`px-4 py-3.5 flex items-start justify-between gap-3 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
+                                    <div className="min-w-0">
+                                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                            {isOrganizerQr ? 'Amount to pay' : 'Amount payable'}
+                                        </p>
+                                        <p className={`text-2xl font-bold leading-tight tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            ₹{payableAmount.toLocaleString('en-IN')}
+                                        </p>
+                                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                            {couponInfo?.couponApplied
+                                                ? `was ₹${Number(couponInfo.amountBeforeDiscount ?? breakdown.totalAmount).toLocaleString('en-IN')}`
+                                                : selectedTier
+                                                    ? selectedTier.name
+                                                    : 'Registration fee'}
+                                        </p>
+                                    </div>
+                                    {!showCouponField && !couponInfo?.couponApplied ? (
                                         <button
                                             type="button"
-                                            onClick={applyCoupon}
-                                            disabled={couponLoading}
-                                            className="shrink-0 px-3 sm:px-4 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm whitespace-nowrap"
+                                            onClick={() => setShowCouponField(true)}
+                                            className="shrink-0 text-xs font-semibold text-[#0ECCEE] pt-1"
                                         >
-                                            {couponLoading ? '…' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply')}
+                                            Coupon
                                         </button>
-                                    </div>
-                                    {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
-                                    {couponInfo?.couponApplied ? (
-                                        <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
-                                            Coupon `{couponInfo.couponCode}` applied · You save ₹{couponInfo.discountAmount}
-                                        </div>
                                     ) : null}
                                 </div>
+                            ) : (
+                                <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
+                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Confirm Registration</p>
+                                </div>
                             )}
-                            <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {ticketPrice > 0
-                                    ? (isOrganizerQr ? 'QR payment confirmation' : 'Payment Breakdown')
-                                    : 'Confirm Registration'}
-                            </p>
+
+                            {ticketPrice > 0 && (showCouponField || couponInfo?.couponApplied) ? (
+                                <div className={`px-4 py-3 border-t ${isDark ? 'border-gray-700/60 bg-[#111213]' : 'border-gray-200 bg-white'}`}>
+                                    {couponInfo?.couponApplied ? (
+                                        <div className={`rounded-xl px-3.5 py-3 border ${isDark ? 'bg-emerald-900/20 border-emerald-700/40' : 'bg-green-50 border-green-200'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <CheckCircle size={18} className="text-emerald-400 shrink-0" />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                                        Applied · {couponInfo.couponCode}
+                                                    </p>
+                                                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-emerald-200/70' : 'text-emerald-800/80'}`}>
+                                                        You save ₹{Number(couponInfo.discountAmount || 0).toLocaleString('en-IN')}
+                                                        {payableAmount === 0 ? ' · No payment needed' : ''}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setCouponInfo(null);
+                                                        setCouponCode('');
+                                                        setCouponError('');
+                                                    }}
+                                                    className={`text-[11px] font-semibold shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                                                >
+                                                    Change
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    value={couponCode}
+                                                    onChange={(e) => {
+                                                        setCouponCode(e.target.value.toUpperCase());
+                                                        setCouponInfo(null);
+                                                        setCouponError('');
+                                                    }}
+                                                    placeholder="Enter coupon"
+                                                    className={`flex-1 min-w-0 h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#0ECCEE] ${
+                                                        isDark
+                                                            ? 'bg-[#0E0E0F] border-gray-700 text-white placeholder-gray-600'
+                                                            : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                                                    }`}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={applyCoupon}
+                                                    disabled={couponLoading || !couponCode.trim()}
+                                                    className="h-10 px-3.5 rounded-lg bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
+                                                >
+                                                    {couponLoading ? '…' : 'Apply'}
+                                                </button>
+                                            </div>
+                                            {couponError ? <p className="text-[11px] text-red-400 mt-1.5">{couponError}</p> : null}
+                                        </>
+                                    )}
+                                </div>
+                            ) : null}
+
+                            <div className={`px-4 py-4 border-t space-y-3 ${isDark ? 'border-gray-700/60 bg-[#111213]' : 'border-gray-200 bg-white'}`}>
                             {ticketPrice > 0 ? (
                                 <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {selectedTier ? (
@@ -1326,24 +1388,27 @@ export default function EventRegistrationPage() {
                                             <span>₹{breakdown.platformFee}</span>
                                         </div>
                                     ) : null}
-                                    {!isOrganizerQr && couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
+                                    {couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
                                     <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]"><span>Amount Payable</span><span>₹{payableAmount.toLocaleString('en-IN')}</span></div>
-                                    {isOrganizerQr ? (
-                                        <div className={`mt-3 rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-[#1D1E20]' : 'border-gray-200 bg-white'}`}>
+                                    {isOrganizerQr && payableAmount > 0 ? (
+                                        <div className={`mt-3 rounded-xl border p-3 space-y-3 ${isDark ? 'border-gray-700 bg-[#1D1E20]' : 'border-gray-200 bg-gray-50'}`}>
                                             {reg.paymentQR ? (
                                                 <div className="flex items-start gap-3">
-                                                    <img src={reg.paymentQR} alt="Payment QR" className="h-24 w-24 rounded-lg object-contain bg-white p-1 border border-gray-200 shrink-0" />
-                                                    <div className="flex-1 min-w-0">
+                                                    <img src={reg.paymentQR} alt="Payment QR" className="h-28 w-28 rounded-xl object-contain bg-white p-1.5 border border-gray-200 shrink-0" />
+                                                    <div className="flex-1 min-w-0 pt-0.5">
+                                                        <p className={`text-xs font-semibold mb-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                                            Pay ₹{payableAmount.toLocaleString('en-IN')} via UPI
+                                                        </p>
                                                         {reg.paymentUpiId ? (
                                                             <p className={`text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                                UPI ID: <span className="font-semibold">{reg.paymentUpiId}</span>
+                                                                UPI ID: <span className="font-semibold break-all">{reg.paymentUpiId}</span>
                                                             </p>
                                                         ) : null}
                                                         {reg.paymentQRMessage ? (
                                                             <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{reg.paymentQRMessage}</p>
                                                         ) : (
                                                             <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                                Pay using this QR, then upload screenshot and transaction ID.
+                                                                Scan QR, pay the amount above, then upload screenshot + UTR.
                                                             </p>
                                                         )}
                                                     </div>
@@ -1351,24 +1416,30 @@ export default function EventRegistrationPage() {
                                             ) : (
                                                 <p className="text-xs text-red-400">Payment QR not configured yet. Please contact organizer.</p>
                                             )}
-                                            <label className={`mt-3 flex items-center gap-3 px-1 py-2 cursor-pointer ${uploadingProof ? 'opacity-60 pointer-events-none' : ''}`}>
+                                            <label className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 cursor-pointer ${
+                                                isDark ? 'border-gray-600 bg-[#111213]' : 'border-gray-200 bg-white'
+                                            } ${uploadingProof ? 'opacity-60 pointer-events-none' : ''}`}>
                                                 {paymentScreenshotUrl ? (
-                                                    <img src={paymentScreenshotUrl} alt="" className="size-11 rounded-lg object-cover shrink-0" />
+                                                    <img src={paymentScreenshotUrl} alt="" className="size-12 rounded-lg object-cover shrink-0" />
                                                 ) : (
-                                                    <div className={`size-11 rounded-lg border flex items-center justify-center text-[10px] ${isDark ? 'border-gray-600 text-gray-500' : 'border-gray-300 text-gray-400'}`}>Proof</div>
+                                                    <div className={`size-12 rounded-lg border border-dashed flex items-center justify-center text-[10px] ${isDark ? 'border-gray-600 text-gray-500' : 'border-gray-300 text-gray-400'}`}>
+                                                        Proof
+                                                    </div>
                                                 )}
-                                                <div className="min-w-0">
+                                                <div className="min-w-0 flex-1">
                                                     <p className={`text-xs font-semibold ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                        {uploadingProof ? 'Uploading…' : paymentScreenshotUrl ? 'Screenshot added' : 'Payment screenshot'}
+                                                        {uploadingProof ? 'Uploading…' : paymentScreenshotUrl ? 'Screenshot added' : 'Upload payment screenshot'}
                                                     </p>
                                                     <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                        {paymentScreenshotUrl ? 'Tap to change' : 'Gallery or camera'}
+                                                        {paymentScreenshotUrl ? 'Tap to change' : 'Choose from gallery or camera'}
                                                     </p>
                                                 </div>
+                                                <span className="text-xs font-semibold text-[#0ECCEE] shrink-0">
+                                                    {paymentScreenshotUrl ? 'Change' : 'Add'}
+                                                </span>
                                                 <input
                                                     type="file"
                                                     accept="image/*"
-                                                    capture="environment"
                                                     className="hidden"
                                                     onChange={(e) => {
                                                         const file = e.target.files?.[0];
@@ -1381,10 +1452,14 @@ export default function EventRegistrationPage() {
                                                 type="text"
                                                 value={transactionId}
                                                 onChange={(e) => setTransactionId(e.target.value.toUpperCase().replace(/\s+/g, ''))}
-                                                placeholder="UPI / transaction ID"
-                                                className={`mt-2 w-full px-3 py-2 rounded-lg border text-sm ${isDark ? 'bg-[#111213] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                                                placeholder="UPI / transaction ID (UTR)"
+                                                className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-[#111213] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                                             />
                                         </div>
+                                    ) : isOrganizerQr && payableAmount === 0 ? (
+                                        <p className={`text-xs mt-2 ${isDark ? 'text-emerald-300/80' : 'text-emerald-700'}`}>
+                                            Coupon covers the full amount — no QR payment needed.
+                                        </p>
                                     ) : (
                                         <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                             Secure payment via Cashfree
@@ -1398,6 +1473,7 @@ export default function EventRegistrationPage() {
                                         : 'This registration is free. Click confirm to complete.'}
                                 </p>
                             )}
+                            </div>
                         </div>
                     )}
 
@@ -1410,7 +1486,9 @@ export default function EventRegistrationPage() {
                             <button type="button" onClick={handleFinalSubmit} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                                 {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0
                                     ? (isOrganizerQr
-                                        ? (reg.qrAutoConfirm ? 'Submit Payment Proof & Register' : 'Submit Proof for Approval')
+                                        ? (payableAmount <= 0
+                                            ? 'Confirm Registration'
+                                            : (reg.qrAutoConfirm ? 'Submit Payment Proof & Register' : 'Submit Proof for Approval'))
                                         : `Pay ₹${payableAmount.toLocaleString('en-IN')} & Register`)
                                     : 'Confirm Registration'}
                             </button>

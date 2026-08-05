@@ -73,7 +73,7 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
   if (resolvedEventShowId) {
     const eventShow = await findByIdOrSlug(EventShow, resolvedEventShowId, {
       pickName: (row) => row.title || row.displayName || '',
-      select: 'title ticketPrice platformFeePercent pricingMode tiers',
+      select: 'title ticketPrice platformFeePercent pricingMode tiers registration.mode',
       lean: true,
     });
     if (!eventShow) return null;
@@ -89,10 +89,11 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
       tier = priced.tier;
     }
 
+    const isOrganizerQr = (eventShow.registration?.mode || '') === 'organizer_qr';
     return {
       entityType: 'event_show',
       ticketPrice,
-      platformFeePercent: eventShow.registration?.mode === 'organizer_qr'
+      platformFeePercent: isOrganizerQr
         ? 0
         : resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5),
       notes: {
