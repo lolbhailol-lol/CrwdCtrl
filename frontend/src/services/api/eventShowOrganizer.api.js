@@ -178,8 +178,9 @@ export async function deleteEventOrganizerParticipant(eventId, registrationId) {
     });
 }
 
-export function eventOrganizerExportUrl(eventId) {
-    return `${API}/event-organizer/events/${eventId}/participants/export`;
+export function eventOrganizerExportUrl(eventId, format = 'xlsx') {
+    const qs = new URLSearchParams({ format: format === 'csv' ? 'csv' : 'xlsx' });
+    return `${API}/event-organizer/events/${eventId}/participants/export?${qs}`;
 }
 
 export async function eventOrganizerCheckin(eventId, body) {
@@ -207,14 +208,20 @@ export async function sendEventOrganizerBroadcast(eventId, payload) {
     });
 }
 
-export async function downloadEventOrganizerExport(eventId) {
+export async function downloadEventOrganizerExport(eventId, { format = 'xlsx', fileName } = {}) {
     const token = getEventOrganizerToken();
     if (!token || isEventOrganizerTokenExpired(token)) {
         handleUnauthorized();
         throw new Error('Session expired');
     }
-    const res = await fetch(eventOrganizerExportUrl(eventId), {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'text/csv' },
+    const wantsExcel = format !== 'csv';
+    const res = await fetch(eventOrganizerExportUrl(eventId, wantsExcel ? 'xlsx' : 'csv'), {
+        headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: wantsExcel
+                ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                : 'text/csv',
+        },
         mode: 'cors',
         credentials: 'omit',
     });
@@ -227,7 +234,10 @@ export async function downloadEventOrganizerExport(eventId) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `event-${eventId}-registrations.csv`;
+    a.download = fileName
+        || (wantsExcel
+            ? `event-${eventId}-registrations.xlsx`
+            : `event-${eventId}-registrations.csv`);
     a.click();
     URL.revokeObjectURL(url);
 }

@@ -301,9 +301,8 @@ export default function EventRegistrationPage() {
 
         const count = Math.max(1, driverCount || 1);
         const isGroupPackage = count > 1 && !driveOnlyPath;
-        // Group packages: only the registering leader fills details (no per-driver forms)
 
-        const labeledDetailFields = (detailFields.length
+        const baseDetailFields = (detailFields.length
             ? detailFields
             : [
                 { id: 'f_name', label: 'Full Name', fieldName: 'name', type: 'text', required: true, placeholder: 'Your full name', options: [] },
@@ -318,23 +317,104 @@ export default function EventRegistrationPage() {
             if (driveOnlyPath && key === 'blood_group') {
                 return { ...f, required: false };
             }
-            if (isGroupPackage && (key === 'name' || key === 'full_name' || key === 'leader_name')) {
-                return {
-                    ...f,
-                    fieldName: key === 'leader_name' ? f.fieldName : 'name',
-                    label: 'Leader name',
-                    placeholder: f.placeholder || 'Team leader full name',
-                };
-            }
             return f;
         });
 
+        let labeledDetailFields = baseDetailFields;
+
+        if (isGroupPackage) {
+            // Group packages (trio / quattro / penta): name, phone, email & blood for EVERY driver
+            const contactKeys = new Set(['name', 'full_name', 'leader_name', 'email', 'phone', 'blood_group', 'contact_no', 'mobile']);
+            const primaryContacts = baseDetailFields.filter((f) => {
+                const key = String(f.fieldName || '').toLowerCase();
+                return contactKeys.has(key) || key.includes('blood');
+            });
+            const extras = baseDetailFields.filter((f) => {
+                const key = String(f.fieldName || '').toLowerCase();
+                return !contactKeys.has(key) && !key.includes('blood');
+            });
+
+            const pickPrimary = (candidates, fallback) => {
+                const found = primaryContacts.find((f) => candidates.includes(String(f.fieldName || '').toLowerCase()));
+                return found || fallback;
+            };
+            const nameTpl = pickPrimary(
+                ['name', 'full_name', 'leader_name'],
+                { label: 'Full Name', fieldName: 'name', type: 'text', required: true, placeholder: 'Full name', options: [] },
+            );
+            const emailTpl = pickPrimary(
+                ['email'],
+                { label: 'Email', fieldName: 'email', type: 'email', required: true, placeholder: 'you@email.com', options: [] },
+            );
+            const phoneTpl = pickPrimary(
+                ['phone', 'contact_no', 'mobile'],
+                { label: 'Phone', fieldName: 'phone', type: 'tel', required: true, placeholder: '10-digit mobile', options: [] },
+            );
+            const bloodTpl = pickPrimary(
+                ['blood_group'],
+                { label: 'Blood Group', fieldName: 'blood_group', type: 'select', required: true, placeholder: '', options: BLOOD_OPTIONS },
+            );
+
+            const fields = [];
+            for (let i = 1; i <= count; i += 1) {
+                const isFirst = i === 1;
+                fields.push({
+                    id: `sec_driver_${i}`,
+                    type: 'section',
+                    fieldName: `section_driver_${i}`,
+                    label: `Driver ${i}${isFirst ? ' (registering)' : ''}`,
+                    required: false,
+                });
+                const nameKey = isFirst
+                    ? (String(nameTpl.fieldName || 'name').toLowerCase() === 'leader_name' ? 'leader_name' : 'name')
+                    : `driver_${i}_name`;
+                const emailKey = isFirst ? 'email' : `driver_${i}_email`;
+                const phoneKey = isFirst ? String(phoneTpl.fieldName || 'phone') : `driver_${i}_phone`;
+                const bloodKey = isFirst ? 'blood_group' : `driver_${i}_blood_group`;
+
+                fields.push({
+                    ...nameTpl,
+                    id: `f_driver_${i}_name`,
+                    fieldName: nameKey,
+                    label: 'Full Name',
+                    placeholder: `Driver ${i} full name`,
+                    required: true,
+                });
+                fields.push({
+                    ...emailTpl,
+                    id: `f_driver_${i}_email`,
+                    fieldName: emailKey,
+                    label: 'Email',
+                    placeholder: `Driver ${i} email`,
+                    required: true,
+                });
+                fields.push({
+                    ...phoneTpl,
+                    id: `f_driver_${i}_phone`,
+                    fieldName: phoneKey,
+                    label: 'Phone',
+                    placeholder: `Driver ${i} 10-digit mobile`,
+                    required: true,
+                });
+                fields.push({
+                    ...bloodTpl,
+                    id: `f_driver_${i}_blood`,
+                    fieldName: bloodKey,
+                    label: 'Blood Group',
+                    type: 'select',
+                    options: bloodTpl.options?.length ? bloodTpl.options : BLOOD_OPTIONS,
+                    required: true,
+                });
+            }
+            labeledDetailFields = [...fields, ...extras];
+        }
+
         steps.push({
-            title: driveOnlyPath ? 'Your details' : (isGroupPackage ? 'Leader details' : 'Your Details'),
+            title: driveOnlyPath ? 'Your details' : (isGroupPackage ? 'Driver details' : 'Your Details'),
             description: driveOnlyPath
                 ? 'Free Independence Day Drive registration — no Trackday fee.'
                 : (isGroupPackage
-                    ? `Group package for ${count} drivers — only the registering leader’s details are needed.`
+                    ? `Group package for ${count} drivers — name, phone, email & blood group are required for all ${count} drivers.`
                     : ''),
             fields: labeledDetailFields,
         });
@@ -394,16 +474,16 @@ export default function EventRegistrationPage() {
                 const current = String(next[key] ?? '').trim();
                 if (current) return;
 
-                const isNameField = (name === 'name' || name === 'full_name' || name === 'leader_name' || name.endsWith('_name') || name.includes('full_name'))
+                // Only prefill the registering driver's primary fields — never co-drivers
+                if (/^driver_[2-9]_/.test(name) || /^driver_1[0-9]_/.test(name)) return;
+
+                const isNameField = (name === 'name' || name === 'full_name' || name === 'leader_name')
                     && !name.includes('user')
                     && !name.includes('org')
                     && !name.includes('college')
-                    && !name.includes('team')
-                    && !/^driver_[2-9]_name$/.test(name)
-                    && !/^driver_1[0-9]_name$/.test(name);
-                const isEmailField = name === 'email' || name.includes('email') || name.includes('e_mail');
-                const isPhoneField = name === 'phone' || name.includes('phone') || name.includes('mobile') || name.includes('contact_no') || name.includes('whatsapp');
-                if (isPhoneField && /^driver_[2-9]_phone$/.test(name)) return;
+                    && !name.includes('team');
+                const isEmailField = name === 'email' || name === 'e_mail' || name === 'e_mail_id';
+                const isPhoneField = name === 'phone' || name === 'mobile' || name === 'contact_no' || name === 'whatsapp';
 
                 if (isNameField && userName) {
                     next[key] = userName;
@@ -425,6 +505,13 @@ export default function EventRegistrationPage() {
     const setVal = (name, v) => setValues((f) => ({ ...f, [name]: v }));
 
     const renderField = (field) => {
+        if (field.type === 'section') {
+            return (
+                <p className={`text-sm font-semibold pt-1 ${isDark ? 'text-[#0ECCEE]' : 'text-[#0891b2]'}`}>
+                    {field.label}
+                </p>
+            );
+        }
         const val = values[field.fieldName] ?? '';
         if (field.type === 'textarea') {
             return <textarea rows={3} placeholder={field.placeholder || ''} value={val} onChange={(e) => setVal(field.fieldName, e.target.value)} className={`${inp} resize-none`} />;
@@ -537,7 +624,7 @@ export default function EventRegistrationPage() {
             if (driveOnlyTier?.id) setSelectedTierId(driveOnlyTier.id);
         }
         const missing = s.fields.filter((f) => {
-            if (!f.required) return false;
+            if (!f.required || f.type === 'section') return false;
             if (FILE_TYPES.includes(f.type)) {
                 const v = files[f.fieldName];
                 return Array.isArray(v) ? v.length === 0 : !v;
@@ -598,6 +685,7 @@ export default function EventRegistrationPage() {
         const fd = new FormData();
         const textResponses = {};
         allFields.forEach((f) => {
+            if (f.type === 'section') return;
             if (FILE_TYPES.includes(f.type)) {
                 const v = submissionFiles[f.fieldName];
                 const arr = Array.isArray(v) ? v : (v ? [v] : []);
@@ -1174,19 +1262,19 @@ export default function EventRegistrationPage() {
                                         {
                                             key: 'trio',
                                             title: 'Trio Participant Package',
-                                            note: 'Group package — 3 drivers. Register as the team leader.',
+                                            note: 'Group package — name, phone, email & blood group required for all 3 drivers.',
                                             tiers: visiblePackages.filter((t) => /trio/i.test(t.name)),
                                         },
                                         {
                                             key: 'quattro',
                                             title: 'Quattro Participant Package',
-                                            note: 'Group package — 4 drivers. Register as the team leader.',
+                                            note: 'Group package — name, phone, email & blood group required for all 4 drivers.',
                                             tiers: visiblePackages.filter((t) => /quattro/i.test(t.name)),
                                         },
                                         {
                                             key: 'penta',
                                             title: 'Penta Participant Package',
-                                            note: 'Group package — 5 drivers. Register as the team leader.',
+                                            note: 'Group package — name, phone, email & blood group required for all 5 drivers.',
                                             tiers: visiblePackages.filter((t) => /penta/i.test(t.name)),
                                         },
                                     ];
@@ -1234,7 +1322,7 @@ export default function EventRegistrationPage() {
                                                                 ) : null}
                                                                 {count > 1 ? (
                                                                     <p className={`text-[11px] mt-1 font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                                        {count} drivers · leader registers
+                                                                        {count} drivers · details for all required
                                                                     </p>
                                                                 ) : null}
                                                             </div>
@@ -1258,10 +1346,16 @@ export default function EventRegistrationPage() {
                             <div className="space-y-4">
                                 {(current?.fields || []).map((field) => (
                                     <div key={field.id || field.fieldName}>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                            {field.label}{field.required && <span className="text-red-400 ml-1">*</span>}
-                                        </label>
-                                        {renderField(field)}
+                                        {field.type === 'section' ? (
+                                            renderField(field)
+                                        ) : (
+                                            <>
+                                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                    {field.label}{field.required && <span className="text-red-400 ml-1">*</span>}
+                                                </label>
+                                                {renderField(field)}
+                                            </>
+                                        )}
                                     </div>
                                 ))}
                             </div>

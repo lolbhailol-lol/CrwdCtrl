@@ -83,6 +83,51 @@ function categoryLabel(category) {
     return 'Other';
 }
 
+/** Build a simple driver list from registration responses (solo + group packages). */
+function extractDrivers(responses = {}) {
+    const src = responsesToObject(responses);
+    const byIndex = new Map();
+
+    const upsert = (index, patch) => {
+        const i = Math.max(1, Number(index) || 1);
+        const prev = byIndex.get(i) || { index: i, name: '', email: '', phone: '', bloodGroup: '' };
+        byIndex.set(i, {
+            index: i,
+            name: patch.name !== undefined && patch.name !== '' ? patch.name : prev.name,
+            email: patch.email !== undefined && patch.email !== '' ? patch.email : prev.email,
+            phone: patch.phone !== undefined && patch.phone !== '' ? patch.phone : prev.phone,
+            bloodGroup: patch.bloodGroup !== undefined && patch.bloodGroup !== ''
+                ? patch.bloodGroup
+                : prev.bloodGroup,
+        });
+    };
+
+    // Driver 1 — primary form fields
+    upsert(1, {
+        name: String(src.leader_name || src.full_name || src.name || '').trim(),
+        email: String(src.email || '').trim(),
+        phone: String(src.phone || src.contact_no || src.mobile || '').trim(),
+        bloodGroup: String(src.blood_group || '').trim(),
+    });
+
+    // driver_N_* (group packages)
+    for (const [key, raw] of Object.entries(src)) {
+        const m = /^driver_(\d+)_(name|email|phone|blood_group)$/i.exec(String(key));
+        if (!m) continue;
+        const index = Number(m[1]);
+        const field = String(m[2]).toLowerCase();
+        const value = String(raw || '').trim();
+        if (field === 'name') upsert(index, { name: value });
+        else if (field === 'email') upsert(index, { email: value });
+        else if (field === 'phone') upsert(index, { phone: value });
+        else if (field === 'blood_group') upsert(index, { bloodGroup: value });
+    }
+
+    return [...byIndex.values()]
+        .sort((a, b) => a.index - b.index)
+        .filter((d) => d.name || d.email || d.phone || d.bloodGroup);
+}
+
 function formatParticipant(reg) {
     const responses = responsesToObject(reg.responses);
     const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
@@ -100,6 +145,7 @@ function formatParticipant(reg) {
         || '',
     ).trim();
     const category = resolveRegistrationCategory(reg, responses);
+    const drivers = extractDrivers(responses);
     const additionalEntries = Array.isArray(reg.additionalEntries)
         ? reg.additionalEntries.map((entry) => {
             const entryResponses = entry?.responses && typeof entry.responses === 'object'
@@ -121,6 +167,7 @@ function formatParticipant(reg) {
                 status: entry.status || 'pending',
                 submittedAt: entry.submittedAt || null,
                 responses: entryResponses,
+                drivers: extractDrivers(entryResponses),
             };
         })
         : [];
@@ -171,7 +218,8 @@ function formatParticipant(reg) {
         vehicleDetails: String(responses.vehicle_details || responses.vehicle || '').trim(),
         driverCount: responses.driver_count != null && responses.driver_count !== ''
             ? Number(responses.driver_count) || String(responses.driver_count)
-            : null,
+            : (drivers.length || null),
+        drivers,
         submittedAt: reg.submittedAt || reg.createdAt,
         createdAt: reg.createdAt,
         updatedAt: reg.updatedAt,
@@ -856,6 +904,15 @@ exports.listParticipants = async (req, res) => {
                 const responseBlob = Object.values(p.responses || {})
                     .map((v) => (typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')))
                     .join(' ');
+                const driversBlob = (p.drivers || [])
+                    .map((d) => [d.name, d.email, d.phone, d.bloodGroup].filter(Boolean).join(' '))
+                    .join(' ');
+                const extrasBlob = (p.additionalEntries || [])
+                    .flatMap((e) => [
+                        e.tierName,
+                        ...(e.drivers || []).map((d) => [d.name, d.email, d.phone, d.bloodGroup].filter(Boolean).join(' ')),
+                    ])
+                    .join(' ');
                 return [
                     p.userName,
                     p.userEmail,
@@ -866,6 +923,8 @@ exports.listParticipants = async (req, res) => {
                     p.bloodGroup,
                     p.vehicleDetails,
                     String(p.id),
+                    driversBlob,
+                    extrasBlob,
                     responseBlob,
                 ]
                     .join(' ')
@@ -989,20 +1048,40 @@ exports.deleteParticipant = async (req, res) => {
 
 exports.exportParticipants = async (req, res) => {
     try {
+        const format = String(req.query.format || 'xlsx').toLowerCase();
         const regs = await EventShowRegistration.find({ eventShow: req.eventShowId })
             .populate('user', 'name email phone')
             .sort({ createdAt: -1 })
             .lean();
 
         const responseKeySet = new Set();
+        let maxDrivers = 1;
         const formatted = regs.map((reg) => {
             const p = formatParticipant(reg);
             Object.keys(p.responses || {}).forEach((k) => responseKeySet.add(k));
+            maxDrivers = Math.max(maxDrivers, (p.drivers || []).length || 1);
+            for (const entry of p.additionalEntries || []) {
+                maxDrivers = Math.max(maxDrivers, (entry.drivers || []).length || 1);
+            }
             return p;
         });
-        const responseKeys = Array.from(responseKeySet).sort();
+        // Prefer structured driver columns over raw driver_* response keys
+        const responseKeys = Array.from(responseKeySet)
+            .filter((k) => !/^driver_\d+_(name|email|phone|blood_group)$/i.test(k))
+            .filter((k) => !/^section_driver_/i.test(k))
+            .sort();
 
-        const headers = [
+        const driverHeaders = [];
+        for (let i = 1; i <= maxDrivers; i += 1) {
+            driverHeaders.push(
+                `driver_${i}_name`,
+                `driver_${i}_phone`,
+                `driver_${i}_email`,
+                `driver_${i}_blood`,
+            );
+        }
+
+        const header = [
             'id',
             'name',
             'email',
@@ -1015,6 +1094,7 @@ exports.exportParticipants = async (req, res) => {
             'blood_group',
             'vehicle_details',
             'driver_count',
+            ...driverHeaders,
             'transaction_id',
             'payment_screenshot_url',
             'status',
@@ -1025,9 +1105,15 @@ exports.exportParticipants = async (req, res) => {
             'submittedAt',
             ...responseKeys.map((k) => `response_${k}`),
         ];
-        const lines = [headers.join(',')];
-        for (const p of formatted) {
-            lines.push([
+
+        const body = formatted.map((p) => {
+            const driversByIndex = new Map((p.drivers || []).map((d) => [Number(d.index) || 0, d]));
+            const driverCells = [];
+            for (let i = 1; i <= maxDrivers; i += 1) {
+                const d = driversByIndex.get(i) || {};
+                driverCells.push(d.name || '', d.phone || '', d.email || '', d.bloodGroup || '');
+            }
+            return [
                 p.id,
                 p.userName,
                 p.userEmail,
@@ -1040,6 +1126,7 @@ exports.exportParticipants = async (req, res) => {
                 p.bloodGroup || '',
                 p.vehicleDetails || '',
                 p.driverCount != null ? p.driverCount : '',
+                ...driverCells,
                 p.transactionId || '',
                 p.paymentScreenshotUrl || '',
                 p.status,
@@ -1054,17 +1141,59 @@ exports.exportParticipants = async (req, res) => {
                     if (typeof v === 'object') return JSON.stringify(v);
                     return String(v);
                 }),
-            ].map(csvEscape).join(','));
-        }
+            ];
+        });
 
         const event = await EventShow.findById(req.eventShowId).select('title displayName').lean();
         const slug = String(event?.displayName || event?.title || 'event')
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .slice(0, 40);
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="${slug}-registrations.csv"`);
-        res.send(lines.join('\n'));
+
+        if (format === 'csv') {
+            const lines = [
+                header.join(','),
+                ...body.map((row) => row.map(csvEscape).join(',')),
+            ];
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${slug}-registrations.csv"`);
+            return res.send(`\uFEFF${lines.join('\n')}`);
+        }
+
+        const ExcelJS = require('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'CrwdCtrl';
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet('Guests', {
+            views: [{ state: 'frozen', ySplit: 1 }],
+        });
+        sheet.addRow(header);
+        const headerRow = sheet.getRow(1);
+        headerRow.font = { bold: true };
+        headerRow.alignment = { vertical: 'middle', wrapText: true };
+        headerRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFE8F8FC' },
+        };
+        body.forEach((row) => sheet.addRow(row));
+        header.forEach((_, colIdx) => {
+            const column = sheet.getColumn(colIdx + 1);
+            let max = String(header[colIdx] || '').length;
+            body.forEach((row) => {
+                const len = String(row[colIdx] ?? '').length;
+                if (len > max) max = len;
+            });
+            column.width = Math.min(42, Math.max(12, max + 2));
+        });
+
+        const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+        res.setHeader(
+            'Content-Type',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        );
+        res.setHeader('Content-Disposition', `attachment; filename="${slug}-registrations.xlsx"`);
+        return res.send(buffer);
     } catch (error) {
         console.error('[eventShowOrganizer.exportParticipants]', error);
         res.status(500).json({ success: false, message: 'Failed to export' });
