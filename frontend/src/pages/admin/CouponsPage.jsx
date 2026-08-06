@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Tag, Plus, Users, Percent, Info, IndianRupee } from 'lucide-react';
+import { Tag, Plus, Users, Percent, Info, IndianRupee, Trash2, RotateCcw } from 'lucide-react';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { useDialog } from '../../context/DialogContext';
 
 const ENTITY_OPTIONS = [
   { id: 'sports', label: 'Runs (Cashfree + UPI / screenshot)' },
@@ -111,12 +112,14 @@ function inputClass() {
 }
 
 export default function CouponsPage() {
+  const { toast, confirm } = useDialog();
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState('');
   const [exampleAmount, setExampleAmount] = useState(2000);
+  const [busyId, setBusyId] = useState('');
 
   const loadCoupons = async () => {
     setLoading(true);
@@ -134,6 +137,47 @@ export default function CouponsPage() {
   useEffect(() => {
     loadCoupons();
   }, []);
+
+  const onDeleteCoupon = async (coupon) => {
+    const ok = await confirm(
+      `Delete coupon ${coupon.code}? You can create the same code again after this.`,
+    );
+    if (!ok) return;
+    setBusyId(coupon._id);
+    try {
+      await adminFetchJSON(`/admin/coupons/${coupon._id}`, { method: 'DELETE' });
+      if (editingId === coupon._id) {
+        setForm(EMPTY_FORM);
+        setEditingId('');
+      }
+      toast(`Deleted ${coupon.code} — code is free to reuse`);
+      await loadCoupons();
+    } catch (err) {
+      toast(err.message || 'Failed to delete coupon');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const onResetUsage = async (coupon) => {
+    const ok = await confirm(
+      `Reset usage for ${coupon.code}? Everyone can use this coupon again (clears ${coupon.usedCount || 0} total uses).`,
+    );
+    if (!ok) return;
+    setBusyId(coupon._id);
+    try {
+      const data = await adminFetchJSON(`/admin/coupons/${coupon._id}/reset-usage`, {
+        method: 'POST',
+        body: '{}',
+      });
+      toast(data.message || `Reset ${coupon.code}`);
+      await loadCoupons();
+    } catch (err) {
+      toast(err.message || 'Failed to reset usage');
+    } finally {
+      setBusyId('');
+    }
+  };
 
   const discountPreview = useMemo(() => {
     const base = Math.max(0, Number(exampleAmount) || 0);
@@ -615,45 +659,78 @@ export default function CouponsPage() {
           <div className="space-y-2">
             {coupons.map((coupon) => {
               const badge = statusBadge(coupon);
+              const busy = busyId === coupon._id;
               return (
-              <button
+              <div
                 key={coupon._id}
-                type="button"
-                onClick={() => startEdit(coupon)}
-                className={`w-full text-left bg-[#1D1E20] border rounded-lg p-3 hover:border-[#0ECCEE]/40 transition ${
+                className={`w-full bg-[#1D1E20] border rounded-lg p-3 ${
                   coupon.isExpired ? 'border-red-900/50' : 'border-gray-700'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold text-white">{coupon.code}</p>
-                  <span className={`text-xs px-2 py-1 rounded-full shrink-0 ${badge.className}`}>
-                    {badge.label}
-                  </span>
-                </div>
-                {coupon.description ? <p className="text-xs text-gray-400 mt-1">{coupon.description}</p> : null}
-                <p className="text-xs text-gray-400 mt-1">
-                  {coupon.discountLabel
-                    || (coupon.discountType === 'flat'
-                      ? `₹${Number(coupon.flatDiscountAmount || 0)} off`
-                      : `${coupon.discountPercent}% off${Number(coupon.maxDiscountAmount) > 0 ? ` (max ₹${coupon.maxDiscountAmount})` : ' (no ₹ cap)'}`)}
-                  {' · '}
-                  {coupon.peopleRuleLabel || 'Anyone (1+ people)'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Used: {coupon.usedCount || 0}
-                  {' · '}
-                  Remaining: {coupon.remainingUses === null ? 'Unlimited' : coupon.remainingUses}
-                  {(coupon.applicableEntityTypes || []).length > 0
-                    ? ` · ${coupon.applicableEntityTypes.join(', ')}`
-                    : ' · All types'}
-                </p>
-                {coupon.expiresAt ? (
-                  <p className={`text-xs mt-1 ${coupon.isExpired ? 'text-red-400' : 'text-gray-500'}`}>
-                    Expires {toIstDatetimeLocal(coupon.expiresAt).replace('T', ' ')} IST
-                    {coupon.isExpired ? ' — extend expiry to use again' : ''}
+                <button
+                  type="button"
+                  onClick={() => startEdit(coupon)}
+                  className="w-full text-left hover:opacity-95"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-white">{coupon.code}</p>
+                    <span className={`text-xs px-2 py-1 rounded-full shrink-0 ${badge.className}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  {coupon.description ? <p className="text-xs text-gray-400 mt-1">{coupon.description}</p> : null}
+                  <p className="text-xs text-gray-400 mt-1">
+                    {coupon.discountLabel
+                      || (coupon.discountType === 'flat'
+                        ? `₹${Number(coupon.flatDiscountAmount || 0)} off`
+                        : `${coupon.discountPercent}% off${Number(coupon.maxDiscountAmount) > 0 ? ` (max ₹${coupon.maxDiscountAmount})` : ' (no ₹ cap)'}`)}
+                    {' · '}
+                    {coupon.peopleRuleLabel || 'Anyone (1+ people)'}
                   </p>
-                ) : null}
-              </button>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Used: {coupon.usedCount || 0}
+                    {' · '}
+                    Remaining: {coupon.remainingUses === null ? 'Unlimited' : coupon.remainingUses}
+                    {(coupon.applicableEntityTypes || []).length > 0
+                      ? ` · ${coupon.applicableEntityTypes.join(', ')}`
+                      : ' · All types'}
+                  </p>
+                  {coupon.expiresAt ? (
+                    <p className={`text-xs mt-1 ${coupon.isExpired ? 'text-red-400' : 'text-gray-500'}`}>
+                      Expires {toIstDatetimeLocal(coupon.expiresAt).replace('T', ' ')} IST
+                      {coupon.isExpired ? ' — extend expiry to use again' : ''}
+                    </p>
+                  ) : null}
+                </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => startEdit(coupon)}
+                    className="px-2.5 py-1.5 rounded-lg border border-gray-700 text-xs text-gray-300 disabled:opacity-50"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onResetUsage(coupon)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-500/30 text-xs text-amber-300 disabled:opacity-50"
+                    title="Clear usage so people can use this code again"
+                  >
+                    <RotateCcw size={12} /> Reset uses
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onDeleteCoupon(coupon)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-500/30 text-xs text-red-300 disabled:opacity-50"
+                    title="Delete so you can recreate this code"
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
+              </div>
               );
             })}
           </div>

@@ -141,6 +141,11 @@ exports.createCoupon = async (req, res) => {
     const coupon = await Coupon.create(payload);
     res.status(201).json({ coupon });
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(400).json({
+        message: 'That coupon code already exists. Delete the old coupon first to reuse this code.',
+      });
+    }
     res.status(400).json({ message: err.message || 'Failed to create coupon' });
   }
 };
@@ -167,10 +172,60 @@ exports.updateCoupon = async (req, res) => {
         payload.flatDiscountAmount = 0;
       }
     }
+    // Changing code: ensure uniqueness excluding this doc
+    if (payload.code) {
+      const clash = await Coupon.findOne({
+        code: payload.code,
+        _id: { $ne: req.params.couponId },
+      }).select('_id').lean();
+      if (clash) {
+        return res.status(400).json({ message: `Code ${payload.code} is already used by another coupon.` });
+      }
+    }
     const coupon = await Coupon.findByIdAndUpdate(req.params.couponId, payload, { new: true });
     if (!coupon) return res.status(404).json({ message: 'Coupon not found' });
     res.json({ coupon });
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(400).json({ message: 'That coupon code already exists. Delete the old one first, or pick a new code.' });
+    }
     res.status(400).json({ message: err.message || 'Failed to update coupon' });
+  }
+};
+
+/** Hard-delete coupon so the same code can be created again. Also clears usage history. */
+exports.deleteCoupon = async (req, res) => {
+  try {
+    const coupon = await Coupon.findByIdAndDelete(req.params.couponId);
+    if (!coupon) return res.status(404).json({ message: 'Coupon not found' });
+    await CouponUsage.deleteMany({ couponId: coupon._id });
+    res.json({
+      success: true,
+      message: `Deleted ${coupon.code}. You can create this code again.`,
+      code: coupon.code,
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message || 'Failed to delete coupon' });
+  }
+};
+
+/**
+ * Reset total + per-user usage counters so the coupon can be applied again
+ * without deleting/recreating it.
+ */
+exports.resetCouponUsage = async (req, res) => {
+  try {
+    const coupon = await Coupon.findById(req.params.couponId);
+    if (!coupon) return res.status(404).json({ message: 'Coupon not found' });
+    const usageDeleted = await CouponUsage.deleteMany({ couponId: coupon._id });
+    coupon.usedCount = 0;
+    await coupon.save();
+    res.json({
+      success: true,
+      coupon,
+      message: `Reset usage for ${coupon.code}. Cleared ${usageDeleted.deletedCount || 0} user use records.`,
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message || 'Failed to reset coupon usage' });
   }
 };

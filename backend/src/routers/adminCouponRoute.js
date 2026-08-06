@@ -7,5 +7,7 @@ const router = express.Router();
 router.get('/', adminAuth, ctrl.listCoupons);
 router.post('/', adminAuth, ctrl.createCoupon);
 router.put('/:couponId', adminAuth, ctrl.updateCoupon);
+router.post('/:couponId/reset-usage', adminAuth, ctrl.resetCouponUsage);
+router.delete('/:couponId', adminAuth, ctrl.deleteCoupon);
 
 module.exports = router;
