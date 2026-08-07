@@ -10,12 +10,20 @@ import { initSentry } from './utils/sentry'
 import { isNativeApp } from './utils/capacitorPlatform'
 import { initCashfreeNativeGateway } from './utils/bootstrapCashfreeNative'
 import { initGlobalErrorHandlers } from './utils/chunkError'
-import { preloadAllCategoryNavIcons } from './constants/categoryNavIcons'
+import { preloadCategoryNavIcons } from './constants/categoryNavIcons'
 
 initThemeClass()
 initSentry()
 initGlobalErrorHandlers()
-preloadAllCategoryNavIcons()
+// Warm current-theme nav icons only (no <link rel=preload> — avoids unused-preload warnings on event pages)
+try {
+  const isDark = document.documentElement.classList.contains('dark')
+  preloadCategoryNavIcons(isDark)
+  const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 1200))
+  idle(() => preloadCategoryNavIcons(!isDark))
+} catch {
+  /* ignore */
+}
 
 // Stale OAuth markers make the app show the loading logo forever
 if (!hasAuthCallbackParams()) {

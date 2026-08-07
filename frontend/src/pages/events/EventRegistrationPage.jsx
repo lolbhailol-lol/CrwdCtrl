@@ -16,6 +16,7 @@ import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { eventShowPath } from '../../utils/slugRoutes';
+import { openExternalUrl } from '../../utils/externalLink';
 import {
     getEventShowTiers,
     findEventShowTier,
@@ -23,8 +24,22 @@ import {
     resolveTierParticipantCount,
     formatInr,
 } from '../../utils/eventShowTiers';
+import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
 
 const API = API_BASE_URL;
+
+function getDiscordInviteFromEvent(event) {
+    const fromMeeting = (Array.isArray(event?.meetingPoints) ? event.meetingPoints : [])
+        .map((p) => p?.mapUrl || p?.url || '')
+        .find((u) => /discord\.(gg|com)/i.test(u));
+    if (fromMeeting) return fromMeeting;
+    const fromDesc = String(
+        (Array.isArray(event?.registration?.steps) ? event.registration.steps : [])
+            .map((s) => s?.stepDescription || '')
+            .join(' '),
+    ).match(/https?:\/\/discord\.(?:gg|com)\/[^\s]+/i);
+    return fromDesc?.[0] || '';
+}
 
 const FILE_TYPES = ['file', 'image'];
 const BLOOD_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Prefer not to say'];
@@ -118,11 +133,17 @@ export default function EventRegistrationPage() {
     const [paymentResumeError, setPaymentResumeError] = useState('');
     const [registrationId, setRegistrationId] = useState('');
     const [addedToExisting, setAddedToExisting] = useState(false);
-    const [couponCode, setCouponCode] = useState('');
+    const [couponCode, setCouponCode] = useState(() =>
+        getSuggestedCouponCode(location.state?.event, {
+            suggestedCoupon: location.state?.suggestedCoupon,
+            search: location.search,
+        }),
+    );
     const [couponInfo, setCouponInfo] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
     const [showCouponField, setShowCouponField] = useState(true);
+    const autoAppliedCouponRef = useRef('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
     const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
     const [transactionId, setTransactionId] = useState('');
@@ -173,6 +194,15 @@ export default function EventRegistrationPage() {
         })();
         return () => { cancelled = true; };
     }, [eventId]);
+
+    useEffect(() => {
+        if (couponCode.trim()) return;
+        const code = getSuggestedCouponCode(event, {
+            suggestedCoupon: location.state?.suggestedCoupon,
+            search: location.search,
+        });
+        if (code) setCouponCode(code);
+    }, [event, location.state?.suggestedCoupon, location.search, couponCode]);
 
     useEffect(() => {
         if (!event) return;
@@ -985,13 +1015,14 @@ export default function EventRegistrationPage() {
         }
     };
 
-    const applyCoupon = async () => {
+    const applyCoupon = async (overrideCode) => {
         setCouponError('');
-        const code = couponCode.trim();
+        const code = String(overrideCode ?? couponCode).trim().toUpperCase();
         if (!code) {
             setCouponInfo(null);
             return;
         }
+        setCouponCode(code);
         setCouponLoading(true);
         try {
             const { data } = await publicFetchJSONRetry('/payment/coupon-validate', {
@@ -1023,6 +1054,23 @@ export default function EventRegistrationPage() {
         if (step < allSteps.length - 1) setStep((s) => s + 1);
     };
     const back = () => (step === 0 ? navigate(-1) : setStep((s) => s - 1));
+
+    const isPaymentStepPreview = !!allSteps[step]?.payment;
+    const suggestedCoupon = getSuggestedCouponCode(event, {
+        suggestedCoupon: location.state?.suggestedCoupon || couponCode,
+        search: location.search,
+    });
+    const suggestedCouponLabel = getSuggestedCouponLabel(suggestedCoupon);
+
+    useEffect(() => {
+        if (!isPaymentStepPreview || !suggestedCoupon) return;
+        if (couponInfo?.couponApplied) return;
+        if (autoAppliedCouponRef.current === suggestedCoupon) return;
+        autoAppliedCouponRef.current = suggestedCoupon;
+        setCouponCode(suggestedCoupon);
+        applyCoupon(suggestedCoupon);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isPaymentStepPreview, suggestedCoupon]);
 
     if (loading && !done && !paying) {
         return (
@@ -1145,6 +1193,14 @@ export default function EventRegistrationPage() {
                     <div className="min-w-0 flex-1">
                         <h1 className={`text-lg sm:text-xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>Register: {title}</h1>
                         <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current?.title}</p>
+                        {suggestedCoupon && !isPaymentStep ? (
+                            <p className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                                isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
+                            }`}>
+                                Coupon {suggestedCoupon}
+                                {suggestedCouponLabel ? ` · ${suggestedCouponLabel}` : ''}
+                            </p>
+                        ) : null}
                     </div>
                 </div>
 
@@ -1209,14 +1265,16 @@ export default function EventRegistrationPage() {
                                         </p>
                                     ) : null}
                                 </div>
+                                {tiersMode ? (
                                 <div className={`flex justify-between text-sm py-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                                     <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Drivers</span>
                                     <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                                         {driverCount} {driverCount === 1 ? 'driver' : 'drivers'}
                                     </span>
                                 </div>
+                                ) : null}
                                 <div className="flex justify-between text-sm">
-                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Package fee</span>
+                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{tiersMode ? 'Package fee' : 'Entry fee'}</span>
                                     <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                                         {ticketPrice > 0 ? formatInr(ticketPrice) : 'Free'}
                                     </span>
@@ -1343,6 +1401,27 @@ export default function EventRegistrationPage() {
                     {!isPaymentStep && !current?.packageSelect && (
                         <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             {current?.description && <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current.description}</p>}
+                            {(() => {
+                                const discordInvite = getDiscordInviteFromEvent(event);
+                                const hasJoinedDiscordField = (current?.fields || []).some(
+                                    (f) => f.fieldName === 'joined_discord' || /joined.*discord/i.test(f.label || ''),
+                                );
+                                if (!discordInvite || !hasJoinedDiscordField) return null;
+                                return (
+                                    <button
+                                        type="button"
+                                        onClick={() => openExternalUrl(discordInvite)}
+                                        className={`mb-4 w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 border ${
+                                            isDark ? 'bg-[#1D1E20] border-[#5865F2]/40' : 'bg-indigo-50 border-indigo-200'
+                                        }`}
+                                    >
+                                        <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            Join CrwdCtrl Discord
+                                        </span>
+                                        <span className="text-xs font-bold text-[#5865F2]">Open</span>
+                                    </button>
+                                );
+                            })()}
                             <div className="space-y-4">
                                 {(current?.fields || []).map((field) => (
                                     <div key={field.id || field.fieldName}>
@@ -1417,8 +1496,9 @@ export default function EventRegistrationPage() {
                                                     type="button"
                                                     onClick={() => {
                                                         setCouponInfo(null);
-                                                        setCouponCode('');
+                                                        setCouponCode(suggestedCoupon || '');
                                                         setCouponError('');
+                                                        autoAppliedCouponRef.current = '';
                                                     }}
                                                     className={`text-[11px] font-semibold shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                                                 >
@@ -1428,6 +1508,26 @@ export default function EventRegistrationPage() {
                                         </div>
                                     ) : (
                                         <>
+                                            {suggestedCoupon ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applyCoupon(suggestedCoupon)}
+                                                    disabled={couponLoading}
+                                                    className={`mb-2.5 w-full flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 border text-left ${
+                                                        isDark
+                                                            ? 'bg-emerald-500/10 border-emerald-500/30'
+                                                            : 'bg-emerald-50 border-emerald-200'
+                                                    }`}
+                                                >
+                                                    <span className={`text-xs font-semibold ${isDark ? 'text-emerald-200' : 'text-emerald-800'}`}>
+                                                        Use {suggestedCoupon}
+                                                        {suggestedCouponLabel ? ` · ${suggestedCouponLabel}` : ''}
+                                                    </span>
+                                                    <span className="text-[11px] font-bold text-[#0ECCEE]">
+                                                        {couponLoading ? '…' : 'Apply'}
+                                                    </span>
+                                                </button>
+                                            ) : null}
                                             <div className="flex gap-2">
                                                 <input
                                                     value={couponCode}
@@ -1445,7 +1545,7 @@ export default function EventRegistrationPage() {
                                                 />
                                                 <button
                                                     type="button"
-                                                    onClick={applyCoupon}
+                                                    onClick={() => applyCoupon()}
                                                     disabled={couponLoading || !couponCode.trim()}
                                                     className="h-10 px-3.5 rounded-lg bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
                                                 >
@@ -1467,8 +1567,10 @@ export default function EventRegistrationPage() {
                                             <span className="text-right font-medium">{selectedTier.name}</span>
                                         </div>
                                     ) : null}
-                                    <div className="flex justify-between gap-4"><span>Drivers</span><span>{driverCount} {driverCount === 1 ? 'driver' : 'drivers'}</span></div>
-                                    <div className="flex justify-between gap-4"><span>Package fee</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
+                                    {tiersMode && selectedTier ? (
+                                        <div className="flex justify-between gap-4"><span>Drivers</span><span>{driverCount} {driverCount === 1 ? 'driver' : 'drivers'}</span></div>
+                                    ) : null}
+                                    <div className="flex justify-between gap-4"><span>{tiersMode && selectedTier ? 'Package fee' : 'Entry fee'}</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
                                     {breakdown.platformFee > 0 ? (
                                         <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                             <span>Platform fee ({platformFeePercent}%)</span>

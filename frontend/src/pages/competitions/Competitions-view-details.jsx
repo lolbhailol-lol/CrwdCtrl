@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Trophy, Ticket, Zap, Share2 } from 'lucide-react';
+import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Ticket, Zap, Share2 } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import Navbar from '../../components/layout/Navbar';
@@ -21,6 +21,7 @@ import { openExternalUrl, shareContent } from '../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath } from '../../utils/slugRoutes';
 import { resolveCompetitionFee } from '../../utils/festPublicTransform';
 import { trackBookNowClick } from '../../services/analyticsService';
+import PrizePoolPodium from '../../components/PrizePoolPodium';
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -1022,6 +1023,17 @@ function EventPage() {
                                 </div>
                             </div>
 
+                            {/* Prize pool — classic medal podium (all fest competitions) */}
+                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-)$/i.test(String(eventData.prize).trim()) && (
+                                <div className="px-4 pb-2">
+                                    <PrizePoolPodium
+                                      prizeText={eventData.prize}
+                                      isDark={isDark}
+                                      compact
+                                    />
+                                </div>
+                            )}
+
                             {/* Mobile Registration Button - Hidden, using fixed footer instead */}
                             <div className="hidden px-4 py-4">
                                 <div className="flex gap-2 relative">
@@ -1108,28 +1120,6 @@ function EventPage() {
                                 )}
                             </div>
                             
-                            {/* Mobile Prize Pool Highlight Card */}
-                            {eventData?.prize && (
-                                <div className="px-4 py-4">
-                                    <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#111213] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
-                                        <div className="absolute inset-0 bg-linear-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
-                                        <div className="relative p-4">
-                                            <div className="flex items-center gap-2.5 mb-3">
-                                                <div className="w-8 h-8 rounded-xl bg-linear-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-md shadow-[#00C2CB]/30">
-                                                    <Trophy className="w-4 h-4 text-white" />
-                                                </div>
-                                                <h2 className="text-xs font-bold uppercase tracking-widest text-[#00C2CB]">Prize Pool</h2>
-                                            </div>
-                                            <div
-                                                className={`text-sm leading-relaxed whitespace-pre-wrap ${isDark ? 'text-gray-200' : 'text-gray-800'}`}
-                                                style={{ whiteSpace: 'pre-wrap' }}
-                                            >
-                                                {eventData.prize}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
                             {/* Mobile Competition Rounds - Only show if rounds exist */}
                             {eventData?.rounds?.roundsList?.length > 0 && (
                             <div className="px-4 py-4">
@@ -1343,25 +1333,12 @@ function EventPage() {
                                 </div>
 
                                 <div className="space-y-6">
-                                    {/* Desktop Prize Pool Highlight Card */}
-                                    {eventData?.prize && (
-                                        <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#111213] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
-                                            <div className="absolute inset-0 bg-linear-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
-                                            <div className="relative p-6">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-10 h-10 rounded-xl bg-linear-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-lg shadow-[#00C2CB]/30">
-                                                        <Trophy className="w-5 h-5 text-white" />
-                                                    </div>
-                                                    <h2 className="text-xs font-bold uppercase tracking-widest text-[#00C2CB]">Prize Pool</h2>
-                                                </div>
-                                                <div
-                                                    className={`leading-relaxed whitespace-pre-wrap text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}
-                                                    style={{ whiteSpace: 'pre-wrap' }}
-                                                >
-                                                    {eventData.prize}
-                                                </div>
-                                            </div>
-                                        </div>
+                                    {/* Desktop Prize Pool — classic medal podium (all fest competitions) */}
+                                    {eventData?.prize && !/^(tbd|tba|n\/a|na|-)$/i.test(String(eventData.prize).trim()) && (
+                                        <PrizePoolPodium
+                                          prizeText={eventData.prize}
+                                          isDark={isDark}
+                                        />
                                     )}
 
                                     {/* Common Rules */}
