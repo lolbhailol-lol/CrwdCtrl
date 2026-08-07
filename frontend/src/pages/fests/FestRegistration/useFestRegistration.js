@@ -42,7 +42,7 @@ export default function useFestRegistration() {
   const paymentResumeRef = useRef(false);
   const competitionPaymentResumeRef = useRef(false);
   const handleSubmitRef = useRef(null);
-  const competitionId = searchParams.get('competition');
+  const competitionId = searchParams.get('competition') || location.state?.competitionId || null;
   const initialUi = getInitialFestRegistrationUi(location.pathname, location.search);
   const {
     isAuthenticated,
@@ -1301,6 +1301,9 @@ export default function useFestRegistration() {
 
       // Add text responses as JSON
       submissionFormData.append('responses', JSON.stringify(textResponses));
+      if (competitionId) {
+        submissionFormData.append('competitionId', String(competitionId));
+      }
 
       // Attach Cashfree payment fields if payment was made
       if (verifiedPaymentFields) {

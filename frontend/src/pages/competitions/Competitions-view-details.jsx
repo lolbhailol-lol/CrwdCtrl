@@ -763,8 +763,14 @@ function EventPage() {
                 if (link) openExternalUrl(link);
                 else showAlert({ title: 'Registration unavailable', message: 'Registration link is not available. Please contact the organizers.' });
             } else if (mode === 'INTERNAL_FORM') {
-                navigate(festRegisterPath(eventData?.fest || { _id: eventData?.festId }), {
-                    state: { festId: eventData?.festId || eventData?.fest?._id, competitionId: eventData?.id },
+                const festRef = eventData?.fest || { _id: eventData?.festId };
+                const compId = eventData?.id || eventData?._id || '';
+                const base = festRegisterPath(festRef);
+                const path = compId
+                  ? `${base}${base.includes('?') ? '&' : '?'}competition=${encodeURIComponent(compId)}`
+                  : base;
+                navigate(path, {
+                    state: { festId: eventData?.festId || eventData?.fest?._id, competitionId: compId },
                 });
             } else if (mode === 'NOT_STARTED') {
                 showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });

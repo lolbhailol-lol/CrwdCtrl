@@ -6,6 +6,7 @@ const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOr
 const { logger } = require('../../utils/logger');
 const { scheduleRegistrationNotification } = require('./helpers');
 const { findByIdOrSlug } = require('../../utils/slug');
+const { resolveFestCompetitionId, extractCompetitionChoice } = require('../../utils/festCompetitionAssignment');
 
 // Submit registration for a fest
 // Submit registration for a fest with file uploads
@@ -230,10 +231,31 @@ const submitRegistration = async (req, res) => {
 
     logger.debug('✅ All required fields validated');
 
+    // Link selected competition (e.g. "Inner Flame (Solo Dance)") so organizer
+    // dashboard does not bucket the row under "Other / unassigned".
+    const explicitCompetitionId = req.body.competitionId || req.body.competition_id || null;
+    let resolvedCompetitionId = null;
+    try {
+      resolvedCompetitionId = await resolveFestCompetitionId({
+        festId: festObjectId,
+        responses,
+        formSchema,
+        explicitCompetitionId,
+      });
+      if (resolvedCompetitionId) {
+        logger.debug('🎯 Resolved competitionId from fest form:', String(resolvedCompetitionId));
+      } else {
+        logger.warn('⚠️ Could not resolve competition from fest registration responses');
+      }
+    } catch (resolveErr) {
+      logger.warn('⚠️ Competition resolve failed:', resolveErr?.message || resolveErr);
+    }
+
     // Create registration - ONLY ONCE (always store ObjectId, never the URL slug)
     const registration = new Registration({
       fest: festObjectId,
       user: userId,
+      competitionId: resolvedCompetitionId || undefined,
       responses: responses,
       status: 'pending'
     });
@@ -335,7 +357,7 @@ const submitRegistration = async (req, res) => {
               mappedResponses,
               {
                 festName: fest.festName,
-                competitionName: '',   // fest-level registration, no specific competition
+                competitionName: extractCompetitionChoice(responses, formSchema) || '',
                 registrationId: registration._id.toString(),
               },
               {
