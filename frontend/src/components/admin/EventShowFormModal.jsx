@@ -86,6 +86,13 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                 registration: {
                     ...EMPTY.registration,
                     ...(show.registration || {}),
+                    // If mode is in-app form but status was never set, treat as open
+                    // so admin doesn't accidentally save "closed" over a live form.
+                    status:
+                        show.registration?.status
+                        || (['internal_form', 'organizer_qr'].includes(show.registration?.mode)
+                            ? 'open'
+                            : EMPTY.registration.status),
                     formSchema: Array.isArray(show.registration?.formSchema) ? show.registration.formSchema : [],
                     steps: Array.isArray(show.registration?.steps) ? show.registration.steps : [],
                 },
@@ -381,10 +388,27 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                                 <option value="closed">Closed</option>
                                 <option value="open">Open</option>
                             </select>
+                            {['internal_form', 'organizer_qr'].includes(reg.mode) && reg.status !== 'open' && (
+                                <p className="mt-1.5 text-xs text-amber-400">
+                                    Status is Closed — users will see &quot;Registration Closed&quot; even with Internal Form selected. Set to Open to accept registrations.
+                                </p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Registration Type</label>
-                            <select value={reg.mode} onChange={e => setReg({ mode: e.target.value })} className={inp}>
+                            <select
+                                value={reg.mode}
+                                onChange={(e) => {
+                                    const mode = e.target.value;
+                                    // Selecting an in-app form should open registration so the public CTA works.
+                                    if (['internal_form', 'organizer_qr'].includes(mode) && reg.status !== 'open') {
+                                        setReg({ mode, status: 'open' });
+                                    } else {
+                                        setReg({ mode });
+                                    }
+                                }}
+                                className={inp}
+                            >
                                 <option value="external_link">External Link</option>
                                 <option value="internal_form">Internal Form (Cashfree payment)</option>
                                 <option value="organizer_qr">Internal Form + QR / screenshot payment</option>

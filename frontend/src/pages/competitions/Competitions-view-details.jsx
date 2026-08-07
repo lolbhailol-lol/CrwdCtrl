@@ -655,7 +655,25 @@ function EventPage() {
             isDisabled: true,
         });
 
-        // Competition-level "not open yet" / closed always wins
+        // Fest-linked competitions follow the parent fest registration mode.
+        // Competition-level "not_started" must NOT block these — otherwise admins
+        // open the fest as Internal Form but every competition still looks closed.
+        if (registrationType === 'fest') {
+            if (festMode === 'NOT_STARTED') {
+                return closedResult('Registration Not Open Yet');
+            }
+            if (festMode === 'CLOSED') {
+                return closedResult('Registration Closed');
+            }
+            return {
+                isAvailable: festMode === 'EXTERNAL_LINK' || festMode === 'INTERNAL_FORM',
+                buttonText: festMode === 'NOT_STARTED' ? 'Registration Not Open Yet'
+                    : festMode === 'CLOSED' ? 'Registration Closed' : 'Register Now',
+                isDisabled: festMode === 'NOT_STARTED' || festMode === 'CLOSED',
+            };
+        }
+
+        // Custom competitions: competition registration.status controls availability
         if (registrationStatus === 'not_started') {
             return closedResult('Registration Not Open Yet');
         }
@@ -663,7 +681,6 @@ function EventPage() {
             return closedResult('Registration Closed');
         }
         if (legacyStatus === 'NOT_STARTED') {
-            // Only block legacy when competition status isn't explicitly open
             if (!['external_link', 'internal_form', 'started'].includes(registrationStatus)) {
                 return closedResult('Registration Not Open Yet');
             }
@@ -672,22 +689,12 @@ function EventPage() {
             return closedResult('Registration Closed');
         }
 
-        // Parent fest still not open → keep all comps closed
+        // Parent fest still not open → keep custom comps closed too
         if (festMode === 'NOT_STARTED') {
             return closedResult('Registration Not Open Yet');
         }
         if (festMode === 'CLOSED') {
             return closedResult('Registration Closed');
-        }
-
-        if (registrationType === 'fest') {
-            const mode = festMode || 'NOT_STARTED';
-            return {
-                isAvailable: mode === 'EXTERNAL_LINK' || mode === 'INTERNAL_FORM',
-                buttonText: mode === 'NOT_STARTED' ? 'Registration Not Open Yet'
-                    : mode === 'CLOSED' ? 'Registration Closed' : 'Register Now',
-                isDisabled: mode === 'NOT_STARTED' || mode === 'CLOSED',
-            };
         }
 
         if (registrationType === 'custom') {
