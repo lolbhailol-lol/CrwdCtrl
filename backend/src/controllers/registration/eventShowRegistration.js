@@ -409,6 +409,88 @@ const submitEventShowRegistration = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/registrations/events/:eventShowId/pay-and-register
+ * Completes EventShow registration after Cashfree payment using body responses
+ * and/or the draft stored on the PaymentOrder. Idempotent by payment_order_id.
+ */
+const payAndRegisterEventShow = async (req, res) => {
+  try {
+    const { eventShowId } = req.params;
+    const userId = req.user.userId;
+    const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
+    const { fulfillEventShowFromPaidOrder, sanitizeRegistrationDraft } = require('../../services/eventShowPaymentFulfillment');
+
+    const paymentCheck = await verifyPaymentForRegistration(req.body, {
+      entityId: eventShowId,
+    });
+    if (!paymentCheck.ok) {
+      return res.status(400).json({ error: paymentCheck.error || 'Payment verification failed' });
+    }
+
+    const PaymentOrder = require('../../model/payment_order_model');
+    await PaymentOrder.findOneAndUpdate(
+      { orderId: paymentCheck.orderId },
+      {
+        status: 'PAID',
+        ...(paymentCheck.paymentId ? { paymentId: String(paymentCheck.paymentId) } : {}),
+      },
+      { upsert: false },
+    );
+
+    let responses = req.body.responses;
+    if (typeof responses === 'string') {
+      try {
+        responses = JSON.parse(responses);
+      } catch {
+        responses = {};
+      }
+    }
+
+    const draft = sanitizeRegistrationDraft({
+      values: responses,
+      tierId: req.body.tierId,
+      couponCode: req.body.couponCode,
+      eventShowId,
+    });
+
+    const result = await fulfillEventShowFromPaidOrder(paymentCheck.orderId, {
+      userId,
+      paymentId: paymentCheck.paymentId,
+      markPaid: true,
+      registrationDraft: draft,
+      eventShowId,
+      tierId: req.body.tierId,
+      couponCode: req.body.couponCode,
+      responses,
+    });
+
+    if (!result.ok) {
+      return res.status(400).json({ error: result.error || 'Could not complete registration' });
+    }
+
+    const registration = result.registration;
+    return res.status(result.alreadyCompleted || result.addedToExisting ? 200 : 201).json({
+      success: true,
+      message: result.alreadyCompleted
+        ? 'Registration already completed'
+        : result.addedToExisting
+          ? 'Added to your existing registration'
+          : 'Registration successful',
+      _id: registration._id,
+      registrationId: registration._id,
+      eventName: result.eventShow?.title,
+      amountPaid: registration.amountPaid,
+      addedToExisting: result.addedToExisting,
+      reRegistrationCount: registration.reRegistrationCount || 0,
+    });
+  } catch (err) {
+    logger.error('❌ payAndRegisterEventShow error:', err);
+    return res.status(500).json({ error: 'Registration failed' });
+  }
+};
+
 module.exports = {
   submitEventShowRegistration,
+  payAndRegisterEventShow,
 };

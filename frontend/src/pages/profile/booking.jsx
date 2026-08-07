@@ -12,6 +12,15 @@ import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 
 import { fetchMyRegistrations, fetchMySportsRegistrations } from '../../services/api/auth.api';
 import { primaryCoverUrl } from '../../utils/coverImages';
+import { API_BASE_URL } from '../../services/api/client';
+import { resolveAuthToken } from '../../utils/authToken';
+import { clearPendingPayment } from '../../utils/deepLinks';
+import { verifyPaymentWithRetry } from '../../utils/paymentNavigation';
+import {
+    listRecoverableEventPayDrafts,
+    completeEventPayAndRegister,
+    clearEventPaymentArtifacts,
+} from '../../utils/eventPaymentRecovery';
 
 // Lightweight per-user session cache so returning to the bookings page paints
 // instantly (stale-while-revalidate) instead of showing a full skeleton while
@@ -385,6 +394,73 @@ function Booking() {
             navigate(location.pathname + location.search, { replace: true, state: {} });
         }
     }, [location.state, location.pathname, location.search, navigate, user]);
+
+    // Recover event registrations paid via Google Pay when redirect never finished
+    useEffect(() => {
+        if (!isAuthenticated || !user) return;
+        let cancelled = false;
+
+        (async () => {
+            const tokenToUse = token || resolveAuthToken();
+            if (!tokenToUse) return;
+
+            const recoverable = listRecoverableEventPayDrafts();
+            try {
+                const raw = sessionStorage.getItem('crwdctrl_recover_event_order');
+                if (raw) {
+                    const hint = JSON.parse(raw);
+                    if (hint?.orderId && Date.now() - (hint.ts || 0) < 30 * 60 * 1000) {
+                        if (!recoverable.some((r) => r.orderId === hint.orderId)) {
+                            recoverable.push({
+                                orderId: hint.orderId,
+                                draft: { eventShowId: hint.eventShowId, values: {} },
+                            });
+                        }
+                    }
+                    sessionStorage.removeItem('crwdctrl_recover_event_order');
+                }
+            } catch {
+                /* ignore */
+            }
+
+            if (!recoverable.length) return;
+
+            let recovered = false;
+            for (const item of recoverable) {
+                const eventShowId = item.draft?.eventShowId;
+                if (!eventShowId || !item.orderId) continue;
+                try {
+                    const { ok, data: v } = await verifyPaymentWithRetry(API_BASE_URL, item.orderId, {
+                        token: tokenToUse,
+                        kind: 'fest',
+                    });
+                    if (!ok || !v?.verified) continue;
+                    await completeEventPayAndRegister({
+                        apiBase: API_BASE_URL,
+                        token: tokenToUse,
+                        eventShowId,
+                        orderId: item.orderId,
+                        responses: item.draft?.values || {},
+                        tierId: item.draft?.tierId || '',
+                        couponCode: item.draft?.couponCode || '',
+                    });
+                    clearEventPaymentArtifacts(eventShowId, item.orderId);
+                    clearPendingPayment();
+                    recovered = true;
+                } catch (err) {
+                    console.warn('[bookings] event payment recovery skipped:', err?.message || err);
+                }
+            }
+
+            if (recovered && !cancelled) {
+                setRefreshTick((n) => n + 1);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isAuthenticated, user, token]);
 
     // Fetch user's registered events from backend API
     useEffect(() => {

@@ -6,6 +6,7 @@ const {
   submitCompetitionRegistration,
   submitCustomCompetitionRegistration,
   submitEventShowRegistration,
+  payAndRegisterEventShow,
   payAndRegisterFest,
   payAndRegister,
   getUserRegistration,
@@ -63,6 +64,13 @@ router.post(
   authenticateToken,
   upload.any(),
   submitEventShowRegistration
+);
+
+// Event pay-and-register after Cashfree (idempotent; uses stored draft if needed)
+router.post(
+  '/events/:eventShowId/pay-and-register',
+  authenticateToken,
+  payAndRegisterEventShow
 );
 
 // Cashfree payment registration — no form, uses user profile data

@@ -24,13 +24,14 @@ const {
   payAndRegisterFest,
   payAndRegister,
 } = require('./registration/payments');
-const { submitEventShowRegistration } = require('./registration/eventShowRegistration');
+const { submitEventShowRegistration, payAndRegisterEventShow } = require('./registration/eventShowRegistration');
 
 module.exports = {
   submitRegistration,
   submitCompetitionRegistration,
   submitCustomCompetitionRegistration,
   submitEventShowRegistration,
+  payAndRegisterEventShow,
   payAndRegisterFest,
   payAndRegister,
   getUserRegistration,

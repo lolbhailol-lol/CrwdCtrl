@@ -6,10 +6,18 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
-import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
+import { openCashfreeCheckout, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
 import { verifyPaymentWithRetry, goToBookings } from '../../utils/paymentNavigation';
+import {
+    saveEventRegistrationDraft,
+    loadEventRegistrationDraft,
+    clearEventRegistrationDraft,
+    saveEventPayDraft,
+    clearEventPaymentArtifacts,
+    completeEventPayAndRegister,
+} from '../../utils/eventPaymentRecovery';
 import { buildEventPriceBreakdown } from '../../utils/platformFee';
 import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
 import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
@@ -47,10 +55,6 @@ const DRIVE_FIELD_NAMES = new Set(['join_drive', 'join_independence_day_drive', 
 const DRIVE_ONLY_OPTION = 'Drive only (Free)';
 const DRIVE_AND_TRACKDAY_OPTION = 'Drive + Trackday';
 const TRACKDAY_ONLY_OPTION = 'Trackday only';
-
-function draftKey(eventId) {
-    return `event_reg_draft_${eventId}`;
-}
 
 function getInitialEventRegistrationUi(eventId, search) {
     if (!eventId) return { paying: false, step: 0 };
@@ -129,8 +133,9 @@ export default function EventRegistrationPage() {
     const [files, setFiles] = useState({});
     const [error, setError] = useState('');
     const [paying, setPaying] = useState(initialUi.paying);
-    const [done, setDone] = useState(false);
+    const [awaitingPaymentOrderId, setAwaitingPaymentOrderId] = useState('');
     const [paymentResumeError, setPaymentResumeError] = useState('');
+    const [done, setDone] = useState(false);
     const [registrationId, setRegistrationId] = useState('');
     const [addedToExisting, setAddedToExisting] = useState(false);
     const [couponCode, setCouponCode] = useState(() =>
@@ -745,7 +750,7 @@ export default function EventRegistrationPage() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || data.message || 'Registration failed');
-        sessionStorage.removeItem(draftKey(eventId));
+        clearEventRegistrationDraft(eventId);
         refreshNotifications?.();
         const regId = data.registrationId || data._id || data.registration?._id || data.registration?.id;
         if (regId) setRegistrationId(String(regId));
@@ -753,6 +758,39 @@ export default function EventRegistrationPage() {
         void amountPaid;
         return data;
     }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, getAuthToken, driverCount, selectedTier, pricedEvent, couponCode]);
+
+    const finishPaidRegistration = useCallback(async ({ orderId, draftValues, tierId, coupon }) => {
+        const token = getAuthToken();
+        if (!token) {
+            setShowLogin(true);
+            throw new Error('Please log in to complete registration after payment.');
+        }
+        const { ok, data: v } = await verifyPaymentWithRetry(API, orderId, { token, kind: 'fest' });
+        if (!ok || !v?.verified) {
+            const unpaid = /pending|ACTIVE|not found|not successful/i.test(v?.message || '');
+            throw new Error(
+                unpaid
+                    ? 'Payment was not completed. Tap Pay to try again.'
+                    : (v?.message || 'Payment could not be verified.'),
+            );
+        }
+        const data = await completeEventPayAndRegister({
+            apiBase: API,
+            token,
+            eventShowId: eventId,
+            orderId,
+            responses: draftValues || {},
+            tierId: tierId || selectedTierId || '',
+            couponCode: coupon || couponCode.trim() || '',
+        });
+        clearPendingPayment();
+        clearEventPaymentArtifacts(eventId, orderId);
+        const regId = data.registrationId || data._id;
+        if (regId) setRegistrationId(String(regId));
+        setAddedToExisting(Boolean(data.addedToExisting));
+        refreshNotifications?.();
+        return data;
+    }, [eventId, getAuthToken, selectedTierId, couponCode, refreshNotifications]);
 
     // Resume after Cashfree redirect
     useEffect(() => {
@@ -765,50 +803,20 @@ export default function EventRegistrationPage() {
         setPaying(true);
         setPaymentResumeError('');
         setError('');
-        const token = getAuthToken();
 
-        let draftValues = {};
-        const rawDraft = sessionStorage.getItem(draftKey(eventId));
-        if (rawDraft) {
-            try {
-                const parsed = JSON.parse(rawDraft);
-                draftValues = parsed.values || {};
-                if (Object.keys(draftValues).length > 0) setValues(draftValues);
-                if (parsed.tierId) setSelectedTierId(parsed.tierId);
-            } catch { /* ignore */ }
-        }
+        const draft = loadEventRegistrationDraft(eventId) || {};
+        const draftValues = draft.values || {};
+        if (Object.keys(draftValues).length > 0) setValues((prev) => ({ ...prev, ...draftValues }));
+        if (draft.tierId) setSelectedTierId(draft.tierId);
 
         (async () => {
             try {
-                if (!token) {
-                    clearPendingPayment();
-                    setShowLogin(true);
-                    setPaymentResumeError('Please log in to complete registration after payment.');
-                    setPaying(false);
-                    return;
-                }
-                const { ok, data: v } = await verifyPaymentWithRetry(API, pending.orderId, { token, kind: 'fest' });
-                if (!ok || !v?.verified) {
-                    clearPendingPayment();
-                    const unpaid = /pending|ACTIVE|not found|not successful/i.test(v?.message || '');
-                    setPaymentResumeError(
-                        unpaid
-                            ? 'Payment was not completed. Tap Pay to try again.'
-                            : (v?.message || 'Payment could not be verified.'),
-                    );
-                    setPaying(false);
-                    return;
-                }
-                clearPendingPayment();
-                const verified = buildVerifiedPaymentFields(v, pending.orderId);
-                await submitRegistration({
-                    paymentOrderId: verified.payment_order_id || pending.orderId,
-                    paymentId: verified.payment_id,
-                    amountPaid: breakdown.totalAmount,
-                    valuesOverride: draftValues,
-                    filesOverride: {},
+                await finishPaidRegistration({
+                    orderId: pending.orderId,
+                    draftValues,
+                    tierId: draft.tierId || selectedTierId,
+                    coupon: draft.couponCode || couponCode,
                 });
-                sessionStorage.removeItem(draftKey(eventId));
                 const params = new URLSearchParams(location.search);
                 ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
                 const nextSearch = params.toString();
@@ -824,7 +832,68 @@ export default function EventRegistrationPage() {
                 setPaying(false);
             }
         })();
-    }, [eventId, loading, location.search, location.pathname, navigate, submitRegistration, breakdown.totalAmount]);
+    }, [eventId, loading, location.search, location.pathname, navigate, finishPaidRegistration, selectedTierId, couponCode]);
+
+    // After Google Pay / redirect checkout: poll until payment lands even if return URL never fires
+    useEffect(() => {
+        if (!awaitingPaymentOrderId || !eventId || done) return;
+        let cancelled = false;
+        let attempts = 0;
+        const maxAttempts = 90; // ~3 minutes at 2s
+
+        const tryComplete = async () => {
+            if (cancelled || resumeRef.current) return;
+            attempts += 1;
+            try {
+                const draft = loadEventRegistrationDraft(eventId) || {};
+                await finishPaidRegistration({
+                    orderId: awaitingPaymentOrderId,
+                    draftValues: draft.values || values,
+                    tierId: draft.tierId || selectedTierId,
+                    coupon: draft.couponCode || couponCode,
+                });
+                if (cancelled) return;
+                resumeRef.current = true;
+                setAwaitingPaymentOrderId('');
+                setDone(true);
+                setPaying(false);
+            } catch {
+                if (attempts >= maxAttempts) {
+                    setPaying(false);
+                    setPaymentResumeError(
+                        'Payment is taking longer than expected. Open My Bookings — your registration will appear once confirmed.',
+                    );
+                    setAwaitingPaymentOrderId('');
+                }
+            }
+        };
+
+        setPaying(true);
+        tryComplete();
+        const interval = window.setInterval(tryComplete, 2000);
+
+        const onVisible = () => {
+            if (!document.hidden) tryComplete();
+        };
+        const onPageShow = () => tryComplete();
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('pageshow', onPageShow);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('pageshow', onPageShow);
+        };
+    }, [
+        awaitingPaymentOrderId,
+        eventId,
+        done,
+        finishPaidRegistration,
+        values,
+        selectedTierId,
+        couponCode,
+    ]);
 
     const handleFinalSubmit = async () => {
         setError('');
@@ -893,7 +962,13 @@ export default function EventRegistrationPage() {
         const customer = pickCustomer(values);
         if (!customer.email) { setError('An email field is required to complete payment.'); return; }
 
-        sessionStorage.setItem(draftKey(eventId), JSON.stringify({ values, tierId: selectedTierId }));
+        const draftPayload = {
+            values,
+            tierId: selectedTierId,
+            couponCode: couponCode.trim(),
+            eventShowId: String(showId || eventId),
+        };
+        saveEventRegistrationDraft(eventId, draftPayload);
         setPaying(true);
         try {
             const token = getAuthToken();
@@ -914,6 +989,7 @@ export default function EventRegistrationPage() {
                     customerEmail: customer.email || user?.email || '',
                     customerPhone: customer.phone || user?.phone || user?.phoneNumber || '',
                     couponCode: couponCode.trim() || undefined,
+                    registrationDraft: draftPayload,
                 }),
             });
             const order = await orderRes.json().catch(() => ({}));
@@ -935,6 +1011,10 @@ export default function EventRegistrationPage() {
                 setError(msg);
                 setPaying(false);
                 return;
+            }
+
+            if (order.orderId) {
+                saveEventPayDraft(order.orderId, draftPayload);
             }
 
             let checkout;
@@ -959,6 +1039,9 @@ export default function EventRegistrationPage() {
             if (checkout?.redirectDeferred) {
                 setStep(allSteps.length - 1);
                 setPaying(true);
+                setAwaitingPaymentOrderId(order.orderId);
+                setPaymentResumeError('');
+                setError('');
                 return;
             }
 
@@ -970,11 +1053,11 @@ export default function EventRegistrationPage() {
             });
             const v = await vRes.json();
             if (v.verified) {
-                const verified = buildVerifiedPaymentFields(v, order.orderId);
-                await submitRegistration({
-                    paymentOrderId: verified.payment_order_id || order.orderId,
-                    paymentId: verified.payment_id,
-                    amountPaid: order.totalAmount ?? breakdown.totalAmount,
+                await finishPaidRegistration({
+                    orderId: order.orderId,
+                    draftValues: values,
+                    tierId: selectedTierId,
+                    coupon: couponCode.trim(),
                 });
                 setDone(true);
                 setPaying(false);
@@ -1097,8 +1180,10 @@ export default function EventRegistrationPage() {
                 ) : (
                     <>
                         <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
-                        <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                            Verifying payment and completing your registration...
+                        <p className={`text-sm text-center max-w-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {awaitingPaymentOrderId
+                                ? 'Complete payment in Google Pay. You can return here anytime — we will confirm automatically.'
+                                : 'Verifying payment and completing your registration...'}
                         </p>
                     </>
                 )}
@@ -1131,17 +1216,22 @@ export default function EventRegistrationPage() {
                     <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
                     <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {addedToExisting
-                            ? '🎉 Added to Your Booking!'
+                            ? 'Added to Your Booking!'
                             : ticketPrice > 0
                                 ? (isOrganizerQr
-                                    ? (reg.qrAutoConfirm ? '🎉 Registration Confirmed!' : '✅ Payment Proof Submitted!')
-                                    : '🎉 Payment Successful!')
-                                : '🎉 Registration Confirmed!'}
+                                    ? (reg.qrAutoConfirm ? 'Registration Confirmed!' : 'Payment Proof Submitted!')
+                                    : 'Payment Successful!')
+                                : 'Registration Confirmed!'}
                     </h1>
                     <p className={`mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {addedToExisting ? (
                             <>
                                 Another package was added to your existing booking for{' '}
+                                <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                            </>
+                        ) : ticketPrice > 0 && !isOrganizerQr ? (
+                            <>
+                                Your payment went through and you're registered for{' '}
                                 <span className="text-[#0ECCEE] font-semibold">{title}</span>.
                             </>
                         ) : (

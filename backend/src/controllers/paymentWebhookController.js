@@ -101,7 +101,7 @@ exports.handleCashfreeWebhook = async (req, res) => {
 
     if (isPaid) {
       try {
-        await PaymentOrder.findOneAndUpdate(
+        const updated = await PaymentOrder.findOneAndUpdate(
           { orderId },
           {
             status: 'PAID',
@@ -109,6 +109,17 @@ exports.handleCashfreeWebhook = async (req, res) => {
           },
           { upsert: false, new: true }
         );
+        // Auto-create EventShow registration when draft was stored at checkout —
+        // so booking appears even if the user never returns from Google Pay.
+        if (updated?.entityType === 'event_show' && updated?.orderTags?.registrationDraft) {
+          const { fulfillEventShowFromPaidOrder } = require('../services/eventShowPaymentFulfillment');
+          fulfillEventShowFromPaidOrder(updated).catch((fulfillErr) => {
+            console.error(
+              '[paymentWebhook] EventShow fulfill failed:',
+              fulfillErr?.message || fulfillErr,
+            );
+          });
+        }
       } catch (dbErr) {
         console.error('[paymentWebhook] Failed to mark order PAID:', dbErr.message);
       }

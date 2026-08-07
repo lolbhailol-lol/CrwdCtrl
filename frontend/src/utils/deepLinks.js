@@ -2,10 +2,51 @@ const PENDING_PAYMENT_KEY = 'crwdctrl_pending_payment';
 const PAYMENT_RETURN_EXPECTED_KEY = 'crwdctrl_payment_return_expected';
 const PENDING_MAX_AGE_MS = 30 * 60 * 1000;
 
+function writeBoth(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* private mode */
+  }
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* quota */
+  }
+}
+
+function readEither(key) {
+  try {
+    const fromSession = sessionStorage.getItem(key);
+    if (fromSession) return fromSession;
+  } catch {
+    /* ignore */
+  }
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function removeBoth(key) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function resolvePaymentEntityType(returnPath, entityType) {
-  if (entityType === 'trek' || entityType === 'fest') return entityType;
+  if (entityType === 'trek' || entityType === 'fest' || entityType === 'event') return entityType;
   const path = returnPath || (typeof window !== 'undefined' ? window.location.pathname : '');
   if (path.includes('/trek/') && path.includes('/book')) return 'trek';
+  if (path.includes('/events/') && path.includes('/register')) return 'event';
   return 'fest';
 }
 
@@ -14,9 +55,10 @@ export function isTrekPaymentPending(pending) {
   return resolvePaymentEntityType(pending.returnPath, pending.entityType) === 'trek';
 }
 
+/** Dual-write so Google Pay / new-tab return still finds pending payment. */
 export function storePendingPayment({ orderId, paymentSessionId, returnPath, entityType }) {
   const path = returnPath || window.location.pathname;
-  sessionStorage.setItem(
+  writeBoth(
     PENDING_PAYMENT_KEY,
     JSON.stringify({
       orderId,
@@ -24,32 +66,37 @@ export function storePendingPayment({ orderId, paymentSessionId, returnPath, ent
       returnPath: path,
       entityType: resolvePaymentEntityType(path, entityType),
       ts: Date.now(),
-    })
+    }),
   );
 }
 
 export function getPendingPayment() {
-  const raw = sessionStorage.getItem(PENDING_PAYMENT_KEY);
+  const raw = readEither(PENDING_PAYMENT_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (isStalePendingPayment(parsed)) {
+      clearPendingPayment();
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
 
 export function clearPendingPayment() {
-  sessionStorage.removeItem(PENDING_PAYMENT_KEY);
-  sessionStorage.removeItem(PAYMENT_RETURN_EXPECTED_KEY);
+  removeBoth(PENDING_PAYMENT_KEY);
+  removeBoth(PAYMENT_RETURN_EXPECTED_KEY);
 }
 
 /** Set when redirect checkout is initiated — resume only after Cashfree return. */
 export function markPaymentReturnExpected() {
-  sessionStorage.setItem(PAYMENT_RETURN_EXPECTED_KEY, '1');
+  writeBoth(PAYMENT_RETURN_EXPECTED_KEY, '1');
 }
 
 export function hasPaymentReturnExpected() {
-  return sessionStorage.getItem(PAYMENT_RETURN_EXPECTED_KEY) === '1';
+  return readEither(PAYMENT_RETURN_EXPECTED_KEY) === '1';
 }
 
 export function pathsMatchPendingReturn(pendingPath, currentPath) {

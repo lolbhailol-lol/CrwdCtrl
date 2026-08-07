@@ -356,6 +356,9 @@ exports.createOrder = async (req, res) => {
     const customerDetails = await getCustomerDetails(req);
     const userId = req.user?.userId || null;
 
+    const { sanitizeRegistrationDraft } = require('../services/eventShowPaymentFulfillment');
+    const registrationDraft = sanitizeRegistrationDraft(req.body.registrationDraft);
+
     const existingPending = await findReusablePendingOrder({
       userId,
       customerEmail: customerDetails.customerEmail,
@@ -365,6 +368,16 @@ exports.createOrder = async (req, res) => {
       couponCode: pricing.couponCode,
     });
     if (existingPending?.paymentSessionId) {
+      if (registrationDraft && pricing.entityType === 'event_show') {
+        existingPending.orderTags = {
+          ...(existingPending.orderTags || {}),
+          registrationDraft: {
+            ...registrationDraft,
+            eventShowId: String(entityId || registrationDraft.eventShowId || ''),
+          },
+        };
+        await existingPending.save().catch(() => {});
+      }
       return res.json({
         ...buildOrderResponse(existingPending),
         cashfreeMode: getCashfreeClientMode(),
@@ -404,6 +417,13 @@ exports.createOrder = async (req, res) => {
     });
 
     if (entityId) {
+      const mongoOrderTags = { ...notes, ...pricing.notes };
+      if (registrationDraft && pricing.entityType === 'event_show') {
+        mongoOrderTags.registrationDraft = {
+          ...registrationDraft,
+          eventShowId: String(entityId || registrationDraft.eventShowId || ''),
+        };
+      }
       await PaymentOrder.create({
         orderId: order.order_id,
         paymentSessionId: order.payment_session_id,
@@ -420,7 +440,7 @@ exports.createOrder = async (req, res) => {
         people: 1,
         currency,
         status: 'PENDING',
-        orderTags: { ...notes, ...pricing.notes },
+        orderTags: mongoOrderTags,
         customerEmail: customerDetails.customerEmail || null,
       });
     }
@@ -469,6 +489,23 @@ exports.verifyPayment = async (req, res) => {
     const result = await verifyCashfreePayment({ orderId, paymentId });
     if (!result.verified) {
       return res.status(400).json({ message: result.message || 'Payment verification failed', verified: false });
+    }
+
+    try {
+      const updated = await PaymentOrder.findOneAndUpdate(
+        { orderId: result.orderId },
+        {
+          status: 'PAID',
+          ...(result.paymentId ? { paymentId: String(result.paymentId) } : {}),
+        },
+        { upsert: false, new: true },
+      );
+      if (updated?.entityType === 'event_show' && updated?.orderTags?.registrationDraft) {
+        const { fulfillEventShowFromPaidOrder } = require('../services/eventShowPaymentFulfillment');
+        fulfillEventShowFromPaidOrder(updated).catch(() => {});
+      }
+    } catch {
+      /* non-fatal — registration paths also mark PAID */
     }
 
     res.json({
