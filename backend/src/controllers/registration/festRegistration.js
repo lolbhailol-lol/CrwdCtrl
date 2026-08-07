@@ -5,6 +5,7 @@ const { uploadToCloudinary } = require('../../services/cloudinaryService');
 const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOrganizerNotificationEmail } = require('../../services/emailService');
 const { logger } = require('../../utils/logger');
 const { scheduleRegistrationNotification } = require('./helpers');
+const { findByIdOrSlug } = require('../../utils/slug');
 
 // Submit registration for a fest
 // Submit registration for a fest with file uploads
@@ -16,12 +17,16 @@ const submitRegistration = async (req, res) => {
 
     logger.debug('📋 Registration details:', { festId, userId });
 
-    // ✅ CRITICAL: Check if fest exists and validate registration mode
-    const fest = await FestOrganizer.findById(festId);
+    // ✅ Accept ObjectId or slug (e.g. /registrations/fests/aarohan-2027/register)
+    const fest = await findByIdOrSlug(FestOrganizer, festId, {
+      pickName: (row) => row.festName || row.name || '',
+      lean: false,
+    });
     if (!fest) {
       logger.error('❌ Fest not found:', festId);
       return res.status(404).json({ error: 'Fest not found' });
     }
+    const festObjectId = fest._id;
 
     logger.debug('🔍 Fest registration check:', {
       festName: fest.festName,
@@ -225,9 +230,9 @@ const submitRegistration = async (req, res) => {
 
     logger.debug('✅ All required fields validated');
 
-    // Create registration - ONLY ONCE
+    // Create registration - ONLY ONCE (always store ObjectId, never the URL slug)
     const registration = new Registration({
-      fest: festId,
+      fest: festObjectId,
       user: userId,
       responses: responses,
       status: 'pending'
@@ -440,8 +445,11 @@ const submitRegistration = async (req, res) => {
     }); // <- Close the setImmediate callback
 
 } catch (error) {  // <- Closes the outer try that opened at line 613
-    logger.error('❌ Error submitting registration:', error);
-    logger.error('❌ Error stack:', error.stack);
+    logger.error('❌ Error submitting registration:', error?.message || error);
+    logger.error('❌ Error stack:', error?.stack);
+    if (error?.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid fest or registration data. Please refresh and try again.' });
+    }
     res.status(500).json({ error: 'Failed to submit registration' });
   }
 };
@@ -452,13 +460,16 @@ const getFestRegistrations = async (req, res) => {
     const { festId } = req.params;
     const { page = 1, limit = 20, status } = req.query;
 
-    // Check if fest exists
-    const fest = await FestOrganizer.findById(festId);
+    // Check if fest exists (ObjectId or slug)
+    const fest = await findByIdOrSlug(FestOrganizer, festId, {
+      pickName: (row) => row.festName || row.name || '',
+      lean: true,
+    });
     if (!fest) {
       return res.status(404).json({ error: 'Fest not found' });
     }
 
-    const query = { fest: festId };
+    const query = { fest: fest._id };
     if (status) {
       query.status = status;
     }

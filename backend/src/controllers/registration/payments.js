@@ -6,6 +6,7 @@ const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = req
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformFee');
 const { logger } = require('../../utils/logger');
+const { findByIdOrSlug } = require('../../utils/slug');
 const {
   parseResponsesBody,
   mergeRegistrationResponses,
@@ -20,8 +21,12 @@ const payAndRegisterFest = async (req, res) => {
     const { festId } = req.params;
     const userId = req.user.userId;
 
-    const fest = await FestOrganizer.findById(festId);
+    const fest = await findByIdOrSlug(FestOrganizer, festId, {
+      pickName: (row) => row.festName || row.name || '',
+      lean: false,
+    });
     if (!fest) return res.status(404).json({ error: 'Fest not found' });
+    const festObjectId = fest._id;
 
     if (!fest.feeAmount || fest.feeAmount <= 0) {
       return res.status(400).json({ error: 'This fest does not require payment' });
@@ -43,7 +48,7 @@ const payAndRegisterFest = async (req, res) => {
     const alreadyPaid = payment_order_id
       ? await Registration.findOne({
           payment_order_id,
-          fest: festId,
+          fest: festObjectId,
           user: userId,
           competitionId: null,
         })
@@ -70,7 +75,7 @@ const payAndRegisterFest = async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const registration = new Registration({
-      fest: festId,
+      fest: festObjectId,
       user: userId,
       responses: mergeRegistrationResponses(
         {
