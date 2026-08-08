@@ -2,17 +2,38 @@ const crypto = require('crypto');
 
 const OPERATIONAL_RESPONSE_KEYS = new Set(['people', 'date', 'time']);
 
-function getMasterKey() {
-    const raw = String(process.env.RUN_CLUB_PII_MASTER_KEY || process.env.JWT_SECRET || '').trim();
-    if (!raw) {
+/** Ordered key sources — primary first, JWT fallback for rows encrypted before RUN_CLUB_PII_MASTER_KEY existed. */
+function listMasterKeyMaterial() {
+    const candidates = [];
+    const add = (raw) => {
+        const trimmed = String(raw || '').trim();
+        if (!trimmed) return;
+        if (candidates.some((c) => c === trimmed)) return;
+        candidates.push(trimmed);
+    };
+    add(process.env.RUN_CLUB_PII_MASTER_KEY);
+    add(process.env.JWT_SECRET);
+    if (!candidates.length) {
         throw new Error('RUN_CLUB_PII_MASTER_KEY or JWT_SECRET is required for run-club PII encryption');
     }
+    return candidates;
+}
+
+function deriveMasterKey(raw) {
     return crypto.createHash('sha256').update(`run-club-pii-v1:${raw}`).digest();
 }
 
-function getClubDek(runClubId) {
+function getMasterKey() {
+    return deriveMasterKey(listMasterKeyMaterial()[0]);
+}
+
+function getClubDekFromMaster(masterKey, runClubId) {
     if (!runClubId) throw new Error('runClubId is required for PII encryption');
-    return crypto.createHmac('sha256', getMasterKey()).update(`club:${String(runClubId)}`).digest();
+    return crypto.createHmac('sha256', masterKey).update(`club:${String(runClubId)}`).digest();
+}
+
+function getClubDek(runClubId) {
+    return getClubDekFromMaster(getMasterKey(), runClubId);
 }
 
 function encryptPayload(dek, value) {
@@ -44,6 +65,29 @@ function decryptPayload(dek, packed, { json = false } = {}) {
     }
 }
 
+function tryDecryptPayload(dek, packed, { json = false } = {}) {
+    try {
+        return decryptPayload(dek, packed, { json });
+    } catch {
+        return json ? null : '';
+    }
+}
+
+/** Try each configured master key until AES-GCM auth succeeds (handles pre/post master-key migration). */
+function decryptFieldWithKeyFallback(runClubId, packed, { json = false } = {}) {
+    if (!packed) return json ? null : '';
+    for (const raw of listMasterKeyMaterial()) {
+        const dek = getClubDekFromMaster(deriveMasterKey(raw), runClubId);
+        const out = tryDecryptPayload(dek, packed, { json });
+        if (json) {
+            if (out && typeof out === 'object') return out;
+        } else if (out) {
+            return out;
+        }
+    }
+    return json ? null : '';
+}
+
 function responsesToPlainObject(responses) {
     if (!responses) return {};
     if (responses instanceof Map) return Object.fromEntries(responses);
@@ -70,13 +114,17 @@ function normalizeForSearch(kind, value) {
     return raw.replace(/\s+/g, ' ');
 }
 
-function hashSearchToken(kind, value) {
+function hashSearchTokenWithMaster(masterKey, kind, value) {
     const normalized = normalizeForSearch(kind, value);
     if (!normalized || (kind === 'phone' && normalized.length < 6)) return null;
     return crypto
-        .createHmac('sha256', getMasterKey())
+        .createHmac('sha256', masterKey)
         .update(`${kind}:${normalized}`)
         .digest('base64url');
+}
+
+function hashSearchToken(kind, value) {
+    return hashSearchTokenWithMaster(getMasterKey(), kind, value);
 }
 
 function buildPiiSearchTokens(responses = {}) {
@@ -104,14 +152,19 @@ function searchTokensForQuery(query) {
     const q = String(query || '').trim();
     if (!q) return [];
     const tokens = new Set();
-    const add = (kind, value) => {
-        const token = hashSearchToken(kind, value);
+    const addForMaster = (masterKey, kind, value) => {
+        const token = hashSearchTokenWithMaster(masterKey, kind, value);
         if (token) tokens.add(token);
     };
-    add('phone', q);
-    add('email', q);
-    add('name', q);
-    q.toLowerCase().split(/\s+/).filter((w) => w.length >= 2).forEach((word) => add('name', word));
+    for (const raw of listMasterKeyMaterial()) {
+        const masterKey = deriveMasterKey(raw);
+        addForMaster(masterKey, 'phone', q);
+        addForMaster(masterKey, 'email', q);
+        addForMaster(masterKey, 'name', q);
+        q.toLowerCase().split(/\s+/).filter((w) => w.length >= 2).forEach((word) => {
+            addForMaster(masterKey, 'name', word);
+        });
+    }
     return [...tokens];
 }
 
@@ -149,22 +202,26 @@ function decryptRegistrationPii(reg, runClubIdOverride = null) {
     }
 
     const plain = typeof reg.toObject === 'function' ? reg.toObject() : { ...reg };
-    try {
-        const dek = getClubDek(runClubId);
-        if (plain.responsesCipher) {
-            const decoded = decryptPayload(dek, plain.responsesCipher, { json: true });
-            if (decoded && typeof decoded === 'object') {
-                plain.responses = decoded;
-            }
+    let responsesOk = !plain.responsesCipher;
+
+    if (plain.responsesCipher) {
+        const decoded = decryptFieldWithKeyFallback(runClubId, plain.responsesCipher, { json: true });
+        if (decoded && typeof decoded === 'object') {
+            plain.responses = decoded;
+            responsesOk = true;
         }
-        if (plain.paymentScreenshotCipher) {
-            plain.paymentScreenshotUrl = decryptPayload(dek, plain.paymentScreenshotCipher);
-        }
-        if (plain.transactionIdCipher) {
-            plain.transactionId = decryptPayload(dek, plain.transactionIdCipher);
-        }
-    } catch (err) {
-        console.error('[runClubPiiCrypto.decrypt]', err.message);
+    }
+    if (plain.paymentScreenshotCipher) {
+        const url = decryptFieldWithKeyFallback(runClubId, plain.paymentScreenshotCipher);
+        if (url) plain.paymentScreenshotUrl = url;
+    }
+    if (plain.transactionIdCipher) {
+        const tx = decryptFieldWithKeyFallback(runClubId, plain.transactionIdCipher);
+        if (tx) plain.transactionId = tx;
+    }
+
+    if (plain.responsesCipher && !responsesOk && listMasterKeyMaterial().length >= 2) {
+        console.error('[runClubPiiCrypto.decrypt] Unsupported state or unable to authenticate data');
     }
 
     // Never leak ciphertext to clients that receive decrypted views
@@ -218,4 +275,8 @@ module.exports = {
     buildPiiSearchTokens,
     isPiiEncryptionEnabled,
     pickOperationalResponses,
+    deriveMasterKey,
+    listMasterKeyMaterial,
+    getClubDekFromMaster,
+    tryDecryptPayload,
 };
