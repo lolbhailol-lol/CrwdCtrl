@@ -44,10 +44,12 @@ android {
             }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            // Ships native symbols (ML Kit, Firebase, Cashfree .so files) inside the AAB so
-            // Play can symbolize native crashes and ANRs instead of showing raw addresses.
+            // Packages native symbols into the AAB for Play to symbolize crashes/ANRs.
+            // Currently extracts nothing: all 16 bundled .so files come from third-party
+            // AARs (ML Kit, Firebase, Cashfree) that ship pre-stripped, and this app has
+            // no native code of its own. Kept so symbols appear if that ever changes.
             ndk {
-                debugSymbolLevel 'SYMBOL_TABLE'
+                debugSymbolLevel = 'SYMBOL_TABLE'
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, CheckCircle, AlertTriangle, XCircle, RefreshCw, QrCode, Upload } from 'lucide-react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
@@ -11,6 +11,10 @@ const getDefaultAdminToken = () => localStorage.getItem('admin_token');
 const getDefaultUserToken = () =>
   localStorage.getItem('crwdctrl_token') || localStorage.getItem('token');
 const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// A scanned ticket usually lingers in frame for a moment after it is read, so ignore the same
+// payload briefly instead of re-submitting it once scanning resumes.
+const DUPLICATE_SCAN_WINDOW_MS = 5000;
+const SUCCESS_RESUME_DELAY_MS = 1400;
 const acquireCameraStream = async () => {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('Camera not supported. Use Photo of QR or manual entry.');
@@ -148,6 +152,7 @@ export default function CheckinScannerPage({
   const [scannerHint, setScannerHint] = useState('');
   const [scanSession, setScanSession] = useState(0);
   const [checkinStats, setCheckinStats] = useState(null);
+  const [sessionCount, setSessionCount] = useState(0);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -158,6 +163,9 @@ export default function CheckinScannerPage({
   const nativeListenerRef = useRef(null);
   const mountedRef = useRef(true);
   const videoWatchdogRef = useRef(null);
+  const lastScanRef = useRef({ value: null, at: 0 });
+  const resumeTimerRef = useRef(null);
+  const startScanLoopRef = useRef(null);
 
   const useNativeScanner = isNativeApp() && nativeScanAvailable;
 
@@ -195,6 +203,11 @@ export default function CheckinScannerPage({
     if (videoWatchdogRef.current) {
       clearTimeout(videoWatchdogRef.current);
       videoWatchdogRef.current = null;
+    }
+
+    if (resumeTimerRef.current) {
+      clearTimeout(resumeTimerRef.current);
+      resumeTimerRef.current = null;
     }
 
     if (videoRef.current) {
@@ -258,7 +271,7 @@ export default function CheckinScannerPage({
     const trimmed = String(rawData || '').trim();
     if (!trimmed) {
       setScanResult({ status: 'error', message: 'Empty QR code' });
-      return;
+      return 'error';
     }
 
     const token = resolvedGetToken();
@@ -273,7 +286,7 @@ export default function CheckinScannerPage({
               ? 'Session expired — log in again to use the scanner.'
               : 'Admin session expired — log in again at /admin/login'),
       });
-      return;
+      return 'error';
     }
 
     setIsProcessing(true);
@@ -295,22 +308,25 @@ export default function CheckinScannerPage({
           status: 'error',
           message: authErrorMessage || data.error || data.message || 'Session expired — please sign in again',
         });
-        return;
+        return 'error';
       }
 
+      const outcome = data.status || (data.success ? 'checked_in' : 'error');
       setScanResult({
-        status: data.status || (data.success ? 'checked_in' : 'error'),
+        status: outcome,
         message: data.message || data.error || 'Check-in failed',
         data: data.data,
       });
       if (data.status === 'checked_in' || data.status === 'already_checked_in') {
         fetchCheckinStats();
       }
+      return outcome;
     } catch (err) {
       setScanResult({
         status: 'error',
         message: `Cannot reach server: ${err.message}. Check internet / API URL.`,
       });
+      return 'error';
     } finally {
       setIsProcessing(false);
       scanLockRef.current = false;
@@ -326,11 +342,31 @@ export default function CheckinScannerPage({
       scanIntervalRef.current = null;
     }
 
+    // On the web path the stream stays open between tickets. Dropping and re-acquiring the camera
+    // for every attendee is what turns a long gate queue into a crawl.
+    if (!useNativeScanner) {
+      lastScanRef.current = { value: rawData, at: Date.now() };
+      const outcome = await verifyQrPayload(rawData);
+      if (!mountedRef.current) return;
+
+      if (outcome === 'checked_in') {
+        setSessionCount((n) => n + 1);
+        resumeTimerRef.current = setTimeout(() => {
+          if (!mountedRef.current) return;
+          setScanResult(null);
+          scanLockRef.current = false;
+          startScanLoopRef.current?.();
+        }, SUCCESS_RESUME_DELAY_MS);
+      }
+      // Anything other than a clean check-in needs the organiser to look, so it waits for a tap.
+      return;
+    }
+
     await clearNativeListener();
     setIsScanning(false);
     await verifyQrPayload(rawData);
     await releaseCamera();
-  }, [verifyQrPayload, clearNativeListener, releaseCamera]);
+  }, [verifyQrPayload, clearNativeListener, releaseCamera, useNativeScanner]);
 
   const decodeFrame = useCallback(async (video) => {
     if (!video || video.readyState < 2 || video.videoWidth === 0) return null;
@@ -368,12 +404,29 @@ export default function CheckinScannerPage({
       if (scanLockRef.current || !videoRef.current) return;
       try {
         const raw = await decodeFrame(videoRef.current);
-        if (raw) await handleQRData(raw);
+        if (!raw) return;
+        const last = lastScanRef.current;
+        if (last.value === raw && Date.now() - last.at < DUPLICATE_SCAN_WINDOW_MS) return;
+        await handleQRData(raw);
       } catch {
         /* keep scanning */
       }
     }, 200);
   }, [decodeFrame, handleQRData]);
+
+  useEffect(() => {
+    startScanLoopRef.current = startScanLoop;
+  }, [startScanLoop]);
+
+  const resumeScanning = useCallback(() => {
+    if (resumeTimerRef.current) {
+      clearTimeout(resumeTimerRef.current);
+      resumeTimerRef.current = null;
+    }
+    setScanResult(null);
+    scanLockRef.current = false;
+    startScanLoopRef.current?.();
+  }, []);
 
   const attachVideoRef = useCallback(async (el) => {
     videoRef.current = el;
@@ -500,6 +553,7 @@ export default function CheckinScannerPage({
   const startWebScanning = async () => {
     setScanResult(null);
     scanLockRef.current = false;
+    lastScanRef.current = { value: null, at: 0 };
     setScannerHint('Opening camera...');
 
     try {
@@ -598,6 +652,11 @@ export default function CheckinScannerPage({
               <div className="w-56 h-56 sm:w-64 sm:h-64 border-2 border-[#0ECCEE] rounded-2xl opacity-80" />
             </div>
           </div>
+          {sessionCount > 0 && (
+            <div className="absolute top-4 left-4 px-3 py-2 bg-black/75 text-[#0ECCEE] rounded-lg text-sm font-semibold z-10">
+              {sessionCount} checked in
+            </div>
+          )}
           <button
             type="button"
             onClick={stopWebScanning}
@@ -605,11 +664,43 @@ export default function CheckinScannerPage({
           >
             Stop
           </button>
-          {scannerHint && (
-            <div className="absolute bottom-6 left-4 right-4 bg-black/80 text-gray-100 text-sm rounded-lg px-4 py-3 text-center z-10">
-              {scannerHint}
-            </div>
-          )}
+          <div className="absolute bottom-6 left-4 right-4 z-10 space-y-2">
+            {isProcessing && (
+              <div className="bg-black/80 text-gray-100 text-sm rounded-lg px-4 py-3 text-center">
+                Verifying check-in...
+              </div>
+            )}
+            {!isProcessing && scanResult && (
+              <div
+                className={`rounded-xl px-4 py-3 text-center ${
+                  scanResult.status === 'checked_in'
+                    ? 'bg-green-600/95'
+                    : scanResult.status === 'already_checked_in'
+                      ? 'bg-amber-500/95'
+                      : 'bg-red-600/95'
+                }`}
+              >
+                <p className="text-white font-bold text-sm">{scanResult.message}</p>
+                {scanResult.data?.userName && (
+                  <p className="text-white/90 text-sm mt-0.5">{scanResult.data.userName}</p>
+                )}
+                {scanResult.status !== 'checked_in' && (
+                  <button
+                    type="button"
+                    onClick={resumeScanning}
+                    className="mt-3 w-full px-4 py-2.5 bg-white text-black rounded-lg text-sm font-semibold"
+                  >
+                    Continue scanning
+                  </button>
+                )}
+              </div>
+            )}
+            {!isProcessing && !scanResult && scannerHint && (
+              <div className="bg-black/80 text-gray-100 text-sm rounded-lg px-4 py-3 text-center">
+                {scannerHint}
+              </div>
+            )}
+          </div>
         </div>,
         document.body,
       )

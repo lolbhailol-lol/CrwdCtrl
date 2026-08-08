@@ -273,7 +273,7 @@ async function performCheckinFromRaw(raw, options = {}) {
     const sportsReg = await CategoryRegistration.findById(resolved.record._id)
       .populate('user', 'name email profilePic');
 
-    if (sportsReg.category !== 'sports' || sportsReg.status === 'cancelled') {
+    if (!sportsReg || sportsReg.category !== 'sports' || sportsReg.status === 'cancelled') {
       return {
         status: 404,
         body: {
@@ -330,9 +330,38 @@ async function performCheckinFromRaw(raw, options = {}) {
       };
     }
 
+    // Claim the check-in atomically: at a gate rush the same QR (e.g. a shared screenshot)
+    // can hit two scanners inside one round trip, and a read-then-save would tell both "successful".
+    const claimedAt = new Date();
+    const claimed = await CategoryRegistration.findOneAndUpdate(
+      { _id: sportsReg._id, checkedIn: { $ne: true } },
+      { $set: { checkedIn: true, checkedInAt: claimedAt } },
+      { new: true, projection: { checkedInAt: 1 } },
+    ).lean();
+
+    if (!claimed) {
+      const current = await CategoryRegistration.findById(sportsReg._id)
+        .select('checkedInAt')
+        .lean();
+      return {
+        status: 200,
+        body: {
+          success: true,
+          status: 'already_checked_in',
+          message: 'Already checked in',
+          data: {
+            userName: sportsReg.user?.name,
+            festName: eventTitle,
+            eventTitle,
+            ticketType: 'sports',
+            checkedInAt: current?.checkedInAt || null,
+          },
+        },
+      };
+    }
+
     sportsReg.checkedIn = true;
-    sportsReg.checkedInAt = new Date();
-    await sportsReg.save();
+    sportsReg.checkedInAt = claimedAt;
 
     const { createNotification } = require('../controllers/notificationController');
     if (sportsReg.user?._id) {

@@ -10,6 +10,26 @@ import { API_BASE_URL } from '../../services/api/client';
 import { authenticatedFetchJSON } from '../../services/api/auth.api';
 import { useAuth } from '../../context/AuthContext';
 
+const ticketCacheKey = (type, id) => `crwdctrl_ticket_${type || 'fest'}_${id}`;
+
+const readCachedTicket = (key) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedTicket = (key, data) => {
+  if (!data) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {
+    /* private mode or quota — the ticket still works while online */
+  }
+};
+
 const formatTicketDate = (date) => {
   if (!date) return null;
   const parsed = new Date(date);
@@ -36,6 +56,7 @@ export default function QRTicketPage() {
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [fromCache, setFromCache] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -46,9 +67,19 @@ export default function QRTicketPage() {
       return;
     }
 
+    // Paint the last saved ticket straight away, then refresh behind it. At a venue gate the
+    // network is the least reliable part of the queue, and the QR hash stays valid server-side.
+    const cacheKey = ticketCacheKey(ticketType, registrationId);
+    const cached = readCachedTicket(cacheKey);
+    if (cached) {
+      setTicket(cached);
+      setFromCache(true);
+      setLoading(false);
+    }
+
     const fetchTicket = async () => {
       try {
-        setLoading(true);
+        if (!cached) setLoading(true);
         setError(null);
 
         const url = isTrekTicket
@@ -59,6 +90,7 @@ export default function QRTicketPage() {
               ? `${API_BASE_URL}/qr/event-registrations/${registrationId}/qr`
               : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
 
+        let payload;
         if (canGuestTrek && !isAuthenticated) {
           const res = await fetch(`${url}?access=${encodeURIComponent(bookingAccess)}`, {
             headers: {
@@ -68,15 +100,20 @@ export default function QRTicketPage() {
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.message || data.error || 'Failed to load ticket');
-          setTicket(data.data);
+          payload = data.data;
         } else {
           const data = await authenticatedFetchJSON(url, {
             token: authToken,
             headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
           });
-          setTicket(data.data);
+          payload = data.data;
         }
+        setTicket(payload);
+        writeCachedTicket(cacheKey, payload);
+        setFromCache(false);
       } catch (err) {
+        // A saved ticket beats bouncing someone to a login screen while they stand at the gate.
+        if (cached) return;
         if (err.code === 'AUTH_401' && !canGuestTrek) {
           navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
           return;
@@ -88,7 +125,7 @@ export default function QRTicketPage() {
     };
 
     fetchTicket();
-  }, [registrationId, isTrekTicket, isSportsTicket, isEventTicket, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search, bookingAccess]);
+  }, [registrationId, ticketType, isTrekTicket, isSportsTicket, isEventTicket, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search, bookingAccess]);
 
   const cardClass = isDark
     ? 'bg-[#111213] border-gray-800'
@@ -246,6 +283,11 @@ export default function QRTicketPage() {
                 <p className="text-gray-500 text-xs mt-3 text-center">
                   Show this QR code at the venue for check-in
                 </p>
+                {fromCache && (
+                  <p className="text-amber-400 text-xs mt-1 text-center">
+                    Saved ticket — works offline, no need to reload
+                  </p>
+                )}
               </>
             )}
           </div>

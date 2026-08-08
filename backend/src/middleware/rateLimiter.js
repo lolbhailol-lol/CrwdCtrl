@@ -22,6 +22,9 @@ const apiLimiter = rateLimit({
       if (/^\/treks\/[^/]+$/.test(path)) return true;
       // Stall form meta — many phones load this at once on shared WiFi
       if (/^\/fests\/[^/]+\/stall$/.test(path)) return true;
+      // Ticket QR fetch — the whole gate queue loads this at once from one venue IP,
+      // and a 429 here means an attendee cannot show their QR at all. Already auth-scoped per user.
+      if (/^\/qr\/[^/]+\/[^/]+\/qr$/.test(path)) return true;
     }
     // Stall lead POSTs have their own high ceiling limiter
     if (req.method === 'POST' && /^\/fests\/[^/]+\/stall-leads$/.test(path)) return true;
@@ -74,10 +77,15 @@ const registrationLimiter = rateLimit({
   message: { success: false, message: 'Too many registration requests, please try again later.' },
 });
 
-/** Scanner / QR check-in — prevent brute-force scans */
+/**
+ * Scanner / QR check-in.
+ * A gate rush is hundreds of scans from one venue IP (all volunteers share the WiFi NAT),
+ * so a low ceiling locks out check-in mid-event. Brute force is not the threat this guards:
+ * hashes are 128-bit and the route already requires scanner/organizer auth.
+ */
 const scannerCheckinLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 300 : 80,
+  max: isDev ? 1000 : Number(process.env.SCANNER_CHECKIN_RATE_LIMIT_MAX) || 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many check-in attempts, please slow down.' },
