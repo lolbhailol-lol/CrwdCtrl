@@ -115,7 +115,7 @@ export default function PaymentInvoicePage() {
   ];
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[max(2rem,calc(env(safe-area-inset-top)+1rem))] pb-8 px-4 print:pt-0 print:pb-0 print:px-0">
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[max(2rem,calc(var(--safe-top)+1rem))] pb-8 px-4 print:pt-0 print:pb-0 print:px-0">
       <style>{`
         @media print {
           body * { visibility: hidden; }

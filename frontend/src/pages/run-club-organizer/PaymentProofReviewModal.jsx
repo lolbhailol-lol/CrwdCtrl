@@ -139,7 +139,7 @@ export default function PaymentProofReviewModal({
                     </div>
                 ) : null}
 
-                <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 pb-[max(1rem,var(--safe-bottom))]">
                     {participant.paymentScreenshotUrl ? (
                         <a href={participant.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer" className="block">
                             <img
@@ -254,7 +254,7 @@ export default function PaymentProofReviewModal({
                     </div>
 
                     {!rejectMode ? (
-                        <div className="sticky bottom-0 -mx-4 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-linear-to-t from-[#161718] via-[#161718] to-transparent space-y-2">
+                        <div className="sticky bottom-0 -mx-4 px-4 pt-2 pb-[max(0.5rem,var(--safe-bottom))] bg-linear-to-t from-[#161718] via-[#161718] to-transparent space-y-2">
                             <button
                                 type="button"
                                 disabled={busy || !canApprove}

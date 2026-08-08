@@ -55,7 +55,7 @@ export default function EventOrganizerLayout() {
 
     return (
         <div className="min-h-dvh bg-[#0f1011] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="px-5 py-5 border-b border-gray-800">
                     <div className="flex items-center gap-2">
                         <CalendarDays className="text-[#0ECCEE]" size={22} />
@@ -125,7 +125,7 @@ export default function EventOrganizerLayout() {
             ) : null}
 
             <div className="flex-1 lg:ml-64 min-w-0 flex flex-col">
-                <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-gray-800 px-3 sm:px-4 py-3 flex items-center gap-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+                <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-gray-800 px-3 sm:px-4 py-3 flex items-center gap-2 pt-[max(0.75rem,var(--safe-top))]">
                     <button
                         type="button"
                         className="lg:hidden p-2 rounded-lg border border-gray-800 text-gray-300"
@@ -145,7 +145,7 @@ export default function EventOrganizerLayout() {
                         ) : null}
                     </div>
                 </header>
-                <main className="flex-1 p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+                <main className="flex-1 p-4 sm:p-6 pb-[max(1.5rem,var(--safe-bottom))]">
                     <Outlet />
                 </main>
             </div>

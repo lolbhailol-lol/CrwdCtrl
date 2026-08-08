@@ -223,7 +223,7 @@ export default function FestStallInterestPage() {
     return (
         <div className="min-h-dvh bg-[#0c0d0e] text-white relative overflow-hidden">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(14,204,238,0.10),_transparent_50%)]" />
-            <div className="relative max-w-md mx-auto px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+            <div className="relative max-w-md mx-auto px-4 pt-[max(1.25rem,var(--safe-top))] pb-[max(1.25rem,var(--safe-bottom))]">
                 <header className="pt-3 pb-5">
                     <h1 className="text-[1.65rem] font-bold tracking-tight leading-none">
                         {fest.festName}
@@ -411,7 +411,7 @@ export default function FestStallInterestPage() {
                 </form>
 
                 <div className="fixed bottom-0 inset-x-0 z-20 pointer-events-none">
-                    <div className="max-w-md mx-auto px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-8 bg-gradient-to-t from-[#0c0d0e] via-[#0c0d0e]/95 to-transparent pointer-events-auto">
+                    <div className="max-w-md mx-auto px-4 pb-[max(0.85rem,var(--safe-bottom))] pt-8 bg-gradient-to-t from-[#0c0d0e] via-[#0c0d0e]/95 to-transparent pointer-events-auto">
                         {error ? <p className="mb-2 text-sm text-red-400 text-center">{error}</p> : null}
                         <button
                             type="button"

@@ -876,7 +876,7 @@ function EventDetailsPage() {
               handleImageErrorWithFallback(e, 400, 320, '#2A2B2E', eventData.title || 'Event');
             }}
           />
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent z-10">
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent z-10">
             <button
               type="button"
               onClick={() => navigate('/fests', { replace: true })}
@@ -1188,7 +1188,7 @@ function EventDetailsPage() {
           </section>
         )}
 
-        <div className="h-8 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
+        <div className="h-8 md:hidden" style={{ paddingBottom: 'var(--safe-bottom)' }} />
       </div>
 
       {/* Gallery Lightbox */}
@@ -1201,7 +1201,7 @@ function EventDetailsPage() {
             type="button"
             onClick={closeLightbox}
             className="absolute top-4 right-4 p-2 rounded-full bg-white/15 text-white backdrop-blur-sm"
-            style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+            style={{ top: 'max(1rem, var(--safe-top))' }}
             aria-label="Close"
           >
             <X size={24} />

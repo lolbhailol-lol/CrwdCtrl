@@ -1267,7 +1267,7 @@ export default function EventRegistrationPage() {
     const isPaymentStep = !!current?.payment;
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-[max(6rem,env(safe-area-inset-bottom)+5rem)]">
+        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(var(--safe-top)+0.5rem)] pb-[max(6rem,var(--safe-bottom)+5rem)]">
             <PaymentErrorModal
                 open={paymentModal.open}
                 message={paymentModal.message}

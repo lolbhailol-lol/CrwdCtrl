@@ -151,7 +151,7 @@ export default function QRTicketPage() {
     : null;
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[max(2rem,calc(env(safe-area-inset-top)+1rem))] pb-8 px-4">
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[max(2rem,calc(var(--safe-top)+1rem))] pb-8 px-4">
       <div className="max-w-md mx-auto">
         <Link
           to="/booking"

@@ -342,7 +342,7 @@ export default function RunEventDetailPage() {
 
                 <div
                     className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
-                    style={{ paddingTop: 'calc(max(env(safe-area-inset-top), 0px) + 2.5rem)' }}
+                    style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
                 >
                     <button
                         onClick={() => navigate(-1)}
@@ -384,7 +384,7 @@ export default function RunEventDetailPage() {
 
             <div
                 className="fixed bottom-0 left-0 right-0 z-50 px-2"
-                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
+                style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
                 <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
                     <div className="min-w-0 shrink-0">
@@ -492,7 +492,7 @@ export default function RunEventDetailPage() {
                             }}
                         />
                         <div
-                            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] tier-sheet-in ${
+                            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,var(--safe-bottom))] tier-sheet-in ${
                                 isDark ? 'bg-[#161718]' : 'bg-white'
                             }`}
                         >

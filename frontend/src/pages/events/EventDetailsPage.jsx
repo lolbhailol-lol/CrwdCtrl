@@ -514,7 +514,7 @@ export default function EventDetailsPage() {
             </div>
           )}
 
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
             <button
               type="button"
               onClick={handleBack}
@@ -1065,7 +1065,7 @@ export default function EventDetailsPage() {
       {/* Sticky bottom bar — coupon chip + Register */}
       <div
         className="fixed bottom-0 left-0 right-0 z-40 px-2"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
+        style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
       >
         <div className={`mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-5 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
           {suggestedCoupon && !registrationClosed ? (
@@ -1128,7 +1128,7 @@ export default function EventDetailsPage() {
             }}
           />
           <div
-            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${
+            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,var(--safe-bottom))] ${
               isDark ? 'bg-[#161718]' : 'bg-white'
             }`}
           >
@@ -1269,7 +1269,7 @@ export default function EventDetailsPage() {
             type="button"
             onClick={() => setLightboxIndex(null)}
             className="absolute right-4 p-2 rounded-full bg-white/15 text-white backdrop-blur-sm"
-            style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+            style={{ top: 'max(1rem, var(--safe-top))' }}
             aria-label="Close"
           >
             <X size={24} />

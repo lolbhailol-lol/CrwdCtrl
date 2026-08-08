@@ -66,7 +66,7 @@ export default function FestOrganizerLayout() {
 
     return (
         <div className="min-h-dvh bg-[#0c0d0e] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#121314]/95 backdrop-blur border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[env(safe-area-inset-top)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#121314]/95 backdrop-blur border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="px-5 py-5 border-b border-white/10">
                     <div className="flex items-center gap-3">
                         <div className="size-10 rounded-2xl bg-linear-to-br from-[#0ECCEE]/25 to-[#053780]/40 border border-[#0ECCEE]/20 flex items-center justify-center">
@@ -118,7 +118,7 @@ export default function FestOrganizerLayout() {
                         </OrgNavButton>
                     ))}
                 </nav>
-                <div className="absolute bottom-0 inset-x-0 p-3 border-t border-white/10 bg-[#121314] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <div className="absolute bottom-0 inset-x-0 p-3 border-t border-white/10 bg-[#121314] pb-[max(0.75rem,var(--safe-bottom))]">
                     <button
                         type="button"
                         onClick={logout}
@@ -135,17 +135,17 @@ export default function FestOrganizerLayout() {
             ) : null}
 
             <div className="flex-1 lg:ml-64 min-w-0 flex flex-col min-h-dvh">
-                <header className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-[#0c0d0e]/90 backdrop-blur lg:hidden pt-[max(0.75rem,env(safe-area-inset-top))]">
+                <header className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-[#0c0d0e]/90 backdrop-blur lg:hidden pt-[max(0.75rem,var(--safe-top))]">
                     <button type="button" onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5">
                         <Menu size={20} />
                     </button>
                     <p className="text-sm font-medium truncate">{activeFest?.festName || 'Fest Organizer'}</p>
                 </header>
-                <main className="flex-1 p-4 sm:p-6 pb-[max(5rem,calc(env(safe-area-inset-bottom)+4rem))] lg:pb-6">
+                <main className="flex-1 p-4 sm:p-6 pb-[max(5rem,calc(var(--safe-bottom)+4rem))] lg:pb-6">
                     <Outlet />
                 </main>
                 {festId ? (
-                    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-20 border-t border-white/10 bg-[#121314]/95 backdrop-blur flex pb-[env(safe-area-inset-bottom)]">
+                    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-20 border-t border-white/10 bg-[#121314]/95 backdrop-blur flex pb-[var(--safe-bottom)]">
                         {mobileNav.map((item) => (
                             <OrgNavButton
                                 key={item.path}

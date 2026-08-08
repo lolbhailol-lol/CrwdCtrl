@@ -62,7 +62,7 @@ export default function TrekOrganizerLayout() {
 
     return (
         <div className="min-h-dvh bg-[#0c0d0e] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#121314]/95 backdrop-blur border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#121314]/95 backdrop-blur border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="px-5 py-5 border-b border-white/10">
                     <div className="flex items-center gap-3">
                         <div className="size-10 rounded-2xl bg-linear-to-br from-[#0ECCEE]/25 to-[#053780]/40 border border-[#0ECCEE]/20 flex items-center justify-center">
@@ -131,7 +131,7 @@ export default function TrekOrganizerLayout() {
             </aside>
 
             <div className="flex-1 lg:ml-64 min-w-0 flex flex-col">
-                <header className="sticky top-0 z-30 bg-[#0c0d0e]/90 backdrop-blur border-b border-white/10 px-4 py-3 flex items-center justify-between gap-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+                <header className="sticky top-0 z-30 bg-[#0c0d0e]/90 backdrop-blur border-b border-white/10 px-4 py-3 flex items-center justify-between gap-3 pt-[max(0.75rem,var(--safe-top))]">
                     <button
                         type="button"
                         className="lg:hidden inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 rounded-xl text-gray-300 border border-white/10 hover:bg-white/5"
@@ -170,14 +170,14 @@ export default function TrekOrganizerLayout() {
                         </button>
                     ) : null}
                 </header>
-                <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${trekId ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6' : ''}`}>
+                <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${trekId ? 'pb-[calc(5.5rem+var(--safe-bottom))] lg:pb-6' : ''}`}>
                     <Outlet />
                 </main>
             </div>
 
             {trekId ? (
                 <nav
-                    className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-white/10 bg-[#121314]/95 backdrop-blur pb-[env(safe-area-inset-bottom)]"
+                    className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-white/10 bg-[#121314]/95 backdrop-blur pb-[var(--safe-bottom)]"
                     aria-label="Trek tools"
                 >
                     <div className="grid grid-cols-5">

@@ -252,7 +252,7 @@ function FestFavoritesPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen overflow-x-clip pb-24 lg:pb-8 transition-colors">
-            <main className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 lg:px-8">
+            <main className="px-4 pt-[calc(var(--safe-top)+1rem)] sm:px-6 lg:px-8">
                 <div className="mx-auto w-full max-w-md lg:max-w-6xl">
                     <div className="px-4 pt-4">
                         <div className="flex items-start justify-between gap-3 pb-8">

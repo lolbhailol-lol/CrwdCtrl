@@ -431,7 +431,7 @@ export default function ProfileSidebar({
                 {/* Mobile Profile Screen */}
                 <div className={`fixed inset-0 z-9999 profile-sidebar-mobile flex flex-col h-dvh max-h-dvh overflow-hidden ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                     <div className="profile-sidebar-mobile__scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-hide">
-                        <main className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 pb-4">
+                        <main className="px-4 pt-[calc(var(--safe-top)+1rem)] sm:px-6 pb-4">
                             <div
                                 className={`mx-auto w-full max-w-md rounded-2xl ${
                                     isDark ? 'bg-[#161718]' : 'bg-white'

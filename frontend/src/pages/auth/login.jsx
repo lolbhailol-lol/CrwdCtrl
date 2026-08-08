@@ -340,7 +340,7 @@ export default function CrwdCtrlLogin({
                             animate={{ y: 0, opacity: 1 }}
                             exit={reduceMotion ? { opacity: 0 } : { y: '100%', opacity: 0.96 }}
                             transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.85 }}
-                            className={`relative w-full max-w-md mx-0 sm:mx-4 rounded-t-[28px] sm:rounded-[28px] border shadow-2xl px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] ${
+                            className={`relative w-full max-w-md mx-0 sm:mx-4 rounded-t-[28px] sm:rounded-[28px] border shadow-2xl px-5 pt-3 pb-[max(1.25rem,var(--safe-bottom))] ${
                                 isDark ? 'bg-[#111213] border-white/10 text-white' : 'bg-white border-gray-100 text-gray-900'
                             }`}
                             onClick={(e) => e.stopPropagation()}

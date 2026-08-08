@@ -75,7 +75,7 @@ export default function RunClubOrganizerLoginPage() {
     };
 
     return (
-        <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,var(--safe-top))] pb-[max(1.5rem,var(--safe-bottom))]">
             {booting ? (
                 <div className="text-sm text-gray-500 flex items-center gap-2">
                     <Loader className="animate-spin" size={18} />

@@ -76,7 +76,7 @@ function CustomerDetailSheet({ customer, isTrekScope, trekTitle, onClose, onWhat
                     </button>
                 </div>
 
-                <div className="p-4 space-y-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+                <div className="p-4 space-y-4 pb-[max(1.25rem,var(--safe-bottom))]">
                     <div className="flex flex-wrap gap-2">
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 text-[#0ECCEE]">
                             <Mountain size={11} />
@@ -792,7 +792,7 @@ export default function TrekOrganizerCustomersPage() {
             {selectedMap.size > 0 ? (
                 <div className={`fixed inset-x-0 z-40 px-3 sm:px-6 pointer-events-none ${
                     isTrekScope
-                        ? 'bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6'
+                        ? 'bottom-[calc(4.5rem+var(--safe-bottom))] lg:bottom-6'
                         : 'bottom-6'
                 }`}
                 >

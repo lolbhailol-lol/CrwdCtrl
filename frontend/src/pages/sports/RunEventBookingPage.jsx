@@ -1114,7 +1114,7 @@ export default function RunEventBookingPage() {
     }
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:pt-[calc(env(safe-area-inset-top)+1rem)] pb-[max(6rem,env(safe-area-inset-bottom)+5rem)]">
+        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(var(--safe-top)+0.5rem)] sm:pt-[calc(var(--safe-top)+1rem)] pb-[max(6rem,var(--safe-bottom)+5rem)]">
             <PaymentErrorModal
                 open={paymentModal.open}
                 message={paymentModal.message}

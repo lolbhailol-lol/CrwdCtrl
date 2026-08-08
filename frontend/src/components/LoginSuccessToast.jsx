@@ -9,7 +9,7 @@ export default function LoginSuccessToast({ visible, message = 'Logged in succes
 
     return createPortal(
         <div
-            className="fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-[10001] -translate-x-1/2 pointer-events-none transition-opacity duration-300"
+            className="fixed left-1/2 top-[max(1rem,var(--safe-top))] z-[10001] -translate-x-1/2 pointer-events-none transition-opacity duration-300"
             role="status"
             aria-live="polite"
         >

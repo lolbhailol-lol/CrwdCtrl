@@ -76,7 +76,7 @@ function NotifyParticipantModal({ open, participant, onClose, onSend }) {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4">
             <form
                 onSubmit={submit}
-                className="w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+                className="w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4 pb-[max(1rem,var(--safe-bottom))]"
             >
                 <div className="flex items-start justify-between gap-3">
                     <div>

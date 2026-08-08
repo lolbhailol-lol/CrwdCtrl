@@ -56,7 +56,7 @@ export default function RunClubOrganizerLayout() {
 
     return (
         <div className="min-h-dvh bg-[#0f1011] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="px-5 py-5 border-b border-gray-800">
                     <div className="flex items-center gap-2">
                         <Footprints className="text-[#0ECCEE]" size={22} />
@@ -117,7 +117,7 @@ export default function RunClubOrganizerLayout() {
             </aside>
 
             <div className="flex-1 lg:ml-64 min-w-0 flex flex-col">
-                <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-gray-800 px-3 sm:px-4 py-3 flex items-center gap-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+                <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-gray-800 px-3 sm:px-4 py-3 flex items-center gap-2 pt-[max(0.75rem,var(--safe-top))]">
                     <button
                         type="button"
                         className="lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg text-gray-300 border border-gray-800 hover:bg-white/5"
@@ -161,14 +161,14 @@ export default function RunClubOrganizerLayout() {
                         </button>
                     )}
                 </header>
-                <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${hasEventContext ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6' : ''}`}>
+                <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${hasEventContext ? 'pb-[calc(5.5rem+var(--safe-bottom))] lg:pb-6' : ''}`}>
                     <Outlet />
                 </main>
             </div>
 
             {hasEventContext ? (
                 <nav
-                    className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-800 bg-[#161718]/95 backdrop-blur pb-[env(safe-area-inset-bottom)]"
+                    className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-800 bg-[#161718]/95 backdrop-blur pb-[var(--safe-bottom)]"
                     aria-label="Run tools"
                 >
                     <div className="grid grid-cols-4">

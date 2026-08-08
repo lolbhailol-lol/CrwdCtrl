@@ -104,7 +104,7 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
             aria-modal="true"
             aria-label="Gallery viewer"
         >
-            <div className="flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-3">
+            <div className="flex items-center justify-between px-4 pt-[max(var(--safe-top),1rem)] pb-3">
                 <p className="text-white text-sm font-medium">
                     {index + 1} / {images.length}
                 </p>
@@ -466,7 +466,7 @@ export default function CommunityDetailPage() {
                 {/* Top action bar */}
                 <div
                     className="absolute top-0 left-0 right-0 flex items-center justify-between px-4"
-                    style={{ paddingTop: 'calc(max(env(safe-area-inset-top), 0px) + 2.5rem)' }}
+                    style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
                 >
                     {/* Back */}
                     <button

@@ -215,7 +215,7 @@ export default function TrekCategoryPage() {
             {/* ── Sticky Header ── */}
             <div
                 className={`crwdctrl-sticky-header sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 ${isDark ? 'bg-black' : 'bg-slate-100'}`}
-                style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+                style={{ paddingTop: 'max(var(--safe-top), 12px)' }}
             >
                 {/* Back + Title + Filter */}
                 <div className="flex items-center gap-3 mt-2 mb-5">

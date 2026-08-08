@@ -973,7 +973,7 @@ function EventPage() {
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
                                     <div
                                         className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
-                                        style={{ paddingTop: 'calc(max(env(safe-area-inset-top), 0px) + 2.5rem)' }}
+                                        style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
                                     >
                                         <button
                                             type="button"
@@ -1668,7 +1668,7 @@ function EventPage() {
             {/* Fixed mobile sticky fee + Register — same pattern as treks / runs */}
             <div
                 className="fixed bottom-0 left-0 right-0 z-40 md:hidden px-2"
-                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
+                style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
                 <div className={`mx-auto w-full max-w-md flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
                     <div className="min-w-0 shrink-0">

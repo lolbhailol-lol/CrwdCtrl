@@ -116,7 +116,7 @@ export default function TrekOrganizerWhatsAppModal({
                     </button>
                 </div>
 
-                <div className="p-4 space-y-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+                <div className="p-4 space-y-4 pb-[max(1.25rem,var(--safe-bottom))]">
                     {!validRecipients.length ? (
                         <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-8 text-center">
                             <p className="text-sm text-gray-300 font-medium">No valid phone numbers</p>

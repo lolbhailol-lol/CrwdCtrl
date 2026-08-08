@@ -634,7 +634,7 @@ function Booking() {
 
     return (
         <div className={pageShellClass}>
-            <main className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 lg:px-8">
+            <main className="px-4 pt-[calc(var(--safe-top)+1rem)] sm:px-6 lg:px-8">
                 <div
                     className={`mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl ${
                         isDark ? 'bg-[#161718]' : 'bg-white'

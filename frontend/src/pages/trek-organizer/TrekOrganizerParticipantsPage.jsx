@@ -739,7 +739,7 @@ export default function TrekOrganizerParticipantsPage() {
 
             {/* Sticky bulk actions */}
             {selectedCount > 0 ? (
-                <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 z-40 px-3 sm:px-6 pointer-events-none">
+                <div className="fixed inset-x-0 bottom-[calc(4.5rem+var(--safe-bottom))] lg:bottom-6 z-40 px-3 sm:px-6 pointer-events-none">
                     <div className="max-w-4xl mx-auto pointer-events-auto">
                         <div className="rounded-2xl border border-[#0ECCEE]/30 bg-[#121314]/95 backdrop-blur shadow-2xl px-3.5 py-3 flex flex-wrap items-center gap-2">
                             <p className="text-sm font-semibold text-white mr-auto px-1">

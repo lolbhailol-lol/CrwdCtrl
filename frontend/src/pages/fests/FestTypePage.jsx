@@ -165,7 +165,7 @@ export default function FestTypePage({
             />
             <div
                 className={`crwdctrl-sticky-header sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${isDark ? 'bg-[#111213]' : 'bg-[#F2F4F7]'}`}
-                style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+                style={{ paddingTop: 'max(var(--safe-top), 12px)' }}
             >
                 <div className="flex items-center gap-3 mt-2">
                     <button

@@ -308,7 +308,7 @@ function PreviewBottomNav({ activeId = 'home' }) {
     return (
         <div
             className="pointer-events-none select-none w-full px-2.5 pb-2 pt-1"
-            style={{ paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom, 0px))' }}
+            style={{ paddingBottom: 'max(0.35rem, var(--safe-bottom))' }}
         >
             <div
                 className="bottom-nav-pill w-full max-w-none mx-0 rounded-[1.875rem] overflow-hidden"

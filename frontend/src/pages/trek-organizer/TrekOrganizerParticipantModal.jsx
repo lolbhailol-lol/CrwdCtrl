@@ -103,7 +103,7 @@ export default function TrekOrganizerParticipantModal({ trekId, bookingId, onClo
                         <p className="text-xs text-gray-500">Loading details…</p>
                     </div>
                 ) : participant ? (
-                    <div className="p-4 sm:p-5 space-y-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+                    <div className="p-4 sm:p-5 space-y-4 pb-[max(1.25rem,var(--safe-bottom))]">
                         <div className="rounded-2xl border border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516] p-4">
                             <div className="flex items-start gap-3">
                                 <div className="size-12 rounded-2xl bg-linear-to-br from-[#0ECCEE]/25 to-[#053780]/40 text-[#0ECCEE] flex items-center justify-center text-sm font-bold shrink-0">

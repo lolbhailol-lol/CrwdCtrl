@@ -15,6 +15,10 @@
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
     },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
+    },
     "FirebaseAuthentication": {
       "skipNativeAuth": true,
       "providers": ["google.com"]

@@ -383,7 +383,7 @@ function EditProfile() {
 
                 {/* Back Navigation */}
                 <main className="flex-1">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-[calc(env(safe-area-inset-top)+1rem)]">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-[calc(var(--safe-top)+1rem)]">
                         <button
                             onClick={() => navigate(-1)}
                             className={`flex items-center space-x-2 ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition mb-4`}

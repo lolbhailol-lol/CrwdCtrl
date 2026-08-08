@@ -98,7 +98,7 @@ export function DialogProvider({ children }) {
             />
 
             {toast ? (
-                <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-100030 px-4 w-full max-w-sm pointer-events-none">
+                <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--safe-bottom)+5rem)] z-100030 px-4 w-full max-w-sm pointer-events-none">
                     <div
                         key={toast.id}
                         className={`app-toast-flash w-full text-center text-sm font-medium px-4 py-3 rounded-xl shadow-lg ${

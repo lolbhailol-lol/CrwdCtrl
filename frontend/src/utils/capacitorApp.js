@@ -1,8 +1,8 @@
+import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import { Keyboard } from '@capacitor/keyboard';
-import { isNativeApp } from './capacitorPlatform';
+import { isIOS, isNativeApp } from './capacitorPlatform';
 import { pathFromAppUrl } from './deepLinks';
 import { openExternalUrl } from './externalLink';
 
@@ -20,17 +20,21 @@ export async function initCapacitorApp({ navigate, onBack, onBackWhenRoot }) {
     /* optional */
   }
 
+  // Edge-to-edge is mandatory from Android 15, so the bar background comes from the
+  // web content behind it — only the icon/text style is still ours to set.
   try {
-    await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: '#161718' });
+    await SystemBars.setStyle({ style: SystemBarsStyle.Dark });
   } catch {
     /* optional */
   }
 
-  try {
-    Keyboard.setAccessoryBarVisible({ isVisible: true });
-  } catch {
-    /* optional */
+  // Accessory bar is iOS-only; calling it on Android rejects with "not implemented".
+  if (isIOS()) {
+    try {
+      await Keyboard.setAccessoryBarVisible({ isVisible: true });
+    } catch {
+      /* optional */
+    }
   }
 
   const backHandle = await App.addListener('backButton', ({ canGoBack }) => {

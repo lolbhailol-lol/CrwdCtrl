@@ -68,7 +68,7 @@ export default function NotificationPopupStack({ items = [] }) {
 
     return createPortal(
         <div
-            className="fixed right-3 sm:right-4 top-[max(4.5rem,calc(env(safe-area-inset-top)_+_3.5rem))] z-[10000] w-[min(100vw_-_1.5rem,_22rem)] pointer-events-none"
+            className="fixed right-3 sm:right-4 top-[max(4.5rem,calc(var(--safe-top)_+_3.5rem))] z-[10000] w-[min(100vw_-_1.5rem,_22rem)] pointer-events-none"
             aria-live="polite"
         >
             <div
