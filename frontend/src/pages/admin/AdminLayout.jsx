@@ -21,7 +21,9 @@ import {
   PartyPopper,
   TicketPercent,
   Bell,
+  MapPinned,
 } from 'lucide-react';
+import { isCampusHuntEnabled } from '../../features/campus-hunt/config';
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(() =>
@@ -49,6 +51,9 @@ export default function AdminLayout() {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', exact: true },
     { icon: Calendar, label: 'Fests', path: '/admin/fests' },
     { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
+    ...(isCampusHuntEnabled()
+      ? [{ icon: MapPinned, label: 'Campus Hunt', path: '/admin/campus-hunt' }]
+      : []),
     { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },
     { icon: UserCog, label: 'Community Organizers', path: '/admin/trek-organizers' },

@@ -62,11 +62,17 @@ export function eventPayDraftKey(orderId) {
 }
 
 /** Persist form answers for post-GPay recovery (local + session). */
-export function saveEventRegistrationDraft(eventId, { values, tierId, couponCode } = {}) {
+export function saveEventRegistrationDraft(eventId, {
+  values,
+  tierId,
+  selectedAddOnIds,
+  couponCode,
+} = {}) {
   if (!eventId) return;
   const payload = JSON.stringify({
     values: values || {},
     tierId: tierId || '',
+    selectedAddOnIds: Array.isArray(selectedAddOnIds) ? selectedAddOnIds : [],
     couponCode: couponCode || '',
     eventShowId: String(eventId),
     ts: Date.now(),
@@ -156,6 +162,7 @@ export async function completeEventPayAndRegister({
   orderId,
   responses = {},
   tierId = '',
+  selectedAddOnIds = [],
   couponCode = '',
 }) {
   const res = await fetch(`${apiBase}/registrations/events/${eventShowId}/pay-and-register`, {
@@ -168,6 +175,7 @@ export async function completeEventPayAndRegister({
       payment_order_id: orderId,
       responses,
       tierId: tierId || undefined,
+      selectedAddOnIds,
       couponCode: couponCode || undefined,
     }),
   });

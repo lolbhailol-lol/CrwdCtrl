@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Loader, CheckCircle, Check } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -30,6 +30,7 @@ import {
     findEventShowTier,
     resolveEventShowFee,
     resolveTierParticipantCount,
+    sanitizeEventShowAddOns,
     formatInr,
 } from '../../utils/eventShowTiers';
 import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
@@ -160,6 +161,7 @@ export default function EventRegistrationPage() {
             return location.state?.tierId || '';
         }
     });
+    const [selectedAddOnIds, setSelectedAddOnIds] = useState([]);
     const retryRef = useRef(null);
     const resumeRef = useRef(false);
 
@@ -218,6 +220,7 @@ export default function EventRegistrationPage() {
     }, [event, navigate, location.state]);
 
     const reg = event?.registration || {};
+    const couponsEnabled = reg.allowCoupons !== false;
     const isOrganizerQr = reg.mode === 'organizer_qr';
     const packages = useMemo(() => {
         if (!event) return [];
@@ -235,7 +238,14 @@ export default function EventRegistrationPage() {
     const selectedTier = findEventShowTier(pricedEvent, selectedTierId);
     const driverCount = resolveTierParticipantCount(selectedTier);
     const priced = resolveEventShowFee(pricedEvent, selectedTierId);
-    const ticketPrice = priced.fee;
+    const packagePrice = priced.fee;
+    const addOns = useMemo(() => sanitizeEventShowAddOns(event?.addOns), [event?.addOns]);
+    const selectedAddOns = useMemo(
+        () => addOns.filter((addOn) => selectedAddOnIds.includes(addOn.id)),
+        [addOns, selectedAddOnIds],
+    );
+    const addOnTotal = selectedAddOns.reduce((sum, addOn) => sum + addOn.fee, 0);
+    const ticketPrice = packagePrice + addOnTotal;
     const platformFeePercent = isOrganizerQr ? 0 : resolveTrekPlatformFeePercent(event?.platformFeePercent, 2.5);
     const breakdown = useMemo(
         () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
@@ -330,6 +340,15 @@ export default function EventRegistrationPage() {
                     ? 'Select a Trackday package.'
                     : 'Select your Trackday package (Drive is already included free).',
                 packageSelect: true,
+                fields: [],
+            });
+        }
+
+        if (addOns.length > 0) {
+            steps.push({
+                title: 'Add experiences',
+                description: 'Optional — choose any experiences you want to add to this booking.',
+                addOnSelect: true,
                 fields: [],
             });
         }
@@ -455,7 +474,7 @@ export default function EventRegistrationPage() {
         });
 
         return steps;
-    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, skippingDrive]);
+    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, skippingDrive, addOns.length]);
 
     // Sync tier from query; clear drive-only if they answered No
     useEffect(() => {
@@ -476,8 +495,18 @@ export default function EventRegistrationPage() {
     }, [event, tiersMode, selectedTierId, skippingDrive, selectedTier, pricedEvent]);
 
     useEffect(() => {
+        if (couponsEnabled) return;
+        setCouponCode('');
         setCouponInfo(null);
-    }, [selectedTierId]);
+        setCouponError('');
+        setShowCouponField(false);
+        autoAppliedCouponRef.current = '';
+    }, [couponsEnabled]);
+
+    useEffect(() => {
+        setCouponInfo(null);
+        autoAppliedCouponRef.current = '';
+    }, [selectedTierId, selectedAddOnIds]);
 
     const allSteps = useMemo(
         () => [...formSteps, {
@@ -654,6 +683,7 @@ export default function EventRegistrationPage() {
             }
             return true;
         }
+        if (s.addOnSelect) return true;
         // Drive-only path must have free package selected (auto-set)
         if (driveOnlyPath && !findEventShowTier(pricedEvent, selectedTierId)) {
             if (driveOnlyTier?.id) setSelectedTierId(driveOnlyTier.id);
@@ -682,6 +712,7 @@ export default function EventRegistrationPage() {
         valuesOverride,
         filesOverride,
         tierIdOverride,
+        selectedAddOnIdsOverride,
     } = {}) => {
         const token = getAuthToken();
         if (!token) { setShowLogin(true); throw new Error('Please log in to register.'); }
@@ -689,6 +720,7 @@ export default function EventRegistrationPage() {
         const submissionValues = { ...(valuesOverride ?? values) };
         const submissionFiles = filesOverride ?? files;
         const tierIdToUse = tierIdOverride || selectedTierId;
+        const addOnIdsToUse = selectedAddOnIdsOverride ?? selectedAddOnIds;
         const tierToUse = findEventShowTier(pricedEvent, tierIdToUse) || selectedTier;
 
         // Normalize drive answer for storage / dashboard
@@ -739,9 +771,10 @@ export default function EventRegistrationPage() {
         if (paymentOrderId) fd.append('payment_order_id', paymentOrderId);
         if (paymentId) fd.append('payment_id', paymentId);
         if (tierIdToUse) fd.append('tierId', tierIdToUse);
+        fd.append('selectedAddOnIds', JSON.stringify(addOnIdsToUse));
         if (submissionValues.payment_screenshot_url) fd.append('paymentScreenshotUrl', String(submissionValues.payment_screenshot_url));
         if (submissionValues.transaction_id) fd.append('transactionId', String(submissionValues.transaction_id));
-        if (couponCode.trim()) fd.append('couponCode', couponCode.trim().toUpperCase());
+        if (couponsEnabled && couponCode.trim()) fd.append('couponCode', couponCode.trim().toUpperCase());
 
         const res = await fetch(`${API}/registrations/events/${eventId}/custom`, {
             method: 'POST',
@@ -757,9 +790,15 @@ export default function EventRegistrationPage() {
         setAddedToExisting(Boolean(data.addedToExisting));
         void amountPaid;
         return data;
-    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, getAuthToken, driverCount, selectedTier, pricedEvent, couponCode]);
+    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, selectedAddOnIds, getAuthToken, driverCount, selectedTier, pricedEvent, couponCode, couponsEnabled]);
 
-    const finishPaidRegistration = useCallback(async ({ orderId, draftValues, tierId, coupon }) => {
+    const finishPaidRegistration = useCallback(async ({
+        orderId,
+        draftValues,
+        tierId,
+        selectedAddOnIds: draftAddOnIds,
+        coupon,
+    }) => {
         const token = getAuthToken();
         if (!token) {
             setShowLogin(true);
@@ -781,7 +820,8 @@ export default function EventRegistrationPage() {
             orderId,
             responses: draftValues || {},
             tierId: tierId || selectedTierId || '',
-            couponCode: coupon || couponCode.trim() || '',
+            selectedAddOnIds: draftAddOnIds || selectedAddOnIds,
+            couponCode: couponsEnabled ? (coupon || couponCode.trim() || '') : '',
         });
         clearPendingPayment();
         clearEventPaymentArtifacts(eventId, orderId);
@@ -790,7 +830,7 @@ export default function EventRegistrationPage() {
         setAddedToExisting(Boolean(data.addedToExisting));
         refreshNotifications?.();
         return data;
-    }, [eventId, getAuthToken, selectedTierId, couponCode, refreshNotifications]);
+    }, [eventId, getAuthToken, selectedTierId, selectedAddOnIds, couponCode, couponsEnabled, refreshNotifications]);
 
     // Resume after Cashfree redirect
     useEffect(() => {
@@ -808,6 +848,7 @@ export default function EventRegistrationPage() {
         const draftValues = draft.values || {};
         if (Object.keys(draftValues).length > 0) setValues((prev) => ({ ...prev, ...draftValues }));
         if (draft.tierId) setSelectedTierId(draft.tierId);
+        if (Array.isArray(draft.selectedAddOnIds)) setSelectedAddOnIds(draft.selectedAddOnIds);
 
         (async () => {
             try {
@@ -815,6 +856,7 @@ export default function EventRegistrationPage() {
                     orderId: pending.orderId,
                     draftValues,
                     tierId: draft.tierId || selectedTierId,
+                    selectedAddOnIds: draft.selectedAddOnIds || selectedAddOnIds,
                     coupon: draft.couponCode || couponCode,
                 });
                 const params = new URLSearchParams(location.search);
@@ -832,7 +874,7 @@ export default function EventRegistrationPage() {
                 setPaying(false);
             }
         })();
-    }, [eventId, loading, location.search, location.pathname, navigate, finishPaidRegistration, selectedTierId, couponCode]);
+    }, [eventId, loading, location.search, location.pathname, navigate, finishPaidRegistration, selectedTierId, selectedAddOnIds, couponCode]);
 
     // After Google Pay / redirect checkout: poll until payment lands even if return URL never fires
     useEffect(() => {
@@ -850,6 +892,7 @@ export default function EventRegistrationPage() {
                     orderId: awaitingPaymentOrderId,
                     draftValues: draft.values || values,
                     tierId: draft.tierId || selectedTierId,
+                    selectedAddOnIds: draft.selectedAddOnIds || selectedAddOnIds,
                     coupon: draft.couponCode || couponCode,
                 });
                 if (cancelled) return;
@@ -892,6 +935,7 @@ export default function EventRegistrationPage() {
         finishPaidRegistration,
         values,
         selectedTierId,
+        selectedAddOnIds,
         couponCode,
     ]);
 
@@ -913,8 +957,9 @@ export default function EventRegistrationPage() {
         }
 
         // Drive-only / free package — submit directly (no Cashfree)
-        const feeNow = Math.max(0, Number(resolveEventShowFee(pricedEvent, selectedTierId || driveOnlyTier?.id).fee) || 0);
-        if (feeNow <= 0 || driveOnlyPath) {
+        const feeNow = Math.max(0, Number(resolveEventShowFee(pricedEvent, selectedTierId || driveOnlyTier?.id).fee) || 0)
+            + addOnTotal;
+        if (feeNow <= 0) {
             setPaying(true);
             try {
                 const tierForSubmit = selectedTierId || driveOnlyTier?.id || '';
@@ -965,7 +1010,8 @@ export default function EventRegistrationPage() {
         const draftPayload = {
             values,
             tierId: selectedTierId,
-            couponCode: couponCode.trim(),
+            selectedAddOnIds,
+            couponCode: couponsEnabled ? couponCode.trim() : '',
             eventShowId: String(showId || eventId),
         };
         saveEventRegistrationDraft(eventId, draftPayload);
@@ -985,10 +1031,11 @@ export default function EventRegistrationPage() {
                 body: JSON.stringify({
                     eventShowId: showIdStr,
                     tierId: String(selectedTierId || '').trim() || undefined,
+                    selectedAddOnIds,
                     customerName: customer.name || user?.name || 'Customer',
                     customerEmail: customer.email || user?.email || '',
                     customerPhone: customer.phone || user?.phone || user?.phoneNumber || '',
-                    couponCode: couponCode.trim() || undefined,
+                    couponCode: couponsEnabled ? (couponCode.trim() || undefined) : undefined,
                     registrationDraft: draftPayload,
                 }),
             });
@@ -1057,6 +1104,7 @@ export default function EventRegistrationPage() {
                     orderId: order.orderId,
                     draftValues: values,
                     tierId: selectedTierId,
+                    selectedAddOnIds,
                     coupon: couponCode.trim(),
                 });
                 setDone(true);
@@ -1099,6 +1147,7 @@ export default function EventRegistrationPage() {
     };
 
     const applyCoupon = async (overrideCode) => {
+        if (!couponsEnabled) return;
         setCouponError('');
         const code = String(overrideCode ?? couponCode).trim().toUpperCase();
         if (!code) {
@@ -1110,7 +1159,12 @@ export default function EventRegistrationPage() {
         try {
             const { data } = await publicFetchJSONRetry('/payment/coupon-validate', {
                 method: 'POST',
-                body: { eventShowId: eventId, tierId: selectedTierId || undefined, couponCode: code },
+                body: {
+                    eventShowId: eventId,
+                    tierId: selectedTierId || undefined,
+                    selectedAddOnIds,
+                    couponCode: code,
+                },
                 retries: 4,
                 timeout: 25000,
             });
@@ -1152,7 +1206,6 @@ export default function EventRegistrationPage() {
         autoAppliedCouponRef.current = suggestedCoupon;
         setCouponCode(suggestedCoupon);
         applyCoupon(suggestedCoupon);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPaymentStepPreview, suggestedCoupon]);
 
     if (loading && !done && !paying) {
@@ -1326,7 +1379,7 @@ export default function EventRegistrationPage() {
                                     }`}>
                                         {i < step ? '✓' : i + 1}
                                     </div>
-                                    <span className={`text-xs mt-1 text-center max-w-[80px] truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.title}</span>
+                                    <span className={`text-xs mt-1 text-center max-w-20 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.title}</span>
                                 </div>
                             ))}
                         </div>
@@ -1366,9 +1419,17 @@ export default function EventRegistrationPage() {
                                 <div className="flex justify-between text-sm">
                                     <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{tiersMode ? 'Package fee' : 'Entry fee'}</span>
                                     <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                        {ticketPrice > 0 ? formatInr(ticketPrice) : 'Free'}
+                                        {packagePrice > 0 ? formatInr(packagePrice) : 'Free'}
                                     </span>
                                 </div>
+                                {selectedAddOns.map((addOn) => (
+                                    <div key={addOn.id} className="flex justify-between gap-3 text-sm">
+                                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{addOn.name}</span>
+                                        <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                            +{formatInr(addOn.fee)}
+                                        </span>
+                                    </div>
+                                ))}
                                 {ticketPrice > 0 && breakdown.platformFee > 0 ? (
                                     <div className="flex justify-between text-sm">
                                         <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
@@ -1488,7 +1549,74 @@ export default function EventRegistrationPage() {
                         </div>
                     )}
 
-                    {!isPaymentStep && !current?.packageSelect && (
+                    {!isPaymentStep && current?.addOnSelect && (
+                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                            <div className="mb-4">
+                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Make your Trackday memorable</p>
+                                <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Pick one, both, or skip. Add-on prices are charged once for this booking.
+                                </p>
+                            </div>
+                            <div className="space-y-3">
+                                {addOns.map((addOn) => {
+                                    const selected = selectedAddOnIds.includes(addOn.id);
+                                    return (
+                                        <button
+                                            key={addOn.id}
+                                            type="button"
+                                            aria-pressed={selected}
+                                            onClick={() => {
+                                                setSelectedAddOnIds((currentIds) => selected
+                                                    ? currentIds.filter((id) => id !== addOn.id)
+                                                    : [...currentIds, addOn.id]);
+                                                setCouponInfo(null);
+                                            }}
+                                            className={`w-full rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
+                                                selected
+                                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.18)]'
+                                                    : isDark
+                                                        ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
+                                                        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <span className="flex items-start gap-3">
+                                                <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border-2 ${
+                                                    selected
+                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                                        : isDark ? 'border-gray-600' : 'border-gray-300 bg-white'
+                                                }`}>
+                                                    {selected ? <Check size={13} strokeWidth={3} /> : null}
+                                                </span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="flex items-start justify-between gap-3">
+                                                        <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{addOn.name}</span>
+                                                        <span className="shrink-0 text-sm font-bold text-[#0ECCEE]">+{formatInr(addOn.fee)}</span>
+                                                    </span>
+                                                    {addOn.vehicles ? (
+                                                        <span className={`mt-1 block text-xs font-semibold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                                                            Cars: {addOn.vehicles}
+                                                        </span>
+                                                    ) : null}
+                                                    {addOn.description ? (
+                                                        <span className={`mt-1.5 block text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                            {addOn.description}
+                                                        </span>
+                                                    ) : null}
+                                                </span>
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className={`mt-4 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {selectedAddOns.length
+                                    ? `${selectedAddOns.length} selected · ${formatInr(addOnTotal)} added`
+                                    : 'No add-ons selected'}
+                            </p>
+                        </div>
+                    )}
+
+                    {!isPaymentStep && !current?.packageSelect && !current?.addOnSelect && (
                         <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             {current?.description && <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current.description}</p>}
                             {(() => {
@@ -1551,7 +1679,7 @@ export default function EventRegistrationPage() {
                                                     : 'Registration fee'}
                                         </p>
                                     </div>
-                                    {!showCouponField && !couponInfo?.couponApplied ? (
+                                    {couponsEnabled && !showCouponField && !couponInfo?.couponApplied ? (
                                         <button
                                             type="button"
                                             onClick={() => setShowCouponField(true)}
@@ -1567,7 +1695,7 @@ export default function EventRegistrationPage() {
                                 </div>
                             )}
 
-                            {ticketPrice > 0 && (showCouponField || couponInfo?.couponApplied) ? (
+                            {couponsEnabled && ticketPrice > 0 && (showCouponField || couponInfo?.couponApplied) ? (
                                 <div className={`px-4 py-3 border-t ${isDark ? 'border-gray-700/60 bg-[#111213]' : 'border-gray-200 bg-white'}`}>
                                     {couponInfo?.couponApplied ? (
                                         <div className={`rounded-xl px-3.5 py-3 border ${isDark ? 'bg-emerald-900/20 border-emerald-700/40' : 'bg-green-50 border-green-200'}`}>
@@ -1660,7 +1788,13 @@ export default function EventRegistrationPage() {
                                     {tiersMode && selectedTier ? (
                                         <div className="flex justify-between gap-4"><span>Drivers</span><span>{driverCount} {driverCount === 1 ? 'driver' : 'drivers'}</span></div>
                                     ) : null}
-                                    <div className="flex justify-between gap-4"><span>{tiersMode && selectedTier ? 'Package fee' : 'Entry fee'}</span><span>₹{breakdown.ticketPrice.toLocaleString('en-IN')}</span></div>
+                                    <div className="flex justify-between gap-4"><span>{tiersMode && selectedTier ? 'Package fee' : 'Entry fee'}</span><span>₹{packagePrice.toLocaleString('en-IN')}</span></div>
+                                    {selectedAddOns.map((addOn) => (
+                                        <div key={addOn.id} className="flex justify-between gap-4">
+                                            <span>{addOn.name}</span>
+                                            <span>₹{addOn.fee.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    ))}
                                     {breakdown.platformFee > 0 ? (
                                         <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                             <span>Platform fee ({platformFeePercent}%)</span>

@@ -5,6 +5,7 @@ const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCover
 const { setExclusiveEventsPageHero } = require('../utils/featuredPlacement');
 const {
     sanitizeSportsTiers,
+    sanitizeEventAddOns,
     mirrorRegistrationFeeFromTiers,
 } = require('../utils/sportsPricing');
 
@@ -36,6 +37,9 @@ function normalizeEventShowPayload(body = {}) {
     if (payload.tiers !== undefined) {
         payload.tiers = sanitizeSportsTiers(payload.tiers);
     }
+    if (payload.addOns !== undefined) {
+        payload.addOns = sanitizeEventAddOns(payload.addOns);
+    }
     const mode = payload.pricingMode
         || (body.pricingMode === 'tiers' ? 'tiers' : undefined);
     if (mode === 'tiers' || payload.pricingMode === 'tiers') {
@@ -53,10 +57,12 @@ function normalizeEventShowPayload(body = {}) {
 }
 
 function resolveMaxEventFee(payload = {}) {
-    if (payload.pricingMode === 'tiers') {
-        return Math.max(0, ...(Array.isArray(payload.tiers) ? payload.tiers.map((t) => Number(t.fee) || 0) : [0]));
-    }
-    return Math.max(0, Number(payload.ticketPrice) || 0);
+    const packageFee = payload.pricingMode === 'tiers'
+        ? Math.max(0, ...(Array.isArray(payload.tiers) ? payload.tiers.map((t) => Number(t.fee) || 0) : [0]))
+        : Math.max(0, Number(payload.ticketPrice) || 0);
+    const addOnTotal = sanitizeEventAddOns(payload.addOns)
+        .reduce((sum, addOn) => sum + addOn.fee, 0);
+    return packageFee + addOnTotal;
 }
 
 exports.createEventShow = async (req, res) => {

@@ -30,6 +30,9 @@ function sanitizeRegistrationDraft(raw) {
   return {
     values: clean,
     tierId: raw.tierId ? String(raw.tierId).trim() : '',
+    selectedAddOnIds: (Array.isArray(raw.selectedAddOnIds) ? raw.selectedAddOnIds : [])
+      .map((id) => String(id || '').trim())
+      .filter(Boolean),
     couponCode: raw.couponCode ? String(raw.couponCode).trim().toUpperCase() : '',
     eventShowId: raw.eventShowId ? String(raw.eventShowId).trim() : '',
   };
@@ -70,6 +73,7 @@ async function fulfillEventShowFromPaidOrder(paymentOrderInput, overrides = {}) 
   const overrideDraft = sanitizeRegistrationDraft(overrides.registrationDraft || {
     values: overrides.responses,
     tierId: overrides.tierId,
+    selectedAddOnIds: overrides.selectedAddOnIds,
     couponCode: overrides.couponCode,
     eventShowId: overrides.eventShowId,
   });
@@ -130,14 +134,44 @@ async function fulfillEventShowFromPaidOrder(paymentOrderInput, overrides = {}) 
     }
   }
 
+  const { resolveEventAddOns } = require('../utils/sportsPricing');
+  let addOns;
+  const orderedAddOns = Array.isArray(paymentOrder.orderTags?.selectedAddOns)
+    ? paymentOrder.orderTags.selectedAddOns
+    : null;
+  if (orderedAddOns) {
+    addOns = {
+      selected: orderedAddOns,
+      total: orderedAddOns.reduce((sum, addOn) => sum + Math.max(0, Number(addOn?.fee) || 0), 0),
+    };
+  } else {
+    try {
+      addOns = resolveEventAddOns(
+        eventShow,
+        overrides.selectedAddOnIds
+          || draft.selectedAddOnIds
+          || paymentOrder.orderTags?.selectedAddOnIds
+          || [],
+      );
+    } catch (addOnErr) {
+      return { ok: false, error: addOnErr.message };
+    }
+  }
+  ticketPrice += addOns.total;
+
   const platformFeePercent = resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5);
   const paidAmount = Number(paymentOrder.totalAmount);
   const expectedAmount = buildEventPriceBreakdown(ticketPrice, platformFeePercent).totalAmount;
   // Prefer amount actually collected on the order (includes coupon).
   const entryAmount = Number.isFinite(paidAmount) && paidAmount >= 0 ? paidAmount : expectedAmount;
 
-  if (draft.couponCode) responses.coupon_code = draft.couponCode;
+  const appliedCouponCode = eventShow.registration?.allowCoupons === false ? '' : draft.couponCode;
+  if (appliedCouponCode) responses.coupon_code = appliedCouponCode;
+  else delete responses.coupon_code;
   if (selectedTier?.name) responses.package_name = selectedTier.name;
+  if (addOns.selected.length) {
+    responses.selected_add_ons = addOns.selected.map((addOn) => addOn.name).join(', ');
+  }
 
   const user = await User.findById(userId);
   const now = new Date();
@@ -163,6 +197,7 @@ async function fulfillEventShowFromPaidOrder(paymentOrderInput, overrides = {}) 
     existing.additionalEntries.push({
       tierId: selectedTier?.id || null,
       tierName: selectedTier?.name || null,
+      selectedAddOns: addOns.selected,
       amountPaid: entryAmount,
       paymentStatus: 'paid',
       payment_gateway: 'cashfree',
@@ -195,6 +230,7 @@ async function fulfillEventShowFromPaidOrder(paymentOrderInput, overrides = {}) 
       amountPaid: entryAmount,
       tierId: selectedTier?.id || null,
       tierName: selectedTier?.name || null,
+      selectedAddOns: addOns.selected,
       additionalEntries: [],
       reRegistrationCount: 0,
       submittedAt: now,

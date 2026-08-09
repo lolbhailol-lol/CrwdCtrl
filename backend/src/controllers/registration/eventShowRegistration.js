@@ -105,6 +105,21 @@ const submitEventShowRegistration = async (req, res) => {
         return res.status(tierErr.status || 400).json({ error: tierErr.message || 'Please select a registration package.' });
       }
     }
+    const { resolveEventAddOns } = require('../../utils/sportsPricing');
+    let addOns;
+    try {
+      const rawAddOnIds = req.body.selectedAddOnIds;
+      const selectedAddOnIds = typeof rawAddOnIds === 'string'
+        ? JSON.parse(rawAddOnIds)
+        : rawAddOnIds;
+      addOns = resolveEventAddOns(eventShow, selectedAddOnIds || []);
+    } catch (addOnErr) {
+      return res.status(addOnErr.status || 400).json({ error: addOnErr.message || 'Invalid add-on selection.' });
+    }
+    ticketPrice += addOns.total;
+    if (addOns.selected.length) {
+      responses.selected_add_ons = addOns.selected.map((addOn) => addOn.name).join(', ');
+    }
 
     const regMode = eventShow.registration?.mode || 'internal_form';
     const isOrganizerQr = regMode === 'organizer_qr';
@@ -123,7 +138,9 @@ const submitEventShowRegistration = async (req, res) => {
 
     if (ticketPrice > 0) {
       if (isOrganizerQr) {
-        const rawCoupon = String(req.body.couponCode || responses.coupon_code || '').trim();
+        const rawCoupon = eventShow.registration?.allowCoupons === false
+          ? ''
+          : String(req.body.couponCode || responses.coupon_code || '').trim();
         try {
           const couponResult = await validateAndPriceCoupon({
             couponCode: rawCoupon,
@@ -258,6 +275,7 @@ const submitEventShowRegistration = async (req, res) => {
       existing.additionalEntries.push({
         tierId: selectedTier?.id || null,
         tierName: selectedTier?.name || null,
+        selectedAddOns: addOns.selected,
         amountPaid: entryAmount,
         paymentStatus,
         payment_gateway: paymentGateway,
@@ -293,6 +311,7 @@ const submitEventShowRegistration = async (req, res) => {
         amountPaid: entryAmount,
         tierId: selectedTier?.id || null,
         tierName: selectedTier?.name || null,
+        selectedAddOns: addOns.selected,
         additionalEntries: [],
         reRegistrationCount: 0,
         submittedAt: now,
@@ -450,6 +469,7 @@ const payAndRegisterEventShow = async (req, res) => {
     const draft = sanitizeRegistrationDraft({
       values: responses,
       tierId: req.body.tierId,
+      selectedAddOnIds: req.body.selectedAddOnIds,
       couponCode: req.body.couponCode,
       eventShowId,
     });
@@ -461,6 +481,7 @@ const payAndRegisterEventShow = async (req, res) => {
       registrationDraft: draft,
       eventShowId,
       tierId: req.body.tierId,
+      selectedAddOnIds: req.body.selectedAddOnIds,
       couponCode: req.body.couponCode,
       responses,
     });

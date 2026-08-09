@@ -9,7 +9,9 @@ import { sanitizeEventPlatformFeePercent } from '../../utils/trekRegistrationFee
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
 import {
     createEmptyTier,
+    createEmptyEventShowAddOn,
     sanitizeEventShowTiers,
+    sanitizeEventShowAddOns,
     formatInr,
 } from '../../utils/eventShowTiers';
 
@@ -26,7 +28,7 @@ const EVENT_TYPE_OPTIONS = [
 const EMPTY = {
     title: '', displayName: '', description: '', eventType: '', eventHeading: '', organizer: '',
     venue: '', mapUrl: '', city: '', ticketPrice: 0, platformFeePercent: 2.5,
-    pricingMode: 'single', tiers: [],
+    pricingMode: 'single', tiers: [], addOns: [],
     sponsors: '', poster: '', coverImages: EMPTY_COVER_IMAGES(), banner: '', bookingLink: '',
     generalRules: '', process: '', prizePool: '',
     whatsIncluded: '', benefits: '', eligibility: '', slots: '', registrationProcess: '', registrationLink: '',
@@ -39,6 +41,7 @@ const EMPTY = {
         formSchema: [],
         steps: [],
         googleSheetsUrl: '',
+        allowCoupons: true,
         paymentQR: '',
         paymentQRMessage: '',
         paymentUpiId: '',
@@ -59,6 +62,15 @@ const FIELD_TYPES = [
     { value: 'file', label: 'File Upload' },
     { value: 'image', label: 'Image Upload' },
 ];
+
+function maxConfiguredCharge(form) {
+    const packageFee = form.pricingMode === 'tiers'
+        ? Math.max(0, ...(form.tiers || []).map((tier) => Number(tier.fee) || 0))
+        : Math.max(0, Number(form.ticketPrice) || 0);
+    const addOnTotal = sanitizeEventShowAddOns(form.addOns)
+        .reduce((sum, addOn) => sum + addOn.fee, 0);
+    return packageFee + addOnTotal;
+}
 
 const newField = () => ({
     id: `f_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -101,6 +113,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                 tiers: Array.isArray(show.tiers) && show.tiers.length
                     ? sanitizeEventShowTiers(show.tiers)
                     : [],
+                addOns: sanitizeEventShowAddOns(show.addOns),
                 sponsors: Array.isArray(show.sponsors) ? show.sponsors.join(', ') : (show.sponsors || ''),
                 rounds: Array.isArray(show.rounds) ? show.rounds.map(r => ({ title: r.title || '', content: r.content || '' })) : [],
                 contacts: Array.isArray(show.contacts) ? show.contacts.map(c => ({
@@ -173,14 +186,14 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
         }
         if (
             reg.mode === 'organizer_qr'
-            && (
-                form.pricingMode === 'tiers'
-                    ? Math.max(0, ...(form.tiers || []).map((t) => Number(t.fee) || 0)) > 0
-                    : Number(form.ticketPrice) > 0
-            )
+            && maxConfiguredCharge(form) > 0
             && !String(reg.paymentQR || '').trim()
         ) {
             setError('Upload a payment QR image for QR mode when fee is greater than 0.');
+            return;
+        }
+        if ((form.addOns || []).some((addOn) => !String(addOn.name || '').trim())) {
+            setError('Each add-on needs a name, or remove the empty option.');
             return;
         }
         setSaving(true);
@@ -218,6 +231,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                 sponsors: form.sponsors ? form.sponsors.split(',').map(s => s.trim()).filter(Boolean) : [],
                 pricingMode,
                 tiers,
+                addOns: sanitizeEventShowAddOns(form.addOns),
                 ticketPrice,
                 mapUrl: (form.mapUrl || '').trim(),
                 platformFeePercent: sanitizeEventPlatformFeePercent(form.platformFeePercent),
@@ -230,6 +244,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                     mode: reg.mode,
                     formType: reg.formType,
                     googleSheetsUrl: (reg.googleSheetsUrl || '').trim(),
+                    allowCoupons: reg.allowCoupons !== false,
                     paymentQR: (reg.paymentQR || '').trim(),
                     paymentQRMessage: (reg.paymentQRMessage || '').trim(),
                     paymentUpiId: (reg.paymentUpiId || '').trim(),
@@ -641,6 +656,112 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                                 onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}
                             />
                         )}
+                    </div>
+
+                    {['internal_form', 'organizer_qr'].includes(reg.mode) && (
+                        <div className="rounded-xl border border-gray-700 bg-[#161718] p-4">
+                            <label className="flex cursor-pointer items-start gap-3">
+                                <input
+                                    type="checkbox"
+                                    checked={reg.allowCoupons !== false}
+                                    onChange={(e) => setReg({ allowCoupons: e.target.checked })}
+                                    className="mt-0.5 size-4 accent-[#0ECCEE]"
+                                />
+                                <span>
+                                    <span className="block text-sm font-medium text-gray-200">Allow promo codes</span>
+                                    <span className="mt-0.5 block text-[11px] leading-relaxed text-gray-500">
+                                        Show coupon entry and suggested offers during registration. Turn this off for events that should always use the configured package and add-on prices.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+                    )}
+
+                    <div className="space-y-3 rounded-xl border border-[#0ECCEE]/25 bg-[#161718] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-sm font-bold text-[#0ECCEE]">Optional add-ons</h3>
+                                <p className="mt-0.5 text-[11px] text-gray-500">
+                                    Shown after package selection and before payment. Each selected add-on is charged once per booking.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => set('addOns', [
+                                    ...(form.addOns || []),
+                                    createEmptyEventShowAddOn((form.addOns || []).length),
+                                ])}
+                                className="shrink-0 text-xs font-semibold text-[#0ECCEE] hover:underline"
+                            >
+                                + Add option
+                            </button>
+                        </div>
+                        {(form.addOns || []).map((addOn, idx) => (
+                            <div key={addOn.id || idx} className="space-y-3 rounded-xl border border-gray-700 bg-[#111213] p-3">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-semibold text-gray-300">Add-on {idx + 1}</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => set('addOns', (form.addOns || []).filter((_, i) => i !== idx))}
+                                        className="text-[10px] text-red-400 hover:underline"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <input
+                                        type="text"
+                                        value={addOn.name || ''}
+                                        onChange={(e) => {
+                                            const next = [...(form.addOns || [])];
+                                            next[idx] = { ...next[idx], name: e.target.value };
+                                            set('addOns', next);
+                                        }}
+                                        className={inp}
+                                        placeholder="Name, e.g. Experience Ride"
+                                    />
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={addOn.fee || ''}
+                                        onChange={(e) => {
+                                            const next = [...(form.addOns || [])];
+                                            next[idx] = { ...next[idx], fee: Math.max(0, Number(e.target.value) || 0) };
+                                            set('addOns', next);
+                                        }}
+                                        className={inp}
+                                        placeholder="Price ₹"
+                                    />
+                                </div>
+                                <input
+                                    type="text"
+                                    value={addOn.vehicles || ''}
+                                    onChange={(e) => {
+                                        const next = [...(form.addOns || [])];
+                                        next[idx] = { ...next[idx], vehicles: e.target.value };
+                                        set('addOns', next);
+                                    }}
+                                    className={inp}
+                                    placeholder="Cars / vehicles, e.g. Fronx & Gypsy"
+                                />
+                                <textarea
+                                    rows={3}
+                                    value={addOn.description || ''}
+                                    onChange={(e) => {
+                                        const next = [...(form.addOns || [])];
+                                        next[idx] = { ...next[idx], description: e.target.value };
+                                        set('addOns', next);
+                                    }}
+                                    className={`${inp} resize-none`}
+                                    placeholder="Describe this experience"
+                                />
+                            </div>
+                        ))}
+                        {(form.addOns || []).length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-gray-700 px-3 py-4 text-center text-xs text-gray-500">
+                                No add-ons configured.
+                            </p>
+                        ) : null}
                     </div>
 
                     {reg.mode === 'external_link' && (

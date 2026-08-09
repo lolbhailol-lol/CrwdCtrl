@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon, Footprints, Mountain, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon, Footprints, Mountain, CalendarDays, MapPinned } from 'lucide-react';
+import { isCampusHuntEnabled, CAMPUS_HUNT_PATHS } from '../../features/campus-hunt/config';
+import { fetchCampusHuntColleges } from '../../features/campus-hunt/services/campusHunt.api';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -40,6 +42,7 @@ export default function ProfileSidebar({
     const [trekCommunityEligible, setTrekCommunityEligible] = useState(false);
     const [eventOrganizerEligible, setEventOrganizerEligible] = useState(false);
     const [organizerAccessLoading, setOrganizerAccessLoading] = useState(false);
+    const [campusHuntLive, setCampusHuntLive] = useState(false);
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
 
@@ -52,6 +55,26 @@ export default function ProfileSidebar({
         setSidebarRevealReady(false);
         const revealTimer = window.setTimeout(() => setSidebarRevealReady(true), SKELETON_LOADING_MS);
         return () => window.clearTimeout(revealTimer);
+    }, [isOpen]);
+
+    // Campus Hunt Profile entry only when an admin enabled live leaderboard
+    useEffect(() => {
+        if (!isOpen || !isCampusHuntEnabled()) {
+            setCampusHuntLive(false);
+            return undefined;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetchCampusHuntColleges();
+                if (!cancelled) {
+                    setCampusHuntLive((res.data?.colleges || []).length > 0);
+                }
+            } catch {
+                if (!cancelled) setCampusHuntLive(false);
+            }
+        })();
+        return () => { cancelled = true; };
     }, [isOpen]);
 
     // Only admin-approved emails / approved organizers see Club manager / Trek community in Profile
@@ -140,6 +163,7 @@ export default function ProfileSidebar({
         'Help Center': '/help-center',
         Favourites: '/favorites',
         Notifications: '/notifications',
+        'Campus Hunt': CAMPUS_HUNT_PATHS.leaderboard,
     };
 
     const handleMenuItemClick = async (label) => {
@@ -211,8 +235,13 @@ export default function ProfileSidebar({
         onClose();
     };
 
+    const campusHuntItem = campusHuntLive
+        ? [{ icon: MapPinned, label: 'Campus Hunt', hint: 'Live college leaderboard' }]
+        : [];
+
     const menuItems = [
         { icon: User, label: 'Edit profile' },
+        ...campusHuntItem,
         ...(clubManagerEligible
             ? [{ icon: Footprints, label: 'Club manager', hint: 'Runs, guests, check-in & notify' }]
             : []),
@@ -232,6 +261,9 @@ export default function ProfileSidebar({
     // Mobile menu items - filtered based on authentication status
     const allMobileMenuItems = [
         { icon: User, label: 'Edit profile', requiresAuth: true },
+        ...(campusHuntLive
+            ? [{ icon: MapPinned, label: 'Campus Hunt', requiresAuth: false, hint: 'Live college leaderboard' }]
+            : []),
         ...(clubManagerEligible
             ? [{ icon: Footprints, label: 'Club manager', requiresAuth: true, hint: 'Runs, guests, check-in & notify' }]
             : []),

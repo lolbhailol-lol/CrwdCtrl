@@ -232,7 +232,6 @@ export default function EventDetailsPage() {
   const [expandedTierId, setExpandedTierId] = useState(null);
   const [selectingTierId, setSelectingTierId] = useState(null);
   const [openInfoRound, setOpenInfoRound] = useState({});
-  const [activeRound, setActiveRound] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -297,10 +296,6 @@ export default function EventDetailsPage() {
       setActiveTab(tabs[0].key);
     }
   }, [tabs, activeTab]);
-
-  useEffect(() => {
-    setActiveRound(0);
-  }, [event?.id]);
 
   const handleShare = async () => {
     const shareImage =
@@ -496,7 +491,7 @@ export default function EventDetailsPage() {
 
       <div className="mx-auto w-full md:max-w-2xl">
         {/* Hero — 5:4 matches admin “Event page top image” crop / Adjust */}
-        <div className="relative w-full aspect-[5/4] max-h-[28rem]">
+        <div className="relative w-full aspect-5/4 max-h-112">
           {event.image ? (
             <img
               src={
@@ -700,93 +695,81 @@ export default function EventDetailsPage() {
           {/* Competition-style stage boxes (Stage 1 / 2 / 3 / …) */}
           {hasCompetitionRounds && (
             <div className="mt-6">
-              <div className={`rounded-2xl p-4 ${sectionCard}`}>
+              <div>
                 <h2 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   Tournament Stages
                 </h2>
 
-                <div
-                  className="grid gap-1.5 sm:gap-2 mb-4"
-                  style={{ gridTemplateColumns: `repeat(${competitionRounds.length}, minmax(0, 1fr))` }}
-                >
-                  {competitionRounds.map((r, idx) => {
-                    const label = r.title || `Stage ${idx + 1}`;
-                    const selected = activeRound === idx;
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setActiveRound(idx)}
-                        className={`w-full min-w-0 py-2 sm:py-2.5 px-0.5 sm:px-1 rounded-xl text-[10px] sm:text-xs font-semibold transition leading-tight text-center ${
-                          selected
-                            ? `border-2 border-[#0ECCEE] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-cyan-50 text-gray-900'}`
-                            : isDark
-                              ? 'bg-[#1D1E20] text-gray-300 border border-transparent'
-                              : 'bg-gray-100 text-gray-700 border border-transparent'
-                        }`}
-                      >
-                        <span className="block whitespace-normal break-words">{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {(() => {
-                  const round = competitionRounds[activeRound] || competitionRounds[0];
-                  if (!round) return null;
-                  const lines = toLines(round.content);
-                  return (
-                    <div className={`rounded-xl p-4 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
-                      <h3 className={`font-bold text-base mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {round.title || `Stage ${activeRound + 1}`}
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  <section className={`min-w-0 rounded-2xl border p-3 ${
+                    isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'
+                  }`}>
+                    <div className={`rounded-xl px-3 py-2.5 mb-2 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}>
+                      <h3 className={`text-xs font-semibold sm:text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Packages
                       </h3>
-                      {lines.length > 0 ? (
-                        <ul className="space-y-2">
-                          {lines.map((item, i) => (
-                            <li
-                              key={i}
-                              className={`flex items-start gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                            >
-                              <span className="mt-1.5 size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                    </div>
+                    <div className="space-y-3 px-1 pt-1">
+                      {competitionRounds.map((round, idx) => {
+                        const lines = toLines(round.content);
+                        const roundTitle = round.title || `Stage ${idx + 1}`;
+                        const showRoundTitle = !/^info$/i.test(String(roundTitle).trim());
+                        return (
+                          <div key={idx}>
+                            {showRoundTitle ? (
+                              <h4 className={`text-xs font-semibold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {roundTitle}
+                              </h4>
+                            ) : null}
+                            {lines.length > 0 ? (
+                              <ul className="space-y-1.5">
+                                {lines.map((item, i) => (
+                                  <li key={i} className={`flex items-start gap-1.5 text-xs leading-snug ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    <span className="mt-1 size-1 rounded-full bg-[#0ECCEE] shrink-0" />
+                                    {item}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Details coming soon</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  {generalRuleBoxes.length > 0 && (
+                  <aside className={`min-w-0 rounded-2xl border p-3 ${
+                    isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'
+                  }`}>
+                    <div className={`rounded-xl px-3 py-2.5 mb-2 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}>
+                      <h3 className={`text-xs font-semibold sm:text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Instructions
+                      </h3>
+                    </div>
+                    <div className="space-y-3 px-1 pt-1">
+                    {generalRuleBoxes.map((box, idx) => (
+                      <div key={idx}>
+                        {!/^general(?: instructions?)?$/i.test(String(box.title || '').trim()) ? (
+                          <h4 className={`text-xs font-semibold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {box.title}
+                          </h4>
+                        ) : null}
+                        <ul className="space-y-1.5">
+                          {box.lines.map((item, i) => (
+                            <li key={i} className={`flex items-start gap-1.5 text-xs leading-snug ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              <span className="mt-1 size-1 rounded-full bg-[#0ECCEE] shrink-0" />
                               {item}
                             </li>
                           ))}
                         </ul>
-                      ) : (
-                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Details coming soon</p>
-                      )}
+                      </div>
+                    ))}
                     </div>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
-
-          {/* General Rules — 4 boxes below stages (competition-style) */}
-          {generalRuleBoxes.length > 0 && (
-            <div className="mt-6">
-              <h2 className={`text-lg font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                General Rules
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
-                {generalRuleBoxes.map((box, idx) => (
-                  <div key={idx} className={`rounded-2xl p-3.5 ${sectionCard}`}>
-                    <h3 className={`text-sm font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {box.title}
-                    </h3>
-                    <ul className="space-y-1.5">
-                      {box.lines.map((item, i) => (
-                        <li
-                          key={i}
-                          className={`flex items-start gap-1.5 text-xs leading-snug ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                        >
-                          <span className="mt-1 size-1 rounded-full bg-[#0ECCEE] shrink-0" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                  </aside>
+                  )}
+                </div>
               </div>
             </div>
           )}

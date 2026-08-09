@@ -26,9 +26,12 @@ export default function CrwdCtrlLogin({
     googleOnly = false,
     title = 'Continue with Google',
     subtitle = 'Sign in once — then you’re ready to book',
+    initialEmail = '',
+    loginWithEmail,
+    passwordOnly = false,
 }) {
     const [showPassword, setShowPassword] = useState(false);
-    const [emailOrPhone, setEmailOrPhone] = useState('');
+    const [emailOrPhone, setEmailOrPhone] = useState(initialEmail);
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState({});
@@ -37,6 +40,10 @@ export default function CrwdCtrlLogin({
     const navigate = useNavigate();
     const location = useLocation();
     const reduceMotion = useReducedMotion();
+
+    useEffect(() => {
+        if (initialEmail) setEmailOrPhone(initialEmail);
+    }, [initialEmail]);
 
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
@@ -49,15 +56,24 @@ export default function CrwdCtrlLogin({
     }, []);
 
     useEffect(() => {
-        if (!isModal) return;
+        // Honor ?redirect= when opened as a page (e.g. Campus Hunt deep links)
+        const redirectParam = new URLSearchParams(location.search).get('redirect');
+        const returnPath = redirectParam?.startsWith('/') ? redirectParam : undefined;
+
+        if (!isModal) {
+            if (returnPath) {
+                prepareLogin({ fromProfile: false, returnPath });
+            }
+            return;
+        }
         try {
             if (!sessionStorage.getItem('crwdctrl_login_context')) {
-                prepareLogin({ fromProfile: false });
+                prepareLogin({ fromProfile: false, returnPath });
             }
         } catch {
-            prepareLogin({ fromProfile: false });
+            prepareLogin({ fromProfile: false, returnPath });
         }
-    }, [isModal]);
+    }, [isModal, location.search]);
 
     // ✅ FIX: Redirect if user is already logged in (regular user)
     useEffect(() => {
@@ -112,9 +128,11 @@ export default function CrwdCtrlLogin({
         try {
             console.log('🔐 [LOGIN] Starting email/password login...');
             
-            const result = await authService.loginWithEmail(emailOrPhone.trim(), password, {
-                adminProbe: isAdminLogin,
-            });
+            const result = loginWithEmail
+                ? await loginWithEmail(emailOrPhone.trim(), password)
+                : await authService.loginWithEmail(emailOrPhone.trim(), password, {
+                    adminProbe: isAdminLogin,
+                });
 
             if (result.success) {
                 if (result.isAdmin) {
@@ -607,6 +625,8 @@ export default function CrwdCtrlLogin({
                         </button>
                     </form>
 
+                    {!passwordOnly && (
+                    <>
                     {/* Divider */}
                     <div className="relative my-3 sm:my-4">
                         <div className="absolute inset-0 flex items-center">
@@ -680,6 +700,8 @@ export default function CrwdCtrlLogin({
                             </button>
                         </p>
                     </div>
+                    </>
+                    )}
                     </>
                 </div>
             </div>

@@ -1,0 +1,499 @@
+import { userApiCall } from '../../../services/api/auth.api';
+import { adminFetchJSON } from '../../../services/api/admin.api';
+import { publicFetchJSON, resolveUrl } from '../../../services/api/client';
+
+const BASE = '/campus-hunt';
+
+async function userJson(url, options = {}) {
+  const response = await userApiCall(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(data.message || data.error || 'Request failed');
+    err.status = response.status;
+    err.code = data.code;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+export async function fetchCampusHuntStatus() {
+  return publicFetchJSON(`${BASE}/status`);
+}
+
+export async function fetchEventBySlug(slug) {
+  return publicFetchJSON(`${BASE}/events/by-slug/${encodeURIComponent(slug)}`);
+}
+
+/** Public team login card (names + login emails, no passwords) */
+export async function fetchTeamLoginCard(slug, teamCode) {
+  return publicFetchJSON(
+    `${BASE}/events/by-slug/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamCode)}`,
+  );
+}
+
+export async function loginTeamMember(slug, teamCode, email, password) {
+  const response = await publicFetchJSON(
+    `${BASE}/events/by-slug/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamCode)}/login`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    },
+  );
+  return {
+    success: true,
+    isAdmin: false,
+    user: response.data.user,
+    token: response.data.token,
+  };
+}
+
+export async function fetchMyTeam(eventId) {
+  return userJson(`${BASE}/me/team?eventId=${encodeURIComponent(eventId)}`);
+}
+
+export async function fetchTeamProgress(teamId) {
+  return userJson(`${BASE}/teams/${teamId}/progress`);
+}
+
+export async function submitChallengeAnswer(teamId, challengeNumber, answer, requestId) {
+  const path =
+    Number(challengeNumber) === 1
+      ? `${BASE}/teams/${teamId}/challenges/1/submit`
+      : `${BASE}/teams/${teamId}/challenges/${challengeNumber}/submit`;
+  return userJson(path, {
+    method: 'POST',
+    body: JSON.stringify({ answer, requestId }),
+  });
+}
+
+export async function requestChallengeHint(teamId, challengeNumber, requestId) {
+  return userJson(`${BASE}/teams/${teamId}/challenges/${challengeNumber}/hint`, {
+    method: 'POST',
+    body: JSON.stringify({ confirm: true, requestId }),
+  });
+}
+
+export async function scanStationCheckpoint(teamId, raw) {
+  return userJson(`${BASE}/teams/${teamId}/checkpoints/scan`, {
+    method: 'POST',
+    body: JSON.stringify({ raw }),
+  });
+}
+
+/** Local/dev only — requires 4 distinct roster members. Not available in production. */
+export async function forceUnlockClue2(teamId) {
+  if (!import.meta.env.DEV) {
+    throw new Error('Dev unlock is not available');
+  }
+  return userJson(`${BASE}/teams/${teamId}/dev/force-clue2`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function fetchLeaderboard(eventId) {
+  return userJson(`${BASE}/events/${eventId}/leaderboard`);
+}
+
+/** Public colleges + events for profile picker */
+export async function fetchCampusHuntColleges() {
+  return publicFetchJSON(`${BASE}/colleges`);
+}
+
+/** Public live leaderboard (no login required) */
+export async function fetchPublicLeaderboard(eventId) {
+  return publicFetchJSON(`${BASE}/events/${encodeURIComponent(eventId)}/leaderboard/public`);
+}
+
+/* Volunteer */
+const VOL_SESSION_KEY = 'campus_hunt_volunteer_session';
+
+export function saveVolunteerSession(session) {
+  sessionStorage.setItem(VOL_SESSION_KEY, JSON.stringify(session));
+}
+
+export function getVolunteerSession() {
+  try {
+    const raw = sessionStorage.getItem(VOL_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearVolunteerSession() {
+  sessionStorage.removeItem(VOL_SESSION_KEY);
+}
+
+async function volunteerFetch(path, { method = 'GET', body, token } = {}) {
+  const session = getVolunteerSession();
+  const auth = token || session?.token;
+  const res = await fetch(resolveUrl(`${BASE}/volunteer${path}`), {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
+    },
+    body: body != null ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Volunteer request failed');
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+export async function volunteerLogin({ eventId, code, password }) {
+  const data = await volunteerFetch('/login', {
+    method: 'POST',
+    body: { eventId, code, password },
+  });
+  if (data?.data?.token) {
+    saveVolunteerSession({
+      token: data.data.token,
+      volunteer: data.data.volunteer,
+    });
+  }
+  return data;
+}
+
+export async function volunteerMe() {
+  return volunteerFetch('/me');
+}
+
+export async function volunteerScanTeam(checkpointId, teamCode) {
+  return volunteerFetch(`/checkpoints/${checkpointId}/scan`, {
+    method: 'POST',
+    body: { teamCode },
+  });
+}
+
+export async function volunteerVerifyMember(checkpointId, { teamId, userId }) {
+  return volunteerFetch(`/checkpoints/${checkpointId}/verify-member`, {
+    method: 'POST',
+    body: { teamId, userId },
+  });
+}
+
+export async function volunteerComplete(checkpointId, teamId, reason) {
+  return volunteerFetch(`/checkpoints/${checkpointId}/complete`, {
+    method: 'POST',
+    body: { teamId, reason },
+  });
+}
+
+export async function volunteerReportIssue(payload) {
+  return volunteerFetch('/issues', { method: 'POST', body: payload });
+}
+
+/* Admin */
+export async function adminListEvents() {
+  return adminFetchJSON(`${BASE}/admin/events`);
+}
+
+export async function adminCreateEvent(body) {
+  return adminFetchJSON(`${BASE}/admin/events`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminUpdateEvent(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminDeleteEvent(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function adminGetOverview(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/overview`);
+}
+
+export async function adminCreateRound(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/rounds`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminLiveTeams(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/live-teams`);
+}
+
+export async function adminLeaderboard(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/leaderboard`);
+}
+
+export async function adminCheckpointMonitor(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/checkpoint-monitor`);
+}
+
+export async function adminChallengeMonitor(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/challenge-monitor`);
+}
+
+export async function adminListIssues(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/issues`);
+}
+
+export async function adminListAudit(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/audit`);
+}
+
+export async function adminStartRound(roundId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/start`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminLockRound(roundId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/lock`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminReopenRound(roundId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/reopen`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminFinalizeLeaderboard(roundId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/finalize-leaderboard`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminCreateTeam(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminUpdateTeam(teamId, body) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminDeleteTeam(teamId) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function adminBulkCreateTeams(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams/bulk`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminListTeams(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams`);
+}
+
+export async function adminGetTeam(teamId) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}`);
+}
+
+export async function adminListStartingPoints(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/starting-points`);
+}
+
+export async function adminCreateStartingPoint(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/starting-points`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminUpdateStartingPoint(startingPointId, body) {
+  return adminFetchJSON(`${BASE}/admin/starting-points/${startingPointId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminDeleteStartingPoint(startingPointId) {
+  return adminFetchJSON(`${BASE}/admin/starting-points/${startingPointId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function adminPreviewStartSchedule(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/start-schedule/preview`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminGenerateStartSchedule(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/start-schedule/generate`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminLockStartSchedule(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/start-schedule/lock`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminGetStartDashboard(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/start-dashboard`);
+}
+
+export async function adminSetRoundReleasesPaused(roundId, paused, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/releases/${paused ? 'pause' : 'resume'}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminSetStartingPointPaused(startingPointId, paused, body = {}) {
+  return adminFetchJSON(
+    `${BASE}/admin/starting-points/${startingPointId}/${paused ? 'pause' : 'resume'}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function adminReleaseTeam(teamId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/release`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminRevealTeamAccess(teamId) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/reveal-access`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: 'Admin reveal from team manager' }),
+  });
+}
+
+export async function adminListRoutes(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/routes`);
+}
+
+export async function adminListChallenges(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/challenges`);
+}
+
+export async function adminUpsertChallenge(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/challenges`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminListCheckpoints(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/checkpoints`);
+}
+
+export async function adminListVolunteers(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/volunteers`);
+}
+
+export async function adminCreateVolunteer(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/volunteers`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminUpsertCheckpoint(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/checkpoints`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminCreateRoute(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/routes`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminUpdateRoute(routeId, body) {
+  return adminFetchJSON(`${BASE}/admin/routes/${routeId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminAutoAssignRoutes(eventId, rebalance = false) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/routes/auto-assign`, {
+    method: 'POST',
+    body: JSON.stringify({ rebalance }),
+  });
+}
+
+export async function adminUpdateIssue(issueId, body) {
+  return adminFetchJSON(`${BASE}/admin/issues/${issueId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminSetCheckpointActive(checkpointId, active, body = {}) {
+  return adminFetchJSON(
+    `${BASE}/admin/checkpoints/${checkpointId}/${active ? 'enable' : 'disable'}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ ...body, active }),
+    },
+  );
+}
+
+export async function adminRotateCheckpointQr(checkpointId, reason) {
+  return adminFetchJSON(`${BASE}/admin/checkpoints/${checkpointId}/rotate-qr`, {
+    method: 'POST',
+    body: JSON.stringify({ confirm: true, reason }),
+  });
+}
+
+export async function adminUpdateCheckpoint(checkpointId, body) {
+  return adminFetchJSON(`${BASE}/admin/checkpoints/${checkpointId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+/** Station QR payloads + short paste codes (ops / production camera fallback) */
+export async function adminListStationQr(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/station-qr`);
+}
+
+export async function adminLookupUser(email) {
+  return adminFetchJSON(`${BASE}/admin/users/lookup?email=${encodeURIComponent(email)}`);
+}
+
+export async function volunteerScanRaw(checkpointId, raw) {
+  return volunteerFetch(`/checkpoints/${checkpointId}/scan`, {
+    method: 'POST',
+    body: { raw },
+  });
+}

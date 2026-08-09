@@ -28,6 +28,7 @@ export const FEATURES = {
     NOTIFICATIONS: import.meta.env.VITE_ENABLE_NOTIFICATIONS === 'true',
     DARK_MODE: import.meta.env.VITE_ENABLE_DARK_MODE === 'true',
     FAVORITES: import.meta.env.VITE_ENABLE_FAVORITES === 'true',
+    CAMPUS_HUNT: import.meta.env.VITE_ENABLE_CAMPUS_HUNT === 'true',
 };
 
 // File Upload Configuration

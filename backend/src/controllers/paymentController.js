@@ -29,7 +29,11 @@ const { extractPaymentFields } = require('../utils/paymentVerification');
 const { signPaymentProof } = require('../utils/paymentProof');
 const { validateAndPriceCoupon } = require('../utils/couponPricing');
 const { findByIdOrSlug } = require('../utils/slug');
-const { resolveSportsTicketTotal, resolveSportsPerPersonFee } = require('../utils/sportsPricing');
+const {
+  resolveSportsTicketTotal,
+  resolveSportsPerPersonFee,
+  resolveEventAddOns,
+} = require('../utils/sportsPricing');
 const {
   extractEntityId,
   findReusablePendingOrder,
@@ -63,7 +67,15 @@ const respondCashfreeError = (res, err, fallbackMessage) => {
   });
 };
 
-const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId, notes = {}, tierId } = {}) => {
+const resolvePricedEntity = async ({
+  eventId,
+  competitionId,
+  festId,
+  eventShowId,
+  notes = {},
+  tierId,
+  selectedAddOnIds,
+} = {}) => {
   const resolvedEventId = eventId || notes.eventId;
   const resolvedCompetitionId = competitionId || notes.competitionId;
   const resolvedFestId = festId || notes.festId;
@@ -73,7 +85,7 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
   if (resolvedEventShowId) {
     const eventShow = await findByIdOrSlug(EventShow, resolvedEventShowId, {
       pickName: (row) => row.title || row.displayName || '',
-      select: 'title ticketPrice platformFeePercent pricingMode tiers registration.mode',
+      select: 'title ticketPrice platformFeePercent pricingMode tiers addOns registration.mode registration.allowCoupons',
       lean: true,
     });
     if (!eventShow) return null;
@@ -89,6 +101,9 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
       tier = priced.tier;
     }
 
+    const addOns = resolveEventAddOns(eventShow, selectedAddOnIds || notes.selectedAddOnIds || []);
+    const packagePrice = ticketPrice;
+    ticketPrice += addOns.total;
     const isOrganizerQr = (eventShow.registration?.mode || '') === 'organizer_qr';
     return {
       entityType: 'event_show',
@@ -99,6 +114,10 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
       notes: {
         eventShowId: String(eventShow._id),
         registrationMode: eventShow.registration?.mode || 'internal_form',
+        allowCoupons: eventShow.registration?.allowCoupons !== false,
+        packagePrice,
+        selectedAddOnIds: addOns.selected.map((addOn) => addOn.id),
+        selectedAddOns: addOns.selected,
         ...(tier ? { tierId: tier.id, tierName: tier.name } : {}),
       },
     };
@@ -147,7 +166,16 @@ const resolvePricedEntity = async ({ eventId, competitionId, festId, eventShowId
 };
 
 const getPricingForRequest = async (req) => {
-  const { eventId, competitionId, festId, eventShowId, notes = {}, couponCode, tierId } = req.body;
+  const {
+    eventId,
+    competitionId,
+    festId,
+    eventShowId,
+    notes = {},
+    couponCode,
+    tierId,
+    selectedAddOnIds,
+  } = req.body;
   let pricedEntity;
   try {
     pricedEntity = await resolvePricedEntity({
@@ -157,6 +185,7 @@ const getPricingForRequest = async (req) => {
       eventShowId,
       notes,
       tierId,
+      selectedAddOnIds,
     });
   } catch (e) {
     if (e.status) {
@@ -175,7 +204,7 @@ const getPricingForRequest = async (req) => {
       : buildPriceBreakdown(pricedEntity.ticketPrice);
 
   const coupon = await validateAndPriceCoupon({
-    couponCode,
+    couponCode: pricedEntity.notes?.allowCoupons === false ? '' : couponCode,
     entityType: pricedEntity.entityType,
     userId: req.user?.userId || null,
     amountBeforeDiscount: breakdown.totalAmount,
@@ -315,6 +344,9 @@ exports.validateCoupon = async (req, res) => {
 
     const pricing = await getPricingForRequest({ body: req.body, user: req.user });
     if (!pricing) return res.status(404).json({ message: 'Paid event not found' });
+    if (pricing.notes?.allowCoupons === false && String(couponCode || '').trim()) {
+      return res.status(400).json({ message: 'Promo codes are not available for this event.' });
+    }
     const coupon = await validateAndPriceCoupon({
       couponCode,
       entityType: pricing.entityType,

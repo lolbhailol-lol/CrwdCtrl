@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -16,6 +16,9 @@ const apiLimiter = rateLimit({
   skip: (req) => {
     const path = String(req.path || '');
     if (path === '/health' || path === '/ready' || path === '/' || path === '/keep-alive' || path === '/status') return true;
+    // Campus Hunt has route-specific identity/team/admin limiters. A shared college
+    // NAT plus release-boundary polling would otherwise exhaust this IP bucket.
+    if (path.startsWith('/campus-hunt/')) return true;
     // Public detail GETs — viral shared run/trek links must not 429 as "not found"
     if (req.method === 'GET') {
       if (/^\/sports\/[^/]+$/.test(path)) return true;
@@ -40,6 +43,27 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, message: 'Too many login attempts, please try again later.' },
 });
+
+/** Campus Hunt team login — isolate predictable team URLs on shared campus NAT. */
+const campusHuntLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 100 : Number(process.env.CAMPUS_HUNT_LOGIN_RATE_LIMIT_MAX) || 20,
+  keyGenerator: (req) => [
+    String(req.params?.slug || '').toLowerCase(),
+    String(req.params?.teamCode || '').toUpperCase(),
+    ipKeyGenerator(req.ip),
+  ].join(':'),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many login attempts for this team. Please wait.' },
+});
+
+function huntIdentityKey(req) {
+  const userId = req.user?.userId;
+  return userId
+    ? `${String(req.params?.teamId || 'team')}:${String(userId)}`
+    : ipKeyGenerator(req.ip);
+}
 
 /** Admin login — stricter than user auth */
 const adminAuthLimiter = rateLimit({
@@ -100,13 +124,67 @@ const stallLeadLimiter = rateLimit({
   message: { success: false, message: 'Too many submissions right now. Please wait a few seconds and try again.' },
 });
 
+/** Campus Hunt — answer submissions */
+const campusHuntAnswerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 300 : 120,
+  keyGenerator: huntIdentityKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many answer submissions. Please slow down.' },
+});
+
+/** Campus Hunt — hint requests */
+const campusHuntHintLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 100 : 40,
+  keyGenerator: huntIdentityKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many hint requests. Please slow down.' },
+});
+
+/** Campus Hunt — volunteer checkpoint verification */
+const campusHuntVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 1000 : Number(process.env.CAMPUS_HUNT_VERIFY_RATE_LIMIT_MAX) || 600,
+  keyGenerator: huntIdentityKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many verification attempts. Please slow down.' },
+});
+
+/** Campus Hunt — volunteer login */
+const campusHuntVolunteerLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 80 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many volunteer login attempts.' },
+});
+
+/** Campus Hunt — admin mutations */
+const campusHuntAdminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many admin requests.' },
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
+  campusHuntLoginLimiter,
   adminAuthLimiter,
   paymentLimiter,
   competitionRegisterLimiter,
   registrationLimiter,
   scannerCheckinLimiter,
   stallLeadLimiter,
+  campusHuntAnswerLimiter,
+  campusHuntHintLimiter,
+  campusHuntVerifyLimiter,
+  campusHuntVolunteerLoginLimiter,
+  campusHuntAdminLimiter,
 };

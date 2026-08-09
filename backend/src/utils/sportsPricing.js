@@ -120,6 +120,41 @@ function resolveOptionalAddOn(event) {
     return { label, fee };
 }
 
+function sanitizeEventAddOns(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+        .map((addOn, index) => ({
+            id: String(addOn?.id || `addon_${index}`).trim(),
+            name: String(addOn?.name || addOn?.label || '').trim(),
+            description: String(addOn?.description || '').trim(),
+            vehicles: String(addOn?.vehicles || '').trim(),
+            fee: Math.max(0, Number(addOn?.fee) || 0),
+            enabled: addOn?.enabled !== false,
+            order: Number.isFinite(Number(addOn?.order)) ? Number(addOn.order) : index,
+        }))
+        .filter((addOn) => addOn.enabled && addOn.id && addOn.name)
+        .map((addOn, index) => ({ ...addOn, order: index }));
+}
+
+function resolveEventAddOns(event, selectedIds = []) {
+    const requested = new Set(
+        (Array.isArray(selectedIds) ? selectedIds : [selectedIds])
+            .map((id) => String(id || '').trim())
+            .filter(Boolean),
+    );
+    const available = sanitizeEventAddOns(event?.addOns);
+    const selected = available.filter((addOn) => requested.has(addOn.id));
+    if (selected.length !== requested.size) {
+        const err = new Error('One or more selected add-ons are unavailable.');
+        err.status = 400;
+        throw err;
+    }
+    return {
+        selected,
+        total: selected.reduce((sum, addOn) => sum + addOn.fee, 0),
+    };
+}
+
 /**
  * Ticket subtotal before platform fee / coupons.
  * Add-on (if enabled + selected) is charged per person.
@@ -218,5 +253,7 @@ module.exports = {
     resolveOptionalAddOn,
     resolveSportsTicketTotal,
     sanitizeOptionalAddOn,
+    sanitizeEventAddOns,
+    resolveEventAddOns,
     mirrorRegistrationFeeFromTiers,
 };

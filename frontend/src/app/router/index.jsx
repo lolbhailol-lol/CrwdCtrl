@@ -5,6 +5,7 @@ import { trekOrganizerRoutes } from './trekOrganizerRoutes';
 import { festOrganizerRoutes } from './festOrganizerRoutes';
 import { runClubOrganizerRoutes } from './runClubOrganizerRoutes';
 import { eventOrganizerRoutes } from './eventOrganizerRoutes';
+import { campusHuntRoutes } from './campusHuntRoutes';
 
 /** Route elements for use inside <Routes> — must be JSX, not a wrapper component. */
 export const appRoutes = (
@@ -15,6 +16,7 @@ export const appRoutes = (
     {festOrganizerRoutes}
     {runClubOrganizerRoutes}
     {eventOrganizerRoutes}
+    {campusHuntRoutes}
     {adminRoutes}
   </>
 );

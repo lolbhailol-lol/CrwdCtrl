@@ -119,3 +119,13 @@ export const FestOrganizerRevenuePage = lazyWithRetry(() => import('../../pages/
 export const FestOrganizerInfoPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerInfoPage'));
 export const FestStallInterestPage = lazyWithRetry(() => import('../../pages/stall/FestStallInterestPage'));
 export const FestOrganizerLeadsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerLeadsPage'));
+
+export const CampusHuntLandingPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLandingPage'));
+export const CampusHuntPlayPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntPlayPage'));
+export const CampusHuntTeamLoginPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntTeamLoginPage'));
+export const CampusHuntLeaderboardPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLeaderboardPage'));
+export const VolunteerLoginPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/VolunteerLoginPage'));
+export const VolunteerCheckpointPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/VolunteerCheckpointPage'));
+export const CampusHuntAdminDashboard = lazyWithRetry(() => import('../../features/campus-hunt/admin/CampusHuntAdminDashboard'));
+export const CampusHuntEventControl = lazyWithRetry(() => import('../../features/campus-hunt/admin/CampusHuntEventControl'));
+

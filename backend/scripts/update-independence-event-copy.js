@@ -163,6 +163,26 @@ Race car Trackday packages available on request (contact)`);
   ];
 
   const bloodOptions = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Prefer not to say'];
+  const addOns = [
+    {
+      id: 'experience_ride',
+      name: 'Experience Ride',
+      description: 'Get to experience a live race car with a professional racing driver on a track. One entire lap of adrenaline rushing in as you accelerate on the start line.',
+      vehicles: 'Fronx & Gypsy',
+      fee: 1500,
+      enabled: true,
+      order: 0,
+    },
+    {
+      id: 'rent_and_drive',
+      name: 'Rent & Drive',
+      description: "Whether you are a seasoned racer or a beginner, our winning race vehicles will amaze both. Get behind the wheel and don't worry about anything — just you, the track and a roaring machine.",
+      vehicles: 'Esteem',
+      fee: 2000,
+      enabled: true,
+      order: 1,
+    },
+  ];
 
   const registration = {
     status: 'open',
@@ -240,6 +260,7 @@ Race car Trackday packages available on request (contact)`);
       },
     ],
     googleSheetsUrl: '',
+    allowCoupons: false,
   };
 
   const updated = await EventShow.findByIdAndUpdate(
@@ -257,6 +278,7 @@ Race car Trackday packages available on request (contact)`);
         venue: 'Deccan Ring, Pune',
         pricingMode: 'tiers',
         tiers,
+        addOns,
         ticketPrice: 0,
         platformFeePercent: 0,
         registration,
@@ -269,6 +291,7 @@ Race car Trackday packages available on request (contact)`);
   console.log('Updated', updated.title);
   console.log('organizer', updated.organizer);
   console.log('tiers', (updated.tiers || []).map((t) => `${t.id} · ₹${t.fee} · drivers=${t.participantCount}`));
+  console.log('add-ons', (updated.addOns || []).map((a) => `${a.name} · ₹${a.fee} · ${a.vehicles}`));
   console.log('registration steps', (updated.registration?.steps || []).map((s) => s.stepTitle));
   console.log('flag time ok?', /9:00 AM/.test(updated.process || ''));
   const blob = [updated.description, updated.whatsIncluded, updated.generalRules, updated.eligibility].join('\n');

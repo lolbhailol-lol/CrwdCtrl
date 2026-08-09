@@ -67,6 +67,8 @@ const eventRegistrationSchema = new mongoose.Schema(
         steps: { type: [eventFormStepSchema], default: [] },
         /** Organiser's Google Sheet — registrations auto-append here after payment */
         googleSheetsUrl: { type: String, trim: true, default: '' },
+        /** Whether coupon entry and suggested promo codes are available for this event. */
+        allowCoupons: { type: Boolean, default: true },
         /** Organizer UPI / payment QR image URL (organizer_qr mode) */
         paymentQR: { type: String, trim: true, default: '' },
         paymentQRMessage: { type: String, trim: true, default: '' },
@@ -133,6 +135,16 @@ const eventShowSchema = new mongoose.Schema(
             /** How many drivers/participants need personal details for this package */
             participantCount: { type: Number, default: 1, min: 1, max: 10 },
             inclusions: { type: [String], default: [] },
+            order: { type: Number, default: 0 },
+        }],
+        /** Optional experiences selected after a package and before payment. Fees are per booking. */
+        addOns: [{
+            id: { type: String, trim: true, default: '' },
+            name: { type: String, trim: true, default: '' },
+            description: { type: String, trim: true, default: '' },
+            vehicles: { type: String, trim: true, default: '' },
+            fee: { type: Number, default: 0, min: 0 },
+            enabled: { type: Boolean, default: true },
             order: { type: Number, default: 0 },
         }],
         /** Platform fee % added on top of ticket price at checkout (e.g. 2.5 = ₹25 on ₹1000). */

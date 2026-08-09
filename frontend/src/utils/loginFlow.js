@@ -1,8 +1,10 @@
 const LOGIN_CONTEXT_KEY = 'crwdctrl_login_context';
 
 /** Save intent before opening the login modal. */
-export function prepareLogin({ fromProfile = false } = {}) {
-    const returnPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+export function prepareLogin({ fromProfile = false, returnPath: explicitReturnPath } = {}) {
+    const returnPath =
+        explicitReturnPath
+        || `${window.location.pathname}${window.location.search}${window.location.hash}`;
     try {
         sessionStorage.setItem(
             LOGIN_CONTEXT_KEY,

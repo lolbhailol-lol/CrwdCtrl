@@ -22,6 +22,7 @@ import {
   EventOrganizersPage,
 } from './lazyPages';
 import { adminTheatreRedirect } from './redirects';
+import { campusHuntAdminChildRoutes } from './campusHuntRoutes';
 
 export const adminRoutes = (
   <Route
@@ -51,5 +52,6 @@ export const adminRoutes = (
       <Route path="page-sections" element={<PageSectionsPage />} />
       <Route path="coupons" element={<CouponsPage />} />
       <Route path="notifications" element={<AdminNotificationsPage />} />
+      {campusHuntAdminChildRoutes()}
     </Route>
 );
