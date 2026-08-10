@@ -1,13 +1,60 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'node:fs'
+import path from 'node:path'
+
+/** Inject VITE_FIREBASE_* into public/firebase-messaging-sw.js (no hardcoded keys in source). */
+function firebaseMessagingSwEnvPlugin() {
+  const fileName = 'firebase-messaging-sw.js'
+  let resolvedMode = 'production'
+  const inject = (source, env) => source
+    .replaceAll('__VITE_FIREBASE_API_KEY__', env.VITE_FIREBASE_API_KEY || '')
+    .replaceAll('__VITE_FIREBASE_AUTH_DOMAIN__', env.VITE_FIREBASE_AUTH_DOMAIN || '')
+    .replaceAll('__VITE_FIREBASE_PROJECT_ID__', env.VITE_FIREBASE_PROJECT_ID || '')
+    .replaceAll('__VITE_FIREBASE_STORAGE_BUCKET__', env.VITE_FIREBASE_STORAGE_BUCKET || '')
+    .replaceAll('__VITE_FIREBASE_MESSAGING_SENDER_ID__', env.VITE_FIREBASE_MESSAGING_SENDER_ID || '')
+    .replaceAll('__VITE_FIREBASE_APP_ID__', env.VITE_FIREBASE_APP_ID || '')
+
+  return {
+    name: 'firebase-messaging-sw-env',
+    configResolved(config) {
+      resolvedMode = config.mode
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith(`/${fileName}`)) return next()
+        try {
+          const env = loadEnv(server.config.mode, server.config.root, 'VITE_')
+          const template = fs.readFileSync(
+            path.join(server.config.root, 'public', fileName),
+            'utf8',
+          )
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+          res.setHeader('Service-Worker-Allowed', '/')
+          res.end(inject(template, env))
+        } catch (err) {
+          next(err)
+        }
+      })
+    },
+    closeBundle() {
+      const outDir = path.resolve(process.cwd(), 'dist', fileName)
+      if (!fs.existsSync(outDir)) return
+      const env = loadEnv(resolvedMode, process.cwd(), 'VITE_')
+      const current = fs.readFileSync(outDir, 'utf8')
+      fs.writeFileSync(outDir, inject(current, env), 'utf8')
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
+    firebaseMessagingSwEnvPlugin(),
     VitePWA({
       // We'll register the SW in `src/main.jsx` to control update behavior.
       injectRegister: null,

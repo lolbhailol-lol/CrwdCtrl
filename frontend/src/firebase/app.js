@@ -3,18 +3,19 @@ import { getAnalytics } from "firebase/analytics";
 import { getPerformance } from "firebase/performance";
 import { getAuth } from "firebase/auth";
 import { isNativeApp } from "../utils/capacitorPlatform";
+import { safeConsoleLog, safeConsoleWarn } from "../utils/safeLog";
 
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID ,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID 
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
+// Initialize Firebase — never console.log(firebaseConfig) (exposes apiKey)
 const app = initializeApp(firebaseConfig);
 let analytics = null;
 // Skip Firebase Analytics on web when gtag.js (GA4) is configured in index.html,
@@ -37,10 +38,10 @@ try {
     const perfEnabled = import.meta.env.PROD || import.meta.env.VITE_ENABLE_PERFORMANCE === 'true';
     if (perfEnabled && !isNativeApp() && typeof window !== 'undefined') {
         performance = getPerformance(app);
-        console.log('✅ Firebase Performance Monitoring initialized');
+        safeConsoleLog('Firebase Performance Monitoring initialized');
     }
 } catch (err) {
-    console.warn('⚠️ Firebase Performance not available:', err?.message || err);
+    safeConsoleWarn('Firebase Performance not available:', err);
 }
 
 export { app, auth, analytics, performance };

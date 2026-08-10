@@ -11,6 +11,7 @@ import { isNativeApp } from '../utils/capacitorPlatform';
 import { markFreshLogin } from '../utils/notificationPrompt';
 import { hasUsableAuthToken, isTokenExpired, isBackendUserJwt, isAuthFailureMessage } from '../utils/authToken';
 import { refreshUserSession } from '../services/api/auth.api';
+import { safeConsoleError, safeConsoleLog, safeConsoleWarn } from '../utils/safeLog';
 
 const AuthContext = createContext();
 
@@ -75,7 +76,7 @@ export const AuthProvider = ({ children }) => {
                 return { user: refreshed.user, token: refreshed.token };
             }
         } catch (err) {
-            console.warn('Session refresh failed:', err?.message || err);
+            safeConsoleWarn('Session refresh failed:', err?.message || err);
             // Network / server blips must not force logout — keep the JWT for retry.
             if (!isAuthFailureMessage(err?.message)) return restored;
         }
@@ -93,10 +94,10 @@ export const AuthProvider = ({ children }) => {
 
     // ✅ FIREBASE AUTH STATE LISTENER (HANDLES REDIRECT COMPLETION ON MOBILE)
     useEffect(() => {
-        console.log('🔥 Setting up Firebase auth state listener (redirect-first)...');
+        safeConsoleLog('🔥 Setting up Firebase auth state listener (redirect-first)...');
         
         const unsubscribe = onAuthStateChange(async (firebaseUser) => {
-            console.log('🔐 Firebase auth state changed:', firebaseUser ? `${firebaseUser.email} (${firebaseUser.uid})` : 'No user');
+            safeConsoleLog('🔐 Firebase auth state changed:', firebaseUser ? `${firebaseUser.email} (${firebaseUser.uid})` : 'No user');
 
             // Explicit logout — never resurrect session from Firebase null / storage race
             if (logoutInProgressRef.current) {
@@ -124,12 +125,12 @@ export const AuthProvider = ({ children }) => {
             const hasUsableSession = !!currentUser && hasUsableAuthToken(currentToken);
             if (firebaseUser && !hasUsableSession && !processing) {
                 if (isNativeAuthInProgress()) {
-                    console.log('⏭️ Skipping auth listener sync — native login handler active');
+                    safeConsoleLog('⏭️ Skipping auth listener sync — native login handler active');
                     return;
                 }
-                console.log('🔄 Firebase user exists but no local session - restoring...');
+                safeConsoleLog('🔄 Firebase user exists but no local session - restoring...');
                 if (hasPendingRedirect) {
-                    console.log('📱 This appears to be from a mobile OAuth redirect!');
+                    safeConsoleLog('📱 This appears to be from a mobile OAuth redirect!');
                 }
                 
                 setIsAuthProcessing(true);
@@ -148,7 +149,7 @@ export const AuthProvider = ({ children }) => {
                         provider = 'email';
                     }
                     
-                    console.log('🔍 Provider detected for session restoration:', provider);
+                    safeConsoleLog('🔍 Provider detected for session restoration:', provider);
                     
                     // For social auth users, sync with backend
                     if (provider === 'google' || provider === 'facebook') {
@@ -158,7 +159,7 @@ export const AuthProvider = ({ children }) => {
                         );
                         
                         try {
-                            console.log('🔄 Syncing Firebase user with backend...');
+                            safeConsoleLog('🔄 Syncing Firebase user with backend...');
                             const data = await authAPI.socialAuth(socialAuthData);
                             
                             // Restore session with backend data
@@ -171,19 +172,19 @@ export const AuthProvider = ({ children }) => {
                             setToken(userData.token);
                             persistAuthSession(userData, userData.token);
                             
-                            console.log('✅ Session restored from Firebase user');
+                            safeConsoleLog('✅ Session restored from Firebase user');
                             
                         } catch (backendError) {
-                            console.error('❌ Backend sync failed:', backendError.message);
+                            safeConsoleError('❌ Backend sync failed:', backendError.message);
                             // Keep any existing backend JWT — don't wipe a still-valid web session
                             // just because social re-sync failed once (network/cold start).
                             const kept = await tryRefreshStoredSession(restoreSessionFromStorage());
                             if (kept?.user && kept?.token) {
                                 setUser(kept.user);
                                 setToken(kept.token);
-                                console.log('⚠️ Kept stored backend session after social sync failure');
+                                safeConsoleLog('⚠️ Kept stored backend session after social sync failure');
                             } else {
-                                console.log('🔐 No usable backend session — user must sign in again');
+                                safeConsoleLog('🔐 No usable backend session — user must sign in again');
                                 setUser(null);
                                 setToken(null);
                                 clearAuthSession();
@@ -194,13 +195,13 @@ export const AuthProvider = ({ children }) => {
                         if (restored?.user && restored?.token) {
                             setUser(restored.user);
                             setToken(restored.token);
-                            console.log('✅ Session restored from storage for email user');
+                            safeConsoleLog('✅ Session restored from storage for email user');
                         } else {
-                            console.log('ℹ️ Email user — no stored backend session');
+                            safeConsoleLog('ℹ️ Email user — no stored backend session');
                         }
                     }
                 } catch (error) {
-                    console.error('❌ Error restoring session from Firebase user:', error);
+                    safeConsoleError('❌ Error restoring session from Firebase user:', error);
                 } finally {
                     setIsAuthProcessing(false);
                 }
@@ -209,7 +210,7 @@ export const AuthProvider = ({ children }) => {
                 // null — but never resurrect a session after explicit logout cleared storage.
                 const session = restoreSessionFromStorage();
                 if (!session?.token) {
-                    console.log('🧹 No stored session (logout or wiped) — clearing in-memory auth');
+                    safeConsoleLog('🧹 No stored session (logout or wiped) — clearing in-memory auth');
                     clearLocalSession();
                     return;
                 }
@@ -217,16 +218,16 @@ export const AuthProvider = ({ children }) => {
                 if (kept?.user && kept?.token) {
                     setUser(kept.user);
                     setToken(kept.token);
-                    console.log('ℹ️ Kept backend session despite no Firebase user');
+                    safeConsoleLog('ℹ️ Kept backend session despite no Firebase user');
                 } else {
-                    console.log('🧹 Stored session unusable after Firebase signed out');
+                    safeConsoleLog('🧹 Stored session unusable after Firebase signed out');
                     clearLocalSession();
                 }
             }
         });
 
         return () => {
-            console.log('🔥 Cleaning up Firebase auth state listener');
+            safeConsoleLog('🔥 Cleaning up Firebase auth state listener');
             unsubscribe();
         };
     // Stable listener — read latest user/token via refs (avoids re-subscribe races)
@@ -239,14 +240,14 @@ export const AuthProvider = ({ children }) => {
         const initializeAuth = async () => {
             if (authInitialized) return;
             
-            console.log('🚀 Initializing authentication (mobile-optimized)...');
-            console.log('📱 User Agent:', navigator.userAgent.substring(0, 80));
+            safeConsoleLog('🚀 Initializing authentication (mobile-optimized)...');
+            safeConsoleLog('📱 User Agent:', navigator.userAgent.substring(0, 80));
             
             try {
                 // ✅ CRITICAL: Wait for Firebase to be fully initialized first
-                console.log('⏳ Waiting for Firebase to be ready...');
+                safeConsoleLog('⏳ Waiting for Firebase to be ready...');
                 await firebaseReady;
-                console.log('✅ Firebase is ready');
+                safeConsoleLog('✅ Firebase is ready');
 
                 // Capacitor native apps use native Google Sign-In — never OAuth redirect flow
                 if (isNativeApp()) {
@@ -256,7 +257,7 @@ export const AuthProvider = ({ children }) => {
                         if (restored) {
                             setUser(restored.user);
                             setToken(restored.token);
-                            console.log('✅ Session restored from storage:', restored.user.email);
+                            safeConsoleLog('✅ Session restored from storage:', restored.user.email);
                         }
                     }
                     setIsRedirectProcessing(false);
@@ -265,7 +266,7 @@ export const AuthProvider = ({ children }) => {
                 
                 // ✅ CRITICAL FOR MOBILE WEB: Check for redirect result FIRST before checking localStorage
                 // On mobile, after Google OAuth redirect, this is the ONLY way to get the user
-                console.log('🔍 Checking for pending redirect result (CRITICAL for mobile OAuth)...');
+                safeConsoleLog('🔍 Checking for pending redirect result (CRITICAL for mobile OAuth)...');
                 const isMobile = /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
                 const pendingRedirect = hasPendingOAuthRedirect() || hasAuthCallbackParams();
 
@@ -281,8 +282,8 @@ export const AuthProvider = ({ children }) => {
                 const result = await handleRedirectResult();
                 
                 if (result && result.success && result.user) {
-                    console.log('✅ REDIRECT RESULT FOUND (Mobile OAuth Success):', result.user.email);
-                    console.log('📱 This means user successfully signed in via Google redirect on mobile');
+                    safeConsoleLog('✅ REDIRECT RESULT FOUND (Mobile OAuth Success):', result.user.email);
+                    safeConsoleLog('📱 This means user successfully signed in via Google redirect on mobile');
                     
                     // Handle redirect result (mobile OAuth completion)
                     const providerData = result.user.providerData?.[0];
@@ -295,7 +296,7 @@ export const AuthProvider = ({ children }) => {
                         provider = 'facebook';
                     }
                     
-                    console.log('🔍 Provider from redirect:', provider);
+                    safeConsoleLog('🔍 Provider from redirect:', provider);
                     
                     // Process user data for backend
                     const socialAuthData = await withFirebaseIdToken(
@@ -304,7 +305,7 @@ export const AuthProvider = ({ children }) => {
                     );
                     
                     try {
-                        console.log('🔄 Syncing redirect result with backend...');
+                        safeConsoleLog('🔄 Syncing redirect result with backend...');
                         const data = await authAPI.socialAuth(socialAuthData);
                         
                         // Create session with backend data
@@ -320,13 +321,13 @@ export const AuthProvider = ({ children }) => {
                         persistAuthSession(userData, userData.token);
                         markFreshLogin();
                         
-                        console.log('✅ Redirect session created successfully');
+                        safeConsoleLog('✅ Redirect session created successfully');
                         
                     } catch (backendError) {
-                        console.error('❌ Backend sync failed for redirect:', backendError.message);
+                        safeConsoleError('❌ Backend sync failed for redirect:', backendError.message);
                         
                         // ✅ FIX: Do NOT create fallback token - clear auth instead
-                        console.log('🔐 Clearing tokens - user needs to re-authenticate with backend');
+                        safeConsoleLog('🔐 Clearing tokens - user needs to re-authenticate with backend');
                         setUser(null);
                         setToken(null);
                         setFirebaseUser(null);
@@ -343,7 +344,7 @@ export const AuthProvider = ({ children }) => {
                     
                 } else {
                     // No redirect result - this is a fresh load OR mobile redirect timing issue
-                    console.log('📭 No redirect result found');
+                    safeConsoleLog('📭 No redirect result found');
                     
                     // ✅ MOBILE FALLBACK: Check if we had a pending redirect and auth.currentUser exists
                     // On some mobile browsers, getRedirectResult returns null but Firebase sets currentUser
@@ -354,7 +355,7 @@ export const AuthProvider = ({ children }) => {
                     if (isMobile && redirectType && redirectTimestamp && auth.currentUser) {
                         const elapsed = Date.now() - parseInt(redirectTimestamp);
                         if (elapsed < 300000) { // Within 5 minutes
-                            console.log('📱 MOBILE FALLBACK: Using auth.currentUser from pending redirect');
+                            safeConsoleLog('📱 MOBILE FALLBACK: Using auth.currentUser from pending redirect');
                             
                             const firebaseUser = auth.currentUser;
                             const providerData = firebaseUser.providerData?.[0];
@@ -378,7 +379,7 @@ export const AuthProvider = ({ children }) => {
                             );
                             
                             try {
-                                console.log('🔄 Syncing mobile fallback user with backend...');
+                                safeConsoleLog('🔄 Syncing mobile fallback user with backend...');
                                 const data = await authAPI.socialAuth(socialAuthData);
                                 
                                 const userData = {
@@ -393,11 +394,11 @@ export const AuthProvider = ({ children }) => {
                                 persistAuthSession(userData, userData.token);
                                 markFreshLogin();
                                 
-                                console.log('✅ Mobile fallback session created successfully');
+                                safeConsoleLog('✅ Mobile fallback session created successfully');
                                 setIsRedirectProcessing(false);
                                 return; // Exit early - auth complete
                             } catch (backendError) {
-                                console.error('❌ Mobile fallback backend sync failed:', backendError);
+                                safeConsoleError('❌ Mobile fallback backend sync failed:', backendError);
                                 // Continue to localStorage check as last resort
                             }
                         }
@@ -409,14 +410,14 @@ export const AuthProvider = ({ children }) => {
                         if (restored) {
                             setUser(restored.user);
                             setToken(restored.token);
-                            console.log('✅ Session restored from storage:', restored.user.email);
+                            safeConsoleLog('✅ Session restored from storage:', restored.user.email);
                         } else {
-                            console.log('📭 No existing session found - user will need to login');
+                            safeConsoleLog('📭 No existing session found - user will need to login');
                         }
                     } else if (token && isTokenExpired(token)) {
                         await tryRefreshStoredSession({ user, token });
                     } else if (token?.startsWith('firebase_')) {
-                        console.warn('⚠️ Invalid Firebase fallback token — clearing session');
+                        safeConsoleWarn('⚠️ Invalid Firebase fallback token — clearing session');
                         clearLocalSession();
                     }
                     
@@ -425,13 +426,13 @@ export const AuthProvider = ({ children }) => {
                 }
                 
             } catch (error) {
-                console.error('❌ Error during auth initialization:', error);
+                safeConsoleError('❌ Error during auth initialization:', error);
                 setIsRedirectProcessing(false); // ✅ Ensure flag is cleared even on error
             } finally {
                 setAuthInitialized(true);
                 setIsAuthProcessing(false);
                 setIsLoading(false);
-                console.log('✅ Popup-first authentication initialized');
+                safeConsoleLog('✅ Popup-first authentication initialized');
             }
         };
 
@@ -454,10 +455,9 @@ export const AuthProvider = ({ children }) => {
     const login = (userData, firebaseUserData = null) => {
         const { token: userToken, ...userInfo } = userData;
 
-        console.log('🔐 [AUTH] Login called with:', {
-            userInfo: userInfo,
+    safeConsoleLog('🔐 [AUTH] Login called with:', {
+            userInfo: { name: userInfo?.name, email: userInfo?.email, id: userInfo?.id || userInfo?._id },
             hasToken: !!userToken,
-            tokenValue: userToken ? userToken.substring(0, 20) + '...' : 'none',
             hasFirebaseUser: !!firebaseUserData
         });
 
@@ -465,7 +465,7 @@ export const AuthProvider = ({ children }) => {
         setUser(userInfo);
         setToken(userToken);
         
-        console.log('🔐 [AUTH] State updated - user and token set');
+        safeConsoleLog('🔐 [AUTH] State updated - user and token set');
 
         // Store Firebase user data if provided
         if (firebaseUserData) {
@@ -475,7 +475,7 @@ export const AuthProvider = ({ children }) => {
 
         persistAuthSession(userInfo, userToken);
             markFreshLogin();
-            console.log('✅ [AUTH] Login completed, session stored');
+            safeConsoleLog('✅ [AUTH] Login completed, session stored');
         
         // Clear loading states
         setIsLoading(false);
@@ -484,7 +484,7 @@ export const AuthProvider = ({ children }) => {
 
     // ✅ LOGOUT FUNCTION
     const logout = async () => {
-        console.log('🚪 Logout called');
+        safeConsoleLog('🚪 Logout called');
         logoutInProgressRef.current = true;
 
         // Clear storage FIRST so the Firebase null listener cannot resurrect the JWT
@@ -492,14 +492,14 @@ export const AuthProvider = ({ children }) => {
 
         try {
             await signOut(auth);
-            console.log('✅ Firebase sign out successful');
+            safeConsoleLog('✅ Firebase sign out successful');
         } catch (error) {
-            console.error('❌ Firebase sign out error:', error);
+            safeConsoleError('❌ Firebase sign out error:', error);
         } finally {
             logoutInProgressRef.current = false;
         }
 
-        console.log('✅ Logout completed');
+        safeConsoleLog('✅ Logout completed');
     };
 
     const updateUser = (userData) => {
@@ -516,7 +516,7 @@ export const AuthProvider = ({ children }) => {
     
     // Debug logging for state changes
     useEffect(() => {
-        console.log('🔄 [AUTH CONTEXT] State changed:', { 
+        safeConsoleLog('🔄 [AUTH CONTEXT] State changed:', { 
             hasUser: !!user, 
             hasToken: !!token, 
             isAuthenticated,

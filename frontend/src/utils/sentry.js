@@ -68,6 +68,18 @@ export function initSentry() {
       if (event.request?.headers?.Authorization) {
         delete event.request.headers.Authorization;
       }
+      // Strip Firebase / Google API keys from breadcrumbs & exception text
+      const redact = (text) => String(text || '')
+        .replace(/AIza[0-9A-Za-z_-]{20,}/g, '[REDACTED]')
+        .replace(/apiKey=([^&\s"']+)/gi, 'apiKey=[REDACTED]');
+      if (event.message) event.message = redact(event.message);
+      for (const ex of event.exception?.values || []) {
+        if (ex.value) ex.value = redact(ex.value);
+      }
+      for (const crumb of event.breadcrumbs || []) {
+        if (crumb.message) crumb.message = redact(crumb.message);
+        if (crumb.data?.url) crumb.data.url = redact(crumb.data.url);
+      }
       if (shouldDropSentryEvent(event, hint)) return null;
       return event;
     },

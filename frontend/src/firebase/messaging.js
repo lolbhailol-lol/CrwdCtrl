@@ -1,6 +1,7 @@
 import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from "firebase/messaging";
 import { isNativeApp } from "../utils/capacitorPlatform";
 import { app } from "./app.js";
+import { safeConsoleLog, safeConsoleWarn } from "../utils/safeLog";
 
 // ===== FIREBASE CLOUD MESSAGING (Push Notifications) =====
 // PushManager presence ≠ Firebase isSupported() (Safari/Instagram/in-app browsers).
@@ -17,14 +18,14 @@ export const ensureMessaging = async () => {
             if (!('serviceWorker' in navigator)) return null;
             const supported = await isMessagingSupported().catch(() => false);
             if (!supported) {
-                console.log('ℹ️ Firebase Messaging unsupported in this browser');
+                safeConsoleLog('Firebase Messaging unsupported in this browser');
                 return null;
             }
             messaging = getMessaging(app);
-            console.log('✅ Firebase Messaging initialized');
+            safeConsoleLog('Firebase Messaging initialized');
             return messaging;
         } catch (err) {
-            console.warn('⚠️ Firebase Messaging not available:', err?.message || err);
+            safeConsoleWarn('Firebase Messaging not available:', err);
             return null;
         }
     })();
@@ -68,7 +69,7 @@ export const getFcmTokenIfGranted = async () => {
         return await getFcmTokenWithRegistration();
     } catch (error) {
         if (import.meta.env.DEV) {
-            console.warn('Push notifications unavailable:', error?.message || error);
+            safeConsoleWarn('Push notifications unavailable:', error);
         }
         return null;
     }
@@ -96,7 +97,7 @@ export const requestNotificationPermission = async () => {
     } catch (error) {
         // Common in dev / before SW is active — push is optional
         if (import.meta.env.DEV) {
-            console.warn('Push notifications unavailable:', error?.message || error);
+            safeConsoleWarn('Push notifications unavailable:', error);
         }
         return null;
     }

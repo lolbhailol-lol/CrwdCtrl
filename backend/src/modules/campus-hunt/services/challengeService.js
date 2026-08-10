@@ -110,13 +110,26 @@ function scoringForChallenge(event, challengeNumber) {
   const raw = cfg[`clue${challengeNumber}`];
   const custom = raw?.toObject?.() || raw || {};
   const merged = { ...defaults, ...custom };
-  // Clue 2 format lock: 20s read instructions, then 3:00 solve timer + speed bands.
+
+  // Clue 2: keep Round 1 shape, but honor event scoringConfig overrides.
   if (Number(challengeNumber) === 2) {
-    merged.timerSeconds = Number(defaults.timerSeconds) || 180;
-    merged.timerStartDelaySeconds = Number(defaults.timerStartDelaySeconds) || 20;
-    merged.awardMode = defaults.awardMode || 'time_bands_total';
-    merged.allowLateSubmit = defaults.allowLateSubmit !== false;
-    merged.speedBonusBands = defaults.speedBonusBands || merged.speedBonusBands;
+    const timer = Number(merged.timerSeconds);
+    merged.timerSeconds = Number.isFinite(timer) && timer > 0
+      ? timer
+      : (Number(defaults.timerSeconds) || 180);
+
+    const delay = Number(merged.timerStartDelaySeconds);
+    merged.timerStartDelaySeconds = Number.isFinite(delay) && delay >= 0
+      ? delay
+      : (Number(defaults.timerStartDelaySeconds) || 20);
+
+    merged.awardMode = merged.awardMode || defaults.awardMode || 'time_bands_total';
+    merged.allowLateSubmit = merged.allowLateSubmit !== false;
+    merged.speedBonusBands = (
+      Array.isArray(merged.speedBonusBands) && merged.speedBonusBands.length
+        ? merged.speedBonusBands
+        : (defaults.speedBonusBands || [])
+    );
   }
   return merged;
 }

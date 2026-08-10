@@ -139,3 +139,35 @@ test('applyAward adds points', () => {
 test('theoreticalMaxScore is 325 (100+50+50+50+75)', () => {
   assert.equal(theoreticalMaxScore(DEFAULT_SCORING_CONFIG), 325);
 });
+
+test('scoringForChallenge keeps admin Clue 2 overrides', () => {
+  const { scoringForChallenge } = require('../../src/modules/campus-hunt/services/challengeService');
+  const customBands = [
+    { maxSeconds: 30, bonus: 50 },
+    { maxSeconds: 90, bonus: 25 },
+  ];
+  const event = {
+    scoringConfig: {
+      clue2: {
+        timerSeconds: 240,
+        timerStartDelaySeconds: 10,
+        awardMode: 'time_bands_total',
+        allowLateSubmit: true,
+        speedBonusBands: customBands,
+      },
+    },
+  };
+  const scoring = scoringForChallenge(event, 2);
+  assert.equal(scoring.timerSeconds, 240);
+  assert.equal(scoring.timerStartDelaySeconds, 10);
+  assert.equal(scoring.awardMode, 'time_bands_total');
+  assert.deepEqual(scoring.speedBonusBands, customBands);
+});
+
+test('scoringForChallenge falls back to Clue 2 defaults when custom missing', () => {
+  const { scoringForChallenge } = require('../../src/modules/campus-hunt/services/challengeService');
+  const scoring = scoringForChallenge({ scoringConfig: {} }, 2);
+  assert.equal(scoring.timerSeconds, DEFAULT_SCORING_CONFIG.clue2.timerSeconds);
+  assert.equal(scoring.timerStartDelaySeconds, DEFAULT_SCORING_CONFIG.clue2.timerStartDelaySeconds);
+  assert.equal(scoring.awardMode, DEFAULT_SCORING_CONFIG.clue2.awardMode);
+});

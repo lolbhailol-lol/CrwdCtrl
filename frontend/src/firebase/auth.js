@@ -1,3 +1,8 @@
+import { isNativeApp } from "../utils/capacitorPlatform";
+import { clearOAuthRedirectMarkers } from '../utils/authBootstrap';
+import { auth } from "./app.js";
+import { signInWithGoogleNative } from "./authNative.js";
+import { safeConsoleError, safeConsoleLog, safeConsoleWarn } from "../utils/safeLog";
 import {
     GoogleAuthProvider,
     FacebookAuthProvider,
@@ -13,10 +18,6 @@ import {
     setPersistence,
     browserLocalPersistence
 } from "firebase/auth";
-import { isNativeApp } from "../utils/capacitorPlatform";
-import { clearOAuthRedirectMarkers } from '../utils/authBootstrap';
-import { auth } from "./app.js";
-import { signInWithGoogleNative } from "./authNative.js";
 
 // ✅ CRITICAL: Set Firebase persistence to LOCAL (survives browser restarts)
 // Note: setPersistence must be called before any auth operations
@@ -36,11 +37,11 @@ const initializePersistence = async () => {
         persistencePromise = setPersistence(auth, browserLocalPersistence)
             .then(() => {
                 persistenceInitialized = true;
-                console.log('✅ Firebase persistence set to LOCAL');
+                safeConsoleLog('✅ Firebase persistence set to LOCAL');
                 return true;
             })
             .catch((error) => {
-                console.error('❌ Failed to set Firebase persistence:', error);
+                safeConsoleError('❌ Failed to set Firebase persistence:', error);
                 return false;
             })
             .finally(() => {
@@ -51,7 +52,7 @@ const initializePersistence = async () => {
 
         return persistencePromise;
     } catch (error) {
-        console.error('❌ Failed to set Firebase persistence:', error);
+        safeConsoleError('❌ Failed to set Firebase persistence:', error);
         return false;
     }
 };
@@ -64,10 +65,10 @@ const ensurePersistenceStarted = () => {
 
 // Create a promise that resolves when Firebase is fully initialized
 export const firebaseReady = initializePersistence().then(() => {
-    console.log('✅ Firebase initialization complete');
+    safeConsoleLog('✅ Firebase initialization complete');
     return true;
 }).catch(error => {
-    console.error('⚠️ Firebase initialization issue:', error);
+    safeConsoleError('⚠️ Firebase initialization issue:', error);
     return false;
 });
 
@@ -119,7 +120,7 @@ export const isMobileDevice = () => {
     // Final determination: UA detection is most reliable
     const isMobile = isMobileUA || isIOS || isAndroid;
     
-    console.log('📱 Mobile Detection (ENHANCED):', {
+    safeConsoleLog('📱 Mobile Detection (ENHANCED):', {
         userAgent: userAgent.substring(0, 80) + '...',
         isMobileUA,
         isIOS,
@@ -199,7 +200,7 @@ const isInAppBrowser = () => {
     const isInApp = inAppBrowsers.some(regex => regex.test(userAgent));
     
     if (isInApp) {
-        console.log('🚨 In-app browser detected:', userAgent.substring(0, 100));
+        safeConsoleLog('🚨 In-app browser detected:', userAgent.substring(0, 100));
     }
     
     return isInApp;
@@ -223,7 +224,7 @@ const getGoogleAuthErrorMessage = (error) => {
 
 // ✅ POPUP-FIRST GOOGLE SIGN-IN FOR ALL DEVICES (WITH MOBILE FIX)
 export const signInWithGoogle = async () => {
-    console.log('🚀 Starting Google authentication...');
+    safeConsoleLog('🚀 Starting Google authentication...');
     
     ensurePersistenceStarted();
 
@@ -256,7 +257,7 @@ export const signInWithGoogle = async () => {
     const isInApp = isInAppBrowser();
     const timeout = getAuthTimeout();
     
-    console.log('📱 Device & Browser Info:', {
+    safeConsoleLog('📱 Device & Browser Info:', {
         isMobile,
         isInApp,
         browser: {
@@ -276,8 +277,8 @@ export const signInWithGoogle = async () => {
     // - signInWithRedirect often fails silently or throws empty errors
     // SOLUTION: Show user a clear message to open in a real browser
     if (isInApp) {
-        console.log('🚨 IN-APP BROWSER DETECTED (Instagram, Facebook, etc.)');
-        console.log('🚨 Instagram browser detected - authentication may not work properly');
+        safeConsoleLog('🚨 IN-APP BROWSER DETECTED (Instagram, Facebook, etc.)');
+        safeConsoleLog('🚨 Instagram browser detected - authentication may not work properly');
         
         // Detect specific in-app browser for better messaging
         const userAgent = navigator.userAgent || '';
@@ -301,11 +302,11 @@ export const signInWithGoogle = async () => {
             sessionStorage.setItem('auth_redirect_type', 'google');
             sessionStorage.setItem('auth_in_app_browser', 'true');
             
-            console.log('➡️ Attempting Google redirect flow for in-app browser (may fail)...');
+            safeConsoleLog('➡️ Attempting Google redirect flow for in-app browser (may fail)...');
             
             // Set a timeout to detect if redirect failed silently
             const redirectTimeout = setTimeout(() => {
-                console.log('⚠️ Redirect did not happen within 3 seconds - likely blocked');
+                safeConsoleLog('⚠️ Redirect did not happen within 3 seconds - likely blocked');
             }, 3000);
             
             await signInWithRedirect(auth, googleProvider);
@@ -323,8 +324,8 @@ export const signInWithGoogle = async () => {
                 message: 'Redirecting to Google sign-in...'
             };
         } catch (inAppError) {
-            console.error('❌ In-app browser redirect failed:', inAppError);
-            console.error('❌ Error details:', {
+            safeConsoleError('❌ In-app browser redirect failed:', inAppError);
+            safeConsoleError('❌ Error details:', {
                 message: inAppError?.message,
                 code: inAppError?.code,
                 name: inAppError?.name,
@@ -381,13 +382,13 @@ export const signInWithGoogle = async () => {
     // DevTools emulation uses desktop popup logic, masking the real issue.
     
     if (isMobile) {
-        console.log('📱 MOBILE DEVICE - Using POPUP flow (signInWithRedirect broken on Chrome 115+/Safari 17+ due to cookie policies)');
+        safeConsoleLog('📱 MOBILE DEVICE - Using POPUP flow (signInWithRedirect broken on Chrome 115+/Safari 17+ due to cookie policies)');
         
         try {
             const result = await signInWithPopup(auth, googleProvider);
             
             if (result && result.user) {
-                console.log('✅ Mobile Google popup sign-in successful:', result.user.email);
+                safeConsoleLog('✅ Mobile Google popup sign-in successful:', result.user.email);
                 return {
                     success: true,
                     user: result.user,
@@ -402,11 +403,11 @@ export const signInWithGoogle = async () => {
                 method: 'mobile-popup-no-user'
             };
         } catch (popupError) {
-            console.error('❌ Mobile Google popup failed:', popupError);
+            safeConsoleError('❌ Mobile Google popup failed:', popupError);
             
             // Popup blocked by browser - fall back to redirect
             if (popupError.code === 'auth/popup-blocked') {
-                console.log('🔄 Mobile popup blocked, falling back to redirect...');
+                safeConsoleLog('🔄 Mobile popup blocked, falling back to redirect...');
                 try {
                     sessionStorage.setItem('auth_redirect_url', window.location.href);
                     sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
@@ -453,14 +454,14 @@ export const signInWithGoogle = async () => {
     
     // ✅ DESKTOP: Use POPUP flow (signInWithRedirect is broken on modern browsers
     // due to third-party cookie blocking in Chrome 115+, Safari 17+, Firefox 120+)
-    console.log('🖥️ DESKTOP DEVICE - Using POPUP flow');
+    safeConsoleLog('🖥️ DESKTOP DEVICE - Using POPUP flow');
     
     try {
-        console.log('➡️ Opening Google sign-in popup (desktop)...');
+        safeConsoleLog('➡️ Opening Google sign-in popup (desktop)...');
         const result = await signInWithPopup(auth, googleProvider);
         
         if (result && result.user) {
-            console.log('✅ Google popup sign-in successful:', result.user.email);
+            safeConsoleLog('✅ Google popup sign-in successful:', result.user.email);
             return {
                 success: true,
                 user: result.user,
@@ -476,11 +477,11 @@ export const signInWithGoogle = async () => {
             method: 'desktop-popup-no-user'
         };
     } catch (popupError) {
-        console.error('❌ Desktop Google popup failed:', popupError);
+        safeConsoleError('❌ Desktop Google popup failed:', popupError);
         
         // If popup is blocked, fall back to redirect
         if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
-            console.log('🔄 Popup blocked/closed, falling back to redirect flow...');
+            safeConsoleLog('🔄 Popup blocked/closed, falling back to redirect flow...');
             try {
                 sessionStorage.setItem('auth_redirect_url', window.location.href);
                 sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
@@ -498,7 +499,7 @@ export const signInWithGoogle = async () => {
                     message: 'Redirecting to Google sign-in...'
                 };
             } catch (redirectError) {
-                console.error('❌ Redirect fallback also failed:', redirectError);
+                safeConsoleError('❌ Redirect fallback also failed:', redirectError);
                 return {
                     success: false,
                     error: getGoogleAuthErrorMessage(redirectError),
@@ -519,7 +520,7 @@ export const signInWithGoogle = async () => {
 
 // ✅ REDIRECT-FIRST FACEBOOK SIGN-IN (AVOIDS COOP WARNINGS)
 export const signInWithFacebook = async () => {
-    console.log('🚀 Starting Facebook authentication...');
+    safeConsoleLog('🚀 Starting Facebook authentication...');
     
     ensurePersistenceStarted();
 
@@ -552,7 +553,7 @@ export const signInWithFacebook = async () => {
     
     // ✅ Handle in-app browsers - try redirect flow (it may work)
     if (isInApp) {
-        console.log('📱 IN-APP BROWSER DETECTED - Attempting redirect-based Facebook OAuth');
+        safeConsoleLog('📱 IN-APP BROWSER DETECTED - Attempting redirect-based Facebook OAuth');
         
         try {
             sessionStorage.setItem('auth_redirect_url', window.location.href);
@@ -560,7 +561,7 @@ export const signInWithFacebook = async () => {
             sessionStorage.setItem('auth_redirect_type', 'facebook');
             sessionStorage.setItem('auth_in_app_browser', 'true');
             
-            console.log('➡️ Initiating Facebook redirect flow for in-app browser...');
+            safeConsoleLog('➡️ Initiating Facebook redirect flow for in-app browser...');
             await signInWithRedirect(auth, facebookProvider);
             
             return {
@@ -573,7 +574,7 @@ export const signInWithFacebook = async () => {
                 message: 'Redirecting to Facebook sign-in...'
             };
         } catch (inAppError) {
-            console.error('❌ In-app browser Facebook redirect failed:', inAppError);
+            safeConsoleError('❌ In-app browser Facebook redirect failed:', inAppError);
             
             return {
                 success: false,
@@ -596,11 +597,11 @@ export const signInWithFacebook = async () => {
     const isMobileFb = isMobileDevice();
     
     if (!isMobileFb) {
-        console.log('🖥️ Using popup-first Facebook authentication (desktop)...');
+        safeConsoleLog('🖥️ Using popup-first Facebook authentication (desktop)...');
         try {
             const result = await signInWithPopup(auth, facebookProvider);
             if (result && result.user) {
-                console.log('✅ Facebook popup sign-in successful:', result.user.email);
+                safeConsoleLog('✅ Facebook popup sign-in successful:', result.user.email);
                 return {
                     success: true,
                     user: result.user,
@@ -615,7 +616,7 @@ export const signInWithFacebook = async () => {
                 method: 'desktop-popup-no-user'
             };
         } catch (popupError) {
-            console.error('❌ Facebook popup failed:', popupError);
+            safeConsoleError('❌ Facebook popup failed:', popupError);
             if (popupError.code !== 'auth/popup-blocked' && popupError.code !== 'auth/popup-closed-by-user') {
                 // Not a popup-blocked error, return the error
                 let errorMessage = 'Facebook sign-in failed. Please try again.';
@@ -624,18 +625,18 @@ export const signInWithFacebook = async () => {
                 }
                 return { success: false, error: errorMessage, code: popupError.code, method: 'desktop-popup-failed' };
             }
-            console.log('🔄 Popup blocked, falling back to redirect...');
+            safeConsoleLog('🔄 Popup blocked, falling back to redirect...');
             // Fall through to redirect below
         }
     }
     
     // Mobile: Use popup (signInWithRedirect broken on Chrome 115+/Safari 17+ due to cookie policies)
-    console.log('📱 Mobile Facebook - Using POPUP flow...');
+    safeConsoleLog('📱 Mobile Facebook - Using POPUP flow...');
     
     try {
         const result = await signInWithPopup(auth, facebookProvider);
         if (result && result.user) {
-            console.log('✅ Mobile Facebook popup sign-in successful:', result.user.email);
+            safeConsoleLog('✅ Mobile Facebook popup sign-in successful:', result.user.email);
             return {
                 success: true,
                 user: result.user,
@@ -650,11 +651,11 @@ export const signInWithFacebook = async () => {
             method: 'mobile-popup-no-user'
         };
     } catch (popupError) {
-        console.error('❌ Mobile Facebook popup failed:', popupError);
+        safeConsoleError('❌ Mobile Facebook popup failed:', popupError);
         
         // Popup blocked - fall back to redirect
         if (popupError.code === 'auth/popup-blocked') {
-            console.log('🔄 Mobile popup blocked, falling back to redirect...');
+            safeConsoleLog('🔄 Mobile popup blocked, falling back to redirect...');
             try {
                 sessionStorage.setItem('auth_redirect_url', window.location.href);
                 sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
@@ -723,7 +724,7 @@ export const registerWithEmail = async (email, password) => {
             needsVerification: true
         };
     } catch (error) {
-        console.error('Email registration error:', error);
+        safeConsoleError('Email registration error:', error);
 
         let errorMessage = 'Registration failed. Please try again.';
 
@@ -755,7 +756,7 @@ export const loginWithEmail = async (email, password) => {
             needsVerification: !user.emailVerified
         };
     } catch (error) {
-        console.error('Email login error:', error);
+        safeConsoleError('Email login error:', error);
 
         let errorMessage = 'Login failed. Please try again.';
 
@@ -811,7 +812,7 @@ export const sendVerificationEmail = async () => {
             message: 'Verification email sent successfully'
         };
     } catch (error) {
-        console.error('Send verification email error:', error);
+        safeConsoleError('Send verification email error:', error);
 
         let errorMessage = 'Failed to send verification email. Please try again.';
 
@@ -845,7 +846,7 @@ export const verifyEmail = async (actionCode) => {
             message: 'Email verified successfully'
         };
     } catch (error) {
-        console.error('Email verification error:', error);
+        safeConsoleError('Email verification error:', error);
 
         let errorMessage = 'Email verification failed. The link may be invalid or expired.';
 
@@ -878,7 +879,7 @@ export const getCurrentUser = () => {
 // This function is called by AuthContext on app initialization to check if user is returning
 // from a Google/Facebook OAuth redirect. On mobile, this is the ONLY way to get the auth result.
 export const handleRedirectResult = async () => {
-    console.log('🔍 Processing redirect result (CRITICAL for mobile OAuth)...');
+    safeConsoleLog('🔍 Processing redirect result (CRITICAL for mobile OAuth)...');
 
     // Native Capacitor apps never use Firebase web redirect OAuth
     if (isNativeApp()) {
@@ -892,7 +893,7 @@ export const handleRedirectResult = async () => {
     const redirectUrl = sessionStorage.getItem('auth_redirect_url');
     const wasInAppBrowser = sessionStorage.getItem('auth_in_app_browser');
     
-    console.log('📋 Redirect context:', {
+    safeConsoleLog('📋 Redirect context:', {
         redirectType,
         redirectTimestamp,
         redirectUrl,
@@ -906,8 +907,8 @@ export const handleRedirectResult = async () => {
     if (redirectType && redirectTimestamp && auth.currentUser) {
         const timeSinceRedirect = Date.now() - parseInt(redirectTimestamp);
         if (timeSinceRedirect < 300000) { // Within 5 minutes
-            console.log('✅ FAST PATH: auth.currentUser already exists after redirect!');
-            console.log('👤 User:', auth.currentUser.email);
+            safeConsoleLog('✅ FAST PATH: auth.currentUser already exists after redirect!');
+            safeConsoleLog('👤 User:', auth.currentUser.email);
             
             // Clear redirect markers
             sessionStorage.removeItem('auth_redirect_type');
@@ -930,7 +931,7 @@ export const handleRedirectResult = async () => {
     try {
         // ✅ CRITICAL: getRedirectResult() must run FIRST before any other Firebase auth operations
         // This retrieves the OAuth result that Firebase stored in sessionStorage during redirect
-        console.log('⏳ Calling getRedirectResult(auth)...');
+        safeConsoleLog('⏳ Calling getRedirectResult(auth)...');
         
         let result = null;
         const isInApp = isInAppBrowser();
@@ -942,29 +943,29 @@ export const handleRedirectResult = async () => {
         // ✅ MOBILE & IN-APP BROWSER FIX: Retry mechanism for slow/unreliable connections
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                console.log(`📱 Attempt ${attempt}/${maxRetries} to get redirect result...`);
+                safeConsoleLog(`📱 Attempt ${attempt}/${maxRetries} to get redirect result...`);
                 
                 // ✅ MOBILE FIX: Wait before each attempt on mobile
                 // Real mobile browsers often need time to restore state
                 if (isMobile) {
                     const waitTime = attempt === 1 ? 500 : 300 * attempt;
-                    console.log(`⏳ Mobile: waiting ${waitTime}ms before attempt...`);
+                    safeConsoleLog(`⏳ Mobile: waiting ${waitTime}ms before attempt...`);
                     await new Promise(resolve => setTimeout(resolve, waitTime));
                 }
                 
                 result = await getRedirectResult(auth);
                 
                 if (result && result.user) {
-                    console.log(`✅ Got result on attempt ${attempt}`);
+                    safeConsoleLog(`✅ Got result on attempt ${attempt}`);
                     break;
                 }
                 
                 // ✅ Also check auth.currentUser as backup (sometimes redirect result is null but user is set)
                 if (!result?.user && auth.currentUser && redirectType) {
-                    console.log('📱 No redirect result but auth.currentUser exists!');
+                    safeConsoleLog('📱 No redirect result but auth.currentUser exists!');
                     const timeSinceRedirect = redirectTimestamp ? (Date.now() - parseInt(redirectTimestamp)) : Infinity;
                     if (timeSinceRedirect < 300000) { // Within 5 minutes
-                        console.log('✅ Using auth.currentUser as redirect result (mobile fallback)');
+                        safeConsoleLog('✅ Using auth.currentUser as redirect result (mobile fallback)');
                         result = { user: auth.currentUser, credential: null };
                         break;
                     }
@@ -972,21 +973,21 @@ export const handleRedirectResult = async () => {
                 
                 // ✅ If no result yet and we have a pending redirect, wait and retry
                 if (!result?.user && redirectType && attempt < maxRetries) {
-                    console.log(`⏳ No result yet, will retry... (attempt ${attempt}/${maxRetries})`);
+                    safeConsoleLog(`⏳ No result yet, will retry... (attempt ${attempt}/${maxRetries})`);
                 }
             } catch (attemptError) {
-                console.warn(`⚠️ Attempt ${attempt} failed:`, attemptError.code, attemptError.message);
+                safeConsoleWarn(`⚠️ Attempt ${attempt} failed:`, attemptError.code, attemptError.message);
                 
                 if (attempt < maxRetries) {
                     // ✅ Progressive backoff: wait longer on each retry
                     const baseWait = isMobile ? 1000 : 500;
                     const waitTime = baseWait * attempt;
-                    console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+                    safeConsoleLog(`⏳ Waiting ${waitTime}ms before retry...`);
                     await new Promise(resolve => setTimeout(resolve, waitTime));
                 } else {
                     // On last attempt, check auth.currentUser before giving up
                     if (auth.currentUser && redirectType) {
-                        console.log('✅ Last resort: using auth.currentUser');
+                        safeConsoleLog('✅ Last resort: using auth.currentUser');
                         result = { user: auth.currentUser, credential: null };
                     } else {
                         throw attemptError;
@@ -996,8 +997,8 @@ export const handleRedirectResult = async () => {
         }
         
         if (result && result.user) {
-            console.log('✅ REDIRECT RESULT FOUND - User authenticated successfully!');
-            console.log('👤 User details:', {
+            safeConsoleLog('✅ REDIRECT RESULT FOUND - User authenticated successfully!');
+            safeConsoleLog('👤 User details:', {
                 email: result.user.email,
                 uid: result.user.uid,
                 displayName: result.user.displayName,
@@ -1022,13 +1023,13 @@ export const handleRedirectResult = async () => {
                 method: wasInAppBrowser === 'true' ? 'in-app-redirect-result' : 'redirect-result'
             };
         } else {
-            console.log('ℹ️ No redirect result found');
+            safeConsoleLog('ℹ️ No redirect result found');
             
             // If we had a pending redirect but no result, it might have expired or failed
             if (redirectType && redirectTimestamp) {
                 const elapsed = Date.now() - parseInt(redirectTimestamp);
                 if (elapsed > 300000) { // 5 minutes
-                    console.warn('⚠️ Redirect seems to have timed out (>5 min)');
+                    safeConsoleWarn('⚠️ Redirect seems to have timed out (>5 min)');
                     sessionStorage.removeItem('auth_redirect_type');
                     sessionStorage.removeItem('auth_redirect_timestamp');
                     sessionStorage.removeItem('auth_redirect_url');
@@ -1039,8 +1040,8 @@ export const handleRedirectResult = async () => {
             return null; // No redirect result - this is normal for fresh page loads
         }
     } catch (error) {
-        console.error('❌ Redirect result error:', error);
-        console.error('Error details:', {
+        safeConsoleError('❌ Redirect result error:', error);
+        safeConsoleError('Error details:', {
             code: error.code,
             message: error.message,
             name: error.name
@@ -1048,7 +1049,7 @@ export const handleRedirectResult = async () => {
         
         // ✅ LAST RESORT: Check if auth.currentUser exists despite the error
         if (auth.currentUser && redirectType) {
-            console.log('✅ Error occurred but auth.currentUser exists - using it');
+            safeConsoleLog('✅ Error occurred but auth.currentUser exists - using it');
             
             sessionStorage.removeItem('auth_redirect_type');
             sessionStorage.removeItem('auth_redirect_timestamp');
